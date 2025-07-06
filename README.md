@@ -5,10 +5,8 @@
 > and **deploy** to real Crazyflie quadcopters. Let your code take flight!
 
 [![GPLv3 License](https://img.shields.io/badge/License-GPL_v3-green.svg)](https://choosealicense.com/licenses/gpl-3.0/)
-[![PyPI Version](https://img.shields.io/pypi/v/webeeblocks)](https://pypi.org/project/webeeblocks/)
-[![Webots Compatibility](https://img.shields.io/badge/Webots-2023b%2B-blue)](https://cyberbotics.com)
-
-![WebeeBlocks Workflow](docs/images/workflow-diagram.png) <!-- Ajouter votre diagramme ici -->
+[![Python Version](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org/)
+[![Webots Compatibility](https://img.shields.io/badge/Webots-2025a%2B-blue)](https://cyberbotics.com)
 
 ## Why "WebeeBlocks"?
 
@@ -28,7 +26,8 @@
 - **🔓 100% Open Source**  
   Licence GPLv3 - Pas de lock-in, pas de services cloud
 
-Structure du projet :
+## Structure du projet
+```markdown
 crazyflie-blockly/
 ├── blockly/                  # Version stable de Blockly (pré-incluse)
 │   ├── blockly_compressed.js
@@ -47,3 +46,4 @@ crazyflie-blockly/
 │   └── README_WINDOWS.txt    # Instructions Windows
 ├── .gitmodules               # Configuration sous-module
 └── README.md                 # Documentation principale
+```
