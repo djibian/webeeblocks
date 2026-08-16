@@ -9,8 +9,10 @@ from pathlib import Path
 import websockets
 
 ROOT = Path(__file__).resolve().parent
-PROGRAMS = (ROOT / "../Blockly_Programs").resolve()
-CONTROLLER = (ROOT / "../my_controller/my_controller.py").resolve()
+SUPERVISOR_DIR = ROOT.parent
+CONTROLLERS_DIR = SUPERVISOR_DIR.parent
+PROGRAMS = (CONTROLLERS_DIR / "Blockly_Programs").resolve()
+CONTROLLER = (CONTROLLERS_DIR / "my_controller/my_controller.py").resolve()
 SMOKE_NAME = "__ci_protocol_smoke__"
 SMOKE_XML = PROGRAMS / f"{SMOKE_NAME}.xml"
 SMOKE_CODE = "print('webeeblocks-ci-protocol-smoke')\n"
@@ -60,7 +62,10 @@ async def exercise_protocol():
 def main():
     backup = ROOT / "my_controller.py.ci-backup"
     shutil.copy2(CONTROLLER, backup)
-    server = subprocess.Popen([str(ROOT / "blocklyServer")], cwd=ROOT)
+    # The historical supervisor launches ./blocklyServer/blocklyServer while its
+    # current working directory is controllers/supervisor. Preserve that exact
+    # runtime contract so the sidecar's ../ paths resolve as they do in Webots.
+    server = subprocess.Popen([str(ROOT / "blocklyServer")], cwd=SUPERVISOR_DIR)
     try:
         wait_for_port()
         asyncio.run(exercise_protocol())
