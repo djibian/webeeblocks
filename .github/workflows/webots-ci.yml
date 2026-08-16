@@ -41,6 +41,7 @@ jobs:
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
       - name: Rebuild and exercise Blockly sidecar protocol
+        shell: bash
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -50,6 +51,7 @@ jobs:
             2>&1 | tee ci-artifacts/blockly-server-protocol.log
 
       - name: Rebuild supervisor for Webots R2025a
+        shell: bash
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
