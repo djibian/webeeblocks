@@ -77,8 +77,8 @@ DEF ROBOT Pioneer3dx {
       translation 0.01 0 0
       rotation -1 0 0 1.5708
       name "color sensor"
-      width 1
-      height 1
+      width 10
+      height 10
     }
     DistanceSensor {
       lookupTable [
