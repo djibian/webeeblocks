@@ -195,7 +195,6 @@ document.getElementById("projectTitle").addEventListener("keydown", (e) => {
 });
 
 window.onload = function() {
-    window.robotWindow = webots.window("Blockly");
     window.robotWindow.receive = receiveMessage;
 }
 
