@@ -8,6 +8,7 @@ serve as our compatibility oracle while the Webots R2025a migration progresses.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
@@ -40,31 +41,28 @@ class ScriptParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() != "script":
             return
-        attributes = dict(attrs)
-        src = attributes.get("src")
+        src = dict(attrs).get("src")
         if src:
             self.sources.append(src)
 
 
-def local_script_paths() -> tuple[list[Path], list[Path]]:
+def loaded_script_paths() -> list[Path]:
     parser = ScriptParser()
     parser.feed(HTML_PATH.read_text(encoding="utf-8"))
-
-    block_sources: list[Path] = []
-    generator_sources: list[Path] = []
+    paths: list[Path] = []
     for source in parser.sources:
-        normalized = source.replace("\\", "/")
         path = (ROBOT_WINDOW_DIR / source).resolve()
         try:
             path.relative_to(ROBOT_WINDOW_DIR.resolve())
         except ValueError as exc:
             raise RuntimeError(f"script escapes Robot Window directory: {source}") from exc
+        paths.append(path)
+    return paths
 
-        if "/blocks/" in normalized:
-            block_sources.append(path)
-        if "/generators/python/" in normalized:
-            generator_sources.append(path)
 
+def categorized_sources(paths: list[Path]) -> tuple[list[Path], list[Path]]:
+    block_sources = [path for path in paths if "/blocks/" in path.as_posix()]
+    generator_sources = [path for path in paths if "/generators/python/" in path.as_posix()]
     return block_sources, generator_sources
 
 
@@ -93,9 +91,26 @@ def definitions_in_sources(paths: list[Path]) -> set[str]:
 def generators_in_sources(paths: list[Path]) -> set[str]:
     generators: set[str] = set()
     for path in paths:
-        text = path.read_text(encoding="utf-8")
-        generators.update(PYTHON_REGISTRY_RE.findall(text))
+        generators.update(PYTHON_REGISTRY_RE.findall(path.read_text(encoding="utf-8")))
     return generators
+
+
+def javascript_syntax_failures(paths: list[Path]) -> list[str]:
+    failures: list[str] = []
+    for path in paths:
+        if not path.is_file() or path.suffix != ".js":
+            continue
+        result = subprocess.run(
+            ["node", "--check", str(path)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        if result.returncode:
+            output = result.stdout.strip().replace("\n", " | ")
+            failures.append(f"JavaScript syntax error in {path.relative_to(ROOT)}: {output}")
+    return failures
 
 
 def main() -> int:
@@ -103,10 +118,10 @@ def main() -> int:
 
     if not HTML_PATH.is_file():
         failures.append(f"missing Robot Window entry point: {HTML_PATH.relative_to(ROOT)}")
-        block_sources: list[Path] = []
-        generator_sources: list[Path] = []
+        loaded_sources: list[Path] = []
     else:
-        block_sources, generator_sources = local_script_paths()
+        loaded_sources = loaded_script_paths()
+    block_sources, generator_sources = categorized_sources(loaded_sources)
 
     for label, sources in (("block", block_sources), ("Python generator", generator_sources)):
         if not sources:
@@ -114,6 +129,11 @@ def main() -> int:
         for source in sources:
             if not source.is_file():
                 failures.append(f"referenced {label} source is missing: {source.relative_to(ROOT)}")
+
+    for source in loaded_sources:
+        if not source.is_file():
+            failures.append(f"script loaded by blockly.html is missing: {source.relative_to(ROOT)}")
+    failures.extend(javascript_syntax_failures(loaded_sources))
 
     used_by_program: dict[str, set[str]] = {}
     all_used: set[str] = set()
@@ -146,6 +166,7 @@ def main() -> int:
     print(f"  fixtures required: {len(EXPECTED_PROGRAMS)}")
     print(f"  fixtures parsed:   {len(used_by_program)}")
     print(f"  unique block types used: {len(all_used)}")
+    print(f"  JavaScript files loaded by blockly.html: {len([p for p in loaded_sources if p.suffix == '.js'])}")
     print(f"  loaded block source files: {len(existing_block_sources)}")
     print(f"  loaded Python generator files: {len(existing_generator_sources)}")
     for filename in EXPECTED_PROGRAMS:
@@ -158,7 +179,7 @@ def main() -> int:
             print(f"- {failure}", file=sys.stderr)
         return 1
 
-    print("\nPASS: all six historical XML fixtures are well-formed and every used block type has a definition and Python generator loaded by blockly.html.")
+    print("\nPASS: all six historical XML fixtures are well-formed, every loaded JavaScript file parses, and every used block type has a definition and Python generator loaded by blockly.html.")
     return 0
 
 
