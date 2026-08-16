@@ -53,6 +53,7 @@ jobs:
       - name: Rebuild and exercise Blockly sidecar protocol
         shell: bash
         run: |
+          set -o pipefail
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor/blocklyServer \
@@ -63,6 +64,7 @@ jobs:
       - name: Rebuild supervisor for Webots R2025a
         shell: bash
         run: |
+          set -o pipefail
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor \
@@ -74,6 +76,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          set -o pipefail
 
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -103,6 +106,35 @@ jobs:
           fi
 
           exit "$code"
+
+      - name: Validate Webots runtime diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-empty.log
+
+          if grep -Fq 'has different size in shared object' "$LOG"; then
+            echo "::error::Supervisor ABI mismatch detected."
+            grep -F 'has different size in shared object' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'ERROR: Missing declaration for' "$LOG"; then
+            echo "::error::World still has unresolved EXTERNPROTO declarations."
+            grep -F 'ERROR: Missing declaration for' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: supervisor: Starting controller:' "$LOG"; then
+            echo "::error::Supervisor controller did not start."
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo "::error::Historical robot controller did not start."
+            exit 1
+          fi
+
+          echo 'PASS: no migration/ABI error and both historical controllers started.'
 
       - name: Upload Webots diagnostics
         if: always()
