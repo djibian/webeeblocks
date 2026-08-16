@@ -28,6 +28,14 @@ jobs:
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
+      - name: Rebuild Blockly sidecar for current Linux toolchain
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/supervisor/blocklyServer \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'rm -f blocklyServer && make'
+
       - name: Rebuild supervisor for Webots R2025a
         run: |
           docker run --rm \
@@ -63,8 +71,7 @@ jobs:
           echo "Webots exit code: $code"
 
           # 124 = timeout normal.
-          # 137 = Webots a dû être tué après la fenêtre de test.
-          # Dans les deux cas, il est resté vivant pendant le smoke test.
+          # 137 = Webots a dû être tué after the diagnostic window.
           if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
             echo "Webots remained alive for the diagnostic window."
             exit 0
