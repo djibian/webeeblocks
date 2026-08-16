@@ -19,7 +19,7 @@ permissions:
 jobs:
   webots-smoke:
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 7
 
     steps:
       - name: Checkout repository
@@ -153,6 +153,81 @@ jobs:
           fi
 
           echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
+
+      - name: Export historical BoxWithDistSensor controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-controller-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithDistSensor.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Execute generated historical controller in box challenge
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/boxChallenge.wbt' \
+            2>&1 | tee ci-artifacts/webots-box-challenge.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-box-challenge-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            echo 'Generated historical controller remained active for the diagnostic window.'
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore controller after box challenge
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-controller-backup.py ]; then
+            mv controllers/my_controller/.ci-controller-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate generated historical controller diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-box-challenge.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error in boxChallenge.wbt.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Generated historical Blockly Python raised an exception.'
+            grep -A20 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: supervisor: Starting controller:' "$LOG"; then
+            echo '::error::Supervisor did not start in boxChallenge.wbt.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated historical controller did not start in boxChallenge.wbt.'
+            exit 1
+          fi
+
+          echo 'PASS: Blockly-generated BoxWithDistSensor Python started in boxChallenge.wbt under R2025a without Webots or Python runtime errors.'
 
       - name: Prepare controller restart smoke fixture
         run: python3 controllers/ci_restart_supervisor/restart_smoke.py prepare
