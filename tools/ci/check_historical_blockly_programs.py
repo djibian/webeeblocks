@@ -7,6 +7,7 @@ serve as our compatibility oracle while the Webots R2025a migration progresses.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -19,14 +20,17 @@ PROGRAM_DIR = ROOT / "controllers" / "Blockly_Programs"
 ROBOT_WINDOW_DIR = ROOT / "plugins" / "robot_windows" / "blockly"
 HTML_PATH = ROBOT_WINDOW_DIR / "blockly.html"
 
-EXPECTED_PROGRAMS = (
-    "BoxWithDistSensor.xml",
-    "BoxWithEncoders.xml",
-    "BoxWithGyroGPS.xml",
-    "BoxWithLightSensor.xml",
-    "myFile.xml",
-    "sensorProbing.xml",
-)
+# Git blob IDs of the untouched historical fixtures. If a pedagogical example
+# needs to evolve, add a new fixture rather than silently rewriting this oracle.
+EXPECTED_PROGRAM_BLOBS = {
+    "BoxWithDistSensor.xml": "790a65387c1694e9751873da4b093ed1fa89808a",
+    "BoxWithEncoders.xml": "c1a7275701cd9cecb6f3e4364b45ece87c13e0cd",
+    "BoxWithGyroGPS.xml": "0e4cc6d9a09c957cab88f927d289e66c07ebf8b4",
+    "BoxWithLightSensor.xml": "da68a043b7f18883a8e02748e531a0e1ce1d2b73",
+    "myFile.xml": "cd87c89464700deba7b900aee0baf615881730d5",
+    "sensorProbing.xml": "e836921a2d81e7726375e2cedd98e9cf4a0b1816",
+}
+EXPECTED_PROGRAMS = tuple(EXPECTED_PROGRAM_BLOBS)
 
 TYPE_JSON_RE = re.compile(r"[\"']type[\"']\s*:\s*[\"']([^\"']+)[\"']")
 BLOCK_REGISTRY_RE = re.compile(r"Blockly\.Blocks\s*\[\s*[\"']([^\"']+)[\"']\s*\]")
@@ -44,6 +48,12 @@ class ScriptParser(HTMLParser):
         src = dict(attrs).get("src")
         if src:
             self.sources.append(src)
+
+
+def git_blob_sha(path: Path) -> str:
+    data = path.read_bytes()
+    header = f"blob {len(data)}\0".encode()
+    return hashlib.sha1(header + data).hexdigest()
 
 
 def loaded_script_paths() -> list[Path]:
@@ -137,11 +147,21 @@ def main() -> int:
 
     used_by_program: dict[str, set[str]] = {}
     all_used: set[str] = set()
+    fixture_blobs: dict[str, str] = {}
     for filename in EXPECTED_PROGRAMS:
         path = PROGRAM_DIR / filename
         if not path.is_file():
             failures.append(f"missing historical fixture: {path.relative_to(ROOT)}")
             continue
+
+        actual_blob = git_blob_sha(path)
+        fixture_blobs[filename] = actual_blob
+        expected_blob = EXPECTED_PROGRAM_BLOBS[filename]
+        if actual_blob != expected_blob:
+            failures.append(
+                f"historical fixture changed: {filename} has blob {actual_blob}, expected {expected_blob}"
+            )
+
         try:
             types = block_types_in_program(path)
         except (ET.ParseError, RuntimeError) as exc:
@@ -171,7 +191,8 @@ def main() -> int:
     print(f"  loaded Python generator files: {len(existing_generator_sources)}")
     for filename in EXPECTED_PROGRAMS:
         types = sorted(used_by_program.get(filename, set()))
-        print(f"  {filename}: {len(types)} types" + (f" -> {', '.join(types)}" if types else ""))
+        blob = fixture_blobs.get(filename, "missing")
+        print(f"  {filename}: blob={blob}, {len(types)} types" + (f" -> {', '.join(types)}" if types else ""))
 
     if failures:
         print("\nFAIL", file=sys.stderr)
@@ -179,7 +200,7 @@ def main() -> int:
             print(f"- {failure}", file=sys.stderr)
         return 1
 
-    print("\nPASS: all six historical XML fixtures are well-formed, every loaded JavaScript file parses, and every used block type has a definition and Python generator loaded by blockly.html.")
+    print("\nPASS: the six original XML fixtures are byte-for-byte preserved, well-formed, every loaded JavaScript file parses, and every used block type has a definition and Python generator loaded by blockly.html.")
     return 0
 
 
