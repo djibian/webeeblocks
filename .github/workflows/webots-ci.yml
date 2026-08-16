@@ -28,6 +28,9 @@ jobs:
       - name: Validate historical Blockly programs
         run: python3 tools/ci/check_historical_blockly_programs.py
 
+      - name: Execute historical Blockly browser oracle
+        run: python3 tools/ci/run_historical_blockly_oracle.py
+
       - name: Prepare diagnostics directory
         run: mkdir -p ci-artifacts
 
