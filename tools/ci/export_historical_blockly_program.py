@@ -18,6 +18,7 @@ from run_historical_blockly_oracle import (
 PRINT_OBSERVER_MARKERS = {
     "BoxWithDistSensor.xml": "WEBEEBLOCKS_CI_BOX_DISTANCE_BEHAVIOR_EXECUTED",
     "BoxWithGyroGPS.xml": "WEBEEBLOCKS_CI_BOX_GYRO_GPS_BEHAVIOR_EXECUTED",
+    "BoxWithLightSensor.xml": "WEBEEBLOCKS_CI_BOX_LIGHT_SENSOR_BEHAVIOR_EXECUTED",
 }
 
 

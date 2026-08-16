@@ -1,5 +1,15 @@
-#VRML_SIM R2020a utf8
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/apartment_structure/protos/Wall.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/adept/pioneer3/protos/Pioneer3dx.proto"
+
 WorldInfo {
+  coordinateSystem "NUE"
 }
 Viewpoint {
   orientation -0.9999773783711899 -0.004807906004672923 0.004703911747918469 0.9881255615201564
@@ -66,21 +76,21 @@ DEF ROBOT Pioneer3dx {
     Camera {
       translation 0.01 0 0
       rotation -1 0 0 1.5708
-      name "light sensor"
-      width 1
-      height 1
+      name "color sensor"
+      width 10
+      height 10
     }
     DistanceSensor {
       lookupTable [
         0 0 0
-				10 1000 0
+        10 1000 0
       ]
     }
     GPS {
     }
     Gyro {
     }
-		Camera {
+    Camera {
       translation 0 0 -0.14
       rotation 0 0 1 0
       recognition Recognition {
