@@ -1,0 +1,64 @@
+name: Webots R2025a smoke test
+
+on:
+  push:
+    branches:
+      - webots-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webots-smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Run historical empty world in Webots R2025a
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          set +e
+
+          timeout --signal=TERM 90s docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/empty.wbt' \
+            2>&1 | tee ci-artifacts/webots-empty.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+
+          echo "$code" | tee ci-artifacts/webots-exit-code.txt
+          echo "Webots exit code: $code"
+
+          # Le monde historique ne sait pas encore s'arrêter tout seul.
+          # Pour ce premier diagnostic, rester vivant jusqu'au timeout
+          # signifie déjà que Webots a pu charger et démarrer le monde.
+          if [ "$code" -eq 124 ]; then
+            echo "Webots remained alive for the diagnostic window."
+            exit 0
+          fi
+
+          exit "$code"
+
+      - name: Upload Webots diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webots-r2025a-smoke-logs
+          path: ci-artifacts/
+          if-no-files-found: error
