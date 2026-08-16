@@ -25,6 +25,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate historical Blockly programs
+        run: python3 tools/ci/check_historical_blockly_programs.py
+
       - name: Prepare diagnostics directory
         run: mkdir -p ci-artifacts
 
