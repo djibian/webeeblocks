@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - webots-ci
+  pull_request:
+    branches:
+      - webots-ci
   workflow_dispatch:
 
 concurrency:
@@ -24,6 +27,14 @@ jobs:
 
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild supervisor for Webots R2025a
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/supervisor \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make'
 
       - name: Run historical empty world in Webots R2025a
         shell: bash
