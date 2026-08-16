@@ -58,7 +58,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor/blocklyServer \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev python3-pip && python3 -m pip install --no-cache-dir websockets==10.4 && rm -f blocklyServer && make && python3 protocol_smoke.py' \
+            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev python3-pip && python3 -m pip install --no-cache-dir websockets==10.4 && rm -f blocklyServer && make && python3 protocol_smoke.py && python3 execution_smoke.py prepare' \
             2>&1 | tee ci-artifacts/blockly-server-protocol.log
 
       - name: Rebuild supervisor for Webots R2025a
@@ -107,6 +107,10 @@ jobs:
 
           exit "$code"
 
+      - name: Restore historical robot controller
+        if: always()
+        run: python3 controllers/supervisor/blocklyServer/execution_smoke.py restore
+
       - name: Validate Webots runtime diagnostics
         shell: bash
         run: |
@@ -134,7 +138,12 @@ jobs:
             exit 1
           fi
 
-          echo 'PASS: no migration/ABI error and both historical controllers started.'
+          if ! grep -Fq 'WEBEEBLOCKS_CI_SUBMITTED_CONTROLLER_EXECUTED' "$LOG"; then
+            echo "::error::Controller installed through historical SEND_CODE was not executed by Webots."
+            exit 1
+          fi
+
+          echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
 
       - name: Upload Webots diagnostics
         if: always()
