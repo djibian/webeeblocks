@@ -21,6 +21,10 @@ PRINT_OBSERVER_MARKERS = {
     "BoxWithLightSensor.xml": "WEBEEBLOCKS_CI_BOX_LIGHT_SENSOR_BEHAVIOR_EXECUTED",
 }
 
+COMPLETION_OBSERVER_MARKERS = {
+    "BoxWithEncoders.xml": "WEBEEBLOCKS_CI_BOX_ENCODERS_PROGRAM_COMPLETED",
+}
+
 
 def instrument_print_observer(code: str, program: str, marker: str) -> str:
     """Run exact generated source while requiring a Blockly text_print path to execute."""
@@ -62,6 +66,26 @@ if not _webeeblocks_ci_observed_print:
 '''
 
 
+def instrument_completion_observer(code: str, program: str, marker: str) -> str:
+    """Run exact generated source and emit a marker only after it completes."""
+
+    return f'''# CI-only completion observer around exact Blockly-generated source.
+_WEBEEBLOCKS_CI_GENERATED_SOURCE = {code!r}
+
+exec(
+    compile(
+        _WEBEEBLOCKS_CI_GENERATED_SOURCE,
+        "<Blockly:{program}>",
+        "exec",
+    ),
+    globals(),
+    globals(),
+)
+
+print("{marker}")
+'''
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("program", choices=tuple(EXPECTED_PYTHON_SHA256))
@@ -98,8 +122,14 @@ def main() -> int:
         )
 
     compile(code, f"<Blockly:{args.program}>", "exec")
-    marker = PRINT_OBSERVER_MARKERS.get(args.program)
-    output_code = instrument_print_observer(code, args.program, marker) if marker else code
+    print_marker = PRINT_OBSERVER_MARKERS.get(args.program)
+    completion_marker = COMPLETION_OBSERVER_MARKERS.get(args.program)
+    if print_marker:
+        output_code = instrument_print_observer(code, args.program, print_marker)
+    elif completion_marker:
+        output_code = instrument_completion_observer(code, args.program, completion_marker)
+    else:
+        output_code = code
     compile(output_code, f"<CI:{args.program}>", "exec")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
