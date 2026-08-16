@@ -194,7 +194,9 @@ document.getElementById("projectTitle").addEventListener("keydown", (e) => {
     if(e.key === "Enter") e.preventDefault();
 });
 
-window.onload = function() {
+window.onload = async function() {
+    const module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
+    window.robotWindow = new module.default();
     window.robotWindow.receive = receiveMessage;
 }
 
