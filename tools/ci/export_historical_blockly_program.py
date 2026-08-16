@@ -34,7 +34,9 @@ _webeeblocks_ci_observed_print = False
 
 def _webeeblocks_ci_print(*args, **kwargs):
     global _webeeblocks_ci_observed_print
-    _webeeblocks_ci_observed_print = True
+    if not _webeeblocks_ci_observed_print:
+        _webeeblocks_ci_observed_print = True
+        _webeeblocks_ci_original_print("{marker}")
     return _webeeblocks_ci_original_print(*args, **kwargs)
 
 
@@ -56,8 +58,6 @@ if not _webeeblocks_ci_observed_print:
     raise RuntimeError(
         "{program} exited without reaching its Blockly text_print behavior"
     )
-
-_webeeblocks_ci_original_print("{marker}")
 '''
 
 
