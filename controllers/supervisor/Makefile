@@ -46,7 +46,6 @@
 ### CFLAGS = -Wno-unused-result
 ###
 ### ---- Linked libraries ----
-### if your program needs additional libraries:
 ### INCLUDE = -I"/my_library_path/include"
 ### LIBRARIES = -L"/path/to/my/library" -lmy_library -lmy_other_library
 ###
@@ -74,7 +73,7 @@ ifeq ($(detected_OS),Windows)
 	CFLAGS = -D WINDOWS
 endif
 
-space :=
-space +=
-WEBOTS_HOME_PATH=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
+null :=
+space := $(null) $(null)
+WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
 include $(WEBOTS_HOME_PATH)/resources/Makefile.include
