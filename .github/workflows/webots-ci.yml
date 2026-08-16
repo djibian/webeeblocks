@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - webots-ci
+  pull_request:
+    branches:
+      - webots-ci
   workflow_dispatch:
 
 concurrency:
