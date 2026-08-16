@@ -9,6 +9,7 @@ Python with the current interpreter.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
@@ -168,9 +169,11 @@ def main() -> int:
             except SyntaxError as exc:
                 print(f"FAIL: generated Python is invalid for {name}: {exc}", file=sys.stderr)
                 return 1
+        code_bytes = code.encode("utf-8")
+        digest = hashlib.sha256(code_bytes).hexdigest()
         print(
             f"  {name}: topBlocks={entry.get('topBlocks')}, "
-            f"pythonBytes={len(code.encode('utf-8'))}"
+            f"pythonBytes={len(code_bytes)}, sha256={digest}"
         )
 
     if nonempty != 5:
