@@ -26,7 +26,7 @@ Blockly.Python['camera_getnumobj'] = function(block) {
 Blockly.Python['camera_getobjcolors'] = function(block) {
   var value_obj = Blockly.Python.valueToCode(block, 'obj', Blockly.Python.ORDER_ATOMIC);
   // TODO: Assemble Python into code variable.
-  var code = value_obj + '.get_colors()';
+  var code = value_obj + '.getColors()';
   // TODO: Change ORDER_NONE to the correct strength.
   return [code, Blockly.Python.ORDER_NONE];
 };
@@ -34,15 +34,16 @@ Blockly.Python['camera_getobjcolors'] = function(block) {
 Blockly.Python['camera_getobjpos'] = function(block) {
   var value_obj = Blockly.Python.valueToCode(block, 'obj', Blockly.Python.ORDER_ATOMIC);
   // TODO: Assemble Python into code variable.
-  var code = value_obj + '.get_position()';
+  var code = value_obj + '.getPosition()';
   // TODO: Change ORDER_NONE to the correct strength.
   return [code, Blockly.Python.ORDER_NONE];
 };
 
 Blockly.Python['camera_getobjang'] = function(block) {
   var value_obj = Blockly.Python.valueToCode(block, 'obj', Blockly.Python.ORDER_ATOMIC);
-  // TODO: Assemble Python into code variable.
-  var code = 'getObjAng(' + value_obj + '.get_position())';
+  // Keep the historical angle calculation for the NUE compatibility milestone;
+  // only update the CameraRecognitionObject API name here.
+  var code = 'getObjAng(' + value_obj + '.getPosition())';
   // TODO: Change ORDER_NONE to the correct strength.
   return [code, Blockly.Python.ORDER_NONE];
 };
