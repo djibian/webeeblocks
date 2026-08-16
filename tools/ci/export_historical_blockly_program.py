@@ -15,16 +15,14 @@ from run_historical_blockly_oracle import (
     run_browser,
 )
 
+PRINT_OBSERVER_MARKERS = {
+    "BoxWithDistSensor.xml": "WEBEEBLOCKS_CI_BOX_DISTANCE_BEHAVIOR_EXECUTED",
+    "BoxWithGyroGPS.xml": "WEBEEBLOCKS_CI_BOX_GYRO_GPS_BEHAVIOR_EXECUTED",
+}
 
-def instrument_box_distance_controller(code: str) -> str:
-    """Run the exact generated source while requiring its historical print block to execute.
 
-    BoxWithDistSensor contains a Blockly ``text_print`` block inside the distance-sensor
-    loop.  The CI wrapper observes calls to Python's builtin ``print`` without changing
-    the generated source bytes, then fails after execution if that Blockly-generated
-    behavior was never reached.  This prevents the supervisor timeout from creating a
-    false-positive end-to-end result when ``my_controller`` exits too early.
-    """
+def instrument_print_observer(code: str, program: str, marker: str) -> str:
+    """Run exact generated source while requiring a Blockly text_print path to execute."""
 
     return f'''# CI-only observer around exact Blockly-generated source.
 import builtins as _webeeblocks_ci_builtins
@@ -36,7 +34,9 @@ _webeeblocks_ci_observed_print = False
 
 def _webeeblocks_ci_print(*args, **kwargs):
     global _webeeblocks_ci_observed_print
-    _webeeblocks_ci_observed_print = True
+    if not _webeeblocks_ci_observed_print:
+        _webeeblocks_ci_observed_print = True
+        _webeeblocks_ci_original_print("{marker}")
     return _webeeblocks_ci_original_print(*args, **kwargs)
 
 
@@ -45,7 +45,7 @@ try:
     exec(
         compile(
             _WEBEEBLOCKS_CI_GENERATED_SOURCE,
-            "<Blockly:BoxWithDistSensor.xml>",
+            "<Blockly:{program}>",
             "exec",
         ),
         globals(),
@@ -56,10 +56,8 @@ finally:
 
 if not _webeeblocks_ci_observed_print:
     raise RuntimeError(
-        "BoxWithDistSensor controller exited without reaching its Blockly text_print sensor behavior"
+        "{program} exited without reaching its Blockly text_print behavior"
     )
-
-_webeeblocks_ci_original_print("WEBEEBLOCKS_CI_BOX_DISTANCE_BEHAVIOR_EXECUTED")
 '''
 
 
@@ -99,11 +97,8 @@ def main() -> int:
         )
 
     compile(code, f"<Blockly:{args.program}>", "exec")
-    output_code = (
-        instrument_box_distance_controller(code)
-        if args.program == "BoxWithDistSensor.xml"
-        else code
-    )
+    marker = PRINT_OBSERVER_MARKERS.get(args.program)
+    output_code = instrument_print_observer(code, args.program, marker) if marker else code
     compile(output_code, f"<CI:{args.program}>", "exec")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
