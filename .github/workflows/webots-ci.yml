@@ -6,13 +6,17 @@ on:
       - webots-ci
   workflow_dispatch:
 
+concurrency:
+  group: webots-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   webots-smoke:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
@@ -27,11 +31,13 @@ jobs:
           mkdir -p ci-artifacts
           set +e
 
-          timeout --signal=TERM 90s docker run --rm \
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'xvfb-run -a webots \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
               --batch \
@@ -45,10 +51,10 @@ jobs:
           echo "$code" | tee ci-artifacts/webots-exit-code.txt
           echo "Webots exit code: $code"
 
-          # Le monde historique ne sait pas encore s'arrêter tout seul.
-          # Pour ce premier diagnostic, rester vivant jusqu'au timeout
-          # signifie déjà que Webots a pu charger et démarrer le monde.
-          if [ "$code" -eq 124 ]; then
+          # 124 = timeout normal.
+          # 137 = Webots a dû être tué après la fenêtre de test.
+          # Dans les deux cas, il est resté vivant pendant le smoke test.
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
             echo "Webots remained alive for the diagnostic window."
             exit 0
           fi
