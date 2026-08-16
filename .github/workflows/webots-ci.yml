@@ -40,16 +40,18 @@ jobs:
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
-      - name: Rebuild Blockly sidecar for current Linux toolchain
+      - name: Rebuild and exercise Blockly sidecar protocol
+        shell: bash
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor/blocklyServer \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev && rm -f blocklyServer && make' \
-            2>&1 | tee ci-artifacts/blockly-server-build.log
+            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev python3-pip && python3 -m pip install --no-cache-dir websockets==10.4 && rm -f blocklyServer && make && python3 protocol_smoke.py' \
+            2>&1 | tee ci-artifacts/blockly-server-protocol.log
 
       - name: Rebuild supervisor for Webots R2025a
+        shell: bash
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
