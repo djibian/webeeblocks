@@ -28,6 +28,15 @@ jobs:
       - name: Prepare diagnostics directory
         run: mkdir -p ci-artifacts
 
+      - name: Validate Robot Window JavaScript
+        shell: bash
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          if grep -Fq 'webots.window(' plugins/robot_windows/blockly/main.js; then
+            echo "::error::Legacy Robot Window API is still present."
+            exit 1
+          fi
+
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
