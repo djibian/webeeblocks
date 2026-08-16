@@ -47,6 +47,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate restart smoke helpers
+        run: python3 -m py_compile controllers/ci_restart_supervisor/*.py
+
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
@@ -144,6 +147,65 @@ jobs:
           fi
 
           echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
+
+      - name: Prepare controller restart smoke fixture
+        run: python3 controllers/ci_restart_supervisor/restart_smoke.py prepare
+
+      - name: Exercise simulation reset and controller restart
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/ci_restart_smoke.wbt' \
+            2>&1 | tee ci-artifacts/webots-restart.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-restart-exit-code.txt
+
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Restart smoke Webots run exited with code $code."
+            exit "$code"
+          fi
+
+      - name: Restore restart smoke fixtures
+        if: always()
+        run: python3 controllers/ci_restart_supervisor/restart_smoke.py restore
+
+      - name: Validate controller restart diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-restart.log
+
+          for marker in \
+            WEBEEBLOCKS_CI_RESTART_SUPERVISOR_STARTED \
+            WEBEEBLOCKS_CI_RESTART_INITIAL \
+            WEBEEBLOCKS_CI_RESTARTED_CONTROLLER; do
+            if ! grep -Fq "$marker" "$LOG"; then
+              echo "::error::Restart smoke marker missing: $marker"
+              exit 1
+            fi
+          done
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo "::error::Webots emitted an error during restart smoke."
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          echo 'PASS: simulationReset + restartController reloaded the updated Python controller in R2025a.'
 
       - name: Upload Webots diagnostics
         if: always()
