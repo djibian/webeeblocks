@@ -6,7 +6,7 @@ printf 'BROWSER_LAUNCHED args=' >> /workspace/ci-artifacts/browser-launch.log
 printf '%q ' "$@" >> /workspace/ci-artifacts/browser-launch.log
 printf '\n' >> /workspace/ci-artifacts/browser-launch.log
 
-exec /usr/bin/chromium \
+exec /usr/bin/google-chrome \
   --headless=new \
   --no-sandbox \
   --disable-gpu \
