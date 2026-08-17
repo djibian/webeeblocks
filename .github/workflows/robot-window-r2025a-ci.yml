@@ -1,0 +1,64 @@
+name: Robot Window R2025a bidirectional gate
+
+on:
+  pull_request:
+    branches:
+      - webots-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  robot-window-roundtrip:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Instrument actual Blockly Robot Window for CI only
+        run: python3 tools/ci/prepare_robot_window_probe.py
+
+      - name: Run actual Blockly Robot Window in Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --mode=fast /workspace/worlds/ci_robot_window_probe.wbt' \
+            2>&1 | tee ci-artifacts/robot-window.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "Webots exit code: $code"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ] && [ "$code" -ne 137 ]; then
+            exit "$code"
+          fi
+
+      - name: Prove bidirectional Robot Window WWI round trip
+        shell: bash
+        run: |
+          LOG=ci-artifacts/robot-window.log
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$LOG"
+          echo "PASS: actual Blockly Robot Window loaded R2025a RobotWindow.js and completed window -> controller -> window -> controller WWI round trip."
+
+      - name: Upload Robot Window diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-window-r2025a-roundtrip
+          path: ci-artifacts/
+          if-no-files-found: error
