@@ -12,7 +12,7 @@ permissions:
 jobs:
   robot-window-roundtrip:
     runs-on: ubuntu-22.04
-    timeout-minutes: 6
+    timeout-minutes: 8
 
     steps:
       - name: Checkout repository
@@ -30,7 +30,7 @@ jobs:
           set -o pipefail
           mkdir -p ci-artifacts
           echo "CI_BEFORE_WEBOTS" | tee ci-artifacts/robot-window.log
-          echo "Command: xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt" | tee -a ci-artifacts/robot-window.log
+          echo "Command: Webots R2025a + explicit Chromium Robot Window browser" | tee -a ci-artifacts/robot-window.log
           set +e
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
@@ -38,7 +38,21 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt' \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends chromium >/dev/null
+              chmod +x /workspace/tools/ci/webots_robot_window_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              cat > /root/.config/Cyberbotics/Webots-R2025a.conf <<EOF
+[RobotWindow]
+browser=/workspace/tools/ci/webots_robot_window_browser.sh
+newBrowserWindow=false
+EOF
+              echo "CI_BROWSER=$(command -v chromium)"
+              cat /root/.config/Cyberbotics/Webots-R2025a.conf
+              timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt
+            ' \
             2>&1 | tee -a ci-artifacts/robot-window.log
           code=${PIPESTATUS[0]}
           set -e
@@ -52,17 +66,17 @@ jobs:
         run: |
           LOG=ci-artifacts/robot-window.log
 
-          if ! grep -Fq "CI_BEFORE_WEBOTS" "$LOG"; then
-            echo "::error::Robot Window gate did not reach the Webots invocation boundary."
-            exit 1
-          fi
+          grep -F "CI_BEFORE_WEBOTS" "$LOG"
+          grep -F "CI_BROWSER=/usr/bin/chromium" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"
 
-          if ! grep -Fq "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"; then
-            echo "::error::Webots invocation completed without starting the CI Robot Window controller; do not diagnose plugin/WWI yet."
+          if ! grep -Fq "BROWSER_LAUNCHED" ci-artifacts/browser-launch.log 2>/dev/null; then
+            echo "::error::Webots started the controller but never launched the configured Robot Window browser."
             echo "--- robot-window.log ---"
             cat "$LOG"
             exit 1
           fi
+          cat ci-artifacts/browser-launch.log
 
           grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
           grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
