@@ -1,0 +1,95 @@
+name: Robot Window R2025a bidirectional gate
+
+on:
+  pull_request:
+    branches:
+      - webots-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  robot-window-roundtrip:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Instrument actual Blockly Robot Window for CI only
+        run: python3 tools/ci/prepare_robot_window_probe.py
+
+      - name: Run actual Blockly Robot Window in Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts
+          echo "CI_BEFORE_WEBOTS" | tee ci-artifacts/robot-window.log
+          echo "Command: Webots R2025a + explicit Google Chrome Robot Window browser" | tee -a ci-artifacts/robot-window.log
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_robot_window_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_robot_window_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              echo "CI_BROWSER=$(command -v google-chrome)"
+              cat /root/.config/Cyberbotics/Webots-R2025a.conf
+              timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt
+            ' \
+            2>&1 | tee -a ci-artifacts/robot-window.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "Webots exit code: $code" | tee -a ci-artifacts/robot-window.log
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ] && [ "$code" -ne 137 ]; then
+            exit "$code"
+          fi
+
+      - name: Prove bidirectional Robot Window WWI round trip
+        shell: bash
+        run: |
+          LOG=ci-artifacts/robot-window.log
+
+          grep -F "CI_BEFORE_WEBOTS" "$LOG"
+          grep -F "CI_BROWSER=/usr/bin/google-chrome" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"
+
+          if ! grep -Fq "BROWSER_LAUNCHED" ci-artifacts/browser-launch.log 2>/dev/null; then
+            echo "::error::Webots started the controller but never launched the configured Robot Window browser."
+            echo "--- robot-window.log ---"
+            cat "$LOG"
+            exit 1
+          fi
+          cat ci-artifacts/browser-launch.log
+
+          grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$LOG"
+          echo "PASS: actual Blockly Robot Window loaded R2025a RobotWindow.js and completed window -> controller -> window -> controller WWI round trip."
+
+      - name: Upload Robot Window diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-window-r2025a-roundtrip
+          path: ci-artifacts/
+          if-no-files-found: error
