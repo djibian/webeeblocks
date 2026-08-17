@@ -24,6 +24,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ci-artifacts
+          rm -f ci-artifacts/crazyflie-square-result.txt
           set -o pipefail
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
@@ -54,6 +55,7 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/crazyflie-square.log
+          RESULT_FILE=ci-artifacts/crazyflie-square-result.txt
           if grep -Fq 'WEBEEBLOCKS_CF_SQUARE_FAILED' "$LOG"; then
             grep -F 'WEBEEBLOCKS_CF_SQUARE_FAILED' "$LOG"
             exit 1
@@ -62,12 +64,13 @@ jobs:
             grep -F 'ERROR:' "$LOG"
             exit 1
           fi
-          RESULT=$(grep -F 'WEBEEBLOCKS_CF_SQUARE_RESULT status=success' "$LOG" | tail -1)
-          if [ -z "$RESULT" ]; then
-            echo '::error::Measured square completion marker missing.'
+          if [ ! -s "$RESULT_FILE" ]; then
+            echo '::error::Measured square result file missing.'
             exit 1
           fi
+          RESULT=$(tail -1 "$RESULT_FILE")
           echo "$RESULT"
+          echo "$RESULT" | grep -Fq 'WEBEEBLOCKS_CF_SQUARE_RESULT status=success'
           echo "$RESULT" | grep -Fq 'legs=4'
 
       - name: Upload Crazyflie square diagnostics
