@@ -94,6 +94,16 @@ def build_harness() -> str:
 </script></body></html>"""
 
 
+def parse_browser_output(stdout: str) -> dict[str, object]:
+    match = RESULT_RE.search(stdout)
+    if not match:
+        raise RuntimeError("headless browser did not emit oracle-result")
+    raw = html.unescape(match.group(1))
+    if raw == "NOT_RUN":
+        raise RuntimeError("Blockly harness JavaScript did not run")
+    return json.loads(raw)
+
+
 def run_browser(harness_path: Path) -> dict[str, object]:
     chrome = chrome_executable()
     command = [
@@ -102,30 +112,52 @@ def run_browser(harness_path: Path) -> dict[str, object]:
         "--no-sandbox",
         "--disable-gpu",
         "--disable-dev-shm-usage",
+        "--disable-background-networking",
         "--allow-file-access-from-files",
         "--virtual-time-budget=5000",
         "--dump-dom",
         harness_path.as_uri(),
     ]
-    result = subprocess.run(
+    process = subprocess.Popen(
         command,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        check=False,
-        timeout=30,
     )
-    if result.returncode:
+    timed_out = False
+    try:
+        stdout, stderr = process.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+        # Some hosted Chrome builds can finish --dump-dom yet linger during
+        # browser shutdown. Kill the browser, collect its already-produced DOM,
+        # and accept the run only if the oracle payload is actually present.
+        timed_out = True
+        process.kill()
+        stdout, stderr = process.communicate()
+
+    try:
+        parsed = parse_browser_output(stdout)
+    except RuntimeError as exc:
+        if timed_out:
+            raise RuntimeError(
+                f"headless browser timed out before emitting oracle-result: {stderr.strip()}"
+            ) from exc
+        if process.returncode:
+            raise RuntimeError(
+                f"headless browser exited with {process.returncode}: {stderr.strip()}"
+            ) from exc
+        raise
+
+    if not timed_out and process.returncode:
         raise RuntimeError(
-            f"headless browser exited with {result.returncode}: {result.stderr.strip()}"
+            f"headless browser exited with {process.returncode}: {stderr.strip()}"
         )
-    match = RESULT_RE.search(result.stdout)
-    if not match:
-        raise RuntimeError("headless browser did not emit oracle-result")
-    raw = html.unescape(match.group(1))
-    if raw == "NOT_RUN":
-        raise RuntimeError("Blockly harness JavaScript did not run")
-    return json.loads(raw)
+    if timed_out:
+        print(
+            "WARN: headless browser required forced shutdown after emitting oracle-result; accepting the verified DOM payload.",
+            file=sys.stderr,
+        )
+    return parsed
 
 
 def main() -> int:

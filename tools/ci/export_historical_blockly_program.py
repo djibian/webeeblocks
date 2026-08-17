@@ -25,6 +25,13 @@ COMPLETION_OBSERVER_MARKERS = {
     "BoxWithEncoders.xml": "WEBEEBLOCKS_CI_BOX_ENCODERS_PROGRAM_COMPLETED",
 }
 
+SENSOR_PROBE_OBSERVER = {
+    "sensorProbing.xml": (
+        "WEBEEBLOCKS_CI_SENSOR_PROBE_BEHAVIOR_EXECUTED",
+        ("Gyro:", "GPS:", "getDist:", "getColor:"),
+    ),
+}
+
 
 def instrument_print_observer(code: str, program: str, marker: str) -> str:
     """Run exact generated source while requiring a Blockly text_print path to execute."""
@@ -86,6 +93,58 @@ print("{marker}")
 '''
 
 
+def instrument_sensor_probe_observer(
+    code: str, program: str, marker: str, required_prefixes: tuple[str, ...]
+) -> str:
+    """Require all preserved sensorProbing output families to execute."""
+
+    return f'''# CI-only multi-sensor observer around exact Blockly-generated source.
+import builtins as _webeeblocks_ci_builtins
+
+_WEBEEBLOCKS_CI_GENERATED_SOURCE = {code!r}
+_WEBEEBLOCKS_CI_REQUIRED_PREFIXES = {required_prefixes!r}
+_webeeblocks_ci_original_print = _webeeblocks_ci_builtins.print
+_webeeblocks_ci_seen = set()
+_webeeblocks_ci_marker_emitted = False
+
+
+def _webeeblocks_ci_print(*args, **kwargs):
+    global _webeeblocks_ci_marker_emitted
+    rendered = " ".join(str(arg) for arg in args)
+    for prefix in _WEBEEBLOCKS_CI_REQUIRED_PREFIXES:
+        if rendered.startswith(prefix):
+            _webeeblocks_ci_seen.add(prefix)
+    if (
+        not _webeeblocks_ci_marker_emitted
+        and len(_webeeblocks_ci_seen) == len(_WEBEEBLOCKS_CI_REQUIRED_PREFIXES)
+    ):
+        _webeeblocks_ci_marker_emitted = True
+        _webeeblocks_ci_original_print("{marker}")
+    return _webeeblocks_ci_original_print(*args, **kwargs)
+
+
+_webeeblocks_ci_builtins.print = _webeeblocks_ci_print
+try:
+    exec(
+        compile(
+            _WEBEEBLOCKS_CI_GENERATED_SOURCE,
+            "<Blockly:{program}>",
+            "exec",
+        ),
+        globals(),
+        globals(),
+    )
+finally:
+    _webeeblocks_ci_builtins.print = _webeeblocks_ci_original_print
+
+if not _webeeblocks_ci_marker_emitted:
+    missing = sorted(set(_WEBEEBLOCKS_CI_REQUIRED_PREFIXES) - _webeeblocks_ci_seen)
+    raise RuntimeError(
+        "{program} exited before all sensor behaviors were observed: " + repr(missing)
+    )
+'''
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("program", choices=tuple(EXPECTED_PYTHON_SHA256))
@@ -124,10 +183,16 @@ def main() -> int:
     compile(code, f"<Blockly:{args.program}>", "exec")
     print_marker = PRINT_OBSERVER_MARKERS.get(args.program)
     completion_marker = COMPLETION_OBSERVER_MARKERS.get(args.program)
+    sensor_probe = SENSOR_PROBE_OBSERVER.get(args.program)
     if print_marker:
         output_code = instrument_print_observer(code, args.program, print_marker)
     elif completion_marker:
         output_code = instrument_completion_observer(code, args.program, completion_marker)
+    elif sensor_probe:
+        marker, required_prefixes = sensor_probe
+        output_code = instrument_sensor_probe_observer(
+            code, args.program, marker, required_prefixes
+        )
     else:
         output_code = code
     compile(output_code, f"<CI:{args.program}>", "exec")
