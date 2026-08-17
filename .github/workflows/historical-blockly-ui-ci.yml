@@ -32,4 +32,4 @@ jobs:
             bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev && rm -f blocklyServer && make'
 
       - name: Exercise real Blockly Save Submit Restore buttons
-        run: python3 tools/ci/run_blockly_ui_sidecar_test.py
+        run: python3 tools/ci/run_blockly_ui_sidecar_diagnostic.py
