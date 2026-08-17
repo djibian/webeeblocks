@@ -1,0 +1,28 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "webots://projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "webots://projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "webots://projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "webots://projects/objects/floors/protos/Floor.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "WebeeBlocks Crazyflie square experiment"
+}
+Viewpoint {
+  orientation -0.45 0.47 0.76 1.05
+  position -3 -3 3
+  follow "Crazyflie"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Floor {
+  size 6 6
+}
+Crazyflie {
+  name "Crazyflie"
+  controller "crazyflie_square"
+  supervisor TRUE
+}
