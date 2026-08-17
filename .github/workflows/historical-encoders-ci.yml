@@ -1,0 +1,127 @@
+name: Historical Encoders R2025a gate
+
+on:
+  pull_request:
+    branches:
+      - webots-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  encoders-historical:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare diagnostics
+        run: mkdir -p ci-artifacts
+
+      - name: Export exact historical BoxWithEncoders controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-encoders-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithEncoders.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild sidecar and supervisor for R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
+              cd /workspace/controllers/supervisor/blocklyServer
+              rm -f blocklyServer
+              make
+              cd /workspace/controllers/supervisor
+              make clean
+              make
+            ' 2>&1 | tee ci-artifacts/encoders-build.log
+
+      - name: Execute historical encoder program in box challenge
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/boxChallenge.wbt' \
+            2>&1 | tee ci-artifacts/webots-box-encoders.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-box-encoders-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore historical controller
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-encoders-backup.py ]; then
+            mv controllers/my_controller/.ci-encoders-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate encoder historical behavior
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-box-encoders.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error while running BoxWithEncoders.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Historical encoder Python raised an exception.'
+            grep -A30 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated BoxWithEncoders controller did not start.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_BOX_ENCODERS_PROGRAM_COMPLETED' "$LOG"; then
+            echo '::error::Generated BoxWithEncoders controller did not complete its four encoder-driven movement cycles.'
+            exit 1
+          fi
+
+          echo 'PASS: exact historical BoxWithEncoders Blockly Python completed under Webots R2025a.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-encoders-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
