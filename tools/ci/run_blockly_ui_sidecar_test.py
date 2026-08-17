@@ -45,16 +45,20 @@ def injected_harness():
  const result={{ok:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
  const waitFor=async (p,label,limit=10000)=>{{const start=Date.now();while(Date.now()-start<limit){{if(p())return;await new Promise(r=>setTimeout(r,50));}}throw new Error("timeout waiting for "+label);}};
  try {{
-  await waitFor(()=>window.ws && ws.readyState===WebSocket.OPEN && !save.disabled && !submit.disabled,"WebSocket/buttons");
+  const saveButton=document.getElementById("save");
+  const submitButton=document.getElementById("submit");
+  const restoreButton=document.getElementById("restore");
+  const titleElement=document.getElementById("projectTitle");
+  await waitFor(()=>window.ws && ws.readyState===WebSocket.OPEN && !saveButton.disabled && !submitButton.disabled && !restoreButton.disabled,"WebSocket/buttons");
   await new Promise(r=>setTimeout(r,300));
   Blockly.mainWorkspace.clear();
   Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom({fixture}),Blockly.mainWorkspace);
-  projectTitle.textContent="{PROJECT_NAME}";
-  save.click(); result.saveClicked=true; await new Promise(r=>setTimeout(r,300));
-  submit.click(); result.submitClicked=true; await new Promise(r=>setTimeout(r,300));
+  titleElement.textContent="{PROJECT_NAME}";
+  saveButton.click(); result.saveClicked=true; await new Promise(r=>setTimeout(r,300));
+  submitButton.click(); result.submitClicked=true; await new Promise(r=>setTimeout(r,300));
   Blockly.mainWorkspace.clear();
   if(Blockly.mainWorkspace.getTopBlocks(false).length!==0)throw new Error("workspace clear failed");
-  restore.click(); result.restoreClicked=true;
+  restoreButton.click(); result.restoreClicked=true;
   await waitFor(()=>Array.from(document.querySelectorAll("#saveList a")).some(a=>a.textContent==="{PROJECT_NAME}"),"saved project");
   Array.from(document.querySelectorAll("#saveList a")).find(a=>a.textContent==="{PROJECT_NAME}").click();
   await waitFor(()=>Blockly.mainWorkspace.getTopBlocks(false).length>0,"restored workspace");
