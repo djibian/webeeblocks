@@ -15,6 +15,7 @@ SIDECAR=SUPERVISOR_DIR/"blocklyServer"/"blocklyServer"
 CONTROLLER=ROOT/"controllers"/"my_controller"/"my_controller.py"
 TMP_LAST=PROGRAM_DIR/".tmp.txt"
 FIXTURE="BoxWithDistSensor.xml"
+FIXTURE_NAME=Path(FIXTURE).stem
 PROJECT_NAME="CIUiRoundTrip"
 SAVED_XML=PROGRAM_DIR/(PROJECT_NAME+".xml")
 RESULT_RE=re.compile(r'<pre id="ui-result">(.*?)</pre>', re.DOTALL)
@@ -37,12 +38,11 @@ def wait_for_port(port, timeout=5):
 
 def injected_harness():
     source=HTML_PATH.read_text(encoding="utf-8")
-    fixture=json.dumps((PROGRAM_DIR/FIXTURE).read_text(encoding="utf-8"))
     return source+f"""
 <pre id="ui-result">NOT_RUN</pre>
 <script>
 (async function() {{
- const result={{ok:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
+ const result={{ok:false,initialRestore:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
  const waitFor=async (p,label,limit=10000)=>{{const start=Date.now();while(Date.now()-start<limit){{if(p())return;await new Promise(r=>setTimeout(r,50));}}throw new Error("timeout waiting for "+label);}};
  try {{
   const saveButton=document.getElementById("save");
@@ -50,9 +50,8 @@ def injected_harness():
   const restoreButton=document.getElementById("restore");
   const titleElement=document.getElementById("projectTitle");
   await waitFor(()=>window.ws && ws.readyState===WebSocket.OPEN && !saveButton.disabled && !submitButton.disabled && !restoreButton.disabled,"WebSocket/buttons");
-  await new Promise(r=>setTimeout(r,300));
-  Blockly.mainWorkspace.clear();
-  Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom({fixture}),Blockly.mainWorkspace);
+  await waitFor(()=>titleElement.textContent==="{FIXTURE_NAME}" && Blockly.mainWorkspace.getTopBlocks(false).length>0,"initial RESTORE_LAST");
+  result.initialRestore=true;
   titleElement.textContent="{PROJECT_NAME}";
   saveButton.click(); result.saveClicked=true; await new Promise(r=>setTimeout(r,300));
   submitButton.click(); result.submitClicked=true; await new Promise(r=>setTimeout(r,300));
@@ -95,7 +94,11 @@ def main():
     saved_backup=SAVED_XML.read_bytes() if SAVED_XML.exists() else None
     sidecar=server=thread=harness_path=None
     try:
-        TMP_LAST.unlink(missing_ok=True); SAVED_XML.unlink(missing_ok=True)
+        SAVED_XML.unlink(missing_ok=True)
+        # Seed a real existing last project so main.js completes its historical
+        # RESTORE_LAST_NAME -> RESTORE_LAST startup exchange before the test
+        # starts issuing new commands on the single currCommand state machine.
+        TMP_LAST.write_text(FIXTURE_NAME,encoding="utf-8")
         sidecar=subprocess.Popen([str(SIDECAR)],cwd=SUPERVISOR_DIR,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         wait_for_port(8001)
         with tempfile.NamedTemporaryFile(mode="w",suffix=".html",prefix="ci-ui-",dir=WINDOW_DIR,encoding="utf-8",delete=False) as h:
@@ -104,6 +107,7 @@ def main():
         thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
         result=run_chrome(f"http://127.0.0.1:{port}/{harness_path.name}")
         if not result.get("ok"): raise RuntimeError("browser UI flow failed: "+str(result.get("error")))
+        if not result.get("initialRestore"): raise RuntimeError("historical initial restore did not complete")
         if not all(result.get(k) for k in ("saveClicked","submitClicked","restoreClicked")): raise RuntimeError("not all real UI buttons were exercised")
         if int(result.get("restoredTopBlocks",0))<=0: raise RuntimeError("Restore did not repopulate workspace")
         if not SAVED_XML.is_file(): raise RuntimeError("Save did not create XML")
@@ -112,7 +116,7 @@ def main():
         digest=hashlib.sha256(CONTROLLER.read_bytes()).hexdigest(); expected=EXPECTED_PYTHON_SHA256[FIXTURE]
         if digest!=expected: raise RuntimeError(f"Submit Python sha256={digest}, expected={expected}")
         if not TMP_LAST.is_file() or TMP_LAST.read_text(encoding="utf-8").strip()!=PROJECT_NAME: raise RuntimeError("last-project state not updated")
-        print(f"PASS: real blockly.html/main.js Save, Submit and Restore buttons worked against real blocklyServer; submitted {FIXTURE} Python sha256 matched.")
+        print(f"PASS: real blockly.html/main.js initial restore plus Save, Submit and Restore buttons worked against real blocklyServer; submitted {FIXTURE} Python sha256 matched.")
         return 0
     finally:
         if server is not None: server.shutdown(); server.server_close()
