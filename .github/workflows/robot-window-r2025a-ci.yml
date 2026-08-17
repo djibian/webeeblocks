@@ -44,11 +44,11 @@ jobs:
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends chromium >/dev/null
               chmod +x /workspace/tools/ci/webots_robot_window_browser.sh
               mkdir -p /root/.config/Cyberbotics
-              cat > /root/.config/Cyberbotics/Webots-R2025a.conf <<EOF
-[RobotWindow]
-browser=/workspace/tools/ci/webots_robot_window_browser.sh
-newBrowserWindow=false
-EOF
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_robot_window_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
               echo "CI_BROWSER=$(command -v chromium)"
               cat /root/.config/Cyberbotics/Webots-R2025a.conf
               timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt
