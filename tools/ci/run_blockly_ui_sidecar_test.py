@@ -44,6 +44,19 @@ def injected_harness():
 (async function() {{
  const result={{ok:false,initialRestore:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
  const waitFor=async (p,label,limit=10000)=>{{const start=Date.now();while(Date.now()-start<limit){{if(p())return;await new Promise(r=>setTimeout(r,50));}}throw new Error("timeout waiting for "+label);}};
+ const waitForSavedProject=(name)=>new Promise(resolve=>{{
+   const list=document.getElementById("saveList");
+   const find=()=>Array.from(list.querySelectorAll("a")).find(a=>a.textContent===name);
+   const existing=find(); if(existing){{resolve(existing);return;}}
+   const observer=new MutationObserver(()=>{{const link=find();if(link){{observer.disconnect();resolve(link);}}}});
+   observer.observe(list,{{childList:true,subtree:true,characterData:true}});
+ }});
+ const waitForRestoredWorkspace=()=>new Promise(resolve=>{{
+   const done=()=>Blockly.mainWorkspace.getTopBlocks(false).length>0;
+   if(done()){{resolve();return;}}
+   const listener=()=>{{if(done()){{Blockly.mainWorkspace.removeChangeListener(listener);resolve();}}}};
+   Blockly.mainWorkspace.addChangeListener(listener);
+ }});
  try {{
   const saveButton=document.getElementById("save");
   const submitButton=document.getElementById("submit");
@@ -53,14 +66,15 @@ def injected_harness():
   await waitFor(()=>titleElement.textContent==="{FIXTURE_NAME}" && Blockly.mainWorkspace.getTopBlocks(false).length>0,"initial RESTORE_LAST");
   result.initialRestore=true;
   titleElement.textContent="{PROJECT_NAME}";
-  saveButton.click(); result.saveClicked=true; await new Promise(r=>setTimeout(r,300));
-  submitButton.click(); result.submitClicked=true; await new Promise(r=>setTimeout(r,300));
+  saveButton.click(); result.saveClicked=true;
+  submitButton.click(); result.submitClicked=true;
   Blockly.mainWorkspace.clear();
   if(Blockly.mainWorkspace.getTopBlocks(false).length!==0)throw new Error("workspace clear failed");
   restoreButton.click(); result.restoreClicked=true;
-  await waitFor(()=>Array.from(document.querySelectorAll("#saveList a")).some(a=>a.textContent==="{PROJECT_NAME}"),"saved project");
-  Array.from(document.querySelectorAll("#saveList a")).find(a=>a.textContent==="{PROJECT_NAME}").click();
-  await waitFor(()=>Blockly.mainWorkspace.getTopBlocks(false).length>0,"restored workspace");
+  const savedLink=await waitForSavedProject("{PROJECT_NAME}");
+  const restored=waitForRestoredWorkspace();
+  savedLink.click();
+  await restored;
   result.restoredTopBlocks=Blockly.mainWorkspace.getTopBlocks(false).length; result.ok=true;
  }} catch(e) {{ result.error=String(e&&e.stack?e.stack:e); }}
  document.getElementById("ui-result").textContent=JSON.stringify(result);
