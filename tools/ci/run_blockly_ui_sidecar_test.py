@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import hashlib, html, json, re, socket, subprocess, sys, tempfile, threading, time
+import hashlib, json, socket, subprocess, tempfile, threading, time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,10 +18,25 @@ FIXTURE="BoxWithDistSensor.xml"
 FIXTURE_NAME=Path(FIXTURE).stem
 PROJECT_NAME="CIUiRoundTrip"
 SAVED_XML=PROGRAM_DIR/(PROJECT_NAME+".xml")
-RESULT_RE=re.compile(r'<pre id="ui-result">(.*?)</pre>', re.DOTALL)
 
-class QuietHandler(SimpleHTTPRequestHandler):
+class ResultHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args): pass
+
+    def do_POST(self):
+        if self.path != "/__ci_result":
+            self.send_error(404)
+            return
+        try:
+            length=int(self.headers.get("Content-Length","0"))
+            payload=json.loads(self.rfile.read(length).decode("utf-8"))
+            self.server.ui_result=payload
+            self.server.ui_event.set()
+            self.send_response(204)
+            self.end_headers()
+        except Exception as exc:
+            self.server.ui_result={"ok":False,"error":f"result callback failed: {exc}"}
+            self.server.ui_event.set()
+            self.send_error(400)
 
 def free_port():
     with socket.socket() as sock:
@@ -39,22 +54,28 @@ def wait_for_port(port, timeout=5):
 def injected_harness():
     source=HTML_PATH.read_text(encoding="utf-8")
     return source+f"""
-<pre id="ui-result">NOT_RUN</pre>
 <script>
 (async function() {{
- const result={{ok:false,initialRestore:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
- const waitFor=async (p,label,limit=10000)=>{{const start=Date.now();while(Date.now()-start<limit){{if(p())return;await new Promise(r=>setTimeout(r,50));}}throw new Error("timeout waiting for "+label);}};
- const waitForSavedProject=(name)=>new Promise(resolve=>{{
+ const result={{ok:false,stage:"start",initialRestore:false,saveClicked:false,submitClicked:false,restoreClicked:false,restoredTopBlocks:0,error:null}};
+ const finish=async()=>{{
+   try {{
+     await fetch("/__ci_result",{{method:"POST",headers:{{"Content-Type":"application/json"}},body:JSON.stringify(result)}});
+   }} catch(e) {{ console.error("CI result callback failed",e); }}
+ }};
+ const waitFor=async (p,label,limit=15000)=>{{const start=Date.now();while(Date.now()-start<limit){{if(p())return;await new Promise(r=>setTimeout(r,50));}}throw new Error("timeout waiting for "+label);}};
+ const waitForSavedProject=(name,limit=15000)=>new Promise((resolve,reject)=>{{
    const list=document.getElementById("saveList");
    const find=()=>Array.from(list.querySelectorAll("a")).find(a=>a.textContent===name);
    const existing=find(); if(existing){{resolve(existing);return;}}
-   const observer=new MutationObserver(()=>{{const link=find();if(link){{observer.disconnect();resolve(link);}}}});
+   const timer=setTimeout(()=>{{observer.disconnect();reject(new Error("timeout waiting for saved project "+name));}},limit);
+   const observer=new MutationObserver(()=>{{const link=find();if(link){{clearTimeout(timer);observer.disconnect();resolve(link);}}}});
    observer.observe(list,{{childList:true,subtree:true,characterData:true}});
  }});
- const waitForRestoredWorkspace=()=>new Promise(resolve=>{{
+ const waitForRestoredWorkspace=(limit=15000)=>new Promise((resolve,reject)=>{{
    const done=()=>Blockly.mainWorkspace.getTopBlocks(false).length>0;
    if(done()){{resolve();return;}}
-   const listener=()=>{{if(done()){{Blockly.mainWorkspace.removeChangeListener(listener);resolve();}}}};
+   const timer=setTimeout(()=>{{Blockly.mainWorkspace.removeChangeListener(listener);reject(new Error("timeout waiting for restored workspace"));}},limit);
+   const listener=()=>{{if(done()){{clearTimeout(timer);Blockly.mainWorkspace.removeChangeListener(listener);resolve();}}}};
    Blockly.mainWorkspace.addChangeListener(listener);
  }});
  try {{
@@ -62,44 +83,65 @@ def injected_harness():
   const submitButton=document.getElementById("submit");
   const restoreButton=document.getElementById("restore");
   const titleElement=document.getElementById("projectTitle");
+  result.stage="wait-websocket";
   await waitFor(()=>window.ws && ws.readyState===WebSocket.OPEN && !saveButton.disabled && !submitButton.disabled && !restoreButton.disabled,"WebSocket/buttons");
+  result.stage="wait-initial-restore";
   await waitFor(()=>titleElement.textContent==="{FIXTURE_NAME}" && Blockly.mainWorkspace.getTopBlocks(false).length>0,"initial RESTORE_LAST");
   result.initialRestore=true;
+
   titleElement.textContent="{PROJECT_NAME}";
+  result.stage="save";
   saveButton.click(); result.saveClicked=true;
-  submitButton.click(); result.submitClicked=true;
-  Blockly.mainWorkspace.clear();
-  if(Blockly.mainWorkspace.getTopBlocks(false).length!==0)throw new Error("workspace clear failed");
+
+  // Listing saved projects is our browser-visible acknowledgement that the
+  // preceding SAVE/SAVE_LAST frames have been processed by the real sidecar.
+  result.stage="list-after-save";
   restoreButton.click(); result.restoreClicked=true;
   const savedLink=await waitForSavedProject("{PROJECT_NAME}");
+
+  // Submit only after SAVE has been observed, avoiding races in the historical
+  // single `currCommand` state machine. WebSocket frame ordering then ensures
+  // SEND_CODE/SAVE_LAST are processed before the following RESTORE_SAVE.
+  result.stage="submit";
+  submitButton.click(); result.submitClicked=true;
+
+  Blockly.mainWorkspace.clear();
+  if(Blockly.mainWorkspace.getTopBlocks(false).length!==0)throw new Error("workspace clear failed");
+  result.stage="restore";
   const restored=waitForRestoredWorkspace();
   savedLink.click();
   await restored;
-  result.restoredTopBlocks=Blockly.mainWorkspace.getTopBlocks(false).length; result.ok=true;
+  result.restoredTopBlocks=Blockly.mainWorkspace.getTopBlocks(false).length;
+  result.stage="complete";
+  result.ok=true;
  }} catch(e) {{ result.error=String(e&&e.stack?e.stack:e); }}
- document.getElementById("ui-result").textContent=JSON.stringify(result);
+ await finish();
 }})();
 </script>
 """
 
-def parse_output(stdout):
-    m=RESULT_RE.search(stdout)
-    if not m: raise RuntimeError("headless browser did not emit ui-result")
-    raw=html.unescape(m.group(1))
-    if raw=="NOT_RUN": raise RuntimeError("UI harness did not run")
-    return json.loads(raw)
-
-def run_chrome(url):
-    cmd=[chrome_executable(),"--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-background-networking","--virtual-time-budget=15000","--dump-dom",url]
+def run_chrome(url, server, timeout=35):
+    # Keep a real headless browser alive while actual WebSocket/network events
+    # occur. `--dump-dom --virtual-time-budget` is appropriate for the purely
+    # synchronous Blockly oracle, but it can render before asynchronous socket
+    # work finishes. The page POSTs its final result to our local HTTP server.
+    cmd=[chrome_executable(),"--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-background-networking","--remote-debugging-port=0",url]
     p=subprocess.Popen(cmd,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-    timed=False
-    try: out,err=p.communicate(timeout=35)
-    except subprocess.TimeoutExpired:
-        timed=True; p.kill(); out,err=p.communicate()
-    try: result=parse_output(out)
-    except Exception as exc: raise RuntimeError(f"browser UI test produced no valid result{' after timeout' if timed else ''}: {err.strip()}") from exc
-    if not timed and p.returncode: raise RuntimeError(f"headless browser exited with {p.returncode}: {err.strip()}")
-    return result
+    deadline=time.monotonic()+timeout
+    try:
+        while time.monotonic()<deadline:
+            if server.ui_event.wait(timeout=.1):
+                return server.ui_result
+            if p.poll() is not None:
+                out,err=p.communicate()
+                raise RuntimeError(f"headless browser exited before UI result callback ({p.returncode}): {err.strip()}")
+        raise RuntimeError("timeout waiting for browser UI result callback")
+    finally:
+        if p.poll() is None:
+            p.terminate()
+            try: p.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                p.kill(); p.wait(timeout=3)
 
 def main():
     if not SIDECAR.is_file(): raise RuntimeError(f"rebuilt sidecar missing: {SIDECAR}")
@@ -117,10 +159,12 @@ def main():
         wait_for_port(8001)
         with tempfile.NamedTemporaryFile(mode="w",suffix=".html",prefix="ci-ui-",dir=WINDOW_DIR,encoding="utf-8",delete=False) as h:
             h.write(injected_harness()); harness_path=Path(h.name)
-        port=free_port(); server=ThreadingHTTPServer(("127.0.0.1",port),partial(QuietHandler,directory=str(WINDOW_DIR)))
+        port=free_port()
+        server=ThreadingHTTPServer(("127.0.0.1",port),partial(ResultHandler,directory=str(WINDOW_DIR)))
+        server.ui_event=threading.Event(); server.ui_result=None
         thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
-        result=run_chrome(f"http://127.0.0.1:{port}/{harness_path.name}")
-        if not result.get("ok"): raise RuntimeError("browser UI flow failed: "+str(result.get("error")))
+        result=run_chrome(f"http://127.0.0.1:{port}/{harness_path.name}",server)
+        if not result or not result.get("ok"): raise RuntimeError("browser UI flow failed at "+str(result.get("stage") if result else "unknown")+": "+str(result.get("error") if result else "no result"))
         if not result.get("initialRestore"): raise RuntimeError("historical initial restore did not complete")
         if not all(result.get(k) for k in ("saveClicked","submitClicked","restoreClicked")): raise RuntimeError("not all real UI buttons were exercised")
         if int(result.get("restoredTopBlocks",0))<=0: raise RuntimeError("Restore did not repopulate workspace")
