@@ -41,6 +41,21 @@ static void log_state(const char *event, phase_t phase, int leg, double t, doubl
          event, phase_name(phase), leg, t, x, y, z, yaw, roll, pitch, vz);
   fflush(stdout);
 }
+static void write_result_file(double err, double yawerr, double min_z, double max_z, double total, int legs) {
+  char path[4096];
+  snprintf(path, sizeof(path), "%s/ci-artifacts/crazyflie-square-result.txt", wb_robot_get_project_path());
+  FILE *file = fopen(path, "w");
+  if (!file) {
+    printf("WEBEEBLOCKS_CF_SQUARE_RESULT_FILE_FAILED path=%s\n", path);
+    fflush(stdout);
+    return;
+  }
+  fprintf(file,
+          "WEBEEBLOCKS_CF_SQUARE_RESULT status=success error_xy=%.6f yaw_error_deg=%.6f altitude_min=%.6f altitude_max=%.6f total_s=%.3f legs=%d\n",
+          err, yawerr, min_z, max_z, total, legs);
+  fflush(file);
+  fclose(file);
+}
 
 int main(void) {
   wb_robot_init();
@@ -114,6 +129,7 @@ int main(void) {
         if(stable<0)stable=now;
         if(now-stable>.5){
           double err=hypot(x-sx,y-sy),yawerr=fabs(wrap(yaw-syaw))*180/PI;
+          write_result_file(err,yawerr,min_z,max_z,now-t0,leg);
           printf("WEBEEBLOCKS_CF_SQUARE_RESULT status=success error_xy=%.6f yaw_error_deg=%.6f altitude_min=%.6f altitude_max=%.6f total_s=%.3f legs=%d\n",err,yawerr,min_z,max_z,now-t0,leg);
           printf("WEBEEBLOCKS_CF_SQUARE_QUIT reason=success phase=%s leg=%d t=%.3f\n",phase_name(phase),leg,now-t0);
           stop(m1,m2,m3,m4);fflush(stdout);wb_supervisor_simulation_quit(0);break;
