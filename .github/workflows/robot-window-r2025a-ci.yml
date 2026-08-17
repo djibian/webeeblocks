@@ -29,17 +29,20 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ci-artifacts
+          echo "CI_BEFORE_WEBOTS" | tee ci-artifacts/robot-window.log
+          echo "Command: xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt" | tee -a ci-artifacts/robot-window.log
           set +e
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --mode=fast /workspace/worlds/ci_robot_window_probe.wbt' \
-            2>&1 | tee ci-artifacts/robot-window.log
+            bash -lc 'timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt' \
+            2>&1 | tee -a ci-artifacts/robot-window.log
           code=${PIPESTATUS[0]}
           set -e
-          echo "Webots exit code: $code"
+          echo "Webots exit code: $code" | tee -a ci-artifacts/robot-window.log
           if [ "$code" -ne 0 ] && [ "$code" -ne 124 ] && [ "$code" -ne 137 ]; then
             exit "$code"
           fi
@@ -48,7 +51,19 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/robot-window.log
-          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"
+
+          if ! grep -Fq "CI_BEFORE_WEBOTS" "$LOG"; then
+            echo "::error::Robot Window gate did not reach the Webots invocation boundary."
+            exit 1
+          fi
+
+          if ! grep -Fq "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"; then
+            echo "::error::Webots invocation completed without starting the CI Robot Window controller; do not diagnose plugin/WWI yet."
+            echo "--- robot-window.log ---"
+            cat "$LOG"
+            exit 1
+          fi
+
           grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
           grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
           grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"
