@@ -1,0 +1,104 @@
+name: Crazyflie L-course virtual gates R2025a
+
+on:
+  pull_request:
+    branches: [webots-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crazyflie-l-course:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build L-course controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-l-course
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_l_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-l-course/build.log
+
+      - name: Run measured L course
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_l_course.wbt' \
+            2>&1 | tee ci-artifacts/crazyflie-l-course/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-l-course/exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::L-course Webots run exited with $code"
+            exit 1
+          fi
+
+      - name: Validate ordered virtual gates and landing
+        shell: bash
+        run: |
+          set -o pipefail
+          RESULT=ci-artifacts/crazyflie-l-course-result.txt
+          LOG=ci-artifacts/crazyflie-l-course/webots.log
+          test -s "$RESULT"
+          cat "$RESULT" | tee ci-artifacts/crazyflie-l-course/result.txt
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=failure' "$RESULT"
+          ! grep -Fq 'ERROR:' "$LOG"
+          ! grep -Fq 'WEBEEBLOCKS_CF_POSITION_FAILED' "$LOG"
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          line = Path('ci-artifacts/crazyflie-l-course-result.txt').read_text().strip()
+          pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+          assert pairs.get('status') == 'success'
+          assert pairs.get('gates') == '2'
+          g1 = float(pairs['g1_time'])
+          g2 = float(pairs['g2_time'])
+          total = float(pairs['total_s'])
+          assert 0 < g1 < g2 < total, (g1, g2, total)
+          assert abs(float(pairs['g1_lateral'])) <= 0.30
+          assert abs(float(pairs['g2_lateral'])) <= 0.30
+          assert abs(float(pairs['g1_altitude_error'])) <= 0.20
+          assert abs(float(pairs['g2_altitude_error'])) <= 0.20
+          print('PASS: G1 then G2 crossed inside openings, then landed.')
+          PY
+
+      - name: Publish L-course result
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-l-course-result.txt ]; then
+            echo '## Crazyflie L-course virtual-gate result' >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat ci-artifacts/crazyflie-l-course-result.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-l-course-r2025a
+          path: |
+            ci-artifacts/crazyflie-l-course/
+            ci-artifacts/crazyflie-l-course-result.txt
+          if-no-files-found: error
