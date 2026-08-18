@@ -1,14 +1,17 @@
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <webots/gps.h>
 #include <webots/gyro.h>
 #include <webots/inertial_unit.h>
 #include <webots/motor.h>
 #include <webots/robot.h>
 #include <webots/supervisor.h>
+#include <webots/plugins/robot_window/default.h>
 #include "pid_controller.h"
 #include "webeeblocks_primitives.h"
 #include "webeeblocks_executor.h"
+#include "webeeblocks_mission_v1.h"
 
 #define PI 3.14159265358979323846
 #define TARGET_Z_DELTA 1.0
@@ -120,14 +123,42 @@ static void write_success(const gate_result_t *g1, const gate_result_t *g2,
   fclose(file);
 }
 
-int main(void) {
-  static const webeeblocks_command_t mission[] = {
+static int receive_runtime_mission(webeeblocks_command_t *mission, size_t *mission_count) {
+  const char *message;
+  while ((message = wb_robot_wwi_receive_text())) {
+    webeeblocks_command_t candidate[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS];
+    size_t count = 0;
+    const webeeblocks_mission_v1_status_t status = webeeblocks_mission_v1_parse(message, candidate, &count);
+    if (status != WEBEEBLOCKS_MISSION_V1_OK) {
+      char response[96];
+      snprintf(response, sizeof(response), "WEBEEBLOCKS_MISSION_V1 ERR %s", webeeblocks_mission_v1_status_name(status));
+      wb_robot_wwi_send_text(response);
+      continue;
+    }
+    memcpy(mission, candidate, count * sizeof(candidate[0]));
+    *mission_count = count;
+    wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ACK");
+    return 1;
+  }
+  return 0;
+}
+
+static void reject_runtime_messages_while_busy(void) {
+  const char *message;
+  while ((message = wb_robot_wwi_receive_text()))
+    wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+}
+
+int main(int argc, const char *argv[]) {
+  webeeblocks_command_t mission[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS] = {
     {WEBEEBLOCKS_COMMAND_TAKEOFF, TARGET_Z_DELTA},
     {WEBEEBLOCKS_COMMAND_FORWARD, LEG_M},
     {WEBEEBLOCKS_COMMAND_TURN, PI / 2.0},
     {WEBEEBLOCKS_COMMAND_FORWARD, LEG_M},
     {WEBEEBLOCKS_COMMAND_LAND, 0.0},
   };
+  size_t mission_count = 5;
+  const int runtime_mode = argc > 1 && strcmp(argv[1], "runtime") == 0;
 
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
@@ -141,17 +172,35 @@ int main(void) {
   wb_gps_enable(gps, step); wb_inertial_unit_enable(imu, step); wb_gyro_enable(gyro, step);
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {}
 
+  if (runtime_mode) {
+    stop(m1, m2, m3, m4);
+    printf("WEBEEBLOCKS_MISSION_V1 WAITING\n");
+    fflush(stdout);
+    int ready = 0;
+    while (!ready && wb_robot_step(step) != -1)
+      ready = receive_runtime_mission(mission, &mission_count);
+    if (!ready) {
+      stop(m1, m2, m3, m4);
+      wb_robot_cleanup();
+      return 1;
+    }
+    printf("WEBEEBLOCKS_MISSION_V1 VALIDATED count=%zu\n", mission_count);
+    fflush(stdout);
+  }
+
   const double *p = wb_gps_get_values(gps), *r = wb_inertial_unit_get_roll_pitch_yaw(imu);
   const double sx = p[0], sy = p[1], sz = p[2], syaw = r[2];
-  const double ux = cos(syaw), uy = sin(syaw), vx = -sin(syaw), vy = cos(syaw);
+  const double ux = cos(syaw), uy = sin(syaw), lx1 = -sin(syaw), ly1 = cos(syaw);
+  const double second_yaw = wrap(syaw + mission[2].value);
+  const double ux2 = cos(second_yaw), uy2 = sin(second_yaw), lx2 = -sin(second_yaw), ly2 = cos(second_yaw);
   const double g1x = sx + GATE_ALONG_M * ux, g1y = sy + GATE_ALONG_M * uy;
-  const double corner_x = sx + LEG_M * ux, corner_y = sy + LEG_M * uy;
-  const double g2x = corner_x + GATE_ALONG_M * vx, g2y = corner_y + GATE_ALONG_M * vy;
-  const double expected_x = corner_x + LEG_M * vx, expected_y = corner_y + LEG_M * vy;
-  const double expected_yaw = wrap(syaw + PI / 2.0);
+  const double corner_x = sx + mission[1].value * ux, corner_y = sy + mission[1].value * uy;
+  const double g2x = corner_x + GATE_ALONG_M * ux2, g2y = corner_y + GATE_ALONG_M * uy2;
+  const double expected_x = corner_x + mission[3].value * ux2, expected_y = corner_y + mission[3].value * uy2;
+  const double expected_yaw = second_yaw;
 
   webeeblocks_runner_t runner;
-  webeeblocks_runner_init(&runner, mission, sizeof(mission) / sizeof(mission[0]));
+  webeeblocks_runner_init(&runner, mission, mission_count);
   webeeblocks_target_t target = webeeblocks_takeoff(sx, sy, sz, syaw, mission[0].value);
   const double target_z = target.z;
   double target_x = target.x, target_y = target.y, target_yaw = target.yaw;
@@ -169,6 +218,8 @@ int main(void) {
   fflush(stdout);
 
   while (wb_robot_step(step) != -1) {
+    if (runtime_mode)
+      reject_runtime_messages_while_busy();
     const double now = wb_robot_get_time(), dt = now - pt;
     if (dt <= 0) continue;
     p = wb_gps_get_values(gps); r = wb_inertial_unit_get_roll_pitch_yaw(imu); const double *gv = wb_gyro_get_values(gyro);
@@ -194,13 +245,13 @@ int main(void) {
     }
 
     if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
-      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,vx,vy,target_z,&gate1);
+      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
       if (crossed < 0) {
         write_failure("GATE1_MISS", &runner, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
       }
     } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
-      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,vx,vy,ux,uy,target_z,&gate2);
+      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,ux2,uy2,lx2,ly2,target_z,&gate2);
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
@@ -273,6 +324,8 @@ int main(void) {
                endpoint_error,yaw_error,now-t0);
         fflush(stdout);
         webeeblocks_runner_advance(&runner);
+        if (runtime_mode)
+          wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 DONE");
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
       }
     }
