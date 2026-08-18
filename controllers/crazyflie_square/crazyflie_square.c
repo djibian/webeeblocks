@@ -15,6 +15,7 @@
 #define LEG_M 1.0
 #define VX 0.35
 #define YAW_RATE 0.7
+#define PRIMITIVE_STABLE_WINDOW 0.5
 #define TIMEOUT 60.0
 
 typedef enum { TAKEOFF, LEG, TURN, SETTLE, LAND } phase_t;
@@ -105,6 +106,7 @@ int main(int argc, char **argv) {
   const double *p=wb_gps_get_values(gps),*r=wb_inertial_unit_get_roll_pitch_yaw(imu);
   const double sx=p[0],sy=p[1],sz=p[2],syaw=r[2],target_z=sz+TARGET_Z_DELTA;
   double min_z=sz,max_z=sz,px=sx,py=sy,pz=sz,pt=wb_robot_get_time(),leg_x=sx,leg_y=sy,prev_yaw=syaw,turn_angle=0,stable=-1;
+  double primitive_start_x=sx,primitive_start_y=sy,primitive_start_yaw=syaw;
   const double t0=pt;
   double primitive_t0=pt;
   double next_heartbeat=t0;
@@ -143,6 +145,7 @@ int main(int argc, char **argv) {
         if(now-stable>.5){
           stable=-1;
           primitive_t0=now;
+          primitive_start_x=x;primitive_start_y=y;primitive_start_yaw=yaw;
           if(mission==MISSION_TURN){
             phase=TURN;turn_angle=0;prev_yaw=yaw;
           }else{
@@ -156,9 +159,6 @@ int main(int argc, char **argv) {
       const double leg_target = mission==MISSION_FORWARD ? mission_value : LEG_M;
       if(hypot(x-leg_x,y-leg_y)>=leg_target){
         if(mission==MISSION_FORWARD){
-          const double dx=x-leg_x,dy=y-leg_y,cy0=cos(syaw),sy0=sin(syaw);
-          const double along=dx*cy0+dy*sy0, lateral=-dx*sy0+dy*cy0;
-          write_primitive_result("forward",mission_value,along-mission_value,lateral,wrap(yaw-syaw)*180/PI,0.0,now-primitive_t0);
           phase=SETTLE;stable=-1;
         }else{
           phase=TURN;turn_angle=0;prev_yaw=yaw;primitive_t0=now;
@@ -171,7 +171,6 @@ int main(int argc, char **argv) {
       turn_angle+=wrap(yaw-prev_yaw);prev_yaw=yaw;
       if(fabs(turn_angle)>=fabs(target_turn)){
         if(mission==MISSION_TURN){
-          write_primitive_result("turn",mission_value*180/PI,0.0,0.0,(turn_angle-mission_value)*180/PI,hypot(x-sx,y-sy),now-primitive_t0);
           phase=SETTLE;stable=-1;
         }else{
           leg++;
@@ -183,7 +182,17 @@ int main(int argc, char **argv) {
     }else if(phase==SETTLE){
       if(hypot(a.vx,a.vy)<.12 && fabs(a.yaw_rate)<.10){
         if(stable<0)stable=now;
-        if(now-stable>.5){
+        if(now-stable>PRIMITIVE_STABLE_WINDOW){
+          if(mission==MISSION_FORWARD){
+            const double dx=x-primitive_start_x,dy=y-primitive_start_y,cy0=cos(primitive_start_yaw),sy0=sin(primitive_start_yaw);
+            const double along=dx*cy0+dy*sy0,lateral=-dx*sy0+dy*cy0;
+            write_primitive_result("forward",mission_value,along-mission_value,lateral,
+                                   wrap(yaw-primitive_start_yaw)*180/PI,0.0,now-primitive_t0);
+          }else if(mission==MISSION_TURN){
+            write_primitive_result("turn",mission_value*180/PI,0.0,0.0,
+                                   wrap(yaw-primitive_start_yaw-mission_value)*180/PI,
+                                   hypot(x-primitive_start_x,y-primitive_start_y),now-primitive_t0);
+          }
           phase=LAND;stable=-1;
           log_state("PHASE_ENTER", phase, leg, now-t0, x, y, z, yaw, a.roll, a.pitch, vz);
         }
