@@ -54,6 +54,22 @@ def parse_pairs(line: str, prefix: str) -> dict:
     return pairs
 
 
+def require_common_endpoint(pairs: dict, backend: str, mission: str) -> None:
+    required = (
+        "residual_speed", "residual_yaw_rate", "residual_vz",
+        "final_x", "final_y", "final_z", "final_yaw",
+    )
+    missing = [key for key in required if key not in pairs]
+    if missing:
+        raise RuntimeError(f"{backend}/{mission}: common endpoint fields missing: {missing}")
+    if float(pairs["residual_speed"]) >= 0.12:
+        raise RuntimeError(f"{backend}/{mission}: residual horizontal speed not settled")
+    if abs(float(pairs["residual_yaw_rate"])) >= 0.10:
+        raise RuntimeError(f"{backend}/{mission}: residual yaw rate not settled")
+    if abs(float(pairs["residual_vz"])) >= 0.15:
+        raise RuntimeError(f"{backend}/{mission}: residual vertical speed not settled")
+
+
 def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str | None, value: str | None) -> dict:
     cfg = BACKENDS[backend]
     source = (root / cfg["world"]).read_text(encoding="utf-8")
@@ -103,6 +119,7 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
         if not primitive_path.is_file() or primitive_path.stat().st_size == 0:
             raise RuntimeError(f"{backend}/{mission}: fresh primitive result missing")
         pairs = parse_pairs(primitive_path.read_text(encoding="utf-8").strip().splitlines()[-1], cfg["primitive_prefix"])
+        require_common_endpoint(pairs, backend, mission)
         row = {
             "backend": backend,
             "mission": mission,
@@ -110,7 +127,17 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
             "command": float(pairs["command"]),
             "yaw_error_deg": float(pairs["yaw_error_deg"]),
             "duration_s": float(pairs["primitive_s"]),
+            "residual_speed_m_s": float(pairs["residual_speed"]),
+            "residual_yaw_rate_rad_s": float(pairs["residual_yaw_rate"]),
+            "residual_vz_m_s": float(pairs["residual_vz"]),
+            "final_x_m": float(pairs["final_x"]),
+            "final_y_m": float(pairs["final_y"]),
+            "final_z_m": float(pairs["final_z"]),
+            "final_yaw_rad": float(pairs["final_yaw"]),
         }
+        if backend == "A":
+            row["threshold_error"] = float(pairs["threshold_error"])
+            row["max_overshoot"] = float(pairs["max_overshoot"])
         if kind == "forward":
             row["longitudinal_error_m"] = float(pairs["longitudinal_error"])
             row["lateral_error_m"] = float(pairs["lateral_error"])
@@ -125,16 +152,18 @@ def write_markdown(path: Path, rows: list[dict]) -> None:
     lines = [
         "# Crazyflie primitive A/B matrix",
         "",
-        "Metrics for T/Y are captured at primitive completion, before LAND.",
+        "T/Y metrics are captured only after the common 0.5 s kinematic stability boundary, before LAND.",
         "",
-        "| Backend | Mission | Kind | Command | Long err (m) | Lateral err (m) | Yaw err (deg) | Drift XY (m) | Primitive/mission (s) |",
-        "|---|---|---|---:|---:|---:|---:|---:|---:|",
+        "| Backend | Mission | Kind | Command | Long err (m) | Lateral err (m) | Yaw err (deg) | Drift XY (m) | Residual speed | Residual yaw rate | Residual vz | Time (s) |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
             f"| {row['backend']} | {row['mission']} | {row['kind']} | {row.get('command', 0):.3f} | "
             f"{row.get('longitudinal_error_m', 0):.6f} | {row.get('lateral_error_m', 0):.6f} | "
-            f"{row['yaw_error_deg']:.6f} | {row.get('drift_xy_m', row.get('error_xy', 0)):.6f} | {row['duration_s']:.3f} |"
+            f"{row['yaw_error_deg']:.6f} | {row.get('drift_xy_m', row.get('error_xy', 0)):.6f} | "
+            f"{row.get('residual_speed_m_s', 0):.6f} | {row.get('residual_yaw_rate_rad_s', 0):.6f} | "
+            f"{row.get('residual_vz_m_s', 0):.6f} | {row['duration_s']:.3f} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
