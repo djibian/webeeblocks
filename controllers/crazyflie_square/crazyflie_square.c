@@ -17,7 +17,7 @@
 #define YAW_RATE 0.7
 #define TIMEOUT 60.0
 
-typedef enum { TAKEOFF, LEG, TURN, LAND } phase_t;
+typedef enum { TAKEOFF, LEG, TURN, SETTLE, LAND } phase_t;
 typedef enum { MISSION_SQUARE, MISSION_FORWARD, MISSION_TURN } mission_t;
 
 static double wrap(double a) {
@@ -34,6 +34,7 @@ static const char *phase_name(phase_t phase) {
     case TAKEOFF: return "TAKEOFF";
     case LEG: return "LEG";
     case TURN: return "TURN";
+    case SETTLE: return "SETTLE";
     case LAND: return "LAND";
   }
   return "UNKNOWN";
@@ -158,7 +159,7 @@ int main(int argc, char **argv) {
           const double dx=x-leg_x,dy=y-leg_y,cy0=cos(syaw),sy0=sin(syaw);
           const double along=dx*cy0+dy*sy0, lateral=-dx*sy0+dy*cy0;
           write_primitive_result("forward",mission_value,along-mission_value,lateral,wrap(yaw-syaw)*180/PI,0.0,now-primitive_t0);
-          phase=LAND;stable=-1;
+          phase=SETTLE;stable=-1;
         }else{
           phase=TURN;turn_angle=0;prev_yaw=yaw;primitive_t0=now;
         }
@@ -171,7 +172,7 @@ int main(int argc, char **argv) {
       if(fabs(turn_angle)>=fabs(target_turn)){
         if(mission==MISSION_TURN){
           write_primitive_result("turn",mission_value*180/PI,0.0,0.0,(turn_angle-mission_value)*180/PI,hypot(x-sx,y-sy),now-primitive_t0);
-          phase=LAND;stable=-1;
+          phase=SETTLE;stable=-1;
         }else{
           leg++;
           if(leg==4){phase=LAND;stable=-1;}
@@ -179,6 +180,14 @@ int main(int argc, char **argv) {
         }
         log_state("PHASE_ENTER", phase, leg, now-t0, x, y, z, yaw, a.roll, a.pitch, vz);
       }
+    }else if(phase==SETTLE){
+      if(hypot(a.vx,a.vy)<.12 && fabs(a.yaw_rate)<.10){
+        if(stable<0)stable=now;
+        if(now-stable>.5){
+          phase=LAND;stable=-1;
+          log_state("PHASE_ENTER", phase, leg, now-t0, x, y, z, yaw, a.roll, a.pitch, vz);
+        }
+      }else stable=-1;
     }else{
       d.altitude=sz;
       if(z<=sz+.05&&fabs(vz)<.15){
