@@ -62,6 +62,33 @@ static void clip_vector(double *x, double *y, double limit) {
   }
 }
 
+static double distance_to_segment(double x, double y,
+                                  double ax, double ay,
+                                  double bx, double by) {
+  const double dx = bx - ax;
+  const double dy = by - ay;
+  const double length2 = dx * dx + dy * dy;
+  if (length2 <= 0.0)
+    return hypot(x - ax, y - ay);
+  double t = ((x - ax) * dx + (y - ay) * dy) / length2;
+  if (t < 0.0)
+    t = 0.0;
+  else if (t > 1.0)
+    t = 1.0;
+  return hypot(x - (ax + t * dx), y - (ay + t * dy));
+}
+
+static double distance_to_l(double x, double y,
+                            double sx, double sy,
+                            double corner_x, double corner_y,
+                            double ex, double ey) {
+  const double first =
+      distance_to_segment(x, y, sx, sy, corner_x, corner_y);
+  const double second =
+      distance_to_segment(x, y, corner_x, corner_y, ex, ey);
+  return first < second ? first : second;
+}
+
 static double motor(double v) {
   return v < 0.0 ? 0.0 : (v > 600.0 ? 600.0 : v);
 }
@@ -192,6 +219,9 @@ static void write_success(const gate_result_t *g1,
                           double corner_handoff_error,
                           double corner_handoff_speed,
                           double corner_max_overshoot,
+                          double corner_max_l_deviation,
+                          double turn_handoff_yaw_travel_deg,
+                          double turn_max_yaw_overshoot_deg,
                           double endpoint_error,
                           double yaw_error_deg,
                           double min_z,
@@ -208,13 +238,17 @@ static void write_success(const gate_result_t *g1,
       "g1_lateral=%.6f g1_altitude_error=%.6f g1_time=%.3f "
       "g2_lateral=%.6f g2_altitude_error=%.6f g2_time=%.3f "
       "corner_handoff_error_xy=%.6f corner_handoff_speed=%.6f "
-      "corner_max_overshoot=%.6f endpoint_error_xy=%.6f "
-      "yaw_error_deg=%.6f altitude_min=%.6f altitude_max=%.6f total_s=%.3f\n",
+      "corner_max_overshoot=%.6f corner_max_l_deviation=%.6f "
+      "turn_handoff_yaw_travel_deg=%.6f turn_max_yaw_overshoot_deg=%.6f "
+      "endpoint_error_xy=%.6f yaw_error_deg=%.6f "
+      "altitude_min=%.6f altitude_max=%.6f total_s=%.3f\n",
       policy_name(policy),
       g1->lateral, g1->altitude_error, g1->time,
       g2->lateral, g2->altitude_error, g2->time,
       corner_handoff_error, corner_handoff_speed, corner_max_overshoot,
-      endpoint_error, yaw_error_deg, min_z, max_z, total);
+      corner_max_l_deviation, turn_handoff_yaw_travel_deg,
+      turn_max_yaw_overshoot_deg, endpoint_error, yaw_error_deg,
+      min_z, max_z, total);
   fflush(file);
   fclose(file);
 }
@@ -290,6 +324,12 @@ int main(void) {
   double corner_handoff_error = NAN;
   double corner_handoff_speed = NAN;
   double corner_max_overshoot = 0.0;
+  double corner_max_l_deviation = 0.0;
+  int turn_tracking = 0;
+  double turn_previous_yaw = syaw;
+  double turn_signed_yaw_travel = 0.0;
+  double turn_handoff_yaw_travel = NAN;
+  double turn_max_yaw_overshoot = 0.0;
 
   gains_pid_t gains = {0};
   gains.kp_att_y = 1;
@@ -384,8 +424,21 @@ int main(void) {
 
     if (corner_tracking) {
       const double along = (x - corner_x) * ux + (y - corner_y) * uy;
+      const double l_deviation =
+          distance_to_l(x, y, sx, sy, corner_x, corner_y,
+                        expected_x, expected_y);
       if (along > corner_max_overshoot)
         corner_max_overshoot = along;
+      if (l_deviation > corner_max_l_deviation)
+        corner_max_l_deviation = l_deviation;
+    }
+
+    if (turn_tracking) {
+      turn_signed_yaw_travel += wrap(yaw - turn_previous_yaw);
+      turn_previous_yaw = yaw;
+      const double overshoot = turn_signed_yaw_travel - PI / 2.0;
+      if (overshoot > turn_max_yaw_overshoot)
+        turn_max_yaw_overshoot = overshoot;
     }
 
     if (phase == TAKEOFF) {
@@ -436,6 +489,11 @@ int main(void) {
           target = webeeblocks_turn(target_x, target_y, target_z,
                                     target_yaw, PI / 2.0);
           target_yaw = target.yaw;
+          turn_tracking = 1;
+          turn_previous_yaw = yaw;
+          turn_signed_yaw_travel = 0.0;
+          turn_handoff_yaw_travel = NAN;
+          turn_max_yaw_overshoot = 0.0;
         } else {
           if (!gate2.passed) {
             write_failure("GATE2_NOT_CROSSED", phase, gates, policy);
@@ -443,6 +501,8 @@ int main(void) {
             wb_supervisor_simulation_quit(2);
             break;
           }
+          corner_tracking = 0;
+          turn_tracking = 0;
           phase = LAND;
         }
       }
@@ -456,12 +516,12 @@ int main(void) {
       if (handoff_ready(policy, geometric_ready, common_stable,
                         now, &stable_since)) {
         stable_since = -1.0;
+        turn_handoff_yaw_travel = turn_signed_yaw_travel;
         phase = LEG2;
         target = webeeblocks_forward(target_x, target_y, target_z,
                                      target_yaw, LEG_M);
         target_x = target.x;
         target_y = target.y;
-        corner_tracking = 0;
       }
     } else if (phase == LAND) {
       const webeeblocks_target_t landing = webeeblocks_land(x, y, sz, yaw);
@@ -482,8 +542,11 @@ int main(void) {
               fabs(wrap(yaw - expected_yaw)) * 180.0 / PI;
           write_success(&gate1, &gate2, policy,
                         corner_handoff_error, corner_handoff_speed,
-                        corner_max_overshoot, endpoint_error,
-                        final_yaw_error, min_z, max_z, now - t0);
+                        corner_max_overshoot, corner_max_l_deviation,
+                        turn_handoff_yaw_travel * 180.0 / PI,
+                        turn_max_yaw_overshoot * 180.0 / PI,
+                        endpoint_error, final_yaw_error,
+                        min_z, max_z, now - t0);
           printf("WEBEEBLOCKS_CF_HANDOFF_RESULT status=success "
                  "policy=%s gates=2 total_s=%.3f\n",
                  policy_name(policy), now - t0);
