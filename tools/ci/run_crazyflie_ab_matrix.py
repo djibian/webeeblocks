@@ -42,7 +42,7 @@ def render_world(source: str, y_offset: float, yaw: float, label: str) -> str:
     text = source.replace(needle, replacement, 1)
     text = text.replace("WorldInfo {", "WorldInfo {\n  randomSeed 1\n  optimalThreadCount 1", 1)
     text = text.replace('name "Crazyflie"', 'name "Crazyflie"\n  synchronization TRUE', 1)
-    return text.replace("experiment\"", f"experiment — {label}\"", 1)
+    return text.replace('experiment"', f'experiment — {label}"', 1)
 
 
 def parse_result(line: str, prefix: str) -> dict:
@@ -61,9 +61,7 @@ def run_case(root: Path, artifacts: Path, backend: str, scenario: str, y_offset:
     cfg = BACKENDS[backend]
     source_path = root / cfg["world"]
     source = source_path.read_text(encoding="utf-8")
-    generated_dir = root / "worlds" / ".ci-ab-matrix"
-    generated_dir.mkdir(parents=True, exist_ok=True)
-    generated = generated_dir / f"{backend}-{scenario}.wbt"
+    generated = root / "worlds" / f".ci-ab-{backend}-{scenario}.wbt"
     generated.write_text(render_world(source, y_offset, yaw, f"{backend} {scenario}"), encoding="utf-8")
 
     result_path = root / cfg["result"]
@@ -159,9 +157,11 @@ def main() -> int:
     artifacts = root / "ci-artifacts" / "crazyflie-ab-matrix"
     artifacts.mkdir(parents=True, exist_ok=True)
     rows = []
+    generated_worlds = []
     try:
         for scenario, y_offset, yaw in SCENARIOS:
             for backend in ("A", "B"):
+                generated_worlds.append(root / "worlds" / f".ci-ab-{backend}-{scenario}.wbt")
                 print(f"=== {backend} / {scenario} ===", flush=True)
                 row = run_case(root, artifacts, backend, scenario, y_offset, yaw)
                 rows.append(row)
@@ -171,11 +171,8 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     finally:
-        generated_dir = root / "worlds" / ".ci-ab-matrix"
-        if generated_dir.exists():
-            for item in generated_dir.iterdir():
-                item.unlink(missing_ok=True)
-            generated_dir.rmdir()
+        for generated in generated_worlds:
+            generated.unlink(missing_ok=True)
 
     degradations = [degradation(rows, "A"), degradation(rows, "B")]
     payload = {"scenarios": rows, "degradation": degradations}
