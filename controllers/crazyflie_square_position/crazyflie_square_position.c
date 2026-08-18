@@ -70,7 +70,8 @@ static void write_result_file(double err, double yawerr, double min_z, double ma
   fclose(file);
 }
 static void write_primitive_result(const char *kind, double command, double longitudinal, double lateral,
-                                   double yaw_error_deg, double drift_xy, double duration,
+                                   double yaw_error_deg, double signed_yaw_travel_deg,
+                                   double drift_xy, double duration,
                                    double residual_speed, double residual_yaw_rate, double residual_vz,
                                    double residual_altitude_error,
                                    double final_x, double final_y, double final_z, double final_yaw) {
@@ -79,10 +80,10 @@ static void write_primitive_result(const char *kind, double command, double long
   FILE *file = fopen(path, "w");
   if (!file) return;
   fprintf(file,
-          "WEBEEBLOCKS_CF_PRIMITIVE_B status=success kind=%s command=%.6f longitudinal_error=%.6f lateral_error=%.6f yaw_error_deg=%.6f drift_xy=%.6f primitive_s=%.3f residual_speed=%.6f residual_yaw_rate=%.6f residual_vz=%.6f residual_altitude_error=%.6f final_x=%.6f final_y=%.6f final_z=%.6f final_yaw=%.6f\n",
-          kind, command, longitudinal, lateral, yaw_error_deg, drift_xy, duration,
-          residual_speed, residual_yaw_rate, residual_vz, residual_altitude_error,
-          final_x, final_y, final_z, final_yaw);
+          "WEBEEBLOCKS_CF_PRIMITIVE_B status=success kind=%s command=%.6f longitudinal_error=%.6f lateral_error=%.6f yaw_error_deg=%.6f signed_yaw_travel_deg=%.6f drift_xy=%.6f primitive_s=%.3f residual_speed=%.6f residual_yaw_rate=%.6f residual_vz=%.6f residual_altitude_error=%.6f final_x=%.6f final_y=%.6f final_z=%.6f final_yaw=%.6f\n",
+          kind, command, longitudinal, lateral, yaw_error_deg, signed_yaw_travel_deg,
+          drift_xy, duration, residual_speed, residual_yaw_rate, residual_vz,
+          residual_altitude_error, final_x, final_y, final_z, final_yaw);
   fflush(file);
   fclose(file);
 }
@@ -125,6 +126,7 @@ int main(int argc, char **argv) {
   double min_z = sz, max_z = sz, px = sx, py = sy, pz = sz, pt = wb_robot_get_time(), stable = -1;
   const double t0 = pt;
   double primitive_t0 = pt;
+  double primitive_yaw_previous = syaw, primitive_yaw_travel = 0.0;
   int leg = 0;
   phase_t phase = TAKEOFF;
 
@@ -150,6 +152,11 @@ int main(int argc, char **argv) {
     a.vx = vxg * cy + vyg * syy; a.vy = -vxg * syy + vyg * cy;
     d.roll = 0; d.pitch = 0; d.vx = 0; d.vy = 0; d.yaw_rate = 0; d.altitude = target_z;
 
+    if (mission == MISSION_TURN && (phase == TURN || phase == SETTLE)) {
+      primitive_yaw_travel += wrap(yaw - primitive_yaw_previous);
+      primitive_yaw_previous = yaw;
+    }
+
     if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 > TIMEOUT) {
       printf("WEBEEBLOCKS_CF_POSITION_FAILED phase=%s leg=%d t=%.3f\n", phase_name(phase), leg, now - t0);
       fflush(stdout); stop(m1, m2, m3, m4); wb_supervisor_simulation_quit(2); break;
@@ -162,6 +169,7 @@ int main(int argc, char **argv) {
           stable = -1;
           primitive_t0 = now;
           primitive_start_x = x; primitive_start_y = y; primitive_start_yaw = yaw;
+          primitive_yaw_previous = yaw; primitive_yaw_travel = 0.0;
           if (mission == MISSION_TURN) {
             phase = TURN;
             target = webeeblocks_turn(x, y, target_z, yaw, mission_value);
@@ -229,11 +237,12 @@ int main(int argc, char **argv) {
             const double dx=x-primitive_start_x,dy=y-primitive_start_y,cy0=cos(primitive_start_yaw),sy0=sin(primitive_start_yaw);
             const double along=dx*cy0+dy*sy0,lateral=-dx*sy0+dy*cy0;
             write_primitive_result("forward",mission_value,along-mission_value,lateral,
-                                   wrap(yaw-primitive_start_yaw)*180/PI,0.0,now-primitive_t0,
+                                   wrap(yaw-primitive_start_yaw)*180/PI,0.0,0.0,now-primitive_t0,
                                    residual_speed,a.yaw_rate,vz,residual_altitude_error,x,y,z,yaw);
           } else if (mission == MISSION_TURN) {
             write_primitive_result("turn",mission_value*180/PI,0.0,0.0,
                                    wrap(yaw-primitive_start_yaw-mission_value)*180/PI,
+                                   primitive_yaw_travel*180/PI,
                                    hypot(x-primitive_start_x,y-primitive_start_y),now-primitive_t0,
                                    residual_speed,a.yaw_rate,vz,residual_altitude_error,x,y,z,yaw);
           }
