@@ -12,6 +12,7 @@
 #define WEBEEBLOCKS_MISSION_V1_HEADER "WEBEEBLOCKS_MISSION_V1"
 #define WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS 5
 #define WEBEEBLOCKS_MISSION_V1_MAX_MESSAGE 1024
+#define WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE 1e-6
 
 typedef enum {
   WEBEEBLOCKS_MISSION_V1_OK = 0,
@@ -42,6 +43,10 @@ static int webeeblocks_mission_v1_parse_number(const char *text, double *value) 
     return 0;
   *value = parsed;
   return 1;
+}
+
+static int webeeblocks_mission_v1_matches(double actual, double expected) {
+  return fabs(actual - expected) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE;
 }
 
 static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
@@ -76,19 +81,21 @@ static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
       return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
 
     if (strcmp(command, "TAKEOFF") == 0) {
-      if (fabs(value - 1.0) > 1e-9)
+      if (!webeeblocks_mission_v1_matches(value, 1.0))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_TAKEOFF, value};
     } else if (strcmp(command, "FORWARD") == 0) {
-      if (!(value >= 0.1 && value <= 2.0))
+      // Transport v1 deliberately accepts only the already-proven one-metre L.
+      // General student distances come after this runtime seam is closed.
+      if (!webeeblocks_mission_v1_matches(value, 1.0))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_FORWARD, value};
     } else if (strcmp(command, "TURN") == 0) {
-      if (!(fabs(value) > 0.0 && fabs(value) < M_PI))
+      if (!webeeblocks_mission_v1_matches(value, M_PI / 2.0))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_TURN, value};
     } else if (strcmp(command, "LAND") == 0) {
-      if (fabs(value) > 1e-12)
+      if (!webeeblocks_mission_v1_matches(value, 0.0))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_LAND, value};
     } else {
@@ -96,8 +103,8 @@ static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
     }
   }
 
-  // Runtime v1 deliberately proves the same L-shaped pedagogical sequence as #34.
-  // This keeps the transport seam isolated from any new navigation semantics.
+  // Runtime v1 deliberately proves exactly the L-shaped pedagogical sequence
+  // already characterized in #31-#34. Parameter generalization is a later lot.
   if (n != 5 ||
       commands[0].type != WEBEEBLOCKS_COMMAND_TAKEOFF ||
       commands[1].type != WEBEEBLOCKS_COMMAND_FORWARD ||
