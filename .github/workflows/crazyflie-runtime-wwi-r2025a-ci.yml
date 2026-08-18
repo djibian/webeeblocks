@@ -1,0 +1,160 @@
+name: Crazyflie runtime Blockly WWI R2025a
+
+on:
+  pull_request:
+    branches: [webots-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crazyflie-runtime-wwi:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate browser-side runtime transport syntax
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_runtime_wwi.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+
+      - name: Prepare actual Blockly Robot Window runtime harness
+        run: python3 tools/ci/prepare_crazyflie_runtime_wwi.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared STOP controller once before Submit
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-runtime-wwi
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_l_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/build.log
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-runtime-wwi/controller-before.sha256
+
+      - name: Run real Blockly Submit through Robot Window WWI
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_wwi_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_runtime_wwi.wbt
+            ' \
+            2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/crazyflie-runtime-wwi/exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Runtime WWI Webots run exited with $code"
+            exit 1
+          fi
+
+      - name: Prove browser handshake atomic validation BUSY and unchanged binary
+        shell: bash
+        run: |
+          set -o pipefail
+          LOG=ci-artifacts/crazyflie-runtime-wwi/webots.log
+          EVENTS=ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
+          RESULT=ci-artifacts/crazyflie-l-course-result.txt
+          test -s ci-artifacts/crazyflie-runtime-wwi/browser-launch.log
+          test -s "$EVENTS"
+          test -s "$RESULT"
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-runtime-wwi/controller-after.sha256
+          cmp ci-artifacts/crazyflie-runtime-wwi/controller-before.sha256 \
+              ci-artifacts/crazyflie-runtime-wwi/controller-after.sha256
+
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 VALIDATED count=5' "$LOG"
+          ! grep -Fq 'ERROR:' "$LOG"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          expected = [
+              ('TX_NEGATIVE_VERSION', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR VERSION'),
+              ('TX_NEGATIVE_COMMAND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR COMMAND'),
+              ('TX_NEGATIVE_PARAMETER', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER'),
+              ('TX_NEGATIVE_SEQUENCE', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE'),
+              ('TX_NEGATIVE_TOO_LONG', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG'),
+              ('SUBMIT_CLICK', None), ('STATE_AFTER_SUBMIT', 'PENDING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK'), ('STATE_AFTER_ACK', 'RUNNING'),
+              ('SECOND_SUBMIT_CLICK', None), ('SECOND_SUBMIT_BLOCKED_LOCAL', 'RUNNING'),
+              ('BUSY_PROBE_SEND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR BUSY'),
+              ('STATE_AFTER_BUSY', 'RUNNING'), ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
+              ('STATE_AFTER_DONE', 'WAITING'), ('COMPLETE', 'runtime WWI handshake proved'),
+          ]
+          cursor = 0
+          for event in events:
+              if cursor >= len(expected):
+                  break
+              kind, detail = expected[cursor]
+              if event.get('event') == kind and (detail is None or event.get('detail') == detail):
+                  cursor += 1
+          assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
+          assert not any(event.get('event') == 'ERROR' for event in events), events
+          print('PASS: real Robot Window persisted negative rejects -> PENDING -> ACK/RUNNING -> local second-submit block -> BUSY -> DONE/WAITING.')
+          PY
+
+          cat "$RESULT"
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          line = Path('ci-artifacts/crazyflie-l-course-result.txt').read_text().strip()
+          pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+          assert pairs['status'] == 'success' and pairs['gates'] == '2'
+          assert abs(float(pairs['g1_time']) - 12.287) <= 0.10
+          assert abs(float(pairs['g2_time']) - 21.315) <= 0.10
+          assert float(pairs['endpoint_error_xy']) <= 0.02
+          assert float(pairs['yaw_error_deg']) <= 2.0
+          assert abs(float(pairs['total_s']) - 26.144) <= 0.10
+          print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course, with no rebuild after Submit.')
+          PY
+
+      - name: Upload runtime WWI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-runtime-wwi-r2025a
+          path: |
+            ci-artifacts/crazyflie-runtime-wwi/
+            ci-artifacts/crazyflie-l-course-result.txt
+          if-no-files-found: error

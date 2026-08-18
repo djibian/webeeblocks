@@ -79,7 +79,6 @@ def build_harness() -> str:
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom({payload}), workspace);
     const mission = WebeeBlocksCrazyflie.workspaceToMission(workspace);
 
-    // One explicit fail-closed check: a non-Crazyflie top-level block must be rejected.
     const invalid = new Blockly.Workspace();
     invalid.newBlock('math_number');
     let invalidRejected = false;
@@ -117,19 +116,11 @@ def run_browser(harness_path: Path) -> dict[str, object]:
         "--allow-file-access-from-files", "--virtual-time-budget=5000", "--dump-dom",
         harness_path.as_uri(),
     ]
-    process = subprocess.Popen(
-        command,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    process = subprocess.Popen(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     timed_out = False
     try:
         stdout, stderr = process.communicate(timeout=30)
     except subprocess.TimeoutExpired:
-        # Hosted Chrome can finish --dump-dom then linger while shutting down.
-        # Keep the already-produced DOM and accept it only if the mission payload
-        # is actually present, matching the established historical Blockly oracle.
         timed_out = True
         process.kill()
         stdout, stderr = process.communicate()
@@ -138,22 +129,15 @@ def run_browser(harness_path: Path) -> dict[str, object]:
         parsed = parse_browser_output(stdout)
     except RuntimeError as exc:
         if timed_out:
-            raise RuntimeError(
-                f"browser timed out before emitting mission-result: {stderr.strip()}"
-            ) from exc
+            raise RuntimeError(f"browser timed out before emitting mission-result: {stderr.strip()}") from exc
         if process.returncode:
-            raise RuntimeError(
-                f"browser exited with {process.returncode}: {stderr.strip()}"
-            ) from exc
+            raise RuntimeError(f"browser exited with {process.returncode}: {stderr.strip()}") from exc
         raise
 
     if not timed_out and process.returncode:
         raise RuntimeError(f"browser exited with {process.returncode}: {stderr.strip()}")
     if timed_out:
-        print(
-            "WARN: browser required forced shutdown after emitting mission-result; accepting verified DOM payload.",
-            file=sys.stderr,
-        )
+        print("WARN: browser required forced shutdown after emitting mission-result; accepting verified DOM payload.", file=sys.stderr)
     return parsed
 
 
@@ -183,14 +167,23 @@ def inject_mission_into_l_course(mission: list[dict[str, object]]) -> None:
         f"    {{{enum[str(item['type'])]}, {float(item['value']):.17g}}},"
         for item in mission
     ]
-    replacement = "static const webeeblocks_command_t mission[] = {\n" + "\n".join(rows) + "\n  };"
 
     source = L_SOURCE.read_text(encoding="utf-8")
-    pattern = re.compile(
-        r"static const webeeblocks_command_t mission\[\] = \{.*?\n  \};",
+    runtime_declaration = "webeeblocks_command_t mission[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS] = {\n" + "\n".join(rows) + "\n  };"
+    runtime_pattern = re.compile(
+        r"webeeblocks_command_t mission\[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS\] = \{.*?\n  \};",
         re.DOTALL,
     )
-    updated, count = pattern.subn(replacement, source, count=1)
+    updated, count = runtime_pattern.subn(runtime_declaration, source, count=1)
+
+    if count == 0:
+        legacy_declaration = "static const webeeblocks_command_t mission[] = {\n" + "\n".join(rows) + "\n  };"
+        legacy_pattern = re.compile(
+            r"static const webeeblocks_command_t mission\[\] = \{.*?\n  \};",
+            re.DOTALL,
+        )
+        updated, count = legacy_pattern.subn(legacy_declaration, source, count=1)
+
     if count != 1:
         raise RuntimeError("could not replace the L-course semantic mission initializer")
     L_SOURCE.write_text(updated, encoding="utf-8")
