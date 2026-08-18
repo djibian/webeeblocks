@@ -47,7 +47,7 @@ Blockly.Blocks['webeeblocks_land'] = {
   }
 };
 
-// Stable semantic bridge used by CI and later by the runtime transport.
+// Stable semantic bridge used by CI and the runtime WWI transport.
 // The values are exactly those consumed by webeeblocks_executor.h:
 // distances in metres, turns in radians, fixed takeoff delta = 1 m for v0.
 (function(global) {
@@ -57,6 +57,8 @@ Blockly.Blocks['webeeblocks_land'] = {
     webeeblocks_turn: 'TURN',
     webeeblocks_land: 'LAND'
   };
+  const PROTOCOL = 'WEBEEBLOCKS_MISSION_V1';
+  const MAX_COMMANDS_V1 = 5;
 
   function finiteNumber(block, field) {
     const value = Number(block.getFieldValue(field));
@@ -100,11 +102,35 @@ Blockly.Blocks['webeeblocks_land'] = {
 
     if (mission.length < 2 || mission[0].type !== 'TAKEOFF' || mission[mission.length - 1].type !== 'LAND')
       throw new Error('Crazyflie mission must start with TAKEOFF and end with LAND');
+    if (mission.length > MAX_COMMANDS_V1)
+      throw new Error('Crazyflie mission is too long for runtime protocol v1');
     return mission;
   }
 
+  function serializeMissionV1(mission) {
+    if (!Array.isArray(mission) || mission.length === 0)
+      throw new Error('Crazyflie mission is empty');
+    if (mission.length > MAX_COMMANDS_V1)
+      throw new Error('Crazyflie mission is too long for runtime protocol v1');
+    const lines = [PROTOCOL];
+    mission.forEach(function(command) {
+      if (!command || !Object.prototype.hasOwnProperty.call(command, 'type') || !Number.isFinite(Number(command.value)))
+        throw new Error('invalid Crazyflie mission command');
+      lines.push(command.type + ' ' + Number(command.value).toPrecision(17));
+    });
+    return lines.join('\n');
+  }
+
+  function workspaceToMissionMessage(workspace) {
+    return serializeMissionV1(workspaceToMission(workspace));
+  }
+
   global.WebeeBlocksCrazyflie = {
+    PROTOCOL: PROTOCOL,
+    MAX_COMMANDS_V1: MAX_COMMANDS_V1,
     workspaceToMission: workspaceToMission,
-    commandFromBlock: commandFromBlock
+    commandFromBlock: commandFromBlock,
+    serializeMissionV1: serializeMissionV1,
+    workspaceToMissionMessage: workspaceToMissionMessage
   };
 })(typeof window !== 'undefined' ? window : this);
