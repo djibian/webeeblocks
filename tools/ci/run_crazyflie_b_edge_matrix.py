@@ -39,12 +39,14 @@ def parse_pairs(line: str) -> dict:
     return pairs
 
 
-def require_endpoint(pairs: dict, label: str) -> None:
-    required = (
+def require_endpoint(pairs: dict, label: str, kind: str) -> None:
+    required = [
         "kind", "command", "yaw_error_deg", "primitive_s",
         "residual_speed", "residual_yaw_rate", "residual_vz",
         "residual_altitude_error", "final_x", "final_y", "final_z", "final_yaw",
-    )
+    ]
+    if kind == "turn":
+        required.append("signed_yaw_travel_deg")
     missing = [key for key in required if key not in pairs]
     if missing:
         raise RuntimeError(f"{label}: endpoint fields missing: {missing}")
@@ -59,7 +61,7 @@ def require_endpoint(pairs: dict, label: str) -> None:
 
 
 def result_row(label: str, kind: str, pairs: dict) -> dict:
-    require_endpoint(pairs, label)
+    require_endpoint(pairs, label, kind)
     command = float(pairs["command"])
     row = {
         "case": label,
@@ -93,15 +95,21 @@ def result_row(label: str, kind: str, pairs: dict) -> dict:
         signed_error = float(pairs["yaw_error_deg"])
         drift = float(pairs["drift_xy"])
         achieved = command + signed_error
+        signed_yaw_travel = float(pairs["signed_yaw_travel_deg"])
         direction = 1.0 if command > 0.0 else -1.0
+        yaw_travel_tolerance = max(15.0, 0.25 * abs(command))
         row.update({
             "signed_error": signed_error,
             "parasitic_motion": drift,
             "endpoint_overshoot": max(0.0, direction * signed_error),
             "achieved": achieved,
+            "signed_yaw_travel_deg": signed_yaw_travel,
+            "yaw_travel_error_deg": signed_yaw_travel - command,
         })
-        if direction * achieved <= 0.0:
-            row["termination"] = "PATHOLOGICAL_WRONG_SIGN"
+        if direction * signed_yaw_travel <= 0.0:
+            row["termination"] = "PATHOLOGICAL_WRONG_TURN_DIRECTION"
+        elif abs(signed_yaw_travel - command) > yaw_travel_tolerance:
+            row["termination"] = "PATHOLOGICAL_YAW_TRAVEL"
     return row
 
 
@@ -157,9 +165,10 @@ def write_markdown(path: Path, rows: list[dict]) -> None:
         "",
         "No PID/gain/cap/navigation tuning. Each case is a fresh Webots R2025a process.",
         "`endpoint_overshoot` is overshoot remaining at the common stabilized endpoint; transient peak overshoot is not instrumented by this gate.",
+        "For turns, `signed_yaw_travel_deg` is the unwrapped yaw actually traversed from TURN start through the stabilized endpoint.",
         "",
-        "| Case | Kind | Command | Termination | Achieved | Signed err | Parasitic motion | Endpoint overshoot | Alt err | Time (s) |",
-        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|",
+        "| Case | Kind | Command | Termination | Achieved | Signed err | Yaw travel | Parasitic motion | Endpoint overshoot | Alt err | Time (s) |",
+        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         def f(key: str) -> str:
@@ -167,8 +176,9 @@ def write_markdown(path: Path, rows: list[dict]) -> None:
             return "N/A" if value is None else f"{value:.6f}"
         lines.append(
             f"| {row['case']} | {row['kind']} | {row['command']:.3f} | {row['termination']} | "
-            f"{f('achieved')} | {f('signed_error')} | {f('parasitic_motion')} | "
-            f"{f('endpoint_overshoot')} | {f('residual_altitude_error_m')} | {f('duration_s')} |"
+            f"{f('achieved')} | {f('signed_error')} | {f('signed_yaw_travel_deg')} | "
+            f"{f('parasitic_motion')} | {f('endpoint_overshoot')} | "
+            f"{f('residual_altitude_error_m')} | {f('duration_s')} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
