@@ -8,6 +8,7 @@
 #include <webots/supervisor.h>
 #include "pid_controller.h"
 #include "webeeblocks_primitives.h"
+#include "webeeblocks_executor.h"
 
 #define PI 3.14159265358979323846
 #define TARGET_Z_DELTA 1.0
@@ -18,15 +19,10 @@
 #define YAW_KP 1.5
 #define POSITION_TOL 0.03
 #define YAW_TOL (2.0 * PI / 180.0)
-#define SPEED_TOL 0.12
-#define YAW_RATE_TOL 0.10
-#define STABLE_WINDOW 0.5
 #define TIMEOUT 60.0
 #define GATE_ALONG_M 0.90
 #define GATE_HALF_WIDTH_M 0.30
 #define GATE_HALF_HEIGHT_M 0.20
-
-typedef enum { TAKEOFF, LEG1, TURN, LEG2, LAND } phase_t;
 
 typedef struct {
   int passed;
@@ -57,15 +53,14 @@ static void stop(WbDeviceTag a, WbDeviceTag b, WbDeviceTag c, WbDeviceTag d) {
   wb_motor_set_velocity(a, 0); wb_motor_set_velocity(b, 0);
   wb_motor_set_velocity(c, 0); wb_motor_set_velocity(d, 0);
 }
-static const char *phase_name(phase_t p) {
-  switch (p) {
-    case TAKEOFF: return "TAKEOFF";
-    case LEG1: return "LEG1";
-    case TURN: return "TURN";
-    case LEG2: return "LEG2";
-    case LAND: return "LAND";
-  }
-  return "UNKNOWN";
+
+static const char *runner_phase_name(const webeeblocks_runner_t *runner) {
+  const webeeblocks_command_t *command = webeeblocks_runner_current(runner);
+  if (!command)
+    return "DONE";
+  if (command->type == WEBEEBLOCKS_COMMAND_FORWARD)
+    return runner->index == 1 ? "LEG1" : "LEG2";
+  return webeeblocks_command_name(command->type);
 }
 
 static int check_gate(double px, double py, double pz,
@@ -97,13 +92,13 @@ static int check_gate(double px, double py, double pz,
   return 1;
 }
 
-static void write_failure(const char *reason, phase_t phase, int gates) {
+static void write_failure(const char *reason, const webeeblocks_runner_t *runner, int gates) {
   char path[4096];
   snprintf(path, sizeof(path), "%s/ci-artifacts/crazyflie-l-course-result.txt", wb_robot_get_project_path());
   FILE *file = fopen(path, "w");
   if (file) {
     fprintf(file, "WEBEEBLOCKS_CF_L_RESULT status=failure reason=%s phase=%s gates=%d\n",
-            reason, phase_name(phase), gates);
+            reason, runner_phase_name(runner), gates);
     fflush(file);
     fclose(file);
   }
@@ -126,6 +121,14 @@ static void write_success(const gate_result_t *g1, const gate_result_t *g2,
 }
 
 int main(void) {
+  static const webeeblocks_command_t mission[] = {
+    {WEBEEBLOCKS_COMMAND_TAKEOFF, TARGET_Z_DELTA},
+    {WEBEEBLOCKS_COMMAND_FORWARD, LEG_M},
+    {WEBEEBLOCKS_COMMAND_TURN, PI / 2.0},
+    {WEBEEBLOCKS_COMMAND_FORWARD, LEG_M},
+    {WEBEEBLOCKS_COMMAND_LAND, 0.0},
+  };
+
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
   WbDeviceTag m1 = wb_robot_get_device("m1_motor"), m2 = wb_robot_get_device("m2_motor");
@@ -147,13 +150,13 @@ int main(void) {
   const double expected_x = corner_x + LEG_M * vx, expected_y = corner_y + LEG_M * vy;
   const double expected_yaw = wrap(syaw + PI / 2.0);
 
-  webeeblocks_target_t target = webeeblocks_takeoff(sx, sy, sz, syaw, TARGET_Z_DELTA);
+  webeeblocks_runner_t runner;
+  webeeblocks_runner_init(&runner, mission, sizeof(mission) / sizeof(mission[0]));
+  webeeblocks_target_t target = webeeblocks_takeoff(sx, sy, sz, syaw, mission[0].value);
   const double target_z = target.z;
   double target_x = target.x, target_y = target.y, target_yaw = target.yaw;
   double min_z = sz, max_z = sz, px = sx, py = sy, pz = sz, pt = wb_robot_get_time();
   const double t0 = pt;
-  double stable = -1.0;
-  phase_t phase = TAKEOFF;
   gate_result_t gate1 = {0}, gate2 = {0};
 
   gains_pid_t g = {0};
@@ -178,93 +181,100 @@ int main(void) {
     a.vx = vxg * cy + vyg * syy; a.vy = -vxg * syy + vyg * cy;
     d.roll = 0; d.pitch = 0; d.vx = 0; d.vy = 0; d.yaw_rate = 0; d.altitude = target_z;
 
-    const int gates = gate1.passed + gate2.passed;
-    if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 > TIMEOUT) {
-      write_failure(now - t0 > TIMEOUT ? "TIMEOUT" : "UNSAFE_STATE", phase, gates);
+    const webeeblocks_command_t *command = webeeblocks_runner_current(&runner);
+    if (!command) {
+      write_failure("RUNNER_EXHAUSTED", &runner, gate1.passed + gate2.passed);
       stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
     }
 
-    if (phase == LEG1) {
+    const int gates = gate1.passed + gate2.passed;
+    if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 > TIMEOUT) {
+      write_failure(now - t0 > TIMEOUT ? "TIMEOUT" : "UNSAFE_STATE", &runner, gates);
+      stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+    }
+
+    if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,vx,vy,target_z,&gate1);
       if (crossed < 0) {
-        write_failure("GATE1_MISS", phase, gates);
+        write_failure("GATE1_MISS", &runner, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
       }
-    } else if (phase == LEG2) {
+    } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,vx,vy,ux,uy,target_z,&gate2);
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
-        write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", phase, gates);
+        write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
       }
     }
 
-    if (phase == TAKEOFF) {
-      if (fabs(z-target_z) < .05 && fabs(vz) < .15) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW) {
-          stable = -1;
-          phase = LEG1;
-          target = webeeblocks_forward(x,y,target_z,yaw,LEG_M);
-          target_x = target.x; target_y = target.y; target_yaw = syaw;
-        }
-      } else stable = -1;
-    } else if (phase == LEG1 || phase == LEG2) {
+    if (command->type == WEBEEBLOCKS_COMMAND_TAKEOFF) {
+      const int geometric_ready = fabs(z - target_z) < WEBEEBLOCKS_STOP_ALTITUDE_ERROR_MAX;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        webeeblocks_runner_advance(&runner);
+        command = webeeblocks_runner_current(&runner);
+        target = webeeblocks_forward(x,y,target_z,yaw,command->value);
+        target_x = target.x; target_y = target.y; target_yaw = syaw;
+      }
+    } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD) {
       const double ex = target_x-x, ey = target_y-y;
       double bx = ex*cy + ey*syy, by = -ex*syy + ey*cy;
       d.vx = POSITION_KP*bx; d.vy = POSITION_KP*by;
       clip_vector(&d.vx,&d.vy,VX_MAX);
-      if (hypot(ex,ey) <= POSITION_TOL && hypot(a.vx,a.vy) <= SPEED_TOL) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW) {
-          stable = -1;
-          if (phase == LEG1) {
-            if (!gate1.passed) {
-              write_failure("GATE1_NOT_CROSSED", phase, gates);
-              stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-            }
-            phase = TURN;
-            target = webeeblocks_turn(target_x,target_y,target_z,target_yaw,PI/2.0);
-            target_yaw = target.yaw;
-          } else {
-            if (!gate2.passed) {
-              write_failure("GATE2_NOT_CROSSED", phase, gates);
-              stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-            }
-            phase = LAND;
-          }
-        }
-      } else stable = -1;
-    } else if (phase == TURN) {
-      const double eyaw = wrap(target_yaw-yaw);
-      d.yaw_rate = clip(YAW_KP*eyaw,YAW_RATE_MAX);
-      if (fabs(eyaw) <= YAW_TOL && fabs(a.yaw_rate) <= YAW_RATE_TOL) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW) {
-          stable = -1;
-          phase = LEG2;
-          target = webeeblocks_forward(target_x,target_y,target_z,target_yaw,LEG_M);
-          target_x = target.x; target_y = target.y;
-        }
-      } else stable = -1;
-    } else if (phase == LAND) {
-      const webeeblocks_target_t landing = webeeblocks_land(x,y,sz,yaw);
-      d.altitude = landing.z;
-      if (z <= landing.z + .05 && fabs(vz) < .15) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW) {
-          if (!(gate1.passed && gate2.passed)) {
-            write_failure("GATES_INCOMPLETE", phase, gate1.passed+gate2.passed);
+      const int geometric_ready = hypot(ex,ey) <= POSITION_TOL;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        if (runner.index == 1) {
+          if (!gate1.passed) {
+            write_failure("GATE1_NOT_CROSSED", &runner, gates);
             stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
           }
-          const double endpoint_error = hypot(x-expected_x,y-expected_y);
-          const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
-          write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
-          printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
-                 endpoint_error,yaw_error,now-t0);
-          fflush(stdout);
-          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+          webeeblocks_runner_advance(&runner);
+          command = webeeblocks_runner_current(&runner);
+          target = webeeblocks_turn(target_x,target_y,target_z,target_yaw,command->value);
+          target_yaw = target.yaw;
+        } else {
+          if (!gate2.passed) {
+            write_failure("GATE2_NOT_CROSSED", &runner, gates);
+            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+          }
+          webeeblocks_runner_advance(&runner);
         }
-      } else stable = -1;
+      }
+    } else if (command->type == WEBEEBLOCKS_COMMAND_TURN) {
+      const double eyaw = wrap(target_yaw-yaw);
+      d.yaw_rate = clip(YAW_KP*eyaw,YAW_RATE_MAX);
+      const int geometric_ready = fabs(eyaw) <= YAW_TOL;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        webeeblocks_runner_advance(&runner);
+        command = webeeblocks_runner_current(&runner);
+        target = webeeblocks_forward(target_x,target_y,target_z,target_yaw,command->value);
+        target_x = target.x; target_y = target.y;
+      }
+    } else if (command->type == WEBEEBLOCKS_COMMAND_LAND) {
+      const webeeblocks_target_t landing = webeeblocks_land(x,y,sz,yaw);
+      d.altitude = landing.z;
+      const int geometric_ready = z <= landing.z + WEBEEBLOCKS_STOP_ALTITUDE_ERROR_MAX;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - landing.z, now)) {
+        if (!(gate1.passed && gate2.passed)) {
+          write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        }
+        const double endpoint_error = hypot(x-expected_x,y-expected_y);
+        const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
+        write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
+        printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
+               endpoint_error,yaw_error,now-t0);
+        fflush(stdout);
+        webeeblocks_runner_advance(&runner);
+        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+      }
     }
 
     pid_velocity_fixed_height_controller(a,&d,g,dt,&power);
