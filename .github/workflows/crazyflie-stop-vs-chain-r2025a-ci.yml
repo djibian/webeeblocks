@@ -84,6 +84,9 @@ jobs:
               assert abs(float(pairs["g1_altitude_error"])) <= 0.20
               assert abs(float(pairs["g2_altitude_error"])) <= 0.20
               assert float(pairs["corner_max_overshoot"]) < 0.50
+              assert float(pairs["corner_max_l_deviation"]) < 0.50
+              assert 45.0 < float(pairs["turn_handoff_yaw_travel_deg"]) < 135.0
+              assert float(pairs["turn_max_yaw_overshoot_deg"]) < 45.0
               assert float(pairs["endpoint_error_xy"]) < 0.50
               assert float(pairs["yaw_error_deg"]) < 45.0
               return pairs
@@ -95,8 +98,9 @@ jobs:
               "g1_lateral", "g1_altitude_error",
               "g2_lateral", "g2_altitude_error",
               "corner_handoff_error_xy", "corner_handoff_speed",
-              "corner_max_overshoot", "endpoint_error_xy",
-              "yaw_error_deg", "total_s",
+              "corner_max_overshoot", "corner_max_l_deviation",
+              "turn_handoff_yaw_travel_deg", "turn_max_yaw_overshoot_deg",
+              "endpoint_error_xy", "yaw_error_deg", "total_s",
           ]
           print("metric STOP CHAIN delta_CHAIN_minus_STOP")
           for key in keys:
