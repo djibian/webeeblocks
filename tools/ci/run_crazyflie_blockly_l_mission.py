@@ -81,7 +81,7 @@ def build_harness() -> str:
 
     // One explicit fail-closed check: a non-Crazyflie top-level block must be rejected.
     const invalid = new Blockly.Workspace();
-    invalid.newBlock('math_number').initSvg && invalid.getTopBlocks(false)[0].initSvg();
+    invalid.newBlock('math_number');
     let invalidRejected = false;
     try {{ WebeeBlocksCrazyflie.workspaceToMission(invalid); }}
     catch (error) {{ invalidRejected = true; }}
@@ -100,6 +100,16 @@ def build_harness() -> str:
 </script></body></html>"""
 
 
+def parse_browser_output(stdout: str) -> dict[str, object]:
+    match = RESULT_RE.search(stdout)
+    if not match:
+        raise RuntimeError("browser did not emit mission-result")
+    raw = html.unescape(match.group(1))
+    if raw == "NOT_RUN":
+        raise RuntimeError("Blockly mission harness did not run")
+    return json.loads(raw)
+
+
 def run_browser(harness_path: Path) -> dict[str, object]:
     command = [
         chrome_executable(), "--headless=new", "--no-sandbox", "--disable-gpu",
@@ -107,16 +117,44 @@ def run_browser(harness_path: Path) -> dict[str, object]:
         "--allow-file-access-from-files", "--virtual-time-budget=5000", "--dump-dom",
         harness_path.as_uri(),
     ]
-    process = subprocess.run(command, text=True, capture_output=True, timeout=30)
-    match = RESULT_RE.search(process.stdout)
-    if not match:
-        raise RuntimeError(f"browser did not emit mission-result: {process.stderr.strip()}")
-    raw = html.unescape(match.group(1))
-    if raw == "NOT_RUN":
-        raise RuntimeError("Blockly mission harness did not run")
-    if process.returncode:
-        raise RuntimeError(f"browser exited with {process.returncode}: {process.stderr.strip()}")
-    return json.loads(raw)
+    process = subprocess.Popen(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    timed_out = False
+    try:
+        stdout, stderr = process.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+        # Hosted Chrome can finish --dump-dom then linger while shutting down.
+        # Keep the already-produced DOM and accept it only if the mission payload
+        # is actually present, matching the established historical Blockly oracle.
+        timed_out = True
+        process.kill()
+        stdout, stderr = process.communicate()
+
+    try:
+        parsed = parse_browser_output(stdout)
+    except RuntimeError as exc:
+        if timed_out:
+            raise RuntimeError(
+                f"browser timed out before emitting mission-result: {stderr.strip()}"
+            ) from exc
+        if process.returncode:
+            raise RuntimeError(
+                f"browser exited with {process.returncode}: {stderr.strip()}"
+            ) from exc
+        raise
+
+    if not timed_out and process.returncode:
+        raise RuntimeError(f"browser exited with {process.returncode}: {stderr.strip()}")
+    if timed_out:
+        print(
+            "WARN: browser required forced shutdown after emitting mission-result; accepting verified DOM payload.",
+            file=sys.stderr,
+        )
+    return parsed
 
 
 def same_mission(actual: object) -> bool:
