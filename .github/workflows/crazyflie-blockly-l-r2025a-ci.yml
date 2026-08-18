@@ -97,8 +97,10 @@ jobs:
           endpoint = float(pairs['endpoint_error_xy'])
           yaw = float(pairs['yaw_error_deg'])
           total = float(pairs['total_s'])
-          assert abs(g1 - 12.287) <= 0.02, g1
-          assert abs(g2 - 21.315) <= 0.02, g2
+          # R2025a's 32 ms timestep makes a ±20 ms time oracle artificially tighter
+          # than one simulation step. Geometry/order/STOP remain the strong oracle.
+          assert abs(g1 - 12.287) <= 0.10, g1
+          assert abs(g2 - 21.315) <= 0.10, g2
           assert endpoint <= 0.02, endpoint
           assert yaw <= 2.0, yaw
           assert abs(total - 26.144) <= 0.10, total
