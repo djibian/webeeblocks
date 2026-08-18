@@ -69,7 +69,8 @@ static const char *phase_name(phase_t p) {
 }
 
 static int check_gate(double px, double py, double pz,
-                      double x, double y, double z, double now,
+                      double x, double y, double z,
+                      double previous_time, double now, double mission_start,
                       double cx, double cy, double nx, double ny,
                       double lx, double ly, double target_z,
                       gate_result_t *gate) {
@@ -84,11 +85,12 @@ static int check_gate(double px, double py, double pz,
   const double ix = px + alpha * (x - px);
   const double iy = py + alpha * (y - py);
   const double iz = pz + alpha * (z - pz);
+  const double crossing_time = previous_time + alpha * (now - previous_time) - mission_start;
   const double lateral = (ix - cx) * lx + (iy - cy) * ly;
   const double altitude_error = iz - target_z;
   gate->lateral = lateral;
   gate->altitude_error = altitude_error;
-  gate->x = ix; gate->y = iy; gate->z = iz; gate->time = now;
+  gate->x = ix; gate->y = iy; gate->z = iz; gate->time = crossing_time;
   if (fabs(lateral) > GATE_HALF_WIDTH_M || fabs(altitude_error) > GATE_HALF_HEIGHT_M)
     return -1;
   gate->passed = 1;
@@ -170,7 +172,8 @@ int main(void) {
     const double x = p[0], y = p[1], z = p[2], yaw = r[2];
     const double vz = (z - pz) / dt, vxg = (x - px) / dt, vyg = (y - py) / dt;
     const double cy = cos(yaw), syy = sin(yaw);
-    if (z < min_z) min_z = z; if (z > max_z) max_z = z;
+    if (z < min_z) min_z = z;
+    if (z > max_z) max_z = z;
     a.roll = r[0]; a.pitch = r[1]; a.yaw_rate = gv[2]; a.altitude = z;
     a.vx = vxg * cy + vyg * syy; a.vy = -vxg * syy + vyg * cy;
     d.roll = 0; d.pitch = 0; d.vx = 0; d.vy = 0; d.yaw_rate = 0; d.altitude = target_z;
@@ -182,13 +185,13 @@ int main(void) {
     }
 
     if (phase == LEG1) {
-      const int crossed = check_gate(px,py,pz,x,y,z,now,g1x,g1y,ux,uy,vx,vy,target_z,&gate1);
+      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,vx,vy,target_z,&gate1);
       if (crossed < 0) {
         write_failure("GATE1_MISS", phase, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
       }
     } else if (phase == LEG2) {
-      const int crossed = check_gate(px,py,pz,x,y,z,now,g2x,g2y,vx,vy,ux,uy,target_z,&gate2);
+      const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,vx,vy,ux,uy,target_z,&gate2);
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", phase, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
