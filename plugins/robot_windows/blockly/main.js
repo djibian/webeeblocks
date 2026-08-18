@@ -123,10 +123,16 @@ function isCrazyflieWorkspace() {
 function submitCrazyflieMission() {
     if (!window.robotWindow || typeof window.robotWindow.send !== 'function')
         throw new Error('Crazyflie runtime transport is not ready');
-    if (crazyflieRuntimeState === 'RUNNING')
-        throw new Error('Crazyflie mission is already running');
+    if (crazyflieRuntimeState !== 'WAITING')
+        throw new Error('Crazyflie mission is already pending or running');
     var message = WebeeBlocksCrazyflie.workspaceToMissionMessage(workspace);
-    window.robotWindow.send(message);
+    crazyflieRuntimeState = 'PENDING';
+    try {
+        window.robotWindow.send(message);
+    } catch (error) {
+        crazyflieRuntimeState = 'WAITING';
+        throw error;
+    }
 }
 
 function convertCode() {
@@ -177,10 +183,17 @@ function restore() {
 function receiveMessage(value) {
     console.log(value);
     if (typeof value === 'string' && value.indexOf('WEBEEBLOCKS_MISSION_V1 ') === 0) {
-        if (value === 'WEBEEBLOCKS_MISSION_V1 ACK')
-            crazyflieRuntimeState = 'RUNNING';
-        else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE' || value.indexOf('WEBEEBLOCKS_MISSION_V1 ERR ') === 0)
+        if (value === 'WEBEEBLOCKS_MISSION_V1 ACK') {
+            if (crazyflieRuntimeState === 'PENDING')
+                crazyflieRuntimeState = 'RUNNING';
+        } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
             crazyflieRuntimeState = 'WAITING';
+        } else if (value.indexOf('WEBEEBLOCKS_MISSION_V1 ERR ') === 0) {
+            // BUSY can be the response to a second transport-level probe while an
+            // already accepted mission is still active. Never let it unlock Submit.
+            if (value !== 'WEBEEBLOCKS_MISSION_V1 ERR BUSY' && crazyflieRuntimeState === 'PENDING')
+                crazyflieRuntimeState = 'WAITING';
+        }
     }
     window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
 }
