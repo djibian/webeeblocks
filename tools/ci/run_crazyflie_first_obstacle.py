@@ -82,6 +82,13 @@ def main() -> int:
         direct = parse_last_result(contact, "WEBEEBLOCKS_OBSTACLE_RESULT")
         if direct.get("status") != "COLLISION":
             raise RuntimeError(f"direct witness did not classify COLLISION: {direct}")
+
+        # Preserve the raw physical-contact witness before the shared result path
+        # is cleared for the no-collision detour. This is the auditable evidence
+        # containing the exact contact coordinates and Webots node id.
+        (artifacts / "direct-contact.txt").write_text(
+            contact.read_text(encoding="utf-8"), encoding="utf-8"
+        )
         summary["direct"] = {
             "expected": "COLLISION",
             "observed": "COLLISION",
@@ -133,7 +140,7 @@ def main() -> int:
         "",
         "| Mission | Expected | Observed | Evidence |",
         "|---|---|---|---|",
-        f"| direct forward 2.0 m | COLLISION | {summary['direct']['observed']} | contact t={summary['direct']['contact_time_s']:.3f} s |",
+        f"| direct forward 2.0 m | COLLISION | {summary['direct']['observed']} | contact t={summary['direct']['contact_time_s']:.3f} s; raw witness `direct-contact.txt` |",
         f"| STOP L detour | SUCCESS | {summary['detour']['observed']} | G1→G2→LAND; endpoint={summary['detour']['endpoint_error_xy_m']:.6f} m; yaw={summary['detour']['yaw_error_deg']:.6f}° |",
         "",
         "No sensor block, condition, scoring rule, avoidance algorithm or PID/navigation tuning is part of this experiment.",
