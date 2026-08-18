@@ -19,9 +19,6 @@
 #define YAW_KP 1.5
 #define POSITION_TOL 0.03
 #define YAW_TOL (2.0 * PI / 180.0)
-#define SPEED_TOL 0.12
-#define YAW_RATE_TOL 0.10
-#define STABLE_WINDOW 0.5
 #define TIMEOUT 60.0
 #define GATE_ALONG_M 0.90
 #define GATE_HALF_WIDTH_M 0.30
@@ -160,7 +157,6 @@ int main(void) {
   double target_x = target.x, target_y = target.y, target_yaw = target.yaw;
   double min_z = sz, max_z = sz, px = sx, py = sy, pz = sz, pt = wb_robot_get_time();
   const double t0 = pt;
-  double stable = -1.0;
   gate_result_t gate1 = {0}, gate2 = {0};
 
   gains_pid_t g = {0};
@@ -212,82 +208,73 @@ int main(void) {
     }
 
     if (command->type == WEBEEBLOCKS_COMMAND_TAKEOFF) {
-      const int stabilized = fabs(z-target_z) < .05 && fabs(vz) < .15;
-      if (stabilized) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW && webeeblocks_runner_completion_stop(1)) {
-          stable = -1;
-          webeeblocks_runner_advance(&runner);
-          command = webeeblocks_runner_current(&runner);
-          target = webeeblocks_forward(x,y,target_z,yaw,command->value);
-          target_x = target.x; target_y = target.y; target_yaw = syaw;
-        }
-      } else stable = -1;
+      const int geometric_ready = fabs(z - target_z) < WEBEEBLOCKS_STOP_ALTITUDE_ERROR_MAX;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        webeeblocks_runner_advance(&runner);
+        command = webeeblocks_runner_current(&runner);
+        target = webeeblocks_forward(x,y,target_z,yaw,command->value);
+        target_x = target.x; target_y = target.y; target_yaw = syaw;
+      }
     } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD) {
       const double ex = target_x-x, ey = target_y-y;
       double bx = ex*cy + ey*syy, by = -ex*syy + ey*cy;
       d.vx = POSITION_KP*bx; d.vy = POSITION_KP*by;
       clip_vector(&d.vx,&d.vy,VX_MAX);
-      const int geometric_reached = hypot(ex,ey) <= POSITION_TOL;
-      const int stabilized = geometric_reached && hypot(a.vx,a.vy) <= SPEED_TOL;
-      if (stabilized) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW && webeeblocks_runner_completion_stop(1)) {
-          stable = -1;
-          if (runner.index == 1) {
-            if (!gate1.passed) {
-              write_failure("GATE1_NOT_CROSSED", &runner, gates);
-              stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-            }
-            webeeblocks_runner_advance(&runner);
-            command = webeeblocks_runner_current(&runner);
-            target = webeeblocks_turn(target_x,target_y,target_z,target_yaw,command->value);
-            target_yaw = target.yaw;
-          } else {
-            if (!gate2.passed) {
-              write_failure("GATE2_NOT_CROSSED", &runner, gates);
-              stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-            }
-            webeeblocks_runner_advance(&runner);
+      const int geometric_ready = hypot(ex,ey) <= POSITION_TOL;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        if (runner.index == 1) {
+          if (!gate1.passed) {
+            write_failure("GATE1_NOT_CROSSED", &runner, gates);
+            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
           }
+          webeeblocks_runner_advance(&runner);
+          command = webeeblocks_runner_current(&runner);
+          target = webeeblocks_turn(target_x,target_y,target_z,target_yaw,command->value);
+          target_yaw = target.yaw;
+        } else {
+          if (!gate2.passed) {
+            write_failure("GATE2_NOT_CROSSED", &runner, gates);
+            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+          }
+          webeeblocks_runner_advance(&runner);
         }
-      } else stable = -1;
+      }
     } else if (command->type == WEBEEBLOCKS_COMMAND_TURN) {
       const double eyaw = wrap(target_yaw-yaw);
       d.yaw_rate = clip(YAW_KP*eyaw,YAW_RATE_MAX);
-      const int geometric_reached = fabs(eyaw) <= YAW_TOL;
-      const int stabilized = geometric_reached && fabs(a.yaw_rate) <= YAW_RATE_TOL;
-      if (stabilized) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW && webeeblocks_runner_completion_stop(1)) {
-          stable = -1;
-          webeeblocks_runner_advance(&runner);
-          command = webeeblocks_runner_current(&runner);
-          target = webeeblocks_forward(target_x,target_y,target_z,target_yaw,command->value);
-          target_x = target.x; target_y = target.y;
-        }
-      } else stable = -1;
+      const int geometric_ready = fabs(eyaw) <= YAW_TOL;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - target_z, now)) {
+        webeeblocks_runner_advance(&runner);
+        command = webeeblocks_runner_current(&runner);
+        target = webeeblocks_forward(target_x,target_y,target_z,target_yaw,command->value);
+        target_x = target.x; target_y = target.y;
+      }
     } else if (command->type == WEBEEBLOCKS_COMMAND_LAND) {
       const webeeblocks_target_t landing = webeeblocks_land(x,y,sz,yaw);
       d.altitude = landing.z;
-      const int stabilized = z <= landing.z + .05 && fabs(vz) < .15;
-      if (stabilized) {
-        if (stable < 0) stable = now;
-        if (now-stable > STABLE_WINDOW && webeeblocks_runner_completion_stop(1)) {
-          if (!(gate1.passed && gate2.passed)) {
-            write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
-            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-          }
-          const double endpoint_error = hypot(x-expected_x,y-expected_y);
-          const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
-          write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
-          printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
-                 endpoint_error,yaw_error,now-t0);
-          fflush(stdout);
-          webeeblocks_runner_advance(&runner);
-          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+      const int geometric_ready = z <= landing.z + WEBEEBLOCKS_STOP_ALTITUDE_ERROR_MAX;
+      if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
+                                              hypot(a.vx, a.vy), a.yaw_rate, vz,
+                                              z - landing.z, now)) {
+        if (!(gate1.passed && gate2.passed)) {
+          write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
         }
-      } else stable = -1;
+        const double endpoint_error = hypot(x-expected_x,y-expected_y);
+        const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
+        write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
+        printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
+               endpoint_error,yaw_error,now-t0);
+        fflush(stdout);
+        webeeblocks_runner_advance(&runner);
+        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+      }
     }
 
     pid_velocity_fixed_height_controller(a,&d,g,dt,&power);
