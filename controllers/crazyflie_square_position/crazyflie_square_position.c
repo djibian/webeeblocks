@@ -33,6 +33,14 @@ static double clip(double v, double limit) {
   if (v < -limit) return -limit;
   return v;
 }
+static void clip_vector(double *x, double *y, double limit) {
+  const double magnitude = hypot(*x, *y);
+  if (magnitude > limit && magnitude > 0) {
+    const double scale = limit / magnitude;
+    *x *= scale;
+    *y *= scale;
+  }
+}
 static double motor(double v) { return v < 0 ? 0 : (v > 600 ? 600 : v); }
 static void stop(WbDeviceTag a, WbDeviceTag b, WbDeviceTag c, WbDeviceTag d) {
   wb_motor_set_velocity(a, 0); wb_motor_set_velocity(b, 0); wb_motor_set_velocity(c, 0); wb_motor_set_velocity(d, 0);
@@ -116,8 +124,9 @@ int main(void) {
     } else if (phase == LEG) {
       double ex = target_x - x, ey = target_y - y;
       double bx = ex * cy + ey * syy, by = -ex * syy + ey * cy;
-      d.vx = clip(POSITION_KP * bx, VX_MAX);
-      d.vy = clip(POSITION_KP * by, VX_MAX);
+      d.vx = POSITION_KP * bx;
+      d.vy = POSITION_KP * by;
+      clip_vector(&d.vx, &d.vy, VX_MAX);
       if (hypot(ex, ey) <= POSITION_TOL && hypot(a.vx, a.vy) <= SPEED_TOL) {
         if (stable < 0) stable = now;
         if (now - stable > .2) {
