@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
             target = webeeblocks_forward(x, y, target_z, yaw, distance);
             target_x = target.x;
             target_y = target.y;
-            target_yaw = target.yaw;
+            target_yaw = mission == MISSION_FORWARD ? target.yaw : syaw;
           }
         }
       } else stable = -1;
