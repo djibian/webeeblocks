@@ -1,5 +1,7 @@
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <webots/gps.h>
 #include <webots/gyro.h>
 #include <webots/inertial_unit.h>
@@ -22,6 +24,7 @@
 #define TIMEOUT 60.0
 
 typedef enum { TAKEOFF, LEG, TURN, LAND } phase_t;
+typedef enum { MISSION_SQUARE, MISSION_FORWARD, MISSION_TURN } mission_t;
 
 static double wrap(double a) {
   while (a > PI) a -= 2 * PI;
@@ -65,8 +68,38 @@ static void write_result_file(double err, double yawerr, double min_z, double ma
   fflush(file);
   fclose(file);
 }
+static void write_primitive_result(const char *kind, double command, double longitudinal, double lateral,
+                                   double yaw_error_deg, double drift_xy, double duration) {
+  char path[4096];
+  snprintf(path, sizeof(path), "%s/ci-artifacts/crazyflie-primitive-B.txt", wb_robot_get_project_path());
+  FILE *file = fopen(path, "w");
+  if (!file) return;
+  fprintf(file,
+          "WEBEEBLOCKS_CF_PRIMITIVE_B status=success kind=%s command=%.6f longitudinal_error=%.6f lateral_error=%.6f yaw_error_deg=%.6f drift_xy=%.6f primitive_s=%.3f\n",
+          kind, command, longitudinal, lateral, yaw_error_deg, drift_xy, duration);
+  fflush(file);
+  fclose(file);
+}
 
-int main(void) {
+int main(int argc, char **argv) {
+  mission_t mission = MISSION_SQUARE;
+  double mission_value = 0.0;
+  if (argc == 3 && strcmp(argv[1], "forward") == 0) {
+    mission = MISSION_FORWARD;
+    mission_value = strtod(argv[2], NULL);
+  } else if (argc == 3 && strcmp(argv[1], "turn") == 0) {
+    mission = MISSION_TURN;
+    mission_value = strtod(argv[2], NULL) * PI / 180.0;
+  } else if (argc != 1) {
+    fprintf(stderr, "WEBEEBLOCKS_CF_POSITION_FAILED invalid controllerArgs\n");
+    return 2;
+  }
+  if ((mission == MISSION_FORWARD && mission_value <= 0.0) ||
+      (mission == MISSION_TURN && fabs(mission_value) <= 0.0)) {
+    fprintf(stderr, "WEBEEBLOCKS_CF_POSITION_FAILED invalid mission value\n");
+    return 2;
+  }
+
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
   WbDeviceTag m1 = wb_robot_get_device("m1_motor"), m2 = wb_robot_get_device("m2_motor");
@@ -82,6 +115,7 @@ int main(void) {
   double target_x = sx, target_y = sy, target_yaw = syaw;
   double min_z = sz, max_z = sz, px = sx, py = sy, pz = sz, pt = wb_robot_get_time(), stable = -1;
   const double t0 = pt;
+  double primitive_t0 = pt;
   int leg = 0;
   phase_t phase = TAKEOFF;
 
@@ -116,9 +150,17 @@ int main(void) {
       if (fabs(z - target_z) < .05 && fabs(vz) < .15) {
         if (stable < 0) stable = now;
         if (now - stable > .5) {
-          phase = LEG; stable = -1;
-          target_x += LEG_M * cos(target_yaw);
-          target_y += LEG_M * sin(target_yaw);
+          stable = -1;
+          primitive_t0 = now;
+          if (mission == MISSION_TURN) {
+            phase = TURN;
+            target_yaw = wrap(syaw + mission_value);
+          } else {
+            phase = LEG;
+            const double distance = mission == MISSION_FORWARD ? mission_value : LEG_M;
+            target_x += distance * cos(target_yaw);
+            target_y += distance * sin(target_yaw);
+          }
         }
       } else stable = -1;
     } else if (phase == LEG) {
@@ -130,8 +172,16 @@ int main(void) {
       if (hypot(ex, ey) <= POSITION_TOL && hypot(a.vx, a.vy) <= SPEED_TOL) {
         if (stable < 0) stable = now;
         if (now - stable > .2) {
-          phase = TURN; stable = -1;
-          target_yaw = wrap(target_yaw + PI / 2);
+          stable = -1;
+          if (mission == MISSION_FORWARD) {
+            const double dx=x-sx,dy=y-sy,cy0=cos(syaw),sy0=sin(syaw);
+            const double along=dx*cy0+dy*sy0, lateral=-dx*sy0+dy*cy0;
+            write_primitive_result("forward",mission_value,along-mission_value,lateral,wrap(yaw-syaw)*180/PI,0.0,now-primitive_t0);
+            phase = LAND;
+          } else {
+            phase = TURN;
+            target_yaw = wrap(target_yaw + PI / 2);
+          }
         }
       } else stable = -1;
     } else if (phase == TURN) {
@@ -140,13 +190,18 @@ int main(void) {
       if (fabs(eyaw) <= YAW_TOL && fabs(a.yaw_rate) <= YAW_RATE_TOL) {
         if (stable < 0) stable = now;
         if (now - stable > .2) {
-          leg++;
           stable = -1;
-          if (leg == 4) phase = LAND;
-          else {
-            phase = LEG;
-            target_x += LEG_M * cos(target_yaw);
-            target_y += LEG_M * sin(target_yaw);
+          if (mission == MISSION_TURN) {
+            write_primitive_result("turn",mission_value*180/PI,0.0,0.0,wrap(yaw-syaw-mission_value)*180/PI,hypot(x-sx,y-sy),now-primitive_t0);
+            phase = LAND;
+          } else {
+            leg++;
+            if (leg == 4) phase = LAND;
+            else {
+              phase = LEG;
+              target_x += LEG_M * cos(target_yaw);
+              target_y += LEG_M * sin(target_yaw);
+            }
           }
         }
       } else stable = -1;
