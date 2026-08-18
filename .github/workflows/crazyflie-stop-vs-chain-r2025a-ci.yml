@@ -1,0 +1,136 @@
+name: Crazyflie STOP vs CHAIN handoff R2025a
+
+on:
+  pull_request:
+    branches: [webots-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stop-vs-chain:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared handoff controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-handoff
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_handoff_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-handoff/build.log
+
+      - name: Run identical L course with STOP and CHAIN
+        shell: bash
+        run: |
+          set -o pipefail
+          for policy in STOP CHAIN; do
+            rm -f "ci-artifacts/crazyflie-handoff-${policy}-result.txt"
+            set +e
+            docker run --rm \
+              -e LIBGL_ALWAYS_SOFTWARE=true \
+              -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              -e WEBEEBLOCKS_HANDOFF_POLICY="${policy}" \
+              -v "${{ github.workspace }}:/workspace" \
+              -w /workspace \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_handoff_course.wbt' \
+              2>&1 | tee "ci-artifacts/crazyflie-handoff/${policy}.log"
+            code=${PIPESTATUS[0]}
+            set -e
+            echo "$code" > "ci-artifacts/crazyflie-handoff/${policy}-exit-code.txt"
+            if [ "$code" -ne 0 ]; then
+              echo "::error::${policy} Webots run exited with $code"
+              exit 1
+            fi
+          done
+
+      - name: Validate same mission and publish comparison
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          def parse(policy):
+              result = Path(f"ci-artifacts/crazyflie-handoff-{policy}-result.txt")
+              log = Path(f"ci-artifacts/crazyflie-handoff/{policy}.log")
+              assert result.is_file() and result.stat().st_size > 0
+              line = result.read_text().strip()
+              pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+              assert pairs.get("status") == "success", line
+              assert pairs.get("policy") == policy, line
+              assert pairs.get("gates") == "2", line
+              text = log.read_text()
+              assert "ERROR:" not in text
+              assert "WEBEEBLOCKS_CF_POSITION_FAILED" not in text
+              g1 = float(pairs["g1_time"])
+              g2 = float(pairs["g2_time"])
+              total = float(pairs["total_s"])
+              assert 0 < g1 < g2 < total
+              assert abs(float(pairs["g1_lateral"])) <= 0.30
+              assert abs(float(pairs["g2_lateral"])) <= 0.30
+              assert abs(float(pairs["g1_altitude_error"])) <= 0.20
+              assert abs(float(pairs["g2_altitude_error"])) <= 0.20
+              assert float(pairs["corner_max_overshoot"]) < 0.50
+              assert float(pairs["corner_max_l_deviation"]) < 0.50
+              assert 45.0 < float(pairs["turn_handoff_yaw_travel_deg"]) < 135.0
+              assert float(pairs["turn_max_yaw_overshoot_deg"]) < 45.0
+              assert float(pairs["endpoint_error_xy"]) < 0.50
+              assert float(pairs["yaw_error_deg"]) < 45.0
+              return pairs
+
+          stop = parse("STOP")
+          chain = parse("CHAIN")
+
+          keys = [
+              "g1_lateral", "g1_altitude_error",
+              "g2_lateral", "g2_altitude_error",
+              "corner_handoff_error_xy", "corner_handoff_speed",
+              "corner_max_overshoot", "corner_max_l_deviation",
+              "turn_handoff_yaw_travel_deg", "turn_max_yaw_overshoot_deg",
+              "endpoint_error_xy", "yaw_error_deg", "total_s",
+          ]
+          print("metric STOP CHAIN delta_CHAIN_minus_STOP")
+          for key in keys:
+              a = float(stop[key])
+              b = float(chain[key])
+              print(f"{key} {a:.6f} {b:.6f} {b-a:+.6f}")
+          PY
+
+      - name: Publish STOP-vs-CHAIN results
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Crazyflie STOP vs CHAIN'
+            echo '```text'
+            for policy in STOP CHAIN; do
+              if [ -f "ci-artifacts/crazyflie-handoff-${policy}-result.txt" ]; then
+                cat "ci-artifacts/crazyflie-handoff-${policy}-result.txt"
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-stop-vs-chain-r2025a
+          path: |
+            ci-artifacts/crazyflie-handoff/
+            ci-artifacts/crazyflie-handoff-STOP-result.txt
+            ci-artifacts/crazyflie-handoff-CHAIN-result.txt
+          if-no-files-found: error
