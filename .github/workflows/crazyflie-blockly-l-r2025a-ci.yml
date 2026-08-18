@@ -19,6 +19,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-blockly-l
           python3 tools/ci/run_crazyflie_blockly_l_mission.py \
             2>&1 | tee ci-artifacts/crazyflie-blockly-l/blockly-mission.log
           cat ci-artifacts/crazyflie-blockly-l/mission.json
