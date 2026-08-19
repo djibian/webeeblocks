@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <webots/contact_point.h>
 #include <webots/robot.h>
 #include <webots/supervisor.h>
@@ -10,6 +11,7 @@
 #define OBSTACLE_MIN_Z 0.0
 #define OBSTACLE_MAX_Z 1.40
 #define CONTACT_TOLERANCE 0.003
+#define COLLISION_PREFIX "WEBEEBLOCKS_CHALLENGE_V1 COLLISION "
 
 static int point_is_on_obstacle(const double point[3]) {
   return fabs(point[0] - OBSTACLE_X) <= OBSTACLE_HALF_THICKNESS + CONTACT_TOLERANCE &&
@@ -52,8 +54,16 @@ int main(void) {
 
   int reported = 0;
   while (wb_robot_step(step) != -1) {
-    if (reported)
+    if (reported) {
+      const char *data = wb_supervisor_field_get_sf_string(custom_data);
+      if (!data || strncmp(data, COLLISION_PREFIX, strlen(COLLISION_PREFIX)) != 0) {
+        reported = 0;
+        printf("WEBEEBLOCKS_OBSTACLE_OBSERVER_REARMED\n");
+        fflush(stdout);
+      }
       continue;
+    }
+
     int count = 0;
     WbContactPoint *points = wb_supervisor_node_get_contact_points(crazyflie, true, &count);
     for (int i = 0; i < count; ++i) {
