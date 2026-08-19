@@ -24,7 +24,13 @@ script = r'''
   let reportSequence = 0;
   let reportChain = Promise.resolve();
   function report(event, detail) {
-    const payload = {seq: reportSequence++, event: event, detail: detail === undefined ? null : String(detail)};
+    const payload = {
+      seq: reportSequence++,
+      wall_ms: Date.now(),
+      performance_ms: typeof performance !== 'undefined' ? performance.now() : null,
+      event: event,
+      detail: detail === undefined ? null : String(detail),
+    };
     reportChain = reportChain.then(() => fetch('http://127.0.0.1:8765/event', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -80,8 +86,13 @@ script = r'''
     const realSend = window.robotWindow.send.bind(window.robotWindow);
     let uiTransportSends = 0;
     window.robotWindow.send = function(message) {
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_CALL', crazyflieRuntimeState);
       uiTransportSends += 1;
-      return realSend(message);
+      const result = realSend(message);
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_RETURN', crazyflieRuntimeState);
+      return result;
     };
 
     const ackBefore = responses.length;
