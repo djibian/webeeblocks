@@ -69,9 +69,10 @@ script = r'''
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xmlText), workspace);
   }
 
-  // Programmatic XML loading is not a student edit. Nudge one real numeric
-  // Blockly field and restore it immediately so the product change listener is
-  // exercised while the serialized mission remains exactly the fixture.
+  // Programmatic Field.setValue() is silent in this vendored Blockly 2020 path,
+  // unlike a real user field edit. Reproduce the standard Blockly field-change
+  // event explicitly, then restore the fixture value with the inverse event so
+  // the mission submitted by the harness remains exactly the preserved XML.
   function simulateStudentEdit() {
     const blocks = workspace.getAllBlocks(false);
     for (let i = 0; i < blocks.length; ++i) {
@@ -82,9 +83,12 @@ script = r'''
       const field = block.getField(fieldName);
       const original = Number(field.getValue());
       const delta = fieldName === 'DISTANCE' ? (original >= 1.9 ? -0.1 : 0.1) : (original >= 134 ? -1 : 1);
-      report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: original + delta}));
-      field.setValue(original + delta);
+      const edited = original + delta;
+      report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: edited}));
+      field.setValue(edited);
+      Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited)));
       field.setValue(original);
+      Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(edited), String(original)));
       return true;
     }
     return false;
