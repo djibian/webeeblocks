@@ -7,7 +7,7 @@ html_path = ROOT / 'plugins/robot_windows/blockly/blockly.html'
 html = html_path.read_text(encoding='utf-8')
 fixtures = {
     'direct': (ROOT / 'controllers/Blockly_Programs/CrazyflieDirect.xml').read_text(encoding='utf-8'),
-    'detour': (ROOT / 'controllers/Blockly_Programs/CrazyflieL.xml').read_text(encoding='utf-8'),
+    'detour': (ROOT / 'controllers/Blockly_Programs/CrazyflieDetourOffset.xml').read_text(encoding='utf-8'),
     'gate_miss': (ROOT / 'controllers/Blockly_Programs/CrazyflieGateMiss.xml').read_text(encoding='utf-8'),
 }
 
@@ -69,10 +69,11 @@ script = r'''
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xmlText), workspace);
   }
 
-  // Programmatic Field.setValue() is silent in this vendored Blockly 2020 path,
-  // unlike a real user field edit. Reproduce the standard Blockly field-change
-  // event explicitly, then restore the fixture value with the inverse event so
-  // the mission submitted by the harness remains exactly the preserved XML.
+  // Direct Field.setValue() is silent in this vendored Blockly 2020 path.
+  // Fire one standard field-change event so the real product listener sees a
+  // student edit. Restore the numeric value silently afterwards: firing the
+  // inverse event would be merged with the first one into a null event by
+  // Blockly.Events.filter(), defeating the test.
   function simulateStudentEdit() {
     const blocks = workspace.getAllBlocks(false);
     for (let i = 0; i < blocks.length; ++i) {
@@ -88,7 +89,6 @@ script = r'''
       field.setValue(edited);
       Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited)));
       field.setValue(original);
-      Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(edited), String(original)));
       return true;
     }
     return false;
@@ -103,6 +103,8 @@ script = r'''
     await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
     if (terminalBeforeEdit)
       await report(name + '_EDIT_READY', JSON.stringify(panel()));
+    const missionMessage = WebeeBlocksCrazyflie.workspaceToMissionMessage(workspace);
+    await report(name + '_MISSION', missionMessage);
     const beforeChallenge = challengeEvents.length;
     const beforeResponses = responses.length;
     await report(name + '_BEFORE_SUBMIT', JSON.stringify(panel()));
