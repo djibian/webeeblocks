@@ -71,10 +71,10 @@ script = r'''
 
   // Direct Field.setValue() is silent in this vendored Blockly 2020 path.
   // Fire one standard field-change event so the real product listener sees a
-  // student edit. Restore the numeric value silently afterwards: firing the
-  // inverse event would be merged with the first one into a null event by
-  // Blockly.Events.filter(), defeating the test.
-  function simulateStudentEdit() {
+  // student edit. Let the queued event reach listeners before silently
+  // restoring the original numeric value; otherwise Blockly.Events.filter()
+  // can collapse the synthetic edit before the product observes it.
+  async function simulateStudentEdit() {
     const blocks = workspace.getAllBlocks(false);
     for (let i = 0; i < blocks.length; ++i) {
       const block = blocks[i];
@@ -88,6 +88,7 @@ script = r'''
       report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: edited}));
       field.setValue(edited);
       Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited)));
+      await sleep(50);
       field.setValue(original);
       return true;
     }
@@ -98,7 +99,7 @@ script = r'''
     await waitFor(() => crazyflieRuntimeState === 'WAITING', name + ' runtime WAITING', 8000);
     const terminalBeforeEdit = webeeblocksChallengeState === 'FINISHED';
     loadFixture(xmlText);
-    if (terminalBeforeEdit && !simulateStudentEdit())
+    if (terminalBeforeEdit && !(await simulateStudentEdit()))
       throw new Error(name + ' fixture has no editable numeric field');
     await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
     if (terminalBeforeEdit)
