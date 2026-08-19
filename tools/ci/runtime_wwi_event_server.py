@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -10,9 +11,13 @@ def main() -> int:
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--completion-sentinel')
     args = parser.parse_args()
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    completion_sentinel = Path(args.completion_sentinel) if args.completion_sentinel else None
+    if completion_sentinel:
+        completion_sentinel.parent.mkdir(parents=True, exist_ok=True)
 
     class Handler(BaseHTTPRequestHandler):
         def _cors(self) -> None:
@@ -49,6 +54,11 @@ def main() -> int:
             with output.open('a', encoding='utf-8') as handle:
                 handle.write(json.dumps(payload, separators=(',', ':')) + '\n')
                 handle.flush()
+                os.fsync(handle.fileno())
+            if completion_sentinel and payload.get('event') == 'CHALLENGE_TEST_COMPLETE':
+                pending = completion_sentinel.with_suffix(completion_sentinel.suffix + '.tmp')
+                pending.write_text('CHALLENGE_TEST_COMPLETE\n', encoding='utf-8')
+                pending.replace(completion_sentinel)
             self.send_response(204)
             self._cors()
             self.end_headers()
