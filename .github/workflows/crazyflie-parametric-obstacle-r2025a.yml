@@ -135,6 +135,9 @@ jobs:
           ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
           test -s ci-artifacts/crazyflie-l-course-result.txt
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_SENT' ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          ! grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-parametric-obstacle/detour.log
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -144,9 +147,9 @@ jobs:
           assert any(e['event'] == 'MISSION' and 'TURN 1.5707963267948966' in (e.get('detail') or '') for e in events), events
           assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
           assert ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE') in details, events
-          assert ('COMPLETE', 'SUCCESS') in details, events
+          assert ('STATE_AFTER_DONE', 'WAITING') in details, events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: Blockly detour mission -> runtime ACK -> no collision -> G1/G2/LAND -> DONE.')
+          print('PASS: Blockly detour mission -> ACK -> no collision -> G1/G2/LAND -> DONE/WAITING -> DONE_ACK.')
           PY
 
       - name: Prove controller binary unchanged across both Submit runs
