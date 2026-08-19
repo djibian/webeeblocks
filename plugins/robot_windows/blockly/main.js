@@ -4,6 +4,76 @@ var saveList = document.getElementById("saveList");
 
 var title = document.getElementById("projectTitle");
 var crazyflieRuntimeState = "WAITING";
+var webeeblocksChallengeState = "READY";
+
+function ensureChallengePanel() {
+    var panel = document.getElementById('webeeblocksChallenge');
+    if (panel)
+        return panel;
+    panel = document.createElement('div');
+    panel.id = 'webeeblocksChallenge';
+    panel.style.display = 'flex';
+    panel.style.gap = '18px';
+    panel.style.alignItems = 'center';
+    panel.style.padding = '8px 12px';
+    panel.style.margin = '4px 0 8px 0';
+    panel.style.border = '1px solid #bbb';
+    panel.style.borderRadius = '6px';
+    panel.style.fontFamily = 'sans-serif';
+    panel.innerHTML = '<strong>Défi</strong>' +
+        '<span>État : <b id="webeeblocksChallengeState">PRÊT</b></span>' +
+        '<span>Résultat : <b id="webeeblocksChallengeResult">—</b></span>' +
+        '<span>Temps : <b id="webeeblocksChallengeTime">—</b></span>';
+    var container = document.getElementById('blocklyContainer');
+    if (container && container.parentNode)
+        container.parentNode.insertBefore(panel, container);
+    return panel;
+}
+
+function setChallengeDisplay(state, result, elapsed) {
+    ensureChallengePanel();
+    webeeblocksChallengeState = state;
+    var stateNode = document.getElementById('webeeblocksChallengeState');
+    var resultNode = document.getElementById('webeeblocksChallengeResult');
+    var timeNode = document.getElementById('webeeblocksChallengeTime');
+    if (stateNode)
+        stateNode.textContent = state === 'RUNNING' ? 'EN VOL' : (state === 'FINISHED' ? 'TERMINÉ' : 'PRÊT');
+    if (resultNode)
+        resultNode.textContent = result || '—';
+    if (timeNode)
+        timeNode.textContent = elapsed === null || elapsed === undefined ? '—' : Number(elapsed).toFixed(2) + ' s';
+    window.dispatchEvent(new CustomEvent('webeeblocks-challenge', {
+        detail: {state: state, result: result || null, elapsed: elapsed === undefined ? null : elapsed}
+    }));
+}
+
+function challengeResultLabel(status) {
+    if (status === 'SUCCESS') return 'RÉUSSI';
+    if (status === 'COLLISION') return 'COLLISION';
+    if (status === 'GATE_MISSED') return 'PASSAGE MANQUÉ';
+    return status;
+}
+
+function handleChallengeMessage(value) {
+    if (typeof value !== 'string' || value.indexOf('WEBEEBLOCKS_CHALLENGE_V1 ') !== 0)
+        return false;
+    if (value === 'WEBEEBLOCKS_CHALLENGE_V1 START') {
+        setChallengeDisplay('RUNNING', null, 0);
+        return true;
+    }
+    var tick = value.match(/^WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=([0-9]+(?:\.[0-9]+)?)$/);
+    if (tick) {
+        if (webeeblocksChallengeState === 'RUNNING')
+            setChallengeDisplay('RUNNING', null, Number(tick[1]));
+        return true;
+    }
+    var result = value.match(/^WEBEEBLOCKS_CHALLENGE_V1 RESULT (SUCCESS|COLLISION|GATE_MISSED) elapsed=([0-9]+(?:\.[0-9]+)?)$/);
+    if (result) {
+        setChallengeDisplay('FINISHED', challengeResultLabel(result[1]), Number(result[2]));
+        return true;
+    }
+    return true;
+}
 
 function openModal() {
 
@@ -182,6 +252,10 @@ function restore() {
 
 function receiveMessage(value) {
     console.log(value);
+    if (handleChallengeMessage(value)) {
+        window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
+        return;
+    }
     var acknowledgeDone = false;
     if (typeof value === 'string' && value.indexOf('WEBEEBLOCKS_MISSION_V1 ') === 0) {
         if (value === 'WEBEEBLOCKS_MISSION_V1 ACK') {
@@ -221,6 +295,8 @@ document.getElementById("projectTitle").addEventListener("keydown", (e) => {
 });
 
 window.onload = async function() {
+    ensureChallengePanel();
+    setChallengeDisplay('READY', null, null);
     const module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
     window.robotWindow = new module.default();
     window.robotWindow.receive = receiveMessage;
@@ -237,3 +313,7 @@ var workspace = Blockly.inject(container,
     });
 Blockly.svgResize(workspace);
 workspace.addChangeListener(realTimeUpdate);
+workspace.addChangeListener(function(event) {
+    if (webeeblocksChallengeState === 'FINISHED' && crazyflieRuntimeState === 'WAITING' && event && event.type !== Blockly.Events.UI)
+        setChallengeDisplay('READY', null, null);
+});
