@@ -44,10 +44,15 @@ def main() -> int:
 
   try {
     const responses = [];
+    let stateWhenDone = null;
     window.addEventListener('webeeblocks-wwi', event => {
       const value = String(event.detail);
       responses.push(value);
       report('RX', value);
+      if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
+        stateWhenDone = crazyflieRuntimeState;
+        report('STATE_AFTER_DONE', stateWhenDone);
+      }
     });
 
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
@@ -73,9 +78,8 @@ def main() -> int:
 
     if (__EXPECT_DONE__) {
       await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, 'DONE', 70000);
-      if (crazyflieRuntimeState !== 'WAITING')
-        throw new Error('DONE did not restore WAITING');
-      await report('COMPLETE', 'SUCCESS');
+      if (stateWhenDone !== 'WAITING')
+        throw new Error('DONE did not restore WAITING at its event boundary');
       await reportChain;
       return;
     }
