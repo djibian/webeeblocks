@@ -149,10 +149,12 @@ jobs:
           ]:
               terminal = [e for e in events if e['event'] == attempt + '_TERMINAL']
               assert terminal, (attempt, events)
-              payload = json.loads(terminal[-1]['detail'])
-              assert payload['state'] == 'TERMINÉ', payload
-              assert payload['result'] == expected, payload
-              assert payload['time'].endswith(' s') and payload['time'] != '—', payload
+              terminal_detail = json.loads(terminal[-1]['detail'])
+              panel = terminal_detail['panel']
+              assert panel['state'] == 'TERMINÉ', terminal_detail
+              assert panel['result'] == expected, terminal_detail
+              assert panel['time'].endswith(' s') and panel['time'] != '—', terminal_detail
+              assert terminal_detail['runtimeState'] == 'WAITING', terminal_detail
           initial = [e for e in events if e['event'] == 'INITIAL'][-1]
           assert json.loads(initial['detail'])['state'] == 'PRÊT'
           assert any(e['event'] == 'CHALLENGE_TEST_COMPLETE' for e in events), events
