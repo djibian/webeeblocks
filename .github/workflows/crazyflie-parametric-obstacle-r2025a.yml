@@ -17,6 +17,7 @@ jobs:
 
       - name: Validate parametric Blockly/runtime syntax
         run: |
+          node --check plugins/robot_windows/blockly/main.js
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
           python3 -m py_compile tools/ci/prepare_crazyflie_parametric_obstacle.py
           python3 -m py_compile tools/ci/runtime_wwi_event_server.py
@@ -73,18 +74,21 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
             ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/direct.log
           code=${PIPESTATUS[0]}
           set -e
           echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/direct-exit-code.txt
-          if [ "$code" -ne 0 ]; then
-            echo "::error::Direct runtime obstacle run exited with $code"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Direct runtime obstacle run exited unexpectedly with $code"
             exit 1
           fi
           test -s ci-artifacts/crazyflie-obstacle-contact.txt
           cp ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-parametric-obstacle/direct-contact.txt
           grep -Fq 'WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION' ci-artifacts/crazyflie-obstacle-contact.txt
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT COLLISION' ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' ci-artifacts/crazyflie-parametric-obstacle/direct.log)" -ge 2
           ! test -s ci-artifacts/crazyflie-runtime-mission-result.txt
           python3 - <<'PY'
           import json
@@ -95,8 +99,9 @@ jobs:
           assert any(e['event'] == 'MISSION' and 'FORWARD 2.0000000000000000' in (e.get('detail') or '') for e in events), events
           assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
           assert ('STATE_AFTER_ACK', 'RUNNING') in details, events
+          assert any(e['event'] == 'RX' and str(e.get('detail') or '').startswith('WEBEEBLOCKS_CHALLENGE_V1 RESULT COLLISION elapsed=') for e in events), events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: Blockly direct mission -> runtime ACK -> physical collision.')
+          print('PASS: Blockly direct mission -> runtime ACK -> physical collision -> causal challenge result -> runtime rearmed.')
           PY
 
       - name: Run Blockly L detour around the same obstacle
@@ -127,21 +132,22 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
             ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/detour.log
           code=${PIPESTATUS[0]}
           set -e
           echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt
-          if [ "$code" -ne 0 ]; then
-            echo "::error::Detour runtime obstacle run exited with $code"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Detour runtime obstacle run exited unexpectedly with $code"
             exit 1
           fi
           ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
           test -s ci-artifacts/crazyflie-l-course-result.txt
           test -s ci-artifacts/crazyflie-done-ack-trace.txt
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' ci-artifacts/crazyflie-parametric-obstacle/detour.log
           ! grep -Fq 'reason=DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-l-course-result.txt
-          test "$(cat ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt)" = "0"
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' ci-artifacts/crazyflie-parametric-obstacle/detour.log)" -ge 2
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -162,8 +168,9 @@ jobs:
           assert any(e['event'] == 'BLOCKS' and 'webeeblocks_turn:90' in (e.get('detail') or '') for e in events), events
           assert any(e['event'] == 'MISSION' and 'TURN 1.5707963267948966' in (e.get('detail') or '') for e in events), events
           assert any(e['event'] == 'RX' and e.get('detail') == 'WEBEEBLOCKS_MISSION_V1 ACK' for e in events), events
+          assert any(e['event'] == 'RX' and str(e.get('detail') or '').startswith('WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=') for e in events), events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> browser DONE/WAITING -> synchronous DONE_ACK send.')
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> SUCCESS result -> DONE_ACK -> runtime rearmed.')
           PY
           cat ci-artifacts/crazyflie-done-ack-trace.txt
           python3 - <<'PY'
