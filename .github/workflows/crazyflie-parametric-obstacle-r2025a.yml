@@ -154,10 +154,12 @@ jobs:
           events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl').read_text().splitlines() if x.strip()]
           expected = [
               ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
-              ('STATE_AFTER_DONE', 'WAITING'),
-              ('DONE_ACK_SEND_CALL', 'WAITING'),
-              ('DONE_ACK_SEND_RETURN', 'WAITING'),
-              ('DONE_ACK_SENT', 'WAITING'),
+              ('STATE_AFTER_DONE', 'RECOVERING'),
+              ('DONE_ACK_SEND_CALL', 'RECOVERING'),
+              ('DONE_ACK_SEND_RETURN', 'RECOVERING'),
+              ('DONE_ACK_SENT', 'RECOVERING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY'),
+              ('STATE_AFTER_RUNTIME_READY', 'WAITING'),
           ]
           cursor = 0
           for event in events:
@@ -170,7 +172,7 @@ jobs:
           assert any(e['event'] == 'RX' and e.get('detail') == 'WEBEEBLOCKS_MISSION_V1 ACK' for e in events), events
           assert any(e['event'] == 'RX' and str(e.get('detail') or '').startswith('WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=') for e in events), events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> SUCCESS result -> DONE_ACK -> runtime rearmed.')
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> SUCCESS -> DONE_ACK -> RUNTIME_READY -> WAITING.')
           PY
           cat ci-artifacts/crazyflie-done-ack-trace.txt
           python3 - <<'PY'
