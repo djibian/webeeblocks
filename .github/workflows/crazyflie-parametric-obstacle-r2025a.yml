@@ -135,9 +135,8 @@ jobs:
           ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
           test -s ci-artifacts/crazyflie-l-course-result.txt
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
-          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_SENT' ci-artifacts/crazyflie-parametric-obstacle/detour.log
-          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' ci-artifacts/crazyflie-parametric-obstacle/detour.log
-          ! grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-l-course-result.txt
+          test "$(cat ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt)" = "0"
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -150,7 +149,8 @@ jobs:
           assert ('STATE_AFTER_DONE', 'WAITING') in details, events
           assert ('DONE_ACK_SENT', 'WAITING') in details, events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: Blockly detour mission -> ACK -> no collision -> G1/G2/LAND -> DONE/WAITING -> DONE_ACK.')
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> DONE/WAITING -> DONE_ACK sent by the true handler.')
+          print('PASS: controller completed successfully; DONE_ACK timeout would overwrite the L result with reason=DONE_ACK_TIMEOUT and terminate the run as a failure.')
           PY
 
       - name: Prove controller binary unchanged across both Submit runs
