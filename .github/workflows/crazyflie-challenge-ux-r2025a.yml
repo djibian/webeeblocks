@@ -21,6 +21,13 @@ jobs:
           python3 -m py_compile tools/ci/prepare_crazyflie_challenge_ux.py
           python3 -m py_compile tools/ci/runtime_wwi_event_server.py
           python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
+          python3 - <<'PY'
+          from pathlib import Path
+          detour = Path('controllers/Blockly_Programs/CrazyflieDetourOffset.xml').read_text()
+          reference = Path('controllers/Blockly_Programs/CrazyflieL.xml').read_text()
+          assert detour != reference, 'detour fixture must differ from reference L'
+          assert '<field name="DISTANCE">1.1</field>' in detour, 'detour must contain representable 1.1 m second leg'
+          PY
 
       - name: Prepare same-session challenge harness
         run: |
