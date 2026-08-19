@@ -4,6 +4,77 @@ var saveList = document.getElementById("saveList");
 
 var title = document.getElementById("projectTitle");
 var crazyflieRuntimeState = "WAITING";
+var webeeblocksChallengeState = "READY";
+var blocklyDomainEditSeen = false;
+
+function ensureChallengePanel() {
+    var panel = document.getElementById('webeeblocksChallenge');
+    if (panel)
+        return panel;
+    panel = document.createElement('div');
+    panel.id = 'webeeblocksChallenge';
+    panel.style.display = 'flex';
+    panel.style.gap = '18px';
+    panel.style.alignItems = 'center';
+    panel.style.padding = '8px 12px';
+    panel.style.margin = '4px 0 8px 0';
+    panel.style.border = '1px solid #bbb';
+    panel.style.borderRadius = '6px';
+    panel.style.fontFamily = 'sans-serif';
+    panel.innerHTML = '<strong>Défi</strong>' +
+        '<span>État : <b id="webeeblocksChallengeState">PRÊT</b></span>' +
+        '<span>Résultat : <b id="webeeblocksChallengeResult">—</b></span>' +
+        '<span>Temps : <b id="webeeblocksChallengeTime">—</b></span>';
+    var container = document.getElementById('blocklyContainer');
+    if (container && container.parentNode)
+        container.parentNode.insertBefore(panel, container);
+    return panel;
+}
+
+function setChallengeDisplay(state, result, elapsed) {
+    ensureChallengePanel();
+    webeeblocksChallengeState = state;
+    var stateNode = document.getElementById('webeeblocksChallengeState');
+    var resultNode = document.getElementById('webeeblocksChallengeResult');
+    var timeNode = document.getElementById('webeeblocksChallengeTime');
+    if (stateNode)
+        stateNode.textContent = state === 'RUNNING' ? 'EN VOL' : (state === 'FINISHED' ? 'TERMINÉ' : 'PRÊT');
+    if (resultNode)
+        resultNode.textContent = result || '—';
+    if (timeNode)
+        timeNode.textContent = elapsed === null || elapsed === undefined ? '—' : Number(elapsed).toFixed(2) + ' s';
+    window.dispatchEvent(new CustomEvent('webeeblocks-challenge', {
+        detail: {state: state, result: result || null, elapsed: elapsed === undefined ? null : elapsed}
+    }));
+}
+
+function challengeResultLabel(status) {
+    if (status === 'SUCCESS') return 'RÉUSSI';
+    if (status === 'COLLISION') return 'COLLISION';
+    if (status === 'GATE_MISSED') return 'PASSAGE MANQUÉ';
+    return status;
+}
+
+function handleChallengeMessage(value) {
+    if (typeof value !== 'string' || value.indexOf('WEBEEBLOCKS_CHALLENGE_V1 ') !== 0)
+        return false;
+    if (value === 'WEBEEBLOCKS_CHALLENGE_V1 START') {
+        setChallengeDisplay('RUNNING', null, 0);
+        return true;
+    }
+    var tick = value.match(/^WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=([0-9]+(?:\.[0-9]+)?)$/);
+    if (tick) {
+        if (webeeblocksChallengeState === 'RUNNING')
+            setChallengeDisplay('RUNNING', null, Number(tick[1]));
+        return true;
+    }
+    var result = value.match(/^WEBEEBLOCKS_CHALLENGE_V1 RESULT (SUCCESS|COLLISION|GATE_MISSED) elapsed=([0-9]+(?:\.[0-9]+)?)$/);
+    if (result) {
+        setChallengeDisplay('FINISHED', challengeResultLabel(result[1]), Number(result[2]));
+        return true;
+    }
+    return true;
+}
 
 function openModal() {
 
@@ -124,9 +195,10 @@ function submitCrazyflieMission() {
     if (!window.robotWindow || typeof window.robotWindow.send !== 'function')
         throw new Error('Crazyflie runtime transport is not ready');
     if (crazyflieRuntimeState !== 'WAITING')
-        throw new Error('Crazyflie mission is already pending or running');
+        throw new Error('Crazyflie mission is already pending, running, or recovering');
     var message = WebeeBlocksCrazyflie.workspaceToMissionMessage(workspace);
     crazyflieRuntimeState = 'PENDING';
+    blocklyDomainEditSeen = false;
     try {
         window.robotWindow.send(message);
     } catch (error) {
@@ -155,7 +227,24 @@ function convertCode() {
     ws.send(code);
     saveLast();
 }
-function realTimeUpdate() {
+function realTimeUpdate(event) {
+    // Keep retry-intent handling in the primary workspace listener. Blockly 2020
+    // may stop dispatching later listeners when another callback throws, so the
+    // student-facing FINISHED -> READY transition must not depend on listener order.
+    if (event && event.type !== Blockly.Events.UI &&
+        webeeblocksChallengeState === 'FINISHED' &&
+        (crazyflieRuntimeState === 'WAITING' || crazyflieRuntimeState === 'RECOVERING')) {
+        blocklyDomainEditSeen = true;
+        setChallengeDisplay('READY', null, null);
+    }
+
+    // Crazyflie blocks deliberately have no Python generator: the student-facing
+    // runtime path serializes semantic missions over WWI instead. Keep the
+    // historical Python preview untouched for non-Crazyflie workspaces only.
+    if (isCrazyflieWorkspace()) {
+        document.getElementById('textCode').innerHTML = '';
+        return;
+    }
     var code = Blockly.Python.workspaceToCode(workspace);
     document.getElementById('textCode').innerHTML = code;
 }
@@ -182,14 +271,26 @@ function restore() {
 
 function receiveMessage(value) {
     console.log(value);
+    if (handleChallengeMessage(value)) {
+        window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
+        return;
+    }
     var acknowledgeDone = false;
     if (typeof value === 'string' && value.indexOf('WEBEEBLOCKS_MISSION_V1 ') === 0) {
         if (value === 'WEBEEBLOCKS_MISSION_V1 ACK') {
             if (crazyflieRuntimeState === 'PENDING')
                 crazyflieRuntimeState = 'RUNNING';
         } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
-            crazyflieRuntimeState = 'WAITING';
+            // DONE means the mission is terminal, but the vehicle is not yet
+            // guaranteed to have completed its physical reset/rearm sequence.
+            crazyflieRuntimeState = 'RECOVERING';
             acknowledgeDone = true;
+        } else if (value === 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') {
+            if (crazyflieRuntimeState === 'RECOVERING') {
+                crazyflieRuntimeState = 'WAITING';
+                if (blocklyDomainEditSeen && webeeblocksChallengeState === 'FINISHED')
+                    setChallengeDisplay('READY', null, null);
+            }
         } else if (value.indexOf('WEBEEBLOCKS_MISSION_V1 ERR ') === 0) {
             // BUSY can be the response to a second transport-level probe while an
             // already accepted mission is still active. Never let it unlock Submit.
@@ -221,6 +322,8 @@ document.getElementById("projectTitle").addEventListener("keydown", (e) => {
 });
 
 window.onload = async function() {
+    ensureChallengePanel();
+    setChallengeDisplay('READY', null, null);
     const module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
     window.robotWindow = new module.default();
     window.robotWindow.receive = receiveMessage;

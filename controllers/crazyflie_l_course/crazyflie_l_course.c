@@ -24,6 +24,7 @@
 #define YAW_TOL (2.0 * PI / 180.0)
 #define TIMEOUT 60.0
 #define DONE_ACK_TIMEOUT 10.0
+#define CHALLENGE_TICK_PERIOD 0.10
 #define GATE_ALONG_M 0.90
 #define GATE_HALF_WIDTH_M 0.30
 #define GATE_HALF_HEIGHT_M 0.20
@@ -56,6 +57,11 @@ static double motor(double v) { return v < 0 ? 0 : (v > 600 ? 600 : v); }
 static void stop(WbDeviceTag a, WbDeviceTag b, WbDeviceTag c, WbDeviceTag d) {
   wb_motor_set_velocity(a, 0); wb_motor_set_velocity(b, 0);
   wb_motor_set_velocity(c, 0); wb_motor_set_velocity(d, 0);
+}
+static void configure_motor_velocity_mode(WbDeviceTag a, WbDeviceTag b,
+                                          WbDeviceTag c, WbDeviceTag d) {
+  wb_motor_set_position(a, INFINITY); wb_motor_set_position(b, INFINITY);
+  wb_motor_set_position(c, INFINITY); wb_motor_set_position(d, INFINITY);
 }
 
 static const char *runner_phase_name(const webeeblocks_runner_t *runner) {
@@ -220,6 +226,61 @@ static int wait_for_runtime_done_ack(int step) {
   return 0;
 }
 
+static void send_challenge_start(void) {
+  wb_robot_wwi_send_text("WEBEEBLOCKS_CHALLENGE_V1 START");
+}
+
+static void send_challenge_tick(double elapsed) {
+  char message[96];
+  snprintf(message, sizeof(message), "WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=%.3f", elapsed);
+  wb_robot_wwi_send_text(message);
+}
+
+static void send_challenge_result(const char *status, double elapsed) {
+  char message[128];
+  snprintf(message, sizeof(message), "WEBEEBLOCKS_CHALLENGE_V1 RESULT %s elapsed=%.3f", status, elapsed);
+  wb_robot_wwi_send_text(message);
+  printf("%s\n", message);
+  fflush(stdout);
+}
+
+static int read_collision_time(double *collision_time) {
+  const char *data = wb_robot_get_custom_data();
+  if (!data || !collision_time)
+    return 0;
+  return sscanf(data, "WEBEEBLOCKS_CHALLENGE_V1 COLLISION time=%lf", collision_time) == 1;
+}
+
+static int finish_runtime_terminal(const char *status, double elapsed, int step) {
+  send_challenge_result(status, elapsed);
+  wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 DONE");
+  printf("WEBEEBLOCKS_MISSION_V1 DONE_SENT\n");
+  fflush(stdout);
+  return wait_for_runtime_done_ack(step);
+}
+
+static int reset_runtime_vehicle(int step,
+                                 WbDeviceTag m1, WbDeviceTag m2,
+                                 WbDeviceTag m3, WbDeviceTag m4) {
+  WbNodeRef self = wb_supervisor_node_get_self();
+  if (!self)
+    return 0;
+  stop(m1, m2, m3, m4);
+  wb_supervisor_node_load_state(self, "__init__");
+  wb_supervisor_node_reset_physics(self);
+  configure_motor_velocity_mode(m1, m2, m3, m4);
+  stop(m1, m2, m3, m4);
+  wb_robot_set_custom_data("");
+  for (int i = 0; i < 5; ++i) {
+    if (wb_robot_step(step) == -1)
+      return 0;
+  }
+  wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 RUNTIME_READY");
+  printf("WEBEEBLOCKS_MISSION_V1 RUNTIME_READY_SENT\n");
+  fflush(stdout);
+  return 1;
+}
+
 int main(int argc, const char *argv[]) {
   webeeblocks_command_t mission[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS] = {
     {WEBEEBLOCKS_COMMAND_TAKEOFF, TARGET_Z_DELTA},
@@ -236,15 +297,16 @@ int main(int argc, const char *argv[]) {
   WbDeviceTag m1 = wb_robot_get_device("m1_motor"), m2 = wb_robot_get_device("m2_motor");
   WbDeviceTag m3 = wb_robot_get_device("m3_motor"), m4 = wb_robot_get_device("m4_motor");
   WbDeviceTag gps = wb_robot_get_device("gps"), imu = wb_robot_get_device("inertial_unit"), gyro = wb_robot_get_device("gyro");
-  wb_motor_set_position(m1, INFINITY); wb_motor_set_position(m2, INFINITY);
-  wb_motor_set_position(m3, INFINITY); wb_motor_set_position(m4, INFINITY);
+  configure_motor_velocity_mode(m1, m2, m3, m4);
   wb_motor_set_velocity(m1, -1); wb_motor_set_velocity(m2, 1);
   wb_motor_set_velocity(m3, -1); wb_motor_set_velocity(m4, 1);
   wb_gps_enable(gps, step); wb_inertial_unit_enable(imu, step); wb_gyro_enable(gyro, step);
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {}
 
+wait_runtime_mission:
   if (runtime_mode) {
     stop(m1, m2, m3, m4);
+    wb_robot_set_custom_data("");
     printf("WEBEEBLOCKS_MISSION_V1 WAITING\n");
     fflush(stdout);
     int ready = 0;
@@ -266,15 +328,20 @@ int main(int argc, const char *argv[]) {
   double ux2 = 0.0, uy2 = 0.0, lx2 = 0.0, ly2 = 0.0;
   double g1x = 0.0, g1y = 0.0, g2x = 0.0, g2y = 0.0;
   double expected_x = sx, expected_y = sy, expected_yaw = syaw;
-  if (reference_l) {
+  if (reference_l || runtime_mode) {
     ux = cos(syaw); uy = sin(syaw); lx1 = -sin(syaw); ly1 = cos(syaw);
-    const double second_yaw = wrap(syaw + mission[2].value);
+    const double second_yaw = wrap(syaw + PI / 2.0);
     ux2 = cos(second_yaw); uy2 = sin(second_yaw); lx2 = -sin(second_yaw); ly2 = cos(second_yaw);
     g1x = sx + GATE_ALONG_M * ux; g1y = sy + GATE_ALONG_M * uy;
-    const double corner_x = sx + mission[1].value * ux, corner_y = sy + mission[1].value * uy;
-    g2x = corner_x + GATE_ALONG_M * ux2; g2y = corner_y + GATE_ALONG_M * uy2;
-    expected_x = corner_x + mission[3].value * ux2; expected_y = corner_y + mission[3].value * uy2;
-    expected_yaw = second_yaw;
+    const double challenge_corner_x = sx + LEG_M * ux;
+    const double challenge_corner_y = sy + LEG_M * uy;
+    g2x = challenge_corner_x + GATE_ALONG_M * ux2;
+    g2y = challenge_corner_y + GATE_ALONG_M * uy2;
+    if (reference_l) {
+      expected_x = challenge_corner_x + LEG_M * ux2;
+      expected_y = challenge_corner_y + LEG_M * uy2;
+      expected_yaw = second_yaw;
+    }
   }
 
   webeeblocks_runner_t runner;
@@ -284,7 +351,9 @@ int main(int argc, const char *argv[]) {
   double target_x = target.x, target_y = target.y, target_yaw = target.yaw;
   double min_z = sz, max_z = sz, px = sx, py = sy, pz = sz, pt = wb_robot_get_time();
   const double t0 = pt;
+  double challenge_next_tick = t0;
   gate_result_t gate1 = {0}, gate2 = {0};
+  int challenge_gate_order_failed = 0;
 
   gains_pid_t g = {0};
   g.kp_att_y = 1; g.kd_att_y = .5; g.kp_att_rp = .5; g.kd_att_rp = .1;
@@ -295,12 +364,37 @@ int main(int argc, const char *argv[]) {
   printf("WEBEEBLOCKS_CF_MISSION_STARTED commands=%zu x=%.6f y=%.6f z=%.6f yaw=%.6f\n",
          mission_count, sx, sy, sz, syaw);
   fflush(stdout);
+  if (runtime_mode)
+    send_challenge_start();
 
   while (wb_robot_step(step) != -1) {
     if (runtime_mode)
       reject_runtime_messages_while_busy();
     const double now = wb_robot_get_time(), dt = now - pt;
     if (dt <= 0) continue;
+
+    if (runtime_mode) {
+      double collision_time = 0.0;
+      if (read_collision_time(&collision_time) && collision_time >= t0) {
+        const double elapsed = collision_time - t0;
+        stop(m1, m2, m3, m4);
+        if (!finish_runtime_terminal("COLLISION", elapsed, step)) {
+          write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
+          wb_supervisor_simulation_quit(2);
+          break;
+        }
+        if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+          wb_supervisor_simulation_quit(2);
+          break;
+        }
+        goto wait_runtime_mission;
+      }
+      if (now + 1e-9 >= challenge_next_tick) {
+        send_challenge_tick(now - t0);
+        challenge_next_tick = now + CHALLENGE_TICK_PERIOD;
+      }
+    }
+
     p = wb_gps_get_values(gps); r = wb_inertial_unit_get_roll_pitch_yaw(imu); const double *gv = wb_gyro_get_values(gyro);
     const double x = p[0], y = p[1], z = p[2], yaw = r[2];
     const double vz = (z - pz) / dt, vxg = (x - px) / dt, vyg = (y - py) / dt;
@@ -323,17 +417,27 @@ int main(int argc, const char *argv[]) {
       stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
     }
 
-    if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
+    if (runtime_mode) {
+      check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
+      const int gate1_passed_now = gate1.passed;
+      const int crossed_gate2 = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,ux2,uy2,lx2,ly2,target_z,&gate2);
+      if (crossed_gate2 > 0 && !gate1_passed_now)
+        challenge_gate_order_failed = 1;
+    } else if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
       if (crossed < 0) {
         write_failure("GATE1_MISS", &runner, gates);
-        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        stop(m1,m2,m3,m4);
+        wb_supervisor_simulation_quit(2);
+        break;
       }
     } else if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,ux2,uy2,lx2,ly2,target_z,&gate2);
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
-        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        stop(m1,m2,m3,m4);
+        wb_supervisor_simulation_quit(2);
+        break;
       }
     }
 
@@ -359,13 +463,17 @@ int main(int argc, const char *argv[]) {
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - target_z, now)) {
-        if (reference_l && runner.index == 1 && !gate1.passed) {
+        if (!runtime_mode && reference_l && runner.index == 1 && !gate1.passed) {
           write_failure("GATE1_NOT_CROSSED", &runner, gates);
-          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+          stop(m1,m2,m3,m4);
+          wb_supervisor_simulation_quit(2);
+          break;
         }
-        if (reference_l && runner.index == 3 && !gate2.passed) {
+        if (!runtime_mode && reference_l && runner.index == 3 && !gate2.passed) {
           write_failure("GATE2_NOT_CROSSED", &runner, gates);
-          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+          stop(m1,m2,m3,m4);
+          wb_supervisor_simulation_quit(2);
+          break;
         }
         const double anchor_x = target_x, anchor_y = target_y, anchor_yaw = target_yaw;
         webeeblocks_runner_advance(&runner);
@@ -399,9 +507,11 @@ int main(int argc, const char *argv[]) {
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - landing.z, now)) {
-        if (reference_l && !(gate1.passed && gate2.passed)) {
+        if (!runtime_mode && reference_l && !(gate1.passed && gate2.passed)) {
           write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
-          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+          stop(m1,m2,m3,m4);
+          wb_supervisor_simulation_quit(2);
+          break;
         }
         if (reference_l) {
           const double endpoint_error = hypot(x-expected_x,y-expected_y);
@@ -418,14 +528,17 @@ int main(int argc, const char *argv[]) {
         webeeblocks_runner_advance(&runner);
         stop(m1,m2,m3,m4);
         if (runtime_mode) {
-          wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 DONE");
-          printf("WEBEEBLOCKS_MISSION_V1 DONE_SENT\n");
-          fflush(stdout);
-          if (!wait_for_runtime_done_ack(step)) {
+          const char *challenge_status = gate1.passed && gate2.passed && !challenge_gate_order_failed ? "SUCCESS" : "GATE_MISSED";
+          if (!finish_runtime_terminal(challenge_status, now - t0, step)) {
             write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
             wb_supervisor_simulation_quit(2);
             break;
           }
+          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          goto wait_runtime_mission;
         }
         wb_supervisor_simulation_quit(0); break;
       }
