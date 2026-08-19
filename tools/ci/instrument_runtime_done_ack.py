@@ -143,24 +143,6 @@ UNSAFE_NEW = r'''    if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 >
     }
 '''
 
-RESET_OLD = r'''  wb_supervisor_node_load_state(self, "__init__");
-  wb_supervisor_node_reset_physics(self);
-  wb_robot_set_custom_data("");
-  for (int i = 0; i < 5; ++i) {
-'''
-
-RESET_NEW = r'''  wb_supervisor_node_load_state(self, "__init__");
-  wb_supervisor_node_reset_physics(self);
-  // CI-only causal probe: loading the initial Robot state also restores
-  // Joint/Motor state. Re-establish the Crazyflie velocity-control mode that
-  // is configured only once during normal controller startup.
-  wb_motor_set_position(m1, INFINITY); wb_motor_set_position(m2, INFINITY);
-  wb_motor_set_position(m3, INFINITY); wb_motor_set_position(m4, INFINITY);
-  stop(m1, m2, m3, m4);
-  wb_robot_set_custom_data("");
-  for (int i = 0; i < 5; ++i) {
-'''
-
 
 def main() -> int:
     text = SOURCE.read_text(encoding="utf-8")
@@ -184,17 +166,11 @@ def main() -> int:
       text = text.replace(UNSAFE_OLD, UNSAFE_NEW, 1)
       changed = True
 
-    if RESET_NEW not in text:
-      if RESET_OLD not in text:
-        raise SystemExit("expected runtime reset sequence not found; refusing to patch")
-      text = text.replace(RESET_OLD, RESET_NEW, 1)
-      changed = True
-
     if changed:
       SOURCE.write_text(text, encoding="utf-8")
-      print("Installed CI-only DONE_ACK, physical-state tracing and motor-mode rearm probe in crazyflie_l_course.c")
+      print("Installed CI-only DONE_ACK and physical-state tracing in crazyflie_l_course.c")
     else:
-      print("CI-only DONE_ACK, physical-state tracing and motor-mode rearm probe already installed.")
+      print("CI-only DONE_ACK and physical-state tracing already installed.")
     return 0
 
 
