@@ -20,6 +20,7 @@ jobs:
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
           python3 -m py_compile tools/ci/prepare_crazyflie_parametric_obstacle.py
           python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
 
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
@@ -29,6 +30,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ci-artifacts/crazyflie-parametric-obstacle
+          python3 tools/ci/instrument_runtime_done_ack.py
           for controller in crazyflie_l_course crazyflie_collision_observer; do
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
@@ -50,6 +52,7 @@ jobs:
           git checkout -- plugins/robot_windows/blockly/blockly.html
           python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieDirect.xml
           rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-runtime-mission-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
           rm -f ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl
           set +e
           docker run --rm \
@@ -103,6 +106,7 @@ jobs:
           git checkout -- plugins/robot_windows/blockly/blockly.html
           python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieL.xml --expect-done
           rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
           rm -f ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl
           set +e
           docker run --rm \
@@ -134,6 +138,7 @@ jobs:
           fi
           ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
           test -s ci-artifacts/crazyflie-l-course-result.txt
+          test -s ci-artifacts/crazyflie-done-ack-trace.txt
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
           ! grep -Fq 'reason=DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-l-course-result.txt
           test "$(cat ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt)" = "0"
@@ -141,16 +146,33 @@ jobs:
           import json
           from pathlib import Path
           events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl').read_text().splitlines() if x.strip()]
-          details = {(e['event'], e.get('detail')) for e in events}
+          expected = [
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
+              ('STATE_AFTER_DONE', 'WAITING'),
+              ('DONE_ACK_SEND_CALL', 'WAITING'),
+              ('DONE_ACK_SEND_RETURN', 'WAITING'),
+              ('DONE_ACK_SENT', 'WAITING'),
+          ]
+          cursor = 0
+          for event in events:
+              assert 'wall_ms' in event and 'performance_ms' in event, event
+              if cursor < len(expected) and event.get('event') == expected[cursor][0] and event.get('detail') == expected[cursor][1]:
+                  cursor += 1
+          assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
           assert any(e['event'] == 'BLOCKS' and 'webeeblocks_turn:90' in (e.get('detail') or '') for e in events), events
           assert any(e['event'] == 'MISSION' and 'TURN 1.5707963267948966' in (e.get('detail') or '') for e in events), events
-          assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
-          assert ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE') in details, events
-          assert ('STATE_AFTER_DONE', 'WAITING') in details, events
-          assert ('DONE_ACK_SENT', 'WAITING') in details, events
+          assert any(e['event'] == 'RX' and e.get('detail') == 'WEBEEBLOCKS_MISSION_V1 ACK' for e in events), events
           assert not any(e['event'] == 'ERROR' for e in events), events
-          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> DONE/WAITING -> DONE_ACK sent by the true handler.')
-          print('PASS: controller completed successfully; DONE_ACK timeout would overwrite the L result with reason=DONE_ACK_TIMEOUT and terminate the run as a failure.')
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> browser DONE/WAITING -> synchronous DONE_ACK send.')
+          PY
+          cat ci-artifacts/crazyflie-done-ack-trace.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = [line for line in Path('ci-artifacts/crazyflie-done-ack-trace.txt').read_text().splitlines() if line.strip()]
+          ack = [line for line in lines if 'payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK' in line]
+          assert ack, lines
+          assert any('phase=before_step ' in line or 'phase=after_step ' in line for line in ack), ack
+          print('PASS: controller terminal WWI drain observed exact DONE_ACK payload.')
           PY
 
       - name: Prove controller binary unchanged across both Submit runs
@@ -169,4 +191,5 @@ jobs:
             ci-artifacts/crazyflie-parametric-obstacle/
             ci-artifacts/crazyflie-l-course-result.txt
             ci-artifacts/crazyflie-obstacle-contact.txt
+            ci-artifacts/crazyflie-done-ack-trace.txt
           if-no-files-found: warn
