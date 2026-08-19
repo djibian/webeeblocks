@@ -13,6 +13,10 @@
 #define WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS 5
 #define WEBEEBLOCKS_MISSION_V1_MAX_MESSAGE 1024
 #define WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE 1e-6
+#define WEBEEBLOCKS_MISSION_V1_FORWARD_MIN 0.10
+#define WEBEEBLOCKS_MISSION_V1_FORWARD_MAX 2.00
+#define WEBEEBLOCKS_MISSION_V1_TURN_MIN (-M_PI / 2.0)
+#define WEBEEBLOCKS_MISSION_V1_TURN_MAX (3.0 * M_PI / 4.0)
 
 typedef enum {
   WEBEEBLOCKS_MISSION_V1_OK = 0,
@@ -47,6 +51,11 @@ static int webeeblocks_mission_v1_parse_number(const char *text, double *value) 
 
 static int webeeblocks_mission_v1_matches(double actual, double expected) {
   return fabs(actual - expected) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE;
+}
+
+static int webeeblocks_mission_v1_in_range(double value, double minimum, double maximum) {
+  return value >= minimum - WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE &&
+         value <= maximum + WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE;
 }
 
 static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
@@ -85,13 +94,16 @@ static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_TAKEOFF, value};
     } else if (strcmp(command, "FORWARD") == 0) {
-      // Transport v1 deliberately accepts only the already-proven one-metre L.
-      // General student distances come after this runtime seam is closed.
-      if (!webeeblocks_mission_v1_matches(value, 1.0))
+      if (!webeeblocks_mission_v1_in_range(value,
+                                           WEBEEBLOCKS_MISSION_V1_FORWARD_MIN,
+                                           WEBEEBLOCKS_MISSION_V1_FORWARD_MAX))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_FORWARD, value};
     } else if (strcmp(command, "TURN") == 0) {
-      if (!webeeblocks_mission_v1_matches(value, M_PI / 2.0))
+      if (fabs(value) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE ||
+          !webeeblocks_mission_v1_in_range(value,
+                                           WEBEEBLOCKS_MISSION_V1_TURN_MIN,
+                                           WEBEEBLOCKS_MISSION_V1_TURN_MAX))
         return WEBEEBLOCKS_MISSION_V1_ERR_PARAMETER;
       commands[n++] = (webeeblocks_command_t){WEBEEBLOCKS_COMMAND_TURN, value};
     } else if (strcmp(command, "LAND") == 0) {
@@ -103,15 +115,17 @@ static webeeblocks_mission_v1_status_t webeeblocks_mission_v1_parse(
     }
   }
 
-  // Runtime v1 deliberately proves exactly the L-shaped pedagogical sequence
-  // already characterized in #31-#34. Parameter generalization is a later lot.
-  if (n != 5 ||
+  // v0 is deliberately a short sequential mission: one takeoff, one landing,
+  // and only the already-characterized FORWARD/TURN primitives in between.
+  if (n < 3 ||
       commands[0].type != WEBEEBLOCKS_COMMAND_TAKEOFF ||
-      commands[1].type != WEBEEBLOCKS_COMMAND_FORWARD ||
-      commands[2].type != WEBEEBLOCKS_COMMAND_TURN ||
-      commands[3].type != WEBEEBLOCKS_COMMAND_FORWARD ||
-      commands[4].type != WEBEEBLOCKS_COMMAND_LAND)
+      commands[n - 1].type != WEBEEBLOCKS_COMMAND_LAND)
     return WEBEEBLOCKS_MISSION_V1_ERR_SEQUENCE;
+  for (size_t i = 1; i + 1 < n; ++i) {
+    if (commands[i].type != WEBEEBLOCKS_COMMAND_FORWARD &&
+        commands[i].type != WEBEEBLOCKS_COMMAND_TURN)
+      return WEBEEBLOCKS_MISSION_V1_ERR_SEQUENCE;
+  }
 
   *count = n;
   return WEBEEBLOCKS_MISSION_V1_OK;
