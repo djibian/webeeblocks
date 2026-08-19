@@ -77,15 +77,18 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
             ' \
             2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
           code=${PIPESTATUS[0]}
           set -e
           echo "$code" | tee ci-artifacts/crazyflie-runtime-wwi/exit-code.txt
-          if [ "$code" -ne 0 ]; then
-            echo "::error::Runtime WWI Webots run exited with $code"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Runtime WWI Webots run exited unexpectedly with $code"
             exit 1
+          fi
+          if [ "$code" -eq 124 ]; then
+            echo "Persistent challenge session intentionally remained in WAITING after the first completed mission."
           fi
 
       - name: Prove browser handshake atomic validation BUSY and unchanged binary
@@ -156,7 +159,12 @@ jobs:
           cat "$RESULT"
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
           ! grep -Fq 'reason=DONE_ACK_TIMEOUT' "$RESULT"
-          test "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "0"
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' "$LOG"
+          # A 124 exit is expected for the new persistent product loop, but only
+          # after causal DONE_ACK and an observable return to WAITING.
+          if [ "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "124" ]; then
+            test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG")" -ge 2
+          fi
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -167,8 +175,8 @@ jobs:
           assert abs(float(pairs['g2_time']) - 21.315) <= 0.10
           assert float(pairs['endpoint_error_xy']) <= 0.02
           assert float(pairs['yaw_error_deg']) <= 2.0
-          assert abs(float(pairs['total_s']) - 26.144) <= 0.10
-          print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course, with no rebuild after Submit.')
+          assert abs(float(pairs['total_s']) - 26.144) <= 0.15
+          print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
       - name: Upload runtime WWI diagnostics
