@@ -86,16 +86,45 @@ static int wait_for_runtime_done_ack(int step) {
 }
 '''
 
+UNSAFE_OLD = r'''    if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 > TIMEOUT) {
+      write_failure(now - t0 > TIMEOUT ? "TIMEOUT" : "UNSAFE_STATE", &runner, gates);
+      stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+    }
+'''
+
+UNSAFE_NEW = r'''    if (fabs(a.roll) > 1.2 || fabs(a.pitch) > 1.2 || now - t0 > TIMEOUT) {
+      printf("WEBEEBLOCKS_UNSAFE_DIAG elapsed=%.6f index=%zu phase=%s x=%.6f y=%.6f z=%.6f yaw=%.6f roll=%.6f pitch=%.6f vx=%.6f vy=%.6f vz=%.6f yaw_rate=%.6f target_x=%.6f target_y=%.6f target_z=%.6f target_yaw=%.6f\n",
+             now - t0, runner.index, runner_phase_name(&runner), x, y, z, yaw,
+             a.roll, a.pitch, a.vx, a.vy, vz, a.yaw_rate,
+             target_x, target_y, target_z, target_yaw);
+      fflush(stdout);
+      write_failure(now - t0 > TIMEOUT ? "TIMEOUT" : "UNSAFE_STATE", &runner, gates);
+      stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+    }
+'''
+
 
 def main() -> int:
     text = SOURCE.read_text(encoding="utf-8")
-    if NEW in text:
-        print("DONE_ACK terminal tracing already installed.")
-        return 0
-    if OLD not in text:
-        raise SystemExit("expected DONE_ACK functions not found; refusing to patch")
-    SOURCE.write_text(text.replace(OLD, NEW, 1), encoding="utf-8")
-    print("Installed CI-only terminal DONE_ACK tracing in crazyflie_l_course.c")
+    changed = False
+
+    if NEW not in text:
+        if OLD not in text:
+            raise SystemExit("expected DONE_ACK functions not found; refusing to patch")
+        text = text.replace(OLD, NEW, 1)
+        changed = True
+
+    if UNSAFE_NEW not in text:
+        if UNSAFE_OLD not in text:
+            raise SystemExit("expected unsafe-state guard not found; refusing to patch")
+        text = text.replace(UNSAFE_OLD, UNSAFE_NEW, 1)
+        changed = True
+
+    if changed:
+        SOURCE.write_text(text, encoding="utf-8")
+        print("Installed CI-only DONE_ACK and unsafe-state tracing in crazyflie_l_course.c")
+    else:
+        print("CI-only DONE_ACK and unsafe-state tracing already installed.")
     return 0
 
 
