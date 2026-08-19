@@ -6,15 +6,15 @@ WebeeBlocks is an educational robotics project. Its priority is reliable pedagog
 
 ## Organizational doctrine
 
-WebeeBlocks must use **organizational mechanisms that have already demonstrated their value in real AI-assisted engineering work** before they are introduced here as standard process.
+WebeeBlocks should standardize **organizational mechanisms only after they have demonstrated their value in real AI-assisted engineering work**.
 
-New organizational ideas should not be invented experimentally inside WebeeBlocks when they would substantially change how agents coordinate, review, escalate, automate, or decide. The preferred approach is to adopt only mechanisms whose benefits and failure modes have already been observed elsewhere under real project pressure.
+Do not introduce a major new coordination, review, escalation, automation, or decision pattern here merely because it appears promising. Prefer mechanisms whose benefits, costs, and failure modes have already been observed in practice.
 
-This is an organizational rule only. WebeeBlocks remains completely independent from any external project.
+This is an organizational rule only. WebeeBlocks is fully self-contained and must remain operationally independent from other repositories.
 
-### Strict repository independence
+## Strict repository independence
 
-Do not create cross-project workflows. In particular, WebeeBlocks must not:
+Do not create cross-project workflows. WebeeBlocks must not:
 
 - send requirements, issues, failures, tasks, or research questions to another repository;
 - depend on another repository's issues, branches, PRs, commits, artifacts, CI, or current state;
@@ -23,7 +23,7 @@ Do not create cross-project workflows. In particular, WebeeBlocks must not:
 - require another project to perform work before WebeeBlocks work can proceed;
 - use another repository as shared memory.
 
-An organizational pattern may be reproduced here after it has been judged mature enough, but once reproduced it becomes a **local WebeeBlocks rule** with its own documentation and no continuing external dependency.
+If an organizational pattern is judged mature enough to reproduce here, it becomes a **local WebeeBlocks rule** with its own documentation and no continuing external dependency.
 
 ## Repository governance
 
@@ -108,7 +108,7 @@ If the causal question changes materially, prefer a new issue/PR rather than tur
 
 ## Organizational changes
 
-Treat changes to the agent organization as real engineering changes. Before making a new coordination mechanism standard in WebeeBlocks, require evidence that it reduces one or more of:
+Treat changes to the agent organization as real engineering changes. Before making a new coordination mechanism standard in WebeeBlocks, require prior practical evidence that it reduces one or more of:
 
 - human relay work;
 - duplicated agent effort;
