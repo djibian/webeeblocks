@@ -5,6 +5,7 @@ var saveList = document.getElementById("saveList");
 var title = document.getElementById("projectTitle");
 var crazyflieRuntimeState = "WAITING";
 var webeeblocksChallengeState = "READY";
+var blocklyDomainEditSeen = false;
 
 function ensureChallengePanel() {
     var panel = document.getElementById('webeeblocksChallenge');
@@ -194,9 +195,10 @@ function submitCrazyflieMission() {
     if (!window.robotWindow || typeof window.robotWindow.send !== 'function')
         throw new Error('Crazyflie runtime transport is not ready');
     if (crazyflieRuntimeState !== 'WAITING')
-        throw new Error('Crazyflie mission is already pending or running');
+        throw new Error('Crazyflie mission is already pending, running, or recovering');
     var message = WebeeBlocksCrazyflie.workspaceToMissionMessage(workspace);
     crazyflieRuntimeState = 'PENDING';
+    blocklyDomainEditSeen = false;
     try {
         window.robotWindow.send(message);
     } catch (error) {
@@ -226,6 +228,13 @@ function convertCode() {
     saveLast();
 }
 function realTimeUpdate() {
+    // Crazyflie blocks deliberately have no Python generator: the student-facing
+    // runtime path serializes semantic missions over WWI instead. Keep the
+    // historical Python preview untouched for non-Crazyflie workspaces only.
+    if (isCrazyflieWorkspace()) {
+        document.getElementById('textCode').innerHTML = '';
+        return;
+    }
     var code = Blockly.Python.workspaceToCode(workspace);
     document.getElementById('textCode').innerHTML = code;
 }
@@ -262,8 +271,16 @@ function receiveMessage(value) {
             if (crazyflieRuntimeState === 'PENDING')
                 crazyflieRuntimeState = 'RUNNING';
         } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
-            crazyflieRuntimeState = 'WAITING';
+            // DONE means the mission is terminal, but the vehicle is not yet
+            // guaranteed to have completed its physical reset/rearm sequence.
+            crazyflieRuntimeState = 'RECOVERING';
             acknowledgeDone = true;
+        } else if (value === 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') {
+            if (crazyflieRuntimeState === 'RECOVERING') {
+                crazyflieRuntimeState = 'WAITING';
+                if (blocklyDomainEditSeen && webeeblocksChallengeState === 'FINISHED')
+                    setChallengeDisplay('READY', null, null);
+            }
         } else if (value.indexOf('WEBEEBLOCKS_MISSION_V1 ERR ') === 0) {
             // BUSY can be the response to a second transport-level probe while an
             // already accepted mission is still active. Never let it unlock Submit.
@@ -314,6 +331,11 @@ var workspace = Blockly.inject(container,
 Blockly.svgResize(workspace);
 workspace.addChangeListener(realTimeUpdate);
 workspace.addChangeListener(function(event) {
-    if (webeeblocksChallengeState === 'FINISHED' && crazyflieRuntimeState === 'WAITING' && event && event.type !== Blockly.Events.UI)
+    if (!event || event.type === Blockly.Events.UI || !isCrazyflieWorkspace())
+        return;
+    if (webeeblocksChallengeState === 'FINISHED' &&
+        (crazyflieRuntimeState === 'WAITING' || crazyflieRuntimeState === 'RECOVERING')) {
+        blocklyDomainEditSeen = true;
         setChallengeDisplay('READY', null, null);
+    }
 });
