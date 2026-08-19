@@ -148,6 +148,7 @@ jobs:
           assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
           assert ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE') in details, events
           assert ('STATE_AFTER_DONE', 'WAITING') in details, events
+          assert ('DONE_ACK_SENT', 'WAITING') in details, events
           assert not any(e['event'] == 'ERROR' for e in events), events
           print('PASS: Blockly detour mission -> ACK -> no collision -> G1/G2/LAND -> DONE/WAITING -> DONE_ACK.')
           PY
