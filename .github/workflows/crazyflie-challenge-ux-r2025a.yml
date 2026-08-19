@@ -58,6 +58,7 @@ jobs:
         run: |
           set -o pipefail
           rm -f ci-artifacts/crazyflie-challenge-ux/events.jsonl
+          rm -f ci-artifacts/crazyflie-challenge-ux/complete.sentinel
           rm -f ci-artifacts/crazyflie-done-ack-trace.txt
           rm -f ci-artifacts/crazyflie-obstacle-contact.txt
           rm -f ci-artifacts/crazyflie-l-course-result.txt
@@ -77,7 +78,9 @@ jobs:
               chmod +x /workspace/tools/ci/webots_runtime_wwi_browser.sh
               mkdir -p /root/.config/Cyberbotics
               printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
-              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl &
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl \
+                --completion-sentinel /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel &
               event_server_pid=$!
               xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt > /workspace/ci-artifacts/crazyflie-challenge-ux/webots.log 2>&1 &
               webots_pid=$!
@@ -90,11 +93,11 @@ jobs:
               trap cleanup EXIT
               complete=0
               for i in $(seq 1 1500); do
-                if grep -Fq "\"event\": \"CHALLENGE_TEST_COMPLETE\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
+                if test -s /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel; then
                   complete=1
                   break
                 fi
-                if grep -Fq "\"event\": \"ERROR\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
+                if grep -Fq "\"event\":\"ERROR\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
                   cat /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl
                   exit 1
                 fi
@@ -104,7 +107,7 @@ jobs:
                 fi
                 sleep 0.1
               done
-              if grep -Fq "\"event\": \"CHALLENGE_TEST_COMPLETE\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
+              if test -s /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel; then
                 complete=1
               fi
               if [ "$complete" -ne 1 ]; then
@@ -123,6 +126,7 @@ jobs:
           LOG=ci-artifacts/crazyflie-challenge-ux/webots.log
           test -s "$EVENTS"
           test -s "$LOG"
+          test -s ci-artifacts/crazyflie-challenge-ux/complete.sentinel
           ! grep -Fq 'ERROR:' "$LOG"
           ! grep -Fq 'DONE_ACK_TIMEOUT' "$LOG"
           test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 VALIDATED' "$LOG")" -eq 3
