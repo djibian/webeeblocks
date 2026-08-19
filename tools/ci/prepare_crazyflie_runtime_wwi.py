@@ -122,8 +122,11 @@ script = r'''
       throw new Error('BUSY response did not preserve RUNNING at its event boundary');
 
     await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, 'mission DONE', 70000);
-    if (stateWhenDone !== 'WAITING')
-      throw new Error('DONE did not return UI to WAITING at its event boundary');
+    if (stateWhenDone !== 'RECOVERING')
+      throw new Error('DONE did not enter RECOVERING at its event boundary');
+    await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') !== -1, 'runtime RUNTIME_READY', 5000);
+    await waitFor(() => crazyflieRuntimeState === 'WAITING', 'runtime WAITING after RUNTIME_READY', 1000);
+    await report('STATE_AFTER_RUNTIME_READY', crazyflieRuntimeState);
     await reportChain;
     console.log('WEBEEBLOCKS_CI_RUNTIME_WWI_DONE');
   } catch (error) {
