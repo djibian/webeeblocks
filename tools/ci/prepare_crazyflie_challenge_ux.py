@@ -44,6 +44,17 @@ script = r'''
 
   const responses = [];
   const challengeEvents = [];
+  const javascriptErrors = [];
+  window.addEventListener('error', event => {
+    const detail = event && (event.error || event.message) ? String(event.error || event.message) : 'unknown error';
+    javascriptErrors.push(detail);
+    report('JS_ERROR', detail);
+  });
+  window.addEventListener('unhandledrejection', event => {
+    const detail = event && event.reason ? String(event.reason) : 'unknown rejection';
+    javascriptErrors.push(detail);
+    report('JS_REJECTION', detail);
+  });
   window.addEventListener('webeeblocks-wwi', event => {
     const value = String(event.detail);
     responses.push(value);
@@ -72,10 +83,7 @@ script = r'''
   // Direct Field.setValue() is silent in this vendored Blockly 2020 path.
   // Construct the same standard field-change event a real edit produces and
   // deliver it through Workspace.fireChangeListener(), the public listener
-  // boundary used by Blockly.Events. This exercises the real product change
-  // listener deterministically without relying on the vendored asynchronous
-  // event queue. Restore the numeric field silently afterwards so the mission
-  // submitted by the test remains the original fixture.
+  // boundary used by Blockly.Events. Restore the numeric field silently afterwards.
   function simulateStudentEdit() {
     const blocks = workspace.getAllBlocks(false);
     for (let i = 0; i < blocks.length; ++i) {
@@ -87,7 +95,8 @@ script = r'''
       const original = Number(field.getValue());
       const delta = fieldName === 'DISTANCE' ? (original >= 1.9 ? -0.1 : 0.1) : (original >= 134 ? -1 : 1);
       const edited = original + delta;
-      report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: edited}));
+      report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: edited,
+                                           runtimeState: crazyflieRuntimeState}));
       field.setValue(edited);
       const change = new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited));
       workspace.fireChangeListener(change);
@@ -97,20 +106,43 @@ script = r'''
     return false;
   }
 
-  async function runMission(name, xmlText, expectedResult) {
-    await waitFor(() => crazyflieRuntimeState === 'WAITING', name + ' runtime WAITING', 8000);
+  async function prepareNextMission(name, xmlText) {
     const terminalBeforeEdit = webeeblocksChallengeState === 'FINISHED';
+    if (terminalBeforeEdit) {
+      // Edit immediately while the controller may still be RECOVERING. The
+      // challenge presentation may become PRÊT, but transport must remain blocked.
+      if (!simulateStudentEdit())
+        throw new Error(name + ' previous workspace has no editable numeric field');
+      await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
+      await report(name + '_EDIT_READY', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+    }
+
     loadFixture(xmlText);
-    if (terminalBeforeEdit && !simulateStudentEdit())
-      throw new Error(name + ' fixture has no editable numeric field');
-    await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
-    if (terminalBeforeEdit)
-      await report(name + '_EDIT_READY', JSON.stringify(panel()));
+    await report(name + '_FIXTURE_LOADED', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+
+    if (crazyflieRuntimeState !== 'WAITING') {
+      const responseStart = responses.length;
+      await report(name + '_WAIT_RUNTIME_READY', crazyflieRuntimeState);
+      await waitFor(() => responses.slice(responseStart).indexOf('WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') !== -1,
+                    name + ' RUNTIME_READY', 8000);
+      await waitFor(() => crazyflieRuntimeState === 'WAITING', name + ' runtime WAITING after RUNTIME_READY', 1000);
+      await report(name + '_RUNTIME_READY', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+    }
+
+    if (javascriptErrors.some(e => e.indexOf('Generator code for block type') !== -1 || e.indexOf('generator') !== -1))
+      throw new Error(name + ' Crazyflie edit invoked Python generation: ' + javascriptErrors.join(' | '));
+  }
+
+  async function runMission(name, xmlText, expectedResult) {
+    await prepareNextMission(name, xmlText);
     const missionMessage = WebeeBlocksCrazyflie.workspaceToMissionMessage(workspace);
     await report(name + '_MISSION', missionMessage);
     const beforeChallenge = challengeEvents.length;
     const beforeResponses = responses.length;
-    await report(name + '_BEFORE_SUBMIT', JSON.stringify(panel()));
+    await report(name + '_BEFORE_SUBMIT', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+
+    // Submit immediately once RUNTIME_READY has moved transport to WAITING. No
+    // arbitrary real-time grace period is allowed between readiness and retry.
     document.getElementById('submit').click();
     await waitFor(() => responses.slice(beforeResponses).indexOf('WEBEEBLOCKS_MISSION_V1 ACK') !== -1, name + ' ACK', 5000);
     await waitFor(() => challengeEvents.slice(beforeChallenge).some(e => e.state === 'RUNNING'), name + ' EN VOL', 5000);
@@ -118,6 +150,7 @@ script = r'''
       throw new Error(name + ' did not display EN VOL');
     await waitFor(() => challengeEvents.slice(beforeChallenge).some(e => e.state === 'FINISHED' && e.result === expectedResult), name + ' result ' + expectedResult, 70000);
     await waitFor(() => responses.slice(beforeResponses).indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, name + ' DONE', 5000);
+    await waitFor(() => crazyflieRuntimeState === 'RECOVERING', name + ' transport RECOVERING', 1000);
     const frozen = panel();
     if (frozen.state !== 'TERMINÉ' || frozen.result !== expectedResult || !/^[0-9]+\.[0-9]{2} s$/.test(frozen.time))
       throw new Error(name + ' terminal panel invalid: ' + JSON.stringify(frozen));
@@ -125,10 +158,7 @@ script = r'''
     await sleep(350);
     if (panel().time !== frozenTime)
       throw new Error(name + ' timer did not remain frozen');
-    await report(name + '_TERMINAL', JSON.stringify(panel()));
-    // Give the controller enough real time to restore __init__ and enter its
-    // next WAITING loop before the next human-like edit/submit action.
-    await sleep(750);
+    await report(name + '_TERMINAL', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
   }
 
   try {
@@ -167,6 +197,16 @@ script = r'''
     await runMission('DETOUR', __DETOUR__, 'RÉUSSI');
     await runMission('GATE_MISS', __GATE_MISS__, 'PASSAGE MANQUÉ');
 
+    // Even after the last attempt, prove the runtime physically rearmed and the
+    // same Robot Window received the explicit readiness signal.
+    const finalResponseStart = responses.length;
+    await waitFor(() => responses.slice(finalResponseStart).indexOf('WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') !== -1,
+                  'final RUNTIME_READY', 8000);
+    await waitFor(() => crazyflieRuntimeState === 'WAITING', 'final runtime WAITING', 1000);
+    await report('FINAL_RUNTIME_READY', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+
+    if (javascriptErrors.some(e => e.indexOf('Generator code for block type') !== -1 || e.indexOf('generator') !== -1))
+      throw new Error('Crazyflie challenge triggered Python generation: ' + javascriptErrors.join(' | '));
     await report('CHALLENGE_TEST_COMPLETE', JSON.stringify(panel()));
     await reportChain;
   } catch (error) {
