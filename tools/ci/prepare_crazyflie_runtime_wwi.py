@@ -35,10 +35,19 @@ script = r'''
 
   try {
     const responses = [];
+    let stateWhenBusy = null;
+    let stateWhenDone = null;
     window.addEventListener('webeeblocks-wwi', event => {
       const value = String(event.detail);
       responses.push(value);
       report('RX', value);
+      if (value === 'WEBEEBLOCKS_MISSION_V1 ERR BUSY') {
+        stateWhenBusy = crazyflieRuntimeState;
+        report('STATE_AFTER_BUSY', stateWhenBusy);
+      } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
+        stateWhenDone = crazyflieRuntimeState;
+        report('STATE_AFTER_DONE', stateWhenDone);
+      }
       console.log('WEBEEBLOCKS_CI_WWI_RX=' + value);
     });
 
@@ -95,15 +104,12 @@ script = r'''
     await report('BUSY_PROBE_SEND', 'runtime transport direct');
     realSend(validMessage);
     await waitFor(() => responses.slice(busyBefore).indexOf('WEBEEBLOCKS_MISSION_V1 ERR BUSY') !== -1, 'BUSY rejection', 5000);
-    if (crazyflieRuntimeState !== 'RUNNING')
-      throw new Error('BUSY incorrectly unlocked the active mission');
-    await report('STATE_AFTER_BUSY', crazyflieRuntimeState);
+    if (stateWhenBusy !== 'RUNNING')
+      throw new Error('BUSY response did not preserve RUNNING at its event boundary');
 
     await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, 'mission DONE', 70000);
-    if (crazyflieRuntimeState !== 'WAITING')
-      throw new Error('DONE did not return UI to WAITING');
-    await report('STATE_AFTER_DONE', crazyflieRuntimeState);
-    await report('COMPLETE', 'runtime WWI handshake proved');
+    if (stateWhenDone !== 'WAITING')
+      throw new Error('DONE did not return UI to WAITING at its event boundary');
     await reportChain;
     console.log('WEBEEBLOCKS_CI_RUNTIME_WWI_DONE');
   } catch (error) {
