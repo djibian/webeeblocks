@@ -254,6 +254,23 @@ static int finish_runtime_terminal(const char *status, double elapsed, int step)
   return wait_for_runtime_done_ack(step);
 }
 
+static int reset_runtime_vehicle(int step,
+                                 WbDeviceTag m1, WbDeviceTag m2,
+                                 WbDeviceTag m3, WbDeviceTag m4) {
+  WbNodeRef self = wb_supervisor_node_get_self();
+  if (!self)
+    return 0;
+  stop(m1, m2, m3, m4);
+  wb_supervisor_node_load_state(self, "__init__");
+  wb_supervisor_node_reset_physics(self);
+  wb_robot_set_custom_data("");
+  for (int i = 0; i < 5; ++i) {
+    if (wb_robot_step(step) == -1)
+      return 0;
+  }
+  return 1;
+}
+
 int main(int argc, const char *argv[]) {
   webeeblocks_command_t mission[WEBEEBLOCKS_MISSION_V1_MAX_COMMANDS] = {
     {WEBEEBLOCKS_COMMAND_TAKEOFF, TARGET_Z_DELTA},
@@ -277,6 +294,7 @@ int main(int argc, const char *argv[]) {
   wb_gps_enable(gps, step); wb_inertial_unit_enable(imu, step); wb_gyro_enable(gyro, step);
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {}
 
+wait_runtime_mission:
   if (runtime_mode) {
     stop(m1, m2, m3, m4);
     wb_robot_set_custom_data("");
@@ -348,10 +366,13 @@ int main(int argc, const char *argv[]) {
         if (!finish_runtime_terminal("COLLISION", elapsed, step)) {
           write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
           wb_supervisor_simulation_quit(2);
-        } else {
-          wb_supervisor_simulation_quit(0);
+          break;
         }
-        break;
+        if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+          wb_supervisor_simulation_quit(2);
+          break;
+        }
+        goto wait_runtime_mission;
       }
       if (now + 1e-9 >= challenge_next_tick) {
         send_challenge_tick(now - t0);
@@ -387,12 +408,18 @@ int main(int argc, const char *argv[]) {
         write_failure("GATE1_MISS", &runner, gates);
         stop(m1,m2,m3,m4);
         if (runtime_mode) {
-          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step))
+          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
             write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-          wb_supervisor_simulation_quit(0);
-        } else {
-          wb_supervisor_simulation_quit(2);
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          goto wait_runtime_mission;
         }
+        wb_supervisor_simulation_quit(2);
         break;
       }
     } else if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
@@ -401,12 +428,18 @@ int main(int argc, const char *argv[]) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
         stop(m1,m2,m3,m4);
         if (runtime_mode) {
-          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step))
+          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
             write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-          wb_supervisor_simulation_quit(0);
-        } else {
-          wb_supervisor_simulation_quit(2);
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          goto wait_runtime_mission;
         }
+        wb_supervisor_simulation_quit(2);
         break;
       }
     }
@@ -437,22 +470,36 @@ int main(int argc, const char *argv[]) {
           write_failure("GATE1_NOT_CROSSED", &runner, gates);
           stop(m1,m2,m3,m4);
           if (runtime_mode) {
-            finish_runtime_terminal("GATE_MISSED", now - t0, step);
-            wb_supervisor_simulation_quit(0);
-          } else {
-            wb_supervisor_simulation_quit(2);
+            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
+              write_failure("DONE_ACK_TIMEOUT", &runner, gates);
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            goto wait_runtime_mission;
           }
+          wb_supervisor_simulation_quit(2);
           break;
         }
         if (reference_l && runner.index == 3 && !gate2.passed) {
           write_failure("GATE2_NOT_CROSSED", &runner, gates);
           stop(m1,m2,m3,m4);
           if (runtime_mode) {
-            finish_runtime_terminal("GATE_MISSED", now - t0, step);
-            wb_supervisor_simulation_quit(0);
-          } else {
-            wb_supervisor_simulation_quit(2);
+            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
+              write_failure("DONE_ACK_TIMEOUT", &runner, gates);
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            goto wait_runtime_mission;
           }
+          wb_supervisor_simulation_quit(2);
           break;
         }
         const double anchor_x = target_x, anchor_y = target_y, anchor_yaw = target_yaw;
@@ -491,11 +538,18 @@ int main(int argc, const char *argv[]) {
           write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
           stop(m1,m2,m3,m4);
           if (runtime_mode) {
-            finish_runtime_terminal("GATE_MISSED", now - t0, step);
-            wb_supervisor_simulation_quit(0);
-          } else {
-            wb_supervisor_simulation_quit(2);
+            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
+              write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+              wb_supervisor_simulation_quit(2);
+              break;
+            }
+            goto wait_runtime_mission;
           }
+          wb_supervisor_simulation_quit(2);
           break;
         }
         if (reference_l) {
@@ -519,6 +573,11 @@ int main(int argc, const char *argv[]) {
             wb_supervisor_simulation_quit(2);
             break;
           }
+          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+          goto wait_runtime_mission;
         }
         wb_supervisor_simulation_quit(0); break;
       }
