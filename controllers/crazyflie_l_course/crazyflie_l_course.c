@@ -23,6 +23,7 @@
 #define POSITION_TOL 0.03
 #define YAW_TOL (2.0 * PI / 180.0)
 #define TIMEOUT 60.0
+#define DONE_ACK_TIMEOUT 10.0
 #define GATE_ALONG_M 0.90
 #define GATE_HALF_WIDTH_M 0.30
 #define GATE_HALF_HEIGHT_M 0.20
@@ -189,6 +190,24 @@ static void reject_runtime_messages_while_busy(void) {
   const char *message;
   while ((message = wb_robot_wwi_receive_text()))
     wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+}
+
+static int wait_for_runtime_done_ack(int step) {
+  const double deadline = wb_robot_get_time() + DONE_ACK_TIMEOUT;
+  while (wb_robot_get_time() < deadline && wb_robot_step(step) != -1) {
+    const char *message;
+    while ((message = wb_robot_wwi_receive_text())) {
+      if (strcmp(message, "WEBEEBLOCKS_MISSION_V1 DONE_ACK") == 0) {
+        printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED\n");
+        fflush(stdout);
+        return 1;
+      }
+      wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+    }
+  }
+  printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT\n");
+  fflush(stdout);
+  return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -387,9 +406,18 @@ int main(int argc, const char *argv[]) {
         }
         fflush(stdout);
         webeeblocks_runner_advance(&runner);
-        if (runtime_mode)
+        stop(m1,m2,m3,m4);
+        if (runtime_mode) {
           wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 DONE");
-        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+          printf("WEBEEBLOCKS_MISSION_V1 DONE_SENT\n");
+          fflush(stdout);
+          if (!wait_for_runtime_done_ack(step)) {
+            write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+        }
+        wb_supervisor_simulation_quit(0); break;
       }
     }
 
