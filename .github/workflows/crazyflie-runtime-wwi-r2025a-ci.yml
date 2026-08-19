@@ -73,7 +73,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_runtime_wwi.wbt
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
             ' \
             2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
           code=${PIPESTATUS[0]}
