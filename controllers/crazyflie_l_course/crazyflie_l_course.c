@@ -268,6 +268,9 @@ static int reset_runtime_vehicle(int step,
     if (wb_robot_step(step) == -1)
       return 0;
   }
+  wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 RUNTIME_READY");
+  printf("WEBEEBLOCKS_MISSION_V1 RUNTIME_READY_SENT\n");
+  fflush(stdout);
   return 1;
 }
 
