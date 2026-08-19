@@ -2,57 +2,46 @@
 
 ## Mission
 
-WebeeBlocks is the production-oriented educational robotics project. Its priority is reliable pedagogical behavior and incremental product progress on evidence-backed foundations.
+WebeeBlocks is an educational robotics project. Its priority is reliable pedagogical behavior and incremental product progress supported by evidence.
 
-## Core doctrine: validated engineering only
+## Organizational doctrine
 
-WebeeBlocks is **not** the laboratory for cross-project engineering mechanisms.
+WebeeBlocks must use **organizational mechanisms that have already demonstrated their value in real AI-assisted engineering work** before they are introduced here as standard process.
 
-When a new agent workflow, security mechanism, CI/oracle strategy, governance mechanism, trust-boundary pattern, or other reusable engineering practice is uncertain, it must first be investigated and validated in PolaCore.
+New organizational ideas should not be invented experimentally inside WebeeBlocks when they would substantially change how agents coordinate, review, escalate, automate, or decide. The preferred approach is to adopt only mechanisms whose benefits and failure modes have already been observed elsewhere under real project pressure.
 
-The normal transfer direction is:
+This is an organizational rule only. WebeeBlocks remains completely independent from any external project.
 
-`PolaCore experiment -> independent falsification/review -> explicit PROMOTABLE decision -> WebeeBlocks adoption`
+### Strict repository independence
 
-WebeeBlocks may send requirements, observed failures, constraints, and research questions to PolaCore. It must not treat a candidate mechanism as validated merely because it seems useful here.
+Do not create cross-project workflows. In particular, WebeeBlocks must not:
 
-### What this gate does not mean
+- send requirements, issues, failures, tasks, or research questions to another repository;
+- depend on another repository's issues, branches, PRs, commits, artifacts, CI, or current state;
+- create automated hand-offs across repositories;
+- import product decisions from another project;
+- require another project to perform work before WebeeBlocks work can proceed;
+- use another repository as shared memory.
 
-Product-specific WebeeBlocks development does not move to PolaCore. Blockly behavior, Webots/Crazyflie physics, pedagogical UX, missions, curriculum behavior, and other domain-specific product questions remain investigated and developed in WebeeBlocks.
-
-The PolaCore gate applies when we want to introduce or change a **reusable engineering mechanism or doctrine** whose validity is not already established.
-
-## Promotion evidence required
-
-Before adopting such a mechanism, record the PolaCore promotion evidence in the WebeeBlocks issue or PR:
-
-- PolaCore issue/PR or retained promotion record;
-- exact validated artifact/commit where relevant;
-- promoted claim and permitted scope;
-- evidence classification;
-- remaining uncertainty;
-- why the pattern applies to WebeeBlocks without silently extending the claim.
-
-`HYPOTHESIS`, `INFERENCE`, `UNPROVEN`, `REFUTED`, misleading SKIP, or merely green CI are not sufficient.
+An organizational pattern may be reproduced here after it has been judged mature enough, but once reproduced it becomes a **local WebeeBlocks rule** with its own documentation and no continuing external dependency.
 
 ## Repository governance
 
 `main` is not a development target. Do not commit directly to `main` or promote work there without Emmanuel's explicit authorization.
 
-`webots-ci` is the current integration branch for validated Webots R2025a migration and Crazyflie work. Use short-lived branches and focused pull requests.
+`webots-ci` is the current integration branch for Webots R2025a migration and Crazyflie work. Use short-lived branches and focused pull requests.
 
-## GitHub is shared memory
+## GitHub is WebeeBlocks shared memory
 
-Do not rely on chat history as project state. Before work, read:
+Do not rely on chat history or another repository as project state. Before work, read:
 
 1. this `AGENTS.md`;
 2. `[Lead] WebeeBlocks state & priorities`;
-3. the assigned issue;
-4. relevant Lab and Verification evidence;
-5. related PRs and current CI evidence;
-6. any PolaCore promotion evidence required by the change.
+3. the assigned WebeeBlocks issue;
+4. relevant WebeeBlocks Lab and Verification evidence;
+5. related WebeeBlocks PRs and current CI evidence.
 
-Write important conclusions back to GitHub.
+Write important conclusions back to this repository.
 
 ## Evidence vocabulary
 
@@ -82,7 +71,9 @@ Use the smallest trustworthy pipeline.
 `Lead -> Lab/Experimenter -> Builder/Engineering -> Verification`
 
 ### High-risk claim
-Use additional independent adversarial/reviewer scrutiny. If the required mechanism is reusable and not already validated, send that mechanism to PolaCore first rather than inventing it inside WebeeBlocks.
+Add independent adversarial or reviewer scrutiny only when the cost of a false conclusion justifies it.
+
+Roles are epistemic functions, not ceremony. Do not add an agent merely to make the organization look complete.
 
 ## Lead
 
@@ -90,15 +81,19 @@ The Lead owns the problem and the current bottleneck, not implementation details
 
 ## Lab / Experimenter
 
-Optimize for information gain. Design the smallest discriminating experiment. Measure before tuning. Separate observed behavior from inference. Product-specific experiments belong here; reusable unvalidated engineering mechanisms belong in PolaCore.
+Optimize for information gain. Design the smallest discriminating experiment. Measure before tuning. Separate observed behavior from inference. Do not broaden product architecture while the causal question is still unresolved.
 
 ## Builder / Engineering
 
-Implement only the authorized increment. Prefer causal fixes, minimal reversible changes, and tests that would fail before the fix. Do not weaken an oracle, safety guard, or acceptance criterion to obtain green CI. Do not silently introduce a new engineering doctrine that has not crossed the PolaCore validation gate.
+Implement only the authorized increment. Prefer causal fixes, minimal reversible changes, and tests that would fail before the fix. Do not weaken an oracle, safety guard, or acceptance criterion to obtain green CI.
 
 ## Verification
 
 Try to falsify the claimed behavior. Verify that tests exercise the stated property, distinguish product behavior from harness behavior, and identify false-positive oracles. Do not assume a green workflow proves the product claim.
+
+## Independent review
+
+Whenever practical, the agent/model performing Verification or adversarial review should be different from the agent/model that implemented the change. Automated GitHub review may be used as an additional Reviewer-0, but not as the sole authority for a non-trivial claim.
 
 ## Pull requests
 
@@ -107,10 +102,23 @@ Each substantial PR should state:
 - issue/objective;
 - scope and non-goals;
 - tests/evidence;
-- remaining uncertainty;
-- PolaCore promotion reference when the PR adopts a reusable engineering mechanism covered by the validation gate.
+- remaining uncertainty.
 
 If the causal question changes materially, prefer a new issue/PR rather than turning one PR into an unbounded investigation.
+
+## Organizational changes
+
+Treat changes to the agent organization as real engineering changes. Before making a new coordination mechanism standard in WebeeBlocks, require evidence that it reduces one or more of:
+
+- human relay work;
+- duplicated agent effort;
+- false-positive conclusions;
+- time spent on non-causal fixes;
+- unbounded PR cycles;
+
+without degrading evidence quality or project clarity.
+
+Once adopted here, the mechanism must be documented locally and evaluated from WebeeBlocks' own subsequent results.
 
 ## Definition of done
 
