@@ -70,11 +70,13 @@ script = r'''
   }
 
   // Direct Field.setValue() is silent in this vendored Blockly 2020 path.
-  // Fire one standard field-change event so the real product listener sees a
-  // student edit. Let the queued event reach listeners before silently
-  // restoring the original numeric value; otherwise Blockly.Events.filter()
-  // can collapse the synthetic edit before the product observes it.
-  async function simulateStudentEdit() {
+  // Construct the same standard field-change event a real edit produces and
+  // deliver it through Workspace.fireChangeListener(), the public listener
+  // boundary used by Blockly.Events. This exercises the real product change
+  // listener deterministically without relying on the vendored asynchronous
+  // event queue. Restore the numeric field silently afterwards so the mission
+  // submitted by the test remains the original fixture.
+  function simulateStudentEdit() {
     const blocks = workspace.getAllBlocks(false);
     for (let i = 0; i < blocks.length; ++i) {
       const block = blocks[i];
@@ -87,8 +89,8 @@ script = r'''
       const edited = original + delta;
       report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: edited}));
       field.setValue(edited);
-      Blockly.Events.fire(new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited)));
-      await sleep(50);
+      const change = new Blockly.Events.Change(block, 'field', fieldName, String(original), String(edited));
+      workspace.fireChangeListener(change);
       field.setValue(original);
       return true;
     }
@@ -99,7 +101,7 @@ script = r'''
     await waitFor(() => crazyflieRuntimeState === 'WAITING', name + ' runtime WAITING', 8000);
     const terminalBeforeEdit = webeeblocksChallengeState === 'FINISHED';
     loadFixture(xmlText);
-    if (terminalBeforeEdit && !(await simulateStudentEdit()))
+    if (terminalBeforeEdit && !simulateStudentEdit())
       throw new Error(name + ' fixture has no editable numeric field');
     await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
     if (terminalBeforeEdit)
