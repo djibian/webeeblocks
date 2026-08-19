@@ -69,10 +69,35 @@ script = r'''
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xmlText), workspace);
   }
 
+  // Programmatic XML loading is not a student edit. Nudge one real numeric
+  // Blockly field and restore it immediately so the product change listener is
+  // exercised while the serialized mission remains exactly the fixture.
+  function simulateStudentEdit() {
+    const blocks = workspace.getAllBlocks(false);
+    for (let i = 0; i < blocks.length; ++i) {
+      const block = blocks[i];
+      const fieldName = block.getField('DISTANCE') ? 'DISTANCE' : (block.getField('ANGLE') ? 'ANGLE' : null);
+      if (!fieldName)
+        continue;
+      const field = block.getField(fieldName);
+      const original = Number(field.getValue());
+      const delta = fieldName === 'DISTANCE' ? (original >= 1.9 ? -0.1 : 0.1) : (original >= 134 ? -1 : 1);
+      field.setValue(original + delta);
+      field.setValue(original);
+      return true;
+    }
+    return false;
+  }
+
   async function runMission(name, xmlText, expectedResult) {
     await waitFor(() => crazyflieRuntimeState === 'WAITING', name + ' runtime WAITING', 8000);
+    const terminalBeforeEdit = webeeblocksChallengeState === 'FINISHED';
     loadFixture(xmlText);
+    if (terminalBeforeEdit && !simulateStudentEdit())
+      throw new Error(name + ' fixture has no editable numeric field');
     await waitFor(() => panel().state === 'PRÊT', name + ' PRÊT after edit', 2000);
+    if (terminalBeforeEdit)
+      await report(name + '_EDIT_READY', JSON.stringify(panel()));
     const beforeChallenge = challengeEvents.length;
     const beforeResponses = responses.length;
     await report(name + '_BEFORE_SUBMIT', JSON.stringify(panel()));
