@@ -58,6 +58,11 @@ static void stop(WbDeviceTag a, WbDeviceTag b, WbDeviceTag c, WbDeviceTag d) {
   wb_motor_set_velocity(a, 0); wb_motor_set_velocity(b, 0);
   wb_motor_set_velocity(c, 0); wb_motor_set_velocity(d, 0);
 }
+static void configure_motor_velocity_mode(WbDeviceTag a, WbDeviceTag b,
+                                          WbDeviceTag c, WbDeviceTag d) {
+  wb_motor_set_position(a, INFINITY); wb_motor_set_position(b, INFINITY);
+  wb_motor_set_position(c, INFINITY); wb_motor_set_position(d, INFINITY);
+}
 
 static const char *runner_phase_name(const webeeblocks_runner_t *runner) {
   const webeeblocks_command_t *command = webeeblocks_runner_current(runner);
@@ -263,6 +268,8 @@ static int reset_runtime_vehicle(int step,
   stop(m1, m2, m3, m4);
   wb_supervisor_node_load_state(self, "__init__");
   wb_supervisor_node_reset_physics(self);
+  configure_motor_velocity_mode(m1, m2, m3, m4);
+  stop(m1, m2, m3, m4);
   wb_robot_set_custom_data("");
   for (int i = 0; i < 5; ++i) {
     if (wb_robot_step(step) == -1)
@@ -290,8 +297,7 @@ int main(int argc, const char *argv[]) {
   WbDeviceTag m1 = wb_robot_get_device("m1_motor"), m2 = wb_robot_get_device("m2_motor");
   WbDeviceTag m3 = wb_robot_get_device("m3_motor"), m4 = wb_robot_get_device("m4_motor");
   WbDeviceTag gps = wb_robot_get_device("gps"), imu = wb_robot_get_device("inertial_unit"), gyro = wb_robot_get_device("gyro");
-  wb_motor_set_position(m1, INFINITY); wb_motor_set_position(m2, INFINITY);
-  wb_motor_set_position(m3, INFINITY); wb_motor_set_position(m4, INFINITY);
+  configure_motor_velocity_mode(m1, m2, m3, m4);
   wb_motor_set_velocity(m1, -1); wb_motor_set_velocity(m2, 1);
   wb_motor_set_velocity(m3, -1); wb_motor_set_velocity(m4, 1);
   wb_gps_enable(gps, step); wb_inertial_unit_enable(imu, step); wb_gyro_enable(gyro, step);
