@@ -101,6 +101,9 @@ jobs:
 
           grep -Fq 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG"
           grep -Fq 'WEBEEBLOCKS_MISSION_V1 VALIDATED count=5' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_SENT' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' "$LOG"
+          ! grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT' "$LOG"
           ! grep -Fq 'ERROR:' "$LOG"
 
           python3 - <<'PY'
@@ -119,7 +122,7 @@ jobs:
               ('SECOND_SUBMIT_CLICK', None), ('SECOND_SUBMIT_BLOCKED_LOCAL', 'RUNNING'),
               ('BUSY_PROBE_SEND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR BUSY'),
               ('STATE_AFTER_BUSY', 'RUNNING'), ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
-              ('STATE_AFTER_DONE', 'WAITING'), ('COMPLETE', 'runtime WWI handshake proved'),
+              ('STATE_AFTER_DONE', 'WAITING'),
           ]
           cursor = 0
           for event in events:
@@ -130,7 +133,7 @@ jobs:
                   cursor += 1
           assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
           assert not any(event.get('event') == 'ERROR' for event in events), events
-          print('PASS: real Robot Window persisted negative rejects -> PENDING -> ACK/RUNNING -> local second-submit block -> BUSY -> DONE/WAITING.')
+          print('PASS: Robot Window preserved RUNNING on BUSY, applied DONE -> WAITING, and controller received DONE_ACK before exit.')
           PY
 
           cat "$RESULT"
