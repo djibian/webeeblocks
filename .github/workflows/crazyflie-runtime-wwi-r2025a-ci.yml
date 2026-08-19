@@ -128,9 +128,11 @@ jobs:
               ('SECOND_SUBMIT_CLICK', None), ('SECOND_SUBMIT_BLOCKED_LOCAL', 'RUNNING'),
               ('BUSY_PROBE_SEND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR BUSY'),
               ('STATE_AFTER_BUSY', 'RUNNING'), ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
-              ('STATE_AFTER_DONE', 'WAITING'),
-              ('DONE_ACK_SEND_CALL', 'WAITING'), ('DONE_ACK_SEND_RETURN', 'WAITING'),
-              ('DONE_ACK_SENT', 'WAITING'),
+              ('STATE_AFTER_DONE', 'RECOVERING'),
+              ('DONE_ACK_SEND_CALL', 'RECOVERING'), ('DONE_ACK_SEND_RETURN', 'RECOVERING'),
+              ('DONE_ACK_SENT', 'RECOVERING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY'),
+              ('STATE_AFTER_RUNTIME_READY', 'WAITING'),
           ]
           cursor = 0
           for event in events:
@@ -142,7 +144,7 @@ jobs:
                   cursor += 1
           assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
           assert not any(event.get('event') == 'ERROR' for event in events), events
-          print('PASS: real Robot Window applied DONE -> WAITING and synchronously called/returned from DONE_ACK send.')
+          print('PASS: real Robot Window applied DONE -> RECOVERING, sent DONE_ACK, then returned to WAITING only after RUNTIME_READY.')
           PY
 
           cat "$TRACE"
@@ -160,8 +162,6 @@ jobs:
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
           ! grep -Fq 'reason=DONE_ACK_TIMEOUT' "$RESULT"
           grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' "$LOG"
-          # A 124 exit is expected for the new persistent product loop, but only
-          # after causal DONE_ACK and an observable return to WAITING.
           if [ "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "124" ]; then
             test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG")" -ge 2
           fi
