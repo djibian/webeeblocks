@@ -227,7 +227,17 @@ function convertCode() {
     ws.send(code);
     saveLast();
 }
-function realTimeUpdate() {
+function realTimeUpdate(event) {
+    // Keep retry-intent handling in the primary workspace listener. Blockly 2020
+    // may stop dispatching later listeners when another callback throws, so the
+    // student-facing FINISHED -> READY transition must not depend on listener order.
+    if (event && event.type !== Blockly.Events.UI &&
+        webeeblocksChallengeState === 'FINISHED' &&
+        (crazyflieRuntimeState === 'WAITING' || crazyflieRuntimeState === 'RECOVERING')) {
+        blocklyDomainEditSeen = true;
+        setChallengeDisplay('READY', null, null);
+    }
+
     // Crazyflie blocks deliberately have no Python generator: the student-facing
     // runtime path serializes semantic missions over WWI instead. Keep the
     // historical Python preview untouched for non-Crazyflie workspaces only.
@@ -330,15 +340,3 @@ var workspace = Blockly.inject(container,
     });
 Blockly.svgResize(workspace);
 workspace.addChangeListener(realTimeUpdate);
-workspace.addChangeListener(function(event) {
-    if (!event || event.type === Blockly.Events.UI)
-        return;
-    // A FINISHED challenge can only have been produced by the Crazyflie runtime.
-    // Treat any genuine non-UI workspace edit as a student retry intent; checking
-    // the whole workspace shape here is brittle during Blockly's change dispatch.
-    if (webeeblocksChallengeState === 'FINISHED' &&
-        (crazyflieRuntimeState === 'WAITING' || crazyflieRuntimeState === 'RECOVERING')) {
-        blocklyDomainEditSeen = true;
-        setChallengeDisplay('READY', null, null);
-    }
-});
