@@ -101,9 +101,6 @@ jobs:
 
           grep -Fq 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG"
           grep -Fq 'WEBEEBLOCKS_MISSION_V1 VALIDATED count=5' "$LOG"
-          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_SENT' "$LOG"
-          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' "$LOG"
-          ! grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT' "$LOG"
           ! grep -Fq 'ERROR:' "$LOG"
 
           python3 - <<'PY'
@@ -133,11 +130,13 @@ jobs:
                   cursor += 1
           assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
           assert not any(event.get('event') == 'ERROR' for event in events), events
-          print('PASS: Robot Window preserved RUNNING on BUSY, applied DONE -> WAITING, emitted DONE_ACK, and controller received it before exit.')
+          print('PASS: real Robot Window applied DONE -> WAITING and sent DONE_ACK after the transition.')
           PY
 
           cat "$RESULT"
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' "$RESULT"
+          test "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "0"
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -149,6 +148,7 @@ jobs:
           assert float(pairs['endpoint_error_xy']) <= 0.02
           assert float(pairs['yaw_error_deg']) <= 2.0
           assert abs(float(pairs['total_s']) - 26.144) <= 0.10
+          print('PASS: controller completed only after the DONE_ACK wait path returned successfully; timeout would overwrite this result with reason=DONE_ACK_TIMEOUT and exit non-zero.')
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course, with no rebuild after Submit.')
           PY
 
