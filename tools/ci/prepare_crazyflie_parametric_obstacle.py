@@ -33,7 +33,13 @@ def main() -> int:
   let reportSequence = 0;
   let reportChain = Promise.resolve();
   function report(event, detail) {
-    const payload = {seq: reportSequence++, event: event, detail: detail === undefined ? null : String(detail)};
+    const payload = {
+      seq: reportSequence++,
+      wall_ms: Date.now(),
+      performance_ms: typeof performance !== 'undefined' ? performance.now() : null,
+      event: event,
+      detail: detail === undefined ? null : String(detail),
+    };
     reportChain = reportChain.then(() => fetch('http://127.0.0.1:8765/event', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -60,6 +66,16 @@ def main() -> int:
 
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
     await waitFor(() => typeof workspace !== 'undefined' && workspace, 'Blockly workspace', 5000);
+
+    const realSend = window.robotWindow.send.bind(window.robotWindow);
+    window.robotWindow.send = function(message) {
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_CALL', crazyflieRuntimeState);
+      const result = realSend(message);
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_RETURN', crazyflieRuntimeState);
+      return result;
+    };
 
     workspace.clear();
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(__FIXTURE__), workspace);
