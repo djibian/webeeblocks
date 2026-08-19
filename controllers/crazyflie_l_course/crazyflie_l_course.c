@@ -319,15 +319,20 @@ wait_runtime_mission:
   double ux2 = 0.0, uy2 = 0.0, lx2 = 0.0, ly2 = 0.0;
   double g1x = 0.0, g1y = 0.0, g2x = 0.0, g2y = 0.0;
   double expected_x = sx, expected_y = sy, expected_yaw = syaw;
-  if (reference_l) {
+  if (reference_l || runtime_mode) {
     ux = cos(syaw); uy = sin(syaw); lx1 = -sin(syaw); ly1 = cos(syaw);
-    const double second_yaw = wrap(syaw + mission[2].value);
+    const double second_yaw = wrap(syaw + PI / 2.0);
     ux2 = cos(second_yaw); uy2 = sin(second_yaw); lx2 = -sin(second_yaw); ly2 = cos(second_yaw);
     g1x = sx + GATE_ALONG_M * ux; g1y = sy + GATE_ALONG_M * uy;
-    const double corner_x = sx + mission[1].value * ux, corner_y = sy + mission[1].value * uy;
-    g2x = corner_x + GATE_ALONG_M * ux2; g2y = corner_y + GATE_ALONG_M * uy2;
-    expected_x = corner_x + mission[3].value * ux2; expected_y = corner_y + mission[3].value * uy2;
-    expected_yaw = second_yaw;
+    const double challenge_corner_x = sx + LEG_M * ux;
+    const double challenge_corner_y = sy + LEG_M * uy;
+    g2x = challenge_corner_x + GATE_ALONG_M * ux2;
+    g2y = challenge_corner_y + GATE_ALONG_M * uy2;
+    if (reference_l) {
+      expected_x = challenge_corner_x + LEG_M * ux2;
+      expected_y = challenge_corner_y + LEG_M * uy2;
+      expected_yaw = second_yaw;
+    }
   }
 
   webeeblocks_runner_t runner;
@@ -339,6 +344,7 @@ wait_runtime_mission:
   const double t0 = pt;
   double challenge_next_tick = t0;
   gate_result_t gate1 = {0}, gate2 = {0};
+  int challenge_gate_order_failed = 0;
 
   gains_pid_t g = {0};
   g.kp_att_y = 1; g.kd_att_y = .5; g.kp_att_rp = .5; g.kd_att_rp = .1;
@@ -402,23 +408,17 @@ wait_runtime_mission:
       stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
     }
 
-    if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
+    if (runtime_mode) {
+      check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
+      const int gate1_passed_now = gate1.passed;
+      const int crossed_gate2 = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,ux2,uy2,lx2,ly2,target_z,&gate2);
+      if (crossed_gate2 > 0 && !gate1_passed_now)
+        challenge_gate_order_failed = 1;
+    } else if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
       if (crossed < 0) {
         write_failure("GATE1_MISS", &runner, gates);
         stop(m1,m2,m3,m4);
-        if (runtime_mode) {
-          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
-            write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-            wb_supervisor_simulation_quit(2);
-            break;
-          }
-          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
-            wb_supervisor_simulation_quit(2);
-            break;
-          }
-          goto wait_runtime_mission;
-        }
         wb_supervisor_simulation_quit(2);
         break;
       }
@@ -427,18 +427,6 @@ wait_runtime_mission:
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
         stop(m1,m2,m3,m4);
-        if (runtime_mode) {
-          if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
-            write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-            wb_supervisor_simulation_quit(2);
-            break;
-          }
-          if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
-            wb_supervisor_simulation_quit(2);
-            break;
-          }
-          goto wait_runtime_mission;
-        }
         wb_supervisor_simulation_quit(2);
         break;
       }
@@ -466,39 +454,15 @@ wait_runtime_mission:
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - target_z, now)) {
-        if (reference_l && runner.index == 1 && !gate1.passed) {
+        if (!runtime_mode && reference_l && runner.index == 1 && !gate1.passed) {
           write_failure("GATE1_NOT_CROSSED", &runner, gates);
           stop(m1,m2,m3,m4);
-          if (runtime_mode) {
-            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
-              write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            goto wait_runtime_mission;
-          }
           wb_supervisor_simulation_quit(2);
           break;
         }
-        if (reference_l && runner.index == 3 && !gate2.passed) {
+        if (!runtime_mode && reference_l && runner.index == 3 && !gate2.passed) {
           write_failure("GATE2_NOT_CROSSED", &runner, gates);
           stop(m1,m2,m3,m4);
-          if (runtime_mode) {
-            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
-              write_failure("DONE_ACK_TIMEOUT", &runner, gates);
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            goto wait_runtime_mission;
-          }
           wb_supervisor_simulation_quit(2);
           break;
         }
@@ -534,21 +498,9 @@ wait_runtime_mission:
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - landing.z, now)) {
-        if (reference_l && !(gate1.passed && gate2.passed)) {
+        if (!runtime_mode && reference_l && !(gate1.passed && gate2.passed)) {
           write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
           stop(m1,m2,m3,m4);
-          if (runtime_mode) {
-            if (!finish_runtime_terminal("GATE_MISSED", now - t0, step)) {
-              write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            if (!reset_runtime_vehicle(step, m1, m2, m3, m4)) {
-              wb_supervisor_simulation_quit(2);
-              break;
-            }
-            goto wait_runtime_mission;
-          }
           wb_supervisor_simulation_quit(2);
           break;
         }
@@ -567,7 +519,7 @@ wait_runtime_mission:
         webeeblocks_runner_advance(&runner);
         stop(m1,m2,m3,m4);
         if (runtime_mode) {
-          const char *challenge_status = reference_l ? "SUCCESS" : "GATE_MISSED";
+          const char *challenge_status = gate1.passed && gate2.passed && !challenge_gate_order_failed ? "SUCCESS" : "GATE_MISSED";
           if (!finish_runtime_terminal(challenge_status, now - t0, step)) {
             write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
             wb_supervisor_simulation_quit(2);
