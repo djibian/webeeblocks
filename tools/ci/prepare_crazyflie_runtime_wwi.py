@@ -61,12 +61,10 @@ script = r'''
 
     await sendAndExpect('TX_NEGATIVE_VERSION', 'WEBEEBLOCKS_MISSION_V0\nTAKEOFF 1', 'WEBEEBLOCKS_MISSION_V1 ERR VERSION');
     await sendAndExpect('TX_NEGATIVE_COMMAND', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nSPIN 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR COMMAND');
-    await sendAndExpect('TX_NEGATIVE_PARAMETER', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 0.5\nTURN 1.5707963267948966\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER');
-    await sendAndExpect('TX_NEGATIVE_SEQUENCE', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nTURN 1.5707963267948966\nFORWARD 1\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE');
-    await sendAndExpect('TX_NEGATIVE_TOO_LONG', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nTURN 1.5707963267948966\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG');
+    await sendAndExpect('TX_NEGATIVE_PARAMETER', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 0.05\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER');
+    await sendAndExpect('TX_NEGATIVE_SEQUENCE', 'WEBEEBLOCKS_MISSION_V1\nFORWARD 1\nTURN 1.5707963267948966\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE');
+    await sendAndExpect('TX_NEGATIVE_TOO_LONG', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG');
 
-    // Count actual transport sends so the gate can prove that a second UI click
-    // is blocked locally while a mission is pending/running.
     const realSend = window.robotWindow.send.bind(window.robotWindow);
     let uiTransportSends = 0;
     window.robotWindow.send = function(message) {
@@ -93,8 +91,6 @@ script = r'''
       throw new Error('second UI Submit was not blocked locally');
     await report('SECOND_SUBMIT_BLOCKED_LOCAL', crazyflieRuntimeState);
 
-    // Separately prove the controller-side BUSY guard using a low-level browser
-    // transport probe that deliberately bypasses the UI lock.
     const busyBefore = responses.length;
     await report('BUSY_PROBE_SEND', 'runtime transport direct');
     realSend(validMessage);
