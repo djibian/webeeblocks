@@ -192,18 +192,28 @@ static void reject_runtime_messages_while_busy(void) {
     wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
 }
 
+static int drain_runtime_done_ack(void) {
+  const char *message;
+  while ((message = wb_robot_wwi_receive_text())) {
+    if (strcmp(message, "WEBEEBLOCKS_MISSION_V1 DONE_ACK") == 0) {
+      printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED\n");
+      fflush(stdout);
+      return 1;
+    }
+    wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+  }
+  return 0;
+}
+
 static int wait_for_runtime_done_ack(int step) {
   const double deadline = wb_robot_get_time() + DONE_ACK_TIMEOUT;
-  while (wb_robot_get_time() < deadline && wb_robot_step(step) != -1) {
-    const char *message;
-    while ((message = wb_robot_wwi_receive_text())) {
-      if (strcmp(message, "WEBEEBLOCKS_MISSION_V1 DONE_ACK") == 0) {
-        printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED\n");
-        fflush(stdout);
-        return 1;
-      }
-      wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
-    }
+  while (wb_robot_get_time() < deadline) {
+    if (drain_runtime_done_ack())
+      return 1;
+    if (wb_robot_step(step) == -1)
+      break;
+    if (drain_runtime_done_ack())
+      return 1;
   }
   printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT\n");
   fflush(stdout);
