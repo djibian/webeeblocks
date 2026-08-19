@@ -50,6 +50,9 @@ script = r'''
       }
       console.log('WEBEEBLOCKS_CI_WWI_RX=' + value);
     });
+    window.addEventListener('webeeblocks-runtime', event => {
+      report(String(event.detail), crazyflieRuntimeState);
+    });
 
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
     await waitFor(() => typeof workspace !== 'undefined' && workspace, 'Blockly workspace', 5000);
