@@ -70,7 +70,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_runtime_obstacle.wbt
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
             ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/direct.log
           code=${PIPESTATUS[0]}
           set -e
@@ -123,7 +123,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_runtime_obstacle.wbt
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
             ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/detour.log
           code=${PIPESTATUS[0]}
           set -e
