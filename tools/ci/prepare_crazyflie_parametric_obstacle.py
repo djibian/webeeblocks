@@ -54,6 +54,9 @@ def main() -> int:
         report('STATE_AFTER_DONE', stateWhenDone);
       }
     });
+    window.addEventListener('webeeblocks-runtime', event => {
+      report(String(event.detail), crazyflieRuntimeState);
+    });
 
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
     await waitFor(() => typeof workspace !== 'undefined' && workspace, 'Blockly workspace', 5000);
