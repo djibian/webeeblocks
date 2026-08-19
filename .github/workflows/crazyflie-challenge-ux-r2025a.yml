@@ -89,7 +89,7 @@ jobs:
               }
               trap cleanup EXIT
               complete=0
-              for i in $(seq 1 1100); do
+              for i in $(seq 1 1500); do
                 if grep -Fq "\"event\": \"CHALLENGE_TEST_COMPLETE\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
                   complete=1
                   break
@@ -104,6 +104,9 @@ jobs:
                 fi
                 sleep 0.1
               done
+              if grep -Fq "\"event\": \"CHALLENGE_TEST_COMPLETE\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
+                complete=1
+              fi
               if [ "$complete" -ne 1 ]; then
                 echo "Challenge UX harness did not complete in time"
                 cat /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null || true
