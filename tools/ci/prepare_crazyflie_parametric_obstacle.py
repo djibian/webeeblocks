@@ -97,8 +97,11 @@ def main() -> int:
 
     if (__EXPECT_DONE__) {
       await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, 'DONE', 70000);
-      if (stateWhenDone !== 'WAITING')
-        throw new Error('DONE did not restore WAITING at its event boundary');
+      if (stateWhenDone !== 'RECOVERING')
+        throw new Error('DONE did not enter RECOVERING at its event boundary');
+      await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') !== -1, 'RUNTIME_READY', 5000);
+      await waitFor(() => crazyflieRuntimeState === 'WAITING', 'WAITING after RUNTIME_READY', 1000);
+      await report('STATE_AFTER_RUNTIME_READY', crazyflieRuntimeState);
       await reportChain;
       return;
     }
