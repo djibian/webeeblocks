@@ -118,6 +118,8 @@ Treat changes to the agent organization as real engineering changes. Before maki
 
 without degrading evidence quality or project clarity.
 
+The decision to introduce such a mechanism is made outside the day-to-day WebeeBlocks workflow after reviewing prior real-world experience. Do not create a live dependency on the project where that experience was gathered.
+
 Once adopted here, the mechanism must be documented locally and evaluated from WebeeBlocks' own subsequent results.
 
 ## Definition of done
