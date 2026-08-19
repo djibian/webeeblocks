@@ -331,8 +331,11 @@ var workspace = Blockly.inject(container,
 Blockly.svgResize(workspace);
 workspace.addChangeListener(realTimeUpdate);
 workspace.addChangeListener(function(event) {
-    if (!event || event.type === Blockly.Events.UI || !isCrazyflieWorkspace())
+    if (!event || event.type === Blockly.Events.UI)
         return;
+    // A FINISHED challenge can only have been produced by the Crazyflie runtime.
+    // Treat any genuine non-UI workspace edit as a student retry intent; checking
+    // the whole workspace shape here is brittle during Blockly's change dispatch.
     if (webeeblocksChallengeState === 'FINISHED' &&
         (crazyflieRuntimeState === 'WAITING' || crazyflieRuntimeState === 'RECOVERING')) {
         blocklyDomainEditSeen = true;
