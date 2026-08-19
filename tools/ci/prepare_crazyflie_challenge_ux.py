@@ -82,6 +82,7 @@ script = r'''
       const field = block.getField(fieldName);
       const original = Number(field.getValue());
       const delta = fieldName === 'DISTANCE' ? (original >= 1.9 ? -0.1 : 0.1) : (original >= 134 ? -1 : 1);
+      report('EDIT_NUDGE', JSON.stringify({block: block.type, field: fieldName, from: original, to: original + delta}));
       field.setValue(original + delta);
       field.setValue(original);
       return true;
@@ -124,6 +125,18 @@ script = r'''
   try {
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
     await waitFor(() => typeof workspace !== 'undefined' && workspace, 'Blockly workspace', 5000);
+    workspace.addChangeListener(function(event) {
+      const detail = {
+        type: event && event.type,
+        element: event && event.element,
+        name: event && event.name,
+        oldValue: event && event.oldValue,
+        newValue: event && event.newValue,
+        challengeState: webeeblocksChallengeState,
+        runtimeState: crazyflieRuntimeState,
+      };
+      report('BLOCKLY_CHANGE', JSON.stringify(detail));
+    });
     await waitFor(() => document.getElementById('webeeblocksChallengeState'), 'challenge panel', 5000);
     if (panel().state !== 'PRÊT' || panel().time !== '—')
       throw new Error('initial challenge presentation is not PRÊT');
