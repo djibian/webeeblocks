@@ -23,6 +23,7 @@
 #define POSITION_TOL 0.03
 #define YAW_TOL (2.0 * PI / 180.0)
 #define TIMEOUT 60.0
+#define DONE_ACK_TIMEOUT 10.0
 #define GATE_ALONG_M 0.90
 #define GATE_HALF_WIDTH_M 0.30
 #define GATE_HALF_HEIGHT_M 0.20
@@ -59,11 +60,41 @@ static void stop(WbDeviceTag a, WbDeviceTag b, WbDeviceTag c, WbDeviceTag d) {
 
 static const char *runner_phase_name(const webeeblocks_runner_t *runner) {
   const webeeblocks_command_t *command = webeeblocks_runner_current(runner);
-  if (!command)
-    return "DONE";
+  return command ? webeeblocks_command_name(command->type) : "DONE";
+}
+
+static int mission_is_reference_l(const webeeblocks_command_t *mission, size_t count) {
+  return count == 5 &&
+         mission[0].type == WEBEEBLOCKS_COMMAND_TAKEOFF &&
+         mission[1].type == WEBEEBLOCKS_COMMAND_FORWARD &&
+         mission[2].type == WEBEEBLOCKS_COMMAND_TURN &&
+         mission[3].type == WEBEEBLOCKS_COMMAND_FORWARD &&
+         mission[4].type == WEBEEBLOCKS_COMMAND_LAND &&
+         fabs(mission[0].value - 1.0) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE &&
+         fabs(mission[1].value - 1.0) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE &&
+         fabs(mission[2].value - PI / 2.0) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE &&
+         fabs(mission[3].value - 1.0) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE &&
+         fabs(mission[4].value) <= WEBEEBLOCKS_MISSION_V1_VALUE_TOLERANCE;
+}
+
+static int configure_target_for_command(const webeeblocks_command_t *command,
+                                        double anchor_x, double anchor_y,
+                                        double target_z, double anchor_yaw,
+                                        double *target_x, double *target_y,
+                                        double *target_yaw) {
+  if (!command || command->type == WEBEEBLOCKS_COMMAND_LAND)
+    return 1;
+  webeeblocks_target_t target;
   if (command->type == WEBEEBLOCKS_COMMAND_FORWARD)
-    return runner->index == 1 ? "LEG1" : "LEG2";
-  return webeeblocks_command_name(command->type);
+    target = webeeblocks_forward(anchor_x, anchor_y, target_z, anchor_yaw, command->value);
+  else if (command->type == WEBEEBLOCKS_COMMAND_TURN)
+    target = webeeblocks_turn(anchor_x, anchor_y, target_z, anchor_yaw, command->value);
+  else
+    return 0;
+  *target_x = target.x;
+  *target_y = target.y;
+  *target_yaw = target.yaw;
+  return 1;
 }
 
 static int check_gate(double px, double py, double pz,
@@ -123,6 +154,18 @@ static void write_success(const gate_result_t *g1, const gate_result_t *g2,
   fclose(file);
 }
 
+static void write_generic_success(size_t commands, double x, double y, double yaw, double total) {
+  char path[4096];
+  snprintf(path, sizeof(path), "%s/ci-artifacts/crazyflie-runtime-mission-result.txt", wb_robot_get_project_path());
+  FILE *file = fopen(path, "w");
+  if (!file) return;
+  fprintf(file,
+          "WEBEEBLOCKS_RUNTIME_RESULT status=success commands=%zu x=%.6f y=%.6f yaw=%.6f total_s=%.3f\n",
+          commands, x, y, yaw, total);
+  fflush(file);
+  fclose(file);
+}
+
 static int receive_runtime_mission(webeeblocks_command_t *mission, size_t *mission_count) {
   const char *message;
   while ((message = wb_robot_wwi_receive_text())) {
@@ -147,6 +190,34 @@ static void reject_runtime_messages_while_busy(void) {
   const char *message;
   while ((message = wb_robot_wwi_receive_text()))
     wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+}
+
+static int drain_runtime_done_ack(void) {
+  const char *message;
+  while ((message = wb_robot_wwi_receive_text())) {
+    if (strcmp(message, "WEBEEBLOCKS_MISSION_V1 DONE_ACK") == 0) {
+      printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED\n");
+      fflush(stdout);
+      return 1;
+    }
+    wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 ERR BUSY");
+  }
+  return 0;
+}
+
+static int wait_for_runtime_done_ack(int step) {
+  const double deadline = wb_robot_get_time() + DONE_ACK_TIMEOUT;
+  while (wb_robot_get_time() < deadline) {
+    if (drain_runtime_done_ack())
+      return 1;
+    if (wb_robot_step(step) == -1)
+      break;
+    if (drain_runtime_done_ack())
+      return 1;
+  }
+  printf("WEBEEBLOCKS_MISSION_V1 DONE_ACK_TIMEOUT\n");
+  fflush(stdout);
+  return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -188,16 +259,23 @@ int main(int argc, const char *argv[]) {
     fflush(stdout);
   }
 
+  const int reference_l = mission_is_reference_l(mission, mission_count);
   const double *p = wb_gps_get_values(gps), *r = wb_inertial_unit_get_roll_pitch_yaw(imu);
   const double sx = p[0], sy = p[1], sz = p[2], syaw = r[2];
-  const double ux = cos(syaw), uy = sin(syaw), lx1 = -sin(syaw), ly1 = cos(syaw);
-  const double second_yaw = wrap(syaw + mission[2].value);
-  const double ux2 = cos(second_yaw), uy2 = sin(second_yaw), lx2 = -sin(second_yaw), ly2 = cos(second_yaw);
-  const double g1x = sx + GATE_ALONG_M * ux, g1y = sy + GATE_ALONG_M * uy;
-  const double corner_x = sx + mission[1].value * ux, corner_y = sy + mission[1].value * uy;
-  const double g2x = corner_x + GATE_ALONG_M * ux2, g2y = corner_y + GATE_ALONG_M * uy2;
-  const double expected_x = corner_x + mission[3].value * ux2, expected_y = corner_y + mission[3].value * uy2;
-  const double expected_yaw = second_yaw;
+  double ux = 0.0, uy = 0.0, lx1 = 0.0, ly1 = 0.0;
+  double ux2 = 0.0, uy2 = 0.0, lx2 = 0.0, ly2 = 0.0;
+  double g1x = 0.0, g1y = 0.0, g2x = 0.0, g2y = 0.0;
+  double expected_x = sx, expected_y = sy, expected_yaw = syaw;
+  if (reference_l) {
+    ux = cos(syaw); uy = sin(syaw); lx1 = -sin(syaw); ly1 = cos(syaw);
+    const double second_yaw = wrap(syaw + mission[2].value);
+    ux2 = cos(second_yaw); uy2 = sin(second_yaw); lx2 = -sin(second_yaw); ly2 = cos(second_yaw);
+    g1x = sx + GATE_ALONG_M * ux; g1y = sy + GATE_ALONG_M * uy;
+    const double corner_x = sx + mission[1].value * ux, corner_y = sy + mission[1].value * uy;
+    g2x = corner_x + GATE_ALONG_M * ux2; g2y = corner_y + GATE_ALONG_M * uy2;
+    expected_x = corner_x + mission[3].value * ux2; expected_y = corner_y + mission[3].value * uy2;
+    expected_yaw = second_yaw;
+  }
 
   webeeblocks_runner_t runner;
   webeeblocks_runner_init(&runner, mission, mission_count);
@@ -214,7 +292,8 @@ int main(int argc, const char *argv[]) {
   init_pid_attitude_fixed_height_controller();
   actual_state_t a = {0}; desired_state_t d = {0}; motor_power_t power = {0};
 
-  printf("WEBEEBLOCKS_CF_L_STARTED x=%.6f y=%.6f z=%.6f yaw=%.6f\n", sx, sy, sz, syaw);
+  printf("WEBEEBLOCKS_CF_MISSION_STARTED commands=%zu x=%.6f y=%.6f z=%.6f yaw=%.6f\n",
+         mission_count, sx, sy, sz, syaw);
   fflush(stdout);
 
   while (wb_robot_step(step) != -1) {
@@ -244,13 +323,13 @@ int main(int argc, const char *argv[]) {
       stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
     }
 
-    if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
+    if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 1) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g1x,g1y,ux,uy,lx1,ly1,target_z,&gate1);
       if (crossed < 0) {
         write_failure("GATE1_MISS", &runner, gates);
         stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
       }
-    } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
+    } else if (reference_l && command->type == WEBEEBLOCKS_COMMAND_FORWARD && runner.index == 3) {
       const int crossed = check_gate(px,py,pz,x,y,z,pt,now,t0,g2x,g2y,ux2,uy2,lx2,ly2,target_z,&gate2);
       if (crossed < 0 || (crossed > 0 && !gate1.passed)) {
         write_failure(crossed < 0 ? "GATE2_MISS" : "GATE_ORDER", &runner, gates);
@@ -265,8 +344,11 @@ int main(int argc, const char *argv[]) {
                                               z - target_z, now)) {
         webeeblocks_runner_advance(&runner);
         command = webeeblocks_runner_current(&runner);
-        target = webeeblocks_forward(x,y,target_z,yaw,command->value);
-        target_x = target.x; target_y = target.y; target_yaw = syaw;
+        if (!configure_target_for_command(command, x, y, target_z, yaw,
+                                          &target_x, &target_y, &target_yaw)) {
+          write_failure("INVALID_NEXT_COMMAND", &runner, gates);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        }
       }
     } else if (command->type == WEBEEBLOCKS_COMMAND_FORWARD) {
       const double ex = target_x-x, ey = target_y-y;
@@ -277,21 +359,21 @@ int main(int argc, const char *argv[]) {
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - target_z, now)) {
-        if (runner.index == 1) {
-          if (!gate1.passed) {
-            write_failure("GATE1_NOT_CROSSED", &runner, gates);
-            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-          }
-          webeeblocks_runner_advance(&runner);
-          command = webeeblocks_runner_current(&runner);
-          target = webeeblocks_turn(target_x,target_y,target_z,target_yaw,command->value);
-          target_yaw = target.yaw;
-        } else {
-          if (!gate2.passed) {
-            write_failure("GATE2_NOT_CROSSED", &runner, gates);
-            stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
-          }
-          webeeblocks_runner_advance(&runner);
+        if (reference_l && runner.index == 1 && !gate1.passed) {
+          write_failure("GATE1_NOT_CROSSED", &runner, gates);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        }
+        if (reference_l && runner.index == 3 && !gate2.passed) {
+          write_failure("GATE2_NOT_CROSSED", &runner, gates);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        }
+        const double anchor_x = target_x, anchor_y = target_y, anchor_yaw = target_yaw;
+        webeeblocks_runner_advance(&runner);
+        command = webeeblocks_runner_current(&runner);
+        if (!configure_target_for_command(command, anchor_x, anchor_y, target_z, anchor_yaw,
+                                          &target_x, &target_y, &target_yaw)) {
+          write_failure("INVALID_NEXT_COMMAND", &runner, gates);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
         }
       }
     } else if (command->type == WEBEEBLOCKS_COMMAND_TURN) {
@@ -301,10 +383,14 @@ int main(int argc, const char *argv[]) {
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - target_z, now)) {
+        const double anchor_x = target_x, anchor_y = target_y, anchor_yaw = target_yaw;
         webeeblocks_runner_advance(&runner);
         command = webeeblocks_runner_current(&runner);
-        target = webeeblocks_forward(target_x,target_y,target_z,target_yaw,command->value);
-        target_x = target.x; target_y = target.y;
+        if (!configure_target_for_command(command, anchor_x, anchor_y, target_z, anchor_yaw,
+                                          &target_x, &target_y, &target_yaw)) {
+          write_failure("INVALID_NEXT_COMMAND", &runner, gates);
+          stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
+        }
       }
     } else if (command->type == WEBEEBLOCKS_COMMAND_LAND) {
       const webeeblocks_target_t landing = webeeblocks_land(x,y,sz,yaw);
@@ -313,20 +399,35 @@ int main(int argc, const char *argv[]) {
       if (webeeblocks_runner_completion_stop(&runner, geometric_ready,
                                               hypot(a.vx, a.vy), a.yaw_rate, vz,
                                               z - landing.z, now)) {
-        if (!(gate1.passed && gate2.passed)) {
+        if (reference_l && !(gate1.passed && gate2.passed)) {
           write_failure("GATES_INCOMPLETE", &runner, gate1.passed+gate2.passed);
           stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(2); break;
         }
-        const double endpoint_error = hypot(x-expected_x,y-expected_y);
-        const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
-        write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
-        printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
-               endpoint_error,yaw_error,now-t0);
+        if (reference_l) {
+          const double endpoint_error = hypot(x-expected_x,y-expected_y);
+          const double yaw_error = fabs(wrap(yaw-expected_yaw))*180.0/PI;
+          write_success(&gate1,&gate2,endpoint_error,yaw_error,min_z,max_z,now-t0);
+          printf("WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=%.6f yaw_error_deg=%.6f total_s=%.3f\n",
+                 endpoint_error,yaw_error,now-t0);
+        } else {
+          write_generic_success(mission_count, x, y, yaw, now-t0);
+          printf("WEBEEBLOCKS_RUNTIME_RESULT status=success commands=%zu total_s=%.3f\n",
+                 mission_count, now-t0);
+        }
         fflush(stdout);
         webeeblocks_runner_advance(&runner);
-        if (runtime_mode)
+        stop(m1,m2,m3,m4);
+        if (runtime_mode) {
           wb_robot_wwi_send_text("WEBEEBLOCKS_MISSION_V1 DONE");
-        stop(m1,m2,m3,m4); wb_supervisor_simulation_quit(0); break;
+          printf("WEBEEBLOCKS_MISSION_V1 DONE_SENT\n");
+          fflush(stdout);
+          if (!wait_for_runtime_done_ack(step)) {
+            write_failure("DONE_ACK_TIMEOUT", &runner, gate1.passed + gate2.passed);
+            wb_supervisor_simulation_quit(2);
+            break;
+          }
+        }
+        wb_supervisor_simulation_quit(0); break;
       }
     }
 

@@ -28,7 +28,7 @@ Blockly.Blocks['webeeblocks_turn'] = {
   init: function() {
     this.appendDummyInput()
         .appendField('tourner de')
-        .appendField(new Blockly.FieldNumber(90, -179, 179, 1), 'ANGLE')
+        .appendField(new Blockly.FieldNumber(90, -90, 135, 1), 'ANGLE')
         .appendField('°');
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
@@ -59,6 +59,10 @@ Blockly.Blocks['webeeblocks_land'] = {
   };
   const PROTOCOL = 'WEBEEBLOCKS_MISSION_V1';
   const MAX_COMMANDS_V1 = 5;
+  const FORWARD_MIN_M = 0.1;
+  const FORWARD_MAX_M = 2.0;
+  const TURN_MIN_DEG = -90;
+  const TURN_MAX_DEG = 135;
 
   function finiteNumber(block, field) {
     const value = Number(block.getFieldValue(field));
@@ -77,14 +81,14 @@ Blockly.Blocks['webeeblocks_land'] = {
       return {type: 'LAND', value: 0.0};
     if (block.type === 'webeeblocks_forward') {
       const distance = finiteNumber(block, 'DISTANCE');
-      if (!(distance >= 0.1 && distance <= 2.0))
+      if (!(distance >= FORWARD_MIN_M && distance <= FORWARD_MAX_M))
         throw new Error('forward distance out of v0 range: ' + distance);
       return {type: 'FORWARD', value: distance};
     }
 
     const angleDeg = finiteNumber(block, 'ANGLE');
-    if (angleDeg === 0 || Math.abs(angleDeg) >= 180)
-      throw new Error('turn angle must satisfy 0 < |angle| < 180 degrees');
+    if (angleDeg === 0 || angleDeg < TURN_MIN_DEG || angleDeg > TURN_MAX_DEG)
+      throw new Error('turn angle out of characterized v0 range: ' + angleDeg);
     return {type: 'TURN', value: angleDeg * Math.PI / 180.0};
   }
 
@@ -100,7 +104,7 @@ Blockly.Blocks['webeeblocks_land'] = {
       block = block.getNextBlock();
     }
 
-    if (mission.length < 2 || mission[0].type !== 'TAKEOFF' || mission[mission.length - 1].type !== 'LAND')
+    if (mission.length < 3 || mission[0].type !== 'TAKEOFF' || mission[mission.length - 1].type !== 'LAND')
       throw new Error('Crazyflie mission must start with TAKEOFF and end with LAND');
     if (mission.length > MAX_COMMANDS_V1)
       throw new Error('Crazyflie mission is too long for runtime protocol v1');

@@ -21,9 +21,12 @@ jobs:
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
           python3 -m py_compile tools/ci/prepare_crazyflie_runtime_wwi.py
           python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
 
       - name: Prepare actual Blockly Robot Window runtime harness
-        run: python3 tools/ci/prepare_crazyflie_runtime_wwi.py
+        run: |
+          python3 tools/ci/prepare_crazyflie_runtime_wwi.py
+          python3 tools/ci/instrument_runtime_done_ack.py
 
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
@@ -47,6 +50,7 @@ jobs:
         run: |
           set -o pipefail
           rm -f ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
           rm -f ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
           set +e
           docker run --rm \
@@ -73,7 +77,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_runtime_wwi.wbt
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
             ' \
             2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
           code=${PIPESTATUS[0]}
@@ -90,9 +94,11 @@ jobs:
           set -o pipefail
           LOG=ci-artifacts/crazyflie-runtime-wwi/webots.log
           EVENTS=ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
+          TRACE=ci-artifacts/crazyflie-done-ack-trace.txt
           RESULT=ci-artifacts/crazyflie-l-course-result.txt
           test -s ci-artifacts/crazyflie-runtime-wwi/browser-launch.log
           test -s "$EVENTS"
+          test -s "$TRACE"
           test -s "$RESULT"
           sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
             | tee ci-artifacts/crazyflie-runtime-wwi/controller-after.sha256
@@ -119,22 +125,38 @@ jobs:
               ('SECOND_SUBMIT_CLICK', None), ('SECOND_SUBMIT_BLOCKED_LOCAL', 'RUNNING'),
               ('BUSY_PROBE_SEND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR BUSY'),
               ('STATE_AFTER_BUSY', 'RUNNING'), ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
-              ('STATE_AFTER_DONE', 'WAITING'), ('COMPLETE', 'runtime WWI handshake proved'),
+              ('STATE_AFTER_DONE', 'WAITING'),
+              ('DONE_ACK_SEND_CALL', 'WAITING'), ('DONE_ACK_SEND_RETURN', 'WAITING'),
+              ('DONE_ACK_SENT', 'WAITING'),
           ]
           cursor = 0
           for event in events:
+              assert 'wall_ms' in event and 'performance_ms' in event, event
               if cursor >= len(expected):
-                  break
+                  continue
               kind, detail = expected[cursor]
               if event.get('event') == kind and (detail is None or event.get('detail') == detail):
                   cursor += 1
           assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
           assert not any(event.get('event') == 'ERROR' for event in events), events
-          print('PASS: real Robot Window persisted negative rejects -> PENDING -> ACK/RUNNING -> local second-submit block -> BUSY -> DONE/WAITING.')
+          print('PASS: real Robot Window applied DONE -> WAITING and synchronously called/returned from DONE_ACK send.')
+          PY
+
+          cat "$TRACE"
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = [line for line in Path('ci-artifacts/crazyflie-done-ack-trace.txt').read_text().splitlines() if line.strip()]
+          assert any('phase=wait_begin payload=NULL' in line for line in lines), lines
+          ack = [line for line in lines if 'payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK' in line]
+          assert ack, lines
+          assert any('phase=before_step ' in line or 'phase=after_step ' in line for line in ack), ack
+          print('PASS: controller drain observed the exact DONE_ACK payload with Webots timestamp and drain phase.')
           PY
 
           cat "$RESULT"
           grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' "$RESULT"
+          test "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "0"
           python3 - <<'PY'
           import re
           from pathlib import Path
@@ -157,4 +179,5 @@ jobs:
           path: |
             ci-artifacts/crazyflie-runtime-wwi/
             ci-artifacts/crazyflie-l-course-result.txt
+            ci-artifacts/crazyflie-done-ack-trace.txt
           if-no-files-found: error

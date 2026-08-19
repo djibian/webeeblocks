@@ -24,7 +24,13 @@ script = r'''
   let reportSequence = 0;
   let reportChain = Promise.resolve();
   function report(event, detail) {
-    const payload = {seq: reportSequence++, event: event, detail: detail === undefined ? null : String(detail)};
+    const payload = {
+      seq: reportSequence++,
+      wall_ms: Date.now(),
+      performance_ms: typeof performance !== 'undefined' ? performance.now() : null,
+      event: event,
+      detail: detail === undefined ? null : String(detail),
+    };
     reportChain = reportChain.then(() => fetch('http://127.0.0.1:8765/event', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -35,11 +41,23 @@ script = r'''
 
   try {
     const responses = [];
+    let stateWhenBusy = null;
+    let stateWhenDone = null;
     window.addEventListener('webeeblocks-wwi', event => {
       const value = String(event.detail);
       responses.push(value);
       report('RX', value);
+      if (value === 'WEBEEBLOCKS_MISSION_V1 ERR BUSY') {
+        stateWhenBusy = crazyflieRuntimeState;
+        report('STATE_AFTER_BUSY', stateWhenBusy);
+      } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
+        stateWhenDone = crazyflieRuntimeState;
+        report('STATE_AFTER_DONE', stateWhenDone);
+      }
       console.log('WEBEEBLOCKS_CI_WWI_RX=' + value);
+    });
+    window.addEventListener('webeeblocks-runtime', event => {
+      report(String(event.detail), crazyflieRuntimeState);
     });
 
     await waitFor(() => window.robotWindow && typeof window.robotWindow.send === 'function', 'RobotWindow transport', 15000);
@@ -61,17 +79,20 @@ script = r'''
 
     await sendAndExpect('TX_NEGATIVE_VERSION', 'WEBEEBLOCKS_MISSION_V0\nTAKEOFF 1', 'WEBEEBLOCKS_MISSION_V1 ERR VERSION');
     await sendAndExpect('TX_NEGATIVE_COMMAND', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nSPIN 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR COMMAND');
-    await sendAndExpect('TX_NEGATIVE_PARAMETER', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 0.5\nTURN 1.5707963267948966\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER');
-    await sendAndExpect('TX_NEGATIVE_SEQUENCE', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nTURN 1.5707963267948966\nFORWARD 1\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE');
-    await sendAndExpect('TX_NEGATIVE_TOO_LONG', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nTURN 1.5707963267948966\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG');
+    await sendAndExpect('TX_NEGATIVE_PARAMETER', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 0.05\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER');
+    await sendAndExpect('TX_NEGATIVE_SEQUENCE', 'WEBEEBLOCKS_MISSION_V1\nFORWARD 1\nTURN 1.5707963267948966\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE');
+    await sendAndExpect('TX_NEGATIVE_TOO_LONG', 'WEBEEBLOCKS_MISSION_V1\nTAKEOFF 1\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nTURN 1.5707963267948966\nFORWARD 1\nLAND 0', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG');
 
-    // Count actual transport sends so the gate can prove that a second UI click
-    // is blocked locally while a mission is pending/running.
     const realSend = window.robotWindow.send.bind(window.robotWindow);
     let uiTransportSends = 0;
     window.robotWindow.send = function(message) {
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_CALL', crazyflieRuntimeState);
       uiTransportSends += 1;
-      return realSend(message);
+      const result = realSend(message);
+      if (message === 'WEBEEBLOCKS_MISSION_V1 DONE_ACK')
+        report('DONE_ACK_SEND_RETURN', crazyflieRuntimeState);
+      return result;
     };
 
     const ackBefore = responses.length;
@@ -93,21 +114,16 @@ script = r'''
       throw new Error('second UI Submit was not blocked locally');
     await report('SECOND_SUBMIT_BLOCKED_LOCAL', crazyflieRuntimeState);
 
-    // Separately prove the controller-side BUSY guard using a low-level browser
-    // transport probe that deliberately bypasses the UI lock.
     const busyBefore = responses.length;
     await report('BUSY_PROBE_SEND', 'runtime transport direct');
     realSend(validMessage);
     await waitFor(() => responses.slice(busyBefore).indexOf('WEBEEBLOCKS_MISSION_V1 ERR BUSY') !== -1, 'BUSY rejection', 5000);
-    if (crazyflieRuntimeState !== 'RUNNING')
-      throw new Error('BUSY incorrectly unlocked the active mission');
-    await report('STATE_AFTER_BUSY', crazyflieRuntimeState);
+    if (stateWhenBusy !== 'RUNNING')
+      throw new Error('BUSY response did not preserve RUNNING at its event boundary');
 
     await waitFor(() => responses.indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, 'mission DONE', 70000);
-    if (crazyflieRuntimeState !== 'WAITING')
-      throw new Error('DONE did not return UI to WAITING');
-    await report('STATE_AFTER_DONE', crazyflieRuntimeState);
-    await report('COMPLETE', 'runtime WWI handshake proved');
+    if (stateWhenDone !== 'WAITING')
+      throw new Error('DONE did not return UI to WAITING at its event boundary');
     await reportChain;
     console.log('WEBEEBLOCKS_CI_RUNTIME_WWI_DONE');
   } catch (error) {

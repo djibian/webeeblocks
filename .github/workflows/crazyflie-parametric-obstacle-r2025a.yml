@@ -1,0 +1,195 @@
+name: Crazyflie parametric Blockly obstacle R2025a
+
+on:
+  pull_request:
+    branches: [webots-ci]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parametric-blockly-obstacle:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate parametric Blockly/runtime syntax
+        run: |
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_parametric_obstacle.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared STOP runtime and collision observer once
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-parametric-obstacle
+          python3 tools/ci/instrument_runtime_done_ack.py
+          for controller in crazyflie_l_course crazyflie_collision_observer; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-parametric-obstacle/build-${controller}.log"
+          done
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-parametric-obstacle/controller-before.sha256
+
+      - name: Install browser helper files
+        run: chmod +x tools/ci/webots_runtime_wwi_browser.sh
+
+      - name: Run direct Blockly mission into physical obstacle
+        shell: bash
+        run: |
+          set -o pipefail
+          git checkout -- plugins/robot_windows/blockly/blockly.html
+          python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieDirect.xml
+          rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-runtime-mission-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+            ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/direct-exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Direct runtime obstacle run exited with $code"
+            exit 1
+          fi
+          test -s ci-artifacts/crazyflie-obstacle-contact.txt
+          cp ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-parametric-obstacle/direct-contact.txt
+          grep -Fq 'WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION' ci-artifacts/crazyflie-obstacle-contact.txt
+          ! test -s ci-artifacts/crazyflie-runtime-mission-result.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl').read_text().splitlines() if x.strip()]
+          details = {(e['event'], e.get('detail')) for e in events}
+          assert any(e['event'] == 'BLOCKS' and 'webeeblocks_forward:2' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'MISSION' and 'FORWARD 2.0000000000000000' in (e.get('detail') or '') for e in events), events
+          assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
+          assert ('STATE_AFTER_ACK', 'RUNNING') in details, events
+          assert not any(e['event'] == 'ERROR' for e in events), events
+          print('PASS: Blockly direct mission -> runtime ACK -> physical collision.')
+          PY
+
+      - name: Run Blockly L detour around the same obstacle
+        shell: bash
+        run: |
+          set -o pipefail
+          git checkout -- plugins/robot_windows/blockly/blockly.html
+          python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieL.xml --expect-done
+          rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 95s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+            ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Detour runtime obstacle run exited with $code"
+            exit 1
+          fi
+          ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
+          test -s ci-artifacts/crazyflie-l-course-result.txt
+          test -s ci-artifacts/crazyflie-done-ack-trace.txt
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-l-course-result.txt
+          test "$(cat ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt)" = "0"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl').read_text().splitlines() if x.strip()]
+          expected = [
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
+              ('STATE_AFTER_DONE', 'WAITING'),
+              ('DONE_ACK_SEND_CALL', 'WAITING'),
+              ('DONE_ACK_SEND_RETURN', 'WAITING'),
+              ('DONE_ACK_SENT', 'WAITING'),
+          ]
+          cursor = 0
+          for event in events:
+              assert 'wall_ms' in event and 'performance_ms' in event, event
+              if cursor < len(expected) and event.get('event') == expected[cursor][0] and event.get('detail') == expected[cursor][1]:
+                  cursor += 1
+          assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
+          assert any(e['event'] == 'BLOCKS' and 'webeeblocks_turn:90' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'MISSION' and 'TURN 1.5707963267948966' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'RX' and e.get('detail') == 'WEBEEBLOCKS_MISSION_V1 ACK' for e in events), events
+          assert not any(e['event'] == 'ERROR' for e in events), events
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> browser DONE/WAITING -> synchronous DONE_ACK send.')
+          PY
+          cat ci-artifacts/crazyflie-done-ack-trace.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = [line for line in Path('ci-artifacts/crazyflie-done-ack-trace.txt').read_text().splitlines() if line.strip()]
+          ack = [line for line in lines if 'payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK' in line]
+          assert ack, lines
+          assert any('phase=before_step ' in line or 'phase=after_step ' in line for line in ack), ack
+          print('PASS: controller terminal WWI drain observed exact DONE_ACK payload.')
+          PY
+
+      - name: Prove controller binary unchanged across both Submit runs
+        run: |
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-parametric-obstacle/controller-after.sha256
+          cmp ci-artifacts/crazyflie-parametric-obstacle/controller-before.sha256 \
+              ci-artifacts/crazyflie-parametric-obstacle/controller-after.sha256
+
+      - name: Upload parametric obstacle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-parametric-blockly-obstacle-r2025a
+          path: |
+            ci-artifacts/crazyflie-parametric-obstacle/
+            ci-artifacts/crazyflie-l-course-result.txt
+            ci-artifacts/crazyflie-obstacle-contact.txt
+            ci-artifacts/crazyflie-done-ack-trace.txt
+          if-no-files-found: warn

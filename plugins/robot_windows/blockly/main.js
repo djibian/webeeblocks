@@ -182,12 +182,14 @@ function restore() {
 
 function receiveMessage(value) {
     console.log(value);
+    var acknowledgeDone = false;
     if (typeof value === 'string' && value.indexOf('WEBEEBLOCKS_MISSION_V1 ') === 0) {
         if (value === 'WEBEEBLOCKS_MISSION_V1 ACK') {
             if (crazyflieRuntimeState === 'PENDING')
                 crazyflieRuntimeState = 'RUNNING';
         } else if (value === 'WEBEEBLOCKS_MISSION_V1 DONE') {
             crazyflieRuntimeState = 'WAITING';
+            acknowledgeDone = true;
         } else if (value.indexOf('WEBEEBLOCKS_MISSION_V1 ERR ') === 0) {
             // BUSY can be the response to a second transport-level probe while an
             // already accepted mission is still active. Never let it unlock Submit.
@@ -196,6 +198,10 @@ function receiveMessage(value) {
         }
     }
     window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
+    if (acknowledgeDone && window.robotWindow && typeof window.robotWindow.send === 'function') {
+        window.robotWindow.send('WEBEEBLOCKS_MISSION_V1 DONE_ACK');
+        window.dispatchEvent(new CustomEvent('webeeblocks-runtime', {detail: 'DONE_ACK_SENT'}));
+    }
 }
 
 function onResize(e) {
@@ -223,3 +229,11 @@ window.onload = async function() {
 }
 
 var container = document.getElementById("blocklyContainer");
+var workspace = Blockly.inject(container,
+    {
+        toolbox: document.getElementById('toolbox'),
+        scrollbars: true,
+        media: 'google-blockly-31ee4ea/media/'
+    });
+Blockly.svgResize(workspace);
+workspace.addChangeListener(realTimeUpdate);
