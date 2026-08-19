@@ -159,6 +159,7 @@ script = r'''
     if (panel().time !== frozenTime)
       throw new Error(name + ' timer did not remain frozen');
     await report(name + '_TERMINAL', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+    return {responseStart: beforeResponses};
   }
 
   try {
@@ -195,11 +196,13 @@ script = r'''
 
     await runMission('DIRECT', __DIRECT__, 'COLLISION');
     await runMission('DETOUR', __DETOUR__, 'RÉUSSI');
-    await runMission('GATE_MISS', __GATE_MISS__, 'PASSAGE MANQUÉ');
+    const gateMissRun = await runMission('GATE_MISS', __GATE_MISS__, 'PASSAGE MANQUÉ');
 
     // Even after the last attempt, prove the runtime physically rearmed and the
-    // same Robot Window received the explicit readiness signal.
-    const finalResponseStart = responses.length;
+    // same Robot Window received the explicit readiness signal. Scan from the
+    // final mission's pre-submit boundary because readiness may arrive while the
+    // terminal timer is being verified as frozen.
+    const finalResponseStart = gateMissRun.responseStart;
     await waitFor(() => responses.slice(finalResponseStart).indexOf('WEBEEBLOCKS_MISSION_V1 RUNTIME_READY') !== -1,
                   'final RUNTIME_READY', 8000);
     await waitFor(() => crazyflieRuntimeState === 'WAITING', 'final runtime WAITING', 1000);
