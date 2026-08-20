@@ -1,0 +1,21 @@
+name: Experimental extended blocks
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/extended-blocks/**'
+      - '.github/workflows/experimental-extended-blocks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extended-block-semantics:
+    if: github.head_ref == 'experiment/extended-blocks' || github.ref_name == 'experiment/extended-blocks'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate extended semantic AST
+        run: node experiments/extended-blocks/test_extended_blocks.js
