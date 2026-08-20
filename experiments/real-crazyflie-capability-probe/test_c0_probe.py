@@ -75,10 +75,14 @@ class C0ProbeTests(unittest.TestCase):
         forbidden_call_fragments = (
             "send_setpoint", "send_hover_setpoint", "send_position_setpoint",
             "send_velocity_world_setpoint", "send_zdistance_setpoint",
-            "send_stop_setpoint", "send_notify_setpoint_stop",
-            "arming_request", "take_off", "land", "forward", "back",
-            "left", "right", "up", "down", "turn_left", "turn_right",
+            "send_stop_setpoint", "send_notify_setpoint_stop", "arming_request",
         )
+        forbidden_call_leaves = {
+            "take_off", "land", "forward", "back", "left", "right", "up", "down",
+            "turn_left", "turn_right", "move_distance", "start_linear_motion",
+            "start_turn_left", "start_turn_right", "go_to", "start_trajectory",
+            "define_trajectory",
+        }
 
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -98,7 +102,9 @@ class C0ProbeTests(unittest.TestCase):
                 if isinstance(func, ast.Name):
                     parts.append(func.id)
                 call_name = ".".join(reversed(parts)).lower()
+                leaf = call_name.rsplit(".", 1)[-1]
                 self.assertFalse(any(fragment in call_name for fragment in forbidden_call_fragments), call_name)
+                self.assertNotIn(leaf, forbidden_call_leaves, call_name)
 
     def test_cflib_adapter_public_surface_is_read_only(self):
         public = {name for name in dir(MODULE.CflibReadOnlyPort) if not name.startswith("_")}
