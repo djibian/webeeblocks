@@ -183,8 +183,16 @@
         {toolbox: document.getElementById('toolbox')});
     workspace.addChangeListener(realTimeUpdate);
 
+    function isCrazyflieRobotWindow() {
+        try {
+            return new URLSearchParams(window.location.search).get('name') === 'Crazyflie Runtime';
+        } catch (error) {
+            return false;
+        }
+    }
+
     function updateStudentChallengeMode() {
-        var crazyflie = isCrazyflieWorkspace();
+        var crazyflie = isCrazyflieRobotWindow() || isCrazyflieWorkspace();
         var brief = document.getElementById('studentChallengeBrief');
         var submitButton = document.getElementById('submit');
         var saveButton = document.getElementById('save');
