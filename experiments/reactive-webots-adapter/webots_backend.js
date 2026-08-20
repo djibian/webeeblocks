@@ -22,6 +22,62 @@
     this.trace = [];
   }
 
+  // Capability preflight is deliberately separate from interpreter control
+  // flow. It walks the already-compiled AST once, before execution, so a
+  // mission asking for an unavailable Webots capability cannot partially act
+  // (for example TAKEOFF) and only fail when the unsupported sensor is first
+  // reached at runtime.
+  WebotsBackend.prototype.assertCapabilities = function(ast) {
+    function expression(node) {
+      if (!node || typeof node.kind !== 'string')
+        fail('invalid AST expression during capability preflight');
+      if (node.kind === 'number') return;
+      if (node.kind === 'range') {
+        if (node.direction !== 'front')
+          fail('capability unavailable: range(' + node.direction + ')');
+        return;
+      }
+      if (node.kind === 'compare') {
+        expression(node.left); expression(node.right); return;
+      }
+      if (node.kind === 'logic') {
+        expression(node.left); expression(node.right); return;
+      }
+      fail('capability unavailable: expression ' + node.kind);
+    }
+
+    function sequence(items) {
+      if (!Array.isArray(items))
+        fail('invalid AST sequence during capability preflight');
+      items.forEach(function(statement) {
+        if (!statement || typeof statement.kind !== 'string')
+          fail('invalid AST statement during capability preflight');
+        if (statement.kind === 'takeoff' || statement.kind === 'land') return;
+        if (statement.kind === 'move') {
+          if (statement.direction !== 'forward' && statement.direction !== 'left')
+            fail('capability unavailable: move(' + statement.direction + ')');
+          return;
+        }
+        if (statement.kind === 'if') {
+          expression(statement.condition);
+          sequence(statement.then || []);
+          sequence(statement.else || []);
+          return;
+        }
+        if (statement.kind === 'repeat') {
+          sequence(statement.body || []);
+          return;
+        }
+        fail('capability unavailable: ' + statement.kind);
+      });
+    }
+
+    if (!ast || ast.version !== 1 || ast.semantics !== 'webeeblocks-experimental-ast')
+      fail('unsupported AST envelope during capability preflight');
+    sequence(ast.program);
+    return true;
+  };
+
   WebotsBackend.prototype.rpc = function(payload) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', this.endpoint + '/rpc', false);
