@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'experiments/extended-blocks/**'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/**'
       - '.github/workflows/experimental-extended-blocks.yml'
   workflow_dispatch:
 
@@ -14,8 +15,26 @@ jobs:
   extended-block-semantics:
     if: github.head_ref == 'experiment/extended-blocks' || github.ref_name == 'experiment/extended-blocks'
     runs-on: ubuntu-22.04
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate extended semantic AST
+
+      - name: Validate semantic compiler
         run: node experiments/extended-blocks/test_extended_blocks.js
+
+      - name: Locate browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v "$candidate")" >> "$GITHUB_ENV"
+              "$candidate" --version
+              exit 0
+            fi
+          done
+          echo 'No Chrome/Chromium binary available on runner' >&2
+          exit 1
+
+      - name: Exercise real bundled Blockly 2020
+        run: python3 experiments/extended-blocks/run_ui_harness.py
