@@ -23,6 +23,98 @@ TexturedBackgroundLight {
 Floor {
   size 6 6
 }
+
+# Visual-only course markers. They deliberately have no boundingObject and do not
+# participate in the physical oracle: the controller still evaluates the same
+# mathematical G1/G2 planes and the same collision observer as before.
+DEF GATE_1 Group {
+  children [
+    Pose {
+      translation 0.9 -0.3175 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.035 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 0.9 0.3175 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.035 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 0.9 0 1.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.67 0.035 }
+        }
+      ]
+    }
+  ]
+}
+
+DEF GATE_2 Group {
+  children [
+    Pose {
+      translation 0.6825 0.9 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.035 0.025 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 1.3175 0.9 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.035 0.025 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 1.0 0.9 1.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.67 0.025 0.035 }
+        }
+      ]
+    }
+  ]
+}
+
 DEF OBSTACLE Solid {
   translation 1.25 0 0.70
   children [

@@ -48,6 +48,20 @@
             </div>
         </div>
 
+        <div id="studentChallengeBrief" aria-label="Consigne du défi Crazyflie">
+            <div class="studentChallengeTitle">Défi Crazyflie — contre-la-montre</div>
+            <div class="studentChallengeGoal">
+                Franchis les <strong>deux portes dans l’ordre</strong>, évite l’obstacle puis atterris.
+                Quand ton parcours réussit, modifie tes blocs pour améliorer ton temps.
+            </div>
+            <div class="studentChallengeSteps">
+                <span><strong>1.</strong> Assemble les blocs nécessaires de la rubrique <em>Crazyflie</em>.</span>
+                <span><strong>2.</strong> Clique sur <em>Lancer le vol</em>.</span>
+                <span><strong>3.</strong> Observe le résultat et le temps, puis corrige ou optimise.</span>
+            </div>
+            <div class="studentChallengeHint">Pour tourner : angle positif = gauche, angle négatif = droite.</div>
+        </div>
+
         <div id="myModal" class="modal">
 
             <!-- Modal content -->
@@ -173,4 +187,36 @@
     var workspace = Blockly.inject(blocklyDiv,
         {toolbox: document.getElementById('toolbox')});
     workspace.addChangeListener(realTimeUpdate);
+
+    function isCrazyflieRobotWindow() {
+        try {
+            return new URLSearchParams(window.location.search).get('name') === 'Crazyflie Runtime';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function updateStudentChallengeMode() {
+        var crazyflie = isCrazyflieRobotWindow() || isCrazyflieWorkspace();
+        var brief = document.getElementById('studentChallengeBrief');
+        var submitButton = document.getElementById('submit');
+        var saveButton = document.getElementById('save');
+        var restoreButton = document.getElementById('restore');
+        if (brief)
+            brief.style.display = crazyflie ? 'block' : 'none';
+        if (submitButton)
+            submitButton.textContent = crazyflie ? 'Lancer le vol' : 'Submit';
+        if (saveButton)
+            saveButton.textContent = crazyflie ? 'Enregistrer' : 'Save';
+        if (restoreButton)
+            restoreButton.textContent = crazyflie ? 'Ouvrir' : 'Restore';
+        document.body.classList.toggle('crazyflieStudentMode', crazyflie);
+    }
+
+    workspace.addChangeListener(function(event) {
+        if (!event || event.type !== Blockly.Events.UI)
+            updateStudentChallengeMode();
+    });
+    updateStudentChallengeMode();
 </script>
+    
