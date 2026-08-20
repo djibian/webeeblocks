@@ -42,6 +42,7 @@ body {
 }
 
 #studentChallengeBrief {
+    display: none;
     margin: 0 0 10px 0;
     padding: 12px 14px;
     border: 1px solid #aeb4bc;
@@ -91,6 +92,10 @@ body {
 #textCodeArea {
     margin-top: 12px;
     color: #5f6368;
+}
+
+.crazyflieStudentMode #textCodeArea {
+    display: none;
 }
 
 #textCodeArea h3 {
