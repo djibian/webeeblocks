@@ -59,6 +59,20 @@ function run() {
     'parameter bounds must travel with the resolved block definition'
   );
 
+  assert.deepStrictEqual(
+    algorithm.toolbox.find(block => block.type === 'webeeblocks_forward')
+      .parameterBounds.DISTANCE,
+    {min: 0.1, max: 1.5, step: 0.1},
+    'same block may have profile-specific bounds on the same world'
+  );
+
+  assert.deepStrictEqual(
+    algorithm.toolbox.find(block => block.type === 'webeeblocks_turn')
+      .parameterBounds.ANGLE,
+    {min: -90, max: 90, step: 1},
+    'preview profile should visibly differ from the current turn range'
+  );
+
   assert.strictEqual(timeTrial.timer.enabled, true);
   assert.strictEqual(algorithm.timer.enabled, false);
   assert.strictEqual(timeTrial.evaluation.type, 'ordered-gates-no-collision');
