@@ -1,11 +1,13 @@
 import ast
 import importlib.util
 import pathlib
+import sys
 import unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("c0_probe", HERE / "c0_probe.py")
 MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
