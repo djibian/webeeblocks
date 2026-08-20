@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebeeBlocks generic activity UI harness</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    #brief[hidden] { display: none; }
+    #brief { border: 1px solid #bbb; padding: 10px; margin: 10px 0; }
+    #blocklyDiv { height: 360px; width: 100%; border: 1px solid #ddd; }
+    #result { white-space: pre-wrap; background: #f5f5f5; padding: 10px; }
+  </style>
+
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blockly_uncompressed.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/msg/js/en.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/logic.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/loops.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js"></script>
+  <script src="activity_profile.js"></script>
+</head>
+<body>
+  <h1>Generic activity profile — disposable harness</h1>
+  <label>Activity:
+    <select id="activitySelect"></select>
+  </label>
+  <div>World: <code id="worldPath"></code></div>
+  <div id="brief">
+    <strong id="briefTitle"></strong>
+    <div id="briefGoal"></div>
+    <div id="briefHint"></div>
+  </div>
+  <div id="blocklyDiv"></div>
+  <pre id="result">RUNNING</pre>
+
+<script>
+(function() {
+  'use strict';
+
+  var workspace = null;
+  var documentProfiles = null;
+  var currentResolved = null;
+  var result = document.getElementById('result');
+
+  var SUPPORTED_EVALUATIONS = {
+    'ordered-gates-no-collision': true,
+    'teacher-defined': true
+  };
+
+  function fail(message) {
+    result.textContent = 'FAIL: ' + message;
+    result.setAttribute('data-status', 'FAIL');
+    throw new Error(message);
+  }
+
+  function assert(condition, message) {
+    if (!condition)
+      fail(message);
+  }
+
+  function allDeclaredBlockTypes(doc) {
+    var seen = Object.create(null);
+    doc.activities.forEach(function(activity) {
+      activity.toolbox.forEach(function(type) { seen[type] = true; });
+    });
+    return Object.keys(seen);
+  }
+
+  function realBlocklyCatalog(doc) {
+    var catalog = {};
+    allDeclaredBlockTypes(doc).forEach(function(type) {
+      assert(Blockly.Blocks[type], 'profile exposes unregistered Blockly block: ' + type);
+      catalog[type] = {registeredByBlockly: true};
+    });
+    return catalog;
+  }
+
+  function validateExecutableContract(profile) {
+    assert(SUPPORTED_EVALUATIONS[profile.evaluation.type],
+      'unsupported evaluation contract in harness: ' + profile.evaluation.type);
+    assert(typeof profile.timer.enabled === 'boolean', 'timer.enabled must be boolean');
+    if (profile.timer.enabled) {
+      assert(profile.timer.start === 'takeoff' && profile.timer.stop === 'land',
+        'unsupported timer contract in harness');
+    }
+  }
+
+  function toolboxXml(resolved) {
+    var xml = document.createElement('xml');
+    resolved.toolbox.forEach(function(definition) {
+      var block = document.createElement('block');
+      block.setAttribute('type', definition.type);
+      xml.appendChild(block);
+    });
+    return xml;
+  }
+
+  function applyBounds(block, resolved) {
+    var definition = resolved.toolbox.filter(function(item) {
+      return item.type === block.type;
+    })[0];
+    if (!definition || !definition.parameterBounds)
+      return;
+    Object.keys(definition.parameterBounds).forEach(function(fieldName) {
+      var field = block.getField(fieldName);
+      assert(field && typeof field.setConstraints === 'function',
+        block.type + '.' + fieldName + ' is not a real numeric Blockly field');
+      var bounds = definition.parameterBounds[fieldName];
+      field.setConstraints(bounds.min, bounds.max, bounds.step);
+    });
+  }
+
+  function flyoutTypes() {
+    var flyout = (workspace.getFlyout && workspace.getFlyout()) || workspace.flyout_;
+    assert(flyout && flyout.workspace_, 'real Blockly flyout unavailable');
+    return flyout.workspace_.getAllBlocks(false).map(function(block) {
+      return block.type;
+    });
+  }
+
+  function renderProfile(profileId) {
+    var catalog = realBlocklyCatalog(documentProfiles);
+    var resolved = WebeeBlocksActivityProfiles.resolveById(documentProfiles, profileId, catalog);
+    validateExecutableContract(resolved);
+    currentResolved = resolved;
+
+    document.getElementById('worldPath').textContent = resolved.world;
+    var brief = document.getElementById('brief');
+    brief.hidden = !resolved.brief.visible;
+    document.getElementById('briefTitle').textContent = resolved.brief.visible ? resolved.brief.title : '';
+    document.getElementById('briefGoal').textContent = resolved.brief.visible ? resolved.brief.goal : '';
+    document.getElementById('briefHint').textContent = resolved.brief.visible ? (resolved.brief.hint || '') : '';
+
+    var xml = toolboxXml(resolved);
+    if (!workspace) {
+      workspace = Blockly.inject('blocklyDiv', {toolbox: xml});
+    } else {
+      workspace.clear();
+      workspace.updateToolbox(xml);
+    }
+
+    return resolved;
+  }
+
+  function inspectRealField(type, fieldName, resolved) {
+    var block = workspace.newBlock(type);
+    applyBounds(block, resolved);
+    var field = block.getField(fieldName);
+    var data = {
+      min: field.getMin(),
+      max: field.getMax(),
+      step: field.getPrecision()
+    };
+    block.dispose(false);
+    return data;
+  }
+
+  function sameBounds(actual, expected) {
+    return actual.min === expected.min && actual.max === expected.max && actual.step === expected.step;
+  }
+
+  function afterRender(callback) {
+    window.setTimeout(callback, 50);
+  }
+
+  function runAssertions() {
+    var first = renderProfile('obstacle-time-trial-v0');
+    afterRender(function() {
+      try {
+        assert(first.world === 'worlds/crazyflie_runtime_obstacle.wbt', 'unexpected first world');
+        assert(document.getElementById('brief').hidden === false, 'time-trial brief should be visible');
+        assert(document.getElementById('briefTitle').textContent.indexOf('contre-la-montre') !== -1,
+          'visible brief title not rendered');
+        assert(JSON.stringify(flyoutTypes()) === JSON.stringify(first.toolbox.map(function(b) { return b.type; })),
+          'real Blockly flyout does not match time-trial profile');
+
+        var firstForward = inspectRealField('webeeblocks_forward', 'DISTANCE', first);
+        assert(sameBounds(firstForward, {min: 0.1, max: 2.0, step: 0.1}),
+          'time-trial bounds were not applied to real forward FieldNumber');
+
+        var second = renderProfile('obstacle-algorithm-preview');
+        afterRender(function() {
+          try {
+            assert(second.world === first.world, 'profile switch changed the world');
+            assert(document.getElementById('brief').hidden === true, 'algorithm brief should be hidden');
+            assert(JSON.stringify(flyoutTypes()) === JSON.stringify(second.toolbox.map(function(b) { return b.type; })),
+              'real Blockly flyout does not match algorithm profile');
+
+            var turn = inspectRealField('webeeblocks_turn', 'ANGLE', second);
+            assert(sameBounds(turn, {min: -90, max: 90, step: 1}),
+              'profile-specific bounds were not applied to real turn FieldNumber');
+
+            var testTurn = workspace.newBlock('webeeblocks_turn');
+            applyBounds(testTurn, second);
+            testTurn.setFieldValue('135', 'ANGLE');
+            assert(Number(testTurn.getFieldValue('ANGLE')) === 90,
+              'real FieldNumber did not clamp 135° to profile max 90°');
+            testTurn.dispose(false);
+
+            renderProfile('obstacle-time-trial-v0');
+            afterRender(function() {
+              try {
+                assert(document.getElementById('brief').hidden === false,
+                  'brief did not return when switching back');
+                assert(JSON.stringify(flyoutTypes()) === JSON.stringify(first.toolbox.map(function(b) { return b.type; })),
+                  'toolbox did not return when switching back');
+                result.textContent = 'PASS real Blockly activity profile harness';
+                result.setAttribute('data-status', 'PASS');
+              } catch (error) {
+                if (result.getAttribute('data-status') !== 'FAIL')
+                  fail(error.message || String(error));
+              }
+            });
+          } catch (error) {
+            if (result.getAttribute('data-status') !== 'FAIL')
+              fail(error.message || String(error));
+          }
+        });
+      } catch (error) {
+        if (result.getAttribute('data-status') !== 'FAIL')
+          fail(error.message || String(error));
+      }
+    });
+  }
+
+  fetch('activities.json')
+    .then(function(response) {
+      if (!response.ok)
+        throw new Error('activities.json HTTP ' + response.status);
+      return response.json();
+    })
+    .then(function(doc) {
+      documentProfiles = doc;
+      var select = document.getElementById('activitySelect');
+      doc.activities.forEach(function(activity) {
+        var option = document.createElement('option');
+        option.value = activity.id;
+        option.textContent = activity.id;
+        select.appendChild(option);
+      });
+      select.addEventListener('change', function() { renderProfile(select.value); });
+      runAssertions();
+    })
+    .catch(function(error) { fail(error.message || String(error)); });
+})();
+</script>
+</body>
+</html>
