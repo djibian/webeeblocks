@@ -1,0 +1,106 @@
+name: Experimental reactive Webots adapter
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/reactive-webots-adapter/**'
+      - 'experiments/reactive-blockly-pipeline/**'
+      - 'experiments/reactive-ast-interpreter/**'
+      - 'controllers/experimental_reactive_webots_adapter/**'
+      - 'worlds/experimental_reactive_webots_adapter.wbt'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/**'
+      - '.github/workflows/experimental-reactive-webots-adapter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reactive-webots-adapter:
+    if: github.head_ref == 'experiment/reactive-webots-adapter' || github.ref_name == 'experiment/reactive-webots-adapter'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v "$candidate")" >> "$GITHUB_ENV"
+              "$candidate" --version
+              exit 0
+            fi
+          done
+          exit 1
+
+      - name: Re-prove frozen Blockly to AST to interpreter chain
+        run: python3 experiments/reactive-blockly-pipeline/run_pipeline_harness.py
+
+      - name: Start Webots R2025a reactive adapter world
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts
+          docker pull cyberbotics/webots:R2025a-ubuntu22.04
+          docker run -d --rm \
+            --name webeeblocks-reactive-webots \
+            -p 8765:8765 \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/experimental_reactive_webots_adapter.wbt' \
+            > ci-artifacts/container-id.txt
+
+      - name: Execute real Blockly reactive program against Webots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker logs webeeblocks-reactive-webots > ci-artifacts/webots.log 2>&1 || true
+            python3 - <<'PY' > ci-artifacts/controller-trace.json || true
+          import json, urllib.request
+          with urllib.request.urlopen('http://127.0.0.1:8765/trace', timeout=2) as r:
+              print(json.dumps(json.load(r), indent=2))
+          PY
+            docker stop webeeblocks-reactive-webots >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          python3 experiments/reactive-webots-adapter/run_webots_harness.py | tee ci-artifacts/browser-harness.log
+
+          python3 - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen('http://127.0.0.1:8765/trace', timeout=2) as r:
+              trace=json.load(r)['trace']
+          ops=[x['op'] + (':' + x['direction'] if 'direction' in x else '') for x in trace if x['op'] != 'error']
+          expected=['takeoff','range:front','move:left','range:front','move:forward','range:front','move:left','land']
+          assert ops == expected, (ops, expected)
+          ranges=[x['value_m'] for x in trace if x['op']=='range']
+          assert len(ranges)==3 and ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
+          print('WEBEEBLOCKS_REACTIVE_WEBOTS_CAUSAL_TRACE', json.dumps({'ops':ops,'ranges_m':ranges}))
+          PY
+
+      - name: Assert Webots controller stayed healthy
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker logs webeeblocks-reactive-webots > ci-artifacts/webots-final.log 2>&1 || true
+          if grep -Fq 'WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL' ci-artifacts/webots-final.log; then
+            cat ci-artifacts/webots-final.log
+            exit 1
+          fi
+          grep -F 'WEBEEBLOCKS_REACTIVE_WEBOTS_READY' ci-artifacts/webots-final.log
+
+      - name: Upload experimental evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reactive-webots-adapter-evidence
+          path: ci-artifacts/
+          if-no-files-found: warn
