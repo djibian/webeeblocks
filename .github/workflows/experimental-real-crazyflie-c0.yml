@@ -1,0 +1,68 @@
+name: Experimental real Crazyflie C0 read-only probe
+
+on:
+  pull_request:
+    branches:
+      - webots-ci
+    paths:
+      - 'experiments/real-crazyflie-capability-probe/**'
+      - '.github/workflows/experimental-real-crazyflie-c0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  c0-read-only:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned cflib
+        run: python -m pip install 'cflib==0.1.32'
+
+      - name: Compile probe
+        run: python -m py_compile experiments/real-crazyflie-capability-probe/c0_probe.py
+
+      - name: Run fail-closed unit and static safety tests
+        run: python -m unittest -v experiments/real-crazyflie-capability-probe/test_c0_probe.py
+
+      - name: Run mock probe
+        run: |
+          python experiments/real-crazyflie-capability-probe/c0_probe.py \
+            --output /tmp/c0-mock-report.json
+          python - <<'PY'
+          import json
+          report = json.load(open('/tmp/c0-mock-report.json'))
+          assert report['status'] == 'OK'
+          assert report['mode'] == 'mock'
+          assert report['physical_proof'] is False
+          assert report['flow_v2_detected'] is True
+          assert report['multiranger_detected'] is True
+          assert report['telemetry_complete'] is True
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Assert no motorized cflib modules are imported
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path('experiments/real-crazyflie-capability-probe/c0_probe.py')
+          tree = ast.parse(path.read_text())
+          forbidden = ('motion_commander', 'position_hl_commander', 'high_level_commander')
+          imports = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  imports.extend(a.name for a in node.names)
+              elif isinstance(node, ast.ImportFrom):
+                  imports.append(node.module or '')
+          bad = [name for name in imports if any(token in name.lower() for token in forbidden)]
+          assert not bad, f'forbidden motorized imports: {bad}'
+          print('PASS: no motorized cflib commander import path')
+          PY
