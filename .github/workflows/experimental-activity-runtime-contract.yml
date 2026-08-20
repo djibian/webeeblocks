@@ -1,0 +1,47 @@
+name: Experimental activity runtime contract
+on:
+  pull_request:
+    paths:
+      - 'experiments/activity-runtime-contract/**'
+      - '.github/workflows/experimental-activity-runtime-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  a2-contract:
+    if: github.head_ref == 'experiment/activity-runtime-contract' || github.ref_name == 'experiment/activity-runtime-contract'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$c" >/dev/null 2>&1; then echo "CHROME_BIN=$(command -v "$c")" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          exit 1
+      - name: Run real Blockly A2 contract harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8123 --bind 127.0.0.1 > /tmp/a2-http.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          sleep 1
+          "$CHROME_BIN" --headless --no-sandbox --disable-gpu --virtual-time-budget=5000 --dump-dom \
+            http://127.0.0.1:8123/experiments/activity-runtime-contract/a2_harness.html > /tmp/a2-dom.html 2>/tmp/a2-chrome.log || true
+          cat /tmp/a2-dom.html
+          grep -F 'data-status="PASS"' /tmp/a2-dom.html
+          grep -F 'PASS A2 profile -&gt; toolbox -&gt; Blockly -&gt; AST -&gt; runtime preflight -&gt; interpreter' /tmp/a2-dom.html
+      - name: Preserve evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: activity-runtime-contract-evidence
+          path: |
+            /tmp/a2-dom.html
+            /tmp/a2-chrome.log
+            /tmp/a2-http.log
+          if-no-files-found: warn
