@@ -46,6 +46,7 @@
     Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram'), workspace);
     var ast = WebeeBlocksExtended.compileWorkspace(workspace);
     var backend = new WebeeBlocksWebotsBackend.WebotsBackend('http://127.0.0.1:8765');
+    backend.assertCapabilities(ast);
     WebeeBlocksReactiveInterpreter.run(ast, backend);
 
     var ops = backend.trace.map(function(x) { return x.op + (x.direction ? ':'+x.direction : ''); });
@@ -74,8 +75,8 @@
 
     // Fail-closed capability proof with a real Blockly workspace: change only
     // the sensor direction to LEFT. The compiler still accepts the AST, but the
-    // minimal Webots adapter must reject that unavailable capability before any
-    // Webots RPC/action occurs.
+    // Webots capability preflight must reject the complete mission before the
+    // interpreter can execute TAKEOFF or any other backend action.
     var negative = new Blockly.Workspace();
     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(Blockly.Xml.domToText(document.getElementById('reactiveProgram'))), negative);
     var rangeBlock = negative.getAllBlocks(false).filter(function(b) { return b.type === 'webeeblocks_exp_range'; })[0];
@@ -83,10 +84,10 @@
     var negativeAst = WebeeBlocksExtended.compileWorkspace(negative);
     var beforeCount = backend.getControllerTrace().trace.length;
     var rejected = false;
-    try { WebeeBlocksReactiveInterpreter.run(negativeAst, backend); }
+    try { backend.assertCapabilities(negativeAst); }
     catch (error) { rejected = /capability unavailable: range\(left\)/.test(String(error)); }
-    assert(rejected, 'unavailable Webots range capability did not fail closed');
-    assert(backend.getControllerTrace().trace.length === beforeCount, 'backend acted before capability rejection');
+    assert(rejected, 'unavailable Webots range capability did not fail closed in preflight');
+    assert(backend.getControllerTrace().trace.length === beforeCount, 'Webots acted before capability preflight rejection');
     negative.dispose();
 
     result.textContent='PASS real Blockly 2020 -> #44 compiler -> #45 interpreter -> real Webots range/action adapter\n'+JSON.stringify({ranges:ranges, moves:moves});
