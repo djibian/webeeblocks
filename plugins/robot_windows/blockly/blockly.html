@@ -2,7 +2,7 @@
 <html>
     <meta charset="utf-8">
 
-    <link rel = "stylesheet" href="main.css">
+    <link rel="stylesheet" href="main.css">
 
     <script src="google-blockly-31ee4ea/blockly_uncompressed.js"></script>
     <script src="google-blockly-31ee4ea/generators/python.js"></script>
@@ -17,12 +17,12 @@
     <script src="google-blockly-31ee4ea/blocks/variables.js"></script>
     <script src="google-blockly-31ee4ea/blocks/procedures.js"></script>
     <script src="google-blockly-31ee4ea/blocks/motors.js"></script>
-		<script src="google-blockly-31ee4ea/blocks/time.js"></script>
+    <script src="google-blockly-31ee4ea/blocks/time.js"></script>
     <script src="google-blockly-31ee4ea/blocks/sensors.js"></script>
     <script src="google-blockly-31ee4ea/blocks/other.js"></script>
-		<script src="google-blockly-31ee4ea/blocks/camera.js"></script>
+    <script src="google-blockly-31ee4ea/blocks/camera.js"></script>
     <script src="google-blockly-31ee4ea/blocks/crazyflie.js"></script>
-    
+
     <script src="google-blockly-31ee4ea/generators/python/logic.js"></script>
     <script src="google-blockly-31ee4ea/generators/python/loops.js"></script>
     <script src="google-blockly-31ee4ea/generators/python/math.js"></script>
@@ -35,55 +35,65 @@
     <script src="google-blockly-31ee4ea/generators/python/time.js"></script>
     <script src="google-blockly-31ee4ea/generators/python/sensors.js"></script>
     <script src="google-blockly-31ee4ea/generators/python/other.js"></script>
-		<script src="google-blockly-31ee4ea/generators/python/camera.js"></script>
-    
+    <script src="google-blockly-31ee4ea/generators/python/camera.js"></script>
+
     <head>
-        <div>
-            <h1 id = "projectTitle" contenteditable="true" style = "display: inline-block">Untitled</h1>
-           <!-- <button onclick = "document.getElementById('projectTitle').focus()">rename</button>-->
-            <div id = "editorButtons">
-                <button id = "submit">Submit</button>
-                <button id = "save">Save</button>
-                <button id = "restore">Restore</button>
+        <div id="editorHeader">
+            <h1 id="projectTitle" contenteditable="true">WebeeBlocks</h1>
+            <div id="editorButtons">
+                <button id="submit">Lancer le vol</button>
+                <button id="save">Enregistrer</button>
+                <button id="restore">Ouvrir</button>
             </div>
         </div>
 
-        <div id="myModal" class="modal">
+        <div id="studentChallengeBrief" aria-label="Consigne du défi Crazyflie">
+            <div class="studentChallengeTitle">Défi Crazyflie — contre-la-montre</div>
+            <div class="studentChallengeGoal">
+                Franchis les <strong>deux portes dans l’ordre</strong>, évite l’obstacle puis atterris.
+                Quand ton parcours réussit, modifie tes blocs pour améliorer ton temps.
+            </div>
+            <div class="studentChallengeSteps">
+                <span><strong>1.</strong> Utilise les 4 blocs de <em>Vol Crazyflie</em>.</span>
+                <span><strong>2.</strong> Clique sur <em>Lancer le vol</em>.</span>
+                <span><strong>3.</strong> Observe le résultat et le temps, puis corrige ou optimise.</span>
+            </div>
+            <div class="studentChallengeHint">Pour tourner : angle positif = gauche, angle négatif = droite.</div>
+        </div>
 
-            <!-- Modal content -->
+        <div id="myModal" class="modal">
             <div class="modal-content">
                 <span class="closeButton">&times;</span>
-                <div id = "saveList" style="margin-top: 50px;">
-               <a style = "display:block;">f</a>
-               <a style = "display:block;">f </a>
+                <div id="saveList" style="margin-top: 50px;">
+                    <a style="display:block;">f</a>
+                    <a style="display:block;">f</a>
                 </div>
             </div>
-
         </div>
     </head>
     <body>
 
-	<xml id="toolbox" style="display: none">
-    <category name="Crazyflie" colour=20>
+    <xml id="toolbox" style="display: none">
+    <category name="Vol Crazyflie" colour=20>
       <block type="webeeblocks_takeoff"></block>
       <block type="webeeblocks_forward"></block>
       <block type="webeeblocks_turn"></block>
       <block type="webeeblocks_land"></block>
     </category>
     <category name="Variables" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
-	<category name="Functions" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
-	<category name="Motors" colour=120>
+    <category name="Fonctions" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
+    <category name="Moteurs" colour=120>
       <block type="motors_setupmotor"></block>
       <block type="motors_setspeed"></block>
       <block type="motors_resetencoders"></block>
       <block type="motors_getencoders"></block>
     </category>
-	<category name="Time" colour=80>
+    <category name="Temps" colour=80>
       <block type="time_delay"></block>
       <block type="time_gettime"></block>
       <block type="time_resettime"></block>
     </category>
-    <category name="Sensors" colour=60>
+    <category name="Capteurs" colour=60>
       <block type="sensors_initializegyro"></block>
       <block type="sensors_initializegps"></block>
       <block type="sensors_initializesensor"></block>
@@ -93,16 +103,16 @@
       <block type="sensors_getcolor"></block>
       <block type="sensors_getgray"></block>
     </category>
-	<category name="Control" colour=240>
-	  <block type="logic_boolean"></block>
-	  <block type="controls_if"></block>
-	  <block type="controls_repeat_ext"></block>
-	  <block type="logic_compare"></block>
-	  <block type="logic_operation"></block>
-	  <block type="controls_whileUntil"></block> 
-		<block type="controls_flow_statements"></block>
-	</category>
-	<category name="Lists" colour=210>
+    <category name="Contrôle" colour=240>
+      <block type="logic_boolean"></block>
+      <block type="controls_if"></block>
+      <block type="controls_repeat_ext"></block>
+      <block type="logic_compare"></block>
+      <block type="logic_operation"></block>
+      <block type="controls_whileUntil"></block>
+      <block type="controls_flow_statements"></block>
+    </category>
+    <category name="Listes" colour=210>
       <block type="lists_create_with">
         <mutation items="0"></mutation>
       </block>
@@ -122,7 +132,7 @@
           </block>
         </value>
       </block>
-	  <block type="lists_append">
+      <block type="lists_append">
         <value name="LIST">
           <block type="variables_get">
             <field name="VAR">{listVariable}</field>
@@ -130,46 +140,45 @@
         </value>
       </block>
     </category>
-	<category name="Math" colour=180>
-	  <block type="math_number"></block>
-	  <block type="math_arithmetic"></block>
-	  <block type="math_abs"></block>
-	  <block type="math_mod"></block>
-	  <block type="math_round2"></block>
-	</category>
-	<category name="Camera" colour="#AABBCC"> <!-- Change color -->
-		<block type="camera_initializecamera"></block>
-	  <block type="camera_getrecognitionobjects"></block>
-		<block type="camera_getnumobj"></block>
-		<block type="camera_getobjcolors"></block>
-		<block type="camera_getobjpos"></block>
-		<block type="camera_getobjang"></block>
-	</category>
-	<category name="Other" colour=0>
-		<block type="other_start"></block>
-		<block type="other_end"></block>
-		<block type="text"></block>
-		<block type="concattext"></block>
-		<block type="concattext2"></block>
-		<block type="text_print"></block>
-	</category>
-        </xml>
-        <div id = "blocklyContainer">
-        <div id="blocklyDiv" style="height:98%;"></div>
-        </div>
-        <div id ="textCodeArea">
-            <h3>Text Output</h3>
-            <div id = "codeBox"> 
-                <code id="textCode">
+    <category name="Maths" colour=180>
+      <block type="math_number"></block>
+      <block type="math_arithmetic"></block>
+      <block type="math_abs"></block>
+      <block type="math_mod"></block>
+      <block type="math_round2"></block>
+    </category>
+    <category name="Caméra" colour="#AABBCC">
+      <block type="camera_initializecamera"></block>
+      <block type="camera_getrecognitionobjects"></block>
+      <block type="camera_getnumobj"></block>
+      <block type="camera_getobjcolors"></block>
+      <block type="camera_getobjpos"></block>
+      <block type="camera_getobjang"></block>
+    </category>
+    <category name="Autres" colour=0>
+      <block type="other_start"></block>
+      <block type="other_end"></block>
+      <block type="text"></block>
+      <block type="concattext"></block>
+      <block type="concattext2"></block>
+      <block type="text_print"></block>
+    </category>
+    </xml>
 
-                </code>
+        <div id="blocklyContainer">
+            <div id="blocklyDiv" style="height:98%;"></div>
+        </div>
+        <div id="textCodeArea">
+            <h3>Code généré — anciens exercices</h3>
+            <div id="codeBox">
+                <code id="textCode"></code>
             </div>
         </div>
 
     </body>
 </html>
 <script src="main.js"></script>
-    <script>
+<script>
     var workspace = Blockly.inject(blocklyDiv,
         {toolbox: document.getElementById('toolbox')});
     workspace.addChangeListener(realTimeUpdate);
