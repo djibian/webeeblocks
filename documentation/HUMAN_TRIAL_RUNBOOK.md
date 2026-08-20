@@ -20,7 +20,8 @@ Pré-requis :
 - dépôt `djibian/webeeblocks` sur la branche `webots-ci` ;
 - Webots R2025a ;
 - variable `WEBOTS_HOME` pointant vers l’installation R2025a ;
-- compilateur C compatible avec les Makefiles Webots.
+- compilateur C compatible avec les Makefiles Webots ;
+- connexion réseau fonctionnelle, ou ressources Webots/Robot Window déjà présentes en cache, car le monde et la Robot Window chargent encore des ressources externes.
 
 Depuis la racine du dépôt :
 
@@ -34,6 +35,7 @@ Le fichier `worlds/.crazyflie_runtime_obstacle.wbproj` demande l’ouverture de 
 - le monde est chargé ;
 - la fenêtre WebeeBlocks/Blockly est visible ;
 - l’état élève est `PRÊT` ;
+- le bouton `Lancer le vol` est effectivement activé et cliquable, ce qui confirme que le transport Robot Window est initialisé ;
 - le drone est à sa position initiale ;
 - aucune mission de démonstration n’est préchargée donnant implicitement la solution.
 
