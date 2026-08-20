@@ -1,27 +1,63 @@
 body {
+    margin-left: 20px;
+}
+
+#editorButtons {
+    margin-right: 50px;
+    margin-top: 35px;
+    float: right;
+}
+
+#blocklyContainer {
+    height:500px;
+    overflow:auto;
+    margin-right:50px;
+}
+
+#textCodeArea {
+}
+
+#codeBox {
+    height:700px;
+    margin-right:50px;
+    overflow-y:auto;
+    background-color: white;
+}
+
+#textCode {
+    white-space: pre-wrap;
+}
+
+/* Student challenge presentation is deliberately scoped to the Crazyflie
+ * Robot Window so historical Pioneer exercises keep their legacy appearance. */
+#studentChallengeBrief {
+    display: none;
+}
+
+body.crazyflieStudentMode {
     margin: 0 28px 24px 20px;
     font-family: Arial, Helvetica, sans-serif;
     color: #202124;
     background: #f7f8fa;
 }
 
-#editorHeader {
+.crazyflieStudentMode #editorHeader {
     min-height: 76px;
 }
 
-#projectTitle {
+.crazyflieStudentMode #projectTitle {
     display: inline-block;
     margin: 18px 0 8px 0;
 }
 
-#editorButtons {
+.crazyflieStudentMode #editorButtons {
+    margin-right: 0;
     margin-top: 22px;
-    float: right;
     display: flex;
     gap: 8px;
 }
 
-#editorButtons button {
+.crazyflieStudentMode #editorButtons button {
     min-height: 38px;
     padding: 0 14px;
     border: 1px solid #7a7f87;
@@ -31,18 +67,18 @@ body {
     cursor: pointer;
 }
 
-#editorButtons #submit {
+.crazyflieStudentMode #editorButtons #submit {
     font-weight: bold;
     border-width: 2px;
 }
 
-#editorButtons button:disabled {
+.crazyflieStudentMode #editorButtons button:disabled {
     cursor: not-allowed;
     opacity: 0.55;
 }
 
-#studentChallengeBrief {
-    display: none;
+.crazyflieStudentMode #studentChallengeBrief {
+    display: block;
     margin: 0 0 10px 0;
     padding: 12px 14px;
     border: 1px solid #aeb4bc;
@@ -51,73 +87,48 @@ body {
     line-height: 1.35;
 }
 
-.studentChallengeTitle {
+.crazyflieStudentMode .studentChallengeTitle {
     font-size: 18px;
     font-weight: bold;
     margin-bottom: 5px;
 }
 
-.studentChallengeGoal {
+.crazyflieStudentMode .studentChallengeGoal {
     font-size: 15px;
     margin-bottom: 8px;
 }
 
-.studentChallengeSteps {
+.crazyflieStudentMode .studentChallengeSteps {
     display: flex;
     flex-wrap: wrap;
     gap: 8px 18px;
     font-size: 14px;
 }
 
-.studentChallengeHint {
+.crazyflieStudentMode .studentChallengeHint {
     margin-top: 7px;
     font-size: 13px;
     color: #555b63;
 }
 
-#webeeblocksChallenge {
+.crazyflieStudentMode #webeeblocksChallenge {
     background: white;
     font-size: 15px;
 }
 
-#blocklyContainer {
+.crazyflieStudentMode #blocklyContainer {
     height: 500px;
-    overflow: auto;
     margin-right: 0;
     border: 1px solid #c5c9cf;
     border-radius: 6px;
     background: white;
 }
 
-#textCodeArea {
-    margin-top: 12px;
-    color: #5f6368;
-}
-
 .crazyflieStudentMode #textCodeArea {
     display: none;
 }
 
-#textCodeArea h3 {
-    margin-bottom: 6px;
-    font-size: 14px;
-    font-weight: normal;
-}
-
-#codeBox {
-    min-height: 120px;
-    max-height: 260px;
-    overflow-y: auto;
-    padding: 8px;
-    background-color: white;
-    border: 1px solid #d5d8dc;
-}
-
-#textCode {
-    white-space: pre-wrap;
-}
-
-/* modal css */
+/*modal css */
 .modal {
   display: none;
   position: fixed;
@@ -152,7 +163,6 @@ body {
   text-decoration: none;
   cursor: pointer;
 }
-
 #projectTitle:focus,
 #projectTitle:hover {
     color: #4f4f4f;
