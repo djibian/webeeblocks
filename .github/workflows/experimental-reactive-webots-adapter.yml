@@ -44,9 +44,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-artifacts
-          rm -f ci-artifacts/reactive-controller-*.txt
+          rm -f ci-artifacts/reactive-controller-*.txt ci-artifacts/webots.log
           docker pull cyberbotics/webots:R2025a-ubuntu22.04
-          docker run -d \
+
+          # Keep Webots in the container foreground, exactly like the already
+          # proven R2025a gates. Only the host docker client is backgrounded so
+          # the browser harness can run concurrently.
+          set +e
+          docker run --rm \
             --name webeeblocks-reactive-webots \
             -p 8765:8765 \
             -e PYTHONUNBUFFERED=1 \
@@ -55,21 +60,26 @@ jobs:
             -v "$GITHUB_WORKSPACE:/workspace" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/experimental_reactive_webots_adapter.wbt' \
-            > ci-artifacts/container-id.txt
+            bash -lc 'timeout -k 5s 180s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/experimental_reactive_webots_adapter.wbt' \
+            > ci-artifacts/webots.log 2>&1 &
+          WEBOTS_DOCKER_PID=$!
+          set -e
+          echo "$WEBOTS_DOCKER_PID" > ci-artifacts/docker-client-pid.txt
+          echo "WEBOTS_DOCKER_PID=$WEBOTS_DOCKER_PID" >> "$GITHUB_ENV"
 
-          for i in $(seq 1 40); do
+          for i in $(seq 1 80); do
             if [ -s ci-artifacts/reactive-controller-ready.txt ]; then
               cat ci-artifacts/reactive-controller-ready.txt
               exit 0
             fi
             if [ -s ci-artifacts/reactive-controller-fatal.txt ]; then
               cat ci-artifacts/reactive-controller-fatal.txt
-              docker logs webeeblocks-reactive-webots || true
+              cat ci-artifacts/webots.log || true
               exit 1
             fi
-            if ! docker inspect -f '{{.State.Running}}' webeeblocks-reactive-webots 2>/dev/null | grep -q true; then
-              docker logs webeeblocks-reactive-webots || true
+            if ! kill -0 "$WEBOTS_DOCKER_PID" 2>/dev/null; then
+              echo '::error::Webots docker client exited before controller READY.'
+              cat ci-artifacts/webots.log || true
               exit 1
             fi
             sleep 0.5
@@ -77,7 +87,7 @@ jobs:
           echo '::error::Webots controller did not cross the READY boundary.'
           ls -l ci-artifacts || true
           docker exec webeeblocks-reactive-webots sh -lc 'ps aux; ls -la /workspace/controllers/experimental_reactive_webots_adapter' || true
-          docker logs webeeblocks-reactive-webots || true
+          cat ci-artifacts/webots.log || true
           exit 1
 
       - name: Execute real Blockly reactive program against Webots
@@ -85,12 +95,12 @@ jobs:
         run: |
           set -euo pipefail
           cleanup() {
-            docker logs webeeblocks-reactive-webots > ci-artifacts/webots.log 2>&1 || true
-            docker inspect webeeblocks-reactive-webots > ci-artifacts/container-inspect.json 2>&1 || true
             python3 -c 'import json,urllib.request; r=urllib.request.urlopen("http://127.0.0.1:8765/trace",timeout=2); print(json.dumps(json.load(r),indent=2))' \
               > ci-artifacts/controller-trace.json 2>/dev/null || true
             docker stop webeeblocks-reactive-webots >/dev/null 2>&1 || true
-            docker rm webeeblocks-reactive-webots >/dev/null 2>&1 || true
+            if [ -n "${WEBOTS_DOCKER_PID:-}" ]; then
+              wait "$WEBOTS_DOCKER_PID" 2>/dev/null || true
+            fi
           }
           trap cleanup EXIT
 
@@ -98,12 +108,11 @@ jobs:
 
           python3 -c 'import json,urllib.request; trace=json.load(urllib.request.urlopen("http://127.0.0.1:8765/trace",timeout=2))["trace"]; ops=[x["op"] + ((":"+x["direction"]) if "direction" in x else "") for x in trace if x["op"] != "error"]; expected=["takeoff","range:front","move:left","range:front","move:forward","range:front","move:left","land"]; assert ops==expected,(ops,expected); ranges=[x["value_m"] for x in trace if x["op"]=="range"]; assert len(ranges)==3 and ranges[0]<0.5 and ranges[1]>=0.5 and ranges[2]<0.5,ranges; print("WEBEEBLOCKS_REACTIVE_WEBOTS_CAUSAL_TRACE",json.dumps({"ops":ops,"ranges_m":ranges}))'
 
-          docker logs webeeblocks-reactive-webots > ci-artifacts/webots-live.log 2>&1
-          if grep -Fq 'WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL' ci-artifacts/webots-live.log; then
-            cat ci-artifacts/webots-live.log
+          if grep -Fq 'WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL' ci-artifacts/webots.log; then
+            cat ci-artifacts/webots.log
             exit 1
           fi
-          grep -F 'WEBEEBLOCKS_REACTIVE_WEBOTS_READY' ci-artifacts/webots-live.log
+          grep -F 'WEBEEBLOCKS_REACTIVE_WEBOTS_READY' ci-artifacts/webots.log
 
       - name: Upload experimental evidence
         if: always()
