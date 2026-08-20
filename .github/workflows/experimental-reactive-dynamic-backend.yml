@@ -1,0 +1,87 @@
+name: Experimental reactive dynamic backend
+on:
+  pull_request:
+    paths:
+      - 'experiments/reactive-dynamic-backend/**'
+      - 'experiments/reactive-webots-adapter/**'
+      - 'experiments/reactive-blockly-pipeline/**'
+      - 'experiments/reactive-ast-interpreter/**'
+      - 'controllers/experimental_reactive_dynamic_backend/**'
+      - 'worlds/experimental_reactive_dynamic_backend.wbt'
+      - '.github/workflows/experimental-reactive-dynamic-backend.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  b4-dynamic:
+    if: github.head_ref == 'experiment/reactive-dynamic-backend' || github.ref_name == 'experiment/reactive-dynamic-backend'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$c" >/dev/null 2>&1; then echo "CHROME_BIN=$(command -v "$c")" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          exit 1
+      - name: Re-prove frozen Blockly/AST/interpreter seam
+        run: python3 experiments/reactive-blockly-pipeline/run_pipeline_harness.py
+      - name: Build dynamic backend controller in Webots R2025a
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull cyberbotics/webots:R2025a-ubuntu22.04
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace/controllers/experimental_reactive_dynamic_backend cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'make clean && make'
+      - name: Start bridge and Webots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts
+          rm -f ci-artifacts/b4-*
+          WEBEEBLOCKS_ROOT="$GITHUB_WORKSPACE" python3 experiments/reactive-dynamic-backend/bridge.py >ci-artifacts/b4-bridge.log 2>&1 &
+          echo "B4_BRIDGE_PID=$!" >> "$GITHUB_ENV"
+          docker run --rm --name webeeblocks-b4 -e LIBGL_ALWAYS_SOFTWARE=true -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true -v "$GITHUB_WORKSPACE:/workspace" -w /workspace cyberbotics/webots:R2025a-ubuntu22.04 bash -lc 'timeout -k 5s 200s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/experimental_reactive_dynamic_backend.wbt' >ci-artifacts/b4-webots.log 2>&1 &
+          echo "B4_WEBOTS_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 120); do
+            if [ -s ci-artifacts/b4-ready.txt ]; then cat ci-artifacts/b4-ready.txt; exit 0; fi
+            sleep .5
+          done
+          cat ci-artifacts/b4-webots.log || true
+          exit 1
+      - name: Execute unchanged reactive Blockly program dynamically
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup(){ docker stop webeeblocks-b4 >/dev/null 2>&1 || true; kill "${B4_BRIDGE_PID:-}" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          python3 -m http.server 8124 --bind 127.0.0.1 >ci-artifacts/b4-http.log 2>&1 &
+          HTTP_PID=$!
+          trap 'kill "$HTTP_PID" >/dev/null 2>&1 || true; cleanup' EXIT
+          sleep 1
+          timeout 150s "$CHROME_BIN" --headless --no-sandbox --disable-gpu --dump-dom http://127.0.0.1:8124/experiments/reactive-dynamic-backend/ui_harness.html >ci-artifacts/b4-dom.html 2>ci-artifacts/b4-chrome.log || true
+          cat ci-artifacts/b4-dom.html
+          grep -F 'data-status="PASS"' ci-artifacts/b4-dom.html
+          grep -F 'PASS B4 real Blockly -&gt; AST -&gt; interpreter -&gt; real range_front -&gt; dynamic backend-B/STOP' ci-artifacts/b4-dom.html
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('ci-artifacts/b4-controller-trace.jsonl')
+          rows=[json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+          ops=[r['op']+(':'+r['direction'] if 'direction' in r else '') for r in rows]
+          expected=['takeoff','range:front','move:left','range:front','move:forward','range:front','move:left','land']
+          assert ops==expected,(ops,expected)
+          ranges=[r['value_m'] for r in rows if r['op']=='range']
+          assert len(ranges)==3 and ranges[0]<.5 and ranges[1]>=.5 and ranges[2]<.5,ranges
+          for r in rows:
+            if r['op'] in ('takeoff','move','land'): assert r.get('stop') is True,r
+          print('WEBEEBLOCKS_B4_DYNAMIC_CAUSAL_TRACE',json.dumps({'ops':ops,'ranges_m':ranges}))
+          PY
+          ! grep -Fq 'UNSAFE_OR_TIMEOUT' ci-artifacts/b4-webots.log
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reactive-dynamic-backend-evidence
+          path: ci-artifacts/
+          if-no-files-found: warn
