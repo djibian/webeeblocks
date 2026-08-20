@@ -44,10 +44,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-artifacts
+          rm -f ci-artifacts/reactive-controller-*.txt
           docker pull cyberbotics/webots:R2025a-ubuntu22.04
           docker run -d \
             --name webeeblocks-reactive-webots \
             -p 8765:8765 \
+            -e PYTHONUNBUFFERED=1 \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "$GITHUB_WORKSPACE:/workspace" \
@@ -55,6 +57,28 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/experimental_reactive_webots_adapter.wbt' \
             > ci-artifacts/container-id.txt
+
+          for i in $(seq 1 40); do
+            if [ -s ci-artifacts/reactive-controller-ready.txt ]; then
+              cat ci-artifacts/reactive-controller-ready.txt
+              exit 0
+            fi
+            if [ -s ci-artifacts/reactive-controller-fatal.txt ]; then
+              cat ci-artifacts/reactive-controller-fatal.txt
+              docker logs webeeblocks-reactive-webots || true
+              exit 1
+            fi
+            if ! docker inspect -f '{{.State.Running}}' webeeblocks-reactive-webots 2>/dev/null | grep -q true; then
+              docker logs webeeblocks-reactive-webots || true
+              exit 1
+            fi
+            sleep 0.5
+          done
+          echo '::error::Webots controller did not cross the READY boundary.'
+          ls -l ci-artifacts || true
+          docker exec webeeblocks-reactive-webots sh -lc 'ps aux; ls -la /workspace/controllers/experimental_reactive_webots_adapter' || true
+          docker logs webeeblocks-reactive-webots || true
+          exit 1
 
       - name: Execute real Blockly reactive program against Webots
         shell: bash
