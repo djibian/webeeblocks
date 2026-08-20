@@ -1,0 +1,35 @@
+name: Experimental reactive Blockly pipeline
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/reactive-blockly-pipeline/**'
+      - 'experiments/reactive-ast-interpreter/**'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/**'
+      - '.github/workflows/experimental-reactive-blockly-pipeline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reactive-blockly-pipeline:
+    if: github.head_ref == 'experiment/reactive-blockly-pipeline' || github.ref_name == 'experiment/reactive-blockly-pipeline'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v "$candidate")" >> "$GITHUB_ENV"
+              "$candidate" --version
+              exit 0
+            fi
+          done
+          exit 1
+      - name: Execute real Blockly compiler-to-interpreter pipeline
+        run: python3 experiments/reactive-blockly-pipeline/run_pipeline_harness.py
