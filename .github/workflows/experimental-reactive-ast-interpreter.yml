@@ -1,0 +1,22 @@
+name: Experimental reactive AST interpreter
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/reactive-ast-interpreter/**'
+      - '.github/workflows/experimental-reactive-ast-interpreter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reactive-ast-interpreter:
+    if: github.head_ref == 'experiment/reactive-ast-interpreter' || github.ref_name == 'experiment/reactive-ast-interpreter'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Execute scripted reactive AST
+        run: node experiments/reactive-ast-interpreter/test_interpreter.js
