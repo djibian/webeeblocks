@@ -39,11 +39,11 @@
 
     <head>
         <div id="editorHeader">
-            <h1 id="projectTitle" contenteditable="true">WebeeBlocks</h1>
+            <h1 id="projectTitle" contenteditable="true">Untitled</h1>
             <div id="editorButtons">
-                <button id="submit">Lancer le vol</button>
-                <button id="save">Enregistrer</button>
-                <button id="restore">Ouvrir</button>
+                <button id="submit">Submit</button>
+                <button id="save">Save</button>
+                <button id="restore">Restore</button>
             </div>
         </div>
 
@@ -54,7 +54,7 @@
                 Quand ton parcours réussit, modifie tes blocs pour améliorer ton temps.
             </div>
             <div class="studentChallengeSteps">
-                <span><strong>1.</strong> Utilise les 4 blocs de <em>Vol Crazyflie</em>.</span>
+                <span><strong>1.</strong> Assemble les 4 blocs de <em>Vol Crazyflie</em>.</span>
                 <span><strong>2.</strong> Clique sur <em>Lancer le vol</em>.</span>
                 <span><strong>3.</strong> Observe le résultat et le temps, puis corrige ou optimise.</span>
             </div>
@@ -81,19 +81,19 @@
       <block type="webeeblocks_land"></block>
     </category>
     <category name="Variables" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
-    <category name="Fonctions" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
-    <category name="Moteurs" colour=120>
+    <category name="Functions" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
+    <category name="Motors" colour=120>
       <block type="motors_setupmotor"></block>
       <block type="motors_setspeed"></block>
       <block type="motors_resetencoders"></block>
       <block type="motors_getencoders"></block>
     </category>
-    <category name="Temps" colour=80>
+    <category name="Time" colour=80>
       <block type="time_delay"></block>
       <block type="time_gettime"></block>
       <block type="time_resettime"></block>
     </category>
-    <category name="Capteurs" colour=60>
+    <category name="Sensors" colour=60>
       <block type="sensors_initializegyro"></block>
       <block type="sensors_initializegps"></block>
       <block type="sensors_initializesensor"></block>
@@ -103,7 +103,7 @@
       <block type="sensors_getcolor"></block>
       <block type="sensors_getgray"></block>
     </category>
-    <category name="Contrôle" colour=240>
+    <category name="Control" colour=240>
       <block type="logic_boolean"></block>
       <block type="controls_if"></block>
       <block type="controls_repeat_ext"></block>
@@ -112,7 +112,7 @@
       <block type="controls_whileUntil"></block>
       <block type="controls_flow_statements"></block>
     </category>
-    <category name="Listes" colour=210>
+    <category name="Lists" colour=210>
       <block type="lists_create_with">
         <mutation items="0"></mutation>
       </block>
@@ -140,14 +140,14 @@
         </value>
       </block>
     </category>
-    <category name="Maths" colour=180>
+    <category name="Math" colour=180>
       <block type="math_number"></block>
       <block type="math_arithmetic"></block>
       <block type="math_abs"></block>
       <block type="math_mod"></block>
       <block type="math_round2"></block>
     </category>
-    <category name="Caméra" colour="#AABBCC">
+    <category name="Camera" colour="#AABBCC">
       <block type="camera_initializecamera"></block>
       <block type="camera_getrecognitionobjects"></block>
       <block type="camera_getnumobj"></block>
@@ -155,7 +155,7 @@
       <block type="camera_getobjpos"></block>
       <block type="camera_getobjang"></block>
     </category>
-    <category name="Autres" colour=0>
+    <category name="Other" colour=0>
       <block type="other_start"></block>
       <block type="other_end"></block>
       <block type="text"></block>
@@ -169,7 +169,7 @@
             <div id="blocklyDiv" style="height:98%;"></div>
         </div>
         <div id="textCodeArea">
-            <h3>Code généré — anciens exercices</h3>
+            <h3>Text Output</h3>
             <div id="codeBox">
                 <code id="textCode"></code>
             </div>
@@ -182,4 +182,27 @@
     var workspace = Blockly.inject(blocklyDiv,
         {toolbox: document.getElementById('toolbox')});
     workspace.addChangeListener(realTimeUpdate);
+
+    function updateStudentChallengeMode() {
+        var crazyflie = isCrazyflieWorkspace();
+        var brief = document.getElementById('studentChallengeBrief');
+        var submitButton = document.getElementById('submit');
+        var saveButton = document.getElementById('save');
+        var restoreButton = document.getElementById('restore');
+        if (brief)
+            brief.style.display = crazyflie ? 'block' : 'none';
+        if (submitButton)
+            submitButton.textContent = crazyflie ? 'Lancer le vol' : 'Submit';
+        if (saveButton)
+            saveButton.textContent = crazyflie ? 'Enregistrer' : 'Save';
+        if (restoreButton)
+            restoreButton.textContent = crazyflie ? 'Ouvrir' : 'Restore';
+        document.body.classList.toggle('crazyflieStudentMode', crazyflie);
+    }
+
+    workspace.addChangeListener(function(event) {
+        if (!event || event.type !== Blockly.Events.UI)
+            updateStudentChallengeMode();
+    });
+    updateStudentChallengeMode();
 </script>
