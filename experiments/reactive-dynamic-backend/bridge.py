@@ -54,7 +54,10 @@ class H(BaseHTTPRequestHandler):
             req=json.loads(self.rfile.read(n).decode())
             counter += 1; ident=counter
             op=req.get("op","")
-            direction=req.get("direction","")
+            # The line protocol consumed by the C controller uses whitespace
+            # tokenisation. Keep commands without a direction (TAKEOFF/LAND)
+            # representable with an explicit sentinel instead of `direction=`.
+            direction=req.get("direction") or "-"
             value=req.get("height_m", req.get("distance_m", 0))
             atomic_write(COMMAND, f"id={ident} op={op} direction={direction} value={float(value):.9f}\n")
             response=ART/f"b4-response-{ident}.json"
