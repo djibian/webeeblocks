@@ -60,42 +60,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cleanup() {
-            docker logs webeeblocks-reactive-webots > ci-artifacts/webots.log 2>&1 || true
-            python3 - <<'PY' > ci-artifacts/controller-trace.json || true
-          import json, urllib.request
-          with urllib.request.urlopen('http://127.0.0.1:8765/trace', timeout=2) as r:
-              print(json.dumps(json.load(r), indent=2))
-          PY
-            docker stop webeeblocks-reactive-webots >/dev/null 2>&1 || true
-          }
+          cleanup() { docker stop webeeblocks-reactive-webots >/dev/null 2>&1 || true; }
           trap cleanup EXIT
 
           python3 experiments/reactive-webots-adapter/run_webots_harness.py | tee ci-artifacts/browser-harness.log
 
-          python3 - <<'PY'
-          import json, urllib.request
-          with urllib.request.urlopen('http://127.0.0.1:8765/trace', timeout=2) as r:
-              trace=json.load(r)['trace']
-          ops=[x['op'] + (':' + x['direction'] if 'direction' in x else '') for x in trace if x['op'] != 'error']
-          expected=['takeoff','range:front','move:left','range:front','move:forward','range:front','move:left','land']
-          assert ops == expected, (ops, expected)
-          ranges=[x['value_m'] for x in trace if x['op']=='range']
-          assert len(ranges)==3 and ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
-          print('WEBEEBLOCKS_REACTIVE_WEBOTS_CAUSAL_TRACE', json.dumps({'ops':ops,'ranges_m':ranges}))
-          PY
+          python3 -c 'import json,urllib.request; r=urllib.request.urlopen("http://127.0.0.1:8765/trace",timeout=2); print(json.dumps(json.load(r),indent=2))' \
+            > ci-artifacts/controller-trace.json
 
-      - name: Assert Webots controller stayed healthy
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker logs webeeblocks-reactive-webots > ci-artifacts/webots-final.log 2>&1 || true
-          if grep -Fq 'WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL' ci-artifacts/webots-final.log; then
-            cat ci-artifacts/webots-final.log
+          python3 -c 'import json,urllib.request; trace=json.load(urllib.request.urlopen("http://127.0.0.1:8765/trace",timeout=2))["trace"]; ops=[x["op"] + ((":"+x["direction"]) if "direction" in x else "") for x in trace if x["op"] != "error"]; expected=["takeoff","range:front","move:left","range:front","move:forward","range:front","move:left","land"]; assert ops==expected,(ops,expected); ranges=[x["value_m"] for x in trace if x["op"]=="range"]; assert len(ranges)==3 and ranges[0]<0.5 and ranges[1]>=0.5 and ranges[2]<0.5,ranges; print("WEBEEBLOCKS_REACTIVE_WEBOTS_CAUSAL_TRACE",json.dumps({"ops":ops,"ranges_m":ranges}))'
+
+          docker logs webeeblocks-reactive-webots > ci-artifacts/webots.log 2>&1
+          if grep -Fq 'WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL' ci-artifacts/webots.log; then
+            cat ci-artifacts/webots.log
             exit 1
           fi
-          grep -F 'WEBEEBLOCKS_REACTIVE_WEBOTS_READY' ci-artifacts/webots-final.log
+          grep -F 'WEBEEBLOCKS_REACTIVE_WEBOTS_READY' ci-artifacts/webots.log
 
       - name: Upload experimental evidence
         if: always()
