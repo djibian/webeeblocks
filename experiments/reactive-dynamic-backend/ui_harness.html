@@ -1,0 +1,21 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>B4 dynamic reactive backend</title>
+<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blockly_uncompressed.js"></script>
+<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/msg/js/en.js"></script>
+<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/logic.js"></script>
+<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/loops.js"></script>
+<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/math.js"></script>
+<script src="../reactive-blockly-pipeline/experimental_blocks.js"></script>
+<script src="../reactive-blockly-pipeline/extended_blocks.js"></script>
+<script src="../reactive-ast-interpreter/interpreter.js"></script>
+<script src="dynamic_backend.js"></script></head><body>
+<div id="blocklyDiv" style="height:320px;width:100%"></div><pre id="result">RUNNING</pre>
+<xml id="p" style="display:none"><block type="webeeblocks_exp_takeoff"><field name="HEIGHT">0.5</field><next><block type="controls_repeat_ext"><value name="TIMES"><block type="math_number"><field name="NUM">3</field></block></value><statement name="DO"><block type="controls_if"><mutation else="1"></mutation><value name="IF0"><block type="logic_compare"><field name="OP">LT</field><value name="A"><block type="webeeblocks_exp_range"><field name="DIRECTION">front</field></block></value><value name="B"><block type="math_number"><field name="NUM">0.5</field></block></value></block></value><statement name="DO0"><block type="webeeblocks_exp_move"><field name="DIRECTION">left</field><field name="DISTANCE">0.3</field></block></statement><statement name="ELSE"><block type="webeeblocks_exp_move"><field name="DIRECTION">forward</field><field name="DISTANCE">0.3</field></block></statement></block></statement><next><block type="webeeblocks_exp_land"></block></next></block></next></block></xml>
+<script>(function(){'use strict';var out=document.getElementById('result');function a(x,m){if(!x)throw new Error(m);}try{
+var ws=Blockly.inject('blocklyDiv',{toolbox:'<xml></xml>'});Blockly.Xml.domToWorkspace(document.getElementById('p'),ws);var ast=WebeeBlocksExtended.compileWorkspace(ws);var b=new WebeeBlocksDynamicBackend.DynamicBackend();b.assertCapabilities(ast);WebeeBlocksReactiveInterpreter.run(ast,b);
+var ops=b.trace.map(function(x){return x.op+(x.direction?':'+x.direction:'');});var expected=['takeoff','range:front','move:left','range:front','move:forward','range:front','move:left','land'];a(JSON.stringify(ops)===JSON.stringify(expected),'trace '+JSON.stringify(ops));
+var rs=b.trace.filter(function(x){return x.op==='range';});a(rs.length===3,'range reread');a(rs[0].value_m<.5&&rs[1].value_m>=.5&&rs[2].value_m<.5,'branch pattern '+JSON.stringify(rs));
+b.trace.filter(function(x){return x.op==='move';}).forEach(function(x){a(x.stop===true,'movement returned before STOP boundary');});
+var ct=b.getControllerTrace().trace;var cops=ct.filter(function(x){return x.op!=='state';}).map(function(x){return x.op+(x.direction?':'+x.direction:'');});a(JSON.stringify(cops)===JSON.stringify(expected),'controller trace '+JSON.stringify(cops));
+var neg=new Blockly.Workspace();Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(Blockly.Xml.domToText(document.getElementById('p'))),neg);neg.getAllBlocks(false).filter(function(x){return x.type==='webeeblocks_exp_range';})[0].setFieldValue('left','DIRECTION');var na=WebeeBlocksExtended.compileWorkspace(neg),before=ct.length,rejected=false;try{b.assertCapabilities(na);}catch(e){rejected=/range\(left\)/.test(String(e));}a(rejected,'range(left) not rejected');a(b.getControllerTrace().trace.length===before,'action before preflight');neg.dispose();
+out.textContent='PASS B4 real Blockly -> AST -> interpreter -> real range_front -> dynamic backend-B/STOP';out.dataset.status='PASS';
+}catch(e){out.textContent='FAIL '+(e.stack||e);out.dataset.status='FAIL';}})();</script></body></html>
