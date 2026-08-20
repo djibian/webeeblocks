@@ -34,7 +34,7 @@ jobs:
             http://127.0.0.1:8123/experiments/activity-runtime-contract/a2_harness.html > /tmp/a2-dom.html 2>/tmp/a2-chrome.log || true
           cat /tmp/a2-dom.html
           grep -F 'data-status="PASS"' /tmp/a2-dom.html
-          grep -F 'PASS A2 profile -&gt; toolbox -&gt; Blockly -&gt; AST -&gt; runtime preflight -&gt; interpreter' /tmp/a2-dom.html
+          grep -F 'PASS A2 profile -&gt; toolbox -&gt; Blockly -&gt; AST -&gt; profile/backend preflight -&gt; interpreter' /tmp/a2-dom.html
       - name: Preserve evidence
         if: always()
         uses: actions/upload-artifact@v4
