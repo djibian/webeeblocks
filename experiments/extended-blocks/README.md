@@ -8,7 +8,7 @@ Can WebeeBlocks represent a richer student program — including movement, speed
 
 ## Experimental semantic catalogue
 
-The prototype currently covers:
+The prototype covers:
 
 - take off to a relative height;
 - land;
@@ -25,7 +25,9 @@ There is deliberately **no** `avoid obstacle` block. The semantic tree keeps the
 
 ## Output
 
-`extended_blocks.js` compiles Blockly-like objects to an experimental, backend-neutral AST, for example:
+`extended_blocks.js` compiles the workspace into an experimental backend-neutral AST. No Python generator is involved.
+
+Example semantic fragment:
 
 ```json
 {
@@ -43,24 +45,40 @@ There is deliberately **no** `avoid obstacle` block. The semantic tree keeps the
 
 The compiler fails closed on unsupported blocks, invalid directions and out-of-range parameters.
 
-## Proof
-
-Run:
+## Proof 1 — semantic unit tests
 
 ```bash
 node experiments/extended-blocks/test_extended_blocks.js
 ```
 
-The tests cover a richer sequential mission and a reactive structure equivalent to:
+These tests cover a richer sequential mission, a reactive structure and invalid inputs.
 
-`repeat 3 times: if front range < 0.5 m then move left 0.3 m else move forward 0.3 m`.
+## Proof 2 — real bundled Blockly 2020
+
+`ui_harness.html` loads the actual Blockly 2020 build from this repository, the standard Blockly `logic`, `loops` and `math` blocks, and disposable experimental Crazyflie block definitions.
+
+```bash
+python3 experiments/extended-blocks/run_ui_harness.py
+```
+
+The browser proof constructs the real visual program:
+
+`takeoff → repeat 3 times { if front range < 0.5 m then left 0.3 m else forward 0.3 m } → land`
+
+and requires the exact backend-neutral AST. It also serializes the workspace to Blockly XML, reloads it into a fresh workspace and requires the same AST after round-trip.
+
+This proof exposed and fixed a real integration mismatch: Blockly 2020 `controls_repeat_ext` stores `TIMES` as a **value input**, not a field. The compiler now handles the real Blockly structure while retaining a field fallback only for lightweight test doubles.
 
 ## Explicit limits
 
-- This does **not** define the final student block wording or visual design.
-- This does **not** claim that conditions or Multi-ranger sensing are executable by runtime v1.
-- It does not yet instantiate these experimental blocks in the real Blockly 2020 browser.
-- It does not choose between a future Webots backend and a real-drone backend for these richer semantics.
-- Numeric limits are experimental guardrails, not final pedagogical constraints.
+- This does **not** define final student wording or visual design.
+- Conditions and Multi-ranger sensing are **not** claimed executable by runtime v1.
+- The disposable block definitions are not loaded by the frozen product UI.
+- It does not choose a future runtime implementation for condition/repeat execution.
+- It does not claim real Crazyflie behavior.
+- Numeric limits remain experimental guardrails.
+- No merge into `webots-ci` should occur before human-trial feedback and Lead arbitration.
 
-The next valuable proof on this branch is a disposable real-Blockly harness that instantiates the proposed blocks plus standard `if/repeat/logic` blocks and verifies that the exact semantic AST is produced without Python generation.
+## Engineering conclusion
+
+The semantic/UI boundary is now testable against the real bundled Blockly 2020. The next useful experiment should not add more block types here; it should test execution of one small reactive AST against a disposable backend/mock, or move to the independent real-Crazyflie transport axis.
