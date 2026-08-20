@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import math
+import pathlib
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +11,9 @@ PORT = 8765
 MAX_MOVE_STEP_M = 0.02
 
 robot = Supervisor()
+artifact_dir = pathlib.Path(robot.getProjectPath()) / 'ci-artifacts'
+artifact_dir.mkdir(parents=True, exist_ok=True)
+(artifact_dir / 'reactive-controller-started.txt').write_text('controller constructed\n', encoding='utf-8')
 timestep = int(robot.getBasicTimeStep())
 self_node = robot.getSelf()
 translation = self_node.getField('translation')
@@ -156,6 +160,7 @@ try:
     anchor = list(origin)
     hold(anchor, 5)
     ready = True
+    (artifact_dir / 'reactive-controller-ready.txt').write_text(json.dumps({'port': PORT, 'origin': origin}) + '\n', encoding='utf-8')
     print('WEBEEBLOCKS_REACTIVE_WEBOTS_READY port=%d origin=%s' % (PORT, origin), flush=True)
 
     while robot.step(timestep) != -1:
@@ -174,6 +179,7 @@ try:
         request.event.set()
 except Exception as exc:
     fatal = str(exc)
+    (artifact_dir / 'reactive-controller-fatal.txt').write_text(fatal + '\n', encoding='utf-8')
     print('WEBEEBLOCKS_REACTIVE_WEBOTS_FATAL ' + fatal, flush=True)
     while robot.step(timestep) != -1:
         pass
