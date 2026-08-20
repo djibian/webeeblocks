@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebeeBlocks reactive Webots adapter</title>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blockly_uncompressed.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/msg/js/en.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/logic.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/loops.js"></script>
+  <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/math.js"></script>
+  <script src="../reactive-blockly-pipeline/experimental_blocks.js"></script>
+  <script src="../reactive-blockly-pipeline/extended_blocks.js"></script>
+  <script src="../reactive-ast-interpreter/interpreter.js"></script>
+  <script src="webots_backend.js"></script>
+</head>
+<body>
+<div id="blocklyDiv" style="height:320px;width:100%"></div>
+<pre id="result">RUNNING</pre>
+<xml id="reactiveProgram" style="display:none">
+  <block type="webeeblocks_exp_takeoff">
+    <field name="HEIGHT">0.5</field>
+    <next><block type="controls_repeat_ext">
+      <value name="TIMES"><block type="math_number"><field name="NUM">3</field></block></value>
+      <statement name="DO"><block type="controls_if">
+        <mutation else="1"></mutation>
+        <value name="IF0"><block type="logic_compare"><field name="OP">LT</field>
+          <value name="A"><block type="webeeblocks_exp_range"><field name="DIRECTION">front</field></block></value>
+          <value name="B"><block type="math_number"><field name="NUM">0.5</field></block></value>
+        </block></value>
+        <statement name="DO0"><block type="webeeblocks_exp_move"><field name="DIRECTION">left</field><field name="DISTANCE">0.3</field></block></statement>
+        <statement name="ELSE"><block type="webeeblocks_exp_move"><field name="DIRECTION">forward</field><field name="DISTANCE">0.3</field></block></statement>
+      </block></statement>
+      <next><block type="webeeblocks_exp_land"></block></next>
+    </block></next>
+  </block>
+</xml>
+<script>
+(function() {
+  'use strict';
+  var result = document.getElementById('result');
+  function fail(message) { result.textContent='FAIL: '+message; result.setAttribute('data-status','FAIL'); throw new Error(message); }
+  function assert(condition,message) { if (!condition) fail(message); }
+  function close(a,b,tol) { return Math.abs(a-b) <= tol; }
+  try {
+    var workspace = Blockly.inject('blocklyDiv', {toolbox:'<xml></xml>'});
+    Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram'), workspace);
+    var ast = WebeeBlocksExtended.compileWorkspace(workspace);
+    var backend = new WebeeBlocksWebotsBackend.WebotsBackend('http://127.0.0.1:8765');
+    WebeeBlocksReactiveInterpreter.run(ast, backend);
+
+    var ops = backend.trace.map(function(x) { return x.op + (x.direction ? ':'+x.direction : ''); });
+    var expected = ['takeoff','range:front','move:left','range:front','move:forward','range:front','move:left','land'];
+    assert(JSON.stringify(ops) === JSON.stringify(expected), 'unexpected causal trace '+JSON.stringify(ops));
+
+    var ranges = backend.trace.filter(function(x) { return x.op === 'range'; });
+    assert(ranges.length === 3, 'front range was not re-read three times');
+    assert(ranges[0].source === 'Webots range_front' && ranges[1].source === 'Webots range_front' && ranges[2].source === 'Webots range_front', 'range source is not Webots range_front');
+    assert(ranges[0].value_m < 0.5, 'first Webots range should select LEFT: '+ranges[0].value_m);
+    assert(ranges[1].value_m >= 0.5, 'second Webots range should select FORWARD: '+ranges[1].value_m);
+    assert(ranges[2].value_m < 0.5, 'third Webots range should select LEFT: '+ranges[2].value_m);
+
+    var moves = backend.trace.filter(function(x) { return x.op === 'move'; });
+    assert(moves.length === 3, 'expected three movement effects');
+    assert(moves[0].after[1] - moves[0].before[1] > 0.25, 'first LEFT did not move the Webots node');
+    assert(moves[1].after[0] - moves[1].before[0] > 0.25, 'FORWARD did not move the Webots node');
+    assert(moves[2].after[1] - moves[2].before[1] > 0.25, 'second LEFT did not move the Webots node');
+
+    var controller = backend.getControllerTrace().trace;
+    var controllerOps = controller.filter(function(x) { return x.op !== 'error'; }).map(function(x) { return x.op + (x.direction ? ':'+x.direction : ''); });
+    assert(JSON.stringify(controllerOps) === JSON.stringify(expected), 'controller causal trace differs '+JSON.stringify(controllerOps));
+    var controllerRanges = controller.filter(function(x) { return x.op === 'range'; });
+    for (var i=0; i<3; ++i)
+      assert(close(controllerRanges[i].value_m, ranges[i].value_m, 1e-9), 'browser/controller sensor trace mismatch at read '+i);
+
+    // Fail-closed capability proof with a real Blockly workspace: change only
+    // the sensor direction to LEFT. The compiler still accepts the AST, but the
+    // minimal Webots adapter must reject that unavailable capability before any
+    // Webots RPC/action occurs.
+    var negative = new Blockly.Workspace();
+    Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(Blockly.Xml.domToText(document.getElementById('reactiveProgram'))), negative);
+    var rangeBlock = negative.getAllBlocks(false).filter(function(b) { return b.type === 'webeeblocks_exp_range'; })[0];
+    rangeBlock.setFieldValue('left', 'DIRECTION');
+    var negativeAst = WebeeBlocksExtended.compileWorkspace(negative);
+    var beforeCount = backend.getControllerTrace().trace.length;
+    var rejected = false;
+    try { WebeeBlocksReactiveInterpreter.run(negativeAst, backend); }
+    catch (error) { rejected = /capability unavailable: range\(left\)/.test(String(error)); }
+    assert(rejected, 'unavailable Webots range capability did not fail closed');
+    assert(backend.getControllerTrace().trace.length === beforeCount, 'backend acted before capability rejection');
+    negative.dispose();
+
+    result.textContent='PASS real Blockly 2020 -> #44 compiler -> #45 interpreter -> real Webots range/action adapter\n'+JSON.stringify({ranges:ranges, moves:moves});
+    result.setAttribute('data-status','PASS');
+  } catch (error) {
+    if (result.getAttribute('data-status') !== 'FAIL') fail(error.message || String(error));
+  }
+})();
+</script>
+</body>
+</html>
