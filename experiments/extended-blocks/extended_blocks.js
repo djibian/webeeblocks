@@ -42,8 +42,7 @@
   function statementChildren(block, inputName) {
     if (!block || typeof block.getInputTargetBlock !== 'function')
       throw new Error('block does not expose statement input ' + inputName);
-    const first = block.getInputTargetBlock(inputName);
-    return compileSequence(first);
+    return compileSequence(block.getInputTargetBlock(inputName));
   }
 
   function valueChild(block, inputName) {
@@ -82,6 +81,18 @@
     }
   }
 
+  function repeatCount(block) {
+    /* Real Blockly 2020 controls_repeat_ext stores TIMES as a value input.
+       Keep the legacy field fallback only for lightweight unit-test doubles. */
+    if (typeof block.getInputTargetBlock === 'function' && block.getInputTargetBlock('TIMES')) {
+      const expression = valueChild(block, 'TIMES');
+      if (expression.kind !== 'number' || Math.floor(expression.value) !== expression.value)
+        throw new Error('repeat count must be an integer literal');
+      return bounded(expression.value, 'repeat', LIMITS.repeat);
+    }
+    return bounded(field(block, 'TIMES'), 'repeat', LIMITS.repeat);
+  }
+
   function compileStatement(block) {
     switch (block.type) {
       case 'webeeblocks_exp_takeoff':
@@ -112,7 +123,7 @@
       case 'webeeblocks_exp_speed':
         return {kind: 'set_speed', speed_m_s: bounded(field(block, 'SPEED'), 'speed_m_s', LIMITS.speed_m_s)};
       case 'controls_repeat_ext':
-        return {kind: 'repeat', count: bounded(field(block, 'TIMES'), 'repeat', LIMITS.repeat), body: statementChildren(block, 'DO')};
+        return {kind: 'repeat', count: repeatCount(block), body: statementChildren(block, 'DO')};
       case 'controls_if': {
         const result = {kind: 'if', condition: valueChild(block, 'IF0'), then: statementChildren(block, 'DO0')};
         const otherwise = block.getInputTargetBlock('ELSE');
