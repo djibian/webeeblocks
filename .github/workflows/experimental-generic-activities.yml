@@ -1,0 +1,40 @@
+name: Experimental generic activities
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/generic-activities/**'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/**'
+      - '.github/workflows/experimental-generic-activities.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generic-activity-profile:
+    if: github.head_ref == 'experiment/generic-activities' || github.ref_name == 'experiment/generic-activities'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate declarative resolver
+        run: node experiments/generic-activities/test_activity_profile.js
+
+      - name: Locate browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v "$candidate")" >> "$GITHUB_ENV"
+              "$candidate" --version
+              exit 0
+            fi
+          done
+          echo 'No Chrome/Chromium binary available on runner' >&2
+          exit 1
+
+      - name: Exercise real Blockly profile switching
+        run: python3 experiments/generic-activities/run_ui_harness.py
