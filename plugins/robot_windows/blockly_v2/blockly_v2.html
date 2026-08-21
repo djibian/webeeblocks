@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebeeBlocks Runtime v2</title>
+  <link rel="stylesheet" href="main.css">
+  <script src="../blockly/google-blockly-31ee4ea/blockly_uncompressed.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/msg/js/en.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/blocks/logic.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/blocks/loops.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/blocks/math.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js"></script>
+  <script src="../blockly/webeeblocks/activity_profiles.js"></script>
+  <script src="../blockly/webeeblocks/activities.js"></script>
+  <script src="../blockly/webeeblocks/semantic_ast.js"></script>
+  <script src="../blockly/webeeblocks/interpreter.js"></script>
+  <script src="../blockly/webeeblocks/activity_contract.js"></script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="activityTitle">WebeeBlocks</h1>
+      <p id="activityGoal"></p>
+    </div>
+    <button id="submit" disabled>Lancer le vol</button>
+  </header>
+  <section id="statusPanel" aria-live="polite">
+    <span>État : <strong id="runtimeState">INITIALISATION</strong></span>
+    <span id="runtimeDetail"></span>
+  </section>
+  <main id="blocklyDiv"></main>
+  <script src="main.js"></script>
+</body>
+</html>
