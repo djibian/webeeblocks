@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import http.server, os, pathlib, re, shutil, socketserver, subprocess, sys, threading, time
+import html, http.server, os, pathlib, re, shutil, socketserver, subprocess, sys, threading, time
 HERE=pathlib.Path(__file__).resolve().parent; REPO_ROOT=HERE.parents[1]; HARNESS=pathlib.Path('tools/ci/runtime_v2_core_harness.html')
 def browser_binary():
     for candidate in (os.environ.get('CHROME_BIN'),'google-chrome','google-chrome-stable','chromium','chromium-browser'):
@@ -20,7 +20,8 @@ def main():
         server.shutdown()
     marker='PASS Runtime v2 resolved profile -> real Blockly -> AST -> preflight -> interpreter'
     rendered=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',stdout)
-    if not rendered or rendered.group(1).strip()!=marker:
+    rendered_text=html.unescape(rendered.group(1)).strip() if rendered else None
+    if rendered_text!=marker:
         print('FAIL Runtime v2 product core',file=sys.stderr); print('browser exit:',process.returncode,file=sys.stderr); print(stderr[-4000:],file=sys.stderr); print(stdout[-8000:],file=sys.stderr); return 1
     if not timed_out and process.returncode:
         print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
