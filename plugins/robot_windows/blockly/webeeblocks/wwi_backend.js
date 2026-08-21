@@ -1,0 +1,103 @@
+(function(root, factory) {
+  if (typeof module === 'object' && module.exports)
+    module.exports = factory();
+  else
+    root.WebeeBlocksWwiBackend = factory();
+})(typeof self !== 'undefined' ? self : this, function() {
+  'use strict';
+
+  var PREFIX = 'WEBEEBLOCKS_RUNTIME_V2';
+
+  function RuntimeV2WwiBackend(robotWindow, options) {
+    if (!robotWindow || typeof robotWindow.send !== 'function')
+      throw new Error('Runtime v2 RobotWindow transport unavailable');
+    this.robotWindow = robotWindow;
+    this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
+    this.nextId = 1;
+    this.pending = Object.create(null);
+    this.ready = false;
+    this.capabilities = Object.freeze({
+      actions: ['takeoff', 'move', 'land'],
+      rangeDirections: ['front'],
+      moveDirections: ['forward', 'left'],
+      verticalDirections: []
+    });
+  }
+
+  RuntimeV2WwiBackend.prototype._request = function(parts) {
+    var self = this;
+    var id = this.nextId++;
+    return new Promise(function(resolve, reject) {
+      var timer = setTimeout(function() {
+        if (!self.pending[id]) return;
+        delete self.pending[id];
+        reject(new Error('Runtime v2 request timeout id=' + id));
+      }, self.timeoutMs);
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer};
+      try {
+        self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
+      } catch (error) {
+        clearTimeout(timer);
+        delete self.pending[id];
+        reject(error);
+      }
+    });
+  };
+
+  RuntimeV2WwiBackend.prototype.handleMessage = function(message) {
+    if (typeof message !== 'string' || message.indexOf(PREFIX + ' ') !== 0)
+      return false;
+    if (message === PREFIX + ' READY') {
+      this.ready = true;
+      return true;
+    }
+    var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|ERR ([A-Z0-9_]+))$/);
+    if (!match)
+      return true;
+    var id = Number(match[1]);
+    var pending = this.pending[id];
+    if (!pending)
+      return true;
+    clearTimeout(pending.timer);
+    delete this.pending[id];
+    if (match[2] === 'OK') {
+      pending.resolve(null);
+    } else if (match[3] !== undefined) {
+      var value = Number(match[3]);
+      if (!Number.isFinite(value))
+        pending.reject(new Error('Runtime v2 invalid numeric response id=' + id));
+      else
+        pending.resolve(value);
+    } else {
+      pending.reject(new Error('Runtime v2 backend error: ' + match[4]));
+    }
+    return true;
+  };
+
+  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) {
+    return this._request(['TAKEOFF', Number(heightM).toPrecision(17)]);
+  };
+  RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) {
+    return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]);
+  };
+  RuntimeV2WwiBackend.prototype.land = function() {
+    return this._request(['LAND']);
+  };
+  RuntimeV2WwiBackend.prototype.readRange = function(direction) {
+    return this._request(['RANGE', String(direction)]);
+  };
+  RuntimeV2WwiBackend.prototype.vertical = function() {
+    return Promise.reject(new Error('Runtime v2 Webots backend vertical capability unavailable'));
+  };
+  RuntimeV2WwiBackend.prototype.turn = function() {
+    return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable'));
+  };
+  RuntimeV2WwiBackend.prototype.wait = function() {
+    return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable'));
+  };
+  RuntimeV2WwiBackend.prototype.setSpeed = function() {
+    return Promise.reject(new Error('Runtime v2 Webots backend speed capability unavailable'));
+  };
+
+  return RuntimeV2WwiBackend;
+});
