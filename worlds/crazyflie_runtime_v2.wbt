@@ -44,6 +44,6 @@ DEF SECOND_OBSTACLE Solid {
 Crazyflie {
   name "Crazyflie Runtime v2"
   controller "crazyflie_runtime_v2"
-  window "blockly"
+  window "blockly_v2"
   synchronization TRUE
 }
