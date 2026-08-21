@@ -1,0 +1,25 @@
+name: Runtime v2 product core
+on:
+  pull_request:
+    paths:
+      - 'plugins/robot_windows/blockly/webeeblocks/**'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'
+      - 'tools/ci/runtime_v2_core_harness.html'
+      - 'tools/ci/run_runtime_v2_core_harness.py'
+      - '.github/workflows/runtime-v2-core.yml'
+  workflow_dispatch:
+jobs:
+  runtime-v2-core:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check product JavaScript syntax
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_profiles.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
+          node --check plugins/robot_windows/blockly/webeeblocks/semantic_ast.js
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+      - name: Exercise real bundled Blockly through product Runtime v2 core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
