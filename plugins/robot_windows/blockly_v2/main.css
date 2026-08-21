@@ -1,0 +1,10 @@
+html, body { margin: 0; height: 100%; font-family: sans-serif; background: #f5f6f7; color: #202124; }
+body { display: flex; flex-direction: column; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 16px 8px; background: white; border-bottom: 1px solid #d8dadd; }
+h1 { margin: 0 0 4px; font-size: 20px; }
+p { margin: 0; font-size: 14px; }
+button { padding: 9px 16px; font-weight: 600; cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+#statusPanel { display: flex; gap: 24px; padding: 8px 16px; background: white; border-bottom: 1px solid #d8dadd; font-size: 14px; }
+#runtimeDetail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#blocklyDiv { flex: 1; min-height: 0; }
