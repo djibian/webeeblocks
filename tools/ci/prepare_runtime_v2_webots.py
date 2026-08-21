@@ -11,14 +11,6 @@ script = r'''
 <script>
 (async function() {
   function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-  async function waitFor(predicate, label, timeoutMs) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (predicate()) return;
-      await sleep(25);
-    }
-    throw new Error('timeout waiting for ' + label);
-  }
   let seq = 0;
   let chain = Promise.resolve();
   function report(event, detail) {
@@ -28,10 +20,51 @@ script = r'''
     }));
     return chain;
   }
+  function snapshot() {
+    const submit = document.getElementById('submit');
+    const state = document.getElementById('runtimeState');
+    const detail = document.getElementById('runtimeDetail');
+    return {
+      readyState: document.readyState,
+      hasBlockly: typeof window.Blockly !== 'undefined',
+      hasActivities: typeof window.WebeeBlocksActivities !== 'undefined',
+      hasProfiles: typeof window.WebeeBlocksActivityProfiles !== 'undefined',
+      hasAst: typeof window.WebeeBlocksSemanticAst !== 'undefined',
+      hasInterpreter: typeof window.WebeeBlocksInterpreter !== 'undefined',
+      hasContract: typeof window.WebeeBlocksActivityContract !== 'undefined',
+      hasBackendClass: typeof window.WebeeBlocksWwiBackend !== 'undefined',
+      hasWorkspace: !!window.workspace,
+      hasRobotWindow: !!window.robotWindow,
+      hasBackend: !!window.runtimeBackend,
+      submitDisabled: submit ? submit.disabled : null,
+      state: state ? state.textContent : null,
+      detail: detail ? detail.textContent : null
+    };
+  }
+  async function waitFor(predicate, label, timeoutMs) {
+    const start = Date.now();
+    let nextDiag = start;
+    while (Date.now() - start < timeoutMs) {
+      if (predicate()) return;
+      if (Date.now() >= nextDiag) {
+        await report('DIAG', snapshot());
+        nextDiag = Date.now() + 2000;
+      }
+      await sleep(25);
+    }
+    throw new Error('timeout waiting for ' + label + ': ' + JSON.stringify(snapshot()));
+  }
+
+  window.addEventListener('error', event => report('WINDOW_ERROR', {
+    message: event.message, filename: event.filename, lineno: event.lineno, colno: event.colno
+  }));
+  window.addEventListener('unhandledrejection', event => report('UNHANDLED_REJECTION', String(event.reason)));
+  window.addEventListener('webeeblocks-runtime-v2', event => report('STATE', event.detail));
+  window.addEventListener('webeeblocks-runtime-v2-ast', event => report('AST', event.detail));
+  window.addEventListener('webeeblocks-wwi', event => report('WWI_RX', String(event.detail)));
+
   try {
-    window.addEventListener('webeeblocks-runtime-v2', event => report('STATE', event.detail));
-    window.addEventListener('webeeblocks-runtime-v2-ast', event => report('AST', event.detail));
-    window.addEventListener('webeeblocks-wwi', event => report('WWI_RX', String(event.detail)));
+    await report('HARNESS_START', snapshot());
     await waitFor(() => window.workspace && window.runtimeBackend && document.getElementById('submit') && !document.getElementById('submit').disabled, 'Runtime v2 ready', 20000);
     await report('READY', runtimeBackend.capabilities);
     workspace.clear();
@@ -46,6 +79,7 @@ script = r'''
     console.log('WEBEEBLOCKS_CI_RUNTIME_V2_DONE');
   } catch (error) {
     await report('ERROR', error && error.stack ? error.stack : String(error));
+    await report('FINAL_DIAG', snapshot());
     await chain;
     console.error('WEBEEBLOCKS_CI_RUNTIME_V2_ERROR=' + (error && error.stack ? error.stack : String(error)));
   }
