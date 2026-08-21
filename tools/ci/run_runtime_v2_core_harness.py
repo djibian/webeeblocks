@@ -12,10 +12,18 @@ def main():
     browser=browser_binary(); os.chdir(REPO_ROOT)
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
-        completed=subprocess.run([browser,'--headless','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--virtual-time-budget=5000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=30,check=False); server.shutdown()
+        process=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=5000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        timed_out=False
+        try: stdout,stderr=process.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            timed_out=True; process.kill(); stdout,stderr=process.communicate()
+        server.shutdown()
     marker='PASS Runtime v2 resolved profile -> real Blockly -> AST -> preflight -> interpreter'
-    rendered=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>', completed.stdout)
+    rendered=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',stdout)
     if not rendered or rendered.group(1).strip()!=marker:
-        print('FAIL Runtime v2 product core',file=sys.stderr); print('browser exit:',completed.returncode,file=sys.stderr); print(completed.stderr[-4000:],file=sys.stderr); print(completed.stdout[-8000:],file=sys.stderr); return 1
+        print('FAIL Runtime v2 product core',file=sys.stderr); print('browser exit:',process.returncode,file=sys.stderr); print(stderr[-4000:],file=sys.stderr); print(stdout[-8000:],file=sys.stderr); return 1
+    if not timed_out and process.returncode:
+        print(f'FAIL Runtime v2 product core: browser exited {process.returncode}',file=sys.stderr); print(stderr[-4000:],file=sys.stderr); return 1
+    if timed_out: print('WARN: headless browser required forced shutdown after emitting the exact Runtime v2 PASS DOM marker.',file=sys.stderr)
     print(marker); return 0
 if __name__=='__main__': raise SystemExit(main())
