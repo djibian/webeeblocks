@@ -6,6 +6,7 @@ on:
       - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'
       - 'tools/ci/runtime_v2_core_harness.html'
       - 'tools/ci/run_runtime_v2_core_harness.py'
+      - 'tools/ci/test_runtime_v2_preflight.js'
       - '.github/workflows/runtime-v2-core.yml'
   workflow_dispatch:
 jobs:
@@ -21,5 +22,8 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
           node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check tools/ci/test_runtime_v2_preflight.js
+      - name: Reject malformed AST before backend actions
+        run: node tools/ci/test_runtime_v2_preflight.js
       - name: Exercise real bundled Blockly through product Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
