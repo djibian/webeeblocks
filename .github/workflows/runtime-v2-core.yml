@@ -3,9 +3,15 @@ on:
   pull_request:
     paths:
       - 'plugins/robot_windows/blockly/webeeblocks/**'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blockly_uncompressed.js'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/msg/js/en.js'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/logic.js'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/loops.js'
+      - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/math.js'
       - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'
       - 'tools/ci/runtime_v2_core_harness.html'
       - 'tools/ci/run_runtime_v2_core_harness.py'
+      - 'tools/ci/test_runtime_v2_preflight.js'
       - '.github/workflows/runtime-v2-core.yml'
   workflow_dispatch:
 jobs:
@@ -21,5 +27,8 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
           node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
-      - name: Exercise real bundled Blockly through product Runtime v2 core
+          node --check tools/ci/test_runtime_v2_preflight.js
+      - name: Reject malformed AST before backend actions
+        run: node tools/ci/test_runtime_v2_preflight.js
+      - name: Exercise resolved activity through real bundled Blockly and Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py

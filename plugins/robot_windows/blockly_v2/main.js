@@ -112,8 +112,11 @@ function onWorkspaceChange(event) {
 }
 
 window.onload = async function() {
-  runtimeProfile = WebeeBlocksActivities.getProfile('reactive-obstacle-v2');
-  WebeeBlocksActivityProfiles.validateProfile(runtimeProfile, WebeeBlocksActivities.BLOCK_CATALOG);
+  runtimeProfile = WebeeBlocksActivityProfiles.resolveById(
+    WebeeBlocksActivities.DOCUMENT,
+    'reactive-obstacle-v2',
+    WebeeBlocksActivities.BLOCK_CATALOG
+  );
   document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
   document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;
   workspace = Blockly.inject('blocklyDiv', {
