@@ -42,9 +42,10 @@
 
   function resolveProfile(profile, blockCatalog) {
     validateProfile(profile, blockCatalog);
-    var resolved = clone(profile);
-    resolved.toolbox = resolved.toolbox.map(function(type) { var definition = clone(blockCatalog[type]); definition.type = type; if (resolved.parameterBounds[type]) definition.parameterBounds = clone(resolved.parameterBounds[type]); return definition; });
-    return resolved;
+    // `toolbox` has one product contract everywhere: an ordered array of Blockly
+    // block type strings. Consumers that need block metadata must resolve those
+    // types against the shared block catalog instead of changing this shape.
+    return clone(profile);
   }
 
   function resolveById(document, profileId, blockCatalog) {
