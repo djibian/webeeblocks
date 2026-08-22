@@ -27,8 +27,28 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/n
 
 cp /workspace/experiments/modern-blockly/wwi_robot_window.html "$plugin/modern_blockly_v2_experiment.html"
 cp /workspace/experiments/modern-blockly/wwi_robot_window.js "$plugin/main.js"
-cp /usr/local/webots/resources/web/wwi/RobotWindow.js "$plugin/RobotWindow.js"
-cp /usr/local/webots/resources/web/wwi/request_methods.js "$plugin/request_methods.js"
+# The R2025a Docker image does not ship resources/web/wwi. Provision the exact
+# upstream R2025a modules during the online CI setup phase, then verify their
+# immutable Git blob identities before the offline Robot Window runtime starts.
+wwi_source_base=https://raw.githubusercontent.com/cyberbotics/webots/R2025a/resources/web/wwi
+wget -q -O "$plugin/RobotWindow.js" "$wwi_source_base/RobotWindow.js"
+wget -q -O "$plugin/request_methods.js" "$wwi_source_base/request_methods.js"
+python3 - <<'PY'
+from hashlib import sha1
+from pathlib import Path
+
+expected = {
+    'RobotWindow.js': 'e8e92bb35663160b16a7c25ab2338a6f06ade62a',
+    'request_methods.js': '9b13416f4004b85570fa74fbefd68f386fa6cc72',
+}
+root = Path('/workspace/plugins/robot_windows/modern_blockly_v2_experiment')
+for name, blob_sha in expected.items():
+    data = (root / name).read_bytes()
+    actual = sha1(f'blob {len(data)}\0'.encode() + data).hexdigest()
+    if actual != blob_sha:
+        raise SystemExit(f'{name}: unexpected R2025a Git blob {actual}, expected {blob_sha}')
+print('WEBOTS_R2025A_WWI_MODULES=PASS')
+PY
 chmod +x "$wrapper" "$oracle"
 mkdir -p /root/.config/Cyberbotics
 printf '%s\n' '[RobotWindow]' 'browser=/workspace/experiments/modern-blockly/webots_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
