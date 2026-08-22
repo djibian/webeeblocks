@@ -19,7 +19,7 @@ permissions:
 jobs:
   modern-blockly:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,10 +63,16 @@ jobs:
         shell: bash
         run: bash experiments/modern-blockly/run_robot_window_gate.sh
 
+      - name: Prove modern Blockly through real Runtime v2 WWI
+        shell: bash
+        run: bash experiments/modern-blockly/run_wwi_gate.sh
+
       - name: Upload modern Blockly diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: modern-blockly-r2025a-experiment
-          path: ci-artifacts/modern-blockly/
+          path: |
+            ci-artifacts/modern-blockly/
+            ci-artifacts/modern-blockly-wwi/
           if-no-files-found: error
