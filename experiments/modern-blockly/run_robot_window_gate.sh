@@ -6,7 +6,7 @@ artifact_dir="$repo_root/ci-artifacts/modern-blockly"
 mkdir -p "$artifact_dir"
 
 # Provisioning may use the network. The runtime below must not depend on it.
-docker run --rm \
+docker run --rm -i \
   -e LIBGL_ALWAYS_SOFTWARE=true \
   -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
   -v "$repo_root:/workspace" \
