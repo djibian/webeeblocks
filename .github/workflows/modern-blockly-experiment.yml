@@ -1,0 +1,29 @@
+name: Experimental modern Blockly semantic equivalence
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/modern-blockly/**'
+      - 'plugins/robot_windows/blockly/webeeblocks/**'
+      - 'controllers/Blockly_Programs/CrazyflieReactiveV2.xml'
+      - '.github/workflows/modern-blockly-experiment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modern-blockly-ast:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pinned Blockly experiment dependency
+        working-directory: experiments/modern-blockly
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Prove profile, XML migration, JSON round-trip and AST equivalence
+        working-directory: experiments/modern-blockly
+        run: npm test
