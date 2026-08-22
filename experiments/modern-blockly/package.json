@@ -1,0 +1,12 @@
+{
+  "name": "webeeblocks-modern-blockly-experiment",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Isolated Blockly v13 semantic-equivalence experiment for Runtime v2.",
+  "scripts": {
+    "test": "node ast_equivalence.js"
+  },
+  "dependencies": {
+    "blockly": "13.2.1"
+  }
+}
