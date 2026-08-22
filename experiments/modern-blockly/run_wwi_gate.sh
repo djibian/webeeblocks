@@ -17,6 +17,7 @@ artifact_dir=/workspace/ci-artifacts/modern-blockly-wwi
 plugin=/workspace/plugins/robot_windows/modern_blockly_v2_experiment
 world=/workspace/worlds/modern_blockly_v2_experiment.wbt
 wrapper=/workspace/experiments/modern-blockly/webots_browser.sh
+close_chrome=/workspace/experiments/modern-blockly/close_chrome_cdp.py
 oracle=/workspace/experiments/modern-blockly/netlog_oracle.py
 mkdir -p "$artifact_dir"
 
@@ -49,9 +50,39 @@ for name, blob_sha in expected.items():
         raise SystemExit(f'{name}: unexpected R2025a Git blob {actual}, expected {blob_sha}')
 print('WEBOTS_R2025A_WWI_MODULES=PASS')
 PY
-chmod +x "$wrapper" "$oracle"
+chmod +x "$wrapper" "$close_chrome" "$oracle"
 mkdir -p /root/.config/Cyberbotics
 printf '%s\n' '[RobotWindow]' 'browser=/workspace/experiments/modern-blockly/webots_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
+
+stop_chrome() {
+  local pid_file=$1
+  if [[ ! -s "$pid_file" ]]; then
+    echo '::error::Chrome PID missing'
+    return 1
+  fi
+  local chrome_pid
+  chrome_pid=$(cat "$pid_file")
+
+  # Match the already-proven #58 shutdown contract: request Browser.close over
+  # DevTools so --log-net-log can finish writing valid JSON. Signals are cleanup
+  # fallback only and never count as a successful WWI oracle run.
+  if ! python3 "$close_chrome"; then
+    echo '::error::Could not request graceful Chrome Browser.close'
+    kill -TERM "$chrome_pid" 2>/dev/null || true
+    return 1
+  fi
+
+  for _ in $(seq 1 100); do
+    kill -0 "$chrome_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$chrome_pid" 2>/dev/null; then
+    echo '::error::Chrome did not exit after Browser.close'
+    kill -TERM "$chrome_pid" 2>/dev/null || true
+    return 1
+  fi
+  echo 'CHROME_GRACEFUL_SHUTDOWN_WWI=PASS'
+}
 
 rm -f "$artifact_dir"/* /workspace/ci-artifacts/modern-blockly/browser-launch.log /workspace/ci-artifacts/modern-blockly/chrome.pid /workspace/ci-artifacts/modern-blockly/chrome-netlog.json
 python3 /workspace/tools/ci/runtime_wwi_event_server.py --output "$artifact_dir/browser-events.jsonl" >"$artifact_dir/event-server.log" 2>&1 &
@@ -85,15 +116,7 @@ if (( done_seen == 0 )); then
   exit 1
 fi
 
-chrome_pid_file=/workspace/ci-artifacts/modern-blockly/chrome.pid
-if [[ ! -s "$chrome_pid_file" ]]; then
-  echo '::error::Chrome PID missing'
-  exit 1
-fi
-chrome_pid=$(cat "$chrome_pid_file")
-kill -TERM "$chrome_pid" 2>/dev/null || true
-for _ in $(seq 1 50); do kill -0 "$chrome_pid" 2>/dev/null || break; sleep 0.1; done
-if kill -0 "$chrome_pid" 2>/dev/null; then echo '::error::Chrome did not stop gracefully'; exit 1; fi
+stop_chrome /workspace/ci-artifacts/modern-blockly/chrome.pid
 
 python3 - <<'PY'
 import json
