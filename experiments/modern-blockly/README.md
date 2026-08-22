@@ -3,12 +3,26 @@
 Status: isolated experiment only. This branch must not modify `webots-ci` or `main`.
 
 ## Gate
-Runtime v2 Webots/WWI #53 is technically converged and merged. Verification proved the causal Runtime v2 chain on head `914d7944…`; the local Ubuntu/Webots baseline remains a promotion gate only.
+Runtime v2 Webots/WWI #53 is technically converged and merged. Verification proved the causal Runtime v2 chain; the local Ubuntu/Webots baseline remains a promotion gate only.
 
 ## Fixed semantic boundary
 `activity -> Blockly -> webeeblocks-ast-v1 -> preflight -> interpreter -> backend`
 
 Runtime v2 must not reintroduce Python generation.
+
+## First Engineering increment
+This branch pins `blockly@13.2.1` and runs the current product Runtime v2 profile resolver, activity contract and semantic compiler directly against modern Blockly. It does not copy or fork the AST compiler.
+
+The dedicated gate must prove, for the existing `reactive-obstacle-v2` activity and `CrazyflieReactiveV2.xml` fixture:
+
+- the toolbox type list is derived from the resolved product profile;
+- product profile field bounds still constrain modern `FieldNumber` fields;
+- historical XML imports explicitly as `LEGACY_XML_MIGRATION=PASS` or fails loudly as a migration rejection;
+- the imported workspace compiles to the exact current `webeeblocks-ast-v1` oracle;
+- modern Blockly JSON save/load round-trips to the exact same AST;
+- the experiment runs against exactly Blockly 13.2.1.
+
+This is deliberately headless semantic evidence. It does **not** yet prove a Robot Window bundle, renderer choice, keyboard accessibility or Webots initialization.
 
 ## Baseline dependency hypothesis
 Start with pinned `blockly@13.2.1` from npm and a reproducible local bundle/build suitable for a Webots Robot Window. Do not rely on CDN/network access at runtime.
