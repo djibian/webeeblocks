@@ -51,9 +51,11 @@ fs.copyFileSync(historicalSpritePng, path.join(vendorDir, 'media', 'sprites.png'
 const blocklyBundlePath = path.join(vendorDir, 'blockly_compressed.js');
 let blocklyBundle = fs.readFileSync(blocklyBundlePath, 'utf8');
 const spriteSvgMatches = blocklyBundle.match(/sprites\.svg/g) || [];
-if (spriteSvgMatches.length !== 1)
-  throw new Error(`expected exactly one Blockly sprites.svg reference, found ${spriteSvgMatches.length}`);
-blocklyBundle = blocklyBundle.replace('sprites.svg', 'sprites.png');
+if (spriteSvgMatches.length !== 3)
+  throw new Error(`expected exactly three Blockly sprites.svg references, found ${spriteSvgMatches.length}`);
+blocklyBundle = blocklyBundle.replaceAll('sprites.svg', 'sprites.png');
+if (blocklyBundle.includes('sprites.svg'))
+  throw new Error('Blockly sprites.svg reference remained after compatibility rewrite');
 fs.writeFileSync(blocklyBundlePath, blocklyBundle, 'utf8');
 
 const pkg = JSON.parse(fs.readFileSync(path.join(blocklyRoot, 'package.json'), 'utf8'));
