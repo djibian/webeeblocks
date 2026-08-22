@@ -117,7 +117,9 @@ script = r'''
       throw new Error('unexpected runtime Blockly.VERSION=' + String(Blockly.VERSION || ''));
     await report('BLOCKLY_VERSION', String(Blockly.VERSION));
     workspace.clear();
-    Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(__FIXTURE__), workspace);
+    const fixtureDom = Blockly.utils.xml.textToDom(__FIXTURE__);
+    Blockly.Xml.domToWorkspace(fixtureDom, workspace);
+    await report('FIXTURE_IMPORTED', {topBlocks: workspace.getTopBlocks(false).length});
     await sleep(50);
 
     const submit = document.getElementById('submit');
