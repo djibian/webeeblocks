@@ -6,6 +6,13 @@ const path = require('node:path');
 const pluginDir = __dirname;
 const blocklyRoot = path.join(pluginDir, 'node_modules', 'blockly');
 const vendorDir = path.join(pluginDir, 'vendor');
+const historicalMediaDir = path.join(
+  pluginDir,
+  '..',
+  'blockly',
+  'google-blockly-31ee4ea',
+  'media'
+);
 
 function requirePath(target) {
   if (!fs.existsSync(target))
@@ -28,10 +35,19 @@ copyFile(path.join('msg', 'en.js'));
 fs.cpSync(requirePath(path.join(blocklyRoot, 'media')), path.join(vendorDir, 'media'), {recursive: true});
 
 // Webots R2025a's Robot Window server does not serve SVG assets. Blockly 13.2.1
-// uses sprites.svg for the trashcan/zoom sprite but ships the raster-equivalent
-// sprites.png in the same media directory. Apply one explicit build-time
-// compatibility rewrite and fail closed if the upstream bundle shape changes.
-requirePath(path.join(vendorDir, 'media', 'sprites.png'));
+// uses sprites.svg for the trashcan/zoom sprite, while the preserved Blockly
+// runtime already contains the rasterized sprites.png generated from the same
+// SVG. Reuse that PNG only if both SVG sources are byte-for-byte identical;
+// otherwise fail closed instead of silently substituting a mismatched UI asset.
+const modernSpriteSvg = requirePath(path.join(blocklyRoot, 'media', 'sprites.svg'));
+const historicalSpriteSvg = requirePath(path.join(historicalMediaDir, 'sprites.svg'));
+const historicalSpritePng = requirePath(path.join(historicalMediaDir, 'sprites.png'));
+const modernSvgBytes = fs.readFileSync(modernSpriteSvg);
+const historicalSvgBytes = fs.readFileSync(historicalSpriteSvg);
+if (!modernSvgBytes.equals(historicalSvgBytes))
+  throw new Error('Blockly 13.2.1 sprites.svg differs from the preserved raster source');
+fs.copyFileSync(historicalSpritePng, path.join(vendorDir, 'media', 'sprites.png'));
+
 const blocklyBundlePath = path.join(vendorDir, 'blockly_compressed.js');
 let blocklyBundle = fs.readFileSync(blocklyBundlePath, 'utf8');
 const spriteSvgMatches = blocklyBundle.match(/sprites\.svg/g) || [];
