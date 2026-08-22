@@ -68,7 +68,7 @@ function receiveMessage(value) {
 }
 
 async function runProgram() {
-  if (runtimeRunning || !runtimeBackend)
+  if (runtimeRunning || !runtimeBackend || !runtimeBackend.ready)
     return;
   var submit = document.getElementById('submit');
   submit.disabled = true;
@@ -93,7 +93,7 @@ async function runProgram() {
     console.error(error);
     setRuntimeStatus('ERREUR', error && error.message ? error.message : String(error));
   } finally {
-    submit.disabled = false;
+    submit.disabled = !runtimeBackend.ready;
   }
 }
 
@@ -130,13 +130,15 @@ window.onload = async function() {
   try {
     var module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
     robotWindow = new module.default();
-    robotWindow.receive = receiveMessage;
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000});
+    robotWindow.receive = receiveMessage;
+    setRuntimeStatus('INITIALISATION', 'Attente du Runtime v2');
+    await runtimeBackend.waitUntilReady();
     document.getElementById('submit').disabled = false;
     setRuntimeStatus('PRÊT', 'Runtime v2 connecté');
   } catch (error) {
     console.error(error);
-    setRuntimeStatus('ERREUR', 'Connexion Robot Window impossible');
+    setRuntimeStatus('ERREUR', error && error.message ? error.message : 'Connexion Robot Window impossible');
   }
 };
 
