@@ -39,8 +39,17 @@ copyTree(path.join(blocklyRoot, 'media'), path.join(vendorDir, 'media'));
 
 copyFile(path.join(__dirname, 'robot_window.html'), path.join(pluginDir, `${pluginName}.html`));
 copyFile(path.join(__dirname, 'robot_window.js'), path.join(pluginDir, 'main.js'));
-copyFile(path.join(__dirname, 'expected_ast.json'), path.join(pluginDir, 'expected_ast.json'));
-copyFile(path.join(root, 'controllers', 'Blockly_Programs', 'CrazyflieReactiveV2.xml'), path.join(pluginDir, 'CrazyflieReactiveV2.xml'));
+
+const fixtureXml = fs.readFileSync(
+  requireFile(path.join(root, 'controllers', 'Blockly_Programs', 'CrazyflieReactiveV2.xml')),
+  'utf8'
+);
+const expectedAst = JSON.parse(fs.readFileSync(requireFile(path.join(__dirname, 'expected_ast.json')), 'utf8'));
+fs.writeFileSync(
+  path.join(pluginDir, 'fixture_data.js'),
+  `'use strict';\nwindow.WebeeBlocksModernBlocklyFixture = ${JSON.stringify({xml: fixtureXml, expectedAst})};\n`,
+  'utf8'
+);
 
 const world = fs.readFileSync(requireFile(worldSource), 'utf8');
 if (!world.includes('window "blockly_v2"'))
@@ -51,7 +60,8 @@ fs.writeFileSync(projectTarget, 'Webots Project File version R2025a\nrobotWindow
 const forbidden = /https?:\/\/(?!127\.0\.0\.1(?::\d+)?\/event)/g;
 for (const file of [
   path.join(pluginDir, `${pluginName}.html`),
-  path.join(pluginDir, 'main.js')
+  path.join(pluginDir, 'main.js'),
+  path.join(pluginDir, 'fixture_data.js')
 ]) {
   const text = fs.readFileSync(file, 'utf8');
   const match = text.match(forbidden);
