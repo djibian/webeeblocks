@@ -105,10 +105,12 @@ jobs:
           set -euo pipefail
           test -s ci-artifacts/modern-blockly/browser-launch.log
           test -s ci-artifacts/modern-blockly/browser-events.jsonl
+          test -s ci-artifacts/modern-blockly/chrome-netlog.json
           grep -Fq 'modern_blockly_v2_experiment' ci-artifacts/modern-blockly/browser-launch.log
           ! grep -Fq 'ERROR:' ci-artifacts/modern-blockly/webots.log
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
           from urllib.parse import urlparse
 
@@ -128,10 +130,29 @@ jobs:
           equivalent = next(event for event in events if event.get('event') == 'AST_EQUIVALENT')
           expected = json.loads(Path('experiments/modern-blockly/expected_ast.json').read_text())
           assert equivalent['detail']['ast'] == expected, (equivalent['detail']['ast'], expected)
-          for resource in equivalent['detail']['resources']:
-              parsed = urlparse(resource)
-              if parsed.scheme in {'http', 'https'}:
-                  assert parsed.hostname in {'127.0.0.1', 'localhost'}, f'external runtime resource: {resource}'
+
+          # Independent runtime network oracle: inspect Chrome NetLog rather than
+          # trusting the page's own resource list. Provisioning happens before
+          # Chrome starts, so any URL here belongs to browser runtime.
+          netlog = json.loads(Path('ci-artifacts/modern-blockly/chrome-netlog.json').read_text())
+          external = set()
+          url_pattern = re.compile(r'https?://[^\s"<>]+')
+
+          def scan(value):
+              if isinstance(value, dict):
+                  for child in value.values():
+                      scan(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      scan(child)
+              elif isinstance(value, str):
+                  for raw in url_pattern.findall(value):
+                      parsed = urlparse(raw.rstrip('),.;'))
+                      if parsed.hostname not in {'127.0.0.1', 'localhost'}:
+                          external.add(raw)
+
+          scan(netlog.get('events', []))
+          assert not external, f'external runtime network attempts in Chrome NetLog: {sorted(external)}'
           print('PASS: real R2025a Robot Window initialized pinned modern Blockly offline and preserved Runtime v2 AST.')
           PY
 
