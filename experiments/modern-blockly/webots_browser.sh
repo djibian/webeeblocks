@@ -16,6 +16,8 @@ exec /usr/bin/google-chrome \
   --no-default-browser-check \
   --no-proxy-server \
   --host-resolver-rules='MAP * 0.0.0.0, EXCLUDE localhost, EXCLUDE 127.0.0.1' \
+  --log-net-log=/workspace/ci-artifacts/modern-blockly/chrome-netlog.json \
+  --net-log-capture-mode=Everything \
   --enable-logging=stderr \
   --v=1 \
   "$@"
