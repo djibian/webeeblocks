@@ -37,17 +37,6 @@
     };
   }
 
-  async function loadText(name) {
-    const response = await fetch(name, {cache: 'no-store'});
-    if (!response.ok)
-      throw new Error(`${name}: HTTP ${response.status}`);
-    return response.text();
-  }
-
-  async function loadJson(name) {
-    return JSON.parse(await loadText(name));
-  }
-
   async function main() {
     document.getElementById('status').textContent = 'PAGE_LOADED';
     await report('PAGE_LOADED', {
@@ -63,6 +52,10 @@
     if (!window.WebeeBlocksActivityProfiles || !window.WebeeBlocksActivities ||
         !window.WebeeBlocksSemanticAst || !window.WebeeBlocksActivityContract)
       throw new Error('Runtime v2 product modules missing');
+    if (!window.WebeeBlocksModernBlocklyFixture ||
+        typeof window.WebeeBlocksModernBlocklyFixture.xml !== 'string' ||
+        !window.WebeeBlocksModernBlocklyFixture.expectedAst)
+      throw new Error('embedded modern Blockly fixture missing');
 
     document.getElementById('status').textContent = 'BLOCKLY_INITIALIZED';
     await report('BLOCKLY_INITIALIZED', {version: Blockly.VERSION});
@@ -80,6 +73,7 @@
     const workspace = Blockly.inject('blocklyDiv', {
       toolbox: toolboxFromProfile(profile),
       scrollbars: true,
+      sounds: false,
       media: 'vendor/media/'
     });
     window.modernBlocklyExperimentWorkspace = workspace;
@@ -102,17 +96,16 @@
       takeoffBounds: profile.parameterBounds.webeeblocks_v2_takeoff.HEIGHT
     });
 
-    const xmlText = await loadText('CrazyflieReactiveV2.xml');
-    const xml = Blockly.utils.xml.textToDom(xmlText);
+    const fixture = window.WebeeBlocksModernBlocklyFixture;
+    const xml = Blockly.utils.xml.textToDom(fixture.xml);
     Blockly.Xml.domToWorkspace(xml, workspace);
     WebeeBlocksActivityContract.preflightWorkspace(profile, workspace);
     WebeeBlocksActivityContract.applyFieldBounds(profile, workspace);
     const ast = WebeeBlocksSemanticAst.compileWorkspace(workspace);
     WebeeBlocksActivityContract.preflightAst(profile, ast);
 
-    const expected = await loadJson('expected_ast.json');
-    if (!sameJson(ast, expected))
-      throw new Error(`AST mismatch: actual=${JSON.stringify(ast)} expected=${JSON.stringify(expected)}`);
+    if (!sameJson(ast, fixture.expectedAst))
+      throw new Error(`AST mismatch: actual=${JSON.stringify(ast)} expected=${JSON.stringify(fixture.expectedAst)}`);
 
     const resources = performance.getEntriesByType('resource').map(entry => entry.name);
     document.getElementById('status').textContent = 'AST_EQUIVALENT';
