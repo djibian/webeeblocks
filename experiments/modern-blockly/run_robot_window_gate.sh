@@ -19,6 +19,7 @@ artifact_dir=/workspace/ci-artifacts/modern-blockly
 plugin_html=/workspace/plugins/robot_windows/modern_blockly_v2_experiment/modern_blockly_v2_experiment.html
 sentinel_url=https://example.invalid/webeeblocks-required-blockly.js
 wrapper=/workspace/experiments/modern-blockly/webots_browser.sh
+close_chrome=/workspace/experiments/modern-blockly/close_chrome_cdp.py
 oracle=/workspace/experiments/modern-blockly/netlog_oracle.py
 world=/workspace/worlds/modern_blockly_v2_experiment.wbt
 mkdir -p "$artifact_dir"
@@ -27,7 +28,7 @@ apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
-chmod +x "$wrapper" "$oracle"
+chmod +x "$wrapper" "$close_chrome" "$oracle"
 mkdir -p /root/.config/Cyberbotics
 printf '%s\n' \
   '[RobotWindow]' \
@@ -43,15 +44,27 @@ stop_chrome() {
   fi
   local chrome_pid
   chrome_pid=$(cat "$pid_file")
-  kill -TERM "$chrome_pid" 2>/dev/null || true
-  for _ in $(seq 1 50); do
+
+  # A signal can kill headless Chrome before --log-net-log closes the JSON file.
+  # Use the browser-level DevTools command instead so Chrome performs its normal
+  # shutdown sequence and flushes a complete NetLog. A signal remains cleanup
+  # fallback only, and such a fallback does not count as a successful oracle run.
+  if ! python3 "$close_chrome"; then
+    echo "::error::Could not request graceful Chrome Browser.close"
+    kill -TERM "$chrome_pid" 2>/dev/null || true
+    return 1
+  fi
+
+  for _ in $(seq 1 100); do
     kill -0 "$chrome_pid" 2>/dev/null || break
     sleep 0.1
   done
   if kill -0 "$chrome_pid" 2>/dev/null; then
-    echo "::error::Chrome did not stop gracefully"
+    echo "::error::Chrome did not exit after Browser.close"
+    kill -TERM "$chrome_pid" 2>/dev/null || true
     return 1
   fi
+  echo 'CHROME_GRACEFUL_SHUTDOWN=PASS'
 }
 
 stop_webots() {
