@@ -102,7 +102,7 @@ jobs:
             exit 1
           fi
 
-      - name: Prove pre-READY gate, fresh range decisions and dynamic STOP actions
+      - name: Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions
         shell: bash
         run: |
           set -euo pipefail
@@ -118,6 +118,25 @@ jobs:
           python3 - <<'PY'
           import json, re
           from pathlib import Path
+
+          event_path = Path('ci-artifacts/runtime-v2-webots/browser-events.jsonl')
+          events = [json.loads(line) for line in event_path.read_text().splitlines() if line.strip()]
+          print('BROWSER_EVENTS:')
+          for event in events:
+              print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+
+          browser_errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
+          if browser_errors:
+              first = browser_errors[0]
+              raise AssertionError('first browser error: ' + json.dumps(first, ensure_ascii=False, sort_keys=True))
+
+          version_events = [e for e in events if e.get('event') == 'BLOCKLY_VERSION']
+          assert version_events, 'missing BLOCKLY_VERSION runtime event'
+          assert version_events[0].get('detail') == '13.2.1', version_events[0]
+
+          snapshots = [e.get('detail') for e in events if e.get('event') in ('HARNESS_START', 'DIAG', 'PRE_READY', 'READY', 'FINAL_DIAG') and isinstance(e.get('detail'), dict)]
+          runtime_versions = [s.get('blocklyVersion') for s in snapshots if s.get('blocklyVersion')]
+          assert '13.2.1' in runtime_versions, runtime_versions
 
           log = Path('ci-artifacts/runtime-v2-webots/webots.log').read_text(errors='replace')
           trace = []
@@ -143,15 +162,13 @@ jobs:
           assert len(ranges) == 3, ranges
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
-          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-webots/browser-events.jsonl').read_text().splitlines() if line.strip()]
-          assert not any(e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION') for e in events), events
-
           def first_index(predicate, label):
               for index, event in enumerate(events):
                   if predicate(event):
                       return index
               raise AssertionError('missing event: ' + label)
 
+          version = first_index(lambda e: e.get('event') == 'BLOCKLY_VERSION' and e.get('detail') == '13.2.1', 'BLOCKLY_VERSION 13.2.1')
           pre = first_index(lambda e: e.get('event') == 'PRE_READY', 'PRE_READY')
           guard = first_index(lambda e: e.get('event') == 'PRE_READY_GUARD_OK', 'PRE_READY_GUARD_OK')
           ready_rx = first_index(lambda e: e.get('event') == 'WWI_RX' and e.get('detail') == 'WEBEEBLOCKS_RUNTIME_V2 READY', 'READY WWI_RX')
@@ -159,11 +176,13 @@ jobs:
           ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
           submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert pre < guard < ready_rx < ready < ast < submit < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < done, [(e.get('event'), e.get('detail')) for e in events]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']
           ready_detail = events[ready]['detail']
+          assert pre_detail['blocklyVersion'] == '13.2.1', pre_detail
+          assert ready_detail['blocklyVersion'] == '13.2.1', ready_detail
           assert pre_detail['backendReady'] is False and pre_detail['submitDisabled'] is True and pre_detail['state'] == 'INITIALISATION', pre_detail
           assert guard_detail['backendReady'] is False and guard_detail['submitDisabled'] is True and guard_detail['state'] == 'INITIALISATION', guard_detail
           assert guard_detail['backendNextId'] == pre_detail['backendNextId'], (pre_detail, guard_detail)
@@ -172,7 +191,7 @@ jobs:
 
           states = [e.get('detail', {}).get('state') for e in events if e.get('event') == 'STATE' and isinstance(e.get('detail'), dict)]
           assert 'EN VOL' in states and 'TERMINÉ' in states, states
-          print('PASS: causal pre-READY guard -> real READY -> Blockly AST -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
+          print('PASS: Blockly.VERSION=13.2.1 -> causal pre-READY guard -> real READY -> Blockly AST -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
           PY
 
       - name: Upload Runtime v2 diagnostics
