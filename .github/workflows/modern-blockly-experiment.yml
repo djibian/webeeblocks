@@ -71,7 +71,13 @@ jobs:
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc '
-              set -e
+              set -euo pipefail
+              artifact_dir=/workspace/ci-artifacts/modern-blockly
+              events="$artifact_dir/browser-events.jsonl"
+              chrome_pid_file="$artifact_dir/chrome.pid"
+              netlog="$artifact_dir/chrome-netlog.json"
+              mkdir -p "$artifact_dir"
+
               apt-get update >/dev/null
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
               wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -83,18 +89,76 @@ jobs:
                 "browser=/workspace/experiments/modern-blockly/webots_browser.sh" \
                 "newBrowserWindow=false" \
                 > /root/.config/Cyberbotics/Webots-R2025a.conf
-              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
-                --output /workspace/ci-artifacts/modern-blockly/browser-events.jsonl &
+
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output "$events" &
               event_server_pid=$!
-              trap "chmod a+r /workspace/ci-artifacts/modern-blockly/chrome-netlog.json 2>/dev/null || true; kill $event_server_pid 2>/dev/null || true" EXIT
+              webots_pid='"'"''"'"'
+              cleanup() {
+                if [[ -n "$webots_pid" ]] && kill -0 "$webots_pid" 2>/dev/null; then
+                  kill -TERM "$webots_pid" 2>/dev/null || true
+                  wait "$webots_pid" 2>/dev/null || true
+                fi
+                kill "$event_server_pid" 2>/dev/null || true
+              }
+              trap cleanup EXIT
               sleep 0.5
-              timeout -k 5s 40s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/modern_blockly_v2_experiment.wbt
+
+              xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/modern_blockly_v2_experiment.wbt &
+              webots_pid=$!
+              deadline=$((SECONDS + 40))
+              ast_seen=0
+              while kill -0 "$webots_pid" 2>/dev/null; do
+                if [[ -s "$events" ]] && grep -Fq '"'"'"event":"AST_EQUIVALENT"'"'"' "$events"; then
+                  ast_seen=1
+                  break
+                fi
+                if (( SECONDS >= deadline )); then
+                  break
+                fi
+                sleep 0.25
+              done
+
+              if (( ast_seen == 0 )); then
+                echo "::error::AST_EQUIVALENT was not observed before the Webots deadline"
+                exit 124
+              fi
+
+              # The causal contract is already observed. Stop Chrome gracefully so
+              # --log-net-log writes a complete JSON document before we inspect it.
+              if [[ ! -s "$chrome_pid_file" ]]; then
+                echo "::error::Chrome PID was not recorded"
+                exit 1
+              fi
+              chrome_pid=$(cat "$chrome_pid_file")
+              kill -TERM "$chrome_pid" 2>/dev/null || true
+              for _ in $(seq 1 50); do
+                kill -0 "$chrome_pid" 2>/dev/null || break
+                sleep 0.1
+              done
+              if kill -0 "$chrome_pid" 2>/dev/null; then
+                echo "::error::Chrome did not stop gracefully after AST_EQUIVALENT"
+                exit 1
+              fi
+
+              # Fail here rather than accepting a truncated network oracle.
+              python3 - <<PY
+import json
+from pathlib import Path
+path = Path("$netlog")
+with path.open("r", encoding="utf-8") as handle:
+    json.load(handle)
+print("CHROME_NETLOG_COMPLETE=PASS")
+PY
+
+              kill -TERM "$webots_pid" 2>/dev/null || true
+              wait "$webots_pid" 2>/dev/null || true
+              webots_pid='"'"''"'"'
             ' \
             2>&1 | tee ci-artifacts/modern-blockly/webots.log
           code=${PIPESTATUS[0]}
           set -e
           echo "$code" | tee ci-artifacts/modern-blockly/exit-code.txt
-          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+          if [ "$code" -ne 0 ]; then
             echo "::error::Modern Blockly Robot Window run exited unexpectedly with $code"
             exit 1
           fi
@@ -107,6 +171,7 @@ jobs:
           test -s ci-artifacts/modern-blockly/browser-events.jsonl
           test -s ci-artifacts/modern-blockly/chrome-netlog.json
           grep -Fq 'modern_blockly_v2_experiment' ci-artifacts/modern-blockly/browser-launch.log
+          grep -Fq 'CHROME_NETLOG_COMPLETE=PASS' ci-artifacts/modern-blockly/webots.log
           ! grep -Fq 'ERROR:' ci-artifacts/modern-blockly/webots.log
           python3 - <<'PY'
           import json
