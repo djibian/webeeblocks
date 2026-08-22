@@ -84,7 +84,7 @@ jobs:
             exit 1
           fi
 
-      - name: Prove fresh range decisions and dynamic STOP actions
+      - name: Prove pre-READY gate, fresh range decisions and dynamic STOP actions
         shell: bash
         run: |
           set -euo pipefail
@@ -92,6 +92,8 @@ jobs:
           EVENTS=ci-artifacts/runtime-v2-webots/browser-events.jsonl
           test -s ci-artifacts/runtime-v2-webots/browser-launch.log
           test -s "$EVENTS"
+          grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_BEGIN' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_END' "$LOG"
           grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' "$LOG"
           ! grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 FATAL' "$LOG"
           ! grep -Fq 'ERROR:' "$LOG"
@@ -124,12 +126,35 @@ jobs:
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
           events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-webots/browser-events.jsonl').read_text().splitlines() if line.strip()]
-          assert not any(e.get('event') == 'ERROR' for e in events), events
-          assert any(e.get('event') == 'AST' for e in events), events
+          assert not any(e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION') for e in events), events
+
+          def first_index(predicate, label):
+              for index, event in enumerate(events):
+                  if predicate(event):
+                      return index
+              raise AssertionError('missing event: ' + label)
+
+          pre = first_index(lambda e: e.get('event') == 'PRE_READY', 'PRE_READY')
+          guard = first_index(lambda e: e.get('event') == 'PRE_READY_GUARD_OK', 'PRE_READY_GUARD_OK')
+          ready_rx = first_index(lambda e: e.get('event') == 'WWI_RX' and e.get('detail') == 'WEBEEBLOCKS_RUNTIME_V2 READY', 'READY WWI_RX')
+          ready = first_index(lambda e: e.get('event') == 'READY', 'READY')
+          ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
+          submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
+          done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
+          assert pre < guard < ready_rx < ready < ast < submit < done, [(e.get('event'), e.get('detail')) for e in events]
+
+          pre_detail = events[pre]['detail']
+          guard_detail = events[guard]['detail']
+          ready_detail = events[ready]['detail']
+          assert pre_detail['backendReady'] is False and pre_detail['submitDisabled'] is True and pre_detail['state'] == 'INITIALISATION', pre_detail
+          assert guard_detail['backendReady'] is False and guard_detail['submitDisabled'] is True and guard_detail['state'] == 'INITIALISATION', guard_detail
+          assert guard_detail['backendNextId'] == pre_detail['backendNextId'], (pre_detail, guard_detail)
+          assert guard_detail['backendPending'] == 0 and guard_detail['astEvents'] == 0 and guard_detail['runtimeRunning'] is False, guard_detail
+          assert ready_detail['backendReady'] is True and ready_detail['submitDisabled'] is False and ready_detail['state'] == 'PRÊT', ready_detail
+
           states = [e.get('detail', {}).get('state') for e in events if e.get('event') == 'STATE' and isinstance(e.get('detail'), dict)]
           assert 'EN VOL' in states and 'TERMINÉ' in states, states
-          assert any(e.get('event') == 'DONE' for e in events), events
-          print('PASS: real Blockly -> AST -> shared interpreter -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
+          print('PASS: causal pre-READY guard -> real READY -> Blockly AST -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
           PY
 
       - name: Upload Runtime v2 diagnostics

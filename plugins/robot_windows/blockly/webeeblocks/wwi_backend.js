@@ -16,6 +16,7 @@
     this.nextId = 1;
     this.pending = Object.create(null);
     this.ready = false;
+    this.readyWaiters = [];
     this.capabilities = Object.freeze({
       actions: ['takeoff', 'move', 'land'],
       rangeDirections: ['front'],
@@ -23,6 +24,22 @@
       verticalDirections: []
     });
   }
+
+  RuntimeV2WwiBackend.prototype.waitUntilReady = function() {
+    if (this.ready)
+      return Promise.resolve();
+    var self = this;
+    return new Promise(function(resolve, reject) {
+      var waiter = {resolve: resolve, reject: reject, timer: null};
+      waiter.timer = setTimeout(function() {
+        var index = self.readyWaiters.indexOf(waiter);
+        if (index !== -1)
+          self.readyWaiters.splice(index, 1);
+        reject(new Error('Runtime v2 READY timeout'));
+      }, self.timeoutMs);
+      self.readyWaiters.push(waiter);
+    });
+  };
 
   RuntimeV2WwiBackend.prototype._request = function(parts) {
     var self = this;
@@ -49,6 +66,11 @@
       return false;
     if (message === PREFIX + ' READY') {
       this.ready = true;
+      var waiters = this.readyWaiters.splice(0);
+      waiters.forEach(function(waiter) {
+        clearTimeout(waiter.timer);
+        waiter.resolve();
+      });
       return true;
     }
     var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|ERR ([A-Z0-9_]+))$/);
