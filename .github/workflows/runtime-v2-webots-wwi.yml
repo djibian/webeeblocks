@@ -14,11 +14,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+          node --check vendor/blockly_compressed.js
+          node --check vendor/blocks_compressed.js
+          test -s vendor/msg/en.js
+          test -d vendor/media
+
       - name: Validate Runtime v2 product sources
         run: |
           node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
           node --check plugins/robot_windows/blockly_v2/main.js
           python3 -m py_compile tools/ci/prepare_runtime_v2_webots.py
+          grep -Fq 'vendor/blockly_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          grep -Fq 'vendor/blocks_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          ! grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html
           grep -Fq 'window "blockly_v2"' worlds/crazyflie_runtime_v2.wbt
           ! grep -Rq 'wb_supervisor_' controllers/crazyflie_runtime_v2
           ! grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2
