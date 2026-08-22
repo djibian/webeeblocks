@@ -36,6 +36,8 @@ trap 'exit 143' TERM INT HUP
   --no-default-browser-check \
   --no-proxy-server \
   --host-resolver-rules='MAP * 0.0.0.0, EXCLUDE localhost, EXCLUDE 127.0.0.1' \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
   --log-net-log="$netlog" \
   --net-log-capture-mode=Everything \
   --enable-logging=stderr \
