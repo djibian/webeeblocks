@@ -86,7 +86,7 @@ jobs:
               python3 /workspace/tools/ci/runtime_wwi_event_server.py \
                 --output /workspace/ci-artifacts/modern-blockly/browser-events.jsonl &
               event_server_pid=$!
-              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              trap "chmod a+r /workspace/ci-artifacts/modern-blockly/chrome-netlog.json 2>/dev/null || true; kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
               timeout -k 5s 40s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/modern_blockly_v2_experiment.wbt
             ' \
