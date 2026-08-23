@@ -1,0 +1,113 @@
+name: Experimental Runtime v2 renderer A/B
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renderer-ab:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 product assets
+        run: |
+          ./tools/prepare_runtime_v2.sh
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
+
+      - name: Re-prove unchanged Runtime v2 semantic core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+      - name: Prepare renderer-only experimental seam
+        run: |
+          python3 experiments/runtime-v2-renderer-ab/prepare.py
+          python3 -m py_compile experiments/runtime-v2-renderer-ab/prepare.py experiments/runtime-v2-renderer-ab/probe.py
+          bash -n experiments/runtime-v2-renderer-ab/browser.sh experiments/runtime-v2-renderer-ab/run.sh
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-renderer-ab
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-renderer-ab/build.log
+
+      - name: Run identical Runtime v2 Robot Window under Thrasos and Zelos
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash /workspace/experiments/runtime-v2-renderer-ab/run.sh
+
+      - name: Compare semantic equality and objective evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ci-artifacts/runtime-v2-renderer-ab/thrasos/metrics.json
+          test -s ci-artifacts/runtime-v2-renderer-ab/zelos/metrics.json
+          test -s ci-artifacts/runtime-v2-renderer-ab/thrasos/workspace-1366x768.png
+          test -s ci-artifacts/runtime-v2-renderer-ab/zelos/workspace-1366x768.png
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('ci-artifacts/runtime-v2-renderer-ab')
+          results={name:json.loads((root/name/'metrics.json').read_text()) for name in ('thrasos','zelos')}
+          t,z=results['thrasos'],results['zelos']
+          assert t['renderer']=='thrasos' and z['renderer']=='zelos'
+          assert t['initial']['version']=='13.2.1' and z['initial']['version']=='13.2.1'
+          assert t['initial']['rendererMatchesRegistry'] is True, t['initial']
+          assert z['initial']['rendererMatchesRegistry'] is True, z['initial']
+          assert t['ast']==z['ast'], (t['ast'],z['ast'])
+          assert t['ast']['semantics']=='webeeblocks-ast-v1'
+          assert t['initial']['counts']['blocks']==z['initial']['counts']['blocks']
+          assert t['initial']['counts']['topBlocks']==z['initial']['counts']['topBlocks']
+          assert t['initial']['viewport']['width']==z['initial']['viewport']['width']==1366
+          assert t['initial']['viewport']['height']==z['initial']['viewport']['height']==768
+
+          comparison={
+            'semantic_runtime': {'ast_identical': True, 'blockly_version': '13.2.1'},
+            'thrasos': {
+              'renderer_class': t['initial']['rendererClassName'],
+              'geometry': t['initial']['geometry'], 'counts': t['initial']['counts'],
+              'keyboard': {k:v for k,v in t['keyboard'].items() if k!='steps'}
+            },
+            'zelos': {
+              'renderer_class': z['initial']['rendererClassName'],
+              'geometry': z['initial']['geometry'], 'counts': z['initial']['counts'],
+              'keyboard': {k:v for k,v in z['keyboard'].items() if k!='steps'}
+            },
+            'decision': 'UNASSESSED_BY_HARNESS',
+            'note': 'Screenshots and metrics are evidence; aesthetic/pedagogical recommendation is intentionally not automated.'
+          }
+          (root/'comparison.json').write_text(json.dumps(comparison,ensure_ascii=False,indent=2))
+          print(json.dumps(comparison,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload A/B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-runtime-v2-renderer-ab
+          path: ci-artifacts/runtime-v2-renderer-ab/
+          if-no-files-found: error
