@@ -46,6 +46,7 @@ script = r'''
   let seq = 0;
   let chain = Promise.resolve();
   let astEvents = 0;
+  const wwiTx = [];
   function report(event, detail) {
     const payload = {seq: seq++, event, detail: detail === undefined ? null : detail, wall_ms: Date.now()};
     chain = chain.then(() => fetch('http://127.0.0.1:8765/event', {
@@ -75,6 +76,7 @@ script = r'''
       backendPending: window.runtimeBackend ? Object.keys(window.runtimeBackend.pending || {}).length : null,
       runtimeRunning: !!window.runtimeRunning,
       astEvents: astEvents,
+      wwiTxCount: wwiTx.length,
       submitDisabled: submit ? submit.disabled : null,
       state: state ? state.textContent : null,
       detail: detail ? detail.textContent : null
@@ -92,6 +94,24 @@ script = r'''
       await sleep(25);
     }
     throw new Error('timeout waiting for ' + label + ': ' + JSON.stringify(snapshot()));
+  }
+  function normalizeWwiRequest(message) {
+    const match = String(message).match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) (.+)$/);
+    if (!match)
+      throw new Error('unexpected WWI request framing: ' + String(message));
+    const id = Number(match[1]);
+    const command = match[2];
+    if (command.startsWith('TAKEOFF '))
+      return {id, command: 'TAKEOFF'};
+    if (command === 'RANGE front')
+      return {id, command: 'RANGE'};
+    if (command.startsWith('MOVE left '))
+      return {id, command: 'MOVE_LEFT'};
+    if (command.startsWith('MOVE forward '))
+      return {id, command: 'MOVE_FORWARD'};
+    if (command === 'LAND')
+      return {id, command: 'LAND'};
+    throw new Error('unexpected WWI request command: ' + command);
   }
 
   window.addEventListener('error', event => report('WINDOW_ERROR', {
@@ -116,6 +136,18 @@ script = r'''
     if (String(Blockly.VERSION || '') !== '13.2.1')
       throw new Error('unexpected runtime Blockly.VERSION=' + String(Blockly.VERSION || ''));
     await report('BLOCKLY_VERSION', String(Blockly.VERSION));
+
+    // Observe the exact product WWI commands emitted by the shared interpreter.
+    const originalRobotWindowSend = robotWindow.send.bind(robotWindow);
+    robotWindow.send = function(message) {
+      const text = String(message);
+      if (text.startsWith('WEBEEBLOCKS_RUNTIME_V2 REQUEST ')) {
+        wwiTx.push(text);
+        report('WWI_TX', text);
+      }
+      return originalRobotWindowSend(message);
+    };
+
     workspace.clear();
     const fixtureDom = Blockly.utils.xml.textToDom(__FIXTURE__);
     Blockly.Xml.domToWorkspace(fixtureDom, workspace);
@@ -144,6 +176,8 @@ script = r'''
       throw new Error('WWI request id consumed before controller READY');
     if (Object.keys(runtimeBackend.pending || {}).length !== 0)
       throw new Error('pending WWI request exists before controller READY');
+    if (wwiTx.length !== 0)
+      throw new Error('WWI request emitted before controller READY: ' + JSON.stringify(wwiTx));
     if (window.runtimeRunning)
       throw new Error('runtime entered running state before controller READY');
     if (!submit.disabled || state.textContent !== 'INITIALISATION' || runtimeBackend.ready !== false)
@@ -154,11 +188,60 @@ script = r'''
     await waitFor(() => !submit.disabled && state.textContent === 'PRÊT', 'post-READY UI enable', 2000);
     await report('READY', snapshot());
 
+    // Discriminating fail-closed proof on the actual WWI backend object. Remove
+    // range(front) only from the backend contract and require ActivityContract to
+    // reject the valid workspace before the interpreter can emit TAKEOFF or RANGE.
+    const originalCapabilities = runtimeBackend.capabilities;
+    runtimeBackend.capabilities = Object.freeze({
+      actions: originalCapabilities.actions.slice(),
+      rangeDirections: [],
+      moveDirections: originalCapabilities.moveDirections.slice(),
+      verticalDirections: originalCapabilities.verticalDirections.slice()
+    });
+    const negativeNextId = runtimeBackend.nextId;
+    const negativeTxCount = wwiTx.length;
+    let negativeRejected = false;
+    try {
+      await WebeeBlocksActivityContract.execute(
+        runtimeProfile,
+        workspace,
+        WebeeBlocksSemanticAst,
+        WebeeBlocksInterpreter,
+        runtimeBackend,
+        {maxSteps: 1000}
+      );
+    } catch (error) {
+      negativeRejected = true;
+      await report('BACKEND_CAPABILITY_REJECTED', error && error.message ? error.message : String(error));
+    } finally {
+      runtimeBackend.capabilities = originalCapabilities;
+    }
+    if (!negativeRejected)
+      throw new Error('missing range(front) backend capability was accepted');
+    if (runtimeBackend.nextId !== negativeNextId)
+      throw new Error('fail-closed preflight consumed WWI request id');
+    if (wwiTx.length !== negativeTxCount)
+      throw new Error('fail-closed preflight emitted WWI request: ' + JSON.stringify(wwiTx.slice(negativeTxCount)));
+    if (Object.keys(runtimeBackend.pending || {}).length !== 0)
+      throw new Error('fail-closed preflight left pending WWI request');
+    await report('BACKEND_CAPABILITY_GUARD_OK', snapshot());
+
     const ast = WebeeBlocksSemanticAst.compileWorkspace(workspace);
     await report('FIXTURE_AST', ast);
     submit.click();
     await report('SUBMIT', 'clicked');
     await waitFor(() => document.getElementById('runtimeState').textContent === 'TERMINÉ', 'Runtime v2 completion', 70000);
+
+    const normalized = wwiTx.map(normalizeWwiRequest);
+    const expectedCommands = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'];
+    const actualCommands = normalized.map(entry => entry.command);
+    const actualIds = normalized.map(entry => entry.id);
+    if (JSON.stringify(actualCommands) !== JSON.stringify(expectedCommands))
+      throw new Error('unexpected WWI request sequence: ' + JSON.stringify(actualCommands));
+    if (JSON.stringify(actualIds) !== JSON.stringify([1,2,3,4,5,6,7,8]))
+      throw new Error('unexpected WWI request ids: ' + JSON.stringify(actualIds));
+    await report('WWI_SEQUENCE_OK', normalized);
+
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;
     console.log('WEBEEBLOCKS_CI_RUNTIME_V2_DONE');
@@ -173,4 +256,4 @@ script = r'''
 '''.replace('__FIXTURE__', json.dumps(fixture))
 
 html_path.write_text(html + '\n' + script, encoding='utf-8')
-print('Prepared Runtime v2 real Robot Window harness with causal pre-READY discrimination.')
+print('Prepared Runtime v2 real Robot Window harness with causal pre-READY, backend-capability and WWI-sequence discrimination.')
