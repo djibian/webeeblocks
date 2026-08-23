@@ -139,24 +139,32 @@ def keyboard_path(cdp):
             break
 
     arrow_down = arrow_up = opened = flyout_reached = workspace_returned = False
+    flyout_open_before = False
     if entered:
-        before = steps[-1]['snapshot'].get('selectedCategory')
+        before = steps[-1]['snapshot']
         cdp.key('ArrowDown', 'ArrowDown')
         down = snap('arrow_down')
-        arrow_down = down.get('selectedCategory') != before or down['active']['inToolbox']
-        before_up = down.get('selectedCategory')
+        arrow_down = (down.get('selectedCategory'), down['active'].get('text')) != (before.get('selectedCategory'), before['active'].get('text'))
+
+        before_up = down
         cdp.key('ArrowUp', 'ArrowUp')
         up = snap('arrow_up')
-        arrow_up = up.get('selectedCategory') != before_up or up['active']['inToolbox']
+        arrow_up = (up.get('selectedCategory'), up['active'].get('text')) != (before_up.get('selectedCategory'), before_up['active'].get('text'))
+
+        flyout = up['geometry'].get('flyout')
+        flyout_open_before = bool(flyout and flyout.get('width', 0) > 0)
         cdp.key('Enter', 'Enter')
         opened_state = snap('activate_category')
-        opened = bool(opened_state['geometry']['flyout'] and opened_state['geometry']['flyout']['width'] > 0)
+        flyout = opened_state['geometry'].get('flyout')
+        opened = bool(flyout and flyout.get('width', 0) > 0)
+
         for index in range(12):
             cdp.key('Tab', 'Tab')
             state = snap(f'flyout_tab_{index+1}')
             if state['active']['inFlyout']:
                 flyout_reached = True
                 break
+
         cdp.key('Escape', 'Escape')
         snap('escape_from_flyout')
         for index in range(16):
@@ -170,6 +178,7 @@ def keyboard_path(cdp):
         'toolboxEntry': entered,
         'arrowDown': arrow_down,
         'arrowUp': arrow_up,
+        'flyoutOpenBeforeActivation': flyout_open_before,
         'categoryActivation': opened,
         'flyoutBlockReachable': flyout_reached,
         'workspaceFocusReturn': workspace_returned,
@@ -188,7 +197,11 @@ def main():
     cdp = Cdp(wait_target()['webSocketDebuggerUrl'])
     cdp.call('Runtime.enable')
     cdp.call('Page.enable')
+    cdp.call('Emulation.setDeviceMetricsOverride', {
+        'width': 1366, 'height': 768, 'deviceScaleFactor': 1, 'mobile': False,
+    })
     wait_ready(cdp)
+    cdp.eval("window.dispatchEvent(new Event('resize'));Blockly.svgResize(workspace);true")
 
     fixture = Path(args.fixture).read_text(encoding='utf-8')
     cdp.eval("workspace.clear();Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(%s),workspace);Blockly.svgResize(workspace);true" % json.dumps(fixture))
