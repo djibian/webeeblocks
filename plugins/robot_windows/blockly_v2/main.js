@@ -122,7 +122,8 @@ window.onload = async function() {
   workspace = Blockly.inject('blocklyDiv', {
     toolbox: buildToolbox(runtimeProfile),
     scrollbars: true,
-    media: '../blockly/google-blockly-31ee4ea/media/'
+    media: 'vendor/media/',
+    sounds: false
   });
   workspace.addChangeListener(onWorkspaceChange);
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });

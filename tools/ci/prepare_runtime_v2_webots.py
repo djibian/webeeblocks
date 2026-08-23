@@ -60,6 +60,7 @@ script = r'''
     return {
       readyState: document.readyState,
       hasBlockly: typeof window.Blockly !== 'undefined',
+      blocklyVersion: typeof window.Blockly !== 'undefined' ? String(window.Blockly.VERSION || '') : null,
       hasActivities: typeof window.WebeeBlocksActivities !== 'undefined',
       hasProfiles: typeof window.WebeeBlocksActivityProfiles !== 'undefined',
       hasAst: typeof window.WebeeBlocksSemanticAst !== 'undefined',
@@ -112,8 +113,13 @@ script = r'''
     // already loaded so an old eager runProgram() would generate AST/WWI traffic.
     await waitFor(() => window.workspace && window.runtimeBackend && window.robotWindow,
       'Runtime v2 pre-READY objects', 12000);
+    if (String(Blockly.VERSION || '') !== '13.2.1')
+      throw new Error('unexpected runtime Blockly.VERSION=' + String(Blockly.VERSION || ''));
+    await report('BLOCKLY_VERSION', String(Blockly.VERSION));
     workspace.clear();
-    Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(__FIXTURE__), workspace);
+    const fixtureDom = Blockly.utils.xml.textToDom(__FIXTURE__);
+    Blockly.Xml.domToWorkspace(fixtureDom, workspace);
+    await report('FIXTURE_IMPORTED', {topBlocks: workspace.getTopBlocks(false).length});
     await sleep(50);
 
     const submit = document.getElementById('submit');
