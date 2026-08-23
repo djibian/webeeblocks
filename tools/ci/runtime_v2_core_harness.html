@@ -124,14 +124,14 @@
     assert(rangeReadCount === 3, 'range(front) must be re-read once per repeat iteration');
     assert(samples.length === 0, 'scripted range samples were not all consumed');
 
-    // Known Blockly block, deliberately outside the resolved Runtime v2 toolbox.
+    // Standard Blockly block deliberately outside the resolved Runtime v2 toolbox.
     var forbiddenWorkspace = new Blockly.Workspace();
-    forbiddenWorkspace.newBlock('webeeblocks_forward');
+    forbiddenWorkspace.newBlock('logic_negate');
     trace = [];
     var compilerCalled = false;
     await expectReject(
       WebeeBlocksActivityContract.execute(profile, forbiddenWorkspace, {compileWorkspace:function(){compilerCalled=true;return expected;}}, WebeeBlocksInterpreter, backendFor(capabilities)),
-      /block forbidden by profile: webeeblocks_forward/,
+      /block forbidden by profile: logic_negate/,
       'known block outside profile'
     );
     assert(!compilerCalled, 'forbidden workspace reached compiler');
