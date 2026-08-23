@@ -7,5 +7,5 @@
 {type:'webeeblocks_v2_turn',message0:'tourner à %1 de %2 °',args0:[{type:'field_dropdown',name:'DIRECTION',options:[['gauche','left'],['droite','right']]},{type:'field_number',name:'ANGLE',value:90,min:1,max:179,precision:1}],previousStatement:null,nextStatement:null,colour:20},
 {type:'webeeblocks_v2_wait',message0:'attendre %1 s',args0:[{type:'field_number',name:'SECONDS',value:0.5,min:0.1,max:5.0,precision:0.1}],previousStatement:null,nextStatement:null,colour:80},
 {type:'webeeblocks_v2_speed',message0:'régler la vitesse à %1 m/s',args0:[{type:'field_number',name:'SPEED',value:0.2,min:0.1,max:0.6,precision:0.1}],previousStatement:null,nextStatement:null,colour:80},
-{type:'webeeblocks_v2_range',message0:'distance %1',args0:[{type:'field_dropdown',name:'DIRECTION',options:[['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']]}],output:'Number',colour:60}
+{type:'webeeblocks_v2_range',message0:'distance %1 (m)',args0:[{type:'field_dropdown',name:'DIRECTION',options:[['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']]}],output:'Number',colour:60}
 ]);})();
