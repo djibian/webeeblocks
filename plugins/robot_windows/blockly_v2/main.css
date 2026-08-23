@@ -1,10 +1,171 @@
-html, body { margin: 0; height: 100%; font-family: sans-serif; background: #f5f6f7; color: #202124; }
-body { display: flex; flex-direction: column; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 16px 8px; background: white; border-bottom: 1px solid #d8dadd; }
-h1 { margin: 0 0 4px; font-size: 20px; }
-p { margin: 0; font-size: 14px; }
-button { padding: 9px 16px; font-weight: 600; cursor: pointer; }
-button:disabled { cursor: default; opacity: .5; }
-#statusPanel { display: flex; gap: 24px; padding: 8px 16px; background: white; border-bottom: 1px solid #d8dadd; font-size: 14px; }
-#runtimeDetail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#blocklyDiv { flex: 1; min-height: 0; }
+:root {
+  --wb-ink: #263342;
+  --wb-muted: #667585;
+  --wb-line: #d8e0e9;
+  --wb-surface: #ffffff;
+  --wb-workspace: #f7f9fc;
+  --wb-primary: #167f91;
+  --wb-primary-dark: #116878;
+  --wb-focus: #155eef;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif;
+  background: var(--wb-workspace);
+  color: var(--wb-ink);
+}
+
+body { display: flex; flex-direction: column; overflow: hidden; }
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 18px 12px;
+  background: var(--wb-surface);
+  border-bottom: 1px solid var(--wb-line);
+  box-shadow: 0 1px 0 rgba(38, 51, 66, .03);
+  z-index: 5;
+}
+
+#activityCopy { min-width: 0; max-width: 860px; }
+h1 { margin: 0 0 5px; font-size: 21px; line-height: 1.2; letter-spacing: -.01em; }
+p { margin: 0; color: var(--wb-muted); font-size: 14px; line-height: 1.4; }
+
+button {
+  min-height: 38px;
+  border: 1px solid #c8d2dd;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--wb-ink);
+  padding: 8px 13px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { background: #f5f8fb; border-color: #aebcca; }
+button:focus-visible { outline: 3px solid rgba(21, 94, 239, .28); outline-offset: 2px; }
+button:disabled { cursor: default; opacity: .46; }
+
+#submit {
+  min-width: 132px;
+  border-color: var(--wb-primary);
+  background: var(--wb-primary);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(22, 127, 145, .18);
+}
+#submit:hover:not(:disabled) { background: var(--wb-primary-dark); border-color: var(--wb-primary-dark); }
+
+#statusPanel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 39px;
+  padding: 6px 18px;
+  background: #fbfcfe;
+  border-bottom: 1px solid var(--wb-line);
+  font-size: 13px;
+  color: var(--wb-muted);
+  z-index: 4;
+}
+
+#statusLabel { flex: none; }
+#runtimeState {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8edf3;
+  color: #445266;
+  font-size: 12px;
+  letter-spacing: .025em;
+}
+body[data-runtime-state="PRÊT"] #runtimeState { background: #dff3e8; color: #17623a; }
+body[data-runtime-state="EN VOL"] #runtimeState { background: #dcecff; color: #174f8e; }
+body[data-runtime-state="TERMINÉ"] #runtimeState { background: #e8e3f7; color: #58449a; }
+body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a1362c; }
+
+#runtimeDetail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#workspaceShell { position: relative; flex: 1; min-height: 0; background: var(--wb-workspace); }
+#blocklyDiv { position: absolute; inset: 0; }
+
+#workspaceToolbar {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid #cfd9e3;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 3px 12px rgba(38, 51, 66, .12);
+  backdrop-filter: blur(5px);
+}
+
+#workspaceToolbar button {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13px;
+}
+#workspaceToolbar .zoomSymbol { font-size: 19px; line-height: 1; }
+#workspaceToolbar button:hover { background: #eef3f7; }
+
+/* Blockly 13.2.1: readable category rows without changing toolbox semantics. */
+.blocklyToolbox,
+.blocklyToolboxDiv {
+  border-right: 1px solid #d7e0e8 !important;
+  box-shadow: 2px 0 7px rgba(38, 51, 66, .04);
+}
+
+.blocklyToolboxCategory,
+.blocklyTreeRow {
+  min-height: 42px;
+  border-radius: 0 7px 7px 0;
+  margin: 3px 7px 3px 0;
+}
+
+.blocklyToolboxCategoryLabel,
+.blocklyTreeLabel {
+  font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+
+.blocklyToolboxSelected,
+.blocklyTreeSelected {
+  background: #e9f0f6 !important;
+}
+
+.blocklyFlyoutBackground { fill: #eef2f7 !important; fill-opacity: 1 !important; }
+.blocklyFlyout { border-right: 1px solid #d7e0e8; }
+.blocklyText,
+.blocklyFlyoutLabelText {
+  font-family: Inter, Aptos, "Segoe UI", Arial, sans-serif !important;
+}
+
+.blocklyFieldRect { stroke-width: 1.25px; }
+.blocklyMainBackground { stroke: none; }
+.blocklyScrollbarHandle { rx: 5px; ry: 5px; }
+
+@media (max-width: 850px) {
+  header { gap: 12px; padding: 10px 12px; }
+  h1 { font-size: 18px; }
+  #activityGoal { max-width: 560px; }
+  #workspaceToolbar { top: 8px; right: 9px; }
+  #workspaceToolbar .toolbarText { display: none; }
+}
