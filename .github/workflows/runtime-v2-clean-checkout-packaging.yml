@@ -25,7 +25,6 @@ jobs:
 
       - name: Prepare Runtime v2 through supported product command
         run: |
-          chmod +x tools/prepare_runtime_v2.sh
           ./tools/prepare_runtime_v2.sh
           test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           node --check plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js
