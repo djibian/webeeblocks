@@ -61,6 +61,7 @@ jobs:
           docker run --rm \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-clean-checkout \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
