@@ -16,6 +16,16 @@ printf '%s\n' \
   'newBrowserWindow=false' \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
 
+current_webots_pid=""
+cleanup_current() {
+  if [[ -n "$current_webots_pid" ]]; then
+    kill "$current_webots_pid" 2>/dev/null || true
+    wait "$current_webots_pid" 2>/dev/null || true
+    current_webots_pid=""
+  fi
+}
+trap cleanup_current EXIT
+
 run_variant() {
   renderer="$1"
   dir="$OUT/$renderer"
@@ -25,12 +35,7 @@ run_variant() {
 
   xvfb-run -a webots --stdout --stderr --batch --mode=realtime "$ROOT/worlds/crazyflie_runtime_v2.wbt" \
     > "$dir/webots.log" 2>&1 &
-  webots_pid=$!
-  cleanup_variant() {
-    kill "$webots_pid" 2>/dev/null || true
-    wait "$webots_pid" 2>/dev/null || true
-  }
-  trap cleanup_variant RETURN
+  current_webots_pid=$!
 
   python3 "$ROOT/experiments/runtime-v2-renderer-ab/probe.py" \
     --renderer "$renderer" \
@@ -38,8 +43,7 @@ run_variant() {
     --output "$dir/metrics.json" \
     --screenshot "$dir/workspace-1366x768.png"
 
-  cleanup_variant
-  trap - RETURN
+  cleanup_current
 }
 
 run_variant thrasos
