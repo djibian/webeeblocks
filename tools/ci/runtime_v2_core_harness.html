@@ -2,13 +2,10 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Runtime v2 activity composition</title>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blockly_uncompressed.js"></script>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/msg/js/en.js"></script>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/logic.js"></script>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/loops.js"></script>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/math.js"></script>
-<script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js"></script>
+<title>Runtime v2 reactive semantics</title>
+<script src="../../plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js"></script>
+<script src="../../plugins/robot_windows/blockly_v2/vendor/blocks_compressed.js"></script>
+<script src="../../plugins/robot_windows/blockly_v2/vendor/msg/en.js"></script>
 <script src="../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/activities.js"></script>
@@ -69,6 +66,7 @@
   }
 
   try {
+    assert(Blockly.VERSION === '13.2.1', 'expected product Blockly 13.2.1, got ' + Blockly.VERSION);
     var profile = WebeeBlocksActivityProfiles.resolveById(
       WebeeBlocksActivities.DOCUMENT,
       'reactive-obstacle-v2',
@@ -76,7 +74,7 @@
     );
     assert(profile.toolbox.every(function(type) { return typeof type === 'string'; }), 'resolved toolbox entries must remain block type strings');
 
-    var workspace = Blockly.inject('blocklyDiv', {toolbox: document.getElementById('toolbox')});
+    var workspace = Blockly.inject('blocklyDiv', {toolbox: document.getElementById('toolbox'), sounds:false});
     Blockly.Xml.domToWorkspace(document.getElementById('reactiveProgram'), workspace);
 
     var expected = {version:1, semantics:'webeeblocks-ast-v1', program:[
@@ -90,6 +88,7 @@
 
     var samples = [0.4, 0.8, 0.3];
     var trace = [];
+    var rangeReadCount = 0;
     var capabilities = {actions:['takeoff','move','vertical','turn','wait','set_speed','land'], rangeDirections:['front'], moveDirections:['forward','left'], verticalDirections:['up','down']};
     function backendFor(caps) {
       return {
@@ -101,7 +100,12 @@
         turn: async function(angle) { trace.push(['turn', angle]); },
         wait: async function(seconds) { trace.push(['wait', seconds]); },
         setSpeed: async function(speed) { trace.push(['set_speed', speed]); },
-        readRange: async function(direction) { var value = samples.shift(); trace.push(['range', direction, value]); return value; }
+        readRange: async function(direction) {
+          rangeReadCount += 1;
+          var value = samples.shift();
+          trace.push(['range', direction, value]);
+          return value;
+        }
       };
     }
 
@@ -117,15 +121,17 @@
     assert(onAstCount === 1, 'onAst must run exactly once');
     var expectedTrace = [['takeoff',0.5],['range','front',0.4],['move','left',0.3],['range','front',0.8],['move','forward',0.3],['range','front',0.3],['move','left',0.3],['land']];
     assert(JSON.stringify(trace) === JSON.stringify(expectedTrace), 'reactive trace differs: ' + JSON.stringify(trace));
+    assert(rangeReadCount === 3, 'range(front) must be re-read once per repeat iteration');
+    assert(samples.length === 0, 'scripted range samples were not all consumed');
 
-    // Known Blockly block, deliberately outside the resolved Runtime v2 toolbox.
+    // Standard Blockly block deliberately outside the resolved Runtime v2 toolbox.
     var forbiddenWorkspace = new Blockly.Workspace();
-    forbiddenWorkspace.newBlock('webeeblocks_forward');
+    forbiddenWorkspace.newBlock('logic_negate');
     trace = [];
     var compilerCalled = false;
     await expectReject(
       WebeeBlocksActivityContract.execute(profile, forbiddenWorkspace, {compileWorkspace:function(){compilerCalled=true;return expected;}}, WebeeBlocksInterpreter, backendFor(capabilities)),
-      /block forbidden by profile: webeeblocks_forward/,
+      /block forbidden by profile: logic_negate/,
       'known block outside profile'
     );
     assert(!compilerCalled, 'forbidden workspace reached compiler');
@@ -137,23 +143,63 @@
     deniedDirection.runtime.rangeDirections = [];
     trace = [];
     samples = [0.4,0.8,0.3];
+    rangeReadCount = 0;
     await expectReject(
       WebeeBlocksActivityContract.execute(deniedDirection, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(capabilities)),
       /range capability unavailable in profile: front/,
       'profile range direction'
     );
     assert(trace.length === 0, 'profile direction rejection executed backend action');
+    assert(rangeReadCount === 0, 'profile direction rejection read a sensor');
 
     // Profile permits the mission, but the selected backend does not provide its sensor capability.
     var missingBackendRange = {actions:capabilities.actions, rangeDirections:[], moveDirections:capabilities.moveDirections, verticalDirections:capabilities.verticalDirections};
     trace = [];
     samples = [0.4,0.8,0.3];
+    rangeReadCount = 0;
     await expectReject(
       WebeeBlocksActivityContract.execute(profile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(missingBackendRange)),
       /backend range capability unavailable: front/,
       'backend range capability'
     );
     assert(trace.length === 0, 'backend capability rejection executed action');
+    assert(rangeReadCount === 0, 'backend capability rejection read a sensor');
+
+    // Unsupported AST kind must be rejected by the activity contract before the interpreter/backend.
+    var unsupportedCompiler = {
+      compileWorkspace: function() {
+        return {version:1, semantics:'webeeblocks-ast-v1', program:[
+          {kind:'takeoff', height_m:0.5}, {kind:'teleport'}, {kind:'land'}
+        ]};
+      }
+    };
+    trace = [];
+    rangeReadCount = 0;
+    await expectReject(
+      WebeeBlocksActivityContract.execute(profile, workspace, unsupportedCompiler, WebeeBlocksInterpreter, backendFor(capabilities)),
+      /AST statement forbidden by profile: teleport/,
+      'unsupported AST statement'
+    );
+    assert(trace.length === 0, 'unsupported AST rejection executed backend action');
+    assert(rangeReadCount === 0, 'unsupported AST rejection read a sensor');
+
+    // Repeat count bypassing Blockly UI constraints must be rejected before any action.
+    var repeatOutOfBoundsCompiler = {
+      compileWorkspace: function(ws) {
+        var ast = clone(WebeeBlocksSemanticAst.compileWorkspace(ws));
+        ast.program[1].count = 21;
+        return ast;
+      }
+    };
+    trace = [];
+    rangeReadCount = 0;
+    await expectReject(
+      WebeeBlocksActivityContract.execute(profile, workspace, repeatOutOfBoundsCompiler, WebeeBlocksInterpreter, backendFor(capabilities)),
+      /repeat.count outside profile bounds: 21/,
+      'repeat bound bypass'
+    );
+    assert(trace.length === 0, 'repeat bound rejection executed backend action');
+    assert(rangeReadCount === 0, 'repeat bound rejection read a sensor');
 
     // Simulate an AST that bypasses the FieldNumber UI bound; preflight must still stop it.
     var outOfBoundsCompiler = {
@@ -165,20 +211,22 @@
     };
     trace = [];
     samples = [0.4,0.8,0.3];
+    rangeReadCount = 0;
     await expectReject(
       WebeeBlocksActivityContract.execute(profile, workspace, outOfBoundsCompiler, WebeeBlocksInterpreter, backendFor(capabilities)),
       /move.distance_m outside profile bounds: 2.1/,
       'AST bound bypass'
     );
     assert(trace.length === 0, 'AST bound rejection executed backend action');
+    assert(rangeReadCount === 0, 'AST bound rejection read a sensor');
 
     var xml = Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace));
     var roundTrip = new Blockly.Workspace();
-    Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xml), roundTrip);
+    Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), roundTrip);
     assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(roundTrip)) === JSON.stringify(expected), 'XML round-trip changed AST');
     roundTrip.dispose();
 
-    result.textContent = 'PASS Runtime v2 profile -> Blockly -> AST -> profile/backend preflight -> interpreter';
+    result.textContent = 'PASS Runtime v2 modern Blockly reactive semantics -> AST -> fail-closed preflight -> shared interpreter';
     result.setAttribute('data-status', 'PASS');
   } catch (error) {
     if (result.getAttribute('data-status') !== 'FAIL') fail(error.message || String(error));
