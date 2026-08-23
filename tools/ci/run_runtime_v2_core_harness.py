@@ -18,7 +18,7 @@ def main():
         except subprocess.TimeoutExpired:
             timed_out=True; process.kill(); stdout,stderr=process.communicate()
         server.shutdown()
-    marker='PASS Runtime v2 resolved profile -> real Blockly -> AST -> preflight -> interpreter'
+    marker='PASS Runtime v2 profile -> Blockly -> AST -> profile/backend preflight -> interpreter'
     rendered=re.search(r'<pre id="result" data-status="PASS">([^<]+)</pre>',stdout)
     rendered_text=html.unescape(rendered.group(1)).strip() if rendered else None
     if rendered_text!=marker:
