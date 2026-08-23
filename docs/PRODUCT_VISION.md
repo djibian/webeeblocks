@@ -123,20 +123,31 @@ It is primarily a **training tool**, not an assessment platform. If an assessed 
 
 Home use and browser-only remote execution without the school Webots environment are out of scope unless a future explicit need appears.
 
-## Interface principles
+## Interface foundation and principles
 
-The student UI should be judged by pedagogical usability rather than novelty alone:
+The technical student-programming foundation is now **fixed**:
+
+**Blockly 13.2.1 + Zelos**.
+
+Zelos is retained because its block geometry is the Blockly renderer most aligned with the Scratch interaction patterns already familiar to many collège students. This is a pedagogical continuity choice, not a request to copy Scratch or depend on Scratch as a product.
+
+The goal is a distinct WebeeBlocks interface that preserves the useful Scratch-like qualities of block manipulation and nesting while remaining focused on robotics.
+
+The student UI should therefore be judged by pedagogical usability rather than novelty alone:
 
 - clear and low-clutter;
-- easy block nesting and manipulation;
-- accessible zoom and navigation;
+- easy, visually explicit block nesting and manipulation;
+- clear distinction between actions, values and boolean/condition expressions;
+- accessible zoom, reset/fit and navigation;
 - explicit values and units;
+- readable toolbox/flyout with restrained category colour use;
+- modern but sober typography, spacing and contrast;
 - clear separation between editing, normal execution and simulation debug mode;
 - keyboard/accessibility support;
 - simple visible Open / Save actions;
-- familiarity with useful Scratch interaction patterns without trying to reproduce all of Scratch.
+- familiarity with useful Scratch interaction patterns without reproducing all of Scratch.
 
-Renderer/theme decisions (for example Thrasos vs Zelos) should be based on these criteria and real student-use scenarios, not only on which renderer looks newer.
+Renderer comparison is closed: do **not** reopen Thrasos vs Zelos without a new demonstrated need. Future UI work should improve the WebeeBlocks presentation and ergonomics **on top of Zelos** while preserving the backend-neutral AST and Runtime behavior.
 
 ## Explicit non-goals
 
@@ -170,3 +181,4 @@ WebeeBlocks is not intended to become:
 8. **Strict separation between pedagogical problem and student solution**.
 9. **Generic configurable activities over task-specific product forks**.
 10. **WebeeBlocks stays a focused training tool; Moodle and evaluation remain external concerns**.
+11. **Blockly 13.2.1 + Zelos is the fixed visual-programming foundation; Scratch familiarity guides ergonomics without turning WebeeBlocks into a Scratch clone**.
