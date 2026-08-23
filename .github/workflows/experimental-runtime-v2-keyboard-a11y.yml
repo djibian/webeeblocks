@@ -1,0 +1,112 @@
+name: Experimental Runtime v2 keyboard accessibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keyboard-a11y:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+
+      - name: Re-prove unchanged Runtime v2 semantic core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+      - name: Prepare actual Runtime v2 Robot Window
+        run: python3 tools/ci/prepare_runtime_v2_webots.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-keyboard-a11y
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-keyboard-a11y/build.log
+
+      - name: Probe keyboard and ARIA in real Runtime v2 Robot Window
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-keyboard-a11y \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -euo pipefail
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates python3-websocket >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/experiments/runtime-v2-keyboard-a11y/browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/experiments/runtime-v2-keyboard-a11y/browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt \
+                > /workspace/ci-artifacts/runtime-v2-keyboard-a11y/webots.log 2>&1 &
+              webots_pid=$!
+              cleanup() { kill "$webots_pid" 2>/dev/null || true; wait "$webots_pid" 2>/dev/null || true; }
+              trap cleanup EXIT
+              python3 /workspace/experiments/runtime-v2-keyboard-a11y/probe.py \
+                > /workspace/ci-artifacts/runtime-v2-keyboard-a11y/keyboard-probe.json
+            '
+          code=$?
+          set -e
+          echo "$code" | tee ci-artifacts/runtime-v2-keyboard-a11y/exit-code.txt
+          exit "$code"
+
+      - name: Validate experimental evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ci-artifacts/runtime-v2-keyboard-a11y/browser-launch.log
+          test -s ci-artifacts/runtime-v2-keyboard-a11y/webots.log
+          test -s ci-artifacts/runtime-v2-keyboard-a11y/keyboard-probe.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result=json.loads(Path('ci-artifacts/runtime-v2-keyboard-a11y/keyboard-probe.json').read_text())
+          assert result['version']=='13.2.1', result
+          assert result['initial']['ariaCount'] > 0, result
+          native=result['native']
+          registered=result['afterRegisterNavigationShortcuts']
+          assert native['toolboxFocused'] or (registered and registered['toolboxFocused']), result
+          print('PASS: real Runtime v2 Robot Window exposes ARIA metadata and keyboard-only Blockly toolbox focus in the discriminating probe.')
+          PY
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-runtime-v2-keyboard-a11y
+          path: ci-artifacts/runtime-v2-keyboard-a11y/
+          if-no-files-found: error
