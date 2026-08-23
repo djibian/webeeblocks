@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -eu
-mkdir -p /workspace/ci-artifacts/runtime-v2-webots
-printf 'BROWSER_LAUNCHED args=' >> /workspace/ci-artifacts/runtime-v2-webots/browser-launch.log
-printf '%q ' "$@" >> /workspace/ci-artifacts/runtime-v2-webots/browser-launch.log
-printf '\n' >> /workspace/ci-artifacts/runtime-v2-webots/browser-launch.log
+artifact_dir="${WEBEEBLOCKS_CI_ARTIFACT_DIR:-/workspace/ci-artifacts/runtime-v2-webots}"
+mkdir -p "$artifact_dir"
+printf 'BROWSER_LAUNCHED args=' >> "$artifact_dir/browser-launch.log"
+printf '%q ' "$@" >> "$artifact_dir/browser-launch.log"
+printf '\n' >> "$artifact_dir/browser-launch.log"
 exec /usr/bin/google-chrome \
   --headless=new \
   --no-sandbox \
