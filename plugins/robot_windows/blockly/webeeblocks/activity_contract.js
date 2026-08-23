@@ -40,6 +40,18 @@
     requireDirections(facts, 'verticalDirections', capabilities.verticalDirections, 'backend vertical direction unavailable: ');
     return true;
   }
-  async function execute(profile, workspace, compiler, interpreter, backend, options) { preflightWorkspace(profile, workspace); applyFieldBounds(profile, workspace); var ast = compiler.compileWorkspace(workspace); var facts = preflightAst(profile, ast); preflightBackend(profile, facts, backend); await interpreter.run(ast, backend, options); return ast; }
+  async function execute(profile, workspace, compiler, interpreter, backend, options) {
+    preflightWorkspace(profile, workspace);
+    applyFieldBounds(profile, workspace);
+    var ast = compiler.compileWorkspace(workspace);
+    var facts = preflightAst(profile, ast);
+    preflightBackend(profile, facts, backend);
+    var interpreterOptions = Object.assign({}, options || {});
+    var onAst = interpreterOptions.onAst;
+    delete interpreterOptions.onAst;
+    if (typeof onAst === 'function') onAst(ast);
+    await interpreter.run(ast, backend, interpreterOptions);
+    return ast;
+  }
   return {preflightWorkspace: preflightWorkspace, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute};
 });

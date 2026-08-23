@@ -74,16 +74,21 @@ async function runProgram() {
   submit.disabled = true;
   runtimeTerminal = false;
   try {
-    WebeeBlocksActivityContract.preflightWorkspace(runtimeProfile, workspace);
-    WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace);
-    var ast = WebeeBlocksSemanticAst.compileWorkspace(workspace);
-    var facts = WebeeBlocksActivityContract.preflightAst(runtimeProfile, ast);
-    WebeeBlocksActivityContract.preflightBackend(runtimeProfile, facts, runtimeBackend);
-    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
-
-    runtimeRunning = true;
-    setRuntimeStatus('EN VOL', 'Programme réactif en cours');
-    await WebeeBlocksInterpreter.run(ast, runtimeBackend, {maxSteps: 1000});
+    await WebeeBlocksActivityContract.execute(
+      runtimeProfile,
+      workspace,
+      WebeeBlocksSemanticAst,
+      WebeeBlocksInterpreter,
+      runtimeBackend,
+      {
+        maxSteps: 1000,
+        onAst: function(ast) {
+          window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
+          runtimeRunning = true;
+          setRuntimeStatus('EN VOL', 'Programme réactif en cours');
+        }
+      }
+    );
     runtimeRunning = false;
     runtimeTerminal = true;
     setRuntimeStatus('TERMINÉ', 'Programme exécuté');
