@@ -33,7 +33,12 @@ jobs:
           python3 -m py_compile experiments/runtime-v2-student-ui/probe.py
           bash -n experiments/runtime-v2-student-ui/browser.sh experiments/runtime-v2-student-ui/run.sh
           grep -F "renderer: 'zelos'" plugins/robot_windows/blockly_v2/main.js
-          grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          grep -F "message0:'distance %1'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 7
+          test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
+          grep -F "#zoomFit .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
+          ! grep -F "#workspaceToolbar .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
           test "$(sha256sum controllers/Blockly_Programs/CrazyflieReactiveV2.xml | awk '{print $1}')" = "32b281611dc06f6d488fcad97055d309493a8050b455fd57c8a6079a9b9aaaa1"
           python3 -m json.tool experiments/runtime-v2-student-ui/expected_ast.json >/dev/null
 
@@ -73,7 +78,7 @@ jobs:
           from pathlib import Path
           r=json.loads(Path('ci-artifacts/runtime-v2-student-ui/metrics.json').read_text())
           expected=json.loads(Path('experiments/runtime-v2-student-ui/expected_ast.json').read_text())
-          i=r['initial']; k=r['keyboard']
+          i=r['initial']; k=r['keyboard']; narrow=r['responsive800']
           assert i['version']=='13.2.1', i
           assert i['rendererMatchesRegistry'] is True, i
           assert r['astMatchesExpected'] is True, r
@@ -82,9 +87,16 @@ jobs:
           assert all(i['controls'].values()), i['controls']
           assert i['geometry']['toolbar'] and i['geometry']['toolbar']['width']>0, i['geometry']
           assert i['geometry']['trash'] and i['geometry']['trash']['width']>0, i['geometry']
+          assert narrow['viewport']=={'width':800,'height':768}, narrow
+          assert narrow['resetLabel']=='100 %' and narrow['resetLabelVisible'] is True, narrow
+          for group in (
+              ('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'),
+              ('controls_repeat_ext','controls_if','logic_compare','math_number')):
+              colours=[i['blockColours'][name][0] for name in group]
+              assert len(set(colours))==1, (group,colours)
           for name in ('toolboxEntry','arrowDown','arrowUp','categoryActivation','flyoutBlockReachable','workspaceFocusReturn'):
               assert k[name] is True, (name,k)
-          print(json.dumps({'blockly':i['version'],'zelos':i['rendererMatchesRegistry'],'strictAst':r['astMatchesExpected'],'geometry':i['geometry'],'keyboard':{x:k[x] for x in k if x!='steps'}},ensure_ascii=False,indent=2))
+          print(json.dumps({'blockly':i['version'],'zelos':i['rendererMatchesRegistry'],'strictAst':r['astMatchesExpected'],'responsive800':narrow,'geometry':i['geometry'],'keyboard':{x:k[x] for x in k if x!='steps'}},ensure_ascii=False,indent=2))
           PY
 
       - name: Upload student UI evidence
