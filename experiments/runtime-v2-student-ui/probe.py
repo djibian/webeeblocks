@@ -48,12 +48,13 @@ SNAP=r'''(() => {
  if(rs.length){extent={left:Math.min(...rs.map(r=>r.x)),top:Math.min(...rs.map(r=>r.y)),right:Math.max(...rs.map(r=>r.right)),bottom:Math.max(...rs.map(r=>r.bottom))};extent.width=extent.right-extent.left;extent.height=extent.bottom-extent.top;}
  let registryMatch=false; try{const R=Blockly.registry.getClass(Blockly.registry.Type.RENDERER,'zelos',true);registryMatch=workspace.getRenderer() instanceof R;}catch(_){}
  const colours={}; blocks.forEach(b=>{(colours[b.type]||(colours[b.type]=[])).push(b.colour);});
+ let toolboxItems=[]; try{toolboxItems=workspace.getToolbox().getToolboxItems().filter(x=>typeof x.getName==='function').map(x=>({name:x.getName(),colour:x.getColour&&x.getColour()}));}catch(_){}
  return {version:String(Blockly.VERSION),rendererMatchesRegistry:registryMatch,rendererClassName:workspace.getRenderer().getClassName&&workspace.getRenderer().getClassName(),theme:workspace.getTheme&&workspace.getTheme().name,
  viewport:{width:innerWidth,height:innerHeight},geometry:{toolbox:rect(document.querySelector('.blocklyToolbox')),flyout:rect(document.querySelector('.blocklyFlyout')),blockExtent:extent,toolbar:rect(document.getElementById('workspaceToolbar')),trash:rect(document.querySelector('.blocklyTrash'))},
  controls:{zoomIn:!!document.getElementById('zoomIn'),zoomOut:!!document.getElementById('zoomOut'),zoomFit:!!document.getElementById('zoomFit'),zoomReset:!!document.getElementById('zoomReset')},
  active:{inBlockly:!!(a&&a.closest&&a.closest('#blocklyDiv')),inToolbox:!!(a&&a.closest&&a.closest('.blocklyToolbox')),inFlyout:!!(a&&a.closest&&a.closest('.blocklyFlyout')),text:a&&a.textContent&&a.textContent.trim().slice(0,80)},
  selected:(document.querySelector('.blocklyToolboxCategory[aria-selected="true"],.blocklyTreeRow[aria-selected="true"]')||{}).textContent||null,
- rangeLabel:(Blockly.Blocks.webeeblocks_v2_range&&Blockly.Blocks.webeeblocks_v2_range.toString&&Blockly.Blocks.webeeblocks_v2_range.toString())||'',blockColours:colours,
+ rangeLabel:(Blockly.Blocks.webeeblocks_v2_range&&Blockly.Blocks.webeeblocks_v2_range.toString&&Blockly.Blocks.webeeblocks_v2_range.toString())||'',blockColours:colours,toolboxItems:toolboxItems,
  counts:{blocks:blocks.length,topBlocks:workspace.getTopBlocks(false).length,categories:document.querySelectorAll('.blocklyToolboxCategory,.blocklyTreeRow').length}};
 })()'''
 
@@ -91,7 +92,7 @@ def first_colour(snapshot, block_type):
     values=snapshot['blockColours'].get(block_type,[])
     if not values:
         raise RuntimeError('fixture does not contain '+block_type)
-    return values[0]
+    return values[0].upper()
 
 def main():
     p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--expected-ast',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
@@ -111,10 +112,23 @@ def main():
     if not initial['rendererMatchesRegistry']: raise RuntimeError('Zelos not actually instantiated')
     if initial['version']!='13.2.1': raise RuntimeError('wrong Blockly version')
     if not all(initial['controls'].values()): raise RuntimeError('workspace controls missing')
-    flight=[first_colour(initial,t) for t in ('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land')]
-    control=[first_colour(initial,t) for t in ('controls_repeat_ext','controls_if','logic_compare','math_number')]
-    if len(set(flight))!=1: raise RuntimeError('Vol blocks do not share one category colour: '+json.dumps(flight))
-    if len(set(control))!=1: raise RuntimeError('Contrôle blocks do not share one category colour: '+json.dumps(control))
+    expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
+    toolbox={item['name']:(item.get('colour') or '').upper() for item in initial['toolboxItems']}
+    if list(toolbox) != list(expected_colours):
+        raise RuntimeError('toolbox semantic groups/order mismatch: '+json.dumps(initial['toolboxItems'],ensure_ascii=False))
+    for name, colour in expected_colours.items():
+        if toolbox[name] != colour:
+            raise RuntimeError('toolbox colour mismatch for '+name+': '+toolbox[name]+' != '+colour)
+    block_groups={
+        'Vol':('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'),
+        'Contrôle':('controls_repeat_ext','controls_if'),
+        'Capteurs':('webeeblocks_v2_range',),
+        'Opérateurs':('logic_compare','math_number')
+    }
+    for name, block_types in block_groups.items():
+        colours=[first_colour(initial,t) for t in block_types]
+        if set(colours)!={expected_colours[name]}:
+            raise RuntimeError(name+' blocks do not use semantic palette: '+json.dumps(dict(zip(block_types,colours)),ensure_ascii=False))
     key=keyboard(c)
     c.call('Emulation.setDeviceMetricsOverride',{'width':800,'height':768,'deviceScaleFactor':1,'mobile':False}); c.eval('Blockly.svgResize(workspace);true'); time.sleep(.25)
     responsive=c.eval(RESPONSIVE)
