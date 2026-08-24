@@ -30,13 +30,26 @@ jobs:
         run: |
           node --check plugins/robot_windows/blockly_v2/main.js
           node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
           python3 -m py_compile experiments/runtime-v2-student-ui/probe.py
           bash -n experiments/runtime-v2-student-ui/browser.sh experiments/runtime-v2-student-ui/run.sh
           grep -F "renderer: 'zelos'" plugins/robot_windows/blockly_v2/main.js
           grep -F "message0:'distance %1'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
-          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 7
+          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 6
+          test "$(grep -o "style:'control_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
           test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
+          grep -F "webeeblocks_v2_wait:{category:'control'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "logic_compare:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "logic_operation:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "math_number:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "flight_category: {colour: '#2563EB'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "control_category: {colour: '#7C3AED'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "sensor_category: {colour: '#0E7490'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "operator_category: {colour: '#047857'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('logic_compare', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('logic_operation', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('math_number', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
           grep -F "#zoomFit .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
           ! grep -F "#workspaceToolbar .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
           test "$(sha256sum controllers/Blockly_Programs/CrazyflieReactiveV2.xml | awk '{print $1}')" = "32b281611dc06f6d488fcad97055d309493a8050b455fd57c8a6079a9b9aaaa1"
@@ -89,14 +102,20 @@ jobs:
           assert i['geometry']['trash'] and i['geometry']['trash']['width']>0, i['geometry']
           assert narrow['viewport']=={'width':800,'height':768}, narrow
           assert narrow['resetLabel']=='100 %' and narrow['resetLabelVisible'] is True, narrow
-          for group in (
-              ('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'),
-              ('controls_repeat_ext','controls_if','logic_compare','math_number')):
-              colours=[i['blockColours'][name][0] for name in group]
-              assert len(set(colours))==1, (group,colours)
+          expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
+          toolbox={item['name']:(item.get('colour') or '').upper() for item in i['toolboxItems']}
+          assert list(toolbox)==list(expected_colours), toolbox
+          assert toolbox==expected_colours, toolbox
+          for group, colour in (
+              (('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'),'#2563EB'),
+              (('controls_repeat_ext','controls_if'),'#7C3AED'),
+              (('webeeblocks_v2_range',),'#0E7490'),
+              (('logic_compare','math_number'),'#047857')):
+              colours=[i['blockColours'][name][0].upper() for name in group]
+              assert set(colours)=={colour}, (group,colours)
           for name in ('toolboxEntry','arrowDown','arrowUp','categoryActivation','flyoutBlockReachable','workspaceFocusReturn'):
               assert k[name] is True, (name,k)
-          print(json.dumps({'blockly':i['version'],'zelos':i['rendererMatchesRegistry'],'strictAst':r['astMatchesExpected'],'responsive800':narrow,'geometry':i['geometry'],'keyboard':{x:k[x] for x in k if x!='steps'}},ensure_ascii=False,indent=2))
+          print(json.dumps({'blockly':i['version'],'zelos':i['rendererMatchesRegistry'],'strictAst':r['astMatchesExpected'],'toolbox':i['toolboxItems'],'responsive800':narrow,'geometry':i['geometry'],'keyboard':{x:k[x] for x in k if x!='steps'}},ensure_ascii=False,indent=2))
           PY
 
       - name: Upload student UI evidence
