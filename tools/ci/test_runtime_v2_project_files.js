@@ -60,6 +60,21 @@ function memoryTransport() {
   };
 }
 
+function managerFor(workspace, profileRef, transport) {
+  return ProjectFiles.createManager({
+    Blockly,
+    profiles:Profiles,
+    activitiesDocument:Activities.DOCUMENT,
+    blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,
+    activityContract:ActivityContract,
+    workspace,
+    getProfile:() => profileRef.value,
+    setProfile:profile => { profileRef.value = profile; },
+    transport
+  });
+}
+
 async function expectRejectedWithoutMutation(manager, transport, text, workspace, profileRef, label) {
   const beforeAst = ast(workspace, profileRef.value);
   const beforeState = Blockly.serialization.workspaces.save(workspace);
@@ -72,22 +87,10 @@ async function expectRejectedWithoutMutation(manager, transport, text, workspace
 }
 
 (async function() {
-  let liveWorkspace = buildWorkspace(0.3);
   const profileRef = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
+  const liveWorkspace = buildWorkspace(0.3);
   const transport = memoryTransport();
-  const options = {
-    Blockly,
-    profiles:Profiles,
-    activitiesDocument:Activities.DOCUMENT,
-    blockCatalog:Activities.BLOCK_CATALOG,
-    semanticAst:SemanticAst,
-    activityContract:ActivityContract,
-    workspace:liveWorkspace,
-    getProfile:() => profileRef.value,
-    setProfile:profile => { profileRef.value = profile; },
-    transport
-  };
-  const manager = ProjectFiles.createManager(options);
+  const manager = managerFor(liveWorkspace, profileRef, transport);
 
   const initialAst = ast(liveWorkspace, profileRef.value);
   const saved = await manager.saveAs('eleve');
@@ -136,7 +139,25 @@ async function expectRejectedWithoutMutation(manager, transport, text, workspace
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(extraHistory), liveWorkspace, profileRef, 'unsupported history field');
   const invalidWorkspace = JSON.parse(validText); invalidWorkspace.workspace = {blocks:{languageVersion:0,blocks:[{type:'does_not_exist'}]}};
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(invalidWorkspace), liveWorkspace, profileRef, 'invalid workspace');
-
   assert.strictEqual(transport.state.writes.length, writesBeforeSave + 1, 'failed opens caused persistence writes');
-  console.log('PASS project-files: explicit round-trip/save/fail-closed/no-autosave');
+
+  // A student must be able to save unfinished work. It is a valid project even
+  // though it is not yet a valid executable flight AST.
+  const incompleteProfile = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
+  const incomplete = new Blockly.Workspace();
+  const takeoffOnly = incomplete.newBlock('webeeblocks_v2_takeoff');
+  takeoffOnly.setFieldValue('0.8', 'HEIGHT');
+  const incompleteTransport = memoryTransport();
+  const incompleteManager = managerFor(incomplete, incompleteProfile, incompleteTransport);
+  await incompleteManager.saveAs('en-cours');
+  assert.strictEqual(incompleteTransport.state.writes.length, 1, 'incomplete project was not explicitly saved');
+  const incompleteBytes = incompleteTransport.state.currentText;
+  incomplete.clear();
+  incompleteTransport.state.openText = incompleteBytes;
+  const reopenedIncomplete = await incompleteManager.open();
+  assert.strictEqual(reopenedIncomplete.ast, null, 'incomplete project unexpectedly compiled as executable AST');
+  assert.strictEqual(incomplete.getBlocksByType('webeeblocks_v2_takeoff', false).length, 1, 'incomplete workspace was not restored');
+  assert.strictEqual(incompleteTransport.state.writes.length, 1, 'opening incomplete project caused a write');
+
+  console.log('PASS project-files: explicit round-trip/save/fail-closed/no-autosave/incomplete-work');
 })().catch(error => { console.error(error); process.exit(1); });
