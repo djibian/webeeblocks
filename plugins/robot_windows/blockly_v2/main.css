@@ -121,9 +121,11 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
   border-radius: 7px;
   background: transparent;
   font-size: 13px;
+  white-space: nowrap;
 }
 #workspaceToolbar .zoomSymbol { font-size: 19px; line-height: 1; }
 #workspaceToolbar button:hover { background: #eef3f7; }
+#zoomReset { min-width: 48px; }
 
 /* Blockly 13.2.1: readable category rows without changing toolbox semantics. */
 .blocklyToolbox,
@@ -167,5 +169,5 @@ body[data-runtime-state="ERREUR"] #runtimeState { background: #fde4e1; color: #a
   h1 { font-size: 18px; }
   #activityGoal { max-width: 560px; }
   #workspaceToolbar { top: 8px; right: 9px; }
-  #workspaceToolbar .toolbarText { display: none; }
+  #zoomFit .toolbarText { display: none; }
 }
