@@ -8,6 +8,16 @@
 
   var PREFIX = 'WEBEEBLOCKS_RUNTIME_V2';
 
+  function RuntimeV2BackendError(code) {
+    this.name = 'RuntimeV2BackendError';
+    this.code = String(code);
+    this.message = 'Runtime v2 backend error: ' + this.code;
+    if (Error.captureStackTrace)
+      Error.captureStackTrace(this, RuntimeV2BackendError);
+  }
+  RuntimeV2BackendError.prototype = Object.create(Error.prototype);
+  RuntimeV2BackendError.prototype.constructor = RuntimeV2BackendError;
+
   function RuntimeV2WwiBackend(robotWindow, options) {
     if (!robotWindow || typeof robotWindow.send !== 'function')
       throw new Error('Runtime v2 RobotWindow transport unavailable');
@@ -17,12 +27,15 @@
     this.pending = Object.create(null);
     this.ready = false;
     this.readyWaiters = [];
-    this.capabilities = Object.freeze({
+    var capabilities = {
       actions: ['takeoff', 'move', 'land'],
       rangeDirections: ['front'],
       moveDirections: ['forward', 'left'],
       verticalDirections: []
-    });
+    };
+    if (options && options.simulationDebug === true)
+      capabilities.simulationDebug = true;
+    this.capabilities = Object.freeze(capabilities);
   }
 
   RuntimeV2WwiBackend.prototype.waitUntilReady = function() {
@@ -91,35 +104,20 @@
       else
         pending.resolve(value);
     } else {
-      pending.reject(new Error('Runtime v2 backend error: ' + match[4]));
+      pending.reject(new RuntimeV2BackendError(match[4]));
     }
     return true;
   };
 
-  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) {
-    return this._request(['TAKEOFF', Number(heightM).toPrecision(17)]);
-  };
-  RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) {
-    return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]);
-  };
-  RuntimeV2WwiBackend.prototype.land = function() {
-    return this._request(['LAND']);
-  };
-  RuntimeV2WwiBackend.prototype.readRange = function(direction) {
-    return this._request(['RANGE', String(direction)]);
-  };
-  RuntimeV2WwiBackend.prototype.vertical = function() {
-    return Promise.reject(new Error('Runtime v2 Webots backend vertical capability unavailable'));
-  };
-  RuntimeV2WwiBackend.prototype.turn = function() {
-    return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable'));
-  };
-  RuntimeV2WwiBackend.prototype.wait = function() {
-    return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable'));
-  };
-  RuntimeV2WwiBackend.prototype.setSpeed = function() {
-    return Promise.reject(new Error('Runtime v2 Webots backend speed capability unavailable'));
-  };
+  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.land = function() { return this._request(['LAND']); };
+  RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype.vertical = function() { return Promise.reject(new Error('Runtime v2 Webots backend vertical capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.turn = function() { return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.wait = function() { return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.setSpeed = function() { return Promise.reject(new Error('Runtime v2 Webots backend speed capability unavailable')); };
 
+  RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;
   return RuntimeV2WwiBackend;
 });

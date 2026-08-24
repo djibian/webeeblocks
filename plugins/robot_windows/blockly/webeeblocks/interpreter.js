@@ -13,6 +13,8 @@
   function fail(message){throw new Error('runtime v2: '+message);}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
   function requireMethod(backend,name){if(!backend||typeof backend[name]!=='function')fail('backend is missing '+name+'()');return backend[name].bind(backend);}
+  async function hook(options,name,payload){var hooks=options&&options.hooks;if(hooks&&typeof hooks[name]==='function')await hooks[name](payload);}
+  function context(node,path,role,extra){return Object.assign({node:node,path:(path||[]).slice(),role:role,variables:null},extra||{});}
 
   function validateExpression(expression,depth){
     if(!expression||typeof expression.kind!=='string')fail('invalid expression');
@@ -55,34 +57,79 @@
     validateSequence(ast.program,0,false);
   }
 
-  async function evaluate(expression,backend,budget,depth){
+  async function evaluate(expression,backend,budget,depth,options,path){
     budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+    var current=context(expression,path,'expression');
+    await hook(options,'onNode',current);
     switch(expression.kind){
-      case 'number':return Number(expression.value);
-      case 'range':return finite(await requireMethod(backend,'readRange')(String(expression.direction)),'range('+expression.direction+')');
-      case 'compare':{var left=await evaluate(expression.left,backend,budget,depth+1);var right=await evaluate(expression.right,backend,budget,depth+1);if(expression.op==='LT')return left<right;if(expression.op==='LTE')return left<=right;if(expression.op==='GT')return left>right;if(expression.op==='GTE')return left>=right;if(expression.op==='EQ')return left===right;return left!==right;}
-      case 'logic':{var first=Boolean(await evaluate(expression.left,backend,budget,depth+1));if(expression.op==='AND')return first&&Boolean(await evaluate(expression.right,backend,budget,depth+1));return first||Boolean(await evaluate(expression.right,backend,budget,depth+1));}
-    }
-  }
-
-  async function executeSequence(sequence,backend,budget,depth){
-    for(var i=0;i<sequence.length;i++){
-      budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
-      var statement=sequence[i];
-      switch(statement.kind){
-        case 'takeoff':await requireMethod(backend,'takeoff')(Number(statement.height_m));break;
-        case 'land':await requireMethod(backend,'land')();break;
-        case 'move':await requireMethod(backend,'move')(String(statement.direction),Number(statement.distance_m));break;
-        case 'vertical':await requireMethod(backend,'vertical')(String(statement.direction),Number(statement.distance_m));break;
-        case 'turn':await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
-        case 'wait':await requireMethod(backend,'wait')(Number(statement.seconds));break;
-        case 'set_speed':await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
-        case 'if':{var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1));await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1);break;}
-        case 'repeat':for(var repeat=0;repeat<statement.count;repeat++)await executeSequence(statement.body,backend,budget,depth+1);break;
+      case 'number':
+        await hook(options,'beforeStep',current);
+        return Number(expression.value);
+      case 'range':{
+        await hook(options,'beforeStep',current);
+        var value=finite(await requireMethod(backend,'readRange')(String(expression.direction)),'range('+expression.direction+')');
+        await hook(options,'onSensor',{node:expression,path:(path||[]).slice(),role:'expression',variables:null,direction:String(expression.direction),value:value});
+        return value;
+      }
+      case 'compare':{
+        var left=await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'));
+        var right=await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'));
+        await hook(options,'beforeStep',current);
+        if(expression.op==='LT')return left<right;
+        if(expression.op==='LTE')return left<=right;
+        if(expression.op==='GT')return left>right;
+        if(expression.op==='GTE')return left>=right;
+        if(expression.op==='EQ')return left===right;
+        return left!==right;
+      }
+      case 'logic':{
+        var first=Boolean(await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left')));
+        var second;
+        if(expression.op==='AND'){
+          if(!first){await hook(options,'beforeStep',current);return false;}
+          second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));
+          await hook(options,'beforeStep',current);
+          return first&&second;
+        }
+        if(first){await hook(options,'beforeStep',current);return true;}
+        second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));
+        await hook(options,'beforeStep',current);
+        return first||second;
       }
     }
   }
 
-  async function run(ast,backend,options){validateProgram(ast);var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');var budget={remaining:maxSteps};await executeSequence(ast.program,backend,budget,0);return{remainingBudget:budget.remaining};}
+  async function executeSequence(sequence,backend,budget,depth,options,prefix){
+    for(var i=0;i<sequence.length;i++){
+      budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+      var statement=sequence[i];
+      var path=(prefix||[]).concat(i);
+      var current=context(statement,path,'statement');
+      await hook(options,'onNode',current);
+      switch(statement.kind){
+        case 'takeoff':await hook(options,'beforeStep',current);await requireMethod(backend,'takeoff')(Number(statement.height_m));break;
+        case 'land':await hook(options,'beforeStep',current);await requireMethod(backend,'land')();break;
+        case 'move':await hook(options,'beforeStep',current);await requireMethod(backend,'move')(String(statement.direction),Number(statement.distance_m));break;
+        case 'vertical':await hook(options,'beforeStep',current);await requireMethod(backend,'vertical')(String(statement.direction),Number(statement.distance_m));break;
+        case 'turn':await hook(options,'beforeStep',current);await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
+        case 'wait':await hook(options,'beforeStep',current);await requireMethod(backend,'wait')(Number(statement.seconds));break;
+        case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
+        case 'if':{
+          var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition')));
+          await hook(options,'beforeStep',context(statement,path,'statement'));
+          await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'));
+          break;
+        }
+        case 'repeat':
+          for(var repeat=0;repeat<statement.count;repeat++){
+            await hook(options,'beforeStep',context(statement,path,'statement',{iteration:repeat}));
+            await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'));
+          }
+          break;
+      }
+    }
+  }
+
+  async function run(ast,backend,options){validateProgram(ast);var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');var budget={remaining:maxSteps};await executeSequence(ast.program,backend,budget,0,options||{},['program']);return{remainingBudget:budget.remaining};}
   return{run:run,evaluate:evaluate,validateProgram:validateProgram};
 });

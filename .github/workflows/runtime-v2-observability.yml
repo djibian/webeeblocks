@@ -1,0 +1,231 @@
+name: Runtime v2 simulation observability
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/execution_observer.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js'
+      - 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+      - 'plugins/robot_windows/blockly_v2/**'
+      - 'tools/ci/test_runtime_v2_observability.js'
+      - 'tools/ci/prepare_runtime_v2_observability.py'
+      - '.github/workflows/runtime-v2-observability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-v2-observability:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        run: ./tools/prepare_runtime_v2.sh
+
+      - name: Validate observability product sources and semantic invariants
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          node --check plugins/robot_windows/blockly/webeeblocks/execution_observer.js
+          node --check plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js
+          node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          node --check plugins/robot_windows/blockly_v2/main.js
+          node --check tools/ci/test_runtime_v2_observability.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_observability.py
+          node tools/ci/test_runtime_v2_observability.js
+          ! grep -Eq 'breakpoint|call.?stack|developer console|suggested block|automatic diagnosis' \
+            plugins/robot_windows/blockly/webeeblocks/execution_observer.js \
+            plugins/robot_windows/blockly_v2/main.js
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged dynamic Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-observability
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/build.log
+
+      - name: Prepare semantic step harness
+        run: python3 tools/ci/prepare_runtime_v2_observability.py --mode step
+
+      - name: Run real Robot Window semantic step scenario
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-observability/step \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-observability/step /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-observability/step/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 65s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/step-webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-observability/step-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate causal semantic steps, active block and fresh raw sensor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-observability/step/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          names = [e.get('event') for e in events]
+          for required in (
+              'TECHNICAL_FAILURE_OK','STEP_TAKEOFF_HELD','STEP_REPEAT_HELD','STEP_RANGE_HELD',
+              'STEP_NUMBER_HELD_AFTER_SENSOR','STEP_COMPARE_HELD','STEP_IF_HELD','SEMANTIC_DECISION_CHAIN_OK',
+              'STEP_CONTINUE_DONE','STEP_SCENARIO_DONE'):
+              assert required in names, (required, names)
+          tech = next(e for e in events if e.get('event') == 'TECHNICAL_FAILURE_OK')['detail']
+          assert tech['state'] == 'ERREUR', tech
+          pauses = [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED']
+          expected = [
+              ('takeoff','webeeblocks_v2_takeoff'),
+              ('repeat','controls_repeat_ext'),
+              ('range','webeeblocks_v2_range'),
+              ('number','math_number'),
+              ('compare','logic_compare'),
+              ('if','controls_if'),
+              ('move','webeeblocks_v2_move')]
+          assert len(pauses) == len(expected), pauses
+          for pause, (kind, block_type) in zip(pauses, expected):
+              assert pause['kind'] == kind and pause['blockType'] == block_type, (pause, kind, block_type)
+          assert pauses[1]['iteration'] == 0, pauses[1]
+          assert 'decision' not in pauses[5], pauses[5]
+          assert pauses[6]['direction'] == 'left', pauses[6]
+          sensors = [e['detail'] for e in events if e.get('event') == 'DEBUG_SENSOR']
+          assert len(sensors) >= 1 and sensors[0]['sensorDirection'] == 'front', sensors
+          raw = float(sensors[0]['sensorValue'])
+          log = Path('ci-artifacts/runtime-v2-observability/step-webots.log').read_text(errors='replace')
+          m = re.search(r'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=([0-9.]+)', log)
+          assert m, 'missing native controller range trace'
+          native = float(m.group(1))
+          assert abs(raw - native) < 1e-9, (raw, native)
+          chain = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
+          assert [p['kind'] for p in chain['pauses']] == ['range','number','compare','if','move'], chain
+          assert 'decision' not in chain['pauses'][3], chain
+          assert all(int(p['txCount']) <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
+          move_pause = pauses[6]
+          assert int(move_pause['txCount']) <= 2, move_pause
+          trace=[]
+          for line in log.splitlines():
+              if ' TRACE TAKEOFF ' in line: trace.append('TAKEOFF')
+              elif ' TRACE RANGE front ' in line: trace.append('RANGE')
+              elif ' TRACE MOVE left ' in line: trace.append('MOVE_LEFT')
+              elif ' TRACE MOVE forward ' in line: trace.append('MOVE_FORWARD')
+              elif ' TRACE LAND ' in line: trace.append('LAND')
+          assert trace[:8] == ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'], trace
+          print('PASS: R2025a semantic stepping pauses through branch boundaries without exposing branch outcome and preserves native trace.')
+          PY
+
+      - name: Prepare real fail-safe outcome harness
+        run: python3 tools/ci/prepare_runtime_v2_observability.py --mode unsafe
+
+      - name: Run real wall-blocked action to controller fail-safe
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-observability/unsafe \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-observability/unsafe /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-observability/unsafe/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 55s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/unsafe-webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-observability/unsafe-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate neutral student stop and preserved fail-closed code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-observability/unsafe/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          done = [e for e in events if e.get('event') == 'UNSAFE_SCENARIO_DONE']
+          assert len(done) == 1, events
+          detail = done[0]['detail']
+          assert detail['diagnostic']['machineCode'] == 'UNSAFE_OR_TIMEOUT', detail
+          assert detail['diagnostic']['studentState'] == 'ARRÊTÉ', detail
+          assert detail['snapshot']['state'] == 'ARRÊTÉ', detail
+          assert detail['snapshot']['detail'] == 'L’action n’a pas pu être terminée', detail
+          assert 'UNSAFE_OR_TIMEOUT' not in detail['snapshot']['detail']
+          log = Path('ci-artifacts/runtime-v2-observability/unsafe-webots.log').read_text(errors='replace')
+          assert 'ERR UNSAFE_OR_TIMEOUT' in log, 'controller low-level error code missing'
+          assert 'FATAL unsafe attitude or action timeout' in log, 'controller fail-safe path missing'
+          print('PASS: real controller fail-safe is preserved while student UI reports neutral ARRÊTÉ outcome.')
+          PY
+
+      - name: Upload observability diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-observability-r2025a
+          path: ci-artifacts/runtime-v2-observability/
+          if-no-files-found: error
