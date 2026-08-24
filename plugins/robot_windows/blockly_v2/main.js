@@ -94,14 +94,6 @@ function categoryLabel(category) {
   throw new Error('unknown toolbox category: ' + category);
 }
 
-function categoryColour(category) {
-  if (category === 'flight') return '#2563EB';
-  if (category === 'control') return '#7C3AED';
-  if (category === 'sensor') return '#0E7490';
-  if (category === 'operator') return '#047857';
-  throw new Error('unknown toolbox category: ' + category);
-}
-
 function categoryStyle(category) {
   if (category === 'flight') return 'flight_category';
   if (category === 'control') return 'control_category';
@@ -141,7 +133,6 @@ function buildToolbox(profile) {
     if (!groups[category].length) return;
     var categoryNode = document.createElement('category');
     categoryNode.setAttribute('name', categoryLabel(category));
-    categoryNode.setAttribute('colour', categoryColour(category));
     categoryNode.setAttribute('categorystyle', categoryStyle(category));
     groups[category].forEach(function(type) {
       var block = document.createElement('block');
