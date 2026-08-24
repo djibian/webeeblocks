@@ -99,7 +99,7 @@ jobs:
           echo "$code" > ci-artifacts/runtime-v2-observability/step-exit-code.txt
           if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
 
-      - name: Validate causal step, active block and fresh raw sensor
+      - name: Validate causal semantic steps, active block and fresh raw sensor
         shell: bash
         run: |
           set -euo pipefail
@@ -110,15 +110,28 @@ jobs:
           errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
           assert not errors, errors[:1]
           names = [e.get('event') for e in events]
-          for required in ('TECHNICAL_FAILURE_OK','STEP_0_HELD','STEP_1_HELD','RAW_SENSOR_AND_BRANCH_OK','STEP_CONTINUE_DONE','STEP_SCENARIO_DONE'):
+          for required in (
+              'TECHNICAL_FAILURE_OK','STEP_TAKEOFF_HELD','STEP_REPEAT_HELD','STEP_RANGE_HELD',
+              'STEP_NUMBER_HELD_AFTER_SENSOR','STEP_COMPARE_HELD','STEP_IF_HELD','SEMANTIC_DECISION_CHAIN_OK',
+              'STEP_CONTINUE_DONE','STEP_SCENARIO_DONE'):
               assert required in names, (required, names)
           tech = next(e for e in events if e.get('event') == 'TECHNICAL_FAILURE_OK')['detail']
           assert tech['state'] == 'ERREUR', tech
           pauses = [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED']
-          assert [p['kind'] for p in pauses] == ['takeoff','range','move'], pauses
-          assert pauses[0]['blockType'] == 'webeeblocks_v2_takeoff', pauses[0]
-          assert pauses[1]['blockType'] == 'webeeblocks_v2_range', pauses[1]
-          assert pauses[2]['direction'] == 'left', pauses[2]
+          expected = [
+              ('takeoff','webeeblocks_v2_takeoff'),
+              ('repeat','controls_repeat_ext'),
+              ('range','webeeblocks_v2_range'),
+              ('number','math_number'),
+              ('compare','logic_compare'),
+              ('if','controls_if'),
+              ('move','webeeblocks_v2_move')]
+          assert len(pauses) == len(expected), pauses
+          for pause, (kind, block_type) in zip(pauses, expected):
+              assert pause['kind'] == kind and pause['blockType'] == block_type, (pause, kind, block_type)
+          assert pauses[1]['iteration'] == 0, pauses[1]
+          assert pauses[5]['decision'] is True, pauses[5]
+          assert pauses[6]['direction'] == 'left', pauses[6]
           sensors = [e['detail'] for e in events if e.get('event') == 'DEBUG_SENSOR']
           assert len(sensors) >= 1 and sensors[0]['sensorDirection'] == 'front', sensors
           raw = float(sensors[0]['sensorValue'])
@@ -127,6 +140,9 @@ jobs:
           assert m, 'missing native controller range trace'
           native = float(m.group(1))
           assert abs(raw - native) < 1e-9, (raw, native)
+          decision = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
+          assert [p['kind'] for p in decision['pauses']] == ['range','number','compare','if','move'], decision
+          assert all(int(p['txCount']) <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
           trace=[]
           for line in log.splitlines():
               if ' TRACE TAKEOFF ' in line: trace.append('TAKEOFF')
@@ -135,7 +151,7 @@ jobs:
               elif ' TRACE MOVE forward ' in line: trace.append('MOVE_FORWARD')
               elif ' TRACE LAND ' in line: trace.append('LAND')
           assert trace[:8] == ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'], trace
-          print('PASS: real R2025a Robot Window step gate is causal and sensor value matches native current sample.')
+          print('PASS: R2025a semantic stepping pauses across sensor/value/comparison/branch boundaries and preserves native trace.')
           PY
 
       - name: Prepare real fail-safe outcome harness
