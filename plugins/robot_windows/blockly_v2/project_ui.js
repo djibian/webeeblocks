@@ -56,13 +56,6 @@
     return manager && manager.currentName() ? manager.currentName() : runtimeProfile.id + WebeeBlocksProjectFiles.EXTENSION;
   }
 
-  function promptName() {
-    var existing = suggestedName();
-    var base = existing.endsWith(WebeeBlocksProjectFiles.EXTENSION) ? existing.slice(0, -WebeeBlocksProjectFiles.EXTENSION.length) : existing;
-    var chosen = window.prompt('Nom du projet', base);
-    return chosen === null ? null : WebeeBlocksProjectFiles.normalizeName(chosen);
-  }
-
   window.addEventListener('load', function() {
     if (!workspace || !runtimeProfile) {
       fileState('Fichiers projet indisponibles', true);
@@ -83,10 +76,16 @@
       transport: transport
     });
     window.WebeeBlocksProjectManager = manager;
-    document.body.dataset.projectFileMode = manager.nativeFileSystemAccess ? 'native' : 'upload-download';
+    document.body.dataset.projectFileMode = manager.nativeFileSystemAccess ? 'native' : 'unavailable';
     window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
       detail: {nativeFileSystemAccess: manager.nativeFileSystemAccess}
     }));
+
+    if (!manager.nativeFileSystemAccess) {
+      fileState('Fichiers projet indisponibles dans ce navigateur', true);
+      setButtonsDisabled(true);
+      return;
+    }
 
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
@@ -98,24 +97,15 @@
     });
 
     document.getElementById('projectSaveAs').addEventListener('click', function() {
-      var name = manager.nativeFileSystemAccess ? suggestedName() : promptName();
-      if (name === null) return;
       operation('save-as', async function() {
-        var result = await manager.saveAs(name);
+        var result = await manager.saveAs(suggestedName());
         fileState('Projet : ' + result.name, false);
       });
     });
 
     document.getElementById('projectSave').addEventListener('click', function() {
       operation('save', async function() {
-        var result;
-        if (!manager.currentName() && !manager.nativeFileSystemAccess) {
-          var name = promptName();
-          if (name === null) return;
-          result = await manager.saveAs(name);
-        } else {
-          result = await manager.save();
-        }
+        var result = await manager.save();
         if (result) fileState('Projet : ' + result.name, false);
       });
     });
