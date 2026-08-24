@@ -36,13 +36,44 @@
     return base.toLowerCase().endsWith(EXTENSION) ? base : base + EXTENSION;
   }
 
+  function validateWorkspaceFields(profile, workspace) {
+    var definitions = profile.parameterBounds || {};
+    workspace.getAllBlocks(false).forEach(function(block) {
+      var fields = definitions[block.type] || {};
+      Object.keys(fields).forEach(function(fieldName) {
+        var field = block.getField(fieldName);
+        if (!field || typeof field.getValue !== 'function') fail('workspace field unavailable: ' + block.type + '.' + fieldName);
+        var value = Number(field.getValue());
+        var bounds = fields[fieldName];
+        if (!Number.isFinite(value) || value < bounds.min || value > bounds.max)
+          fail('workspace field outside profile bounds: ' + block.type + '.' + fieldName);
+      });
+    });
+  }
+
+  function optionalAst(profile, workspace, options) {
+    try {
+      var ast = options.semanticAst.compileWorkspace(workspace);
+      options.activityContract.preflightAst(profile, ast);
+      if (ast.semantics !== SEMANTICS) fail('unsupported AST semantics: ' + String(ast.semantics));
+      return ast;
+    } catch (error) {
+      var message = String(error && error.message || error);
+      var incomplete = [
+        'Crazyflie program must have exactly one top-level sequence',
+        'program must start with takeoff and end with land',
+        'missing value input '
+      ].some(function(fragment) { return message.indexOf(fragment) >= 0; });
+      if (incomplete) return null;
+      throw error;
+    }
+  }
+
   function createProject(profile, workspace, options) {
     requireDependencies(options);
     if (!profile || typeof profile.id !== 'string') fail('current activity unavailable');
     options.activityContract.preflightWorkspace(profile, workspace);
-    var ast = options.semanticAst.compileWorkspace(workspace);
-    options.activityContract.preflightAst(profile, ast);
-    if (ast.semantics !== SEMANTICS) fail('unsupported AST semantics: ' + String(ast.semantics));
+    validateWorkspaceFields(profile, workspace);
     return {
       format: FORMAT,
       version: VERSION,
@@ -82,9 +113,8 @@
     try {
       options.Blockly.serialization.workspaces.load(project.workspace, temporary);
       options.activityContract.preflightWorkspace(profile, temporary);
-      var ast = options.semanticAst.compileWorkspace(temporary);
-      options.activityContract.preflightAst(profile, ast);
-      if (ast.semantics !== project.activity.semantics) fail('workspace semantics mismatch');
+      validateWorkspaceFields(profile, temporary);
+      var ast = optionalAst(profile, temporary, options);
       return {project: project, profile: profile, ast: ast};
     } catch (error) {
       if (String(error && error.message || error).indexOf('project file: ') === 0) throw error;
@@ -116,7 +146,7 @@
       anchor.click();
       anchor.remove();
       browserWindow.setTimeout(function() { browserWindow.URL.revokeObjectURL(url); }, 0);
-      return Promise.resolve({handle: null, name: anchor.download, mode: 'download'});
+      return Promise.resolve({handle: null, name: normalizeName(name), mode: 'download'});
     }
     function upload() {
       return new Promise(function(resolve, reject) {
@@ -200,9 +230,13 @@
         options.workspace.clear();
         options.Blockly.serialization.workspaces.load(validated.project.workspace, options.workspace);
         options.activityContract.applyFieldBounds(validated.profile, options.workspace);
-        var loadedAst = options.semanticAst.compileWorkspace(options.workspace);
-        options.activityContract.preflightAst(validated.profile, loadedAst);
-        if (!sameJson(loadedAst, validated.ast)) fail('loaded workspace differs from validated project');
+        options.activityContract.preflightWorkspace(validated.profile, options.workspace);
+        validateWorkspaceFields(validated.profile, options.workspace);
+        if (validated.ast) {
+          var loadedAst = options.semanticAst.compileWorkspace(options.workspace);
+          options.activityContract.preflightAst(validated.profile, loadedAst);
+          if (!sameJson(loadedAst, validated.ast)) fail('loaded workspace differs from validated project');
+        }
       } catch (error) {
         try { restore(before); } catch (rollbackError) { console.error('WebeeBlocks project rollback failed', rollbackError); }
         throw error;
