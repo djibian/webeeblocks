@@ -80,6 +80,13 @@
     return this.sourceMap[key(path)] || null;
   };
 
+  Controller.prototype._detail = function(context) {
+    var detail = Object.assign({}, context, {blockId: this._blockId(context.path)});
+    if (detail.blockId && this.workspace && typeof this.workspace.highlightBlock === 'function')
+      this.workspace.highlightBlock(detail.blockId);
+    return detail;
+  };
+
   Controller.prototype.begin = function(enabled) {
     this.finish();
     this.sourceMap = Object.create(null);
@@ -99,16 +106,16 @@
       this.sourceMap = buildSourceMap(this.workspace);
       this.sourceMapReady = true;
     }
-    var detail = Object.assign({}, context, {blockId: this._blockId(context.path)});
-    if (detail.blockId && this.workspace && typeof this.workspace.highlightBlock === 'function')
-      this.workspace.highlightBlock(detail.blockId);
+    var detail = this._detail(context);
     if (typeof this.callbacks.onActive === 'function')
       this.callbacks.onActive(detail);
   };
 
   Controller.prototype._beforeStep = async function(context) {
     if (!this.enabled || this.continuous) return;
-    var detail = Object.assign({}, context, {blockId: this._blockId(context.path)});
+    var detail = this._detail(context);
+    if (typeof this.callbacks.onActive === 'function')
+      this.callbacks.onActive(detail);
     if (this.credit > 0) {
       this.credit -= 1;
       if (typeof this.callbacks.onResume === 'function')
@@ -121,7 +128,7 @@
     await new Promise(function(resolve) {
       self.waiter = {resolve: resolve, context: detail};
     });
-    this.waiter = null;
+    self.waiter = null;
     if (typeof this.callbacks.onResume === 'function')
       this.callbacks.onResume(detail);
   };
