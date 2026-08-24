@@ -116,7 +116,7 @@
         case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
         case 'if':{
           var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition')));
-          await hook(options,'beforeStep',context(statement,path,'statement',{decision:true}));
+          await hook(options,'beforeStep',context(statement,path,'statement'));
           await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'));
           break;
         }
