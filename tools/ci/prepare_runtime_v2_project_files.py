@@ -152,6 +152,8 @@ harness = r'''
 
         // Exercise the real Runtime v2 run path and the real #67 step controls.
         loadXml(__SIMPLE_RUN__);
+        await waitFor(() => window.runtimeBackend && window.runtimeBackend.ready === true,
+          'Runtime v2 ready before debug run', 15000);
         const writesBeforeRun = window.__webeeblocksCiFileStore.writes;
         document.getElementById('stepMode').checked = true;
         const runPromise = window.runProgram();
