@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WebeeBlocks Runtime v2</title>
   <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="execution_observer.css">
   <script src="vendor/blockly_compressed.js"></script>
   <script src="vendor/blocks_compressed.js"></script>
   <script src="vendor/msg/en.js"></script>
@@ -13,6 +14,8 @@
   <script src="../blockly/webeeblocks/activities.js"></script>
   <script src="../blockly/webeeblocks/semantic_ast.js"></script>
   <script src="../blockly/webeeblocks/interpreter.js"></script>
+  <script src="../blockly/webeeblocks/execution_observer.js"></script>
+  <script src="../blockly/webeeblocks/runtime_outcome.js"></script>
   <script src="../blockly/webeeblocks/activity_contract.js"></script>
   <script src="../blockly/webeeblocks/wwi_backend.js"></script>
 </head>
@@ -27,6 +30,14 @@
   <section id="statusPanel" aria-live="polite">
     <span id="statusLabel">État : <strong id="runtimeState">INITIALISATION</strong></span>
     <span id="runtimeDetail"></span>
+  </section>
+  <section id="debugPanel" hidden aria-label="Observation de l’exécution">
+    <label id="stepModeLabel"><input id="stepMode" type="checkbox"> Pas à pas</label>
+    <button id="stepNext" type="button" disabled>Pas suivant</button>
+    <button id="stepContinue" type="button" disabled>Continuer</button>
+    <span id="debugState">Observation inactive</span>
+    <span id="debugSensorsRow"><strong>Capteurs :</strong> <span id="debugSensors">—</span></span>
+    <span id="debugVariablesRow" hidden><strong>Variables :</strong> <span id="debugVariables"></span></span>
   </section>
   <main id="workspaceShell">
     <div id="blocklyDiv" aria-label="Programme Blockly"></div>
