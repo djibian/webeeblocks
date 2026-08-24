@@ -6,6 +6,7 @@
   <title>WebeeBlocks Runtime v2</title>
   <link rel="stylesheet" href="main.css">
   <link rel="stylesheet" href="execution_observer.css">
+  <link rel="stylesheet" href="project_files.css">
   <script src="vendor/blockly_compressed.js"></script>
   <script src="vendor/blocks_compressed.js"></script>
   <script src="vendor/msg/en.js"></script>
@@ -17,6 +18,7 @@
   <script src="../blockly/webeeblocks/execution_observer.js"></script>
   <script src="../blockly/webeeblocks/runtime_outcome.js"></script>
   <script src="../blockly/webeeblocks/activity_contract.js"></script>
+  <script src="../blockly/webeeblocks/project_files.js"></script>
   <script src="../blockly/webeeblocks/wwi_backend.js"></script>
 </head>
 <body>
@@ -25,11 +27,17 @@
       <h1 id="activityTitle">WebeeBlocks</h1>
       <p id="activityGoal"></p>
     </div>
-    <button id="submit" disabled>Lancer le vol</button>
+    <div id="primaryActions" aria-label="Projet et exécution">
+      <button id="projectOpen" type="button">Ouvrir</button>
+      <button id="projectSave" type="button">Enregistrer</button>
+      <button id="projectSaveAs" type="button">Enregistrer sous</button>
+      <button id="submit" disabled>Lancer le vol</button>
+    </div>
   </header>
   <section id="statusPanel" aria-live="polite">
     <span id="statusLabel">État : <strong id="runtimeState">INITIALISATION</strong></span>
     <span id="runtimeDetail"></span>
+    <span id="projectFileState">Projet non enregistré</span>
   </section>
   <section id="debugPanel" hidden aria-label="Observation de l’exécution">
     <label id="stepModeLabel"><input id="stepMode" type="checkbox"> Pas à pas</label>
@@ -49,5 +57,6 @@
     </nav>
   </main>
   <script src="main.js"></script>
+  <script src="project_ui.js"></script>
 </body>
 </html>
