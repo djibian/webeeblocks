@@ -14,7 +14,7 @@
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
   function requireMethod(backend,name){if(!backend||typeof backend[name]!=='function')fail('backend is missing '+name+'()');return backend[name].bind(backend);}
   async function hook(options,name,payload){var hooks=options&&options.hooks;if(hooks&&typeof hooks[name]==='function')await hooks[name](payload);}
-  function context(node,path,role){return{node:node,path:(path||[]).slice(),role:role,variables:null};}
+  function context(node,path,role,extra){return Object.assign({node:node,path:(path||[]).slice(),role:role,variables:null},extra||{});}
 
   function validateExpression(expression,depth){
     if(!expression||typeof expression.kind!=='string')fail('invalid expression');
@@ -62,15 +62,40 @@
     var current=context(expression,path,'expression');
     await hook(options,'onNode',current);
     switch(expression.kind){
-      case 'number':return Number(expression.value);
+      case 'number':
+        await hook(options,'beforeStep',current);
+        return Number(expression.value);
       case 'range':{
         await hook(options,'beforeStep',current);
         var value=finite(await requireMethod(backend,'readRange')(String(expression.direction)),'range('+expression.direction+')');
         await hook(options,'onSensor',{node:expression,path:(path||[]).slice(),role:'expression',variables:null,direction:String(expression.direction),value:value});
         return value;
       }
-      case 'compare':{var left=await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'));var right=await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'));if(expression.op==='LT')return left<right;if(expression.op==='LTE')return left<=right;if(expression.op==='GT')return left>right;if(expression.op==='GTE')return left>=right;if(expression.op==='EQ')return left===right;return left!==right;}
-      case 'logic':{var first=Boolean(await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left')));if(expression.op==='AND')return first&&Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));return first||Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));}
+      case 'compare':{
+        var left=await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'));
+        var right=await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'));
+        await hook(options,'beforeStep',current);
+        if(expression.op==='LT')return left<right;
+        if(expression.op==='LTE')return left<=right;
+        if(expression.op==='GT')return left>right;
+        if(expression.op==='GTE')return left>=right;
+        if(expression.op==='EQ')return left===right;
+        return left!==right;
+      }
+      case 'logic':{
+        var first=Boolean(await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left')));
+        var second;
+        if(expression.op==='AND'){
+          if(!first){await hook(options,'beforeStep',current);return false;}
+          second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));
+          await hook(options,'beforeStep',current);
+          return first&&second;
+        }
+        if(first){await hook(options,'beforeStep',current);return true;}
+        second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right')));
+        await hook(options,'beforeStep',current);
+        return first||second;
+      }
     }
   }
 
@@ -89,8 +114,18 @@
         case 'turn':await hook(options,'beforeStep',current);await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
         case 'wait':await hook(options,'beforeStep',current);await requireMethod(backend,'wait')(Number(statement.seconds));break;
         case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
-        case 'if':{var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition')));await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'));break;}
-        case 'repeat':for(var repeat=0;repeat<statement.count;repeat++)await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'));break;
+        case 'if':{
+          var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition')));
+          await hook(options,'beforeStep',context(statement,path,'statement',{decision:true}));
+          await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'));
+          break;
+        }
+        case 'repeat':
+          for(var repeat=0;repeat<statement.count;repeat++){
+            await hook(options,'beforeStep',context(statement,path,'statement',{iteration:repeat}));
+            await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'));
+          }
+          break;
       }
     }
   }
