@@ -79,7 +79,7 @@ def keyboard(c):
     return {'toolboxEntry':entered,'arrowDown':down,'arrowUp':up,'categoryActivation':opened,'flyoutBlockReachable':flyout,'workspaceFocusReturn':returned,'steps':states}
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--expected-ast',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
     c=Cdp(wait_target()['webSocketDebuggerUrl']); c.call('Runtime.enable'); c.call('Page.enable'); c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False})
     end=time.time()+30
     while time.time()<end:
@@ -88,14 +88,16 @@ def main():
         time.sleep(.2)
     else: raise RuntimeError('Blockly 13.2.1 workspace did not initialize')
     fixture=Path(a.fixture).read_text(encoding='utf-8')
+    expected_ast=json.loads(Path(a.expected_ast).read_text(encoding='utf-8'))
     c.eval("workspace.clear();Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(%s),workspace);Blockly.svgResize(workspace);true"%json.dumps(fixture)); time.sleep(.5)
     ast=c.eval('WebeeBlocksSemanticAst.compileWorkspace(workspace)'); initial=c.eval(SNAP)
-    if ast.get('semantics')!='webeeblocks-ast-v1': raise RuntimeError('unexpected AST semantics')
+    if ast != expected_ast:
+        raise RuntimeError('compiled fixture AST differs from canonical pre-#75 AST: '+json.dumps({'expected':expected_ast,'actual':ast},ensure_ascii=False,separators=(',',':')))
     if not initial['rendererMatchesRegistry']: raise RuntimeError('Zelos not actually instantiated')
     if initial['version']!='13.2.1': raise RuntimeError('wrong Blockly version')
     if not all(initial['controls'].values()): raise RuntimeError('workspace controls missing')
     key=keyboard(c); final=c.eval(SNAP); c.screenshot(a.screenshot)
-    Path(a.output).write_text(json.dumps({'ast':ast,'initial':initial,'keyboard':key,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'initial':initial,'keyboard':key,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 if __name__=='__main__': main()
