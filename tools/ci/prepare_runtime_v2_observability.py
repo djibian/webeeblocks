@@ -86,8 +86,7 @@ __COMMON__
       blockId: detail && detail.blockId,
       blockType: block ? block.type : (detail && detail.blockType) || null,
       direction: block && block.getFieldValue('DIRECTION') !== null ? block.getFieldValue('DIRECTION') : null,
-      iteration: detail && detail.iteration,
-      decision: detail && detail.decision
+      iteration: detail && detail.iteration
     };
   }
   window.addEventListener('webeeblocks-runtime-v2-diagnostic', event => {
@@ -196,8 +195,9 @@ __COMMON__
     await report('STEP_COMPARE_HELD', paused[4]);
 
     await nextAndWait(6, 'if decision pause');
-    if (paused[5].blockType !== 'controls_if' || paused[5].kind !== 'if' || paused[5].decision !== true)
+    if (paused[5].blockType !== 'controls_if' || paused[5].kind !== 'if')
       throw new Error('if decision boundary mismatch: ' + JSON.stringify(paused[5]));
+    if ('decision' in paused[5]) throw new Error('if condition result leaked into debug surface: ' + JSON.stringify(paused[5]));
     if (wwiTx.length !== txStart + 2) throw new Error('if decision boundary emitted backend action');
     await report('STEP_IF_HELD', paused[5]);
 
