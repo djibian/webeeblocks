@@ -85,7 +85,9 @@ __COMMON__
       kind: detail && (detail.kind || (detail.node && detail.node.kind)),
       blockId: detail && detail.blockId,
       blockType: block ? block.type : (detail && detail.blockType) || null,
-      direction: block && block.getFieldValue('DIRECTION') !== null ? block.getFieldValue('DIRECTION') : null
+      direction: block && block.getFieldValue('DIRECTION') !== null ? block.getFieldValue('DIRECTION') : null,
+      iteration: detail && detail.iteration,
+      decision: detail && detail.decision
     };
   }
   window.addEventListener('webeeblocks-runtime-v2-diagnostic', event => {
@@ -108,6 +110,10 @@ __COMMON__
     });
     sensors.push(detail); report('DEBUG_SENSOR', detail);
   });
+  async function nextAndWait(count, label, timeout) {
+    document.getElementById('stepNext').click();
+    await waitFor(() => paused.length >= count, label, timeout || 5000);
+  }
   try {
     await waitFor(() => window.workspace && window.runtimeBackend && runtimeBackend.ready === true,
       'Runtime v2 READY', 20000);
@@ -148,44 +154,62 @@ __COMMON__
     document.getElementById('stepMode').checked = true;
     const txStart = wwiTx.length;
     document.getElementById('submit').click();
-    await waitFor(() => paused.length >= 1, 'first semantic pause', 5000);
+    await waitFor(() => paused.length >= 1, 'takeoff pause', 5000);
     if (paused[0].blockType !== 'webeeblocks_v2_takeoff' || paused[0].kind !== 'takeoff')
-      throw new Error('first active semantic block mismatch: ' + JSON.stringify(paused[0]));
-    const beforeFirstNext = wwiTx.length;
-    await sleep(350);
-    if (wwiTx.length !== beforeFirstNext || beforeFirstNext !== txStart)
-      throw new Error('semantic action started before Pas suivant');
-    await report('STEP_0_HELD', snapshot());
-
-    document.getElementById('stepNext').click();
-    await waitFor(() => paused.length >= 2, 'range semantic pause', 20000);
-    if (paused[1].blockType !== 'webeeblocks_v2_range' || paused[1].kind !== 'range')
-      throw new Error('second semantic step mismatch: ' + JSON.stringify(paused[1]));
-    if (wwiTx.length !== txStart + 1 || !wwiTx[txStart].includes(' TAKEOFF '))
-      throw new Error('Pas suivant did not release exactly TAKEOFF: ' + JSON.stringify(wwiTx.slice(txStart)));
-    const beforeRangeNext = wwiTx.length;
+      throw new Error('takeoff semantic block mismatch: ' + JSON.stringify(paused[0]));
     await sleep(300);
-    if (wwiTx.length !== beforeRangeNext) throw new Error('RANGE started before second Pas suivant');
-    await report('STEP_1_HELD', snapshot());
+    if (wwiTx.length !== txStart) throw new Error('TAKEOFF started before Pas suivant');
+    await report('STEP_TAKEOFF_HELD', paused[0]);
 
-    document.getElementById('stepNext').click();
+    await nextAndWait(2, 'repeat iteration pause', 20000);
+    if (paused[1].blockType !== 'controls_repeat_ext' || paused[1].kind !== 'repeat' || paused[1].iteration !== 0)
+      throw new Error('repeat semantic boundary mismatch: ' + JSON.stringify(paused[1]));
+    if (wwiTx.length !== txStart + 1 || !wwiTx[txStart].includes(' TAKEOFF '))
+      throw new Error('first Pas suivant did not release exactly TAKEOFF: ' + JSON.stringify(wwiTx.slice(txStart)));
+    await report('STEP_REPEAT_HELD', paused[1]);
+
+    await nextAndWait(3, 'range pause');
+    if (paused[2].blockType !== 'webeeblocks_v2_range' || paused[2].kind !== 'range')
+      throw new Error('range semantic boundary mismatch: ' + JSON.stringify(paused[2]));
+    if (wwiTx.length !== txStart + 1) throw new Error('repeat step unexpectedly emitted backend action');
+    await report('STEP_RANGE_HELD', paused[2]);
+
+    await nextAndWait(4, 'numeric threshold pause');
     await waitFor(() => sensors.length >= 1, 'fresh sensor value', 4000);
-    await waitFor(() => paused.length >= 3, 'chosen movement pause', 4000);
     if (sensors[0].blockType !== 'webeeblocks_v2_range' || sensors[0].sensorDirection !== 'front')
       throw new Error('fresh sensor correlation mismatch: ' + JSON.stringify(sensors[0]));
     if (!Number.isFinite(Number(sensors[0].sensorValue))) throw new Error('sensor value is not numeric');
+    if (paused[3].blockType !== 'math_number' || paused[3].kind !== 'number')
+      throw new Error('number semantic boundary mismatch: ' + JSON.stringify(paused[3]));
     if (wwiTx.length !== txStart + 2 || !wwiTx[txStart + 1].includes(' RANGE front'))
-      throw new Error('second Pas suivant did not release exactly RANGE');
-    if (paused[2].kind !== 'move' || paused[2].direction !== 'left')
-      throw new Error('fresh sensor did not causally reach left move: ' + JSON.stringify(paused[2]));
+      throw new Error('range step did not release exactly one RANGE request');
+    if (wwiTx.some(text => text.includes(' MOVE '))) throw new Error('branch action started while evaluating condition');
     const sensorText = document.getElementById('debugSensors').textContent;
     if (!sensorText.includes(String(sensors[0].sensorValue)))
       throw new Error('raw sensor value not displayed verbatim: ' + sensorText);
-    await report('RAW_SENSOR_AND_BRANCH_OK', {sensor: sensors[0], pause: paused[2], snapshot: snapshot()});
+    await report('STEP_NUMBER_HELD_AFTER_SENSOR', {sensor: sensors[0], pause: paused[3], snapshot: snapshot()});
+
+    await nextAndWait(5, 'comparison decision pause');
+    if (paused[4].blockType !== 'logic_compare' || paused[4].kind !== 'compare')
+      throw new Error('comparison semantic boundary mismatch: ' + JSON.stringify(paused[4]));
+    if (wwiTx.length !== txStart + 2) throw new Error('comparison boundary emitted backend action');
+    await report('STEP_COMPARE_HELD', paused[4]);
+
+    await nextAndWait(6, 'if decision pause');
+    if (paused[5].blockType !== 'controls_if' || paused[5].kind !== 'if' || paused[5].decision !== true)
+      throw new Error('if decision boundary mismatch: ' + JSON.stringify(paused[5]));
+    if (wwiTx.length !== txStart + 2) throw new Error('if decision boundary emitted backend action');
+    await report('STEP_IF_HELD', paused[5]);
+
+    await nextAndWait(7, 'chosen movement pause');
+    if (paused[6].kind !== 'move' || paused[6].direction !== 'left')
+      throw new Error('branch selection did not pause at chosen move: ' + JSON.stringify(paused[6]));
+    if (wwiTx.length !== txStart + 2) throw new Error('chosen move started before its own Pas suivant');
+    await report('SEMANTIC_DECISION_CHAIN_OK', {sensor: sensors[0], pauses: paused.slice(2, 7), snapshot: snapshot()});
 
     document.getElementById('stepContinue').click();
     await waitFor(() => document.getElementById('runtimeState').textContent === 'TERMINÉ', 'continued completion', 60000);
-    if (paused.length !== 3) throw new Error('Continuer left additional semantic pauses: ' + JSON.stringify(paused));
+    if (paused.length !== 7) throw new Error('Continuer left additional semantic pauses: ' + JSON.stringify(paused));
     const runAst = asts[asts.length - 1];
     if (JSON.stringify(runAst) !== JSON.stringify(baselineAst)) throw new Error('executed step AST differs from baseline');
     await report('STEP_CONTINUE_DONE', {ast: runAst, snapshot: snapshot()});
