@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WebeeBlocks Runtime v2</title>
   <link rel="stylesheet" href="main.css">
   <script src="vendor/blockly_compressed.js"></script>
@@ -17,17 +18,25 @@
 </head>
 <body>
   <header>
-    <div>
+    <div id="activityCopy">
       <h1 id="activityTitle">WebeeBlocks</h1>
       <p id="activityGoal"></p>
     </div>
     <button id="submit" disabled>Lancer le vol</button>
   </header>
   <section id="statusPanel" aria-live="polite">
-    <span>État : <strong id="runtimeState">INITIALISATION</strong></span>
+    <span id="statusLabel">État : <strong id="runtimeState">INITIALISATION</strong></span>
     <span id="runtimeDetail"></span>
   </section>
-  <main id="blocklyDiv"></main>
+  <main id="workspaceShell">
+    <div id="blocklyDiv" aria-label="Programme Blockly"></div>
+    <nav id="workspaceToolbar" aria-label="Zoom et affichage du programme">
+      <button id="zoomOut" type="button" title="Réduire le zoom" aria-label="Réduire le zoom"><span class="zoomSymbol" aria-hidden="true">−</span></button>
+      <button id="zoomIn" type="button" title="Augmenter le zoom" aria-label="Augmenter le zoom"><span class="zoomSymbol" aria-hidden="true">+</span></button>
+      <button id="zoomFit" type="button" title="Ajuster le programme à l'écran" aria-label="Ajuster le programme à l'écran"><span class="toolbarText">Ajuster</span><span class="zoomSymbol" aria-hidden="true">↔</span></button>
+      <button id="zoomReset" type="button" title="Recentrer à la taille normale" aria-label="Recentrer à la taille normale"><span class="toolbarText">100 %</span></button>
+    </nav>
+  </main>
   <script src="main.js"></script>
 </body>
 </html>
