@@ -10,26 +10,36 @@ var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   base: Blockly.Themes.Classic,
   blockStyles: {
+    flight_blocks: {
+      colourPrimary: '#4f7df3',
+      colourSecondary: '#3f68d1',
+      colourTertiary: '#3153aa'
+    },
+    sensor_blocks: {
+      colourPrimary: '#159b9b',
+      colourSecondary: '#118383',
+      colourTertiary: '#0d696f'
+    },
     logic_blocks: {
-      colourPrimary: '#6656b8',
-      colourSecondary: '#584aa1',
-      colourTertiary: '#453b82'
+      colourPrimary: '#7c5ce7',
+      colourSecondary: '#6948ca',
+      colourTertiary: '#5437a8'
     },
     loop_blocks: {
-      colourPrimary: '#7a56b8',
-      colourSecondary: '#6949a1',
-      colourTertiary: '#533b82'
+      colourPrimary: '#7c5ce7',
+      colourSecondary: '#6948ca',
+      colourTertiary: '#5437a8'
     },
     math_blocks: {
-      colourPrimary: '#3a83c5',
-      colourSecondary: '#3272ac',
-      colourTertiary: '#285b89'
+      colourPrimary: '#7c5ce7',
+      colourSecondary: '#6948ca',
+      colourTertiary: '#5437a8'
     }
   },
   categoryStyles: {
-    flight_category: {colour: '#2f80ed'},
-    sensor_category: {colour: '#118b7e'},
-    control_category: {colour: '#7357b8'}
+    flight_category: {colour: '#4f7df3'},
+    sensor_category: {colour: '#159b9b'},
+    control_category: {colour: '#7c5ce7'}
   },
   componentStyles: {
     workspaceBackgroundColour: '#f7f9fc',
@@ -72,9 +82,9 @@ function categoryLabel(category) {
 }
 
 function categoryColour(category) {
-  if (category === 'flight') return '#2f80ed';
-  if (category === 'sensor') return '#118b7e';
-  return '#7357b8';
+  if (category === 'flight') return '#4f7df3';
+  if (category === 'sensor') return '#159b9b';
+  return '#7c5ce7';
 }
 
 function categoryStyle(category) {
