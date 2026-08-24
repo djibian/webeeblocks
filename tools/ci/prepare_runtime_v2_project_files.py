@@ -5,6 +5,12 @@ import json
 ROOT = Path(__file__).resolve().parents[2]
 html_path = ROOT / 'plugins/robot_windows/blockly_v2/blockly_v2.html'
 fixture = (ROOT / 'controllers/Blockly_Programs/CrazyflieReactiveV2.xml').read_text(encoding='utf-8')
+simple_run = '''<xml xmlns="https://developers.google.com/blockly/xml">
+  <block type="webeeblocks_v2_takeoff" id="ci_project_takeoff" x="40" y="40">
+    <field name="HEIGHT">0.5</field>
+    <next><block type="webeeblocks_v2_land" id="ci_project_land"></block></next>
+  </block>
+</xml>'''
 html = html_path.read_text(encoding='utf-8')
 
 seam = '  <script src="project_ui.js"></script>\n'
@@ -46,6 +52,7 @@ harness = r'''
     function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
     let seq = 0;
     let reportChain = Promise.resolve();
+    let debugPauseCount = 0;
     function report(event, detail) {
       const payload = {seq: seq++, event, detail: detail === undefined ? null : detail, wall_ms: Date.now()};
       reportChain = reportChain.then(() => fetch('http://127.0.0.1:8765/event', {
@@ -65,6 +72,10 @@ harness = r'''
     function same(left, right) { return JSON.stringify(left) === JSON.stringify(right); }
     function click(id) { document.getElementById(id).click(); }
     function firstMove() { return workspace.getBlocksByType('webeeblocks_v2_move', false)[0]; }
+    function loadXml(xml) {
+      workspace.clear();
+      Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml), workspace);
+    }
     async function expectOpenError(bytes, expectedAst, writes, label) {
       window.__webeeblocksCiFileStore.bytes = bytes;
       click('projectOpen');
@@ -76,6 +87,7 @@ harness = r'''
 
     window.addEventListener('error', e => report('WINDOW_ERROR', {message:e.message, filename:e.filename, lineno:e.lineno}));
     window.addEventListener('unhandledrejection', e => report('UNHANDLED_REJECTION', String(e.reason)));
+    window.addEventListener('webeeblocks-debug-paused', () => { debugPauseCount += 1; });
 
     window.addEventListener('load', async function() {
       try {
@@ -84,9 +96,9 @@ harness = r'''
         if (String(Blockly.VERSION) !== '13.2.1') throw new Error('unexpected Blockly version ' + Blockly.VERSION);
         if (!document.getElementById('projectOpen') || !document.getElementById('projectSave') || !document.getElementById('projectSaveAs'))
           throw new Error('manual project buttons missing');
+        if (document.body.dataset.projectFileMode !== 'native') throw new Error('R2025a project file mode is not native');
 
-        workspace.clear();
-        Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(__FIXTURE__), workspace);
+        loadXml(__FIXTURE__);
         const initialAst = currentAst();
         await report('INITIAL_AST', initialAst);
 
@@ -138,13 +150,28 @@ harness = r'''
         await expectOpenError(JSON.stringify(forbidden), stableAst, stableWrites, 'history');
         await report('FAIL_CLOSED_OK', {writes:window.__webeeblocksCiFileStore.writes, ast:currentAst()});
 
-        // Execution/debug state changes are not persistence triggers: only explicit file actions above wrote.
-        window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2', {detail:{state:'EN VOL'}}));
-        window.dispatchEvent(new CustomEvent('webeeblocks-debug-active', {detail:{blockId:'ci'}}));
-        await sleep(100);
-        if (window.__webeeblocksCiFileStore.writes !== stableWrites)
-          throw new Error('runtime/debug event triggered persistence write');
-        await report('RUN_DEBUG_NO_WRITE_OK', {writes:window.__webeeblocksCiFileStore.writes});
+        // Exercise the real Runtime v2 run path and the real #67 step controls.
+        loadXml(__SIMPLE_RUN__);
+        const writesBeforeRun = window.__webeeblocksCiFileStore.writes;
+        document.getElementById('stepMode').checked = true;
+        const runPromise = window.runProgram();
+        await waitFor(() => debugPauseCount >= 1 && document.getElementById('stepNext').disabled === false,
+          'first real debug pause', 5000);
+        if (window.__webeeblocksCiFileStore.writes !== writesBeforeRun)
+          throw new Error('starting real debug run triggered persistence write');
+        click('stepNext');
+        await waitFor(() => debugPauseCount >= 2 && document.getElementById('stepNext').disabled === false,
+          'second real debug pause', 20000);
+        if (window.__webeeblocksCiFileStore.writes !== writesBeforeRun)
+          throw new Error('real Pas suivant triggered persistence write');
+        click('stepContinue');
+        await runPromise;
+        if (document.getElementById('runtimeState').textContent !== 'TERMINÉ')
+          throw new Error('real debug run did not complete');
+        if (window.__webeeblocksCiFileStore.writes !== writesBeforeRun)
+          throw new Error('real run/debug completion triggered persistence write');
+        document.getElementById('stepMode').checked = false;
+        await report('RUN_DEBUG_NO_WRITE_OK', {writes:window.__webeeblocksCiFileStore.writes, pauses:debugPauseCount});
         await report('PROJECT_FILES_TEST_COMPLETE', {ast:currentAst(), fileApi:window.__webeeblocksCiRealFileApi});
       } catch (error) {
         await report('ERROR', error && error.stack ? error.stack : String(error));
@@ -152,7 +179,7 @@ harness = r'''
     });
   })();
   </script>
-'''.replace('__FIXTURE__', json.dumps(fixture))
+'''.replace('__FIXTURE__', json.dumps(fixture)).replace('__SIMPLE_RUN__', json.dumps(simple_run))
 
 html = html.replace(seam, fake_api + seam + harness, 1)
 html_path.write_text(html, encoding='utf-8')
