@@ -130,7 +130,7 @@ jobs:
           for pause, (kind, block_type) in zip(pauses, expected):
               assert pause['kind'] == kind and pause['blockType'] == block_type, (pause, kind, block_type)
           assert pauses[1]['iteration'] == 0, pauses[1]
-          assert pauses[5]['decision'] is True, pauses[5]
+          assert 'decision' not in pauses[5], pauses[5]
           assert pauses[6]['direction'] == 'left', pauses[6]
           sensors = [e['detail'] for e in events if e.get('event') == 'DEBUG_SENSOR']
           assert len(sensors) >= 1 and sensors[0]['sensorDirection'] == 'front', sensors
@@ -140,9 +140,12 @@ jobs:
           assert m, 'missing native controller range trace'
           native = float(m.group(1))
           assert abs(raw - native) < 1e-9, (raw, native)
-          decision = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
-          assert [p['kind'] for p in decision['pauses']] == ['range','number','compare','if','move'], decision
+          chain = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
+          assert [p['kind'] for p in chain['pauses']] == ['range','number','compare','if','move'], chain
+          assert 'decision' not in chain['pauses'][3], chain
           assert all(int(p['txCount']) <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
+          move_pause = pauses[6]
+          assert int(move_pause['txCount']) <= 2, move_pause
           trace=[]
           for line in log.splitlines():
               if ' TRACE TAKEOFF ' in line: trace.append('TAKEOFF')
@@ -151,7 +154,7 @@ jobs:
               elif ' TRACE MOVE forward ' in line: trace.append('MOVE_FORWARD')
               elif ' TRACE LAND ' in line: trace.append('LAND')
           assert trace[:8] == ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'], trace
-          print('PASS: R2025a semantic stepping pauses across sensor/value/comparison/branch boundaries and preserves native trace.')
+          print('PASS: R2025a semantic stepping pauses through branch boundaries without exposing branch outcome and preserves native trace.')
           PY
 
       - name: Prepare real fail-safe outcome harness
