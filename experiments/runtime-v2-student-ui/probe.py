@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, base64, json, time, urllib.request
+import argparse, base64, json, re, time, urllib.request
 from pathlib import Path
 import websocket
 
@@ -42,13 +42,28 @@ class Cdp:
 
 SNAP=r'''(() => {
  const rect=el=>{if(!el)return null;const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}};
+ const renderedCategoryColour=item=>{
+   if(!item||typeof item.getDiv!=='function')return '';
+   const root=item.getDiv(); if(!root)return '';
+   const nodes=[root,...root.querySelectorAll('*')];
+   for(const el of nodes){
+     const s=getComputedStyle(el);
+     for(const side of ['Left','Right','Top','Bottom']){
+       const width=parseFloat(s['border'+side+'Width']||'0');
+       const style=s['border'+side+'Style'];
+       const colour=s['border'+side+'Color'];
+       if(width>0&&style!=='none'&&colour&&colour!=='transparent'&&colour!=='rgba(0, 0, 0, 0)')return colour;
+     }
+   }
+   return '';
+ };
  const a=document.activeElement;
  const blocks=workspace.getAllBlocks(false).map(b=>({type:b.type,colour:b.getColour&&b.getColour(),rect:rect(b.getSvgRoot&&b.getSvgRoot())}));
  const rs=blocks.map(x=>x.rect).filter(Boolean); let extent=null;
  if(rs.length){extent={left:Math.min(...rs.map(r=>r.x)),top:Math.min(...rs.map(r=>r.y)),right:Math.max(...rs.map(r=>r.right)),bottom:Math.max(...rs.map(r=>r.bottom))};extent.width=extent.right-extent.left;extent.height=extent.bottom-extent.top;}
  let registryMatch=false; try{const R=Blockly.registry.getClass(Blockly.registry.Type.RENDERER,'zelos',true);registryMatch=workspace.getRenderer() instanceof R;}catch(_){}
  const colours={}; blocks.forEach(b=>{(colours[b.type]||(colours[b.type]=[])).push(b.colour);});
- let toolboxItems=[]; try{toolboxItems=workspace.getToolbox().getToolboxItems().filter(x=>typeof x.getName==='function').map(x=>({name:x.getName(),colour:x.getColour&&x.getColour()}));}catch(_){}
+ let toolboxItems=[]; try{toolboxItems=workspace.getToolbox().getToolboxItems().filter(x=>typeof x.getName==='function').map(x=>({name:x.getName(),colour:renderedCategoryColour(x)}));}catch(_){}
  return {version:String(Blockly.VERSION),rendererMatchesRegistry:registryMatch,rendererClassName:workspace.getRenderer().getClassName&&workspace.getRenderer().getClassName(),theme:workspace.getTheme&&workspace.getTheme().name,
  viewport:{width:innerWidth,height:innerHeight},geometry:{toolbox:rect(document.querySelector('.blocklyToolbox')),flyout:rect(document.querySelector('.blocklyFlyout')),blockExtent:extent,toolbar:rect(document.getElementById('workspaceToolbar')),trash:rect(document.querySelector('.blocklyTrash'))},
  controls:{zoomIn:!!document.getElementById('zoomIn'),zoomOut:!!document.getElementById('zoomOut'),zoomFit:!!document.getElementById('zoomFit'),zoomReset:!!document.getElementById('zoomReset')},
@@ -94,6 +109,15 @@ def first_colour(snapshot, block_type):
         raise RuntimeError('fixture does not contain '+block_type)
     return values[0].upper()
 
+def normalise_colour(value):
+    value=(value or '').strip()
+    if re.fullmatch(r'#[0-9a-fA-F]{6}',value):
+        return value.upper()
+    match=re.fullmatch(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[0-9.]+)?\s*\)',value)
+    if match:
+        return '#%02X%02X%02X' % tuple(int(part) for part in match.groups())
+    return value.upper()
+
 def main():
     p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--expected-ast',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
     c=Cdp(wait_target()['webSocketDebuggerUrl']); c.call('Runtime.enable'); c.call('Page.enable'); c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False})
@@ -113,7 +137,7 @@ def main():
     if initial['version']!='13.2.1': raise RuntimeError('wrong Blockly version')
     if not all(initial['controls'].values()): raise RuntimeError('workspace controls missing')
     expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
-    toolbox={item['name']:(item.get('colour') or '').upper() for item in initial['toolboxItems']}
+    toolbox={item['name']:normalise_colour(item.get('colour')) for item in initial['toolboxItems']}
     if list(toolbox) != list(expected_colours):
         raise RuntimeError('toolbox semantic groups/order mismatch: '+json.dumps(initial['toolboxItems'],ensure_ascii=False))
     for name, colour in expected_colours.items():
