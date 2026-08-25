@@ -172,8 +172,8 @@ harness = r'''
         window.__webeeblocksCiFileStore.bytes = editedBytes;
         click('projectOpen');
         await waitFor(() => same(currentAst(), editedAst), 'edited Save AST restoration', 3000);
-        if (window.__webeeblocksCiPickerOptions.length < 4)
-          throw new Error('native picker options were not exercised on Save As/Open/Save/Open');
+        if (window.__webeeblocksCiPickerOptions.length !== 3)
+          throw new Error('native picker options were not exercised on Save As/Open/Open');
         for (const entry of window.__webeeblocksCiPickerOptions) {
           const extensions = entry.options.types[0].accept['application/json'];
           if (JSON.stringify(extensions) !== JSON.stringify(['.json']))
