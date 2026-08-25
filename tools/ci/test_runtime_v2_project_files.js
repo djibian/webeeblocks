@@ -86,7 +86,136 @@ async function expectRejectedWithoutMutation(manager, transport, text, workspace
   assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace), beforeState, label + ' changed workspace');
 }
 
+
+function validatePickerOptions(options) {
+  assert(options && Array.isArray(options.types) && options.types.length > 0, 'picker types missing');
+  options.types.forEach(type => {
+    Object.entries(type.accept || {}).forEach(([mime, extensions]) => {
+      assert(/^[^/]+\/[^/]+$/.test(mime), 'invalid picker MIME type');
+      extensions.forEach(extension => {
+        assert(extension.startsWith('.') && extension.length > 1, 'picker extension must start with a dot');
+        assert(Array.from(extension).length <= 16, 'picker extension exceeds the native 16-code-point limit');
+        assert(!/[\\/:*?"<>|]/.test(extension.slice(1)), 'picker extension contains invalid suffix characters');
+      });
+    });
+  });
+}
+
+function fakeBrowser(options = {}) {
+  const state = {downloads:[], revoked:[], revokeDelays:[], removed:0, nativeOptions:[], writes:0};
+  const handle = {
+    name:'eleve.webeeblocks.json',
+    async createWritable() {
+      return {
+        async write(text) { state.writes += 1; state.nativeBytes = String(text); },
+        async close() {}
+      };
+    },
+    async getFile() {
+      return {name:this.name, text:async () => state.nativeBytes || '{"native":true}'};
+    }
+  };
+  const browserWindow = {
+    Blob: class {
+      constructor(parts, blobOptions) { this.parts = parts; this.type = blobOptions && blobOptions.type; }
+    },
+    URL: {
+      createObjectURL(blob) { state.blob = blob; return 'blob:webeeblocks-test'; },
+      revokeObjectURL(url) { state.revoked.push(url); }
+    },
+    setTimeout(callback, delay) {
+      state.revokeDelays.push(delay);
+      callback();
+    }
+  };
+  if (options.native) {
+    browserWindow.showSaveFilePicker = async picker => {
+      state.nativeOptions.push({kind:'save', picker});
+      validatePickerOptions(picker);
+      return handle;
+    };
+    browserWindow.showOpenFilePicker = async picker => {
+      state.nativeOptions.push({kind:'open', picker});
+      validatePickerOptions(picker);
+      return [handle];
+    };
+  }
+  const documentObject = {
+    body:{appendChild() {}},
+    createElement(tag) {
+      const listeners = {};
+      const element = {
+        tagName:tag.toUpperCase(),
+        style:{},
+        files:null,
+        addEventListener(name, callback) { listeners[name] = callback; },
+        remove() { state.removed += 1; },
+        click() {
+          if (tag === 'a') {
+            state.downloads.push({name:this.download, href:this.href});
+            return;
+          }
+          if (options.cancelUpload) {
+            listeners.cancel();
+            return;
+          }
+          this.files = [{
+            name:'ouvert.webeeblocks.json',
+            text:async () => options.openText || '{"fallback":true}'
+          }];
+          listeners.change();
+        }
+      };
+      return element;
+    }
+  };
+  return {state, handle, browserWindow, documentObject};
+}
+
+async function exerciseBrowserTransports() {
+  assert.throws(() => validatePickerOptions({
+    types:[{accept:{'application/json':['.webeeblocks.json']}}]
+  }), /16-code-point/, 'old compound suffix must reproduce the native browser rejection');
+
+  const native = fakeBrowser({native:true});
+  const nativeTransport = ProjectFiles.createBrowserTransport(native.browserWindow, native.documentObject);
+  assert.strictEqual(nativeTransport.nativeFileSystemAccess, true);
+  const nativeSave = await nativeTransport.saveAs('eleve', '{"native":1}');
+  assert.strictEqual(nativeSave.mode, 'native');
+  const saveOptions = native.state.nativeOptions.find(entry => entry.kind === 'save').picker;
+  assert.strictEqual(saveOptions.suggestedName, 'eleve.webeeblocks.json');
+  assert.deepStrictEqual(saveOptions.types[0].accept, {'application/json':['.json']});
+  await nativeTransport.open();
+  assert.strictEqual(native.state.nativeOptions.length, 2, 'both native pickers must inspect the real options');
+  await nativeTransport.save(native.handle, 'eleve.webeeblocks.json', '{"native":2}');
+  assert.strictEqual(native.state.writes, 2, 'native Save must reuse and write the selected handle');
+
+  const fallback = fakeBrowser({openText:'{"fallback":1}'});
+  const fallbackTransport = ProjectFiles.createBrowserTransport(fallback.browserWindow, fallback.documentObject);
+  assert.strictEqual(fallbackTransport.nativeFileSystemAccess, false);
+  const opened = await fallbackTransport.open();
+  assert.strictEqual(opened.mode, 'upload');
+  assert.strictEqual(opened.name, 'ouvert.webeeblocks.json');
+  assert.strictEqual(opened.text, '{"fallback":1}');
+  const fallbackSaveAs = await fallbackTransport.saveAs('eleve', '{"fallback":2}');
+  const fallbackSave = await fallbackTransport.save(null, fallbackSaveAs.name, '{"fallback":3}');
+  assert.strictEqual(fallbackSaveAs.mode, 'download-copy');
+  assert.strictEqual(fallbackSave.mode, 'download-copy');
+  assert.deepStrictEqual(fallback.state.downloads.map(item => item.name),
+    ['eleve.webeeblocks.json','eleve.webeeblocks.json']);
+  assert.strictEqual(fallback.state.blob.type, 'application/json');
+  assert(fallback.state.revokeDelays.every(delay => delay >= 1000),
+    'fallback blob URL must not be revoked on the next tick');
+
+  const cancelled = fakeBrowser({cancelUpload:true});
+  const cancelledTransport = ProjectFiles.createBrowserTransport(cancelled.browserWindow, cancelled.documentObject);
+  await assert.rejects(cancelledTransport.open(), /open cancelled/);
+  assert.strictEqual(cancelled.state.removed, 1, 'cancelled input must be cleaned up');
+}
+
 (async function() {
+  await exerciseBrowserTransports();
+
   const profileRef = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
   const liveWorkspace = buildWorkspace(0.3);
   const transport = memoryTransport();
