@@ -43,8 +43,11 @@ jobs:
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc '
               set -e
+              echo "WEBOTS_HOME=$WEBOTS_HOME"
+              find "$WEBOTS_HOME/include" -maxdepth 3 -type f \
+                \( -name QByteArray -o -name QFileDialog -o -name QSaveFile \) -print | sort
               make -C controllers/crazyflie_runtime_v2 clean
-              make -C controllers/crazyflie_runtime_v2
+              make -C controllers/crazyflie_runtime_v2 VERBOSE=1
               g++ -std=c++17 \
                 -Icontrollers/crazyflie_runtime_v2 \
                 -isystem "$WEBOTS_HOME/include/qt/QtCore" \
