@@ -6,7 +6,6 @@ WBCXXFLAGS += -std=c++17
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
-include $(WEBOTS_HOME_PATH)/resources/Makefile.include
 
 ifeq ($(OSTYPE),windows)
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
@@ -25,3 +24,5 @@ ifeq ($(OSTYPE),darwin)
  INCLUDE += -F"$(FRAMEWORKS_DIR)"
  FRAMEWORKS += -F"$(FRAMEWORKS_DIR)" -framework QtCore -framework QtGui -framework QtWidgets
 endif
+
+include $(WEBOTS_HOME_PATH)/resources/Makefile.include
