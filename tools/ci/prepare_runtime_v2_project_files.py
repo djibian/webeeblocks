@@ -47,10 +47,11 @@ fake_api = r'''
       throw new TypeError('missing picker types');
     options.types.forEach(function(type) {
       Object.keys(type.accept || {}).forEach(function(mime) {
-        if (!/^[^/]+\\/[^/]+$/.test(mime)) throw new TypeError('invalid picker MIME type');
+        if (mime.indexOf('/') <= 0 || mime.indexOf('/') === mime.length - 1)
+          throw new TypeError('invalid picker MIME type');
         type.accept[mime].forEach(function(extension) {
-          if (typeof extension !== 'string' || extension[0] !== '.' || extension.length < 2 ||
-              Array.from(extension).length > 16 || /[\\\\/:*?"<>|]/.test(extension.slice(1)))
+          if (typeof extension !== 'string' || !/^\\.[A-Za-z0-9]+$/.test(extension) ||
+              Array.from(extension).length > 16)
             throw new TypeError('invalid picker extension: ' + extension);
         });
       });
