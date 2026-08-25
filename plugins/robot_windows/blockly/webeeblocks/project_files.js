@@ -10,6 +10,7 @@
   var VERSION = 1;
   var SEMANTICS = 'webeeblocks-ast-v1';
   var EXTENSION = '.webeeblocks.json';
+  var PICKER_EXTENSION = '.json';
   var ROOT_KEYS = ['activity', 'format', 'version', 'workspace'];
   var ACTIVITY_KEYS = ['id', 'semantics'];
 
@@ -130,7 +131,7 @@
 
     function pickerOptions() {
       return {
-        types: [{description: 'Projet WebeeBlocks', accept: {'application/json': [EXTENSION]}}],
+        types: [{description: 'Projet WebeeBlocks', accept: {'application/json': [PICKER_EXTENSION]}}],
         excludeAcceptAllOption: false,
         multiple: false
       };
@@ -145,21 +146,40 @@
       documentObject.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      browserWindow.setTimeout(function() { browserWindow.URL.revokeObjectURL(url); }, 0);
-      return Promise.resolve({handle: null, name: normalizeName(name), mode: 'download'});
+      // Keep the blob URL alive long enough for Firefox to consume the
+      // download. Revoking it on the next tick can race the browser.
+      browserWindow.setTimeout(function() { browserWindow.URL.revokeObjectURL(url); }, 60000);
+      return Promise.resolve({handle: null, name: normalizeName(name), mode: 'download-copy'});
     }
     function upload() {
       return new Promise(function(resolve, reject) {
         var input = documentObject.createElement('input');
+        var settled = false;
         input.type = 'file';
         input.accept = EXTENSION + ',application/json';
         input.style.display = 'none';
         documentObject.body.appendChild(input);
+
+        function finish(callback) {
+          if (settled) return;
+          settled = true;
+          input.remove();
+          callback();
+        }
         input.addEventListener('change', function() {
           var file = input.files && input.files[0];
-          input.remove();
-          if (!file) { reject(new Error('project file: open cancelled')); return; }
-          file.text().then(function(text) { resolve({handle: null, name: file.name, text: text, mode: 'upload'}); }, reject);
+          if (!file) {
+            finish(function() { reject(new Error('project file: open cancelled')); });
+            return;
+          }
+          finish(function() {
+            file.text().then(function(text) {
+              resolve({handle: null, name: file.name, text: text, mode: 'upload'});
+            }, reject);
+          });
+        }, {once: true});
+        input.addEventListener('cancel', function() {
+          finish(function() { reject(new Error('project file: open cancelled')); });
         }, {once: true});
         input.click();
       });
@@ -276,6 +296,7 @@
     VERSION: VERSION,
     SEMANTICS: SEMANTICS,
     EXTENSION: EXTENSION,
+    PICKER_EXTENSION: PICKER_EXTENSION,
     normalizeName: normalizeName,
     createProject: createProject,
     encodeProject: encodeProject,
