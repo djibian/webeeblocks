@@ -1,4 +1,4 @@
-# 🐝 weebeeblocks - Visual Drone Programming for Webots
+# 🐝 webeeblocks - Visual Drone Programming for Webots
 
 > **We be blocks. Bee free !**  
 > An open-source plugin to **program drones visually** using Blockly, **simulate** in Webots, 
