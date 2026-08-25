@@ -6,20 +6,17 @@ WBCXXFLAGS += -std=c++17
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
+HOST_UNAME := $(shell uname -s)
 
-ifeq ($(OSTYPE),windows)
+ifeq ($(OS),Windows_NT)
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
  DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
-endif
-
-ifeq ($(OSTYPE),linux)
+else ifeq ($(HOST_UNAME),Linux)
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
  DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/lib/webots" -lQt6Core -lQt6Gui -lQt6Widgets
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
-endif
-
-ifeq ($(OSTYPE),darwin)
+else ifeq ($(HOST_UNAME),Darwin)
  FRAMEWORKS_DIR = $(WEBOTS_HOME)/Contents/Frameworks
  INCLUDE += -F"$(FRAMEWORKS_DIR)"
  FRAMEWORKS += -F"$(FRAMEWORKS_DIR)" -framework QtCore -framework QtGui -framework QtWidgets
