@@ -1,5 +1,6 @@
 C_SOURCES = crazyflie_runtime_v2.c ../crazyflie_square/pid_controller.c
 CXX_SOURCES = file_broker.cpp
+USE_C_API = true
 CFLAGS = -I../crazyflie_square
 WBCXXFLAGS += -std=c++17
 null :=
