@@ -41,8 +41,42 @@ fake_api = r'''
       return {name: this.name, text: async () => window.__webeeblocksCiFileStore.bytes};
     }
   };
-  window.showSaveFilePicker = async function() { return window.__webeeblocksCiFileStore.handle; };
-  window.showOpenFilePicker = async function() { return [window.__webeeblocksCiFileStore.handle]; };
+  window.__webeeblocksCiPickerOptions = [];
+  function validatePickerOptions(options) {
+    if (!options || !Array.isArray(options.types) || options.types.length === 0)
+      throw new TypeError('missing picker types');
+    options.types.forEach(function(type) {
+      Object.keys(type.accept || {}).forEach(function(mime) {
+        if (!/^[^/]+\\/[^/]+$/.test(mime)) throw new TypeError('invalid picker MIME type');
+        type.accept[mime].forEach(function(extension) {
+          if (typeof extension !== 'string' || extension[0] !== '.' || extension.length < 2 ||
+              Array.from(extension).length > 16 || /[\\\\/:*?"<>|]/.test(extension.slice(1)))
+            throw new TypeError('invalid picker extension: ' + extension);
+        });
+      });
+    });
+  }
+  (function proveOldSuffixRejected() {
+    var rejected = false;
+    try {
+      validatePickerOptions({types:[{accept:{'application/json':['.webeeblocks.json']}}]});
+    } catch (error) {
+      rejected = error instanceof TypeError;
+    }
+    if (!rejected) throw new Error('old compound picker suffix was not rejected');
+  })();
+  window.showSaveFilePicker = async function(options) {
+    validatePickerOptions(options);
+    if (!String(options.suggestedName || '').endsWith('.webeeblocks.json'))
+      throw new TypeError('full WebeeBlocks suggested name missing');
+    window.__webeeblocksCiPickerOptions.push({kind:'save', options:options});
+    return window.__webeeblocksCiFileStore.handle;
+  };
+  window.showOpenFilePicker = async function(options) {
+    validatePickerOptions(options);
+    window.__webeeblocksCiPickerOptions.push({kind:'open', options:options});
+    return [window.__webeeblocksCiFileStore.handle];
+  };
   </script>
 '''
 
@@ -137,6 +171,18 @@ harness = r'''
         window.__webeeblocksCiFileStore.bytes = editedBytes;
         click('projectOpen');
         await waitFor(() => same(currentAst(), editedAst), 'edited Save AST restoration', 3000);
+        if (window.__webeeblocksCiPickerOptions.length < 4)
+          throw new Error('native picker options were not exercised on Save As/Open/Save/Open');
+        for (const entry of window.__webeeblocksCiPickerOptions) {
+          const extensions = entry.options.types[0].accept['application/json'];
+          if (JSON.stringify(extensions) !== JSON.stringify(['.json']))
+            throw new Error('unexpected native picker extensions ' + JSON.stringify(extensions));
+        }
+        await report('PICKER_OPTIONS_OK', window.__webeeblocksCiPickerOptions.map(entry => ({
+          kind:entry.kind,
+          extensions:entry.options.types[0].accept['application/json'],
+          suggestedName:entry.options.suggestedName || null
+        })));
         await report('SAVE_UPDATE_OK', {writes:window.__webeeblocksCiFileStore.writes, ast:currentAst()});
 
         const stableAst = currentAst();
