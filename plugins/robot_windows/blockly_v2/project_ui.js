@@ -22,6 +22,11 @@
     }));
   }
 
+  function isCancellation(error) {
+    var message = String(error && error.message || error || '');
+    return !!(error && error.name === 'AbortError') || message.indexOf('open cancelled') >= 0;
+  }
+
   function setButtonsDisabled(disabled) {
     ['projectOpen', 'projectSave', 'projectSaveAs'].forEach(function(id) {
       var button = document.getElementById(id);
@@ -35,6 +40,10 @@
     setButtonsDisabled(true);
     try { return await action(); }
     catch (error) {
+      if (isCancellation(error)) {
+        fileState(name === 'open' ? 'Ouverture annulée' : 'Enregistrement annulé', false);
+        return null;
+      }
       diagnostic(name, error);
       fileState(name === 'open' ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
       return null;
@@ -76,16 +85,14 @@
       transport: transport
     });
     window.WebeeBlocksProjectManager = manager;
-    document.body.dataset.projectFileMode = manager.nativeFileSystemAccess ? 'native' : 'unavailable';
+    var projectFileMode = manager.nativeFileSystemAccess ? 'native' : 'fallback';
+    document.body.dataset.projectFileMode = projectFileMode;
     window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
-      detail: {nativeFileSystemAccess: manager.nativeFileSystemAccess}
+      detail: {nativeFileSystemAccess: manager.nativeFileSystemAccess, mode: projectFileMode}
     }));
 
-    if (!manager.nativeFileSystemAccess) {
-      fileState('Fichiers projet indisponibles dans ce navigateur', true);
-      setButtonsDisabled(true);
-      return;
-    }
+    if (!manager.nativeFileSystemAccess)
+      fileState('Mode compatible : Enregistrer crée une nouvelle copie', false);
 
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
@@ -99,14 +106,18 @@
     document.getElementById('projectSaveAs').addEventListener('click', function() {
       operation('save-as', async function() {
         var result = await manager.saveAs(suggestedName());
-        fileState('Projet : ' + result.name, false);
+        fileState(result.mode === 'download-copy'
+          ? 'Nouvelle copie proposée au téléchargement : ' + result.name
+          : 'Projet : ' + result.name, false);
       });
     });
 
     document.getElementById('projectSave').addEventListener('click', function() {
       operation('save', async function() {
         var result = await manager.save();
-        if (result) fileState('Projet : ' + result.name, false);
+        if (result) fileState(result.mode === 'download-copy'
+          ? 'Nouvelle copie proposée au téléchargement : ' + result.name
+          : 'Projet : ' + result.name, false);
       });
     });
   });
