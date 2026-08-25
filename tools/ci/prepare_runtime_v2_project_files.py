@@ -50,7 +50,7 @@ fake_api = r'''
         if (mime.indexOf('/') <= 0 || mime.indexOf('/') === mime.length - 1)
           throw new TypeError('invalid picker MIME type');
         type.accept[mime].forEach(function(extension) {
-          if (typeof extension !== 'string' || !/^\\.[A-Za-z0-9]+$/.test(extension) ||
+          if (typeof extension !== 'string' || !/^\.[A-Za-z0-9]+$/.test(extension) ||
               Array.from(extension).length > 16)
             throw new TypeError('invalid picker extension: ' + extension);
         });
