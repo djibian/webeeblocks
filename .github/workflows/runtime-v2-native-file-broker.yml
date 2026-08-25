@@ -1,0 +1,128 @@
+name: Runtime v2 native file broker
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-file-broker:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate protocol sources
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/native_file_broker.js
+          node tools/ci/test_native_file_broker.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_native_file_broker.py
+          grep -Fq 'native_file_broker.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          ! grep -Rq 'wb_robot_wwi_receive_text' controllers/crazyflie_runtime_v2/file_broker.cpp
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Prove Webots-bundled Qt build and injectable provider
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-native-file-broker
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              make -C controllers/crazyflie_runtime_v2 clean
+              make -C controllers/crazyflie_runtime_v2
+              g++ -std=c++17 \
+                -Icontrollers/crazyflie_runtime_v2 \
+                -isystem "$WEBOTS_HOME/include/qt/QtCore" \
+                -isystem "$WEBOTS_HOME/include/qt/QtGui" \
+                -isystem "$WEBOTS_HOME/include/qt/QtWidgets" \
+                tools/ci/test_native_file_broker.cpp \
+                controllers/crazyflie_runtime_v2/file_broker.cpp \
+                -L"$WEBOTS_HOME/lib/webots" -lQt6Core -lQt6Gui -lQt6Widgets \
+                -o /tmp/test_native_file_broker
+              LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots:${LD_LIBRARY_PATH:-}" /tmp/test_native_file_broker
+            ' 2>&1 | tee ci-artifacts/runtime-v2-native-file-broker/build.log
+
+      - name: Prepare actual Robot Window handshake harness
+        run: python3 tools/ci/prepare_runtime_v2_native_file_broker.py
+
+      - name: Run actual Robot Window handshake
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_native_file_broker_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_native_file_broker_browser.sh" \
+                "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-native-file-broker/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime \
+                /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' 2>&1 | tee ci-artifacts/runtime-v2-native-file-broker/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate causal handshake evidence
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-native-file-broker/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [event for event in events if event.get('event') in ('WINDOW_ERROR', 'UNHANDLED_REJECTION', 'ERROR')]
+          assert not errors, errors
+          caps = [event['detail'] for event in events if event.get('event') == 'FILE_BROKER_CAPABILITIES']
+          assert len(caps) == 1, events
+          assert caps[0] == {
+              'protocol': 1,
+              'provider': 'qt6-qfiledialog',
+              'providerInjectable': True,
+              'operationsReady': False,
+              'canonicalExtension': '.wbb',
+          }, caps[0]
+          assert any(event.get('event') == 'FILE_BROKER_TEST_COMPLETE' for event in events), events
+          log = Path('ci-artifacts/runtime-v2-native-file-broker/webots.log').read_text(errors='replace')
+          assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-3000:]
+          assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-3000:]
+          assert 'FATAL' not in log, log[-3000:]
+          print('PASS: actual R2025a Robot Window -> existing WWI dispatcher -> Qt-linked broker capability handshake')
+          PY
+
+      - name: Upload native broker diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-native-file-broker-r2025a
+          path: ci-artifacts/runtime-v2-native-file-broker/
+          if-no-files-found: error
