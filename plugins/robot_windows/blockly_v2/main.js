@@ -5,6 +5,7 @@ var runtimeBackend = null;
 var runtimeRunning = false;
 var runtimeTerminal = false;
 var runtimeDebug = null;
+var nativeFileBroker = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 
@@ -112,6 +113,10 @@ function buildToolbox(profile) {
 }
 
 function receiveMessage(value) {
+  if (nativeFileBroker && nativeFileBroker.handleMessage(value)) {
+    window.dispatchEvent(new CustomEvent('webeeblocks-file-broker-wwi', {detail: value}));
+    return;
+  }
   if (runtimeBackend && runtimeBackend.handleMessage(value)) {
     window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
     return;
@@ -233,8 +238,14 @@ window.onload = async function() {
     var module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true});
+    if (window.WEBEEBLOCKS_NATIVE_FILE_BROKER_PROBE === true)
+      nativeFileBroker = new WebeeBlocksNativeFileBroker(robotWindow, {timeoutMs: 5000});
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Attente du Runtime v2');
+    if (nativeFileBroker) {
+      var brokerCapabilities = await nativeFileBroker.requestCapabilities();
+      window.dispatchEvent(new CustomEvent('webeeblocks-native-file-broker-ready', {detail: brokerCapabilities}));
+    }
     await runtimeBackend.waitUntilReady();
     document.getElementById('submit').disabled = false;
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
