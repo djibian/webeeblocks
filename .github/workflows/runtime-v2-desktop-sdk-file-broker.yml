@@ -59,7 +59,15 @@ jobs:
           test -x "$WEBOTS_HOME/bin/qt/moc"
           test -f "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so"
           "$WEBOTS_HOME/bin/qt/moc" --version
-          dpkg-query -W -f='${binary:Package}\n' | ! grep -Eq '^qt6-base-dev(:|$)|^qt6-base-dev-tools(:|$)'
+          printf '%s\n' \
+            "$WEBOTS_HOME/include/qt/QtCore/QByteArray" \
+            "$WEBOTS_HOME/include/qt/QtWidgets/QFileDialog" \
+            "$WEBOTS_HOME/lib/webots/libQt6Core.so.6" \
+            "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" \
+            "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6" \
+            "$WEBOTS_HOME/bin/qt/moc" \
+            "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so" \
+            > ci-artifacts/runtime-v2-desktop-sdk-file-broker/bundled-qt-paths.txt
 
       - name: Build broker-enabled controller only against desktop SDK
         run: |
