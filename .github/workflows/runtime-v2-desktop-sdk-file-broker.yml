@@ -48,25 +48,35 @@ jobs:
           mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
           sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > ci-artifacts/runtime-v2-desktop-sdk-file-broker/archive.sha256
 
-      - name: Install official Webots R2025a EGL runtime prerequisite
+      - name: Install official Webots R2025a EGL and GLU runtime prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libegl1
+          sudo apt-get install --yes --no-install-recommends libegl1 libglu1-mesa
           artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
           mkdir -p "$artifact_dir"
-          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' libegl1 |
-            tee "$artifact_dir/egl-package.txt"
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' libegl1 libglu1-mesa |
+            tee "$artifact_dir/runtime-packages.txt"
           ldconfig -p | grep 'libEGL.so.1' |
             tee "$artifact_dir/egl-ldconfig.txt"
+          ldconfig -p | grep 'libGLU.so.1' |
+            tee "$artifact_dir/glu-ldconfig.txt"
           readelf -d "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" |
             tee "$artifact_dir/qt6gui-dynamic.txt"
+
           egl_path="$(ldconfig -p | awk '$1 == "libEGL.so.1" {print $NF; exit}')"
           test -n "$egl_path"
           egl_real_path="$(realpath "$egl_path")"
           dpkg-query -S "$egl_real_path" |
             tee "$artifact_dir/egl-package-owner.txt"
           grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-package-owner.txt"
+
+          glu_path="$(ldconfig -p | awk '$1 == "libGLU.so.1" {print $NF; exit}')"
+          test -n "$glu_path"
+          glu_real_path="$(realpath "$glu_path")"
+          dpkg-query -S "$glu_real_path" |
+            tee "$artifact_dir/glu-package-owner.txt"
+          grep -Eq '^libglu1-mesa(:[^: ]+)?: ' "$artifact_dir/glu-package-owner.txt"
 
       - name: Prove bundled Qt substrate before compilation
         run: |
@@ -173,7 +183,7 @@ jobs:
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-4000:]
           assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 FATAL' not in log, log[-4000:]
-          print('PASS: official desktop R2025a SDK -> bundled Qt -> Ubuntu libegl1 runtime -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
+          print('PASS: official desktop R2025a SDK -> bundled Qt -> Ubuntu libegl1/libglu1-mesa runtime -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
           PY
 
       - name: Upload desktop SDK proof
