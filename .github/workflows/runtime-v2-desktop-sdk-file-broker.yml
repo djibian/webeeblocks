@@ -45,6 +45,8 @@ jobs:
           tar -xjf "$RUNNER_TEMP/$WEBOTS_ARCHIVE" -C "$RUNNER_TEMP"
           test -x "$RUNNER_TEMP/webots/webots"
           echo "WEBOTS_HOME=$RUNNER_TEMP/webots" >> "$GITHUB_ENV"
+          mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > ci-artifacts/runtime-v2-desktop-sdk-file-broker/archive.sha256
 
       - name: Prove bundled Qt substrate before compilation
         run: |
