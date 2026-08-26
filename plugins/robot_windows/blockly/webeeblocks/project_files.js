@@ -9,7 +9,9 @@
   var FORMAT = 'webeeblocks-project';
   var VERSION = 1;
   var SEMANTICS = 'webeeblocks-ast-v1';
-  var EXTENSION = '.webeeblocks.json';
+  var EXTENSION = '.wbb';
+  var LEGACY_EXTENSION = '.webeeblocks.json';
+  var OPEN_EXTENSIONS = ['.wbb', '.json'];
   var ROOT_KEYS = ['activity', 'format', 'version', 'workspace'];
   var ACTIVITY_KEYS = ['id', 'semantics'];
 
@@ -33,7 +35,18 @@
 
   function normalizeName(name) {
     var base = typeof name === 'string' && name.trim() ? name.trim() : 'programme';
-    return base.toLowerCase().endsWith(EXTENSION) ? base : base + EXTENSION;
+    var lower = base.toLowerCase();
+    if (lower.endsWith(EXTENSION)) return base;
+    if (lower.endsWith(LEGACY_EXTENSION))
+      base = base.slice(0, -LEGACY_EXTENSION.length);
+    else if (lower.endsWith('.json'))
+      base = base.slice(0, -'.json'.length);
+    return base + EXTENSION;
+  }
+
+  function preserveSelectedName(name) {
+    if (typeof name !== 'string' || !name.trim()) fail('selected file has no name');
+    return name.trim();
   }
 
   function validateWorkspaceFields(profile, workspace) {
@@ -126,45 +139,28 @@
 
   function createBrowserTransport(browserWindow, documentObject) {
     if (!browserWindow || !documentObject) fail('browser transport requires window and document');
-    var nativeAccess = typeof browserWindow.showOpenFilePicker === 'function' && typeof browserWindow.showSaveFilePicker === 'function';
+    var nativeAccess = typeof browserWindow.showOpenFilePicker === 'function' &&
+      typeof browserWindow.showSaveFilePicker === 'function';
 
-    function pickerOptions() {
+    function openPickerOptions() {
       return {
-        types: [{description: 'Projet WebeeBlocks', accept: {'application/json': [EXTENSION]}}],
+        types: [{description: 'Projet WebeeBlocks', accept: {'application/json': OPEN_EXTENSIONS.slice()}}],
         excludeAcceptAllOption: false,
         multiple: false
       };
     }
-    function download(name, text) {
-      var blob = new browserWindow.Blob([text], {type: 'application/json'});
-      var url = browserWindow.URL.createObjectURL(blob);
-      var anchor = documentObject.createElement('a');
-      anchor.href = url;
-      anchor.download = normalizeName(name);
-      anchor.style.display = 'none';
-      documentObject.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      browserWindow.setTimeout(function() { browserWindow.URL.revokeObjectURL(url); }, 0);
-      return Promise.resolve({handle: null, name: normalizeName(name), mode: 'download'});
+    function savePickerOptions(name) {
+      return {
+        suggestedName: normalizeName(name),
+        types: [{description: 'Projet WebeeBlocks', accept: {'application/json': [EXTENSION]}}],
+        excludeAcceptAllOption: true
+      };
     }
-    function upload() {
-      return new Promise(function(resolve, reject) {
-        var input = documentObject.createElement('input');
-        input.type = 'file';
-        input.accept = EXTENSION + ',application/json';
-        input.style.display = 'none';
-        documentObject.body.appendChild(input);
-        input.addEventListener('change', function() {
-          var file = input.files && input.files[0];
-          input.remove();
-          if (!file) { reject(new Error('project file: open cancelled')); return; }
-          file.text().then(function(text) { resolve({handle: null, name: file.name, text: text, mode: 'upload'}); }, reject);
-        }, {once: true});
-        input.click();
-      });
+    function requireNative() {
+      if (!nativeAccess) fail('File System Access unavailable; use Google Chrome');
     }
     async function writeHandle(handle, text) {
+      if (!handle || typeof handle.createWritable !== 'function') fail('current file handle unavailable');
       var writable = await handle.createWritable();
       try { await writable.write(text); }
       finally { await writable.close(); }
@@ -172,24 +168,23 @@
     return {
       nativeFileSystemAccess: nativeAccess,
       async open() {
-        if (!nativeAccess) return upload();
-        var handles = await browserWindow.showOpenFilePicker(pickerOptions());
-        if (!handles || handles.length !== 1) fail('open cancelled');
+        requireNative();
+        var handles = await browserWindow.showOpenFilePicker(openPickerOptions());
+        if (!handles || handles.length !== 1) fail('open returned no file');
         var file = await handles[0].getFile();
-        return {handle: handles[0], name: file.name, text: await file.text(), mode: 'native'};
+        return {handle: handles[0], name: preserveSelectedName(file.name), text: await file.text(), mode: 'native'};
       },
       async saveAs(name, text) {
-        if (!nativeAccess) return download(name, text);
-        var handle = await browserWindow.showSaveFilePicker(Object.assign({suggestedName: normalizeName(name)}, pickerOptions()));
+        requireNative();
+        var proposal = normalizeName(name);
+        var handle = await browserWindow.showSaveFilePicker(savePickerOptions(proposal));
         await writeHandle(handle, text);
-        return {handle: handle, name: handle.name || normalizeName(name), mode: 'native'};
+        return {handle: handle, name: preserveSelectedName(handle.name || proposal), mode: 'native'};
       },
       async save(target, name, text) {
-        if (target && typeof target.createWritable === 'function') {
-          await writeHandle(target, text);
-          return {handle: target, name: target.name || normalizeName(name), mode: 'native'};
-        }
-        return download(name, text);
+        requireNative();
+        await writeHandle(target, text);
+        return {handle: target, name: preserveSelectedName(target.name || name), mode: 'native'};
       }
     };
   }
@@ -248,23 +243,25 @@
         var validated = validateProjectText(opened.text, options.getProfile(), dependencies());
         applyValidated(validated);
         targetHandle = opened.handle || null;
-        targetName = normalizeName(opened.name || validated.profile.id);
+        targetName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
         return {name: targetName, ast: validated.ast, mode: opened.mode || null};
       },
       async saveAs(name) {
-        var result = await options.transport.saveAs(normalizeName(name || targetName || options.getProfile().id), currentBytes());
+        var proposal = normalizeName(name || targetName || options.getProfile().id);
+        var result = await options.transport.saveAs(proposal, currentBytes());
         targetHandle = result.handle || null;
-        targetName = normalizeName(result.name || name || options.getProfile().id);
+        targetName = preserveSelectedName(result.name || proposal);
         return {name: targetName, mode: result.mode || null};
       },
       async save() {
-        if (!targetName) return this.saveAs(options.getProfile().id);
+        if (!targetHandle || !targetName) fail('no current file; use Save As');
         var result = await options.transport.save(targetHandle, targetName, currentBytes());
         targetHandle = result.handle || targetHandle;
-        targetName = normalizeName(result.name || targetName);
+        targetName = preserveSelectedName(result.name || targetName);
         return {name: targetName, mode: result.mode || null};
       },
       currentName: function() { return targetName; },
+      hasCurrentTarget: function() { return !!targetHandle && !!targetName; },
       isApplying: function() { return applying; },
       nativeFileSystemAccess: !!options.transport.nativeFileSystemAccess,
       encodeCurrent: currentBytes
@@ -276,7 +273,10 @@
     VERSION: VERSION,
     SEMANTICS: SEMANTICS,
     EXTENSION: EXTENSION,
+    LEGACY_EXTENSION: LEGACY_EXTENSION,
+    OPEN_EXTENSIONS: OPEN_EXTENSIONS.slice(),
     normalizeName: normalizeName,
+    preserveSelectedName: preserveSelectedName,
     createProject: createProject,
     encodeProject: encodeProject,
     parseProject: parseProject,

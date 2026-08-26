@@ -3,6 +3,7 @@
 
   var manager = null;
   var busy = false;
+  var supported = false;
 
   function fileState(text, error) {
     var target = document.getElementById('projectFileState');
@@ -22,25 +23,34 @@
     }));
   }
 
-  function setButtonsDisabled(disabled) {
-    ['projectOpen', 'projectSave', 'projectSaveAs'].forEach(function(id) {
-      var button = document.getElementById(id);
-      if (button) button.disabled = disabled;
-    });
+  function isCancellation(error) {
+    return !!error && (error.name === 'AbortError' || error.code === 20);
+  }
+
+  function renderButtons() {
+    var open = document.getElementById('projectOpen');
+    var save = document.getElementById('projectSave');
+    var saveAs = document.getElementById('projectSaveAs');
+    var locked = busy || !supported;
+    if (open) open.disabled = locked;
+    if (saveAs) saveAs.disabled = locked;
+    if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
   }
 
   async function operation(name, action) {
-    if (busy) return;
+    if (busy || !supported) return null;
     busy = true;
-    setButtonsDisabled(true);
+    renderButtons();
     try { return await action(); }
     catch (error) {
-      diagnostic(name, error);
-      fileState(name === 'open' ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
+      if (!isCancellation(error)) {
+        diagnostic(name, error);
+        fileState(name === 'open' ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
+      }
       return null;
     } finally {
       busy = false;
-      setButtonsDisabled(false);
+      renderButtons();
     }
   }
 
@@ -53,12 +63,14 @@
   }
 
   function suggestedName() {
-    return manager && manager.currentName() ? manager.currentName() : runtimeProfile.id + WebeeBlocksProjectFiles.EXTENSION;
+    var base = manager && manager.currentName() ? manager.currentName() : runtimeProfile.id;
+    return WebeeBlocksProjectFiles.normalizeName(base);
   }
 
   window.addEventListener('load', function() {
     if (!workspace || !runtimeProfile) {
       fileState('Fichiers projet indisponibles', true);
+      renderButtons();
       return;
     }
 
@@ -76,16 +88,20 @@
       transport: transport
     });
     window.WebeeBlocksProjectManager = manager;
-    document.body.dataset.projectFileMode = manager.nativeFileSystemAccess ? 'native' : 'unavailable';
+    supported = manager.nativeFileSystemAccess;
+    document.body.dataset.projectFileMode = supported ? 'native' : 'unavailable';
     window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
-      detail: {nativeFileSystemAccess: manager.nativeFileSystemAccess}
+      detail: {nativeFileSystemAccess: supported, mode: supported ? 'native' : 'unavailable'}
     }));
 
-    if (!manager.nativeFileSystemAccess) {
-      fileState('Fichiers projet indisponibles dans ce navigateur', true);
-      setButtonsDisabled(true);
+    if (!supported) {
+      fileState('Gestion des fichiers projet : utilisez Google Chrome', true);
+      renderButtons();
       return;
     }
+
+    fileState('Aucun fichier projet sélectionné', false);
+    renderButtons();
 
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
@@ -106,7 +122,7 @@
     document.getElementById('projectSave').addEventListener('click', function() {
       operation('save', async function() {
         var result = await manager.save();
-        if (result) fileState('Projet : ' + result.name, false);
+        fileState('Projet : ' + result.name, false);
       });
     });
   });

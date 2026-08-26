@@ -108,7 +108,7 @@ jobs:
           errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
           assert not errors, errors[:1]
           names = [e.get('event') for e in events]
-          for required in ('FILE_API_BOUNDARY','INITIAL_AST','SAVE_AS_OK','EDIT_NO_WRITE_OK','OPEN_ROUNDTRIP_OK','SAVE_UPDATE_OK','FAIL_CLOSED_OK','RUN_DEBUG_NO_WRITE_OK','PROJECT_FILES_TEST_COMPLETE'):
+          for required in ('FILE_API_BOUNDARY','INITIAL_AST','SAVE_AS_OK','CANCELLATION_STATE_OK','EDIT_NO_WRITE_OK','OPEN_ROUNDTRIP_OK','PICKER_OPTIONS_OK','SAVE_UPDATE_OK','FAIL_CLOSED_OK','RUN_DEBUG_NO_WRITE_OK','PROJECT_FILES_TEST_COMPLETE'):
               assert required in names, (required, names)
           boundary = next(e['detail'] for e in events if e.get('event') == 'FILE_API_BOUNDARY')
           assert set(boundary) == {'open','save','secureContext'}, boundary
