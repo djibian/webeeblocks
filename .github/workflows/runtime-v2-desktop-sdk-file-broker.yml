@@ -11,6 +11,8 @@ env:
   WEBOTS_ARCHIVE: webots-R2025a-x86-64.tar.bz2
   WEBOTS_URL: https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2
   WEBOTS_SHA256: c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38
+  WEBOTS_RUNTIME_RECIPE_URL: https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh
+  WEBOTS_RUNTIME_RECIPE_BLOB_SHA: 4593476be2c985580a0e1738671f4b5bae81f669
 
 jobs:
   desktop-sdk-file-broker:
@@ -48,35 +50,75 @@ jobs:
           mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
           sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > ci-artifacts/runtime-v2-desktop-sdk-file-broker/archive.sha256
 
-      - name: Install official Webots R2025a EGL and GLU runtime prerequisites
+      - name: Install complete official Webots R2025a Linux runtime closure
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libegl1 libglu1-mesa
           artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
           mkdir -p "$artifact_dir"
-          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' libegl1 libglu1-mesa |
+
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          curl --fail --location --retry 3 --output "$recipe" "$WEBOTS_RUNTIME_RECIPE_URL"
+          actual_blob_sha="$(git hash-object "$recipe")"
+          test "$actual_blob_sha" = "$WEBOTS_RUNTIME_RECIPE_BLOB_SHA"
+          cp "$recipe" "$artifact_dir/linux_runtime_dependencies-R2025a.sh"
+          printf '%s\n' \
+            "tag=R2025a" \
+            "url=$WEBOTS_RUNTIME_RECIPE_URL" \
+            "git_blob_sha=$actual_blob_sha" \
+            > "$artifact_dir/runtime-recipe-provenance.txt"
+
+          direct_packages=(
+            lsb-release g++ make libavcodec-extra libglu1-mesa libegl1
+            libxkbcommon-x11-dev libxcb-keysyms1 libxcb-image0 libxcb-icccm4
+            libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcomposite-dev
+            libxtst6 libnss3 libxcb-cursor0 xvfb ffmpeg
+          )
+          printf '%s\n' "${direct_packages[@]}" > "$artifact_dir/runtime-direct-packages.txt"
+
+          sudo env CI=true bash "$recipe"
+
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' \
+            "${direct_packages[@]}" |
             tee "$artifact_dir/runtime-packages.txt"
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' \
+            libsndio7.0 |
+            tee "$artifact_dir/runtime-transitive-packages.txt"
+          ! grep -Fxq 'libsndio7.0' "$artifact_dir/runtime-direct-packages.txt"
+
           ldconfig -p | grep 'libEGL.so.1' |
             tee "$artifact_dir/egl-ldconfig.txt"
           ldconfig -p | grep 'libGLU.so.1' |
             tee "$artifact_dir/glu-ldconfig.txt"
+          ldconfig -p | grep 'libsndio.so.7' |
+            tee "$artifact_dir/sndio-ldconfig.txt"
           readelf -d "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" |
             tee "$artifact_dir/qt6gui-dynamic.txt"
 
           egl_path="$(ldconfig -p | awk '$1 == "libEGL.so.1" {print $NF; exit}')"
           test -n "$egl_path"
-          egl_real_path="$(realpath "$egl_path")"
-          dpkg-query -S "$egl_real_path" |
+          dpkg-query -S "$(realpath "$egl_path")" |
             tee "$artifact_dir/egl-package-owner.txt"
           grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-package-owner.txt"
 
           glu_path="$(ldconfig -p | awk '$1 == "libGLU.so.1" {print $NF; exit}')"
           test -n "$glu_path"
-          glu_real_path="$(realpath "$glu_path")"
-          dpkg-query -S "$glu_real_path" |
+          dpkg-query -S "$(realpath "$glu_path")" |
             tee "$artifact_dir/glu-package-owner.txt"
           grep -Eq '^libglu1-mesa(:[^: ]+)?: ' "$artifact_dir/glu-package-owner.txt"
+
+          sndio_path="$(ldconfig -p | awk '$1 == "libsndio.so.7" {print $NF; exit}')"
+          test -n "$sndio_path"
+          dpkg-query -S "$(realpath "$sndio_path")" |
+            tee "$artifact_dir/sndio-package-owner.txt"
+          grep -Eq '^libsndio7\.0(:[^: ]+)?: ' "$artifact_dir/sndio-package-owner.txt"
+
+          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
+            ldd "$WEBOTS_HOME/lib/webots/webots-bin" |
+            tee "$artifact_dir/webots-bin-ldd.txt"
+          if grep -F 'not found' "$artifact_dir/webots-bin-ldd.txt"; then
+            echo "Official R2025a runtime closure is incomplete" >&2
+            exit 1
+          fi
 
       - name: Prove bundled Qt substrate before compilation
         run: |
@@ -99,7 +141,7 @@ jobs:
             "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so" \
             > ci-artifacts/runtime-v2-desktop-sdk-file-broker/bundled-qt-paths.txt
 
-      - name: Build broker-enabled controller against Webots Qt and Ubuntu runtime EGL
+      - name: Build broker-enabled controller against Webots Qt and official Ubuntu runtime
         run: |
           set -euo pipefail
           artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
@@ -183,7 +225,7 @@ jobs:
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-4000:]
           assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 FATAL' not in log, log[-4000:]
-          print('PASS: official desktop R2025a SDK -> bundled Qt -> Ubuntu libegl1/libglu1-mesa runtime -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
+          print('PASS: official desktop R2025a SDK -> complete official Ubuntu runtime closure -> bundled Qt -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
           PY
 
       - name: Upload desktop SDK proof
