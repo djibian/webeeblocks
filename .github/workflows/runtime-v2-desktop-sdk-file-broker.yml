@@ -51,8 +51,8 @@ jobs:
       - name: Prove bundled Qt substrate before compilation
         run: |
           set -euo pipefail
-          test -f "$WEBOTS_HOME/include/qt/QtCore/QByteArray"
-          test -f "$WEBOTS_HOME/include/qt/QtWidgets/QFileDialog"
+          test -f "$WEBOTS_HOME/include/qt/QtCore/QtCore/QByteArray"
+          test -f "$WEBOTS_HOME/include/qt/QtWidgets/QtWidgets/QFileDialog"
           test -f "$WEBOTS_HOME/lib/webots/libQt6Core.so.6"
           test -f "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6"
           test -f "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6"
@@ -60,8 +60,8 @@ jobs:
           test -f "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so"
           "$WEBOTS_HOME/bin/qt/moc" --version
           printf '%s\n' \
-            "$WEBOTS_HOME/include/qt/QtCore/QByteArray" \
-            "$WEBOTS_HOME/include/qt/QtWidgets/QFileDialog" \
+            "$WEBOTS_HOME/include/qt/QtCore/QtCore/QByteArray" \
+            "$WEBOTS_HOME/include/qt/QtWidgets/QtWidgets/QFileDialog" \
             "$WEBOTS_HOME/lib/webots/libQt6Core.so.6" \
             "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" \
             "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6" \
