@@ -151,7 +151,7 @@ jobs:
           artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
           mkdir -p "$artifact_dir"
           make -C controllers/crazyflie_runtime_v2 clean
-          make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_NATIVE_FILE_BROKER=1 VERBOSE=1 2>&1 |
+          make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_NATIVE_FILE_BROKER=1 WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC=1 VERBOSE=1 2>&1 |
             tee "$artifact_dir/build.log"
           controller=controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
           test -x "$controller"
@@ -184,6 +184,8 @@ jobs:
           log="$artifact_dir/webots.log"
           events="$artifact_dir/browser-events.jsonl"
           maps="$artifact_dir/controller-qt-maps.txt"
+          backtrace="$artifact_dir/controller-gdb-backtrace.txt"
+          diagnostic="$artifact_dir/controller-diagnostic.txt"
           controller="$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
           controller_real="$(realpath "$controller")"
           mkdir -p "$HOME/.config/Cyberbotics" "$artifact_dir"
@@ -206,6 +208,13 @@ jobs:
           }
           trap cleanup EXIT
 
+          gdb_path="$(command -v gdb)"
+          test -x "$gdb_path"
+          {
+            printf 'gdb_path=%s\\n' "$gdb_path"
+            "$gdb_path" --version | head -n 1
+          } > "$artifact_dir/gdb-provenance.txt"
+
           setsid env \
             LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
             QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins" \
@@ -220,8 +229,56 @@ jobs:
 
           deadline=$((SECONDS + 45))
           controller_maps_proven=0
+          diagnostic_complete=0
           handshake_complete=0
           while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$diagnostic_complete" -eq 0 ] &&
+               grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS' "$log"; then
+              pid="$(sed -n 's/.*DIAGNOSTIC_RENDEZVOUS pid=\\([0-9][0-9]*\\).*/\\1/p' "$log" | tail -n 1)"
+              test -n "$pid"
+              test -r "/proc/$pid/exe"
+              actual_exe="$(readlink -f "/proc/$pid/exe")"
+              test "$actual_exe" = "$controller_real"
+              test -r "/proc/$pid/status"
+              grep -Eq '^State:[[:space:]]+T' "/proc/$pid/status"
+
+              awk '/libQt6(Core|Gui|Widgets)\\.so\\.6/ {print $NF}' "/proc/$pid/maps" | sort -u > "$maps"
+              test "$(wc -l < "$maps")" -eq 3
+              test "$(grep -cF "$WEBOTS_HOME/lib/webots/" "$maps")" -eq 3
+
+              {
+                printf 'controller_pid=%s\\n' "$pid"
+                printf 'controller_exe=%s\\n' "$actual_exe"
+                printf 'controller_state_before_attach=%s\\n' "$(awk '/^State:/ {$1=""; sub(/^ /, ""); print}' "/proc/$pid/status")"
+                printf 'diagnostic_boundary=before-QApplication\\n'
+                printf 'environment_contract=unchanged-R2025a-Xvfb-runtime.ini-Webots-Qt\\n'
+              } | tee "$diagnostic"
+              cp "$diagnostic" "$artifact_dir/controller-process.txt"
+
+              set +e
+              sudo -n "$gdb_path" --batch --quiet -p "$pid" \
+                -ex 'set pagination off' \
+                -ex 'set confirm off' \
+                -ex 'set print thread-events off' \
+                -ex 'signal 0' \
+                -ex 'printf "\\nWEBEEBLOCKS_GDB_CAUSAL_STOP\\n"' \
+                -ex 'info program' \
+                -ex 'thread apply all bt full' \
+                > "$backtrace" 2>&1
+              gdb_code=$?
+              set -e
+              printf 'gdb_exit=%s\\n' "$gdb_code" | tee -a "$diagnostic"
+              cat "$backtrace"
+              test "$gdb_code" -eq 0
+              grep -Eq 'Program received signal SIG[A-Z0-9]+' "$backtrace"
+              grep -Eq '^#0[[:space:]]' "$backtrace"
+              grep -Eq 'QtFileDialogProvider|QApplication' "$backtrace"
+              diagnostic_complete=1
+
+              echo "C10 diagnostic captured; original product handshake remains intentionally unproven" >&2
+              exit 1
+            fi
+
             if grep -Eq "controller (exited with status: [1-9][0-9]*|crashed)|error while loading shared libraries:" "$log"; then
               cat "$log"
               echo "Controller failed before the file-broker handshake completed" >&2
@@ -309,6 +366,37 @@ jobs:
           assert 'controller crashed' not in log, log[-4000:]
           print('PASS: runtime.ini -> real controller Webots Qt maps -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
           PY
+
+      - name: Validate C10 real-controller crash evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          diagnostic="$artifact_dir/controller-diagnostic.txt"
+          backtrace="$artifact_dir/controller-gdb-backtrace.txt"
+          log="$artifact_dir/webots.log"
+          test -s "$diagnostic"
+          test -s "$backtrace"
+          grep -Fq 'diagnostic_boundary=before-QApplication' "$diagnostic"
+          grep -Fq 'environment_contract=unchanged-R2025a-Xvfb-runtime.ini-Webots-Qt' "$diagnostic"
+          grep -Eq '^controller_pid=[0-9]+
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-desktop-sdk-file-broker-r2025a
+          path: ci-artifacts/runtime-v2-desktop-sdk-file-broker/
+          if-no-files-found: error
+ "$diagnostic"
+          grep -Fq "controller_exe=$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2" "$diagnostic"
+          grep -Fq 'gdb_exit=0' "$diagnostic"
+          grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS' "$log"
+          grep -Eq 'Program received signal SIG[A-Z0-9]+' "$backtrace"
+          grep -Eq '^#0[[:space:]]' "$backtrace"
+          grep -Eq 'QtFileDialogProvider|QApplication' "$backtrace"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$log"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$log"
+          printf '%s\\n' \
+            'PROVEN_DIAGNOSTIC: true Webots controller + unchanged C8 environment + exact signal + causal backtrace' \
+            'PRODUCT_GATE: intentionally still FAILURE / QApplication, QFileDialog and handshake UNPROVEN'
 
       - name: Upload desktop SDK proof
         if: always()
