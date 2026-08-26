@@ -12,6 +12,9 @@
 #include <webots/robot.h>
 
 #include "pid_controller.h"
+#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+#include "file_broker_c.h"
+#endif
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -185,6 +188,15 @@ int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
 
+#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+  WbFileBroker *file_broker = wb_file_broker_create_qt();
+  if (!file_broker) {
+    fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 FATAL Qt provider initialization failed\n");
+    wb_robot_cleanup();
+    return 1;
+  }
+#endif
+
   WbDeviceTag m1 = wb_robot_get_device("m1_motor");
   WbDeviceTag m2 = wb_robot_get_device("m2_motor");
   WbDeviceTag m3 = wb_robot_get_device("m3_motor");
@@ -196,6 +208,9 @@ int main(void) {
 
   if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front) {
     fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
+#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+    wb_file_broker_destroy(file_broker);
+#endif
     wb_robot_cleanup();
     return 1;
   }
@@ -292,6 +307,13 @@ int main(void) {
 
     const char *message;
     while ((message = wb_robot_wwi_receive_text()) != NULL) {
+#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+      char broker_response[512];
+      if (wb_file_broker_handle_message(file_broker, message, broker_response, sizeof(broker_response))) {
+        send_text(broker_response);
+        continue;
+      }
+#endif
       if (strncmp(message, PREFIX " REQUEST ", strlen(PREFIX " REQUEST ")) != 0)
         continue;
       request_t request = parse_request(message);
@@ -472,6 +494,9 @@ int main(void) {
   }
 
   stop_motors(m1, m2, m3, m4);
+#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+  wb_file_broker_destroy(file_broker);
+#endif
   wb_robot_cleanup();
   return 0;
 }
