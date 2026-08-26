@@ -7,6 +7,10 @@
 
 #include <array>
 #include <cstdio>
+#ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+#include <csignal>
+#include <unistd.h>
+#endif
 #include <cstring>
 #include <memory>
 #include <regex>
@@ -22,6 +26,12 @@ public:
     std::strcpy(mProgramName.data(), "webeeblocks-file-broker");
     mArgv[0] = mProgramName.data();
     mArgv[1] = nullptr;
+#ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+    std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS pid=%ld before=QApplication\\n",
+                 static_cast<long>(::getpid()));
+    std::fflush(stderr);
+    ::raise(SIGSTOP);
+#endif
     if (!QCoreApplication::instance())
       mApplication = std::make_unique<QApplication>(mArgc, mArgv.data());
     if (!qobject_cast<QApplication *>(QCoreApplication::instance()))
