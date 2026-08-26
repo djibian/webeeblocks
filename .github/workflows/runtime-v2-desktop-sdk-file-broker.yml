@@ -113,7 +113,7 @@ jobs:
           grep -Eq '^libsndio7\.0(:[^: ]+)?: ' "$artifact_dir/sndio-package-owner.txt"
 
           LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
-            ldd "$WEBOTS_HOME/lib/webots/webots-bin" |
+            ldd "$WEBOTS_HOME/bin/webots-bin" |
             tee "$artifact_dir/webots-bin-ldd.txt"
           if grep -F 'not found' "$artifact_dir/webots-bin-ldd.txt"; then
             echo "Official R2025a runtime closure is incomplete" >&2
