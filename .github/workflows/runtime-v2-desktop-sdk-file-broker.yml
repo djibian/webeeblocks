@@ -31,6 +31,10 @@ jobs:
           ! grep -Rq 'wb_robot_wwi_receive_text' controllers/crazyflie_runtime_v2/file_broker.cpp
           ! grep -RqE 'QSaveFile|getOpenFileName|getSaveFileName|\.exec\(' controllers/crazyflie_runtime_v2/file_broker.cpp
           ! grep -RqE 'Blob|showOpenFilePicker|showSaveFilePicker|OPFS|IndexedDB' plugins/robot_windows/blockly/webeeblocks/native_file_broker.js
+          test -f controllers/crazyflie_runtime_v2/runtime.ini
+          grep -Fxq '[environment variables for Linux]' controllers/crazyflie_runtime_v2/runtime.ini
+          grep -Fxq 'WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots' controllers/crazyflie_runtime_v2/runtime.ini
+          ! grep -Eq 'LD_LIBRARY_PATH|/home/runner|/usr/lib/.*/libQt6' controllers/crazyflie_runtime_v2/runtime.ini
 
       - name: Prepare pinned Blockly 13.2.1 browser assets
         working-directory: plugins/robot_windows/blockly_v2
@@ -176,29 +180,103 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x tools/ci/webots_native_file_broker_browser.sh
-          mkdir -p "$HOME/.config/Cyberbotics" ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          log="$artifact_dir/webots.log"
+          events="$artifact_dir/browser-events.jsonl"
+          maps="$artifact_dir/controller-qt-maps.txt"
+          controller="$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
+          controller_real="$(realpath "$controller")"
+          mkdir -p "$HOME/.config/Cyberbotics" "$artifact_dir"
+          : > "$log"
           browser_script="$GITHUB_WORKSPACE/tools/ci/webots_native_file_broker_browser.sh"
           printf '%s\n' \
             '[RobotWindow]' \
             "browser=$browser_script" \
             'newBrowserWindow=false' \
             > "$HOME/.config/Cyberbotics/Webots-R2025a.conf"
-          python3 tools/ci/runtime_wwi_event_server.py \
-            --output ci-artifacts/runtime-v2-desktop-sdk-file-broker/browser-events.jsonl &
+          python3 tools/ci/runtime_wwi_event_server.py --output "$events" &
           server=$!
-          trap 'kill "$server" 2>/dev/null || true' EXIT
-          set +e
-          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
+          launcher=''
+          cleanup() {
+            if [ -n "$launcher" ]; then
+              kill -TERM -- "-$launcher" 2>/dev/null || true
+              wait "$launcher" 2>/dev/null || true
+            fi
+            kill "$server" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          setsid env \
+            LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
             QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins" \
+            QT_DEBUG_PLUGINS=1 \
             LIBGL_ALWAYS_SOFTWARE=true \
             WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots" \
               --stdout --stderr --batch --mode=realtime \
-              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" 2>&1 |
-            tee ci-artifacts/runtime-v2-desktop-sdk-file-broker/webots.log
-          code=${PIPESTATUS[0]}
-          set -e
-          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" \
+              > "$log" 2>&1 &
+          launcher=$!
+
+          deadline=$((SECONDS + 45))
+          controller_maps_proven=0
+          handshake_complete=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if grep -Eq "controller (exited with status: [1-9][0-9]*|crashed)|error while loading shared libraries:" "$log"; then
+              cat "$log"
+              echo "Controller failed before the file-broker handshake completed" >&2
+              exit 1
+            fi
+
+            if [ "$controller_maps_proven" -eq 0 ]; then
+              while read -r pid; do
+                [ -n "$pid" ] || continue
+                [ -r "/proc/$pid/exe" ] || continue
+                [ "$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)" = "$controller_real" ] || continue
+                [ -r "/proc/$pid/maps" ] || continue
+                awk '/libQt6(Core|Gui|Widgets)\.so\.6/ {print $NF}' "/proc/$pid/maps" | sort -u > "$maps"
+                if [ "$(wc -l < "$maps")" -eq 3 ]; then
+                  test "$(grep -cF "$WEBOTS_HOME/lib/webots/" "$maps")" -eq 3
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Core.so.6" "$maps"
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" "$maps"
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6" "$maps"
+                  printf 'controller_pid=%s\n' "$pid" > "$artifact_dir/controller-process.txt"
+                  controller_maps_proven=1
+                  break
+                fi
+              done < <(pgrep -f 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2' || true)
+            fi
+
+            if [ "$controller_maps_proven" -eq 1 ] && \
+               grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$log" && \
+               [ -s "$events" ] && grep -Fq 'FILE_BROKER_TEST_COMPLETE' "$events"; then
+              handshake_complete=1
+              break
+            fi
+
+            if ! kill -0 "$launcher" 2>/dev/null; then
+              set +e
+              wait "$launcher"
+              code=$?
+              set -e
+              launcher=''
+              cat "$log"
+              echo "Webots exited before the causal handshake completed (code=$code)" >&2
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          if [ "$handshake_complete" -ne 1 ]; then
+            cat "$log"
+            echo "Timed out before real-controller Qt provenance and handshake completion" >&2
+            exit 1
+          fi
+
+          cleanup
+          launcher=''
+          trap - EXIT
+          cat "$log"
 
       - name: Validate causal handshake evidence
         run: |
@@ -219,13 +297,17 @@ jobs:
               'canonicalExtension': '.wbb',
           }, caps[0]
           assert any(event.get('event') == 'FILE_BROKER_TEST_COMPLETE' for event in events), events
+          maps = (root / 'controller-qt-maps.txt').read_text().splitlines()
+          assert len(maps) == 3, maps
+          assert all('/webots/lib/webots/libQt6' in path for path in maps), maps
           log = (root / 'webots.log').read_text(errors='replace')
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-4000:]
           assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 FATAL' not in log, log[-4000:]
-          print('PASS: official desktop R2025a SDK -> complete official Ubuntu runtime closure -> bundled Qt -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
+          assert 'controller crashed' not in log, log[-4000:]
+          print('PASS: runtime.ini -> real controller Webots Qt maps -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
           PY
 
       - name: Upload desktop SDK proof
