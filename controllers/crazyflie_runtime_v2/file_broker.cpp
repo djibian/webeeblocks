@@ -1,9 +1,9 @@
 #include "file_broker.hpp"
 #include "file_broker_c.h"
 
-#include <QApplication>
-#include <QCoreApplication>
-#include <QFileDialog>
+#include <QtWidgets/QApplication>
+#include <QtCore/QCoreApplication>
+#include <QtWidgets/QFileDialog>
 
 #include <array>
 #include <cstdio>
