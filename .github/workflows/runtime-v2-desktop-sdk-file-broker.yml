@@ -379,13 +379,7 @@ jobs:
           test -s "$backtrace"
           grep -Fq 'diagnostic_boundary=before-QApplication' "$diagnostic"
           grep -Fq 'environment_contract=unchanged-R2025a-Xvfb-runtime.ini-Webots-Qt' "$diagnostic"
-          grep -Eq '^controller_pid=[0-9]+
-        uses: actions/upload-artifact@v4
-        with:
-          name: runtime-v2-desktop-sdk-file-broker-r2025a
-          path: ci-artifacts/runtime-v2-desktop-sdk-file-broker/
-          if-no-files-found: error
- "$diagnostic"
+          grep -Eq '^controller_pid=[0-9]+$' "$diagnostic"
           grep -Fq "controller_exe=$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2" "$diagnostic"
           grep -Fq 'gdb_exit=0' "$diagnostic"
           grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS' "$log"
