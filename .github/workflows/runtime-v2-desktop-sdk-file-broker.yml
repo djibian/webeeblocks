@@ -48,6 +48,26 @@ jobs:
           mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
           sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > ci-artifacts/runtime-v2-desktop-sdk-file-broker/archive.sha256
 
+      - name: Install official Webots R2025a EGL runtime prerequisite
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libegl1
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          mkdir -p "$artifact_dir"
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' libegl1 |
+            tee "$artifact_dir/egl-package.txt"
+          ldconfig -p | grep 'libEGL.so.1' |
+            tee "$artifact_dir/egl-ldconfig.txt"
+          readelf -d "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" |
+            tee "$artifact_dir/qt6gui-dynamic.txt"
+          egl_path="$(ldconfig -p | awk '$1 == "libEGL.so.1" {print $NF; exit}')"
+          test -n "$egl_path"
+          egl_real_path="$(realpath "$egl_path")"
+          dpkg-query -S "$egl_real_path" |
+            tee "$artifact_dir/egl-package-owner.txt"
+          grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-package-owner.txt"
+
       - name: Prove bundled Qt substrate before compilation
         run: |
           set -euo pipefail
@@ -69,23 +89,33 @@ jobs:
             "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so" \
             > ci-artifacts/runtime-v2-desktop-sdk-file-broker/bundled-qt-paths.txt
 
-      - name: Build broker-enabled controller only against desktop SDK
+      - name: Build broker-enabled controller against Webots Qt and Ubuntu runtime EGL
         run: |
           set -euo pipefail
-          mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          mkdir -p "$artifact_dir"
           make -C controllers/crazyflie_runtime_v2 clean
           make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_NATIVE_FILE_BROKER=1 VERBOSE=1 2>&1 |
-            tee ci-artifacts/runtime-v2-desktop-sdk-file-broker/build.log
+            tee "$artifact_dir/build.log"
           controller=controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
           test -x "$controller"
           LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" ldd "$controller" |
-            tee ci-artifacts/runtime-v2-desktop-sdk-file-broker/ldd.log
-          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' ci-artifacts/runtime-v2-desktop-sdk-file-broker/ldd.log)"
+            tee "$artifact_dir/ldd.log"
+
+          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
           test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
           if printf '%s\n' "$qt_lines" | grep -vF "$WEBOTS_HOME/lib/webots/"; then
-            echo "Qt resolved outside the official desktop SDK" >&2
+            echo "Qt resolved outside the official Webots desktop SDK" >&2
             exit 1
           fi
+
+          egl_line="$(grep 'libEGL.so.1' "$artifact_dir/ldd.log")"
+          test -n "$egl_line"
+          egl_resolved="$(printf '%s\n' "$egl_line" | awk '{print $3; exit}')"
+          test -f "$egl_resolved"
+          dpkg-query -S "$(realpath "$egl_resolved")" |
+            tee "$artifact_dir/egl-ldd-package-owner.txt"
+          grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-ldd-package-owner.txt"
 
       - name: Prepare actual Robot Window handshake harness
         run: python3 tools/ci/prepare_runtime_v2_native_file_broker.py
@@ -96,12 +126,23 @@ jobs:
           chmod +x tools/ci/webots_native_file_broker_browser.sh
           mkdir -p "$HOME/.config/Cyberbotics" ci-artifacts/runtime-v2-desktop-sdk-file-broker
           browser_script="$GITHUB_WORKSPACE/tools/ci/webots_native_file_broker_browser.sh"
-          printf '%s\n' '[RobotWindow]' "browser=$browser_script" 'newBrowserWindow=false'             > "$HOME/.config/Cyberbotics/Webots-R2025a.conf"
-          python3 tools/ci/runtime_wwi_event_server.py             --output ci-artifacts/runtime-v2-desktop-sdk-file-broker/browser-events.jsonl &
+          printf '%s\n' \
+            '[RobotWindow]' \
+            "browser=$browser_script" \
+            'newBrowserWindow=false' \
+            > "$HOME/.config/Cyberbotics/Webots-R2025a.conf"
+          python3 tools/ci/runtime_wwi_event_server.py \
+            --output ci-artifacts/runtime-v2-desktop-sdk-file-broker/browser-events.jsonl &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           set +e
-          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots"           QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins"           LIBGL_ALWAYS_SOFTWARE=true           WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true           timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots" --stdout --stderr --batch --mode=realtime             "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" 2>&1 |
+          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
+            QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins" \
+            LIBGL_ALWAYS_SOFTWARE=true \
+            WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots" \
+              --stdout --stderr --batch --mode=realtime \
+              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" 2>&1 |
             tee ci-artifacts/runtime-v2-desktop-sdk-file-broker/webots.log
           code=${PIPESTATUS[0]}
           set -e
@@ -132,7 +173,7 @@ jobs:
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-4000:]
           assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-4000:]
           assert 'WEBEEBLOCKS_FILE_BROKER_V1 FATAL' not in log, log[-4000:]
-          print('PASS: official desktop R2025a SDK -> bundled Qt -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
+          print('PASS: official desktop R2025a SDK -> bundled Qt -> Ubuntu libegl1 runtime -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
           PY
 
       - name: Upload desktop SDK proof
