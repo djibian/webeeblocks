@@ -15,6 +15,7 @@ ROLE_BY_STAGE = {
     "VERIFICATION_READY": "Verification",
     "LEAD_MERGE_READY": "Lead",
 }
+VALID_STAGES = set(ROLE_BY_STAGE)
 
 
 @dataclass(frozen=True)
@@ -66,9 +67,14 @@ def load_observation(path: str | Path) -> TransitionObservation:
     return TransitionObservation(current_pr=current_pr, open_prs=open_prs)
 
 
-def _main_authorized(state: dict[str, Any]) -> bool:
+def _main_authorized(state: dict[str, Any], pr: PullRequestObservation) -> bool:
     authority = state.get("authority") or {}
-    return authority.get("state") == "GRANTED" and authority.get("scope") == "MAIN_ONLY"
+    return (
+        authority.get("state") == "GRANTED"
+        and authority.get("scope") == "MAIN_ONLY"
+        and state.get("pull_request") == pr.number
+        and state.get("head_sha") == pr.head_sha
+    )
 
 
 def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) -> list[str]:
@@ -77,15 +83,18 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
     blocked = bool(state.get("blocked_reason"))
     current = observed.current_pr
 
-    engineering_prs = [
+    # Fail closed on any concurrent integration PR, regardless of branch naming.
+    # Within this repository, an open PR targeting webots-ci is conservatively
+    # treated as an active Engineering/integration WIP candidate.
+    integration_wips = [
         pr for pr in observed.open_prs
-        if pr.head_ref.startswith("engineering/")
+        if pr.base_ref == "webots-ci"
     ]
-    if len(engineering_prs) > 1:
+    if len(integration_wips) > 1:
         problems.append("MULTIPLE_ENGINEERING_WIP")
 
     for pr in observed.open_prs:
-        if pr.base_ref == "main" and not _main_authorized(state):
+        if pr.base_ref == "main" and not _main_authorized(state, pr):
             problems.append("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY")
 
     canonical_pr = state.get("pull_request")
@@ -110,6 +119,9 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
     ci_status = (state.get("ci_state") or {}).get("status")
     stage = state.get("stage")
     expected_role = state.get("expected_role")
+
+    if stage not in VALID_STAGES:
+        problems.append("UNKNOWN_TRANSITION_STAGE")
 
     if handoff_status == "FINAL" and handoff_head != canonical_head:
         problems.append("ENGINEERING_HANDOFF_NOT_FINAL_HEAD")

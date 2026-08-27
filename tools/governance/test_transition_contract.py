@@ -42,8 +42,8 @@ class TransitionContractTests(unittest.TestCase):
     def test_coherent_engineering_in_progress(self):
         self.assertEqual(evaluate_transition(state(), self.obs()), [])
 
-    def test_more_than_one_engineering_wip_fails(self):
-        second = pr(number="#92", head=OTHER, ref="engineering/other")
+    def test_more_than_one_integration_wip_fails_regardless_of_branch_prefix(self):
+        second = pr(number="#92", head=OTHER, ref="feature/other")
         self.assertIn("MULTIPLE_ENGINEERING_WIP", evaluate_transition(state(), self.obs(open_prs=[pr(), second])))
 
     def test_main_target_requires_distinct_main_authority(self):
@@ -52,6 +52,13 @@ class TransitionContractTests(unittest.TestCase):
         self.assertIn("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY", problems)
         authorized = state(authority={"state": "GRANTED", "scope": "MAIN_ONLY"})
         self.assertNotIn("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY", evaluate_transition(authorized, self.obs(current=main_pr, open_prs=[main_pr])))
+
+    def test_main_authority_does_not_cover_unrelated_pr(self):
+        current = pr()
+        unrelated = pr(number="#92", head=OTHER, ref="release/unrelated", base="main")
+        authorized_current = state(authority={"state": "GRANTED", "scope": "MAIN_ONLY"})
+        problems = evaluate_transition(authorized_current, self.obs(current=current, open_prs=[current, unrelated]))
+        self.assertIn("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY", problems)
 
     def test_verification_go_must_match_exact_head(self):
         s = state(verification_verdict={"status": "GO", "head_sha": OTHER})
@@ -82,6 +89,10 @@ class TransitionContractTests(unittest.TestCase):
     def test_engineering_final_handoff_must_reference_final_head(self):
         s = state(engineering_handoff={"status": "FINAL", "head_sha": OTHER})
         self.assertIn("ENGINEERING_HANDOFF_NOT_FINAL_HEAD", evaluate_transition(s, self.obs()))
+
+    def test_unknown_stage_fails_closed(self):
+        s = state(stage="VERIFICATON_READY", expected_role="Verification")
+        self.assertIn("UNKNOWN_TRANSITION_STAGE", evaluate_transition(s, self.obs()))
 
     def test_expected_role_must_match_decisive_stage(self):
         s = state(stage="VERIFICATION_READY", expected_role="Engineering")
