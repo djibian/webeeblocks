@@ -84,7 +84,7 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
     if len(engineering_prs) > 1:
         problems.append("MULTIPLE_ENGINEERING_WIP")
 
-    for pr in engineering_prs:
+    for pr in observed.open_prs:
         if pr.base_ref == "main" and not _main_authorized(state):
             problems.append("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY")
 
