@@ -38,7 +38,7 @@ function ast(workspace, profile) {
 
 function memoryTransport() {
   const state = {writes:[], openText:null, currentText:null};
-  const handle = {name:'eleve.webeeblocks.json', token:'same-target'};
+  const handle = {name:'eleve.wbb', token:'same-target'};
   return {
     state,
     nativeFileSystemAccess:true,
@@ -86,15 +86,102 @@ async function expectRejectedWithoutMutation(manager, transport, text, workspace
   assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace), beforeState, label + ' changed workspace');
 }
 
+function validatePickerOptions(options) {
+  assert(options && Array.isArray(options.types) && options.types.length > 0, 'picker types missing');
+  for (const type of options.types) {
+    for (const [mime, extensions] of Object.entries(type.accept || {})) {
+      assert(/^[^/]+\/[^/]+$/.test(mime), 'invalid picker MIME type');
+      for (const extension of extensions) {
+        // Chrome rejects overlong native suffixes before any WebeeBlocks
+        // interpretation. Keep this check first so the historical
+        // `.webeeblocks.json` regression is causally represented, then still
+        // validate the syntax of all suffixes that fit the native limit.
+        assert(Array.from(extension).length <= 16, 'picker extension exceeds native limit');
+        assert(/^\.[A-Za-z0-9]+$/.test(extension), 'invalid picker extension ' + extension);
+      }
+    }
+  }
+}
+
+function fakeNativeBrowser() {
+  const state = {options:[], writes:0, bytes:'', nextOpenName:'eleve.wbb'};
+  const handle = {
+    name:'eleve.wbb',
+    async createWritable() {
+      return {
+        async write(text) { state.bytes = String(text); state.writes += 1; },
+        async close() {}
+      };
+    },
+    async getFile() { return {name:state.nextOpenName, text:async () => state.bytes}; }
+  };
+  const browserWindow = {
+    async showSaveFilePicker(options) {
+      validatePickerOptions(options);
+      state.options.push({kind:'save', options});
+      return handle;
+    },
+    async showOpenFilePicker(options) {
+      validatePickerOptions(options);
+      state.options.push({kind:'open', options});
+      return [handle];
+    }
+  };
+  return {state, handle, browserWindow};
+}
+
+async function exerciseBrowserBoundary() {
+  assert.throws(() => validatePickerOptions({
+    types:[{accept:{'application/json':['.webeeblocks.json']}}]
+  }), /native limit/, 'historical compound suffix must be rejected');
+
+  const fake = fakeNativeBrowser();
+  const transport = ProjectFiles.createBrowserTransport(fake.browserWindow, {});
+  assert.strictEqual(transport.nativeFileSystemAccess, true);
+  const saved = await transport.saveAs('eleve.webeeblocks.json', '{"ok":1}');
+  assert.strictEqual(saved.name, 'eleve.wbb');
+  assert.strictEqual(fake.state.writes, 1);
+  const saveOptions = fake.state.options[0].options;
+  assert.strictEqual(saveOptions.suggestedName, 'eleve.wbb');
+  assert.deepStrictEqual(saveOptions.types[0].accept, {'application/json':['.wbb']});
+
+  for (const name of ['projet.wbb','ancien.webeeblocks.json','legacy.json']) {
+    fake.state.nextOpenName = name;
+    const opened = await transport.open();
+    assert.strictEqual(opened.name, name, 'opened OS filename must be preserved exactly');
+  }
+  const openOptions = fake.state.options.find(entry => entry.kind === 'open').options;
+  assert.deepStrictEqual(openOptions.types[0].accept, {'application/json':['.wbb','.json']});
+  await transport.save(fake.handle, 'eleve.wbb', '{"ok":2}');
+  assert.strictEqual(fake.state.writes, 2, 'Save must write the selected handle');
+
+  const unavailable = ProjectFiles.createBrowserTransport({}, {});
+  assert.strictEqual(unavailable.nativeFileSystemAccess, false);
+  await assert.rejects(unavailable.open(), /use Google Chrome/);
+  await assert.rejects(unavailable.saveAs('x', '{}'), /use Google Chrome/);
+  assert(!ProjectFiles.createBrowserTransport.toString().includes('Blob'), 'Blob fallback must not exist');
+  assert(!ProjectFiles.createBrowserTransport.toString().includes("createElement('input')"), 'input upload fallback must not exist');
+}
+
 (async function() {
+  await exerciseBrowserBoundary();
+  assert.strictEqual(ProjectFiles.EXTENSION, '.wbb');
+  assert.strictEqual(ProjectFiles.normalizeName('eleve'), 'eleve.wbb');
+  assert.strictEqual(ProjectFiles.normalizeName('eleve.webeeblocks.json'), 'eleve.wbb');
+  assert.strictEqual(ProjectFiles.normalizeName('eleve.json'), 'eleve.wbb');
+
   const profileRef = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
   const liveWorkspace = buildWorkspace(0.3);
   const transport = memoryTransport();
   const manager = managerFor(liveWorkspace, profileRef, transport);
 
   const initialAst = ast(liveWorkspace, profileRef.value);
+  assert.strictEqual(manager.hasCurrentTarget(), false);
+  await assert.rejects(manager.save(), /no current file/);
+  assert.strictEqual(transport.state.writes.length, 0, 'Save without target reached transport');
   const saved = await manager.saveAs('eleve');
-  assert.strictEqual(saved.name, 'eleve.webeeblocks.json');
+  assert.strictEqual(manager.hasCurrentTarget(), true);
+  assert.strictEqual(saved.name, 'eleve.wbb');
   assert.strictEqual(transport.state.writes.length, 1);
   const project = JSON.parse(transport.state.currentText);
   assert.deepStrictEqual(Object.keys(project).sort(), ['activity','format','version','workspace']);
@@ -159,5 +246,11 @@ async function expectRejectedWithoutMutation(manager, transport, text, workspace
   assert.strictEqual(incomplete.getBlocksByType('webeeblocks_v2_takeoff', false).length, 1, 'incomplete workspace was not restored');
   assert.strictEqual(incompleteTransport.state.writes.length, 1, 'opening incomplete project caused a write');
 
-  console.log('PASS project-files: explicit round-trip/save/fail-closed/no-autosave/incomplete-work');
+  const fs = require('fs');
+  const uiSource = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
+  assert(uiSource.includes("error.name === 'AbortError'"), 'UI must treat native cancellation neutrally');
+  assert(uiSource.includes('!manager.hasCurrentTarget()'), 'UI must disable Save without a current handle');
+  assert(uiSource.includes('utilisez Google Chrome'), 'unsupported-browser message must be explicit');
+  assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
+  console.log('PASS project-files: Chrome .wbb/options/same-handle/state/fail-closed/no-fallback/no-autosave');
 })().catch(error => { console.error(error); process.exit(1); });

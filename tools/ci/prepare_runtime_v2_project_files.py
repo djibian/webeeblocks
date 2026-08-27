@@ -26,13 +26,13 @@ fake_api = r'''
   };
   window.__webeeblocksCiFileStore = {bytes: '', writes: 0, names: [], handle: null};
   window.__webeeblocksCiFileStore.handle = {
-    name: 'ci-roundtrip.webeeblocks.json',
+    name: 'ci-roundtrip.wbb',
     async createWritable() {
       return {
         async write(text) {
           window.__webeeblocksCiFileStore.bytes = String(text);
           window.__webeeblocksCiFileStore.writes += 1;
-          window.__webeeblocksCiFileStore.names.push('ci-roundtrip.webeeblocks.json');
+          window.__webeeblocksCiFileStore.names.push('ci-roundtrip.wbb');
         },
         async close() {}
       };
@@ -41,8 +41,38 @@ fake_api = r'''
       return {name: this.name, text: async () => window.__webeeblocksCiFileStore.bytes};
     }
   };
-  window.showSaveFilePicker = async function() { return window.__webeeblocksCiFileStore.handle; };
-  window.showOpenFilePicker = async function() { return [window.__webeeblocksCiFileStore.handle]; };
+  window.__webeeblocksCiPickerOptions = [];
+  window.__webeeblocksCiCancelNext = null;
+  function validatePickerOptions(options) {
+    if (!options || !Array.isArray(options.types) || !options.types.length)
+      throw new TypeError('missing picker types');
+    options.types.forEach(function(type) {
+      Object.values(type.accept || {}).forEach(function(extensions) {
+        extensions.forEach(function(extension) {
+          if (!/^\.[A-Za-z0-9]+$/.test(extension) || Array.from(extension).length > 16)
+            throw new TypeError('invalid picker extension: ' + extension);
+        });
+      });
+    });
+  }
+  window.showSaveFilePicker = async function(options) {
+    validatePickerOptions(options);
+    window.__webeeblocksCiPickerOptions.push({kind:'save', options:options});
+    if (window.__webeeblocksCiCancelNext === 'save') {
+      window.__webeeblocksCiCancelNext = null;
+      throw new DOMException('cancelled', 'AbortError');
+    }
+    return window.__webeeblocksCiFileStore.handle;
+  };
+  window.showOpenFilePicker = async function(options) {
+    validatePickerOptions(options);
+    window.__webeeblocksCiPickerOptions.push({kind:'open', options:options});
+    if (window.__webeeblocksCiCancelNext === 'open') {
+      window.__webeeblocksCiCancelNext = null;
+      throw new DOMException('cancelled', 'AbortError');
+    }
+    return [window.__webeeblocksCiFileStore.handle];
+  };
   </script>
 '''
 
@@ -102,8 +132,31 @@ harness = r'''
         const initialAst = currentAst();
         await report('INITIAL_AST', initialAst);
 
+        if (document.getElementById('projectOpen').disabled ||
+            document.getElementById('projectSaveAs').disabled ||
+            !document.getElementById('projectSave').disabled)
+          throw new Error('initial project button state is not Open/SaveAs enabled and Save disabled');
         click('projectSaveAs');
         await waitFor(() => window.__webeeblocksCiFileStore.writes === 1, 'Save As write', 3000);
+        if (document.getElementById('projectSave').disabled)
+          throw new Error('Save did not enable after successful Save As');
+        const writesBeforeCancel = window.__webeeblocksCiFileStore.writes;
+        const stateBeforeCancel = document.getElementById('projectFileState').textContent;
+        window.__webeeblocksCiCancelNext = 'save';
+        click('projectSaveAs');
+        await sleep(150);
+        if (window.__webeeblocksCiFileStore.writes !== writesBeforeCancel ||
+            document.getElementById('projectFileState').textContent !== stateBeforeCancel ||
+            document.getElementById('projectSave').disabled)
+          throw new Error('Save As cancellation changed writes/state/target');
+        window.__webeeblocksCiCancelNext = 'open';
+        click('projectOpen');
+        await sleep(150);
+        if (window.__webeeblocksCiFileStore.writes !== writesBeforeCancel ||
+            document.getElementById('projectFileState').textContent !== stateBeforeCancel ||
+            document.getElementById('projectSave').disabled)
+          throw new Error('Open cancellation changed writes/state/target');
+        await report('CANCELLATION_STATE_OK', {writes:writesBeforeCancel});
         const savedBytes = window.__webeeblocksCiFileStore.bytes;
         const savedObject = JSON.parse(savedBytes);
         if (JSON.stringify(Object.keys(savedObject).sort()) !== JSON.stringify(['activity','format','version','workspace']))
@@ -137,6 +190,18 @@ harness = r'''
         window.__webeeblocksCiFileStore.bytes = editedBytes;
         click('projectOpen');
         await waitFor(() => same(currentAst(), editedAst), 'edited Save AST restoration', 3000);
+        const pickerCalls = window.__webeeblocksCiPickerOptions;
+        const savePicker = pickerCalls.find(entry => entry.kind === 'save').options;
+        const openPicker = pickerCalls.find(entry => entry.kind === 'open').options;
+        if (savePicker.suggestedName.slice(-4) !== '.wbb' ||
+            JSON.stringify(savePicker.types[0].accept['application/json']) !== JSON.stringify(['.wbb']) ||
+            JSON.stringify(openPicker.types[0].accept['application/json']) !== JSON.stringify(['.wbb','.json']))
+          throw new Error('product picker options are not the exact 71-D1 contract');
+        await report('PICKER_OPTIONS_OK', {
+          save:savePicker.types[0].accept['application/json'],
+          open:openPicker.types[0].accept['application/json'],
+          suggestedName:savePicker.suggestedName
+        });
         await report('SAVE_UPDATE_OK', {writes:window.__webeeblocksCiFileStore.writes, ast:currentAst()});
 
         const stableAst = currentAst();
