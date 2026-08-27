@@ -52,9 +52,20 @@ jobs:
               raise SystemExit("CANONICAL_ISSUE_22_BODY_MISSING")
           Path("/tmp/issue22.md").write_text(body, encoding="utf-8")
 
-          pulls = get("https://api.github.com/repos/djibian/webeeblocks/pulls?state=open&per_page=100")
-          if not isinstance(pulls, list):
-              raise SystemExit("OPEN_PRS_OBSERVATION_INVALID")
+          pulls = []
+          for page in range(1, 11):
+              batch = get(
+                  "https://api.github.com/repos/djibian/webeeblocks/pulls"
+                  f"?state=open&per_page=100&page={page}"
+              )
+              if not isinstance(batch, list):
+                  raise SystemExit("OPEN_PRS_OBSERVATION_INVALID")
+              pulls.extend(batch)
+              if len(batch) < 100:
+                  break
+          else:
+              raise SystemExit("OPEN_PRS_OBSERVATION_TOO_LARGE")
+
           Path("/tmp/open-prs.json").write_text(json.dumps(pulls), encoding="utf-8")
           PY
 
