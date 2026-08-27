@@ -18,8 +18,43 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate G1 machine-readable state and causal incidents
+
+      - name: Validate G1 machine-readable contract and causal incidents
         run: |
           set -euo pipefail
           cd tools/governance
           python3 -m unittest -v test_state_contract.py
+
+      - name: Render exact PR/head state and validate GitHub observation
+        if: github.event_name == 'pull_request'
+        env:
+          PULL_REQUEST: '#${{ github.event.pull_request.number }}'
+          HEAD_SHA: '${{ github.event.pull_request.head.sha }}'
+          PR_STATUS: "${{ github.event.pull_request.draft && 'draft' || 'ready' }}"
+          LAST_PROGRESS_AT: '${{ github.event.pull_request.updated_at }}'
+        run: |
+          set -euo pipefail
+          python3 tools/governance/render_state.py \
+            --template governance/state.template.json \
+            --output /tmp/governance-state.json \
+            --pull-request "$PULL_REQUEST" \
+            --head-sha "$HEAD_SHA" \
+            --pr-status "$PR_STATUS" \
+            --last-progress-at "$LAST_PROGRESS_AT"
+          PYTHONPATH=tools/governance python3 - "$PULL_REQUEST" "$HEAD_SHA" "$PR_STATUS" <<'PY'
+          import sys
+          from state_contract import Observation, assert_coherent, load
+
+          pr, head, status = sys.argv[1:]
+          state = load('/tmp/governance-state.json')
+          assert_coherent(state, Observation(
+              pr_number=pr,
+              pr_head_sha=head,
+              pr_status=status,
+              ci_green=False,
+              engineering_executed=True,
+              progress_made=True,
+              mutation_possible=True,
+          ))
+          print(f'GOVERNANCE_STATE_OK pr={pr} head={head} status={status}')
+          PY
