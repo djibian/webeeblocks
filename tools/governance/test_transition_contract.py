@@ -47,7 +47,7 @@ class TransitionContractTests(unittest.TestCase):
         self.assertIn("MULTIPLE_ENGINEERING_WIP", evaluate_transition(state(), self.obs(open_prs=[pr(), second])))
 
     def test_main_target_requires_distinct_main_authority(self):
-        main_pr = pr(base="main")
+        main_pr = pr(base="main", ref="feature/not-engineering")
         problems = evaluate_transition(state(), self.obs(current=main_pr, open_prs=[main_pr]))
         self.assertIn("MAIN_TARGET_WITHOUT_DISTINCT_AUTHORITY", problems)
         authorized = state(authority={"state": "GRANTED", "scope": "MAIN_ONLY"})
