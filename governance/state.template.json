@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "current_wip": "#84-G1",
+  "stage": "ENGINEERING_IN_PROGRESS",
+  "issue": "#84",
+  "pull_request": "$PULL_REQUEST",
+  "pr_status": "$PR_STATUS",
+  "head_sha": "$HEAD_SHA",
+  "expected_role": "Engineering",
+  "required_checks": ["governance-state-contract"],
+  "engineering_handoff": {"status": "NONE", "head_sha": null},
+  "verification_verdict": {"status": "PENDING", "head_sha": null},
+  "ci_state": {"status": "PENDING", "summary": "PENDING"},
+  "human_gate": {"status": "NONE", "issue": null},
+  "parallel_human_gates": [
+    {"issue": "#71", "status": "PENDING", "blocks_current_wip": false}
+  ],
+  "blocked_reason": null,
+  "failure_class": "NONE",
+  "retry_count": 0,
+  "last_progress_at": "$LAST_PROGRESS_AT",
+  "authority": {"state": "GRANTED", "scope": "#84-G1_ONLY"},
+  "contradictions": []
+}
