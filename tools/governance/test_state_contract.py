@@ -53,6 +53,20 @@ class GovernanceStateContractTests(unittest.TestCase):
         self.assertIn("STALE_VERIFICATION_VERDICT", problems)
         self.assertIn("UNCONSUMED_VERIFICATION_VERDICT", problems)
 
+    def test_unproven_is_valid_final_exact_head_non_go_verdict(self):
+        s = copy.deepcopy(self.state)
+        s["verification_verdict"] = {"status":"UNPROVEN", "head_sha":s["head_sha"]}
+        s["engineering_handoff"] = {"status":"FINAL", "head_sha":s["head_sha"]}
+        s["expected_role"] = "Verification"
+        problems = evaluate(s, self.obs(ci_green=True, pr_status="draft"))
+        self.assertNotIn("INVALID_VERIFICATION_VERDICT", problems)
+        self.assertNotIn("STALE_VERIFICATION_VERDICT", problems)
+        self.assertIn("UNCONSUMED_VERIFICATION_VERDICT", problems)
+        self.assertNotIn("READY_FOR_REVIEW_TRANSITION_REQUIRED", problems)
+
+        s["verification_verdict"]["head_sha"] = "old"
+        self.assertIn("STALE_VERIFICATION_VERDICT", evaluate(s, self.obs()))
+
     def test_registry_pr_or_head_contradiction_fails_closed(self):
         problems = evaluate(self.state, self.obs(pr_number="#999", pr_head_sha="different"))
         self.assertIn("GITHUB_PR_CONTRADICTION", problems)
@@ -83,26 +97,62 @@ class GovernanceStateContractTests(unittest.TestCase):
     def test_mechanical_mutation_impossible_requires_blocker(self):
         self.assertIn("EXPLICIT_MUTATION_BLOCKER_REQUIRED", evaluate(self.state, self.obs(mutation_possible=False)))
 
-    def test_no_silent_ready_liveness_violation(self):
+    def test_no_silent_ready_real_pre_pr_liveness_violation(self):
         s = copy.deepcopy(self.state)
         s["stage"] = "ENGINEERING_READY"
         s["expected_role"] = "Engineering"
-        problems = evaluate(s, self.obs(engineering_executed=True, progress_made=False))
+        s["pull_request"] = None
+        s["pr_status"] = None
+        s["head_sha"] = "webots-ci-base-head"
+        problems = evaluate(
+            s,
+            self.obs(
+                pr_number=None,
+                pr_head_sha=None,
+                pr_status=None,
+                engineering_executed=True,
+                progress_made=False,
+            ),
+        )
         self.assertIn("LIVENESS_VIOLATION_SILENT_ENGINEERING_READY", problems)
+        self.assertNotIn("GITHUB_PR_CONTRADICTION", problems)
+        self.assertNotIn("GITHUB_PR_STATUS_CONTRADICTION", problems)
 
     def test_progress_or_blocker_closes_silent_ready_violation(self):
         s = copy.deepcopy(self.state)
         s["stage"] = "ENGINEERING_READY"
         s["expected_role"] = "Engineering"
+        s["pull_request"] = None
+        s["pr_status"] = None
+        s["head_sha"] = "webots-ci-base-head"
+        common = dict(pr_number=None, pr_head_sha=None, pr_status=None, engineering_executed=True)
+
+        progress_obs = dict(common)
+        progress_obs["progress_made"] = True
         self.assertNotIn(
             "LIVENESS_VIOLATION_SILENT_ENGINEERING_READY",
-            evaluate(s, self.obs(engineering_executed=True, progress_made=True)),
+            evaluate(s, self.obs(**progress_obs)),
         )
+
         s["blocked_reason"] = "explicit platform blocker"
+        blocked_obs = dict(common)
+        blocked_obs["progress_made"] = False
         self.assertNotIn(
             "LIVENESS_VIOLATION_SILENT_ENGINEERING_READY",
-            evaluate(s, self.obs(engineering_executed=True, progress_made=False)),
+            evaluate(s, self.obs(**blocked_obs)),
         )
+
+    def test_authority_is_structurally_required(self):
+        s = copy.deepcopy(self.state)
+        del s["authority"]
+        errors = validate_shape(s)
+        self.assertTrue(any(error.startswith("MISSING_FIELDS:") and "authority" in error for error in errors))
+
+        s["authority"] = {"state": "GRANTED"}
+        self.assertIn("MISSING_AUTHORITY_FIELDS:scope", validate_shape(s))
+
+        s["authority"] = {"state": "", "scope": "#84-G1_ONLY"}
+        self.assertIn("INVALID_AUTHORITY", validate_shape(s))
 
 
 if __name__ == "__main__":

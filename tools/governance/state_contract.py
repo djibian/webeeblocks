@@ -12,11 +12,13 @@ REQUIRED_FIELDS = {
     "head_sha", "expected_role", "required_checks", "verification_verdict",
     "human_gate", "blocked_reason", "failure_class", "retry_count",
     "last_progress_at", "pr_status", "engineering_handoff",
-    "parallel_human_gates", "contradictions"
+    "parallel_human_gates", "contradictions", "authority"
 }
 
+AUTHORITY_REQUIRED_FIELDS = {"state", "scope"}
 VALID_PR_STATUS = {None, "draft", "ready"}
-VALID_VERDICTS = {"PENDING", "GO", "NO_GO"}
+VALID_VERDICTS = {"PENDING", "GO", "NO_GO", "UNPROVEN"}
+FINAL_VERDICTS = {"GO", "NO_GO", "UNPROVEN"}
 
 
 @dataclass(frozen=True)
@@ -43,9 +45,24 @@ def validate_shape(state: dict[str, Any]) -> list[str]:
         errors.append("UNSUPPORTED_SCHEMA_VERSION")
     if state.get("pr_status") not in VALID_PR_STATUS:
         errors.append("INVALID_PR_STATUS")
+
     verdict = state.get("verification_verdict") or {}
     if verdict.get("status") not in VALID_VERDICTS:
         errors.append("INVALID_VERIFICATION_VERDICT")
+
+    authority = state.get("authority")
+    if not isinstance(authority, dict):
+        errors.append("INVALID_AUTHORITY")
+    else:
+        missing_authority = sorted(AUTHORITY_REQUIRED_FIELDS - authority.keys())
+        if missing_authority:
+            errors.append("MISSING_AUTHORITY_FIELDS:" + ",".join(missing_authority))
+        elif not all(
+            isinstance(authority.get(key), str) and authority.get(key)
+            for key in AUTHORITY_REQUIRED_FIELDS
+        ):
+            errors.append("INVALID_AUTHORITY")
+
     if not isinstance(state.get("required_checks"), list):
         errors.append("INVALID_REQUIRED_CHECKS")
     if not isinstance(state.get("parallel_human_gates"), list):
@@ -71,9 +88,9 @@ def evaluate(state: dict[str, Any], observed: Observation) -> list[str]:
         problems.append("STALE_ENGINEERING_HANDOFF")
 
     verdict = state.get("verification_verdict") or {}
-    if verdict.get("status") in {"GO", "NO_GO"} and verdict.get("head_sha") != current_head:
+    if verdict.get("status") in FINAL_VERDICTS and verdict.get("head_sha") != current_head:
         problems.append("STALE_VERIFICATION_VERDICT")
-    if verdict.get("status") in {"GO", "NO_GO"} and state.get("expected_role") == "Verification":
+    if verdict.get("status") in FINAL_VERDICTS and state.get("expected_role") == "Verification":
         problems.append("UNCONSUMED_VERIFICATION_VERDICT")
 
     # Human gates are independent waits, not global stagnation.
@@ -96,11 +113,12 @@ def evaluate(state: dict[str, Any], observed: Observation) -> list[str]:
         problems.append("EXPLICIT_MUTATION_BLOCKER_REQUIRED")
 
     # NO_SILENT_READY_V1.
-    authority = (state.get("authority") or {}).get("state")
+    authority = state.get("authority")
+    authority_state = authority.get("state") if isinstance(authority, dict) else None
     if (
         state.get("stage") == "ENGINEERING_READY"
         and state.get("expected_role") == "Engineering"
-        and authority == "GRANTED"
+        and authority_state == "GRANTED"
         and observed.engineering_executed
         and not observed.progress_made
         and not state.get("blocked_reason")
