@@ -29,7 +29,8 @@ jobs:
           python3 -m unittest -v \
             test_state_contract.py \
             test_transition_contract.py \
-            test_recovery_contract.py
+            test_recovery_contract.py \
+            test_recovery_hardening.py
 
       - name: Fetch canonical #22 and open PR observations read-only
         if: github.event_name == 'pull_request'
