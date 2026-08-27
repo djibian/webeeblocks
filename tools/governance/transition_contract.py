@@ -142,8 +142,9 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
     if required_role and expected_role != required_role:
         problems.append("STALE_EXPECTED_ROLE_AFTER_TRANSITION")
 
+    # Blockers represent mechanical inability, never missing governance evidence.
     if stage in {"ENGINEERING_READY", "ENGINEERING_IN_PROGRESS", "CI_RUNNING"}:
-        if handoff_status == "FINAL" and not blocked:
+        if handoff_status == "FINAL":
             problems.append("HANDOFF_SKIPS_REQUIRED_STAGE")
 
     if stage == "VERIFICATION_READY":
@@ -151,9 +152,9 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
             handoff_status != "FINAL"
             or handoff_head != canonical_head
             or ci_status != "GREEN"
-        ) and not blocked:
+        ):
             problems.append("HANDOFF_SKIPS_REQUIRED_STAGE")
-        if verdict_status not in {"PENDING", None} and not blocked:
+        if verdict_status not in {"PENDING", None}:
             problems.append("VERIFICATION_READY_WITH_PREEXISTING_FINAL_VERDICT")
 
     if stage == "LEAD_MERGE_READY":
@@ -163,8 +164,9 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
             or ci_status != "GREEN"
             or verdict_status != "GO"
             or verdict_head != canonical_head
-        ) and not blocked:
+        ):
             problems.append("HANDOFF_SKIPS_REQUIRED_STAGE")
+        # Only the mechanical Draft -> Ready transition may be blocker-aware.
         if canonical_status == "draft" and not blocked:
             problems.append("FINAL_GO_DRAFT_WITHOUT_BLOCKER")
 

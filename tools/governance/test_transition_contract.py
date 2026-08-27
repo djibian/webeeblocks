@@ -146,6 +146,16 @@ class TransitionContractTests(unittest.TestCase):
         s = state(stage="VERIFICATION_READY", expected_role="Verification")
         self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", evaluate_transition(s, self.obs()))
 
+    def test_blocker_does_not_hide_verification_ready_prerequisites(self):
+        s = state(
+            stage="VERIFICATION_READY",
+            expected_role="Verification",
+            blocked_reason="READY_TRANSITION_UNAVAILABLE",
+            engineering_handoff={"status": "NONE", "head_sha": None},
+            ci_state={"status": "PENDING", "summary": "PENDING"},
+        )
+        self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", evaluate_transition(s, self.obs()))
+
     def test_lead_merge_ready_requires_complete_exact_head_chain(self):
         s = state(
             stage="LEAD_MERGE_READY",
@@ -157,6 +167,33 @@ class TransitionContractTests(unittest.TestCase):
         )
         self.assertEqual(evaluate_transition(s, self.obs(current=pr(status="ready"))), [])
 
+    def test_blocker_does_not_hide_missing_lead_chain_evidence(self):
+        s = state(
+            stage="LEAD_MERGE_READY",
+            expected_role="Lead",
+            blocked_reason="READY_TRANSITION_UNAVAILABLE",
+            engineering_handoff={"status": "NONE", "head_sha": None},
+            verification_verdict={"status": "PENDING", "head_sha": None},
+            ci_state={"status": "PENDING", "summary": "PENDING"},
+        )
+        problems = evaluate_transition(s, self.obs())
+        self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
+        self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", problems)
+
+    def test_blocker_does_not_hide_non_exact_go(self):
+        s = state(
+            stage="LEAD_MERGE_READY",
+            expected_role="Lead",
+            blocked_reason="READY_TRANSITION_UNAVAILABLE",
+            engineering_handoff={"status": "FINAL", "head_sha": HEAD},
+            verification_verdict={"status": "GO", "head_sha": OTHER},
+            ci_state={"status": "GREEN", "summary": "SUCCESS"},
+        )
+        problems = evaluate_transition(s, self.obs())
+        self.assertIn("VERIFICATION_GO_NOT_EXACT_HEAD", problems)
+        self.assertIn("STALE_VERIFICATION_VERDICT", problems)
+        self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
+
     def test_final_green_go_draft_requires_ready_or_blocker(self):
         s = state(
             stage="LEAD_MERGE_READY",
@@ -167,15 +204,16 @@ class TransitionContractTests(unittest.TestCase):
         )
         self.assertIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
         s["blocked_reason"] = "READY_TRANSITION_UNAVAILABLE"
-        self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
+        problems = evaluate_transition(s, self.obs())
+        self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", problems)
+        self.assertNotIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
 
     def test_live_canonical_blocker_propagates_to_g2(self):
         s = live_lead_state("READY_TRANSITION_UNAVAILABLE")
         self.assertEqual(s["blocked_reason"], "READY_TRANSITION_UNAVAILABLE")
-        self.assertNotIn(
-            "FINAL_GO_DRAFT_WITHOUT_BLOCKER",
-            evaluate_transition(s, self.obs()),
-        )
+        problems = evaluate_transition(s, self.obs())
+        self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", problems)
+        self.assertNotIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
 
     def test_live_canonical_no_blocker_still_requires_ready(self):
         s = live_lead_state()
@@ -187,6 +225,13 @@ class TransitionContractTests(unittest.TestCase):
 
     def test_handoff_cannot_skip_from_engineering_stage_to_final(self):
         s = state(engineering_handoff={"status": "FINAL", "head_sha": HEAD})
+        self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", evaluate_transition(s, self.obs()))
+
+    def test_blocker_does_not_hide_engineering_stage_final_handoff(self):
+        s = state(
+            blocked_reason="READY_TRANSITION_UNAVAILABLE",
+            engineering_handoff={"status": "FINAL", "head_sha": HEAD},
+        )
         self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", evaluate_transition(s, self.obs()))
 
     def test_registry_declaring_pr_when_github_has_none_fails(self):
