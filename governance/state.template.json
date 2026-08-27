@@ -10,6 +10,7 @@
   "required_checks": ["governance-state-contract"],
   "engineering_handoff": {"status": "NONE", "head_sha": null},
   "verification_verdict": {"status": "PENDING", "head_sha": null},
+  "ci_state": {"status": "PENDING", "summary": "PENDING"},
   "human_gate": {"status": "NONE", "issue": null},
   "parallel_human_gates": [
     {"issue": "#71", "status": "PENDING", "blocks_current_wip": false}

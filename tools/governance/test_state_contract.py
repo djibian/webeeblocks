@@ -4,16 +4,54 @@ import json
 import unittest
 from pathlib import Path
 
-from render_state import render
+from render_state import render, render_from_canonical
 from state_contract import Observation, evaluate, validate_shape
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_PATH = ROOT / "governance" / "state.template.json"
 
 
+def canonical_body(**overrides):
+    values = {
+        "current_wip": "#84-G1",
+        "wip_kind": "GOVERNANCE",
+        "stage": "VERIFICATION_READY",
+        "failure_class": "NONE",
+        "expected_role": "Verification",
+        "human_gate": "false",
+        "active_issue": "#84",
+        "active_pr": "#89",
+        "pr_status": "DRAFT",
+        "active_head_sha": "current-head",
+        "base_branch": "webots-ci",
+        "base_sha": "base-head",
+        "authority": "EXPLICIT_USER",
+        "authority_scope": "#84-G1_ONLY",
+        "authority_state": "GRANTED",
+        "focused_run": "123",
+        "focused_run_result": "SUCCESS",
+        "exact_head_ci": "24_OF_24_SUCCESS",
+        "engineering_handoff": "FINAL@current-head",
+        "verification_verdict": "PENDING_INDEPENDENT",
+        "parallel_human_gate": "#71-D1",
+        "parallel_human_gate_state": "PENDING",
+    }
+    values.update(overrides)
+    lines = "\n".join(f"{key}={value}" for key, value in values.items())
+    return f"""# State
+
+## État machine canonique
+
+```text
+{lines}
+```
+"""
+
+
 class GovernanceStateContractTests(unittest.TestCase):
     def setUp(self):
         template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+        self.template = template
         self.state = render(template, {
             "pull_request": "#89",
             "head_sha": "current-head",
@@ -40,6 +78,94 @@ class GovernanceStateContractTests(unittest.TestCase):
         self.assertEqual(self.state["head_sha"], "current-head")
         self.assertEqual(self.state["pr_status"], "draft")
 
+    def test_live_render_uses_canonical_stage_role_handoff_verdict_and_ci(self):
+        state = render_from_canonical(
+            self.template,
+            {
+                "pull_request": "#89",
+                "head_sha": "current-head",
+                "pr_status": "draft",
+                "last_progress_at": "2026-08-27T12:38:24Z",
+            },
+            canonical_body(),
+        )
+        self.assertEqual(state["stage"], "VERIFICATION_READY")
+        self.assertEqual(state["expected_role"], "Verification")
+        self.assertEqual(
+            state["engineering_handoff"],
+            {"status": "FINAL", "head_sha": "current-head"},
+        )
+        self.assertEqual(
+            state["verification_verdict"],
+            {"status": "PENDING", "head_sha": None},
+        )
+        self.assertEqual(
+            state["ci_state"],
+            {"status": "GREEN", "summary": "24_OF_24_SUCCESS"},
+        )
+        self.assertEqual(validate_shape(state), [])
+
+    def test_live_render_fails_closed_when_canonical_head_is_stale(self):
+        with self.assertRaisesRegex(ValueError, "CANONICAL_GITHUB_HEAD_CONTRADICTION"):
+            render_from_canonical(
+                self.template,
+                {
+                    "pull_request": "#89",
+                    "head_sha": "current-head",
+                    "pr_status": "draft",
+                    "last_progress_at": "2026-08-27T12:38:24Z",
+                },
+                canonical_body(active_head_sha="old-head"),
+            )
+
+    def test_live_canonical_go_green_draft_exposes_pr88_transition(self):
+        state = render_from_canonical(
+            self.template,
+            {
+                "pull_request": "#89",
+                "head_sha": "current-head",
+                "pr_status": "draft",
+                "last_progress_at": "2026-08-27T12:38:24Z",
+            },
+            canonical_body(
+                stage="LEAD_READY",
+                expected_role="Lead",
+                verification_verdict="GO@current-head",
+            ),
+        )
+        problems = evaluate(
+            state,
+            Observation(
+                pr_number="#89",
+                pr_head_sha="current-head",
+                pr_status="draft",
+                ci_green=True,
+            ),
+        )
+        self.assertIn("READY_FOR_REVIEW_TRANSITION_REQUIRED", problems)
+
+    def test_canonical_ci_mismatch_fails_closed(self):
+        state = render_from_canonical(
+            self.template,
+            {
+                "pull_request": "#89",
+                "head_sha": "current-head",
+                "pr_status": "draft",
+                "last_progress_at": "2026-08-27T12:38:24Z",
+            },
+            canonical_body(exact_head_ci="PENDING", engineering_handoff="NONE"),
+        )
+        problems = evaluate(
+            state,
+            Observation(
+                pr_number="#89",
+                pr_head_sha="current-head",
+                pr_status="draft",
+                ci_green=True,
+            ),
+        )
+        self.assertIn("CANONICAL_CI_CONTRADICTION", problems)
+
     def test_stale_final_engineering_handoff_after_head_change(self):
         s = copy.deepcopy(self.state)
         s["engineering_handoff"] = {"status":"FINAL", "head_sha":"old"}
@@ -58,6 +184,7 @@ class GovernanceStateContractTests(unittest.TestCase):
         s["verification_verdict"] = {"status":"UNPROVEN", "head_sha":s["head_sha"]}
         s["engineering_handoff"] = {"status":"FINAL", "head_sha":s["head_sha"]}
         s["expected_role"] = "Verification"
+        s["ci_state"] = {"status": "GREEN", "summary": "SUCCESS"}
         problems = evaluate(s, self.obs(ci_green=True, pr_status="draft"))
         self.assertNotIn("INVALID_VERIFICATION_VERDICT", problems)
         self.assertNotIn("STALE_VERIFICATION_VERDICT", problems)
@@ -89,6 +216,7 @@ class GovernanceStateContractTests(unittest.TestCase):
         s["engineering_handoff"] = {"status":"FINAL", "head_sha":s["head_sha"]}
         s["verification_verdict"] = {"status":"GO", "head_sha":s["head_sha"]}
         s["pr_status"] = "draft"
+        s["ci_state"] = {"status": "GREEN", "summary": "SUCCESS"}
         problems = evaluate(s, self.obs(pr_status="draft", ci_green=True))
         self.assertIn("READY_FOR_REVIEW_TRANSITION_REQUIRED", problems)
         s["blocked_reason"] = "mechanical transition unavailable"

@@ -25,7 +25,31 @@ jobs:
           cd tools/governance
           python3 -m unittest -v test_state_contract.py
 
-      - name: Render exact PR/head state and validate GitHub observation
+      - name: Fetch canonical #22 state read-only
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              "https://api.github.com/repos/djibian/webeeblocks/issues/22",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "webeeblocks-governance-g1",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              payload = json.load(response)
+          body = payload.get("body")
+          if not isinstance(body, str) or not body.strip():
+              raise SystemExit("CANONICAL_ISSUE_22_BODY_MISSING")
+          Path("/tmp/issue22.md").write_text(body, encoding="utf-8")
+          PY
+
+      - name: Render canonical exact PR/head state and validate live observation
         if: github.event_name == 'pull_request'
         env:
           PULL_REQUEST: '#${{ github.event.pull_request.number }}'
@@ -36,6 +60,7 @@ jobs:
           set -euo pipefail
           python3 tools/governance/render_state.py \
             --template governance/state.template.json \
+            --canonical-body /tmp/issue22.md \
             --output /tmp/governance-state.json \
             --pull-request "$PULL_REQUEST" \
             --head-sha "$HEAD_SHA" \
@@ -47,14 +72,22 @@ jobs:
 
           pr, head, status = sys.argv[1:]
           state = load('/tmp/governance-state.json')
+          ci_green = state["ci_state"]["status"] == "GREEN"
           assert_coherent(state, Observation(
               pr_number=pr,
               pr_head_sha=head,
               pr_status=status,
-              ci_green=False,
-              engineering_executed=True,
-              progress_made=True,
+              ci_green=ci_green,
+              engineering_executed=False,
+              progress_made=False,
               mutation_possible=True,
           ))
-          print(f'GOVERNANCE_STATE_OK pr={pr} head={head} status={status}')
+          handoff = state["engineering_handoff"]["status"]
+          verdict = state["verification_verdict"]["status"]
+          print(
+              "GOVERNANCE_STATE_OK "
+              f"pr={pr} head={head} status={status} "
+              f"stage={state['stage']} role={state['expected_role']} "
+              f"handoff={handoff} verdict={verdict} ci={state['ci_state']['status']}"
+          )
           PY

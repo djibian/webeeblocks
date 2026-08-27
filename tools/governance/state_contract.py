@@ -12,13 +12,14 @@ REQUIRED_FIELDS = {
     "head_sha", "expected_role", "required_checks", "verification_verdict",
     "human_gate", "blocked_reason", "failure_class", "retry_count",
     "last_progress_at", "pr_status", "engineering_handoff",
-    "parallel_human_gates", "contradictions", "authority"
+    "parallel_human_gates", "contradictions", "authority", "ci_state"
 }
 
 AUTHORITY_REQUIRED_FIELDS = {"state", "scope"}
 VALID_PR_STATUS = {None, "draft", "ready"}
 VALID_VERDICTS = {"PENDING", "GO", "NO_GO", "UNPROVEN"}
 FINAL_VERDICTS = {"GO", "NO_GO", "UNPROVEN"}
+VALID_CI_STATES = {"PENDING", "GREEN", "FAILED"}
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,10 @@ def validate_shape(state: dict[str, Any]) -> list[str]:
         ):
             errors.append("INVALID_AUTHORITY")
 
+    ci_state = state.get("ci_state")
+    if not isinstance(ci_state, dict) or ci_state.get("status") not in VALID_CI_STATES:
+        errors.append("INVALID_CI_STATE")
+
     if not isinstance(state.get("required_checks"), list):
         errors.append("INVALID_REQUIRED_CHECKS")
     if not isinstance(state.get("parallel_human_gates"), list):
@@ -82,6 +87,12 @@ def evaluate(state: dict[str, Any], observed: Observation) -> list[str]:
         problems.append("GITHUB_HEAD_CONTRADICTION")
     if observed.pr_status != state.get("pr_status"):
         problems.append("GITHUB_PR_STATUS_CONTRADICTION")
+
+    ci_status = (state.get("ci_state") or {}).get("status")
+    if observed.ci_green and ci_status != "GREEN":
+        problems.append("CANONICAL_CI_CONTRADICTION")
+    if not observed.ci_green and ci_status == "GREEN":
+        problems.append("CANONICAL_CI_CONTRADICTION")
 
     handoff = state.get("engineering_handoff") or {}
     if handoff.get("status") == "FINAL" and handoff.get("head_sha") != current_head:
