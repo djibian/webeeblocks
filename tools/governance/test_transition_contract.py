@@ -194,7 +194,7 @@ class TransitionContractTests(unittest.TestCase):
         self.assertIn("STALE_VERIFICATION_VERDICT", problems)
         self.assertIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
 
-    def test_final_green_go_draft_requires_ready_or_blocker(self):
+    def test_final_green_go_draft_requires_ready_or_mechanical_blocker(self):
         s = state(
             stage="LEAD_MERGE_READY",
             expected_role="Lead",
@@ -208,12 +208,30 @@ class TransitionContractTests(unittest.TestCase):
         self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", problems)
         self.assertNotIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
 
+    def test_unrelated_blocker_does_not_exempt_draft_ready_transition(self):
+        for reason in ("PRODUCT_BUG", "CI_FLAKE", "anything"):
+            with self.subTest(reason=reason):
+                s = state(
+                    stage="LEAD_MERGE_READY",
+                    expected_role="Lead",
+                    blocked_reason=reason,
+                    engineering_handoff={"status": "FINAL", "head_sha": HEAD},
+                    verification_verdict={"status": "GO", "head_sha": HEAD},
+                    ci_state={"status": "GREEN", "summary": "SUCCESS"},
+                )
+                self.assertIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
+
     def test_live_canonical_blocker_propagates_to_g2(self):
         s = live_lead_state("READY_TRANSITION_UNAVAILABLE")
         self.assertEqual(s["blocked_reason"], "READY_TRANSITION_UNAVAILABLE")
         problems = evaluate_transition(s, self.obs())
         self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", problems)
         self.assertNotIn("HANDOFF_SKIPS_REQUIRED_STAGE", problems)
+
+    def test_live_canonical_unrelated_blocker_does_not_exempt_ready(self):
+        s = live_lead_state("CI_FLAKE")
+        self.assertEqual(s["blocked_reason"], "CI_FLAKE")
+        self.assertIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
 
     def test_live_canonical_no_blocker_still_requires_ready(self):
         s = live_lead_state()

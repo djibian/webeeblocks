@@ -16,6 +16,7 @@ ROLE_BY_STAGE = {
     "LEAD_MERGE_READY": "Lead",
 }
 VALID_STAGES = set(ROLE_BY_STAGE)
+READY_TRANSITION_BLOCKERS = {"READY_TRANSITION_UNAVAILABLE"}
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,8 @@ def _main_authorized(state: dict[str, Any], pr: PullRequestObservation) -> bool:
 def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) -> list[str]:
     """Return explicit transition violations. Empty means transition-coherent."""
     problems: list[str] = []
-    blocked = bool(state.get("blocked_reason"))
+    blocked_reason = state.get("blocked_reason")
+    ready_transition_blocked = blocked_reason in READY_TRANSITION_BLOCKERS
     current = observed.current_pr
 
     # Fail closed on any concurrent integration PR, regardless of branch naming.
@@ -166,8 +168,9 @@ def evaluate_transition(state: dict[str, Any], observed: TransitionObservation) 
             or verdict_head != canonical_head
         ):
             problems.append("HANDOFF_SKIPS_REQUIRED_STAGE")
-        # Only the mechanical Draft -> Ready transition may be blocker-aware.
-        if canonical_status == "draft" and not blocked:
+        # Only an explicitly recognized mechanical Draft -> Ready failure exempts
+        # the mechanical Ready transition; unrelated blockers must not.
+        if canonical_status == "draft" and not ready_transition_blocked:
             problems.append("FINAL_GO_DRAFT_WITHOUT_BLOCKER")
 
     return problems
