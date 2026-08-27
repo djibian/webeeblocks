@@ -1,5 +1,8 @@
+import json
 import unittest
+from pathlib import Path
 
+from render_state import render_from_canonical
 from transition_contract import (
     PullRequestObservation,
     TransitionObservation,
@@ -9,6 +12,47 @@ from transition_contract import (
 
 HEAD = "a" * 40
 OTHER = "b" * 40
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE_PATH = ROOT / "governance" / "state.template.json"
+
+
+def canonical_lead_body(blocked_reason="NONE"):
+    values = {
+        "current_wip": "#84-G2",
+        "stage": "LEAD_MERGE_READY",
+        "failure_class": "NONE",
+        "expected_role": "Lead",
+        "active_issue": "#84",
+        "active_pr": "#91",
+        "pr_status": "DRAFT",
+        "active_head_sha": HEAD,
+        "authority_scope": "#84-G2_ONLY",
+        "authority_state": "GRANTED",
+        "engineering_handoff": f"FINAL@{HEAD}",
+        "verification_verdict": f"GO@{HEAD}",
+        "exact_head_ci": "25_OF_25_SUCCESS",
+        "blocked_reason": blocked_reason,
+    }
+    lines = "\n".join(f"{key}={value}" for key, value in values.items())
+    return f"""## État machine canonique
+```text
+{lines}
+```
+"""
+
+
+def live_lead_state(blocked_reason="NONE"):
+    template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return render_from_canonical(
+        template,
+        {
+            "pull_request": "#91",
+            "head_sha": HEAD,
+            "pr_status": "draft",
+            "last_progress_at": "2026-08-27T14:12:12Z",
+        },
+        canonical_lead_body(blocked_reason),
+    )
 
 
 def pr(number="#91", head=HEAD, ref="engineering/governance-transition-contract-g2", base="webots-ci", status="draft"):
@@ -124,6 +168,22 @@ class TransitionContractTests(unittest.TestCase):
         self.assertIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
         s["blocked_reason"] = "READY_TRANSITION_UNAVAILABLE"
         self.assertNotIn("FINAL_GO_DRAFT_WITHOUT_BLOCKER", evaluate_transition(s, self.obs()))
+
+    def test_live_canonical_blocker_propagates_to_g2(self):
+        s = live_lead_state("READY_TRANSITION_UNAVAILABLE")
+        self.assertEqual(s["blocked_reason"], "READY_TRANSITION_UNAVAILABLE")
+        self.assertNotIn(
+            "FINAL_GO_DRAFT_WITHOUT_BLOCKER",
+            evaluate_transition(s, self.obs()),
+        )
+
+    def test_live_canonical_no_blocker_still_requires_ready(self):
+        s = live_lead_state()
+        self.assertIsNone(s["blocked_reason"])
+        self.assertIn(
+            "FINAL_GO_DRAFT_WITHOUT_BLOCKER",
+            evaluate_transition(s, self.obs()),
+        )
 
     def test_handoff_cannot_skip_from_engineering_stage_to_final(self):
         s = state(engineering_handoff={"status": "FINAL", "head_sha": HEAD})

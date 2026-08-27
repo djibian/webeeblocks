@@ -32,6 +32,7 @@ CANONICAL_REQUIRED = {
     "engineering_handoff",
     "verification_verdict",
     "exact_head_ci",
+    "blocked_reason",
 }
 
 
@@ -95,6 +96,14 @@ def parse_ci(raw: str) -> dict:
     raise ValueError(f"CANONICAL_CI_STATE_INVALID:{raw}")
 
 
+def parse_blocked_reason(raw: str) -> str | None:
+    if raw == "NONE":
+        return None
+    if raw:
+        return raw
+    raise ValueError(f"CANONICAL_BLOCKED_REASON_INVALID:{raw}")
+
+
 def render_from_canonical(
     template: dict,
     values: dict[str, str],
@@ -133,6 +142,7 @@ def render_from_canonical(
             "engineering_handoff": parse_handoff(machine["engineering_handoff"]),
             "verification_verdict": parse_verdict(machine["verification_verdict"]),
             "ci_state": parse_ci(machine["exact_head_ci"]),
+            "blocked_reason": parse_blocked_reason(machine["blocked_reason"]),
             "authority": {
                 "state": machine["authority_state"],
                 "scope": machine["authority_scope"],
