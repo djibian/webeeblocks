@@ -92,8 +92,12 @@ function validatePickerOptions(options) {
     for (const [mime, extensions] of Object.entries(type.accept || {})) {
       assert(/^[^/]+\/[^/]+$/.test(mime), 'invalid picker MIME type');
       for (const extension of extensions) {
-        assert(/^\.[A-Za-z0-9]+$/.test(extension), 'invalid picker extension ' + extension);
+        // Chrome rejects overlong native suffixes before any WebeeBlocks
+        // interpretation. Keep this check first so the historical
+        // `.webeeblocks.json` regression is causally represented, then still
+        // validate the syntax of all suffixes that fit the native limit.
         assert(Array.from(extension).length <= 16, 'picker extension exceeds native limit');
+        assert(/^\.[A-Za-z0-9]+$/.test(extension), 'invalid picker extension ' + extension);
       }
     }
   }
