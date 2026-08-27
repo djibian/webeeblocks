@@ -165,6 +165,13 @@ def validate_recovery_state(state: dict[str, Any]) -> list[str]:
             problems.append("RECOVERY_METADATA_WITHOUT_FAILURE")
         return problems
 
+    if (
+        failure_class in VALID_FAILURE_CLASSES
+        and failure_class not in RETRYABLE_FAILURE_CLASSES
+        and retry_count != 0
+    ):
+        problems.append("RETRY_COUNT_ON_NON_RETRYABLE_FAILURE")
+
     signature = recovery.get("incident_signature")
     incident_head = recovery.get("incident_head_sha")
     if not isinstance(signature, str) or not signature:
