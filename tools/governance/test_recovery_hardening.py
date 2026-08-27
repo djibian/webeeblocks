@@ -34,6 +34,19 @@ class RecoveryHardeningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "RETRY_WINDOW_ON_NON_RETRYABLE_FAILURE"):
             evaluate_recovery(state, self.NOW)
 
+    def test_non_retryable_failure_cannot_keep_retry_count(self):
+        for failure_class in ("PRODUCT", "HUMAN_GATE", "AUTHORITY", "PLATFORM"):
+            state = incident_state(
+                failure_class,
+                retry_count=1,
+                retry_target=None,
+                window_started_at=None,
+            )
+            with self.subTest(failure_class=failure_class), self.assertRaisesRegex(
+                ValueError, "RETRY_COUNT_ON_NON_RETRYABLE_FAILURE"
+            ):
+                evaluate_recovery(state, self.NOW)
+
     def test_role_retry_target_must_match_expected_role(self):
         state = incident_state("HARNESS_ORACLE", retry_target="ROLE:Verification")
         state["expected_role"] = "Engineering"
