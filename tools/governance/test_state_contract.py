@@ -33,6 +33,7 @@ def canonical_body(**overrides):
         "exact_head_ci": "24_OF_24_SUCCESS",
         "engineering_handoff": "FINAL@current-head",
         "verification_verdict": "PENDING_INDEPENDENT",
+        "blocked_reason": "NONE",
         "parallel_human_gate": "#71-D1",
         "parallel_human_gate_state": "PENDING",
     }
@@ -103,7 +104,34 @@ class GovernanceStateContractTests(unittest.TestCase):
             state["ci_state"],
             {"status": "GREEN", "summary": "24_OF_24_SUCCESS"},
         )
+        self.assertIsNone(state["blocked_reason"])
         self.assertEqual(validate_shape(state), [])
+
+    def test_canonical_blocked_reason_is_required_and_propagated(self):
+        missing = canonical_body().replace("blocked_reason=NONE\n", "")
+        with self.assertRaisesRegex(ValueError, "CANONICAL_FIELDS_MISSING:blocked_reason"):
+            render_from_canonical(
+                self.template,
+                {
+                    "pull_request": "#89",
+                    "head_sha": "current-head",
+                    "pr_status": "draft",
+                    "last_progress_at": "2026-08-27T12:38:24Z",
+                },
+                missing,
+            )
+
+        state = render_from_canonical(
+            self.template,
+            {
+                "pull_request": "#89",
+                "head_sha": "current-head",
+                "pr_status": "draft",
+                "last_progress_at": "2026-08-27T12:38:24Z",
+            },
+            canonical_body(blocked_reason="READY_TRANSITION_UNAVAILABLE"),
+        )
+        self.assertEqual(state["blocked_reason"], "READY_TRANSITION_UNAVAILABLE")
 
     def test_live_render_fails_closed_when_canonical_head_is_stale(self):
         with self.assertRaisesRegex(ValueError, "CANONICAL_GITHUB_HEAD_CONTRADICTION"):
