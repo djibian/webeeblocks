@@ -1,0 +1,25 @@
+name: Governance state contract G1
+
+on:
+  pull_request:
+    branches: [webots-ci]
+    paths:
+      - 'governance/**'
+      - 'tools/governance/**'
+      - '.github/workflows/governance-state-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  governance-state-contract:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate G1 machine-readable state and causal incidents
+        run: |
+          set -euo pipefail
+          cd tools/governance
+          python3 -m unittest -v test_state_contract.py
