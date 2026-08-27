@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebeeBlocks Runtime v2</title>
+  <link rel="stylesheet" href="main.css">
+  <link rel="stylesheet" href="execution_observer.css">
+  <link rel="stylesheet" href="project_files.css">
+  <script src="vendor/blockly_compressed.js"></script>
+  <script src="vendor/blocks_compressed.js"></script>
+  <script src="vendor/msg/en.js"></script>
+  <script src="../blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js"></script>
+  <script src="../blockly/webeeblocks/activity_profiles.js"></script>
+  <script src="../blockly/webeeblocks/activities.js"></script>
+  <script src="../blockly/webeeblocks/semantic_ast.js"></script>
+  <script src="../blockly/webeeblocks/interpreter.js"></script>
+  <script src="../blockly/webeeblocks/execution_observer.js"></script>
+  <script src="../blockly/webeeblocks/runtime_outcome.js"></script>
+  <script src="../blockly/webeeblocks/activity_contract.js"></script>
+  <script src="../blockly/webeeblocks/project_files.js"></script>
+  <script src="../blockly/webeeblocks/wwi_backend.js"></script>
+</head>
+<body>
+  <header>
+    <div id="activityCopy">
+      <h1 id="activityTitle">WebeeBlocks</h1>
+      <p id="activityGoal"></p>
+    </div>
+    <div id="primaryActions" aria-label="Projet et exécution">
+      <button id="projectOpen" type="button">Ouvrir</button>
+      <button id="projectSave" type="button">Enregistrer</button>
+      <button id="projectSaveAs" type="button">Enregistrer sous</button>
+      <button id="submit" disabled>Lancer le vol</button>
+    </div>
+  </header>
+  <section id="statusPanel" aria-live="polite">
+    <span id="statusLabel">État : <strong id="runtimeState">INITIALISATION</strong></span>
+    <span id="runtimeDetail"></span>
+    <span id="projectFileState">Projet non enregistré</span>
+  </section>
+  <section id="debugPanel" hidden aria-label="Observation de l’exécution">
+    <label id="stepModeLabel"><input id="stepMode" type="checkbox"> Pas à pas</label>
+    <button id="stepNext" type="button" disabled>Pas suivant</button>
+    <button id="stepContinue" type="button" disabled>Continuer</button>
+    <span id="debugState">Observation inactive</span>
+    <span id="debugSensorsRow"><strong>Capteurs :</strong> <span id="debugSensors">—</span></span>
+    <span id="debugVariablesRow" hidden><strong>Variables :</strong> <span id="debugVariables"></span></span>
+  </section>
+  <main id="workspaceShell">
+    <div id="blocklyDiv" aria-label="Programme Blockly"></div>
+    <nav id="workspaceToolbar" aria-label="Zoom et affichage du programme">
+      <button id="zoomOut" type="button" title="Réduire le zoom" aria-label="Réduire le zoom"><span class="zoomSymbol" aria-hidden="true">−</span></button>
+      <button id="zoomIn" type="button" title="Augmenter le zoom" aria-label="Augmenter le zoom"><span class="zoomSymbol" aria-hidden="true">+</span></button>
+      <button id="zoomFit" type="button" title="Ajuster le programme à l'écran" aria-label="Ajuster le programme à l'écran"><span class="toolbarText">Ajuster</span><span class="zoomSymbol" aria-hidden="true">↔</span></button>
+      <button id="zoomReset" type="button" title="Recentrer à la taille normale" aria-label="Recentrer à la taille normale"><span class="toolbarText">100 %</span></button>
+    </nav>
+  </main>
+  <script src="main.js"></script>
+  <script src="project_ui.js"></script>
+</body>
+</html>

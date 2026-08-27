@@ -1,0 +1,24 @@
+#primaryActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+#projectFileState {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wb-muted);
+}
+
+#projectFileState[data-error="true"] { color: #a1362c; }
+
+@media (max-width: 850px) {
+  #primaryActions { gap: 5px; }
+  #primaryActions button { padding-inline: 9px; }
+  #projectFileState { display: none; }
+}

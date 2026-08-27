@@ -4,6 +4,31 @@
 
 WebeeBlocks is an educational robotics project. Its priority is reliable pedagogical behavior and incremental product progress supported by evidence.
 
+## Product vision
+
+The validated product direction is documented in `docs/PRODUCT_VISION.md`. Treat it as a durable product constraint, not as optional background.
+
+In particular:
+- WebeeBlocks is a focused **training environment**, not an LMS, tracking platform, grading system or intelligent tutor;
+- target a compact guided progression of roughly **8–12 substantial activities**;
+- progression is teacher-guided, but WebeeBlocks itself does not need student accounts or per-student unlock/progress state;
+- activities must support pedagogical progression rather than only changing scenery;
+- the student solution is built from generic primitives; the activity defines the problem, constraints, success/failure, optional timing/score and available capabilities;
+- student execution observability is limited to the active block plus current sensor and variable values;
+- do **not** add hints, strategy suggestions, automatic mistake diagnosis, interpreted decision traces or other assistance that solves the reasoning for the student;
+- a simple step-by-step debug mode is a product objective **for Webots simulation only**;
+- do not add sophisticated developer-debugger features (user breakpoints, watch expressions, call stacks, etc.) without a new explicit pedagogical requirement;
+- step-by-step/debug execution must **never** be offered during real Crazyflie flight;
+- the student Blockly program should remain backend-neutral and transferable from simulation to real hardware when safe and supported;
+- student project persistence is **manual** through clear Open / Save / Save As actions; do not add permanent autosave, attempt history, success/failure history, score history or student progress tracking without a new explicit requirement;
+- use Blockly native Undo/Redo if adequate; do not build bespoke version history by default;
+- Moodle may distribute resources or receive a submitted project file, but core WebeeBlocks remains autonomous/local/offline-first;
+- real Crazyflie flight is reserved for the final activity/finality of the module and requires explicit teacher authorization; assume one physical drone and no software flight-request queue;
+- WebeeBlocks does not need an integrated assessment subsystem. A saved project file may be submitted and evaluated externally when required;
+- do not build a teacher-facing graphical activity studio unless a separate demonstrated need appears; declarative activity files are sufficient for the current owner-assisted authoring workflow.
+
+When a technical choice conflicts with `docs/PRODUCT_VISION.md`, surface the contradiction to Lead rather than silently optimizing for implementation convenience.
+
 ## Repository governance
 
 `main` is not a development target. Do not commit directly to `main` or promote work there without Emmanuel's explicit authorization.
@@ -15,10 +40,11 @@ WebeeBlocks is an educational robotics project. Its priority is reliable pedagog
 Do not rely on chat history as authoritative project state. Before starting work, read:
 
 1. this `AGENTS.md`;
-2. `[Lead] WebeeBlocks state & priorities`;
-3. the assigned issue;
-4. relevant Lab and Verification evidence;
-5. related pull requests and current CI evidence.
+2. `docs/PRODUCT_VISION.md`;
+3. `[Lead] WebeeBlocks state & priorities`;
+4. the assigned issue;
+5. relevant Lab and Verification evidence;
+6. related pull requests and current CI evidence.
 
 Write important conclusions, contradictions, decisions, evidence and remaining uncertainty back to GitHub.
 
