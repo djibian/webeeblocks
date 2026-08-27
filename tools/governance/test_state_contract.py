@@ -4,15 +4,22 @@ import json
 import unittest
 from pathlib import Path
 
-from state_contract import Observation, evaluate, load, validate_shape
+from render_state import render
+from state_contract import Observation, evaluate, validate_shape
 
 ROOT = Path(__file__).resolve().parents[2]
-STATE_PATH = ROOT / "governance" / "state.json"
+TEMPLATE_PATH = ROOT / "governance" / "state.template.json"
 
 
 class GovernanceStateContractTests(unittest.TestCase):
     def setUp(self):
-        self.state = load(STATE_PATH)
+        template = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8"))
+        self.state = render(template, {
+            "pull_request": "#89",
+            "head_sha": "current-head",
+            "pr_status": "draft",
+            "last_progress_at": "2026-08-27T08:09:00Z",
+        })
 
     def obs(self, **overrides):
         values = dict(
@@ -27,14 +34,16 @@ class GovernanceStateContractTests(unittest.TestCase):
         values.update(overrides)
         return Observation(**values)
 
-    def test_versioned_state_has_required_contract(self):
+    def test_generated_state_has_required_contract_and_exact_head(self):
         self.assertEqual(validate_shape(self.state), [])
+        self.assertEqual(self.state["pull_request"], "#89")
+        self.assertEqual(self.state["head_sha"], "current-head")
+        self.assertEqual(self.state["pr_status"], "draft")
 
     def test_stale_final_engineering_handoff_after_head_change(self):
         s = copy.deepcopy(self.state)
         s["engineering_handoff"] = {"status":"FINAL", "head_sha":"old"}
-        problems = evaluate(s, self.obs())
-        self.assertIn("STALE_ENGINEERING_HANDOFF", problems)
+        self.assertIn("STALE_ENGINEERING_HANDOFF", evaluate(s, self.obs()))
 
     def test_unconsumed_verification_verdict_and_stale_verdict(self):
         s = copy.deepcopy(self.state)
@@ -72,19 +81,23 @@ class GovernanceStateContractTests(unittest.TestCase):
         self.assertNotIn("READY_FOR_REVIEW_TRANSITION_REQUIRED", evaluate(s, self.obs(pr_status="draft", ci_green=True)))
 
     def test_mechanical_mutation_impossible_requires_blocker(self):
-        problems = evaluate(self.state, self.obs(mutation_possible=False))
-        self.assertIn("EXPLICIT_MUTATION_BLOCKER_REQUIRED", problems)
+        self.assertIn("EXPLICIT_MUTATION_BLOCKER_REQUIRED", evaluate(self.state, self.obs(mutation_possible=False)))
 
     def test_no_silent_ready_liveness_violation(self):
-        problems = evaluate(self.state, self.obs(engineering_executed=True, progress_made=False))
+        s = copy.deepcopy(self.state)
+        s["stage"] = "ENGINEERING_READY"
+        s["expected_role"] = "Engineering"
+        problems = evaluate(s, self.obs(engineering_executed=True, progress_made=False))
         self.assertIn("LIVENESS_VIOLATION_SILENT_ENGINEERING_READY", problems)
 
     def test_progress_or_blocker_closes_silent_ready_violation(self):
+        s = copy.deepcopy(self.state)
+        s["stage"] = "ENGINEERING_READY"
+        s["expected_role"] = "Engineering"
         self.assertNotIn(
             "LIVENESS_VIOLATION_SILENT_ENGINEERING_READY",
-            evaluate(self.state, self.obs(engineering_executed=True, progress_made=True)),
+            evaluate(s, self.obs(engineering_executed=True, progress_made=True)),
         )
-        s = copy.deepcopy(self.state)
         s["blocked_reason"] = "explicit platform blocker"
         self.assertNotIn(
             "LIVENESS_VIOLATION_SILENT_ENGINEERING_READY",
