@@ -15,4 +15,4 @@ export WEBEEBLOCKS_CI_ARTIFACT_DIR="$OUT"
 xvfb-run -a webots --stdout --stderr --batch --mode=realtime "$ROOT/worlds/crazyflie_runtime_v2.wbt" > "$OUT/webots.log" 2>&1 &
 wpid=$!
 trap 'kill "$wpid" 2>/dev/null || true; wait "$wpid" 2>/dev/null || true' EXIT
-python3 "$ROOT/experiments/runtime-v2-student-ui/probe.py" --fixture "$FIXTURE" --expected-ast "$EXPECTED_AST" --output "$OUT/metrics.json" --screenshot "$OUT/workspace-1366x768.png"
+python3 "$ROOT/experiments/runtime-v2-student-ui/diagnostic_probe.py" --fixture "$FIXTURE" --expected-ast "$EXPECTED_AST" --output "$OUT/metrics.json" --screenshot "$OUT/workspace-1366x768.png"
