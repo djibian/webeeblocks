@@ -26,7 +26,7 @@ npm run prepare:blockly
 test "$(cat vendor/VERSION)" = "13.2.1"
 test -s vendor/blockly_compressed.js
 test -s vendor/blocks_compressed.js
-test -s vendor/msg/en.js
+test -s vendor/msg/fr.js
 test -d vendor/media
 
 echo "Runtime v2 Blockly assets ready: blockly@13.2.1"

@@ -124,10 +124,15 @@ function setDebugControls(paused) {
   document.getElementById('stepContinue').disabled = !runtimeRunning;
   document.getElementById('stepMode').disabled = runtimeRunning;
 }
+function studentDirectionLabel(direction) {
+  var labels = {front: 'devant', back: 'derrière', left: 'à gauche', right: 'à droite', up: 'au-dessus'};
+  if (!Object.prototype.hasOwnProperty.call(labels, direction)) throw new Error('unsupported student direction: ' + direction);
+  return labels[direction];
+}
 function renderSensorValues(values) {
   var keys = Object.keys(values || {});
   document.getElementById('debugSensors').textContent = keys.length ? keys.map(function(direction) {
-    return direction + ' = ' + String(values[direction]) + ' m';
+    return studentDirectionLabel(direction) + ' = ' + String(values[direction]) + ' m';
   }).join(' · ') : '—';
 }
 function renderVariables(values) {

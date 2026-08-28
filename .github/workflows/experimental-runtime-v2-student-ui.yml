@@ -34,6 +34,9 @@ jobs:
           python3 -m py_compile experiments/runtime-v2-student-ui/probe.py
           bash -n experiments/runtime-v2-student-ui/browser.sh experiments/runtime-v2-student-ui/run.sh
           grep -F "renderer: 'zelos'" plugins/robot_windows/blockly_v2/main.js
+          grep -F '<script src="vendor/msg/fr.js"></script>' plugins/robot_windows/blockly_v2/blockly_v2.html
+          ! grep -F 'vendor/msg/en.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
           grep -F "message0:'distance %1'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 6
@@ -99,11 +102,21 @@ jobs:
               return value.upper()
           r=json.loads(Path('ci-artifacts/runtime-v2-student-ui/metrics.json').read_text())
           expected=json.loads(Path('experiments/runtime-v2-student-ui/expected_ast.json').read_text())
-          i=r['initial']; k=r['keyboard']; narrow=r['responsive800']
+          i=r['initial']; k=r['keyboard']; narrow=r['responsive800']; locale=r['locale']
           assert i['version']=='13.2.1', i
           assert i['rendererMatchesRegistry'] is True, i
           assert r['astMatchesExpected'] is True, r
           assert r['ast']==expected, {'expected':expected,'actual':r['ast']}
+          assert locale['messages']['repeat'].lower().startswith('répéter'), locale
+          assert locale['messages']['if'].lower()=='si' and locale['messages']['do'].lower()=='faire' and locale['messages']['else'].lower()=='sinon', locale
+          assert locale['messages']['and'].lower()=='et' and locale['messages']['or'].lower()=='ou', locale
+          assert locale['messages']['trueValue'].lower()=='vrai' and locale['messages']['falseValue'].lower()=='faux', locale
+          assert locale['messages']['repeatTooltip'] and 'repeat' not in locale['messages']['repeatTooltip'].lower(), locale
+          expected_directions=[{'label':'devant','value':'front'},{'label':'derrière','value':'back'},{'label':'à gauche','value':'left'},{'label':'à droite','value':'right'},{'label':'au-dessus','value':'up'}]
+          assert locale['directionOptions']==expected_directions, locale['directionOptions']
+          assert locale['sensorText']=='devant = 1 m · derrière = 2 m · à gauche = 3 m · à droite = 4 m · au-dessus = 5 m', locale['sensorText']
+          visible=' '.join(locale['blocks'].values()).lower()
+          assert not re.search(r'\\b(repeat|if|do|else|and|or|true|false)\\b',visible), locale['blocks']
           assert i['viewport']=={'width':1366,'height':768}, i['viewport']
           assert all(i['controls'].values()), i['controls']
           assert i['geometry']['toolbar'] and i['geometry']['toolbar']['width']>0, i['geometry']
