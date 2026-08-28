@@ -103,6 +103,21 @@ def keyboard(c):
             if s['active']['inBlockly'] and not s['active']['inToolbox'] and not s['active']['inFlyout']: returned=True; break
     return {'toolboxEntry':entered,'arrowDown':down,'arrowUp':up,'categoryActivation':opened,'flyoutBlockReachable':flyout,'workspaceFocusReturn':returned,'steps':states}
 
+LOCALE=r'''(() => {
+ const blockText=type=>{const block=workspace.newBlock(type);try{return block.toString();}finally{block.dispose(false);}};
+ const range=workspace.newBlock('webeeblocks_v2_range');
+ let directionOptions;
+ try{directionOptions=range.getField('DIRECTION').getOptions(false).map(option=>({label:option[0],value:option[1]}));}
+ finally{range.dispose(false);}
+ renderSensorValues({front:1,back:2,left:3,right:4,up:5});
+ return {
+   messages:{repeat:Blockly.Msg.CONTROLS_REPEAT_TITLE,if:Blockly.Msg.CONTROLS_IF_MSG_IF,do:Blockly.Msg.CONTROLS_IF_MSG_THEN,else:Blockly.Msg.CONTROLS_IF_MSG_ELSE,and:Blockly.Msg.LOGIC_OPERATION_AND,or:Blockly.Msg.LOGIC_OPERATION_OR,trueValue:Blockly.Msg.LOGIC_BOOLEAN_TRUE,falseValue:Blockly.Msg.LOGIC_BOOLEAN_FALSE,repeatTooltip:Blockly.Msg.CONTROLS_REPEAT_TOOLTIP},
+   blocks:{repeat:blockText('controls_repeat_ext'),condition:blockText('controls_if'),logic:blockText('logic_operation'),comparison:blockText('logic_compare'),boolean:blockText('logic_boolean')},
+   directionOptions:directionOptions,
+   sensorText:document.getElementById('debugSensors').textContent
+ };
+})()'''
+
 def first_colour(snapshot, block_type):
     values=snapshot['blockColours'].get(block_type,[])
     if not values:
@@ -130,7 +145,7 @@ def main():
     fixture=Path(a.fixture).read_text(encoding='utf-8')
     expected_ast=json.loads(Path(a.expected_ast).read_text(encoding='utf-8'))
     c.eval("workspace.clear();Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(%s),workspace);Blockly.svgResize(workspace);true"%json.dumps(fixture)); time.sleep(.5)
-    ast=c.eval('WebeeBlocksSemanticAst.compileWorkspace(workspace)'); initial=c.eval(SNAP)
+    ast=c.eval('WebeeBlocksSemanticAst.compileWorkspace(workspace)'); initial=c.eval(SNAP); locale=c.eval(LOCALE)
     if ast != expected_ast:
         raise RuntimeError('compiled fixture AST differs from canonical pre-#75 AST: '+json.dumps({'expected':expected_ast,'actual':ast},ensure_ascii=False,separators=(',',':')))
     if not initial['rendererMatchesRegistry']: raise RuntimeError('Zelos not actually instantiated')
@@ -160,7 +175,7 @@ def main():
         raise RuntimeError('100 % reset label must remain visible at narrow width: '+json.dumps(responsive,ensure_ascii=False))
     c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False}); c.eval('Blockly.svgResize(workspace);true'); time.sleep(.25)
     final=c.eval(SNAP); c.screenshot(a.screenshot)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 if __name__=='__main__': main()

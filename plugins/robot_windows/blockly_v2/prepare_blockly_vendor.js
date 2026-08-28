@@ -31,7 +31,7 @@ fs.rmSync(vendorDir, {recursive: true, force: true});
 fs.mkdirSync(vendorDir, {recursive: true});
 copyFile('blockly_compressed.js');
 copyFile('blocks_compressed.js');
-copyFile(path.join('msg', 'en.js'));
+copyFile(path.join('msg', 'fr.js'));
 fs.cpSync(requirePath(path.join(blocklyRoot, 'media')), path.join(vendorDir, 'media'), {recursive: true});
 
 // Webots R2025a's Robot Window server does not serve SVG assets. Blockly 13.2.1

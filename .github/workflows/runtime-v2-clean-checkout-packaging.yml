@@ -29,7 +29,7 @@ jobs:
           test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           node --check plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js
           node --check plugins/robot_windows/blockly_v2/vendor/blocks_compressed.js
-          test -s plugins/robot_windows/blockly_v2/vendor/msg/en.js
+          test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
           test -d plugins/robot_windows/blockly_v2/vendor/media
 
       - name: Prepare real Runtime v2 Robot Window harness
