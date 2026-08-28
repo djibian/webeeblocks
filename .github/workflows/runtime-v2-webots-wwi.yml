@@ -26,7 +26,7 @@ jobs:
           test "$(cat vendor/VERSION)" = "13.2.1"
           node --check vendor/blockly_compressed.js
           node --check vendor/blocks_compressed.js
-          test -s vendor/msg/en.js
+          test -s vendor/msg/fr.js
           test -d vendor/media
 
       - name: Validate Runtime v2 product sources
