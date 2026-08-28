@@ -4,6 +4,8 @@ from pathlib import Path
 import websocket
 
 CDP='http://127.0.0.1:9222/json'
+TOOLTIP_WAIT_TIMEOUT=5.0
+TOOLTIP_WAIT_INTERVAL=.1
 
 def wait_target(timeout=30):
     end=time.time()+timeout
@@ -170,6 +172,16 @@ def normalise_colour(value):
         return '#%02X%02X%02X' % tuple(int(part) for part in match.groups())
     return value.upper()
 
+def wait_visible_tooltip(c, timeout=TOOLTIP_WAIT_TIMEOUT, interval=TOOLTIP_WAIT_INTERVAL):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        overlays=c.eval(VISIBLE_OVERLAY) or []
+        tooltip=[entry for entry in overlays if 'Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()]
+        if tooltip and any(entry['text'].strip() for entry in tooltip):
+            return tooltip
+        time.sleep(interval)
+    raise RuntimeError('real repeat tooltip did not appear visible and non-empty within %.1fs' % timeout)
+
 def main():
     p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--expected-ast',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
     c=Cdp(wait_target()['webSocketDebuggerUrl']); c.call('Runtime.enable'); c.call('Page.enable'); c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False})
@@ -234,10 +246,8 @@ def main():
             raise RuntimeError('real direction dropdown lacks '+expected+': '+menu_text)
     c.screenshot(screenshot.with_name('direction-menu-1366x768.png'))
     c.key('Escape'); time.sleep(.2)
-    c.hover(rendered['repeatRect']); time.sleep(1.4)
-    tooltip=c.eval(VISIBLE_OVERLAY)
-    tooltip=[entry for entry in tooltip if 'Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()]
-    if not tooltip: raise RuntimeError('real repeat tooltip did not appear after hover')
+    c.hover(rendered['repeatRect'])
+    tooltip=wait_visible_tooltip(c)
     tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
     if not tooltip_text or 'repeat' in tooltip_text:
         raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
