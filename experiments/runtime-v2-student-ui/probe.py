@@ -106,18 +106,20 @@ LOCALE=r'''(() => {
 
 RENDER_LOCALE=r'''(() => {
  const rect=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}};
- const xml='<xml xmlns="https://developers.google.com/blockly/xml"><block type="logic_operation" x="650" y="50"><field name="OP">AND</field><value name="A"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value><value name="B"><block type="logic_boolean"><field name="BOOL">FALSE</field></block></value></block><block type="webeeblocks_v2_range" x="650" y="180"><field name="DIRECTION">front</field></block></xml>';
+ const xml='<xml xmlns="https://developers.google.com/blockly/xml"><block type="logic_operation" x="650" y="50"><field name="OP">AND</field><value name="A"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value><value name="B"><block type="logic_boolean"><field name="BOOL">FALSE</field></block></value></block><block type="logic_operation" x="650" y="180"><field name="OP">OR</field><value name="A"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value><value name="B"><block type="logic_boolean"><field name="BOOL">FALSE</field></block></value></block><block type="webeeblocks_v2_range" x="650" y="310"><field name="DIRECTION">front</field></block></xml>';
  Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml),workspace);
  Blockly.svgResize(workspace);
- const logic=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='AND');
+ const logicAnd=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='AND'&&block.getRelativeToSurfaceXY().x>500);
+ const logicOr=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='OR'&&block.getRelativeToSurfaceXY().x>500);
  const range=workspace.getBlocksByType('webeeblocks_v2_range',false).find(block=>block.getRelativeToSurfaceXY().x>500);
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
- if(!logic||!range||!repeat)throw new Error('rendered locale evidence blocks missing');
+ if(!logicAnd||!logicOr||!range||!repeat)throw new Error('rendered locale evidence blocks missing');
  const field=range.getField('DIRECTION');
  const fieldRoot=field.getSvgRoot();
  return {
-   logicText:logic.toString(),logicSvgText:logic.getSvgRoot().textContent,
-   logicRect:rect(logic.getSvgRoot()),directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
+   logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
+   logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
+   logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
    directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
    repeatRect:rect(repeat.inputList.flatMap(input=>input.fieldRow).find(field=>field.getSvgRoot&&field.getSvgRoot()).getSvgRoot()),
    workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
@@ -211,10 +213,14 @@ def main():
     c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False}); c.eval('Blockly.svgResize(workspace);true'); time.sleep(.25)
 
     rendered=c.eval(RENDER_LOCALE); time.sleep(.5)
-    rendered_text=(rendered['logicSvgText']+' '+rendered['logicText']).lower()
+    rendered_and=(rendered['logicAndSvgText']+' '+rendered['logicAndText']).lower()
+    rendered_or=(rendered['logicOrSvgText']+' '+rendered['logicOrText']).lower()
     for expected in ('vrai','et','faux'):
-        if expected not in rendered_text:
-            raise RuntimeError('rendered logic program lacks '+expected+': '+rendered_text)
+        if expected not in rendered_and:
+            raise RuntimeError('rendered AND program lacks '+expected+': '+rendered_and)
+    for expected in ('vrai','ou','faux'):
+        if expected not in rendered_or:
+            raise RuntimeError('rendered OR program lacks '+expected+': '+rendered_or)
     if rendered['workspaceAriaLabel']!='Programme Blockly':
         raise RuntimeError('rendered workspace accessibility label is not French: '+str(rendered['workspaceAriaLabel']))
     screenshot=Path(a.screenshot)
