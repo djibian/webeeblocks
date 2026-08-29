@@ -2,6 +2,7 @@ name: Runtime v2 manual project files
 
 on:
   pull_request:
+    branches: [webots-ci]
     paths:
       - 'plugins/robot_windows/blockly/webeeblocks/project_files.js'
       - 'plugins/robot_windows/blockly_v2/blockly_v2.html'
@@ -11,6 +12,10 @@ on:
       - 'tools/ci/prepare_runtime_v2_project_files.py'
       - '.github/workflows/runtime-v2-project-files.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

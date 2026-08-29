@@ -1,6 +1,7 @@
 name: Runtime v2 product core
 on:
   pull_request:
+    branches: [webots-ci]
     paths:
       - 'plugins/robot_windows/blockly/webeeblocks/**'
       - 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'
@@ -13,6 +14,10 @@ on:
       - 'tools/ci/test_runtime_v2_preflight.js'
       - '.github/workflows/runtime-v2-core.yml'
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   runtime-v2-core:
     runs-on: ubuntu-22.04

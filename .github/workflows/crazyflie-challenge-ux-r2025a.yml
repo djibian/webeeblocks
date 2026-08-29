@@ -3,7 +3,12 @@ name: Crazyflie timed challenge UX R2025a
 on:
   pull_request:
     branches: [webots-ci]
+    types: [ready_for_review]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
