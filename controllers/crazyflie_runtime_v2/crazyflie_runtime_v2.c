@@ -10,6 +10,7 @@
 #include <webots/motor.h>
 #include <webots/plugins/robot_window/default.h>
 #include <webots/robot.h>
+#include <webots/supervisor.h>
 
 #include "pid_controller.h"
 
@@ -26,13 +27,15 @@
 #define VZ_TOL 0.15
 #define ALT_TOL 0.05
 #define STOP_WINDOW 0.5
+#define RESET_WINDOW 0.25
 #define ACTION_TIMEOUT 25.0
 
 typedef enum {
   CMD_IDLE,
   CMD_TAKEOFF,
   CMD_MOVE,
-  CMD_LAND
+  CMD_LAND,
+  CMD_RESET
 } command_t;
 
 typedef enum {
@@ -40,7 +43,8 @@ typedef enum {
   REQUEST_TAKEOFF,
   REQUEST_MOVE,
   REQUEST_LAND,
-  REQUEST_RANGE
+  REQUEST_RANGE,
+  REQUEST_RESET
 } request_kind_t;
 
 typedef struct {
@@ -156,6 +160,11 @@ static request_t parse_request(const char *message) {
     request.kind = REQUEST_LAND;
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d RESET %1s", &id, extra) == 1) {
+    request.id = id;
+    request.kind = REQUEST_RESET;
+    return request;
+  }
 
   request.id = extract_id(message);
   return request;
@@ -181,6 +190,12 @@ static void trace_land(void) {
   fflush(stdout);
 }
 
+static void trace_reset(double x, double y, double z, double origin_x, double origin_y, double origin_z) {
+  printf(PREFIX " TRACE RESET x=%.9f y=%.9f z=%.9f origin_x=%.9f origin_y=%.9f origin_z=%.9f\n",
+         x, y, z, origin_x, origin_y, origin_z);
+  fflush(stdout);
+}
+
 int main(void) {
   wb_robot_init();
   const int step = (int)wb_robot_get_basic_time_step();
@@ -200,6 +215,19 @@ int main(void) {
     return 1;
   }
 
+  WbNodeRef self_node = wb_supervisor_node_get_self();
+  WbFieldRef translation_field = self_node ? wb_supervisor_node_get_field(self_node, "translation") : 0;
+  WbFieldRef rotation_field = self_node ? wb_supervisor_node_get_field(self_node, "rotation") : 0;
+  if (!self_node || !translation_field || !rotation_field) {
+    fprintf(stderr, PREFIX " FATAL supervisor reset fields unavailable\n");
+    wb_robot_cleanup();
+    return 1;
+  }
+  const double *initial_translation_ref = wb_supervisor_field_get_sf_vec3f(translation_field);
+  const double *initial_rotation_ref = wb_supervisor_field_get_sf_rotation(rotation_field);
+  double initial_translation[3] = {initial_translation_ref[0], initial_translation_ref[1], initial_translation_ref[2]};
+  double initial_rotation[4] = {initial_rotation_ref[0], initial_rotation_ref[1], initial_rotation_ref[2], initial_rotation_ref[3]};
+
   wb_motor_set_position(m1, INFINITY);
   wb_motor_set_position(m2, INFINITY);
   wb_motor_set_position(m3, INFINITY);
@@ -216,11 +244,16 @@ int main(void) {
 
   const double *position = wb_gps_get_values(gps);
   const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
+  const double origin_x = position[0];
+  const double origin_y = position[1];
   const double origin_z = position[2];
-  double target_x = position[0];
-  double target_y = position[1];
-  double target_z = position[2];
-  double target_yaw = rpy[2];
+  const double origin_roll = rpy[0];
+  const double origin_pitch = rpy[1];
+  const double origin_yaw = rpy[2];
+  double target_x = origin_x;
+  double target_y = origin_y;
+  double target_z = origin_z;
+  double target_yaw = origin_yaw;
 
   double previous_x = position[0];
   double previous_y = position[1];
@@ -228,6 +261,7 @@ int main(void) {
   double previous_time = wb_robot_get_time();
 
   int airborne = 0;
+  int failsafe_latched = 0;
   command_t command = CMD_IDLE;
   int active_id = -1;
   double active_value = 0.0;
@@ -297,12 +331,36 @@ int main(void) {
       request_t request = parse_request(message);
       if (request.id < 1)
         continue;
+      if (request.kind == REQUEST_INVALID) {
+        response_error(request.id, "INVALID_REQUEST");
+        continue;
+      }
       if (command != CMD_IDLE) {
         response_error(request.id, "BUSY");
         continue;
       }
-      if (request.kind == REQUEST_INVALID) {
-        response_error(request.id, "INVALID_REQUEST");
+      if (request.kind == REQUEST_RESET) {
+        stop_motors(m1, m2, m3, m4);
+        wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
+        wb_supervisor_field_set_sf_rotation(rotation_field, initial_rotation);
+        wb_supervisor_node_reset_physics(self_node);
+        init_pid_attitude_fixed_height_controller();
+        airborne = 0;
+        failsafe_latched = 0;
+        target_x = origin_x;
+        target_y = origin_y;
+        target_z = origin_z;
+        target_yaw = origin_yaw;
+        active_id = request.id;
+        active_value = 0.0;
+        active_direction[0] = '\0';
+        command = CMD_RESET;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (failsafe_latched) {
+        response_error(request.id, "RESET_REQUIRED");
         continue;
       }
       if (request.kind == REQUEST_RANGE) {
@@ -374,12 +432,48 @@ int main(void) {
       }
     }
 
-    if (command != CMD_IDLE &&
+    if (command != CMD_IDLE && command != CMD_RESET &&
         (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)) {
       response_error(active_id, "UNSAFE_OR_TIMEOUT");
       fprintf(stderr, PREFIX " FATAL unsafe attitude or action timeout\n");
       stop_motors(m1, m2, m3, m4);
-      break;
+      airborne = 0;
+      failsafe_latched = 1;
+      command = CMD_IDLE;
+      active_id = -1;
+      stable_since = -1.0;
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
+    if (command == CMD_RESET) {
+      stop_motors(m1, m2, m3, m4);
+      const int pose_ready = fabs(x - origin_x) < POSITION_TOL && fabs(y - origin_y) < POSITION_TOL &&
+                             fabs(z - origin_z) < ALT_TOL && fabs(rpy[0] - origin_roll) < YAW_TOL &&
+                             fabs(rpy[1] - origin_pitch) < YAW_TOL && fabs(wrap_angle(yaw - origin_yaw)) < YAW_TOL;
+      const int motion_ready = hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(vz) < VZ_TOL &&
+                               fabs(actual.yaw_rate) < YAW_RATE_TOL;
+      if (pose_ready && motion_ready) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= RESET_WINDOW) {
+          trace_reset(x, y, z, origin_x, origin_y, origin_z);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          active_id = -1;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
     }
 
     if (command == CMD_TAKEOFF) {

@@ -4,6 +4,7 @@ var robotWindow = null;
 var runtimeBackend = null;
 var runtimeRunning = false;
 var runtimeTerminal = false;
+var runtimeResetPending = false;
 var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -36,11 +37,24 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   startHats: false
 });
 
+function updateRuntimeActions() {
+  var ready = !!(runtimeBackend && runtimeBackend.ready);
+  var submit = document.getElementById('submit');
+  var reset = document.getElementById('resetSimulation');
+  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending;
+  if (reset) {
+    var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
+    reset.hidden = !resetSupported;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || !runtimeTerminal;
+  }
+}
+
 function setRuntimeStatus(state, detail) {
   document.getElementById('runtimeState').textContent = state;
   document.getElementById('runtimeDetail').textContent = detail || '';
   document.body.dataset.runtimeState = state;
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2', { detail: {state: state, detail: detail || null} }));
+  updateRuntimeActions();
 }
 
 function setRuntimeFailure(error) {
@@ -122,7 +136,7 @@ function receiveMessage(value) {
 function setDebugControls(paused) {
   document.getElementById('stepNext').disabled = !paused;
   document.getElementById('stepContinue').disabled = !runtimeRunning;
-  document.getElementById('stepMode').disabled = runtimeRunning;
+  document.getElementById('stepMode').disabled = runtimeRunning || runtimeResetPending;
 }
 function studentDirectionLabel(direction) {
   var labels = {front: 'devant', back: 'derrière', left: 'à gauche', right: 'à droite', up: 'au-dessus'};
@@ -175,8 +189,51 @@ function wireDebugControls() {
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
 }
 
+function serializedWorkspace() {
+  if (!workspace || !Blockly.serialization || !Blockly.serialization.workspaces)
+    throw new Error('Blockly workspace serialization unavailable');
+  return JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+}
+
+async function resetSimulation() {
+  if (runtimeRunning || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
+    return;
+  if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true) {
+    setRuntimeFailure(new Error('Simulation reset unavailable'));
+    return;
+  }
+  var before = serializedWorkspace();
+  var profile = runtimeProfile;
+  runtimeResetPending = true;
+  updateRuntimeActions();
+  setDebugControls(false);
+  setRuntimeStatus('RÉINITIALISATION', 'Retour à l’état initial de la simulation');
+  try {
+    await runtimeBackend.resetSimulation();
+    var after = serializedWorkspace();
+    if (after !== before)
+      throw new Error('Simulation reset changed Blockly workspace');
+    if (runtimeProfile !== profile)
+      throw new Error('Simulation reset changed activity profile');
+    runtimeTerminal = false;
+    renderSensorValues({});
+    renderVariables(null);
+    if (runtimeDebug) runtimeDebug.finish();
+    document.getElementById('debugState').textContent = 'Observation inactive';
+    setRuntimeStatus('PRÊT', 'Simulation réinitialisée');
+    window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-reset', {detail: {workspacePreserved: true}}));
+  } catch (error) {
+    runtimeTerminal = true;
+    setRuntimeFailure(error);
+  } finally {
+    runtimeResetPending = false;
+    setDebugControls(false);
+    updateRuntimeActions();
+  }
+}
+
 async function runProgram() {
-  if (runtimeRunning || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeResetPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -202,14 +259,15 @@ async function runProgram() {
   } finally {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
-    submit.disabled = !runtimeBackend.ready;
+    updateRuntimeActions();
   }
 }
 
 function onWorkspaceChange(event) {
   if (!event || event.type === Blockly.Events.UI) return;
   try { WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace); } catch (error) { console.error(error); }
-  if (!runtimeRunning && runtimeTerminal) { runtimeTerminal = false; setRuntimeStatus('PRÊT', 'Programme modifié'); }
+  if (!runtimeRunning && runtimeTerminal)
+    document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
 }
 function wireWorkspaceControls() {
   document.getElementById('zoomIn').addEventListener('click', function() { workspace.zoomCenter(1); });
@@ -218,6 +276,7 @@ function wireWorkspaceControls() {
   document.getElementById('zoomReset').addEventListener('click', function() {
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
+  document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
 }
 
 window.onload = async function() {
@@ -237,12 +296,12 @@ window.onload = async function() {
   try {
     var module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
     robotWindow = new module.default();
-    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true});
+    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true});
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Attente du Runtime v2');
     await runtimeBackend.waitUntilReady();
-    document.getElementById('submit').disabled = false;
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
+    updateRuntimeActions();
     setRuntimeStatus('PRÊT', 'Runtime v2 connecté');
   } catch (error) { setRuntimeFailure(error); }
 };

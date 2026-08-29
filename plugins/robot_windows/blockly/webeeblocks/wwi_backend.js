@@ -35,6 +35,8 @@
     };
     if (options && options.simulationDebug === true)
       capabilities.simulationDebug = true;
+    if (options && options.simulationReset === true)
+      capabilities.simulationReset = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -71,6 +73,15 @@
         delete self.pending[id];
         reject(error);
       }
+    });
+  };
+
+  RuntimeV2WwiBackend.prototype._cancelPendingForReset = function() {
+    var pending = this.pending;
+    this.pending = Object.create(null);
+    Object.keys(pending).forEach(function(id) {
+      clearTimeout(pending[id].timer);
+      pending[id].reject(new RuntimeV2BackendError('RESET_CANCELLED'));
     });
   };
 
@@ -113,6 +124,20 @@
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype.resetSimulation = function() {
+    if (!this.capabilities || this.capabilities.simulationReset !== true)
+      return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
+    this._cancelPendingForReset();
+    this.ready = false;
+    var self = this;
+    return this._request(['RESET']).then(function(value) {
+      self.ready = true;
+      return value;
+    }, function(error) {
+      self.ready = true;
+      throw error;
+    });
+  };
   RuntimeV2WwiBackend.prototype.vertical = function() { return Promise.reject(new Error('Runtime v2 Webots backend vertical capability unavailable')); };
   RuntimeV2WwiBackend.prototype.turn = function() { return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable')); };
   RuntimeV2WwiBackend.prototype.wait = function() { return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable')); };
