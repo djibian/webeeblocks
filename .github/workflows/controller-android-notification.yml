@@ -12,6 +12,7 @@ permissions:
   checks: read
   pull-requests: read
   issues: write
+  actions: write
 
 concurrency:
   group: controller-notification-${{ github.event.pull_request.number || github.ref }}
@@ -122,25 +123,32 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact-head checks, publish READY, and notify
+      - name: Refresh exact-head CI, publish READY, and notify
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_ACTION: ${{ github.event.action }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
         run: |
           python3 - <<'PY'
+          import base64
           import json
           import os
+          import re
           import time
+          import urllib.parse
           import urllib.request
 
           token = os.environ['GH_TOKEN']
           repo = os.environ['REPOSITORY']
           pr_number = int(os.environ['PR_NUMBER'])
           head_sha = os.environ['HEAD_SHA']
+          head_ref = os.environ['HEAD_REF']
+          pr_action = os.environ['PR_ACTION']
           topic = os.environ.get('NTFY_TOPIC', '').strip()
           server = os.environ.get('NTFY_SERVER', '').strip() or 'https://ntfy.sh'
           api = 'https://api.github.com'
@@ -175,7 +183,81 @@ jobs:
                   raise SystemExit(0)
               return pr
 
-          # Allow all workflows triggered by the same PR event to register first.
+          def issue_comments(issue_number):
+              comments = []
+              page = 1
+              while True:
+                  batch = github_request(
+                      f'/repos/{repo}/issues/{issue_number}/comments?per_page=100&page={page}'
+                  )
+                  comments.extend(batch)
+                  if len(batch) < 100:
+                      return comments
+                  page += 1
+                  if page > 100:
+                      raise RuntimeError('Unexpected issue comment pagination depth')
+
+          def on_block(source):
+              match = re.search(
+                  r'(?ms)^on:\s*\n(?P<body>(?:(?:[ \t].*)?\n)+?)(?=^[^ \t\r\n#]|\Z)',
+                  source,
+              )
+              return match.group('body') if match else ''
+
+          def refresh_missing_synchronize_workflows():
+              entries = github_request(
+                  f'/repos/{repo}/contents/.github/workflows?ref={head_sha}'
+              )
+              refresh = []
+              impossible = []
+              inspected = []
+              for entry in entries:
+                  if entry.get('type') != 'file' or not entry['name'].endswith(('.yml', '.yaml')):
+                      continue
+                  if entry['name'] == 'controller-android-notification.yml':
+                      continue
+                  encoded_path = urllib.parse.quote(entry['path'], safe='/')
+                  envelope = github_request(
+                      f'/repos/{repo}/contents/{encoded_path}?ref={head_sha}'
+                  )
+                  source = base64.b64decode(envelope['content']).decode('utf-8')
+                  block = on_block(source)
+                  if not re.search(r'(?m)^\s{2}pull_request:\s*$', block):
+                      continue
+                  inspected.append(entry['name'])
+                  if re.search(r'(?m)\bsynchronize\b', block):
+                      continue
+                  if not re.search(r'(?m)^\s{2}workflow_dispatch:\s*$', block):
+                      impossible.append(entry['name'])
+                      continue
+                  refresh.append(entry['name'])
+
+              if impossible:
+                  raise RuntimeError(
+                      'PR workflows cannot refresh exact-head evidence on synchronize: '
+                      + ', '.join(sorted(impossible))
+                  )
+
+              print(
+                  f'PR workflow audit: {len(inspected)} workflows; '
+                  f'{len(refresh)} require workflow_dispatch refresh on synchronize.'
+              )
+              if pr_action != 'synchronize':
+                  return
+
+              for workflow in sorted(refresh):
+                  workflow_id = urllib.parse.quote(workflow, safe='')
+                  github_request(
+                      f'/repos/{repo}/actions/workflows/{workflow_id}/dispatches',
+                      method='POST',
+                      payload={'ref': head_ref},
+                  )
+                  print(f'Dispatched exact-head refresh: {workflow}')
+
+          pr = current_pr()
+          refresh_missing_synchronize_workflows()
+
+          # Allow workflows triggered or dispatched for this exact head to register first.
           time.sleep(30)
           started = time.monotonic()
           observed_external_checks = False
@@ -210,7 +292,7 @@ jobs:
                   elif stable_since is not None and now - stable_since >= 60:
                       break
               elif time.monotonic() - started >= 120:
-                  # Missing checks are themselves actionable evidence for a fresh Controller.
+                  # Missing exact-head evidence is actionable, but never pretend it is green.
                   break
 
               print(f'Waiting: {len(pending)} exact-head checks active; {len(checks)} observed.')
@@ -228,40 +310,54 @@ jobs:
           if not check_summary:
               check_summary = 'aucun check exact-head enregistré après la période de grâce'
 
-          # Deduplicate only against the latest handoff situation, so a later WAITING_EXTERNAL
-          # for the same head can still be followed by a new READY after stabilization.
-          comments = github_request(f'/repos/{repo}/issues/100/comments?per_page=100')
+          # Read the complete handoff log before deciding whether the latest signal is equivalent.
+          comments = issue_comments(100)
           marker = f'HEAD_SHA: {head_sha}'
+          latest_signal = None
           for comment in reversed(comments):
               body = comment.get('body') or ''
-              if not body.startswith('WEBEEBLOCKS_SIGNAL:'):
-                  continue
-              if body.startswith('WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER') and marker in body:
+              if body.startswith('WEBEEBLOCKS_SIGNAL:'):
+                  latest_signal = comment
+                  break
+
+          ready_comment = None
+          if latest_signal:
+              latest_body = latest_signal.get('body') or ''
+              if (
+                  latest_body.startswith('WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER')
+                  and marker in latest_body
+              ):
+                  ready_comment = latest_signal
                   print('Equivalent latest READY handoff already exists for this head.')
-                  raise SystemExit(0)
-              break
 
           pr_url = pr['html_url']
-          comment_body = (
-              'WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER\n\n'
-              '@djibian\n\n'
-              f'HEAD_SHA: {head_sha}\n\n'
-              f'La PR #{pr_number} a atteint un état exact-head stabilisé. '
-              f'Checks observés: {check_summary}.\n\n'
-              'Une nouvelle impulsion du Contrôleur est maintenant utile pour dériver '
-              'le mode depuis les résultats exacts et poursuivre.\n\n'
-              f'COPY_TEXT: {restart_text}\n\n'
-              f'Preuve: {pr_url}'
-          )
-          github_request(
-              f'/repos/{repo}/issues/100/comments',
-              method='POST',
-              payload={'body': comment_body},
-          )
-          print('READY handoff posted to issue #100.')
+          if ready_comment is None:
+              comment_body = (
+                  'WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER\n\n'
+                  '@djibian\n\n'
+                  f'HEAD_SHA: {head_sha}\n\n'
+                  f'La PR #{pr_number} a atteint un état exact-head stabilisé. '
+                  f'Checks observés: {check_summary}.\n\n'
+                  'Une nouvelle impulsion du Contrôleur est maintenant utile pour dériver '
+                  'le mode depuis les résultats exacts et poursuivre.\n\n'
+                  f'COPY_TEXT: {restart_text}\n\n'
+                  f'Preuve: {pr_url}'
+              )
+              ready_comment = github_request(
+                  f'/repos/{repo}/issues/100/comments',
+                  method='POST',
+                  payload={'body': comment_body},
+              )
+              print('READY handoff posted to issue #100.')
 
           if not topic:
               print('NTFY_TOPIC not configured; GitHub @mention is the notification fallback.')
+              raise SystemExit(0)
+
+          delivery_marker = f'NTFY_DELIVERED: {head_sha}'
+          ready_body = ready_comment.get('body') or ''
+          if delivery_marker in ready_body:
+              print('Equivalent ntfy delivery already recorded for this READY handoff.')
               raise SystemExit(0)
 
           ntfy_payload = {
@@ -289,6 +385,13 @@ jobs:
           try:
               with urllib.request.urlopen(publish, timeout=20) as response:
                   print(f'ntfy status: {response.status}')
+              updated_body = ready_body.rstrip() + f'\n\n{delivery_marker}'
+              github_request(
+                  f"/repos/{repo}/issues/comments/{ready_comment['id']}",
+                  method='PATCH',
+                  payload={'body': updated_body},
+              )
+              print('ntfy delivery marker recorded on the authoritative READY handoff.')
           except Exception as exc:
               print(f'WARNING: ntfy delivery failed; GitHub handoff remains authoritative: {exc}')
           PY
