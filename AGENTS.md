@@ -1,180 +1,103 @@
 # WebeeBlocks Agent Instructions
 
-## Mission
+## Mission and product constraints
 
-WebeeBlocks is an educational robotics project. Its priority is reliable pedagogical behavior and incremental product progress supported by evidence.
+WebeeBlocks is an educational robotics training environment. Optimize for reliable pedagogical behavior and small, evidence-backed product increments.
 
-## Product vision
+Read `docs/PRODUCT_VISION.md` before acting. It is the durable product contract. In particular:
 
-The validated product direction is documented in `docs/PRODUCT_VISION.md`. Treat it as a durable product constraint, not as optional background.
+- WebeeBlocks is not an LMS, grading platform, progress tracker or intelligent tutor;
+- the target is a compact teacher-guided progression of roughly 8–12 substantial activities;
+- programs are built from generic primitives and remain backend-neutral when safe;
+- observability is limited to the active block plus current sensor and variable values;
+- never add hints, automatic diagnosis or interpreted traces that solve the reasoning for the student;
+- step-by-step execution is a Webots-only objective and must never be offered during real flight;
+- persistence is manual through Open / Save / Save As; do not add histories or permanent autosave;
+- Moodle integration is optional and external to the autonomous, local/offline-first core;
+- real Crazyflie flight is reserved for the module finality and requires explicit teacher authorization;
+- declarative activity files are sufficient; do not build a teacher-facing activity studio without a demonstrated need.
 
-In particular:
-- WebeeBlocks is a focused **training environment**, not an LMS, tracking platform, grading system or intelligent tutor;
-- target a compact guided progression of roughly **8–12 substantial activities**;
-- progression is teacher-guided, but WebeeBlocks itself does not need student accounts or per-student unlock/progress state;
-- activities must support pedagogical progression rather than only changing scenery;
-- the student solution is built from generic primitives; the activity defines the problem, constraints, success/failure, optional timing/score and available capabilities;
-- student execution observability is limited to the active block plus current sensor and variable values;
-- do **not** add hints, strategy suggestions, automatic mistake diagnosis, interpreted decision traces or other assistance that solves the reasoning for the student;
-- a simple step-by-step debug mode is a product objective **for Webots simulation only**;
-- do not add sophisticated developer-debugger features (user breakpoints, watch expressions, call stacks, etc.) without a new explicit pedagogical requirement;
-- step-by-step/debug execution must **never** be offered during real Crazyflie flight;
-- the student Blockly program should remain backend-neutral and transferable from simulation to real hardware when safe and supported;
-- student project persistence is **manual** through clear Open / Save / Save As actions; do not add permanent autosave, attempt history, success/failure history, score history or student progress tracking without a new explicit requirement;
-- use Blockly native Undo/Redo if adequate; do not build bespoke version history by default;
-- Moodle may distribute resources or receive a submitted project file, but core WebeeBlocks remains autonomous/local/offline-first;
-- real Crazyflie flight is reserved for the final activity/finality of the module and requires explicit teacher authorization; assume one physical drone and no software flight-request queue;
-- WebeeBlocks does not need an integrated assessment subsystem. A saved project file may be submitted and evaluated externally when required;
-- do not build a teacher-facing graphical activity studio unless a separate demonstrated need appears; declarative activity files are sufficient for the current owner-assisted authoring workflow.
+Surface any conflict with the product contract instead of silently optimizing around it.
 
-When a technical choice conflicts with `docs/PRODUCT_VISION.md`, surface the contradiction to Lead rather than silently optimizing for implementation convenience.
+## Non-negotiable repository rules
 
-## Repository governance
+- `webots-ci` is the integration branch. Use one focused short-lived branch and one pull request per causal contract.
+- `main` is human-controlled. Never commit, merge or promote to `main` without Emmanuel's explicit authorization.
+- Never weaken a safety guard, oracle or acceptance criterion to obtain a green result.
+- GitHub facts outrank chat memory. Read the current branches, issues, pull requests, review state and exact-head checks before deciding what to do.
+- Issue #22 is a human-readable roadmap only. It must not be used as a machine lock, role token, queue or state database.
 
-`main` is not a development target. Do not commit directly to `main` or promote work there without Emmanuel's explicit authorization.
+## One controller, two modes
 
-`webots-ci` is the integration branch for the current Webots R2025a migration and Crazyflie work. Use short-lived branches and focused pull requests.
+Every launch derives its mode from GitHub. Do not persist a parallel controller state.
 
-## GitHub is the shared project memory
+| Observed state | Mode and action |
+| --- | --- |
+| No active controller pull request | **Worker**: select and deliver one bounded increment |
+| Active pull request is Draft | **Worker**: continue the same causal contract |
+| Ready pull request has missing or failing exact-head evidence | **Worker**: return it to Draft before changing code, then repair |
+| Ready pull request is green and has no exact-head verdict | **Reviewer-Integrator**: independently verify it |
+| Exact-head `NO_GO` verdict | **Worker**: return to Draft if needed and repair only the reported contradiction |
+| Exact-head `GO` verdict | **Reviewer-Integrator**: recheck the head and merge to `webots-ci` in the same launch |
+| A human decision is explicitly required | Wait and report the exact decision; do not simulate consent |
+| Multiple active controller pull requests or unauthorized `main` activity | Reconcile conservatively before starting new work |
 
-Do not rely on chat history as authoritative project state. Before starting work, read:
+An exact-head verdict must identify the full commit SHA. A verdict for an older head is stale.
 
-1. this `AGENTS.md`;
-2. `docs/PRODUCT_VISION.md`;
-3. `[Lead] WebeeBlocks state & priorities`;
-4. the assigned issue;
-5. relevant Lab and Verification evidence;
-6. related pull requests and current CI evidence.
+## Worker mode
 
-Write important conclusions, contradictions, decisions, evidence and remaining uncertainty back to GitHub.
+Worker combines product scoping, experiment design and implementation. Its unit of work is one causal contract: one observable problem, one bounded change and one falsifiable acceptance oracle.
 
-## Evidence vocabulary
+1. Read `AGENTS.md`, `docs/PRODUCT_VISION.md`, the active pull request or the smallest actionable product issue, relevant code and current CI evidence.
+2. State the objective, causal contract, scope and non-goals in the pull request.
+3. When causality is uncertain, run the smallest discriminating experiment before broadening production code.
+4. Implement a complete reviewable increment. Prefer causal fixes, reversible changes and the smallest test that would have failed before the fix.
+5. Separate product behavior, test harness and instrumentation. Evidence from one layer does not prove another.
+6. Run the cheapest relevant checks locally, then push the final intended head once. Do not create no-op commits or use pushes to refresh CI.
+7. Keep the pull request Draft while code is changing. Mark it Ready only after the final head is stable and fast checks pass. This transition requests the full CI suite.
+8. Stop after publishing the evidence. Review and merge belong to a fresh Reviewer-Integrator launch.
 
-Use these terms consistently:
+If the causal question changes materially, stop expanding the pull request and create a separate issue. Do not split work merely to satisfy arbitrary size or commit limits.
 
-- `PROVEN_BY_TEST`
-- `VERIFIED_BY_CI`
-- `VERIFIED_BY_PRIMARY_SOURCE`
-- `VERIFIED_BY_CODE_INSPECTION`
-- `INFERENCE`
-- `HYPOTHESIS`
-- `UNPROVEN`
-- `REFUTED`
-- `FALSE_POSITIVE`
-- `REGRESSION`
+## Reviewer-Integrator mode
 
-A green CI result proves only what its oracle actually exercises. A skipped test is not a pass. A synthetic marker is not proof of physical or user-visible behavior unless the claim is specifically about that marker.
+Reviewer-Integrator is read-only with respect to product code. It must not repair the change it reviews.
 
-## Roles
+1. Resolve the exact pull-request head SHA and confirm the base is `webots-ci`.
+2. Inspect the complete diff, causal contract, product constraints, tests and all required checks for that exact head.
+3. Try to falsify the claim: look for hidden skips, false-positive oracles, weakened guards, proxy evidence presented as product behavior, scope creep and unexplained regressions.
+4. Record exactly one exact-head verdict in the pull request:
+   - `GO <full_sha>` only when the scoped claim is supported and all required exact-head evidence is green;
+   - `NO_GO <full_sha>` with concrete blocking contradictions and the smallest useful repair boundary;
+   - `UNPROVEN <full_sha>` when the environment cannot exercise the claim or the evidence is inconclusive.
+5. On `NO_GO` or `UNPROVEN`, return the pull request to Draft and stop. Do not modify code.
+6. On `GO`, re-read the head immediately. If the SHA and checks are unchanged, merge to `webots-ci` in the same launch, close the completed issue and update the human roadmap. If anything changed, the verdict is stale: do not merge.
 
-Use the smallest trustworthy process for the current question.
+## Pull-request evidence contract
 
-### Lead
+Every controller pull request must state:
 
-The Lead owns the problem, scope and current causal bottleneck, not implementation details.
-
-- keep one causal bottleneck active;
-- define what must be demonstrated before authorizing implementation;
-- prevent scope creep while the causal question is unresolved;
-- arbitrate contradictions between evidence and implementation;
-- split work when a genuinely new causal question appears.
-
-### Lab / Experimenter
-
-Use Lab only when behavior, causality or the right measurement is uncertain.
-
-- optimize for information gain rather than production completeness;
-- design the smallest discriminating experiment;
-- measure before tuning or redesigning;
-- distinguish observation from inference and hypothesis;
-- do not broaden product architecture while the causal question is unresolved.
-
-### Engineering / Builder
-
-Engineering is responsible for implementing the authorized increment.
-
-- implement only the scoped objective;
-- prefer causal fixes over workarounds;
-- prefer small reversible changes;
-- add the smallest useful test that would have failed before the fix;
-- do not weaken an oracle, safety guard or acceptance criterion to obtain green CI;
-- do not silently invent new architecture when evidence contradicts the current design.
-
-### Verification
-
-Verification tries to falsify the claimed result rather than finish the implementation.
-
-- verify that tests exercise the stated property;
-- distinguish product behavior from harness and instrumentation behavior;
-- look for false-positive oracles, hidden skips and non-causal fixes;
-- challenge claims that exceed the produced evidence;
-- record blocking contradictions explicitly.
-
-Whenever practical, Verification should be performed by an agent or model different from the one that implemented the change.
-
-## Default flow
-
-For a well-understood product increment:
-
-`Lead -> Engineering -> CI -> Verification`
-
-When the causal question is unresolved:
-
-`Lead -> Lab -> Engineering -> CI -> Verification`
-
-Additional adversarial or specialist review may be added when the cost of a false conclusion justifies it, but roles must add information rather than ceremony.
-
-## Causal discipline
-
-Work on one causal bottleneck at a time.
-
-Before modifying behavior, collect the smallest evidence capable of distinguishing the plausible causes. Prefer an observed state from the real system over an indirect or synthetic proxy when practical.
-
-Do not tune parameters, add delays or expand architecture merely because a gate is red. First determine what the failing gate actually demonstrates.
-
-## Product, harness and instrumentation
-
-Keep these three layers conceptually separate:
-
-1. **product behavior** — what WebeeBlocks/Webots/Blockly/Crazyflie actually does;
-2. **test harness** — how the behavior is exercised and asserted;
-3. **instrumentation** — diagnostics added only to make internal state observable.
-
-Evidence from one layer must not be silently presented as evidence from another.
-
-Instrumentation should not change the product behavior being measured. Diagnostic changes must remain distinguishable from behavioral fixes.
-
-## Pull requests and scope
-
-Each substantial pull request should state:
-
-- issue or objective;
-- scope;
-- non-goals;
+- objective and linked issue;
+- causal contract and observable acceptance oracle;
+- scope and non-goals;
 - tests and evidence;
-- remaining uncertainty.
+- remaining uncertainty;
+- final head SHA.
 
-A pull request may pass through several Engineering <-> Verification cycles while the same causal contract remains active.
+Use these evidence labels consistently: `PROVEN_BY_TEST`, `VERIFIED_BY_CI`, `VERIFIED_BY_PRIMARY_SOURCE`, `VERIFIED_BY_CODE_INSPECTION`, `INFERENCE`, `HYPOTHESIS`, `UNPROVEN`, `REFUTED`, `FALSE_POSITIVE`, `REGRESSION`.
 
-If the causal question changes materially, stop expanding the pull request and open a separate issue or work item unless keeping the work together is clearly more informative and still reviewable.
+A green job proves only what its oracle exercises. A skipped test is not a pass. Environmental inability may be an explicit skip only when the unsupported claim remains `UNPROVEN`.
 
-Do not use arbitrary commit-count limits; split by causal contract and reviewability.
+## Efficient CI contract
 
-## Tests and CI
+- Draft pushes execute only fast, path-relevant checks; full-suite jobs stay skipped.
+- The normal Draft-to-Ready transition runs the full pull-request suite once for the stable head. Opening a pull request directly as Ready is also supported.
+- Any code change after Ready requires returning to Draft, then marking Ready again after repair.
+- Concurrency cancellation may discard superseded runs; only completed checks for the exact final head count.
+- One targeted rerun is allowed for a demonstrably transient infrastructure failure. Repeated or unexplained failure is product evidence, not a rerun strategy.
 
-Tests should fail loudly when the claimed behavior cannot actually be exercised.
+## Bounded recovery and completion
 
-Do not convert environmental inability to test into PASS. A visible SKIP may be appropriate only when the limitation is explicit and the unsupported claim remains `UNPROVEN`.
+Never loop on CI, reviews or GitHub state. In one launch, use at most one implementation push, one Ready transition, one targeted transient rerun and one merge attempt. If the work cannot advance safely within those bounds, record the blocker and stop.
 
-Do not relax assertions merely to make CI green. When an old gate conflicts with newly demonstrated behavior, determine whether the gate or the product contract is wrong before changing either.
-
-## Definition of done
-
-Work is done only when:
-
-1. the scoped objective is met;
-2. relevant tests exercise the intended behavior;
-3. CI contains no unexplained failure or misleading pass/skip;
-4. Verification has no blocking contradiction;
-5. regressions are addressed;
-6. remaining uncertainty is explicit.
+Work is complete only when the objective is met, the intended behavior is actually exercised, exact-head CI has no unexplained failure, Reviewer-Integrator recorded `GO`, the same head was merged to `webots-ci`, and remaining uncertainty is explicit.

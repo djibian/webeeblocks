@@ -2,6 +2,7 @@ name: Runtime v2 simulation observability
 
 on:
   pull_request:
+    branches: [webots-ci]
     paths:
       - 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'
       - 'plugins/robot_windows/blockly/webeeblocks/execution_observer.js'
@@ -12,6 +13,10 @@ on:
       - 'tools/ci/prepare_runtime_v2_observability.py'
       - '.github/workflows/runtime-v2-observability.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

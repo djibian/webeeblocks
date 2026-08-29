@@ -234,10 +234,15 @@ def main():
             raise RuntimeError('real direction dropdown lacks '+expected+': '+menu_text)
     c.screenshot(screenshot.with_name('direction-menu-1366x768.png'))
     c.key('Escape'); time.sleep(.2)
-    c.hover(rendered['repeatRect']); time.sleep(1.4)
-    tooltip=c.eval(VISIBLE_OVERLAY)
-    tooltip=[entry for entry in tooltip if 'Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()]
-    if not tooltip: raise RuntimeError('real repeat tooltip did not appear after hover')
+    c.hover(rendered['repeatRect'])
+    tooltip=[]
+    end=time.time()+5.0
+    while time.time()<end:
+        overlay=c.eval(VISIBLE_OVERLAY)
+        tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
+        if tooltip: break
+        time.sleep(.1)
+    if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty after hover within 5.0s')
     tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
     if not tooltip_text or 'repeat' in tooltip_text:
         raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
