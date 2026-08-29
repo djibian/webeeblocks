@@ -1,5 +1,6 @@
 import copy
 import unittest
+from pathlib import Path
 
 from controller_router import (
     controller_state_from_canonical,
@@ -158,6 +159,16 @@ class ControllerRouterTests(unittest.TestCase):
         self.assertEqual((route.selected_role, route.selected_mode), ("Engineering", "WAIT"))
         self.assertEqual(route.routing_reason, "CI_STILL_RUNNING")
 
+    def test_policy_encodes_canonical_ci_running_representation(self):
+        policy_path = Path(__file__).resolve().parents[2] / "governance" / "controller-policy.md"
+        policy = policy_path.read_text(encoding="utf-8")
+        self.assertIn("`stage=CI_RUNNING`", policy)
+        self.assertIn("`exact_head_ci=PENDING`", policy)
+        self.assertIn("`exact_head_ci=RUNNING` is invalid", policy)
+
+        with self.assertRaisesRegex(ValueError, "CANONICAL_CI_STATE_INVALID:RUNNING"):
+            active_state(stage="CI_RUNNING", exact_head_ci="RUNNING")
+
     def test_completed_ci_routes_engineering_to_publish_handoff(self):
         state = active_state(stage="CI_RUNNING")
         state["ci_state"] = {"status": "GREEN", "summary": "SUCCESS"}
@@ -204,9 +215,7 @@ class ControllerRouterTests(unittest.TestCase):
         )
         stale = pr(head=BASE)
         with self.assertRaisesRegex(ValueError, "REGISTRY_GITHUB_HEAD_CONTRADICTION"):
-            route_controller(
-                state, observation(current=stale, open_prs=[stale]), NOW
-            )
+            route_controller(state, observation(current=stale, open_prs=[stale]), NOW)
 
     def test_product_failure_routes_by_causal_certainty(self):
         established = active_state(
