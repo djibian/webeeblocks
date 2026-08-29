@@ -1,0 +1,294 @@
+name: Controller Android notification
+
+on:
+  pull_request:
+    branches: [webots-ci]
+    types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [controller-signal]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: controller-notification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notify-signal:
+    name: Controller signal notification
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish trusted transport payload to ntfy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SIGNAL_SHA: ${{ github.sha }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.request
+
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+          if not topic:
+              print('NTFY_TOPIC is not configured; GitHub @mention remains the fallback.')
+              raise SystemExit(0)
+
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['REPOSITORY']
+          sha = os.environ['SIGNAL_SHA']
+          server = os.environ.get('NTFY_SERVER', '').strip() or 'https://ntfy.sh'
+
+          request = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/contents/.controller/handoff.json?ref={sha}',
+              headers={
+                  'Authorization': f'Bearer {token}',
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              envelope = json.load(response)
+
+          payload = json.loads(base64.b64decode(envelope['content']).decode('utf-8'))
+          if payload.get('version') != 1:
+              raise SystemExit('Unsupported handoff payload version')
+
+          signal = str(payload.get('signal', '')).strip()
+          if signal not in {'READY_FOR_CONTROLLER', 'HUMAN_REQUIRED', 'DONE'}:
+              raise SystemExit(f'Unsupported notification signal: {signal!r}')
+
+          message = str(payload.get('message', '')).strip() or signal
+          copy_text = str(payload.get('copy_text', '')).strip()
+          url = str(payload.get('url', '')).strip() or 'https://github.com/djibian/webeeblocks/issues/100'
+          if not url.startswith('https://github.com/djibian/webeeblocks/'):
+              raise SystemExit('Notification URL must remain inside djibian/webeeblocks')
+
+          if signal == 'READY_FOR_CONTROLLER':
+              title = 'WebeeBlocks — READY'
+              priority = 3
+              tags = ['white_check_mark', 'robot']
+          elif signal == 'HUMAN_REQUIRED':
+              title = 'WebeeBlocks — ACTION HUMAINE'
+              priority = 5
+              tags = ['warning', 'robot']
+          else:
+              title = 'WebeeBlocks — TERMINÉ'
+              priority = 2
+              tags = ['checkered_flag', 'robot']
+
+          actions = []
+          if copy_text:
+              actions.append({'action': 'copy', 'label': 'Copier', 'value': copy_text})
+          actions.append({'action': 'view', 'label': 'Ouvrir GitHub', 'url': url})
+          if signal in {'READY_FOR_CONTROLLER', 'HUMAN_REQUIRED'}:
+              actions.append({'action': 'view', 'label': 'Ouvrir ChatGPT', 'url': 'https://chatgpt.com/'})
+
+          ntfy_payload = {
+              'topic': topic,
+              'title': title,
+              'message': message[:3500],
+              'priority': priority,
+              'tags': tags,
+              'click': url,
+              'actions': actions[:3],
+          }
+          publish = urllib.request.Request(
+              server.rstrip('/') + '/',
+              data=json.dumps(ntfy_payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          try:
+              with urllib.request.urlopen(publish, timeout=20) as response:
+                  print(f'ntfy status: {response.status}')
+          except Exception as exc:
+              print(f'WARNING: ntfy delivery failed; GitHub handoff remains authoritative: {exc}')
+          PY
+
+  wait-for-pr-stability:
+    name: Controller readiness watcher
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact-head checks, publish READY, and notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.request
+
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['REPOSITORY']
+          pr_number = int(os.environ['PR_NUMBER'])
+          head_sha = os.environ['HEAD_SHA']
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+          server = os.environ.get('NTFY_SERVER', '').strip() or 'https://ntfy.sh'
+          api = 'https://api.github.com'
+          own_check_names = {'Controller readiness watcher', 'Controller signal notification'}
+          restart_text = (
+              "Nouvelle impulsion. Reprends ton contrat de Contrôleur WebeeBlocks, "
+              "reconstruis l'état réel depuis GitHub et poursuis jusqu'à la prochaine "
+              "frontière terminale réelle."
+          )
+
+          def github_request(path, method='GET', payload=None):
+              data = None if payload is None else json.dumps(payload).encode('utf-8')
+              request = urllib.request.Request(
+                  api + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'Content-Type': 'application/json',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  body = response.read().decode('utf-8')
+                  return json.loads(body) if body else None
+
+          def current_pr():
+              pr = github_request(f'/repos/{repo}/pulls/{pr_number}')
+              if pr['state'] != 'open' or pr['draft'] or pr['head']['sha'] != head_sha:
+                  print('PR changed, closed, or became Draft; stale watcher stops.')
+                  raise SystemExit(0)
+              return pr
+
+          # Allow all workflows triggered by the same PR event to register first.
+          time.sleep(30)
+          started = time.monotonic()
+          observed_external_checks = False
+          stable_since = None
+          stable_fingerprint = None
+          checks = []
+
+          while time.monotonic() - started < 2700:  # 45 minute safety horizon
+              current_pr()
+              result = github_request(f'/repos/{repo}/commits/{head_sha}/check-runs?per_page=100')
+              checks = [
+                  check for check in result.get('check_runs', [])
+                  if check.get('name') not in own_check_names
+              ]
+              if checks:
+                  observed_external_checks = True
+
+              pending = [check for check in checks if check.get('status') != 'completed']
+              fingerprint = tuple(sorted(
+                  (check.get('name'), check.get('status'), check.get('conclusion'), check.get('id'))
+                  for check in checks
+              ))
+
+              if pending:
+                  stable_since = None
+                  stable_fingerprint = None
+              elif observed_external_checks:
+                  now = time.monotonic()
+                  if fingerprint != stable_fingerprint:
+                      stable_fingerprint = fingerprint
+                      stable_since = now
+                  elif stable_since is not None and now - stable_since >= 60:
+                      break
+              elif time.monotonic() - started >= 120:
+                  # Missing checks are themselves actionable evidence for a fresh Controller.
+                  break
+
+              print(f'Waiting: {len(pending)} exact-head checks active; {len(checks)} observed.')
+              time.sleep(20)
+          else:
+              print('Checks did not stabilize within watcher horizon; no READY emitted.')
+              raise SystemExit(0)
+
+          pr = current_pr()
+          conclusions = {}
+          for check in checks:
+              conclusion = check.get('conclusion') or 'unknown'
+              conclusions[conclusion] = conclusions.get(conclusion, 0) + 1
+          check_summary = ', '.join(f'{key}={value}' for key, value in sorted(conclusions.items()))
+          if not check_summary:
+              check_summary = 'aucun check exact-head enregistré après la période de grâce'
+
+          # Deduplicate only against the latest handoff situation, so a later WAITING_EXTERNAL
+          # for the same head can still be followed by a new READY after stabilization.
+          comments = github_request(f'/repos/{repo}/issues/100/comments?per_page=100')
+          marker = f'HEAD_SHA: {head_sha}'
+          for comment in reversed(comments):
+              body = comment.get('body') or ''
+              if not body.startswith('WEBEEBLOCKS_SIGNAL:'):
+                  continue
+              if body.startswith('WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER') and marker in body:
+                  print('Equivalent latest READY handoff already exists for this head.')
+                  raise SystemExit(0)
+              break
+
+          pr_url = pr['html_url']
+          comment_body = (
+              'WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER\n\n'
+              '@djibian\n\n'
+              f'HEAD_SHA: {head_sha}\n\n'
+              f'La PR #{pr_number} a atteint un état exact-head stabilisé. '
+              f'Checks observés: {check_summary}.\n\n'
+              'Une nouvelle impulsion du Contrôleur est maintenant utile pour dériver '
+              'le mode depuis les résultats exacts et poursuivre.\n\n'
+              f'COPY_TEXT: {restart_text}\n\n'
+              f'Preuve: {pr_url}'
+          )
+          github_request(
+              f'/repos/{repo}/issues/100/comments',
+              method='POST',
+              payload={'body': comment_body},
+          )
+          print('READY handoff posted to issue #100.')
+
+          if not topic:
+              print('NTFY_TOPIC not configured; GitHub @mention is the notification fallback.')
+              raise SystemExit(0)
+
+          ntfy_payload = {
+              'topic': topic,
+              'title': 'WebeeBlocks — READY',
+              'message': (
+                  f'PR #{pr_number} stabilisée sur {head_sha[:12]}. '
+                  f'Checks: {check_summary}. Nouvelle impulsion utile.'
+              ),
+              'priority': 3,
+              'tags': ['white_check_mark', 'robot'],
+              'click': pr_url,
+              'actions': [
+                  {'action': 'copy', 'label': 'Copier relance', 'value': restart_text},
+                  {'action': 'view', 'label': 'Ouvrir GitHub', 'url': pr_url},
+                  {'action': 'view', 'label': 'Ouvrir ChatGPT', 'url': 'https://chatgpt.com/'},
+              ],
+          }
+          publish = urllib.request.Request(
+              server.rstrip('/') + '/',
+              data=json.dumps(ntfy_payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          try:
+              with urllib.request.urlopen(publish, timeout=20) as response:
+                  print(f'ntfy status: {response.status}')
+          except Exception as exc:
+              print(f'WARNING: ntfy delivery failed; GitHub handoff remains authoritative: {exc}')
+          PY
