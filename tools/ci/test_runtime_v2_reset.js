@@ -65,12 +65,14 @@ async function testBackendResetContract() {
   await assert.rejects(() => physical.resetSimulation(), /simulation reset unavailable/);
 }
 
-async function testProjectOpenKeepsResetRequirement() {
+async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   const source = fs.readFileSync(path.join(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
   let loadHandler = null;
+  let runtimeStatusHandler = null;
   let openHandler = null;
   let statusCalls = 0;
   let actionUpdates = 0;
+  let openCalls = 0;
 
   function button(id) {
     return {
@@ -89,13 +91,14 @@ async function testProjectOpenKeepsResetRequirement() {
     projectFileState: {textContent: '', dataset: {}},
     activityTitle: {textContent: ''},
     activityGoal: {textContent: ''},
-    runtimeDetail: {textContent: ''}
+    runtimeDetail: {textContent: ''},
+    blocklyDiv: {inert: false}
   };
   const manager = {
     nativeFileSystemAccess: true,
     hasCurrentTarget: () => false,
     currentName: () => null,
-    open: async () => ({name: 'opened.wbb'}),
+    open: async () => { openCalls += 1; return {name: 'opened.wbb'}; },
     saveAs: async () => ({name: 'saved.wbb'}),
     save: async () => ({name: 'saved.wbb'})
   };
@@ -105,7 +108,10 @@ async function testProjectOpenKeepsResetRequirement() {
     clearTimeout,
     CustomEvent: function CustomEvent(type, options) { this.type = type; this.detail = options && options.detail; },
     window: {
-      addEventListener(type, handler) { if (type === 'load') loadHandler = handler; },
+      addEventListener(type, handler) {
+        if (type === 'load') loadHandler = handler;
+        if (type === 'webeeblocks-runtime-v2') runtimeStatusHandler = handler;
+      },
       dispatchEvent() {}
     },
     document: {
@@ -134,11 +140,24 @@ async function testProjectOpenKeepsResetRequirement() {
 
   vm.runInNewContext(source, context, {filename: 'project_ui.js'});
   assert.strictEqual(typeof loadHandler, 'function');
+  assert.strictEqual(typeof runtimeStatusHandler, 'function');
   loadHandler();
   assert.strictEqual(typeof openHandler, 'function');
+
+  runtimeStatusHandler({detail: {state: 'RÉINITIALISATION'}});
+  assert.strictEqual(elements.blocklyDiv.inert, true, 'Blockly surface must be inert while reset stabilizes');
+  assert.strictEqual(elements.projectOpen.disabled, true, 'Open must be disabled while reset stabilizes');
   openHandler();
   await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(openCalls, 0, 'late Open event must be rejected while reset is locked');
 
+  runtimeStatusHandler({detail: {state: 'PRÊT'}});
+  assert.strictEqual(elements.blocklyDiv.inert, false, 'Blockly surface must unlock after reset leaves pending state');
+  assert.strictEqual(elements.projectOpen.disabled, false, 'Open must unlock after reset leaves pending state');
+
+  openHandler();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(openCalls, 1, 'Open must work again after reset lock is released');
   assert.strictEqual(context.runtimeTerminal, true, 'opening a project must not clear terminal/reset-required state');
   assert.strictEqual(statusCalls, 0, 'opening while terminal must not publish PRÊT');
   assert.ok(actionUpdates >= 1, 'opening while terminal must refresh action gating');
@@ -155,9 +174,9 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendResetContract();
-  await testProjectOpenKeepsResetRequirement();
+  await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testNativeResetTimeoutSourceContract();
-  console.log('PASS: reset cancels stale requests, remains retryable after timeout, project open preserves reset gating, and physical backend reset stays unavailable.');
+  console.log('PASS: reset cancels stale requests, stays retryable, locks Blockly/Open while pending, preserves project reset gating, and remains simulation-only.');
 })().catch(error => {
   console.error(error.stack || error);
   process.exit(1);
