@@ -178,8 +178,13 @@ jobs:
 
           def current_pr():
               pr = github_request(f'/repos/{repo}/pulls/{pr_number}')
-              if pr['state'] != 'open' or pr['draft'] or pr['head']['sha'] != head_sha:
-                  print('PR changed, closed, or became Draft; stale watcher stops.')
+              if (
+                  pr['state'] != 'open'
+                  or pr['draft']
+                  or pr['head']['sha'] != head_sha
+                  or pr['base']['ref'] != 'webots-ci'
+              ):
+                  print('PR changed, closed, became Draft, or left webots-ci; stale watcher stops.')
                   raise SystemExit(0)
               return pr
 
@@ -204,6 +209,13 @@ jobs:
               )
               return match.group('body') if match else ''
 
+          def pull_request_block(block):
+              match = re.search(
+                  r'(?ms)^\s{2}pull_request:\s*(?:\n(?P<body>(?:(?:\s{4}.*)?\n)*))?',
+                  block,
+              )
+              return match.group('body') if match else None
+
           def refresh_missing_synchronize_workflows():
               entries = github_request(
                   f'/repos/{repo}/contents/.github/workflows?ref={head_sha}'
@@ -222,10 +234,12 @@ jobs:
                   )
                   source = base64.b64decode(envelope['content']).decode('utf-8')
                   block = on_block(source)
-                  if not re.search(r'(?m)^\s{2}pull_request:\s*$', block):
+                  pr_block = pull_request_block(block)
+                  if pr_block is None:
                       continue
                   inspected.append(entry['name'])
-                  if re.search(r'(?m)\bsynchronize\b', block):
+                  explicit_types = re.search(r'(?m)^\s{4}types:\s*', pr_block)
+                  if explicit_types is None or re.search(r'(?m)\bsynchronize\b', pr_block):
                       continue
                   if not re.search(r'(?m)^\s{2}workflow_dispatch:\s*$', block):
                       impossible.append(entry['name'])
