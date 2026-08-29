@@ -116,12 +116,14 @@ RENDER_LOCALE=r'''(() => {
  if(!logicAnd||!logicOr||!range||!repeat)throw new Error('rendered locale evidence blocks missing');
  const field=range.getField('DIRECTION');
  const fieldRoot=field.getSvgRoot();
+ const repeatRoot=repeat.getSvgRoot();
+ const repeatPath=repeatRoot&&repeatRoot.querySelector('.blocklyPath');
  return {
    logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
    logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
    logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
    directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
-   repeatRect:rect(repeat.inputList.flatMap(input=>input.fieldRow).find(field=>field.getSvgRoot&&field.getSvgRoot()).getSvgRoot()),
+   repeatRect:rect(repeatPath||repeatRoot),
    workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
  };
 })()'''
