@@ -1,0 +1,1 @@
+`issue_comment` workflows require the workflow file on the repository default branch. Because WebeeBlocks keeps `main` human-controlled, terminal notification delivery uses a dedicated push-triggered `controller-signal` branch instead.
