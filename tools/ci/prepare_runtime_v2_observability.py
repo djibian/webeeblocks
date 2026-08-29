@@ -119,6 +119,8 @@ __COMMON__
     if (String(Blockly.VERSION || '') !== '13.2.1') throw new Error('unexpected Blockly.VERSION');
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationDebug !== true)
       throw new Error('simulation-only debug capability not enabled for Webots backend');
+    if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationReset !== true)
+      throw new Error('simulation-only reset capability not enabled for Webots backend');
     if (document.getElementById('debugPanel').hidden) throw new Error('simulation debug panel remained hidden');
     if (!document.getElementById('debugVariablesRow').hidden)
       throw new Error('variables shown despite no product variable semantics');
@@ -146,6 +148,22 @@ __COMMON__
     if (!diagnostics.length || diagnostics[diagnostics.length - 1].studentState !== 'ERREUR' || diagnostics[diagnostics.length - 1].machineCode !== null)
       throw new Error('technical diagnostic mismatch: ' + JSON.stringify(diagnostics));
     await report('TECHNICAL_FAILURE_OK', snapshot());
+
+    const resetTxStart = wwiTx.length;
+    const workspaceBeforeReset = JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+    document.getElementById('resetSimulation').click();
+    await waitFor(() => document.getElementById('runtimeState').textContent === 'PRÊT', 'reset after technical failure', 5000);
+    const resetTx = wwiTx.slice(resetTxStart);
+    if (resetTx.length !== 1 || !resetTx[0].includes(' RESET'))
+      throw new Error('technical failure reset did not emit exactly one RESET request: ' + JSON.stringify(resetTx));
+    if (runtimeBackend.pending && Object.keys(runtimeBackend.pending).length !== 0)
+      throw new Error('technical failure reset left pending backend requests: ' + JSON.stringify(snapshot()));
+    const workspaceAfterReset = JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+    if (workspaceAfterReset !== workspaceBeforeReset)
+      throw new Error('technical failure reset changed workspace');
+    if (JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace)) !== JSON.stringify(baselineAst))
+      throw new Error('technical failure reset changed AST');
+    await report('TECHNICAL_FAILURE_RESET_OK', snapshot());
 
     loadXml(__REACTIVE__);
     const stepAst = WebeeBlocksSemanticAst.compileWorkspace(workspace);
@@ -182,7 +200,7 @@ __COMMON__
       throw new Error('number semantic boundary mismatch: ' + JSON.stringify(paused[3]));
     if (wwiTx.length !== txStart + 2 || !wwiTx[txStart + 1].includes(' RANGE front'))
       throw new Error('range step did not release exactly one RANGE request');
-    if (wwiTx.some(text => text.includes(' MOVE '))) throw new Error('branch action started while evaluating condition');
+    if (wwiTx.slice(txStart).some(text => text.includes(' MOVE '))) throw new Error('branch action started while evaluating condition');
     const sensorText = document.getElementById('debugSensors').textContent;
     if (!sensorText.includes(String(sensors[0].sensorValue)))
       throw new Error('raw sensor value not displayed verbatim: ' + sensorText);
