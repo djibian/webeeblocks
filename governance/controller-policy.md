@@ -43,9 +43,13 @@ neutral state.
 ## Economy
 
 Use one initial observation and one final revalidation. Do not poll CI. After a
-mutation, observe CI once; if it is still running, record `CI_RUNNING` and stop.
-Use at most one targeted G3 retry per controller run. Do not create presence
-comments, repeat evidence, or audit unrelated backlog and history.
+mutation, observe CI once. If the exact-head CI is still running, record the
+state with `stage=CI_RUNNING` and `exact_head_ci=PENDING`, then stop.
+`exact_head_ci=RUNNING` is invalid and must never be written: `CI_RUNNING` is a
+stage value, while `exact_head_ci` remains `PENDING` until the observed CI has a
+stable accepted success or failure summary. Use at most one targeted G3 retry
+per controller run. Do not create presence comments, repeat evidence, or audit
+unrelated backlog and history.
 
 ## Verification boundary
 
