@@ -116,7 +116,7 @@ jobs:
           assert not errors, errors[:1]
           names = [e.get('event') for e in events]
           for required in (
-              'TECHNICAL_FAILURE_OK','STEP_TAKEOFF_HELD','STEP_REPEAT_HELD','STEP_RANGE_HELD',
+              'TECHNICAL_FAILURE_OK','TECHNICAL_FAILURE_RESET_OK','STEP_TAKEOFF_HELD','STEP_REPEAT_HELD','STEP_RANGE_HELD',
               'STEP_NUMBER_HELD_AFTER_SENSOR','STEP_COMPARE_HELD','STEP_IF_HELD','SEMANTIC_DECISION_CHAIN_OK',
               'STEP_CONTINUE_DONE','STEP_SCENARIO_DONE'):
               assert required in names, (required, names)
@@ -148,9 +148,10 @@ jobs:
           chain = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
           assert [p['kind'] for p in chain['pauses']] == ['range','number','compare','if','move'], chain
           assert 'decision' not in chain['pauses'][3], chain
-          assert all(int(p['txCount']) <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
+          step_tx_baseline = int(pauses[0]['txCount'])
+          assert all(int(p['txCount']) - step_tx_baseline <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
           move_pause = pauses[6]
-          assert int(move_pause['txCount']) <= 2, move_pause
+          assert int(move_pause['txCount']) - step_tx_baseline <= 2, move_pause
           trace=[]
           for line in log.splitlines():
               if ' TRACE TAKEOFF ' in line: trace.append('TAKEOFF')

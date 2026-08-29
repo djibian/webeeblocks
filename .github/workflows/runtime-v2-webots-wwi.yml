@@ -43,10 +43,32 @@ jobs:
           python3 -m py_compile tools/ci/prepare_runtime_v2_webots.py
           grep -Fq 'vendor/blockly_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
           grep -Fq 'vendor/blocks_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
-          ! grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html
+          if grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html; then
+            echo '::error::legacy google-blockly asset reference is forbidden'
+            exit 1
+          fi
           grep -Fq 'window "blockly_v2"' worlds/crazyflie_runtime_v2.wbt
-          ! grep -Rq 'wb_supervisor_' controllers/crazyflie_runtime_v2
-          ! grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          source = Path('controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
+          used = set(re.findall(r'\b(wb_supervisor_[A-Za-z0-9_]+)\s*\(', source))
+          allowed = {
+              'wb_supervisor_node_get_self',
+              'wb_supervisor_node_get_field',
+              'wb_supervisor_field_get_sf_vec3f',
+              'wb_supervisor_field_get_sf_rotation',
+              'wb_supervisor_field_set_sf_vec3f',
+              'wb_supervisor_field_set_sf_rotation',
+              'wb_supervisor_node_reset_physics',
+          }
+          assert used == allowed, f'unexpected Runtime v2 Supervisor API set: used={sorted(used)} allowed={sorted(allowed)}'
+          PY
+          if grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2; then
+            echo '::error::bridge.py dependency is forbidden in Runtime v2'
+            exit 1
+          fi
 
       - name: Re-prove Runtime v2 semantic core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
@@ -120,8 +142,14 @@ jobs:
           grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_BEGIN' "$LOG"
           grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_END' "$LOG"
           grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' "$LOG"
-          ! grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 FATAL' "$LOG"
-          ! grep -Fq 'ERROR:' "$LOG"
+          if grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 FATAL' "$LOG"; then
+            echo '::error::Runtime v2 emitted FATAL'
+            exit 1
+          fi
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots log contains ERROR:'
+            exit 1
+          fi
           python3 - <<'PY'
           import json, re
           from pathlib import Path

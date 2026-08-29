@@ -4,6 +4,7 @@
   var manager = null;
   var busy = false;
   var supported = false;
+  var runtimeLocked = false;
 
   function fileState(text, error) {
     var target = document.getElementById('projectFileState');
@@ -31,14 +32,21 @@
     var open = document.getElementById('projectOpen');
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
-    var locked = busy || !supported;
+    var locked = busy || !supported || runtimeLocked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
   }
 
+  function setRuntimeLocked(locked) {
+    runtimeLocked = locked === true;
+    var blocklyDiv = document.getElementById('blocklyDiv');
+    if (blocklyDiv) blocklyDiv.inert = runtimeLocked;
+    renderButtons();
+  }
+
   async function operation(name, action) {
-    if (busy || !supported) return null;
+    if (busy || !supported || runtimeLocked) return null;
     busy = true;
     renderButtons();
     try { return await action(); }
@@ -66,6 +74,12 @@
     var base = manager && manager.currentName() ? manager.currentName() : runtimeProfile.id;
     return WebeeBlocksProjectFiles.normalizeName(base);
   }
+
+  window.addEventListener('webeeblocks-runtime-v2', function(event) {
+    var state = event && event.detail ? event.detail.state : null;
+    if (state === 'RÉINITIALISATION') setRuntimeLocked(true);
+    else if (runtimeLocked) setRuntimeLocked(false);
+  });
 
   window.addEventListener('load', function() {
     if (!workspace || !runtimeProfile) {
@@ -106,9 +120,15 @@
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
-        runtimeTerminal = false;
         fileState('Projet : ' + result.name, false);
-        if (runtimeBackend && runtimeBackend.ready) setRuntimeStatus('PRÊT', 'Projet ouvert');
+        if (runtimeBackend && runtimeBackend.ready) {
+          if (runtimeTerminal) {
+            document.getElementById('runtimeDetail').textContent = 'Projet ouvert — réinitialisez la simulation avant de relancer';
+            updateRuntimeActions();
+          } else {
+            setRuntimeStatus('PRÊT', 'Projet ouvert');
+          }
+        }
       });
     });
 
