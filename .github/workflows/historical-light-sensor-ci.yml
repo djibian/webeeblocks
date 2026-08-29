@@ -58,13 +58,44 @@ jobs:
               make
             ' 2>&1 | tee ci-artifacts/light-sensor-build.log
 
-      - name: Execute historical light sensor program
+      - name: Prepare offline historical world
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('worlds/lightSensorBoxChallenge.wbt')
+          target = Path('worlds/.ci-lightSensorBoxChallenge-local.wbt')
+          remote_prefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/'
+          local_prefix = 'webots://'
+
+          original = source.read_text(encoding='utf-8')
+          if 'webots://' in original:
+              raise SystemExit('Unexpected pre-existing webots:// reference in historical source world.')
+
+          replacements = original.count(remote_prefix)
+          if replacements != 7:
+              raise SystemExit(f'Expected exactly 7 Cyberbotics R2025a remote EXTERNPROTO references, found {replacements}.')
+
+          localized = original.replace(remote_prefix, local_prefix)
+          if 'raw.githubusercontent.com/cyberbotics/webots/' in localized:
+              raise SystemExit('A Cyberbotics raw.githubusercontent.com dependency remains after localization.')
+
+          if localized.replace(local_prefix, remote_prefix) != original:
+              raise SystemExit('Offline world differs from the historical world by more than the allowed URL-prefix localization.')
+
+          target.write_text(localized, encoding='utf-8')
+          print(f'PASS: localized exactly {replacements} Webots R2025a EXTERNPROTO references without changing world semantics.')
+          PY
+
+      - name: Execute historical light sensor program offline
         shell: bash
         run: |
           set +e
           set -o pipefail
 
           docker run --rm \
+            --network none \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
@@ -75,7 +106,7 @@ jobs:
               --stderr \
               --batch \
               --mode=fast \
-              /workspace/worlds/lightSensorBoxChallenge.wbt' \
+              /workspace/worlds/.ci-lightSensorBoxChallenge-local.wbt' \
             2>&1 | tee ci-artifacts/webots-light-sensor.log
 
           code=${PIPESTATUS[0]}
@@ -94,6 +125,7 @@ jobs:
           if [ -f controllers/my_controller/.ci-light-sensor-backup.py ]; then
             mv controllers/my_controller/.ci-light-sensor-backup.py controllers/my_controller/my_controller.py
           fi
+          rm -f worlds/.ci-lightSensorBoxChallenge-local.wbt
 
       - name: Validate historical light sensor behavior
         shell: bash
@@ -122,7 +154,7 @@ jobs:
             exit 1
           fi
 
-          echo 'PASS: exact historical BoxWithLightSensor Blockly Python reached observable behavior under Webots R2025a.'
+          echo 'PASS: exact historical BoxWithLightSensor Blockly Python reached observable behavior under Webots R2025a with runtime networking disabled.'
 
       - name: Upload diagnostics
         if: always()
