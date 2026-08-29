@@ -28,6 +28,7 @@
 #define ALT_TOL 0.05
 #define STOP_WINDOW 0.5
 #define RESET_WINDOW 0.25
+#define RESET_TIMEOUT 5.0
 #define ACTION_TIMEOUT 25.0
 
 typedef enum {
@@ -435,6 +436,21 @@ int main(void) {
         (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)) {
       response_error(active_id, "UNSAFE_OR_TIMEOUT");
       fprintf(stderr, PREFIX " FATAL unsafe attitude or action timeout\n");
+      stop_motors(m1, m2, m3, m4);
+      airborne = 0;
+      failsafe_latched = 1;
+      command = CMD_IDLE;
+      active_id = -1;
+      stable_since = -1.0;
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
+    if (command == CMD_RESET && now - action_start > RESET_TIMEOUT) {
+      response_error(active_id, "RESET_TIMEOUT");
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
       failsafe_latched = 1;

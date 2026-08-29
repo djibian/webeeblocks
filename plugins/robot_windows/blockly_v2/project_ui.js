@@ -106,9 +106,15 @@
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
-        runtimeTerminal = false;
         fileState('Projet : ' + result.name, false);
-        if (runtimeBackend && runtimeBackend.ready) setRuntimeStatus('PRÊT', 'Projet ouvert');
+        if (runtimeBackend && runtimeBackend.ready) {
+          if (runtimeTerminal) {
+            document.getElementById('runtimeDetail').textContent = 'Projet ouvert — réinitialisez la simulation avant de relancer';
+            updateRuntimeActions();
+          } else {
+            setRuntimeStatus('PRÊT', 'Projet ouvert');
+          }
+        }
       });
     });
 
