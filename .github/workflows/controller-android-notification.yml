@@ -210,11 +210,18 @@ jobs:
               return match.group('body') if match else ''
 
           def pull_request_block(block):
-              match = re.search(
-                  r'(?ms)^\s{2}pull_request:\s*(?:\n(?P<body>(?:(?:\s{4}.*)?\n)*))?',
-                  block,
-              )
-              return match.group('body') if match else None
+              lines = block.splitlines()
+              collecting = False
+              body = []
+              for line in lines:
+                  if not collecting:
+                      if re.fullmatch(r'[ \t]{2}pull_request:[ \t]*', line):
+                          collecting = True
+                      continue
+                  if re.match(r'^[ \t]{2}[^ \t#][^:]*:', line):
+                      break
+                  body.append(line)
+              return '\n'.join(body) + ('\n' if body else '') if collecting else None
 
           def refresh_missing_synchronize_workflows():
               entries = github_request(
@@ -238,10 +245,10 @@ jobs:
                   if pr_block is None:
                       continue
                   inspected.append(entry['name'])
-                  explicit_types = re.search(r'(?m)^\s{4}types:\s*', pr_block)
+                  explicit_types = re.search(r'(?m)^[ \t]{4}types:[ \t]*', pr_block)
                   if explicit_types is None or re.search(r'(?m)\bsynchronize\b', pr_block):
                       continue
-                  if not re.search(r'(?m)^\s{2}workflow_dispatch:\s*$', block):
+                  if not re.search(r'(?m)^[ \t]{2}workflow_dispatch:[ \t]*$', block):
                       impossible.append(entry['name'])
                       continue
                   refresh.append(entry['name'])
