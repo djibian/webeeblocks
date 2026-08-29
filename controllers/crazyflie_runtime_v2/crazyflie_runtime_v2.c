@@ -134,6 +134,7 @@ static request_t parse_request(const char *message) {
   int id = -1;
   double value = 0.0;
   char direction[32] = {0};
+  char command[32] = {0};
   char extra[2] = {0};
 
   if (sscanf(message, PREFIX " REQUEST %d TAKEOFF %lf %1s", &id, &value, extra) == 2) {
@@ -155,14 +156,12 @@ static request_t parse_request(const char *message) {
     strncpy(request.direction, direction, sizeof(request.direction) - 1);
     return request;
   }
-  if (sscanf(message, PREFIX " REQUEST %d LAND %1s", &id, extra) == 1) {
+  if (sscanf(message, PREFIX " REQUEST %d %31s %1s", &id, command, extra) == 2) {
     request.id = id;
-    request.kind = REQUEST_LAND;
-    return request;
-  }
-  if (sscanf(message, PREFIX " REQUEST %d RESET %1s", &id, extra) == 1) {
-    request.id = id;
-    request.kind = REQUEST_RESET;
+    if (strcmp(command, "LAND") == 0)
+      request.kind = REQUEST_LAND;
+    else if (strcmp(command, "RESET") == 0)
+      request.kind = REQUEST_RESET;
     return request;
   }
 
