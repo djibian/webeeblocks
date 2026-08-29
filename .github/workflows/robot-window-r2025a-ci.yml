@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - webots-ci
-    types: [ready_for_review]
+    types: [opened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   robot-window-roundtrip:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
     timeout-minutes: 8
 

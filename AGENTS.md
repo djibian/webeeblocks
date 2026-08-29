@@ -90,8 +90,8 @@ A green job proves only what its oracle exercises. A skipped test is not a pass.
 
 ## Efficient CI contract
 
-- Draft pushes run only fast, path-relevant checks.
-- The Draft-to-Ready transition runs the full pull-request suite once for the stable head.
+- Draft pushes execute only fast, path-relevant checks; full-suite jobs stay skipped.
+- The normal Draft-to-Ready transition runs the full pull-request suite once for the stable head. Opening a pull request directly as Ready is also supported.
 - Any code change after Ready requires returning to Draft, then marking Ready again after repair.
 - Concurrency cancellation may discard superseded runs; only completed checks for the exact final head count.
 - One targeted rerun is allowed for a demonstrably transient infrastructure failure. Repeated or unexplained failure is product evidence, not a rerun strategy.
