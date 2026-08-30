@@ -42,10 +42,6 @@ jobs:
           import urllib.request
 
           topic = os.environ.get('NTFY_TOPIC', '').strip()
-          if not topic:
-              print('NTFY_TOPIC is not configured; GitHub @mention remains the fallback.')
-              raise SystemExit(0)
-
           token = os.environ['GH_TOKEN']
           repo = os.environ['REPOSITORY']
           before_sha = os.environ['BEFORE_SHA']
@@ -91,6 +87,10 @@ jobs:
           url = str(payload.get('url', '')).strip() or 'https://github.com/djibian/webeeblocks/issues/100'
           if not url.startswith('https://github.com/djibian/webeeblocks/'):
               raise SystemExit('Notification URL must remain inside djibian/webeeblocks')
+
+          if not topic:
+              print('NTFY_TOPIC is not configured; GitHub @mention remains the fallback.')
+              raise SystemExit(0)
 
           if signal == 'READY_FOR_CONTROLLER':
               title = 'WebeeBlocks — READY'
