@@ -3,7 +3,7 @@ name: Crazyflie STOP vs CHAIN handoff R2025a
 on:
   pull_request:
     branches: [webots-ci]
-    types: [opened, ready_for_review]
+    types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
 
 concurrency:

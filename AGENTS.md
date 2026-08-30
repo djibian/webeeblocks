@@ -27,7 +27,6 @@ Surface any conflict with the product contract instead of silently optimizing ar
 - GitHub facts outrank chat memory. Read the current branches, issues, pull requests, review state and exact-head checks before deciding what to do.
 - Issue #22 is a human-readable roadmap only. It must not be used as a machine lock, role token, queue or state database.
 - Issue #100 is only the human handoff/notification log. It must never override repository facts or become a work queue.
-- `controller-signal` is a transport branch only. It is created from an integrated `webots-ci` head; its only permitted divergence is `.controller/handoff.json`. Never modify any other path there and never merge that branch into `webots-ci` or `main`.
 
 ## One controller, two modes
 
@@ -152,7 +151,7 @@ Do not emit READY merely because the current launch ended.
 
 Use when the only remaining frontier is an external CI/check/event that is genuinely still running. State what is pending and the exact head. Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`.
 
-The GitHub notification workflow watches active Ready PRs and emits a later deduplicated `READY_FOR_CONTROLLER` when that exact head stabilizes. Therefore a Controller launch must not poll CI merely to discover that the same wait still exists.
+No workflow watches PR or CI stability. The trusted Android relay intentionally ignores `WAITING_EXTERNAL`; GitHub remains the source to consult after the external event completes. A Controller launch must not poll merely to discover that the same wait still exists.
 
 ### HUMAN_REQUIRED
 
@@ -170,28 +169,17 @@ Use only when no further authorized work is currently available **and no known e
 
 Avoid duplicate handoff comments for an unchanged frontier.
 
-### Android transport branch
+### Trusted Android relay
 
-After writing the #100 handoff, mirror notification-worthy signals to the dedicated `controller-signal` branch when that branch exists:
+The default branch `main` contains the separately human-authorized workflow `.github/workflows/controller-handoff-ntfy.yml`. It is transport only:
 
-- mirror `READY_FOR_CONTROLLER`, `HUMAN_REQUIRED` and `DONE`;
-- do **not** mirror `WAITING_EXTERNAL`;
-- update only `.controller/handoff.json`; never modify any other file on `controller-signal`;
-- never merge `controller-signal` into another branch.
+- it reacts only to new owner-authored comments on issue #100;
+- it relays `READY_FOR_CONTROLLER`, `HUMAN_REQUIRED` and `DONE` to ntfy;
+- it ignores `WAITING_EXTERNAL`;
+- it has no GitHub write permission, performs no checkout and executes no candidate code;
+- it never watches checks, dispatches CI, creates handoffs or merges anything.
 
-The JSON payload is:
-
-```json
-{
-  "version": 1,
-  "signal": "READY_FOR_CONTROLLER | HUMAN_REQUIRED | DONE",
-  "message": "short human-readable summary",
-  "copy_text": "optional COPY_TEXT payload",
-  "url": "https://github.com/djibian/webeeblocks/issues/100"
-}
-```
-
-Updating this file is a meaningful notification transport action, not a no-op CI refresh. If the transport branch or ntfy configuration is unavailable, the #100 mention remains authoritative fallback and product/review state must not be changed merely to repair notification delivery.
+The Controller's only notification action is the authoritative #100 comment. If ntfy is unavailable or unconfigured, do not alter product, review or handoff state merely to repair delivery.
 
 ## Completion
 

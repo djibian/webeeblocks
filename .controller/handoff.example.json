@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "signal": "READY_FOR_CONTROLLER",
-  "message": "PR stabilisée : une nouvelle impulsion du Contrôleur est utile.",
-  "copy_text": "Nouvelle impulsion. Reprends ton contrat de Contrôleur WebeeBlocks, reconstruis l'état réel depuis GitHub et poursuis jusqu'à la prochaine frontière terminale réelle.",
-  "url": "https://github.com/djibian/webeeblocks/issues/100"
-}
