@@ -1,0 +1,132 @@
+name: Controller handoff to ntfy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: controller-handoff-ntfy-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: Relay trusted #100 handoff
+    if: >-
+      github.event.issue.number == 100 &&
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate and publish handoff
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+
+          event_path = os.environ['GITHUB_EVENT_PATH']
+          with open(event_path, encoding='utf-8') as stream:
+              event = json.load(stream)
+
+          if event['repository']['full_name'] != 'djibian/webeeblocks':
+              raise SystemExit('Unexpected repository')
+          if event['issue']['number'] != 100 or event['issue'].get('pull_request'):
+              raise SystemExit('Not the trusted handoff issue')
+          if event['comment']['user']['login'] != event['repository']['owner']['login']:
+              raise SystemExit('Only the repository owner may emit a trusted handoff')
+
+          body = event['comment'].get('body', '').strip()
+          lines = body.splitlines()
+          if not lines:
+              raise SystemExit('Empty handoff comment')
+
+          match = re.fullmatch(
+              r'WEBEEBLOCKS_SIGNAL: (READY_FOR_CONTROLLER|WAITING_EXTERNAL|HUMAN_REQUIRED|DONE)',
+              lines[0].strip(),
+          )
+          if not match:
+              print('Comment is not a WebeeBlocks handoff; nothing to notify.')
+              raise SystemExit(0)
+
+          signal = match.group(1)
+          if signal == 'WAITING_EXTERNAL':
+              print('WAITING_EXTERNAL is intentionally silent on Android.')
+              raise SystemExit(0)
+
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+          if not topic:
+              print('NTFY_TOPIC is not configured; the #100 comment remains authoritative.')
+              raise SystemExit(0)
+          if any(character in topic for character in '/?#') or len(topic) > 256:
+              raise SystemExit('NTFY_TOPIC has an invalid format')
+
+          copy_text = ''
+          for line in lines:
+              if line.startswith('COPY_TEXT:'):
+                  copy_text = line.removeprefix('COPY_TEXT:').strip()
+                  break
+
+          repository_url = 'https://github.com/djibian/webeeblocks/'
+          urls = re.findall(r'https://github\.com/djibian/webeeblocks/[^\s)>;]+', body)
+          url = urls[0].rstrip('.,') if urls else repository_url + 'issues/100'
+          if not url.startswith(repository_url):
+              raise SystemExit('Notification URL must remain inside djibian/webeeblocks')
+
+          if signal == 'READY_FOR_CONTROLLER':
+              title = 'WebeeBlocks — READY'
+              priority = 3
+              tags = ['white_check_mark', 'robot']
+          elif signal == 'HUMAN_REQUIRED':
+              title = 'WebeeBlocks — ACTION HUMAINE'
+              priority = 5
+              tags = ['warning', 'robot']
+          else:
+              title = 'WebeeBlocks — TERMINÉ'
+              priority = 2
+              tags = ['checkered_flag', 'robot']
+
+          actions = []
+          if copy_text:
+              actions.append({
+                  'action': 'copy',
+                  'label': 'Copier',
+                  'value': copy_text,
+              })
+          actions.append({
+              'action': 'view',
+              'label': 'Ouvrir GitHub',
+              'url': url,
+              'clear': True,
+          })
+          if signal in {'READY_FOR_CONTROLLER', 'HUMAN_REQUIRED'}:
+              actions.append({
+                  'action': 'view',
+                  'label': 'Ouvrir ChatGPT',
+                  'url': 'https://chatgpt.com/',
+              })
+
+          payload = {
+              'topic': topic,
+              'title': title,
+              'message': body[:3500],
+              'priority': priority,
+              'tags': tags,
+              'click': url,
+              'actions': actions[:3],
+          }
+          request = urllib.request.Request(
+              'https://ntfy.sh/',
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              if response.status >= 300:
+                  raise RuntimeError(f'ntfy returned HTTP {response.status}')
+              print(f'ntfy status: {response.status}')
+          PY
