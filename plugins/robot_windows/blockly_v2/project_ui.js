@@ -1,8 +1,6 @@
 (function() {
   'use strict';
 
-  window.WebeeBlocksProjectUiLoaded = true;
-
   var manager = null;
   var busy = false;
   var supported = false;
