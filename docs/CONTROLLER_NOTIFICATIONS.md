@@ -28,6 +28,8 @@ Draft/Ready is not a Worker/Reviewer lock.
 
 All required PR workflows either use GitHub's implicit `synchronize` subscription or list `synchronize` explicitly. No workflow dispatcher or PR-stability watcher substitutes raw-branch runs for pull-request merge-ref evidence.
 
+This contract is intentionally enforced by the real workflow triggers plus independent review, not by a custom YAML meta-parser. Repository-level protections should be used for stronger mechanical authority boundaries when they become available or are deliberately configured.
+
 ## Trusted Android relay
 
 The separately authorized default-branch workflow is:
