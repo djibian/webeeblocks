@@ -8,13 +8,17 @@ The trusted default-branch workflow observes only completion of the top-level
 `CI Gate`. It performs no checkout, executes no candidate code, writes nothing
 to GitHub and has no merge authority.
 
-For the still-open PR and unchanged head that produced the run, it sends one
-ntfy message containing:
+For the PR and exact head attached to the completed run, it sends one ntfy
+message containing:
 
-- PR number and title;
+- PR number;
 - full head SHA;
-- `success`, `failure` or `cancelled`;
+- the GitHub conclusion;
 - the workflow-run URL.
+
+The event is ignored when its embedded current PR head differs from the
+completed run SHA. Every accepted notification still includes the exact SHA,
+so the Controller can reject any event superseded after delivery.
 
 The message says that CI settled, not that the change is approved. A fresh
 Controller launch reconstructs the result and chooses Worker or
@@ -35,5 +39,5 @@ comment is required to derive a mode.
 - secret limited to `NTFY_TOPIC`;
 - no candidate checkout or import;
 - no GitHub write permission;
-- stale heads are ignored;
+- an event whose embedded PR head already differs from the run SHA is ignored;
 - transport failure cannot change CI, review or merge truth.

@@ -65,6 +65,10 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("  workflow_run:\n", transport)
         self.assertIn("workflows: [CI Gate]", transport)
+        self.assertIn(
+            "pull_requests[0].head.sha == github.event.workflow_run.head_sha",
+            transport,
+        )
         self.assertIn("permissions: {}", transport)
         self.assertNotIn("  pull_request:\n", transport)
         self.assertNotIn("actions/checkout", transport)
