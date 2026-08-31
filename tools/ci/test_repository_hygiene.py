@@ -2,6 +2,7 @@
 """Keep archived vendor material out while preserving legacy runtime assets."""
 
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -44,9 +45,20 @@ class RepositoryHygieneTests(unittest.TestCase):
             with self.subTest(path=relative):
                 self.assertTrue((LEGACY_BLOCKLY / relative).is_file())
 
-    def test_tracked_python_cache_does_not_return(self) -> None:
-        tracked_cache = ROOT / "controllers" / "controller" / "__pycache__"
-        self.assertFalse(tracked_cache.exists())
+    def test_python_cache_is_not_tracked(self) -> None:
+        result = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        tracked_cache = []
+        for relative in result.stdout.split("\0"):
+            path = Path(relative)
+            if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+                tracked_cache.append(relative)
+        self.assertEqual(tracked_cache, [])
 
 
 if __name__ == "__main__":

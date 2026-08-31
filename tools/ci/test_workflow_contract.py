@@ -103,7 +103,7 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("branches: [develop, main]", orchestrator)
         self.assertIn(
-            "types: [opened, synchronize, reopened, ready_for_review, edited]",
+            "types: [opened, synchronize, reopened, ready_for_review]",
             orchestrator,
         )
         for name in ("ci-runtime.yml", "ci-webots.yml"):
