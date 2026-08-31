@@ -97,6 +97,10 @@ class WorkflowContractTests(unittest.TestCase):
     def test_only_orchestrator_receives_pull_requests(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("  pull_request:\n", orchestrator)
+        self.assertIn(
+            "python3 tools/ci/test_repository_hygiene.py",
+            orchestrator,
+        )
         self.assertIn("branches: [develop, main]", orchestrator)
         self.assertIn(
             "types: [opened, synchronize, reopened, ready_for_review, edited]",
