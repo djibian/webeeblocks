@@ -101,21 +101,23 @@ A green job proves only what its oracle exercises. A skipped test is not a pass.
 - A targeted rerun is allowed only for a demonstrably transient infrastructure failure. Repeated or unexplained failure is product evidence, not a rerun strategy.
 - Do not poll merely to consume time. Re-observe an external check only after useful work, a reasonable stabilization boundary or a concrete event makes the new observation informative.
 
-### Bounded passive exact-head CI wait
+### Event-driven exact-head CI handoff
 
-A CI/check already running after a push is not an immediate terminal frontier when the execution environment provides a true blocking wait primitive. The goal is to keep one manual Controller launch productive without spending reasoning cycles repeatedly asking GitHub whether the same check has finished.
+The manual Controller environment does **not** provide a supported persistent blocking wait for GitHub CI. CI waiting is therefore an external event boundary, not Controller work.
 
-1. Record the pull-request number and the **full exact HEAD SHA** whose checks are pending.
-2. Prefer one blocking wait primitive such as `gh pr checks <PR> --watch --interval 20`, bounded to **15 minutes maximum** (for example `timeout 900s ...` when available).
-3. While the blocking wait is active, do not run Controller-level loops of observe → reason → wait → observe and do not issue repeated GitHub/tool calls merely to rediscover the same pending state.
-4. When the wait returns because checks completed, resolve the PR HEAD and relevant checks again. Consume the result only if the HEAD still equals the recorded SHA.
-5. If that unchanged exact head is green, continue in the **same launch and same mode** until the next real frontier.
-6. If that unchanged exact head has a failing check, treat the failure as new evidence immediately. In Worker mode, diagnose and perform an authorized causal repair when available; a new push may then be followed by another bounded passive wait. Never rerun a product failure blindly.
-7. If the PR HEAD changed during the wait, all evidence tied to the old head is stale. Reconstruct current state before acting.
-8. If the 15-minute bound expires while checks are genuinely still running, the CI becomes an external frontier and the normal `WAITING_EXTERNAL` handoff applies.
-9. If the environment offers no true blocking wait primitive, do **not** emulate one with repeated model/tool polling. Fall back immediately to the normal `WAITING_EXTERNAL` frontier.
+1. After a push or other action that triggers exact-head CI, continue every safe and immediately actionable step of the current mode and causal contract that does not depend on the pending result.
+2. When exact-head CI is still `PENDING`/`IN_PROGRESS` and no other useful same-mode action remains, stop immediately at `WAITING_EXTERNAL`.
+3. Never search for, install, probe or retry `gh` as an attempt to wait for CI. Never emulate waiting with repeated GitHub tool calls, model polling, sleeps or observe → reason → re-observe loops.
+4. The `WAITING_EXTERNAL` comment must identify the exact correlation key on two dedicated lines:
 
-This passive wait is only for already-triggered, normally short CI/check execution. It never applies to a human decision, physical test, human review, new authority or an external event without a short bounded completion horizon.
+   `PR: #<number>`
+
+   `HEAD: <full_40_character_sha>`
+
+5. The trusted workflow `.github/workflows/controller-ci-wake-ntfy.yml` on human-controlled `main` observes GitHub metadata only. When the anchor CI completes, it waits on the GitHub Actions runner for the remaining exact-head workflows to settle, verifies that the PR is still open on `webots-ci`, that its head is unchanged and that issue #100 contains a matching owner-authored `WAITING_EXTERNAL`, then sends the ntfy wake notification.
+6. The watcher reports that CI has **settled**, not that it is green. A later Controller launch reconstructs all exact-head results and treats any failure as evidence.
+7. If the PR head changes before the watcher finishes, the old event is stale and must not wake the Controller for that head.
+8. The watcher is transport only: it has no merge authority, performs no checkout, executes no candidate code and does not modify GitHub state.
 
 ## Saturation, recovery and terminal frontiers
 
@@ -134,13 +136,13 @@ There is no arbitrary per-launch limit on meaningful commits, pushes, tests, com
 A launch may terminate only at a real frontier:
 
 - the next useful action belongs to the other controller mode;
-- exact-head CI or another external event is genuinely still running **after the bounded passive CI wait has expired, or when no safe blocking wait primitive is available**, and no useful same-mode work remains;
+- exact-head CI or another external event is genuinely still running and no useful same-mode work remains;
 - a precise human decision, permission, physical test or new external authority is indispensable;
 - the causal contract is complete and immediate bookkeeping is reconciled;
 - no further authorized work is currently actionable;
 - a platform/tool failure genuinely prevents the next required operation.
 
-Do not manufacture work to avoid a frontier. Apart from the bounded passive exact-head CI wait defined above, do not wait or poll repetitively when the frontier is external.
+Do not manufacture work to avoid a frontier. Do not wait or poll repetitively when the frontier is external.
 
 ## Handoff and Android notification protocol
 
@@ -165,9 +167,13 @@ Do not emit READY merely because the current launch ended.
 
 ### WAITING_EXTERNAL
 
-Use when the only remaining frontier is an external CI/check/event that is genuinely still running **after the bounded passive CI wait expired, or because no true blocking wait primitive was available**. State what is pending and the exact head. Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`.
+Use when the only remaining frontier is an external CI/check/event that is genuinely still running and no useful same-mode work remains. State what is pending. For CI, include **exactly one dedicated correlation block** containing these two lines, with no URL or prose on either line:
 
-No workflow watches PR or CI stability. The trusted Android relay intentionally ignores `WAITING_EXTERNAL`; GitHub remains the source to consult after the external event completes. A Controller launch must not poll merely to discover that the same wait still exists.
+`PR: #<number>`
+
+`HEAD: <full_40_character_sha>`
+
+Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`. The trusted CI watcher on `main` uses the exact PR/head pair to correlate CI settlement and send the later ntfy wake. A Controller launch must not poll merely to discover that the same wait still exists.
 
 ### HUMAN_REQUIRED
 
@@ -185,17 +191,14 @@ Use only when no further authorized work is currently available **and no known e
 
 Avoid duplicate handoff comments for an unchanged frontier.
 
-### Trusted Android relay
+### Trusted Android relays
 
-The default branch `main` contains the separately human-authorized workflow `.github/workflows/controller-handoff-ntfy.yml`. It is transport only:
+The default branch `main` contains two separately human-authorized transport workflows:
 
-- it reacts only to new owner-authored comments on issue #100;
-- it relays `READY_FOR_CONTROLLER`, `HUMAN_REQUIRED` and `DONE` to ntfy;
-- it ignores `WAITING_EXTERNAL`;
-- it has no GitHub write permission, performs no checkout and executes no candidate code;
-- it never watches checks, dispatches CI, creates handoffs or merges anything.
+- `.github/workflows/controller-handoff-ntfy.yml` reacts only to new owner-authored comments on issue #100, relays `READY_FOR_CONTROLLER`, `HUMAN_REQUIRED` and `DONE`, and intentionally ignores `WAITING_EXTERNAL`;
+- `.github/workflows/controller-ci-wake-ntfy.yml` reacts to trusted `workflow_run` metadata for the CI anchor and, only for an unchanged exact PR/head with a matching `WAITING_EXTERNAL`, sends the later **CI settled** wake notification.
 
-The Controller's only notification action is the authoritative #100 comment. If ntfy is unavailable or unconfigured, do not alter product, review or handoff state merely to repair delivery.
+Both transports have no GitHub write or merge authority. The CI wake workflow performs no checkout and executes no candidate code. Transport failure must never change product, review or handoff truth.
 
 ## Completion
 
