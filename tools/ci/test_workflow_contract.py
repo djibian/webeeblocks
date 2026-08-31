@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract for the three-file CI topology."""
+"""Static contract for the V3 CI topology and trusted transport boundary."""
 
 from pathlib import Path
 import re
@@ -8,6 +8,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
+
+TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
 
 EXPECTED = {
     "ci.yml": {"select", "runtime", "webots", "gate"},
@@ -53,9 +55,20 @@ def job_ids(text: str) -> set[str]:
 
 
 class WorkflowContractTests(unittest.TestCase):
-    def test_only_three_workflows_exist(self) -> None:
+    def test_only_three_ci_workflows_plus_transport_exist(self) -> None:
         names = {path.name for path in WORKFLOWS.glob("*.yml")}
-        self.assertEqual(names, set(EXPECTED))
+        self.assertEqual(names, set(EXPECTED).union(TRANSPORT_WORKFLOWS))
+
+    def test_transport_cannot_run_candidate_code(self) -> None:
+        transport = (WORKFLOWS / "controller-handoff-ntfy.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("  workflow_run:\n", transport)
+        self.assertIn("workflows: [CI Gate]", transport)
+        self.assertIn("permissions: {}", transport)
+        self.assertNotIn("  pull_request:\n", transport)
+        self.assertNotIn("actions/checkout", transport)
+        self.assertNotIn("github.token", transport)
 
     def test_every_oracle_job_is_preserved_once(self) -> None:
         observed: set[str] = set()
