@@ -203,7 +203,7 @@ jobs:
               'topic': topic,
               'title': 'WebeeBlocks — CI TERMINÉE',
               'message': message,
-              'priority': 3,
+              'priority': 5,
               'tags': ['white_check_mark', 'robot'],
               'click': pr_url,
               'actions': actions,
@@ -215,7 +215,12 @@ jobs:
               method='POST',
           )
           with urllib.request.urlopen(request, timeout=20) as response:
+              response_body = response.read().decode('utf-8')
               if response.status >= 300:
                   raise RuntimeError(f'ntfy returned HTTP {response.status}')
-              print(f'CI-ready ntfy status: {response.status}')
+              event = json.loads(response_body) if response_body else {}
+              print(
+                  'CI-ready ntfy accepted: '
+                  f"status={response.status} id={event.get('id', '?')} time={event.get('time', '?')}"
+              )
           PY
