@@ -54,8 +54,19 @@ jobs:
           conclusion = run.get('conclusion') or 'unknown'
           if len(head) != 40 or any(character not in '0123456789abcdef' for character in head):
               raise SystemExit('Invalid head SHA')
-          if pull_request['head']['sha'] != head:
-              print('PR head no longer matches this completed run; stale event ignored.')
+          current_request = urllib.request.Request(
+              f"https://api.github.com/repos/djibian/webeeblocks/pulls/{number}",
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'User-Agent': 'webeeblocks-ci-gate-ntfy',
+              },
+          )
+          with urllib.request.urlopen(current_request, timeout=20) as response:
+              current_pull_request = json.load(response)
+          current_head = (current_pull_request.get('head') or {}).get('sha')
+          current_base = (current_pull_request.get('base') or {}).get('ref')
+          if current_head != head or current_base != 'develop':
+              print('PR no longer matches this completed run; stale event ignored.')
               raise SystemExit(0)
 
           topic = os.environ.get('NTFY_TOPIC', '').strip()
