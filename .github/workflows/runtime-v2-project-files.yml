@@ -10,6 +10,7 @@ on:
       - 'plugins/robot_windows/blockly_v2/project_files.css'
       - 'tools/ci/test_runtime_v2_project_files.js'
       - 'tools/ci/prepare_runtime_v2_project_files.py'
+      - 'tools/prepare_runtime_v2.ps1'
       - '.github/workflows/runtime-v2-project-files.yml'
   workflow_dispatch:
 
@@ -136,3 +137,24 @@ jobs:
           name: runtime-v2-project-files-r2025a
           path: ci-artifacts/runtime-v2-project-files/
           if-no-files-found: error
+
+  runtime-v2-project-files-windows-core:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 assets without Bash
+        shell: pwsh
+        run: ./tools/prepare_runtime_v2.ps1
+
+      - name: Validate project-file core and AST round-trip on Windows
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
+          node --check plugins/robot_windows/blockly_v2/project_ui.js
+          node --check tools/ci/test_runtime_v2_project_files.js
+          node tools/ci/test_runtime_v2_project_files.js
