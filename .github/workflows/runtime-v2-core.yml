@@ -9,6 +9,7 @@ on:
       - 'plugins/robot_windows/blockly_v2/package-lock.json'
       - 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js'
       - 'tools/prepare_runtime_v2.sh'
+      - 'tools/prepare_runtime_v2.ps1'
       - 'tools/ci/runtime_v2_core_harness.html'
       - 'tools/ci/run_runtime_v2_core_harness.py'
       - 'tools/ci/test_runtime_v2_preflight.js'
@@ -44,3 +45,27 @@ jobs:
         run: node tools/ci/test_runtime_v2_preflight.js
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+  runtime-v2-windows-assets:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare product Blockly 13.2.1 assets without Bash
+        shell: pwsh
+        run: ./tools/prepare_runtime_v2.ps1
+      - name: Check Runtime v2 JavaScript syntax on Windows
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_profiles.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
+          node --check plugins/robot_windows/blockly/webeeblocks/semantic_ast.js
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check tools/ci/test_runtime_v2_preflight.js
+      - name: Reject malformed AST before backend actions on Windows
+        shell: pwsh
+        run: node tools/ci/test_runtime_v2_preflight.js
