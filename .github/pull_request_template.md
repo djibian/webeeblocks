@@ -1,29 +1,28 @@
-## Objective
+## Vertical outcome
 
-Linked issue and observable outcome:
+Linked issue and complete observable result:
 
-## Causal contract
+## Acceptance oracle
 
-Problem, proposed cause and falsifiable acceptance oracle:
+What must fail before this change and pass after it:
 
 ## Scope
 
 -
 
-## Non-goals
+## Non-goals and human boundary
 
 -
 
 ## Tests and evidence
 
 - `PROVEN_BY_TEST`:
-- `VERIFIED_BY_CI`:
-- Other evidence:
+- `VERIFIED_BY_CI`: pending `CI Gate`
 
 ## Remaining uncertainty
 
 -
 
-## Final head
+## Exact head
 
 `<full commit SHA>`

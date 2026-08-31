@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Static contract for the three-file CI topology."""
+
+from pathlib import Path
+import re
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOWS = ROOT / ".github" / "workflows"
+
+EXPECTED = {
+    "ci.yml": {"select", "runtime", "webots", "gate"},
+    "ci-runtime.yml": {
+        "runtime-v2-core",
+        "runtime-v2-windows-assets",
+        "clean-checkout-runtime-v2",
+        "runtime-v2-observability",
+        "runtime-v2-project-files",
+        "reset-contract-fast",
+        "reset-replay-webots",
+        "runtime-v2-webots",
+        "student-ui",
+    },
+    "ci-webots.yml": {
+        "crazyflie-ab-matrix",
+        "crazyflie-b-edges",
+        "crazyflie-blockly-l",
+        "timed-challenge-ux",
+        "first-collision-obstacle",
+        "crazyflie-l-course",
+        "parametric-blockly-obstacle",
+        "crazyflie-primitive-matrix",
+        "crazyflie-runtime-wwi",
+        "crazyflie-square-position",
+        "crazyflie-square",
+        "stop-vs-chain",
+        "strategy-timing",
+        "historical-blockly-ui",
+        "encoders-historical",
+        "gyro-gps-historical",
+        "light-sensor-historical",
+        "sensor-probing-historical",
+        "robot-window-roundtrip",
+        "webots-smoke",
+    },
+}
+
+
+def job_ids(text: str) -> set[str]:
+    jobs = text.split("\njobs:\n", 1)[1]
+    return set(re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", jobs, re.MULTILINE))
+
+
+class WorkflowContractTests(unittest.TestCase):
+    def test_only_three_workflows_exist(self) -> None:
+        names = {path.name for path in WORKFLOWS.glob("*.yml")}
+        self.assertEqual(names, set(EXPECTED))
+
+    def test_every_oracle_job_is_preserved_once(self) -> None:
+        observed: set[str] = set()
+        for name, expected in EXPECTED.items():
+            current = job_ids((WORKFLOWS / name).read_text(encoding="utf-8"))
+            self.assertEqual(current, expected, name)
+            self.assertFalse(observed.intersection(current), name)
+            observed.update(current)
+
+    def test_only_orchestrator_receives_pull_requests(self) -> None:
+        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("  pull_request:\n", orchestrator)
+        self.assertIn("branches: [develop, main]", orchestrator)
+        for name in ("ci-runtime.yml", "ci-webots.yml"):
+            suite = (WORKFLOWS / name).read_text(encoding="utf-8")
+            self.assertIn("  workflow_call:\n", suite)
+            self.assertNotIn("  pull_request:\n", suite)
+
+    def test_no_post_merge_push_trigger(self) -> None:
+        for path in WORKFLOWS.glob("*.yml"):
+            self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
+
+
+if __name__ == "__main__":
+    unittest.main()

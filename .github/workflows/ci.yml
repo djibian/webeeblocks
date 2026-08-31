@@ -1,0 +1,73 @@
+name: CI Gate
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    name: Select suites
+    runs-on: ubuntu-22.04
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+      webots: ${{ steps.scope.outputs.webots }}
+      full: ${{ steps.scope.outputs.full }}
+      reason: ${{ steps.scope.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify selector
+        run: |
+          python3 tools/ci/test_select_ci.py
+          python3 tools/ci/test_ci_gate.py
+          python3 tools/ci/test_workflow_contract.py
+
+      - name: Select required suites
+        id: scope
+        run: >-
+          python3 tools/ci/select_ci.py
+          --event "${{ github.event_name }}"
+          --base "${{ github.event.pull_request.base.sha }}"
+          --head "${{ github.event.pull_request.head.sha }}"
+          --base-ref "${{ github.base_ref }}"
+          --draft "${{ github.event.pull_request.draft || false }}"
+          --github-output "$GITHUB_OUTPUT"
+
+  runtime:
+    name: Runtime suite
+    needs: select
+    if: ${{ needs.select.outputs.runtime == 'true' }}
+    uses: ./.github/workflows/ci-runtime.yml
+
+  webots:
+    name: Webots suite
+    needs: select
+    if: ${{ needs.select.outputs.webots == 'true' }}
+    uses: ./.github/workflows/ci-webots.yml
+
+  gate:
+    name: CI Gate
+    if: ${{ always() }}
+    needs: [select, runtime, webots]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require every selected suite
+        env:
+          CI_SELECTION: ${{ toJSON(needs.select.outputs) }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci/check_ci_gate.py
