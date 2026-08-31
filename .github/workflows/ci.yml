@@ -3,7 +3,7 @@ name: CI Gate
 on:
   pull_request:
     branches: [develop, main]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
@@ -35,6 +35,7 @@ jobs:
           python3 tools/ci/test_ci_gate.py
           python3 tools/ci/test_workflow_contract.py
           python3 tools/ci/test_localize_webots_world.py
+          python3 tools/ci/test_repository_hygiene.py
 
       - name: Select required suites
         id: scope

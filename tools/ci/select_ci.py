@@ -26,6 +26,7 @@ FORCE_FULL = (
     "tools/ci/check_ci_gate.py",
     "tools/ci/test_ci_gate.py",
     "tools/ci/test_workflow_contract.py",
+    "tools/ci/test_repository_hygiene.py",
 )
 
 RUNTIME = (

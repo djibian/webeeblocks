@@ -30,8 +30,9 @@ The durable product constraints are in
 | `experiments/` | explicitly non-product research artifacts |
 
 The historical Blockly/Runtime implementation is retained temporarily for
-regression evidence and will move to an archive once its remaining product
-dependencies have been enumerated.
+regression evidence. Its runtime files remain active; its upstream development
+demos, tests and tooling are preserved by the
+`v3-archive/pre-v3-webots-ci` tag instead of the active tree.
 
 ## Prepare the current Runtime
 

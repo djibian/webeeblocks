@@ -97,9 +97,13 @@ class WorkflowContractTests(unittest.TestCase):
     def test_only_orchestrator_receives_pull_requests(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("  pull_request:\n", orchestrator)
+        self.assertIn(
+            "python3 tools/ci/test_repository_hygiene.py",
+            orchestrator,
+        )
         self.assertIn("branches: [develop, main]", orchestrator)
         self.assertIn(
-            "types: [opened, synchronize, reopened, ready_for_review, edited]",
+            "types: [opened, synchronize, reopened, ready_for_review]",
             orchestrator,
         )
         for name in ("ci-runtime.yml", "ci-webots.yml"):
@@ -116,7 +120,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("ref: R2025a", suite)
         self.assertEqual(
             suite.count("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"),
-            4,
+            5,
         )
 
     def test_encoders_historical_runtime_is_offline(self) -> None:
@@ -141,6 +145,22 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("/workspace/worlds/.ci-boxChallenge-gyro-gps-local.wbt", gyro)
         self.assertIn("--network none", gyro)
         self.assertIn("/usr/local/webots/projects:ro", gyro)
+
+    def test_sensor_probing_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        sensor = suite.split("\n  sensor-probing-historical:\n", 1)[1].split(
+            "\n  robot-window-roundtrip:\n", 1
+        )[0]
+        self.assertIn(
+            "Prepare offline historical sensor-probing world",
+            sensor,
+        )
+        self.assertIn(
+            "/workspace/worlds/.ci-empty-sensor-probing-local.wbt",
+            sensor,
+        )
+        self.assertIn("--network none", sensor)
+        self.assertIn("/usr/local/webots/projects:ro", sensor)
 
     def test_webots_smoke_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")

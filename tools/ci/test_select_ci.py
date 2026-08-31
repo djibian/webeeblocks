@@ -35,6 +35,12 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.webots)
         self.assertTrue(result.full)
 
+    def test_repository_hygiene_contract_change_is_full(self) -> None:
+        result = select(["tools/ci/test_repository_hygiene.py"])
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)
+        self.assertTrue(result.full)
+
     def test_unknown_is_fail_safe_full(self) -> None:
         result = select(["activities/new_activity.json"])
         self.assertTrue(result.runtime)
@@ -81,4 +87,3 @@ class SelectCiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
