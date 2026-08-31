@@ -1,123 +1,103 @@
-name: Controller handoff to ntfy
+name: CI Gate completion to ntfy
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_run:
+    workflows: [CI Gate]
+    types: [completed]
 
 permissions: {}
 
 concurrency:
-  group: controller-handoff-ntfy-${{ github.event.comment.id }}
+  group: ci-gate-ntfy-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
 
 jobs:
   notify:
-    name: Relay trusted #100 handoff
+    name: Relay trusted CI completion
     if: >-
-      github.event.issue.number == 100 &&
-      github.event.issue.pull_request == null &&
-      github.event.comment.user.login == github.repository_owner
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0].base.ref == 'develop' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Validate and publish handoff
+      - name: Validate event and publish notification
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           python3 - <<'PY'
           import json
           import os
-          import re
           import urllib.request
 
-          event_path = os.environ['GITHUB_EVENT_PATH']
-          with open(event_path, encoding='utf-8') as stream:
+          with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as stream:
               event = json.load(stream)
 
-          if event['repository']['full_name'] != 'djibian/webeeblocks':
+          repository = event['repository']
+          run = event['workflow_run']
+          pull_requests = run.get('pull_requests') or []
+
+          if repository['full_name'] != 'djibian/webeeblocks':
               raise SystemExit('Unexpected repository')
-          if event['issue']['number'] != 100 or event['issue'].get('pull_request'):
-              raise SystemExit('Not the trusted handoff issue')
-          if event['comment']['user']['login'] != event['repository']['owner']['login']:
-              raise SystemExit('Only the repository owner may emit a trusted handoff')
+          if run['name'] != 'CI Gate' or run['event'] != 'pull_request':
+              raise SystemExit('Unexpected workflow run')
+          if run['status'] != 'completed':
+              raise SystemExit('Workflow run is not complete')
+          if run['head_repository']['full_name'] != repository['full_name']:
+              raise SystemExit('Only repository-owned candidate branches may notify')
+          if len(pull_requests) != 1 or pull_requests[0]['base']['ref'] != 'develop':
+              raise SystemExit('Expected exactly one pull request to develop')
 
-          body = event['comment'].get('body', '').strip()
-          lines = body.splitlines()
-          if not lines:
-              raise SystemExit('Empty handoff comment')
-
-          match = re.fullmatch(
-              r'WEBEEBLOCKS_SIGNAL: (READY_FOR_CONTROLLER|WAITING_EXTERNAL|HUMAN_REQUIRED|DONE)',
-              lines[0].strip(),
-          )
-          if not match:
-              print('Comment is not a WebeeBlocks handoff; nothing to notify.')
-              raise SystemExit(0)
-
-          signal = match.group(1)
-          if signal == 'WAITING_EXTERNAL':
-              print('WAITING_EXTERNAL is intentionally silent on Android.')
-              raise SystemExit(0)
+          pull_request = pull_requests[0]
+          number = int(pull_request['number'])
+          head = run['head_sha']
+          conclusion = run.get('conclusion') or 'unknown'
+          if len(head) != 40 or any(character not in '0123456789abcdef' for character in head):
+              raise SystemExit('Invalid head SHA')
 
           topic = os.environ.get('NTFY_TOPIC', '').strip()
           if not topic:
-              print('NTFY_TOPIC is not configured; the #100 comment remains authoritative.')
+              print('NTFY_TOPIC is not configured; CI and GitHub remain authoritative.')
               raise SystemExit(0)
           if any(character in topic for character in '/?#') or len(topic) > 256:
               raise SystemExit('NTFY_TOPIC has an invalid format')
 
-          copy_text = ''
-          for line in lines:
-              if line.startswith('COPY_TEXT:'):
-                  copy_text = line.removeprefix('COPY_TEXT:').strip()
-                  break
-
-          repository_url = 'https://github.com/djibian/webeeblocks/'
-          urls = re.findall(r'https://github\.com/djibian/webeeblocks/[^\s)>;]+', body)
-          url = urls[0].rstrip('.,') if urls else repository_url + 'issues/100'
-          if not url.startswith(repository_url):
-              raise SystemExit('Notification URL must remain inside djibian/webeeblocks')
-
-          if signal == 'READY_FOR_CONTROLLER':
-              title = 'WebeeBlocks — READY'
-              priority = 3
-              tags = ['white_check_mark', 'robot']
-          elif signal == 'HUMAN_REQUIRED':
-              title = 'WebeeBlocks — ACTION HUMAINE'
-              priority = 5
-              tags = ['warning', 'robot']
-          else:
-              title = 'WebeeBlocks — TERMINÉ'
-              priority = 2
-              tags = ['checkered_flag', 'robot']
-
-          actions = []
-          if copy_text:
-              actions.append({
-                  'action': 'copy',
-                  'label': 'Copier',
-                  'value': copy_text,
-              })
-          actions.append({
-              'action': 'view',
-              'label': 'Ouvrir GitHub',
-              'url': url,
-              'clear': True,
-          })
-          if signal in {'READY_FOR_CONTROLLER', 'HUMAN_REQUIRED'}:
-              actions.append({
-                  'action': 'view',
-                  'label': 'Ouvrir ChatGPT',
-                  'url': 'https://chatgpt.com/',
-              })
-
+          pull_request_url = (
+              f"https://github.com/djibian/webeeblocks/pull/{number}"
+          )
+          run_url = run['html_url']
+          success = conclusion == 'success'
+          title = 'WebeeBlocks — CI VERTE' if success else 'WebeeBlocks — CI TERMINÉE'
+          message = (
+              f"CI Gate terminé pour la PR #{number}.\n"
+              f"HEAD: {head}\n"
+              f"RESULT: {conclusion}\n"
+              "Relancer le Contrôleur pour reconstruire l’état GitHub."
+          )
+          copy_text = (
+              f"Reprends WebeeBlocks depuis GitHub. CI Gate terminé pour la PR "
+              f"#{number}, HEAD {head}, résultat {conclusion}."
+          )
           payload = {
               'topic': topic,
               'title': title,
-              'message': body[:3500],
-              'priority': priority,
-              'tags': tags,
-              'click': url,
-              'actions': actions[:3],
+              'message': message,
+              'priority': 3 if success else 4,
+              'tags': ['white_check_mark' if success else 'warning', 'robot'],
+              'click': pull_request_url,
+              'actions': [
+                  {'action': 'copy', 'label': 'Copier', 'value': copy_text},
+                  {
+                      'action': 'view',
+                      'label': 'Ouvrir la PR',
+                      'url': pull_request_url,
+                      'clear': True,
+                  },
+                  {
+                      'action': 'view',
+                      'label': 'Voir la CI',
+                      'url': run_url,
+                  },
+              ],
           }
           request = urllib.request.Request(
               'https://ntfy.sh/',
