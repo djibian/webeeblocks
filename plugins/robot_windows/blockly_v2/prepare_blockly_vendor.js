@@ -27,6 +27,10 @@ function copyFile(relativeSource, relativeTarget = relativeSource) {
   fs.copyFileSync(source, target);
 }
 
+function normalizedTextBytes(target) {
+  return Buffer.from(fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n'), 'utf8');
+}
+
 fs.rmSync(vendorDir, {recursive: true, force: true});
 fs.mkdirSync(vendorDir, {recursive: true});
 copyFile('blockly_compressed.js');
@@ -37,13 +41,14 @@ fs.cpSync(requirePath(path.join(blocklyRoot, 'media')), path.join(vendorDir, 'me
 // Webots R2025a's Robot Window server does not serve SVG assets. Blockly 13.2.1
 // uses sprites.svg for the trashcan/zoom sprite, while the preserved Blockly
 // runtime already contains the rasterized sprites.png generated from the same
-// SVG. Reuse that PNG only if both SVG sources are byte-for-byte identical;
-// otherwise fail closed instead of silently substituting a mismatched UI asset.
+// SVG. Reuse that PNG only if both SVG sources are text-identical after the
+// platform checkout's CRLF/LF normalization; otherwise fail closed instead of
+// silently substituting a mismatched UI asset.
 const modernSpriteSvg = requirePath(path.join(blocklyRoot, 'media', 'sprites.svg'));
 const historicalSpriteSvg = requirePath(path.join(historicalMediaDir, 'sprites.svg'));
 const historicalSpritePng = requirePath(path.join(historicalMediaDir, 'sprites.png'));
-const modernSvgBytes = fs.readFileSync(modernSpriteSvg);
-const historicalSvgBytes = fs.readFileSync(historicalSpriteSvg);
+const modernSvgBytes = normalizedTextBytes(modernSpriteSvg);
+const historicalSvgBytes = normalizedTextBytes(historicalSpriteSvg);
 if (!modernSvgBytes.equals(historicalSvgBytes))
   throw new Error('Blockly 13.2.1 sprites.svg differs from the preserved raster source');
 fs.copyFileSync(historicalSpritePng, path.join(vendorDir, 'media', 'sprites.png'));
