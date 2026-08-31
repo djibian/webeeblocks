@@ -27,6 +27,13 @@ FORCE_FULL = (
     "tools/ci/test_ci_gate.py",
     "tools/ci/test_workflow_contract.py",
     "tools/ci/test_repository_hygiene.py",
+    "tools/ci/test_windows_release_contract.py",
+    "tools/build_windows_classroom_release.ps1",
+    "packaging/windows/**",
+    "plugins/robot_windows/blockly_v2/webots/**",
+    "tools/prepare_runtime_v2.*",
+    "controllers/crazyflie_runtime_v2/**",
+    "worlds/crazyflie_runtime_v2*",
 )
 
 RUNTIME = (
@@ -79,7 +86,7 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
     if not changed:
         return Selection(True, True, True, "empty or indeterminate diff", changed)
     if any(matches(path, FORCE_FULL) for path in changed):
-        return Selection(True, True, True, "CI control plane changed", changed)
+        return Selection(True, True, True, "full-gate path changed", changed)
 
     runtime = False
     webots = False

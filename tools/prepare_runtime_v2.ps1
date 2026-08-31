@@ -18,8 +18,8 @@ if ($nodeMajor -lt 22) {
 
 Push-Location $blocklyDir
 try {
-  & npm install --ignore-scripts --no-audit --no-fund
-  if ($LASTEXITCODE -ne 0) { throw "npm install failed with exit code $LASTEXITCODE." }
+  & npm ci --ignore-scripts --no-audit --no-fund
+  if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit code $LASTEXITCODE." }
 
   & npm run prepare:blockly
   if ($LASTEXITCODE -ne 0) { throw "npm run prepare:blockly failed with exit code $LASTEXITCODE." }
@@ -32,7 +32,9 @@ try {
   foreach ($relativePath in @(
     'vendor\blockly_compressed.js',
     'vendor\blocks_compressed.js',
-    'vendor\msg\fr.js'
+    'vendor\msg\fr.js',
+    'webots\RobotWindow.js',
+    'webots\request_methods.js'
   )) {
     $path = Join-Path $blocklyDir $relativePath
     if (-not (Test-Path -Path $path -PathType Leaf) -or (Get-Item $path).Length -le 0) {

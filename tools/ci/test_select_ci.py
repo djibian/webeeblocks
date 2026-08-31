@@ -23,6 +23,13 @@ class SelectCiTests(unittest.TestCase):
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)
         self.assertTrue(result.webots)
+        self.assertTrue(result.full)
+
+    def test_windows_packaging_change_is_full(self) -> None:
+        result = select(["packaging/windows/Launch-WebeeBlocks.ps1"])
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)
+        self.assertTrue(result.full)
 
     def test_legacy_webots_only(self) -> None:
         result = select(["controllers/crazyflie_square/pid_controller.c"])
@@ -37,6 +44,12 @@ class SelectCiTests(unittest.TestCase):
 
     def test_repository_hygiene_contract_change_is_full(self) -> None:
         result = select(["tools/ci/test_repository_hygiene.py"])
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)
+        self.assertTrue(result.full)
+
+    def test_windows_release_contract_change_is_full(self) -> None:
+        result = select(["tools/ci/test_windows_release_contract.py"])
         self.assertTrue(result.runtime)
         self.assertTrue(result.webots)
         self.assertTrue(result.full)

@@ -294,7 +294,7 @@ window.onload = async function() {
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {
-    var module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
+    var module = await import('./webots/RobotWindow.js');
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true});
     robotWindow.receive = receiveMessage;
