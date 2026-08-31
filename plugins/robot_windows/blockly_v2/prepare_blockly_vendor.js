@@ -67,5 +67,5 @@ const pkg = JSON.parse(fs.readFileSync(path.join(blocklyRoot, 'package.json'), '
 if (pkg.version !== '13.2.1')
   throw new Error(`unexpected Blockly version: ${pkg.version}`);
 fs.writeFileSync(path.join(vendorDir, 'VERSION'), `${pkg.version}\n`, 'utf8');
-console.log(`WEBEEBLOCKLY_VENDOR_VERSION=${pkg.version}`);
-console.log('WEBEEBLOCKLY_SPRITE=sprites.png');
+console.log(`WEBEEBLOCKS_BLOCKLY_VENDOR_VERSION=${pkg.version}`);
+console.log('WEBEEBLOCKS_BLOCKLY_SPRITE=sprites.png');
