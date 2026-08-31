@@ -155,6 +155,10 @@ jobs:
         shell: pwsh
         run: |
           node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check plugins/robot_windows/blockly_v2/project_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
