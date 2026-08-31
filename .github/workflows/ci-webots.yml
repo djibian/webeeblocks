@@ -2091,6 +2091,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Prepare offline smoke worlds
+        run: |
+          python3 tools/ci/localize_webots_world.py \
+            worlds/empty.wbt worlds/.ci-empty-local.wbt --expected 5
+          python3 tools/ci/localize_webots_world.py \
+            worlds/boxChallenge.wbt worlds/.ci-boxChallenge-local.wbt --expected 5
+
       - name: Validate historical Blockly programs
         run: python3 tools/ci/check_historical_blockly_programs.py
 
@@ -2154,6 +2161,7 @@ jobs:
           set -o pipefail
 
           docker run --rm \
+            --network none \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
@@ -2164,7 +2172,7 @@ jobs:
               --stderr \
               --batch \
               --mode=fast \
-              /workspace/worlds/empty.wbt' \
+              /workspace/worlds/.ci-empty-local.wbt' \
             2>&1 | tee ci-artifacts/webots-empty.log
 
           code=${PIPESTATUS[0]}
@@ -2235,6 +2243,7 @@ jobs:
           set -o pipefail
 
           docker run --rm \
+            --network none \
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
@@ -2245,7 +2254,7 @@ jobs:
               --stderr \
               --batch \
               --mode=fast \
-              /workspace/worlds/boxChallenge.wbt' \
+              /workspace/worlds/.ci-boxChallenge-local.wbt' \
             2>&1 | tee ci-artifacts/webots-box-challenge.log
 
           code=${PIPESTATUS[0]}
@@ -2361,4 +2370,3 @@ jobs:
           name: webots-r2025a-smoke-logs
           path: ci-artifacts/
           if-no-files-found: error
-

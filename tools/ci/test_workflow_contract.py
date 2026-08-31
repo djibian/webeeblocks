@@ -78,6 +78,14 @@ class WorkflowContractTests(unittest.TestCase):
         for path in WORKFLOWS.glob("*.yml"):
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
 
+    def test_webots_smoke_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        smoke = suite.split("\n  webots-smoke:\n", 1)[1]
+        self.assertIn("Prepare offline smoke worlds", smoke)
+        self.assertIn("/workspace/worlds/.ci-empty-local.wbt", smoke)
+        self.assertIn("/workspace/worlds/.ci-boxChallenge-local.wbt", smoke)
+        self.assertGreaterEqual(smoke.count("--network none"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
