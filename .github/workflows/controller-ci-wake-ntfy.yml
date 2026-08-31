@@ -1,0 +1,221 @@
+name: Controller CI wake to ntfy
+
+on:
+  workflow_run:
+    workflows:
+      - Webots R2025a smoke test
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: controller-ci-wake-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  notify-ready:
+    name: Notify when exact-head CI settles
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Wait for exact-head Actions and notify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import time
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ['REPOSITORY']
+          head_sha = os.environ['HEAD_SHA'].strip()
+          pr_number = os.environ.get('PR_NUMBER', '').strip()
+          owner = os.environ['OWNER'].strip()
+          token = os.environ['GH_TOKEN'].strip()
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+
+          if repository != 'djibian/webeeblocks':
+              raise SystemExit('Unexpected repository')
+          if not re.fullmatch(r'[0-9a-f]{40}', head_sha):
+              raise SystemExit('Invalid exact-head SHA')
+          if not pr_number.isdigit():
+              print('Anchor workflow is not associated with a pull request; nothing to do.')
+              raise SystemExit(0)
+          if not topic:
+              print('NTFY_TOPIC is not configured; no CI-ready notification can be sent.')
+              raise SystemExit(0)
+          if any(character in topic for character in '/?#') or len(topic) > 256:
+              raise SystemExit('NTFY_TOPIC has an invalid format')
+
+          api_base = f'https://api.github.com/repos/{repository}'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'webeeblocks-controller-ci-wake',
+          }
+
+          def get_json(url):
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          def current_pr():
+              return get_json(f'{api_base}/pulls/{pr_number}')
+
+          def exact_head_is_current():
+              pr = current_pr()
+              return (
+                  pr.get('state') == 'open'
+                  and pr.get('base', {}).get('ref') == 'webots-ci'
+                  and pr.get('head', {}).get('sha') == head_sha
+              )
+
+          if not exact_head_is_current():
+              print('PR is closed, retargeted, or its head already changed; stale event ignored.')
+              raise SystemExit(0)
+
+          # GitHub, not ChatGPT Work, owns the wait. The anchor workflow is a
+          # single trusted trigger; this loop only reads Actions metadata.
+          deadline = time.monotonic() + 15 * 60
+          latest_runs = []
+          while True:
+              if not exact_head_is_current():
+                  print('PR head changed while waiting; stale event ignored.')
+                  raise SystemExit(0)
+
+              query = urllib.parse.urlencode({
+                  'head_sha': head_sha,
+                  'event': 'pull_request',
+                  'per_page': 100,
+              })
+              data = get_json(f'{api_base}/actions/runs?{query}')
+              runs = data.get('workflow_runs', [])
+
+              # Keep only the newest observable run per workflow. This makes a
+              # targeted rerun replace the earlier result instead of creating a
+              # false duplicate failure.
+              newest = {}
+              for run in runs:
+                  key = run.get('workflow_id') or run.get('path') or run.get('name')
+                  rank = (run.get('run_number', 0), run.get('run_attempt', 0))
+                  previous = newest.get(key)
+                  if previous is None or rank > previous[0]:
+                      newest[key] = (rank, run)
+              latest_runs = [item[1] for item in newest.values()]
+
+              active = [run for run in latest_runs if run.get('status') != 'completed']
+              if latest_runs and not active:
+                  break
+              if time.monotonic() >= deadline:
+                  print('Other exact-head workflows are still running after 15 minutes; no notification.')
+                  raise SystemExit(0)
+
+              print(f'Waiting for {len(active)} exact-head workflow(s) to finish...')
+              time.sleep(20)
+
+          if not exact_head_is_current():
+              print('PR head changed after CI settled; stale event ignored.')
+              raise SystemExit(0)
+
+          signal_pattern = re.compile(
+              r'^WEBEEBLOCKS_SIGNAL: (READY_FOR_CONTROLLER|WAITING_EXTERNAL|HUMAN_REQUIRED|DONE)$'
+          )
+
+          def latest_signal_for_head():
+              comments = []
+              for page in range(1, 21):
+                  query = urllib.parse.urlencode({'per_page': 100, 'page': page})
+                  batch = get_json(f'{api_base}/issues/100/comments?{query}')
+                  comments.extend(batch)
+                  if len(batch) < 100:
+                      break
+              for comment in reversed(comments):
+                  if comment.get('user', {}).get('login') != owner:
+                      continue
+                  body = comment.get('body', '').strip()
+                  if head_sha not in body:
+                      continue
+                  first_line = body.splitlines()[0].strip() if body else ''
+                  match = signal_pattern.fullmatch(first_line)
+                  if match:
+                      return match.group(1), body
+              return None, ''
+
+          # The Controller may still be finishing its handoff when the last CI
+          # run ends. Give the owner-authored WAITING_EXTERNAL marker a short
+          # propagation window without consuming any Work quota.
+          signal = None
+          for _ in range(7):
+              signal, _ = latest_signal_for_head()
+              if signal is not None:
+                  break
+              time.sleep(10)
+
+          if signal != 'WAITING_EXTERNAL':
+              print(f'Latest owner handoff for this head is {signal!r}; no CI wake is warranted.')
+              raise SystemExit(0)
+
+          conclusions = {}
+          for run in latest_runs:
+              conclusion = run.get('conclusion') or 'unknown'
+              conclusions[conclusion] = conclusions.get(conclusion, 0) + 1
+
+          outcome = ', '.join(
+              f'{count} {name}' for name, count in sorted(conclusions.items())
+          )
+          pr_url = f'https://github.com/{repository}/pull/{pr_number}'
+          copy_text = (
+              "Nouvelle impulsion. Reprends ton contrat de Contrôleur WebeeBlocks, "
+              "reconstruis l'état réel depuis GitHub et poursuis jusqu'à la prochaine "
+              "frontière terminale réelle."
+          )
+          message = (
+              'WEBEEBLOCKS_EVENT: CI_SETTLED\n\n'
+              f'La CI exact-head de la PR #{pr_number} est terminée.\n'
+              f'HEAD: `{head_sha}`\n'
+              f'Actions observées: {len(latest_runs)} — {outcome}.\n\n'
+              'Le Super Contrôleur peut maintenant être relancé sans polling.\n'
+              f'COPY_TEXT: {copy_text}'
+          )
+          actions = [
+              {'action': 'copy', 'label': 'Copier', 'value': copy_text},
+              {'action': 'view', 'label': 'Ouvrir GitHub', 'url': pr_url, 'clear': True},
+              {'action': 'view', 'label': 'Ouvrir ChatGPT', 'url': 'https://chatgpt.com/'},
+          ]
+          payload = {
+              'topic': topic,
+              'title': 'WebeeBlocks — CI TERMINÉE',
+              'message': message,
+              'priority': 3,
+              'tags': ['white_check_mark', 'robot'],
+              'click': pr_url,
+              'actions': actions,
+          }
+          request = urllib.request.Request(
+              'https://ntfy.sh/',
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              if response.status >= 300:
+                  raise RuntimeError(f'ntfy returned HTTP {response.status}')
+              print(f'CI-ready ntfy status: {response.status}')
+          PY
