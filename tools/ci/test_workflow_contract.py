@@ -78,6 +78,24 @@ class WorkflowContractTests(unittest.TestCase):
         for path in WORKFLOWS.glob("*.yml"):
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
 
+    def test_webots_projects_checkout_is_commit_pinned(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        self.assertNotIn("ref: R2025a", suite)
+        self.assertEqual(
+            suite.count("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"),
+            3,
+        )
+
+    def test_gyro_gps_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        gyro = suite.split("\n  gyro-gps-historical:\n", 1)[1].split(
+            "\n  light-sensor-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical Gyro GPS world", gyro)
+        self.assertIn("/workspace/worlds/.ci-boxChallenge-gyro-gps-local.wbt", gyro)
+        self.assertIn("--network none", gyro)
+        self.assertIn("/usr/local/webots/projects:ro", gyro)
+
     def test_webots_smoke_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         smoke = suite.split("\n  webots-smoke:\n", 1)[1]
