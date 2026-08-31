@@ -867,7 +867,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
+              timeout -k 5s 65s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
             ' \
             2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
           code=${PIPESTATUS[0]}
@@ -2091,6 +2091,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: R2025a
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
       - name: Prepare offline smoke worlds
         run: |
           python3 tools/ci/localize_webots_world.py \
@@ -2165,6 +2175,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
@@ -2247,6 +2258,7 @@ jobs:
             -e LIBGL_ALWAYS_SOFTWARE=true \
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \

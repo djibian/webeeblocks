@@ -82,9 +82,11 @@ class WorkflowContractTests(unittest.TestCase):
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         smoke = suite.split("\n  webots-smoke:\n", 1)[1]
         self.assertIn("Prepare offline smoke worlds", smoke)
+        self.assertIn("Checkout pinned Webots R2025a projects", smoke)
         self.assertIn("/workspace/worlds/.ci-empty-local.wbt", smoke)
         self.assertIn("/workspace/worlds/.ci-boxChallenge-local.wbt", smoke)
         self.assertGreaterEqual(smoke.count("--network none"), 2)
+        self.assertGreaterEqual(smoke.count("/usr/local/webots/projects:ro"), 2)
 
 
 if __name__ == "__main__":
