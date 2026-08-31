@@ -69,6 +69,18 @@ class WorkflowContractTests(unittest.TestCase):
             "pull_requests[0].head.sha == github.event.workflow_run.head_sha",
             transport,
         )
+        self.assertIn(
+            "https://api.github.com/repos/djibian/webeeblocks/pulls/{number}",
+            transport,
+        )
+        self.assertIn(
+            "current_head != head or current_base != 'develop'",
+            transport,
+        )
+        self.assertLess(
+            transport.index("current_request = urllib.request.Request("),
+            transport.index("topic = os.environ.get('NTFY_TOPIC'"),
+        )
         self.assertIn("permissions: {}", transport)
         self.assertNotIn("  pull_request:\n", transport)
         self.assertNotIn("actions/checkout", transport)
@@ -104,8 +116,21 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("ref: R2025a", suite)
         self.assertEqual(
             suite.count("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"),
-            3,
+            4,
         )
+
+    def test_encoders_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        encoders = suite.split("\n  encoders-historical:\n", 1)[1].split(
+            "\n  gyro-gps-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical encoder world", encoders)
+        self.assertIn(
+            "/workspace/worlds/.ci-boxChallenge-encoders-local.wbt",
+            encoders,
+        )
+        self.assertIn("--network none", encoders)
+        self.assertIn("/usr/local/webots/projects:ro", encoders)
 
     def test_gyro_gps_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
