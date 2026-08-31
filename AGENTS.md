@@ -101,6 +101,22 @@ A green job proves only what its oracle exercises. A skipped test is not a pass.
 - A targeted rerun is allowed only for a demonstrably transient infrastructure failure. Repeated or unexplained failure is product evidence, not a rerun strategy.
 - Do not poll merely to consume time. Re-observe an external check only after useful work, a reasonable stabilization boundary or a concrete event makes the new observation informative.
 
+### Bounded passive exact-head CI wait
+
+A CI/check already running after a push is not an immediate terminal frontier when the execution environment provides a true blocking wait primitive. The goal is to keep one manual Controller launch productive without spending reasoning cycles repeatedly asking GitHub whether the same check has finished.
+
+1. Record the pull-request number and the **full exact HEAD SHA** whose checks are pending.
+2. Prefer one blocking wait primitive such as `gh pr checks <PR> --watch --interval 20`, bounded to **15 minutes maximum** (for example `timeout 900s ...` when available).
+3. While the blocking wait is active, do not run Controller-level loops of observe → reason → wait → observe and do not issue repeated GitHub/tool calls merely to rediscover the same pending state.
+4. When the wait returns because checks completed, resolve the PR HEAD and relevant checks again. Consume the result only if the HEAD still equals the recorded SHA.
+5. If that unchanged exact head is green, continue in the **same launch and same mode** until the next real frontier.
+6. If that unchanged exact head has a failing check, treat the failure as new evidence immediately. In Worker mode, diagnose and perform an authorized causal repair when available; a new push may then be followed by another bounded passive wait. Never rerun a product failure blindly.
+7. If the PR HEAD changed during the wait, all evidence tied to the old head is stale. Reconstruct current state before acting.
+8. If the 15-minute bound expires while checks are genuinely still running, the CI becomes an external frontier and the normal `WAITING_EXTERNAL` handoff applies.
+9. If the environment offers no true blocking wait primitive, do **not** emulate one with repeated model/tool polling. Fall back immediately to the normal `WAITING_EXTERNAL` frontier.
+
+This passive wait is only for already-triggered, normally short CI/check execution. It never applies to a human decision, physical test, human review, new authority or an external event without a short bounded completion horizon.
+
 ## Saturation, recovery and terminal frontiers
 
 The controller optimizes for maximum useful progress per manual launch, not number of actions or elapsed time.
@@ -118,13 +134,13 @@ There is no arbitrary per-launch limit on meaningful commits, pushes, tests, com
 A launch may terminate only at a real frontier:
 
 - the next useful action belongs to the other controller mode;
-- exact-head CI or another external event is genuinely still running and no useful same-mode work remains;
+- exact-head CI or another external event is genuinely still running **after the bounded passive CI wait has expired, or when no safe blocking wait primitive is available**, and no useful same-mode work remains;
 - a precise human decision, permission, physical test or new external authority is indispensable;
 - the causal contract is complete and immediate bookkeeping is reconciled;
 - no further authorized work is currently actionable;
 - a platform/tool failure genuinely prevents the next required operation.
 
-Do not manufacture work to avoid a frontier. Do not wait or poll repetitively when the frontier is external.
+Do not manufacture work to avoid a frontier. Apart from the bounded passive exact-head CI wait defined above, do not wait or poll repetitively when the frontier is external.
 
 ## Handoff and Android notification protocol
 
@@ -149,7 +165,7 @@ Do not emit READY merely because the current launch ended.
 
 ### WAITING_EXTERNAL
 
-Use when the only remaining frontier is an external CI/check/event that is genuinely still running. State what is pending and the exact head. Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`.
+Use when the only remaining frontier is an external CI/check/event that is genuinely still running **after the bounded passive CI wait expired, or because no true blocking wait primitive was available**. State what is pending and the exact head. Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`.
 
 No workflow watches PR or CI stability. The trusted Android relay intentionally ignores `WAITING_EXTERNAL`; GitHub remains the source to consult after the external event completes. A Controller launch must not poll merely to discover that the same wait still exists.
 
