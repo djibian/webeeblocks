@@ -1,205 +1,85 @@
-# WebeeBlocks Agent Instructions
+# WebeeBlocks development contract
 
-## Mission and product constraints
+## Product boundary
 
-WebeeBlocks is an educational robotics training environment. Optimize for reliable pedagogical behavior and small, evidence-backed product increments.
+Read `docs/PRODUCT_VISION.md` before selecting a new product slice. Preserve the
+backend-neutral pipeline:
 
-Read `docs/PRODUCT_VISION.md` before acting. It is the durable product contract. In particular:
+`activity -> Blockly -> AST -> preflight -> interpreter -> backend`
 
-- WebeeBlocks is not an LMS, grading platform, progress tracker or intelligent tutor;
-- the target is a compact teacher-guided progression of roughly 8–12 substantial activities;
-- programs are built from generic primitives and remain backend-neutral when safe;
-- observability is limited to the active block plus current sensor and variable values;
-- never add hints, automatic diagnosis or interpreted traces that solve the reasoning for the student;
-- step-by-step execution is a Webots-only objective and must never be offered during real flight;
-- persistence is manual through Open / Save / Save As; do not add histories or permanent autosave;
-- Moodle integration is optional and external to the autonomous, local/offline-first core;
-- real Crazyflie flight is reserved for the module finality and requires explicit teacher authorization;
-- declarative activity files are sufficient; do not build a teacher-facing activity studio without a demonstrated need.
+Never weaken a safety rule or oracle to obtain a green result. Real Crazyflie
+flight and release promotion remain human decisions.
 
-Surface any conflict with the product contract instead of silently optimizing around it.
+## Repository authority
 
-## Non-negotiable repository rules
+- `develop` is the protected integration branch.
+- `main` is the human-controlled stable branch. Never write, merge or promote
+  to it without Emmanuel's explicit authorization for that operation.
+- Use one short-lived branch and one active pull request toward `develop`.
+- GitHub branch, PR, review and check facts are the only workflow state.
+- Issues describe product outcomes; they are not queues, locks or role tokens.
+- Do not modify the Controller task, this contract or notification workflows
+  from a product slice unless the human request is specifically about them.
 
-- `webots-ci` is the integration branch. Use one focused short-lived branch and one pull request per causal contract.
-- `main` is human-controlled. Never commit, merge or promote to `main` without Emmanuel's explicit authorization.
-- Never weaken a safety guard, oracle or acceptance criterion to obtain a green result.
-- GitHub facts outrank chat memory. Read the current branches, issues, pull requests, review state and exact-head checks before deciding what to do.
-- Issue #22 is a human-readable roadmap only. It must not be used as a machine lock, role token, queue or state database.
-- Issue #100 is only the human handoff/notification log. It must never override repository facts or become a work queue.
+## One controller, two fresh modes
 
-## One controller, two modes
-
-Every launch derives exactly one mode from current GitHub evidence. Draft/Ready is not a role lock and is never an authorization boundary.
-
-| Observed state | Mode and action |
+| Current GitHub state | Mode |
 | --- | --- |
-| No active controller pull request | **Worker**: select and deliver one bounded increment |
-| Active PR has a current exact-head `GO` | **Reviewer-Integrator**: recheck the unchanged head and merge if still valid |
-| Active PR has exact-head `NO_GO` or `UNPROVEN` | **Worker**: repair only the reported contradiction on the same PR |
-| Active PR has missing, pending or failing exact-head evidence | **Worker**: continue diagnosis/repair on the same causal contract |
-| Active PR is exact-head green and has no current exact-head verdict | **Reviewer-Integrator**: independently falsify and judge it |
-| A precise human decision, permission or physical test is indispensable | stop at `HUMAN_REQUIRED`; do not simulate consent |
-| Multiple active controller PRs or unauthorized `main` activity | reconcile conservatively before starting new work |
+| No active PR | **Worker** delivers one vertical product slice |
+| Active PR with failing evidence or requested changes | **Worker** repairs that PR |
+| Active PR with pending evidence | no Controller launch is useful |
+| Active PR exact-head green without a current verdict | **Reviewer-Integrator** |
+| Active PR with `GO <head>` | **Reviewer-Integrator** rechecks and merges |
+| Human authority or physical evidence required | stop and ask one precise question |
 
-An exact-head verdict identifies the full commit SHA. Any code change makes every verdict for the previous head stale.
+A launch has one mode. The run that writes a head never independently approves
+that head.
 
-A launch has exactly one mode, but within that mode it continues through every immediately actionable step of the same causal contract. Completing one tool call, commit, test, comment or publication is never by itself a reason to stop.
+## Worker
 
-## Worker mode
+1. Select one user-observable, releasable or otherwise complete vertical slice.
+   A standalone CI gate or governance adjustment is not a product slice.
+2. Define the linked issue, outcome, acceptance oracle, scope, non-goals and
+   human boundary.
+3. Diagnose before broadening. Use local or targeted tests before publication.
+4. Implement the complete slice on one branch and open one Ready PR to
+   `develop`. Keep repairs on that same PR.
+5. Inspect the full diff and publish evidence without claiming more than the
+   oracle exercises.
+6. When `CI Gate` is pending and no same-mode work remains, stop. Do not poll,
+   sleep or spend Work waiting.
 
-Worker combines product scoping, experiment design and implementation. Its unit of work is one causal contract: one observable problem, one bounded change and one falsifiable acceptance oracle.
+## Reviewer-Integrator
 
-1. Read `AGENTS.md`, `docs/PRODUCT_VISION.md`, the active pull request or smallest actionable issue, relevant code and current CI evidence.
-2. State the objective, causal contract, scope and non-goals in the pull request.
-3. When causality is uncertain, run the smallest discriminating experiment before broadening production code.
-4. Implement a complete reviewable increment. Prefer causal fixes, reversible changes and the smallest test that would have failed before the fix.
-5. Separate product behavior, test harness and instrumentation. Evidence from one layer does not prove another.
-6. When there is no active PR, work on the short-lived branch until the intended head is stable, then normally open the PR directly **Ready for review** so the full suite runs once. Draft is allowed only for a genuinely incomplete legacy/exceptional PR; do not use Draft as a machine-state lock.
-7. If a Ready PR later fails CI or receives `NO_GO`/`UNPROVEN`, repair it **without converting it back to Draft**. Push the causal repair to the same PR; the new SHA invalidates the old verdict and `synchronize` requests fresh exact-head CI automatically.
-8. After every meaningful result, ask only: **does another safe, causal, immediately actionable Worker step remain in this same contract?** If yes, perform it now. This includes diagnosis, implementation, discriminating tests, correction from already observed evidence, complete diff inspection, evidence reconciliation and publication.
-9. Do not switch to Reviewer-Integrator in the same launch. When exact-head evidence becomes fully green and the next useful action is independent review, that role boundary is a legitimate terminal frontier.
+1. Resolve the full head SHA, base `develop`, complete diff, linked outcome,
+   unresolved review threads and the exact `CI Gate` result.
+2. Try to falsify the claim: hidden skip, stale result, weak assertion,
+   untested platform boundary, scope creep or product regression.
+3. Record one verdict for the full SHA:
+   - `GO <sha>` when the scoped outcome is proven;
+   - `NO_GO <sha>` with the smallest repair boundary;
+   - `UNPROVEN <sha>` when the required evidence cannot be obtained.
+4. On `GO`, immediately re-read the head and gate, then merge unchanged into
+   `develop`. Never merge to `main`.
 
-If the causal question changes materially, stop expanding the pull request and create a separate issue. Do not split work merely to satisfy arbitrary size or commit limits.
+## CI and evidence
 
-## Reviewer-Integrator mode
+- `CI Gate` is the only required PR check. Its conservative selector runs both
+  suites for workflow, shared or unknown changes.
+- Runtime-only and Webots/legacy suites may be selected independently.
+- The full suite runs on schedule and for promotion PRs to `main`.
+- A skipped selected suite is a failure. A genuine unsupported environment is
+  `UNPROVEN`, never a pass.
+- Network availability must not be an acceptance oracle. Dependencies used by
+  tests are pinned and prepared outside the behavioral assertion.
+- Use `PROVEN_BY_TEST`, `VERIFIED_BY_CI`, `VERIFIED_BY_CODE_INSPECTION`,
+  `UNPROVEN`, `REFUTED`, `FALSE_POSITIVE` and `REGRESSION` when useful.
 
-Reviewer-Integrator is read-only with respect to the code it reviews. It must not repair the change it judges.
+## Terminal handoff
 
-1. Resolve the exact PR head SHA and confirm the base is `webots-ci`.
-2. Inspect the complete diff, causal contract, product constraints, tests and all required checks for that exact head.
-3. Try to falsify the claim: look for hidden skips, false-positive oracles, weakened guards, proxy evidence presented as product behavior, scope creep, concurrency gaps and unexplained regressions.
-4. Record exactly one exact-head verdict in the pull request:
-   - `GO <full_sha>` only when the scoped claim is supported and all required exact-head evidence is green;
-   - `NO_GO <full_sha>` with concrete blocking contradictions and the smallest useful repair boundary;
-   - `UNPROVEN <full_sha>` when the environment cannot exercise the claim or the evidence is inconclusive.
-5. On `NO_GO` or `UNPROVEN`, do not modify code and do not convert the PR to Draft. Complete the review evidence/handoff and stop; a fresh Worker launch repairs the same Ready PR.
-6. On `GO`, immediately re-read the PR head and checks. If the SHA and evidence are unchanged, merge to `webots-ci` in the same launch, close the completed issue, reconcile the human roadmap when materially necessary and verify the resulting integration state. If anything changed, the verdict is stale and must not be consumed.
-7. A successful merge is not automatically the end of useful Reviewer-Integrator work: complete deterministic post-merge checks, issue closure and handoff bookkeeping that are immediately available before stopping.
+Repository facts remain authoritative. Do not create a parallel state log.
 
-## Pull-request evidence contract
-
-Every controller pull request states:
-
-- objective and linked issue;
-- causal contract and observable acceptance oracle;
-- scope and non-goals;
-- tests and evidence;
-- remaining uncertainty;
-- final head SHA.
-
-Use these evidence labels consistently: `PROVEN_BY_TEST`, `VERIFIED_BY_CI`, `VERIFIED_BY_PRIMARY_SOURCE`, `VERIFIED_BY_CODE_INSPECTION`, `INFERENCE`, `HYPOTHESIS`, `UNPROVEN`, `REFUTED`, `FALSE_POSITIVE`, `REGRESSION`.
-
-A green job proves only what its oracle exercises. A skipped test is not a pass. Environmental inability may be an explicit skip only when the unsupported claim remains `UNPROVEN`.
-
-## Efficient CI contract
-
-- New controller PRs normally open directly Ready after branch-side preparation, which requests the full suite once for the first reviewable head.
-- A later repair is pushed directly to the same Ready PR. The `synchronize` event requests fresh exact-head CI; no Ready→Draft→Ready round-trip is required.
-- Draft remains supported for exceptional incomplete work but carries no review authority and is not part of normal role derivation.
-- Concurrency cancellation may discard superseded runs; only completed checks for the exact final head count.
-- A targeted rerun is allowed only for a demonstrably transient infrastructure failure. Repeated or unexplained failure is product evidence, not a rerun strategy.
-- Do not poll merely to consume time. Re-observe an external check only after useful work, a reasonable stabilization boundary or a concrete event makes the new observation informative.
-
-### Event-driven exact-head CI handoff
-
-The manual Controller environment does **not** provide a supported persistent blocking wait for GitHub CI. CI waiting is therefore an external event boundary, not Controller work.
-
-1. After a push or other action that triggers exact-head CI, continue every safe and immediately actionable step of the current mode and causal contract that does not depend on the pending result.
-2. When exact-head CI is still `PENDING`/`IN_PROGRESS` and no other useful same-mode action remains, stop immediately at `WAITING_EXTERNAL`.
-3. Never search for, install, probe or retry `gh` as an attempt to wait for CI. Never emulate waiting with repeated GitHub tool calls, model polling, sleeps or observe → reason → re-observe loops.
-4. The `WAITING_EXTERNAL` comment must identify the exact correlation key on two dedicated lines:
-
-   `PR: #<number>`
-
-   `HEAD: <full_40_character_sha>`
-
-5. The trusted workflow `.github/workflows/controller-ci-wake-ntfy.yml` on human-controlled `main` observes GitHub metadata only. When the anchor CI completes, it waits on the GitHub Actions runner for the remaining exact-head workflows to settle, verifies that the PR is still open on `webots-ci`, that its head is unchanged and that issue #100 contains a matching owner-authored `WAITING_EXTERNAL`, then sends the ntfy wake notification.
-6. The watcher reports that CI has **settled**, not that it is green. A later Controller launch reconstructs all exact-head results and treats any failure as evidence.
-7. If the PR head changes before the watcher finishes, the old event is stale and must not wake the Controller for that head.
-8. The watcher is transport only: it has no merge authority, performs no checkout, executes no candidate code and does not modify GitHub state.
-
-## Saturation, recovery and terminal frontiers
-
-The controller optimizes for maximum useful progress per manual launch, not number of actions or elapsed time.
-
-After each completed action, continue in the same launch whenever another action is simultaneously:
-
-1. within the current mode;
-2. inside the same causal contract;
-3. authorized by current GitHub facts;
-4. safe and reversible where relevant;
-5. immediately actionable without pretending an external event has completed.
-
-There is no arbitrary per-launch limit on meaningful commits, pushes, tests, comments or inspections. Repetition is forbidden, but new evidence may justify another correction cycle in the same Worker launch when that evidence is already available.
-
-A launch may terminate only at a real frontier:
-
-- the next useful action belongs to the other controller mode;
-- exact-head CI or another external event is genuinely still running and no useful same-mode work remains;
-- a precise human decision, permission, physical test or new external authority is indispensable;
-- the causal contract is complete and immediate bookkeeping is reconciled;
-- no further authorized work is currently actionable;
-- a platform/tool failure genuinely prevents the next required operation.
-
-Do not manufacture work to avoid a frontier. Do not wait or poll repetitively when the frontier is external.
-
-## Handoff and Android notification protocol
-
-At every terminal frontier, publish exactly one concise handoff comment in issue #100. Repository facts remain authoritative.
-
-The first line is exactly one of:
-
-- `WEBEEBLOCKS_SIGNAL: READY_FOR_CONTROLLER`
-- `WEBEEBLOCKS_SIGNAL: WAITING_EXTERNAL`
-- `WEBEEBLOCKS_SIGNAL: HUMAN_REQUIRED`
-- `WEBEEBLOCKS_SIGNAL: DONE`
-
-Always mention `@djibian`, which remains the zero-configuration GitHub Mobile fallback.
-
-### READY_FOR_CONTROLLER
-
-Use only when another manual Controller launch can usefully act immediately. Include the completed result, why the next launch is actionable, the expected next action and exactly:
-
-`COPY_TEXT: Nouvelle impulsion. Reprends ton contrat de Contrôleur WebeeBlocks, reconstruis l'état réel depuis GitHub et poursuis jusqu'à la prochaine frontière terminale réelle.`
-
-Do not emit READY merely because the current launch ended.
-
-### WAITING_EXTERNAL
-
-Use when the only remaining frontier is an external CI/check/event that is genuinely still running and no useful same-mode work remains. State what is pending. For CI, include **exactly one dedicated correlation block** containing these two lines, with no URL or prose on either line:
-
-`PR: #<number>`
-
-`HEAD: <full_40_character_sha>`
-
-Do **not** ask Emmanuel to relaunch and do not include `COPY_TEXT`. The trusted CI watcher on `main` uses the exact PR/head pair to correlate CI settlement and send the later ntfy wake. A Controller launch must not poll merely to discover that the same wait still exists.
-
-### HUMAN_REQUIRED
-
-Use only when human authority or a non-simulable human/physical action is indispensable. Include:
-
-- `Décision requise:` one concrete question;
-- `Options:` only genuine choices;
-- `Recommandation:` one recommended choice with concise rationale;
-- `COPY_TEXT:` a short recommended response that can be pasted unchanged;
-- relevant evidence links.
-
-### DONE
-
-Use only when no further authorized work is currently available **and no known external event is expected to make it immediately actionable**. Explain why. Do not use DONE as a synonym for waiting on CI.
-
-Avoid duplicate handoff comments for an unchanged frontier.
-
-### Trusted Android relays
-
-The default branch `main` contains two separately human-authorized transport workflows:
-
-- `.github/workflows/controller-handoff-ntfy.yml` reacts only to new owner-authored comments on issue #100, relays `READY_FOR_CONTROLLER`, `HUMAN_REQUIRED` and `DONE`, and intentionally ignores `WAITING_EXTERNAL`;
-- `.github/workflows/controller-ci-wake-ntfy.yml` reacts to trusted `workflow_run` metadata for the CI anchor and, only for an unchanged exact PR/head with a matching `WAITING_EXTERNAL`, sends the later **CI settled** wake notification.
-
-Both transports have no GitHub write or merge authority. The CI wake workflow performs no checkout and executes no candidate code. Transport failure must never change product, review or handoff truth.
-
-## Completion
-
-Work is complete only when the objective is met, intended behavior is actually exercised, exact-head CI has no unexplained failure, Reviewer-Integrator recorded `GO`, the same head was merged to `webots-ci`, and remaining uncertainty is explicit.
+- CI settlement is transported by the trusted default-branch ntfy workflow.
+- Mention `@djibian` only when a human decision or physical action is required.
+- A final report states the mode, outcome or reviewed SHA, tests, PR/commit,
+  `develop` state, `main` state and the next actionable event.

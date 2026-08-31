@@ -1,49 +1,68 @@
-# 🐝 webeeblocks - Visual Drone Programming for Webots
+# WebeeBlocks
 
-> **We be blocks. Bee free !**  
-> An open-source plugin to **program drones visually** using Blockly, **simulate** in Webots, 
-> and **deploy** to real Crazyflie quadcopters. Let your code take flight!
+WebeeBlocks is an offline-first block-programming environment for learning
+algorithmic reasoning through robotics. Students build a Blockly program,
+exercise it in Webots and, for the final teacher-authorized activity only, may
+reuse the same backend-neutral program with a real Crazyflie.
 
-[![GPLv3 License](https://img.shields.io/badge/License-GPL_v3-green.svg)](https://choosealicense.com/licenses/gpl-3.0/)
-[![Python Version](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org/)
-[![Webots Compatibility](https://img.shields.io/badge/Webots-2025a%2B-blue)](https://cyberbotics.com)
+## Product foundation
 
-## Why "WebeeBlocks"?
+- Webots R2025a;
+- Blockly 13.2.1 with the Zelos renderer;
+- French student interface;
+- explicit Open, Save and Save As for portable `.wbb` projects;
+- a backend-neutral AST, preflight validation and shared interpreter;
+- Webots simulation as the normal classroom execution environment;
+- no student accounts, progress tracking, grading engine or automatic hints.
 
-- **🐝 Bee** : Hommage au bourdonnement caractéristique des Crazyflies  
-- **🌐 Web** : Intégration native avec **Webots**  
-- **🧱 Blocks** : Programmation visuelle par blocs Blockly  
-- **🎮 We be** : "Nous sommes des blocs" - philosophie collaborative open source 
+The durable product constraints are in
+[`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md).
 
-## ✨ Features
+## Source layout
 
-- **🧩 Blockly Interface**  
-  Glissez-déposez des blocs pour contrôler drones virtuels et réels
-- **⚡ Webots Plugin**  
-  Simulation réaliste des drones dans des environnements 3D
-- **🚀 Crazyflie Deployment**  
-  Téléversement sans couture vers les drones physiques
-- **🔓 100% Open Source**  
-  Licence GPLv3 - Pas de lock-in, pas de services cloud
+| Path | Contents |
+| --- | --- |
+| `plugins/robot_windows/blockly_v2/` | current Blockly 13.2.1 Robot Window UI |
+| `plugins/robot_windows/blockly/webeeblocks/` | AST, interpreter and product contracts |
+| `controllers/crazyflie_runtime_v2/` | shared Webots Runtime controller |
+| `worlds/` | Webots activities and regression worlds |
+| `tools/ci/` | executable acceptance oracles and preparation tools |
+| `experiments/` | explicitly non-product research artifacts |
 
-## Structure du projet
-```markdown
-crazyflie-blockly/
-├── blockly/                  # Version stable de Blockly (pré-incluse)
-│   ├── blockly_compressed.js
-│   ├── blocks_compressed.js
-│   └── python_compressed.js
-├── blocks/                   # Blocs personnalisés Crazyflie
-│   └── crazyflie.js
-├── generators/               # Générateur de code Python
-│   └── python.js
-├── plugin/                   # Intégration Webots
-│   ├── index.html
-│   ├── icon.png              # Icône 64x64
-│   └── webots_plugin.py      # Script d'intégration
-├── install/                  # Dossier d'installation
-│   ├── install.sh            # Pour Linux/macOS
-│   └── README_WINDOWS.txt    # Instructions Windows
-├── .gitmodules               # Configuration sous-module
-└── README.md                 # Documentation principale
+The historical Blockly/Runtime implementation is retained temporarily for
+regression evidence and will move to an archive once its remaining product
+dependencies have been enumerated.
+
+## Prepare the current Runtime
+
+Linux:
+
+```bash
+./tools/prepare_runtime_v2.sh
 ```
+
+Windows PowerShell:
+
+```powershell
+./tools/prepare_runtime_v2.ps1
+```
+
+The command prepares the pinned Blockly browser distribution used by the Robot
+Window. Students do not run Node.js or npm; prepared classroom releases contain
+the required assets.
+
+## Development
+
+- `develop` is the integration branch;
+- `main` is the human-controlled stable branch;
+- one vertical product slice is delivered through one Ready pull request;
+- `CI Gate` is the single required check and selects conservative Runtime and
+  Webots suites;
+- promotion to `main` and physical Crazyflie tests are human operations.
+
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) and [`AGENTS.md`](AGENTS.md).
+
+## License
+
+The project declares GPL-3.0. Bundled third-party components retain their own
+license notices; a classroom release must preserve them.
