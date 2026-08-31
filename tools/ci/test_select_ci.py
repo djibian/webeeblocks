@@ -46,15 +46,33 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.full)
 
     @mock.patch("select_ci.subprocess.run")
-    def test_git_diff_includes_every_change_type(self, run: mock.Mock) -> None:
-        run.return_value.stdout = "controllers/removed_controller.c\n"
-
-        self.assertEqual(
-            git_changed_paths("base-sha", "head-sha"),
-            ["controllers/removed_controller.c"],
+    def test_git_diff_keeps_deletion_and_both_rename_sides(
+        self, run: mock.Mock
+    ) -> None:
+        run.return_value.stdout = (
+            "controllers/removed_controller.c\n"
+            "plugins/robot_windows/blockly_v2/moved_controller.c\n"
         )
+
+        paths = git_changed_paths("base-sha", "head-sha")
+        self.assertEqual(
+            paths,
+            [
+                "controllers/removed_controller.c",
+                "plugins/robot_windows/blockly_v2/moved_controller.c",
+            ],
+        )
+        selection = select(paths)
+        self.assertTrue(selection.runtime)
+        self.assertTrue(selection.webots)
         run.assert_called_once_with(
-            ["git", "diff", "--name-only", "base-sha...head-sha"],
+            [
+                "git",
+                "diff",
+                "--name-only",
+                "--no-renames",
+                "base-sha...head-sha",
+            ],
             check=True,
             capture_output=True,
             text=True,

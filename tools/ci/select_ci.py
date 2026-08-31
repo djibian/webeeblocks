@@ -104,7 +104,7 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
 
 def git_changed_paths(base: str, head: str) -> list[str]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
+        ["git", "diff", "--name-only", "--no-renames", f"{base}...{head}"],
         check=True,
         capture_output=True,
         text=True,

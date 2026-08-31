@@ -86,6 +86,10 @@ class WorkflowContractTests(unittest.TestCase):
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("  pull_request:\n", orchestrator)
         self.assertIn("branches: [develop, main]", orchestrator)
+        self.assertIn(
+            "types: [opened, synchronize, reopened, ready_for_review, edited]",
+            orchestrator,
+        )
         for name in ("ci-runtime.yml", "ci-webots.yml"):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
             self.assertIn("  workflow_call:\n", suite)
@@ -120,8 +124,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("Checkout pinned Webots R2025a projects", smoke)
         self.assertIn("/workspace/worlds/.ci-empty-local.wbt", smoke)
         self.assertIn("/workspace/worlds/.ci-boxChallenge-local.wbt", smoke)
-        self.assertGreaterEqual(smoke.count("--network none"), 2)
-        self.assertGreaterEqual(smoke.count("/usr/local/webots/projects:ro"), 2)
+        self.assertEqual(smoke.count("--network none"), 3)
+        self.assertEqual(smoke.count("/usr/local/webots/projects:ro"), 3)
+        restart = (
+            ROOT / "controllers" / "ci_restart_supervisor" / "restart_smoke.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'WORLD = ROOT / "worlds" / ".ci-empty-local.wbt"',
+            restart,
+        )
 
 
 if __name__ == "__main__":
