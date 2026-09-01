@@ -48,6 +48,9 @@ class WindowsReleaseContractTests(unittest.TestCase):
             self.assertIn(required, packager)
         self.assertIn("$worldText -match '\"(?:https?|webots)://'", packager)
         self.assertIn("$protoText -match '\"(?:https?|webots)://'", packager)
+        self.assertNotIn("cygpath.exe", packager)
+        self.assertIn("msys64\\usr\\bin\\make.exe", packager)
+        self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
 
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")

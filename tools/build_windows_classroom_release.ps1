@@ -47,12 +47,14 @@ function Write-Utf8NoBom {
 }
 
 function Convert-ToMsysPath {
-  param([string]$Path, [string]$Cygpath)
-  $converted = (& $Cygpath -u $Path).Trim()
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($converted)) {
-    throw "Unable to convert Windows path for MSYS2: $Path"
+  param([string]$Path)
+  $fullPath = [System.IO.Path]::GetFullPath($Path)
+  if ($fullPath -notmatch '^([A-Za-z]):\\(.*)$') {
+    throw "Only local Windows drive paths are supported by the Webots MSYS2 build: $Path"
   }
-  return $converted
+  $drive = $Matches[1].ToLowerInvariant()
+  $tail = $Matches[2].Replace('\', '/')
+  return "/$drive/$tail"
 }
 
 if ([string]::IsNullOrWhiteSpace($WebotsHome)) {
@@ -60,8 +62,9 @@ if ([string]::IsNullOrWhiteSpace($WebotsHome)) {
 }
 $webotsRoot = (Resolve-Path -LiteralPath $WebotsHome).Path
 $bash = Join-Path $webotsRoot 'msys64\usr\bin\bash.exe'
-$cygpath = Join-Path $webotsRoot 'msys64\usr\bin\cygpath.exe'
-foreach ($requiredTool in @($bash, $cygpath)) {
+$make = Join-Path $webotsRoot 'msys64\usr\bin\make.exe'
+$gcc = Join-Path $webotsRoot 'msys64\mingw64\bin\gcc.exe'
+foreach ($requiredTool in @($bash, $make, $gcc)) {
   if (-not (Test-Path -LiteralPath $requiredTool -PathType Leaf)) {
     throw "Webots R2025a MSYS2 tool is missing: $requiredTool"
   }
@@ -74,10 +77,10 @@ $controllerDir = Join-Path $repoRoot 'controllers\crazyflie_runtime_v2'
 foreach ($path in @($webotsRoot, $controllerDir)) {
   if ($path.Contains("'")) { throw "Apostrophes are not supported in the build path: $path" }
 }
-$webotsMsys = Convert-ToMsysPath -Path $webotsRoot -Cygpath $cygpath
-$controllerMsys = Convert-ToMsysPath -Path $controllerDir -Cygpath $cygpath
+$webotsMsys = Convert-ToMsysPath -Path $webotsRoot
+$controllerMsys = Convert-ToMsysPath -Path $controllerDir
 $env:MSYSTEM = 'MINGW64'
-$buildCommand = "set -euo pipefail; export WEBOTS_HOME='$webotsMsys'; export PATH='$webotsMsys/msys64/mingw64/bin':`$PATH; make -C '$controllerMsys' clean; make -C '$controllerMsys'"
+$buildCommand = "set -euo pipefail; export WEBOTS_HOME='$webotsMsys'; export PATH='$webotsMsys/msys64/mingw64/bin:$webotsMsys/msys64/usr/bin':`$PATH; make -C '$controllerMsys' clean; make -C '$controllerMsys'"
 & $bash -lc $buildCommand
 if ($LASTEXITCODE -ne 0) {
   throw "Webots R2025a controller build failed with exit code $LASTEXITCODE."
