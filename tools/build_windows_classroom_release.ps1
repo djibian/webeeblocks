@@ -124,15 +124,7 @@ Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Objec
 Copy-RequiredFile `
   (Join-Path $repoRoot 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js') `
   (Join-Path $packageDir 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js')
-$packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
-Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
-$controllerRuntimeIni = @'
-; Keep the prebuilt classroom controller tied to the installed Webots R2025a
-; runtime instead of relying on the administrator or user PATH.
-[environment variables with paths]
-WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw64/bin
-'@
-Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') ($controllerRuntimeIni.Trim() + "`n")
+Copy-RequiredFile $controllerBinary (Join-Path $packageDir 'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe')
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
 $protoSource = Join-Path $crazyflieRoot 'Crazyflie.proto'
