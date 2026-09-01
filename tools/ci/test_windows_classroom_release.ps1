@@ -112,15 +112,17 @@ $world = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
 $stdoutPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stdout.log'
 $stderrPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stderr.log'
 Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
-$worldArgument = '"' + $world + '"'
+if ($world.Contains('"')) { throw 'The packaged world path contains an unsupported quote.' }
+$webotsArguments = '--stdout --stderr --batch --minimize --no-rendering --mode=fast "' + $world + '"'
 $process = Start-Process `
   -FilePath $webotsExe `
-  -ArgumentList @('--stdout', '--stderr', '--batch', '--mode=fast', $worldArgument) `
+  -ArgumentList $webotsArguments `
   -WorkingDirectory $testRoot `
   -RedirectStandardOutput $stdoutPath `
   -RedirectStandardError $stderrPath `
   -PassThru
 $ready = $false
+$earlyExitCode = $null
 try {
   $deadline = [DateTime]::UtcNow.AddSeconds(35)
   do {
@@ -131,7 +133,11 @@ try {
       break
     }
     $process.Refresh()
-  } while (-not $process.HasExited -and [DateTime]::UtcNow -lt $deadline)
+    if ($process.HasExited) {
+      $earlyExitCode = $process.ExitCode
+      break
+    }
+  } while ([DateTime]::UtcNow -lt $deadline)
 }
 finally {
   $process.Refresh()
@@ -143,7 +149,8 @@ finally {
 if (-not $ready) {
   $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '<no stdout>' }
   $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '<no stderr>' }
-  throw "Packaged Webots world never reached controller READY.`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+  $exitDetail = if ($null -eq $earlyExitCode) { 'timeout' } else { "exit=$earlyExitCode" }
+  throw "Packaged Webots world never reached controller READY ($exitDetail).`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
 }
 
 Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, launcher-ready and starts its packaged controller ($($manifestEntries.Count) files)."
