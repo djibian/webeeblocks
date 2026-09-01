@@ -46,25 +46,13 @@ function Write-Utf8NoBom {
   [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
-function Convert-ToMsysPath {
-  param([string]$Path)
-  $fullPath = [System.IO.Path]::GetFullPath($Path)
-  if ($fullPath -notmatch '^([A-Za-z]):\\(.*)$') {
-    throw "Only local Windows drive paths are supported by the Webots MSYS2 build: $Path"
-  }
-  $drive = $Matches[1].ToLowerInvariant()
-  $tail = $Matches[2].Replace('\', '/')
-  return "/$drive/$tail"
-}
-
 if ([string]::IsNullOrWhiteSpace($WebotsHome)) {
   throw 'WebotsHome is required to compile the Windows controller.'
 }
 $webotsRoot = (Resolve-Path -LiteralPath $WebotsHome).Path
-$bash = Join-Path $webotsRoot 'msys64\usr\bin\bash.exe'
 $make = Join-Path $webotsRoot 'msys64\usr\bin\make.exe'
 $gcc = Join-Path $webotsRoot 'msys64\mingw64\bin\gcc.exe'
-foreach ($requiredTool in @($bash, $make, $gcc)) {
+foreach ($requiredTool in @($make, $gcc)) {
   if (-not (Test-Path -LiteralPath $requiredTool -PathType Leaf)) {
     throw "Webots R2025a MSYS2 tool is missing: $requiredTool"
   }
@@ -74,16 +62,23 @@ foreach ($requiredTool in @($bash, $make, $gcc)) {
 if ($LASTEXITCODE -ne 0) { throw 'Runtime v2 asset preparation failed.' }
 
 $controllerDir = Join-Path $repoRoot 'controllers\crazyflie_runtime_v2'
-foreach ($path in @($webotsRoot, $controllerDir)) {
-  if ($path.Contains("'")) { throw "Apostrophes are not supported in the build path: $path" }
+$oldWebotsHome = $env:WEBOTS_HOME
+$oldPath = $env:PATH
+try {
+  $env:WEBOTS_HOME = $webotsRoot
+  $env:PATH = ((Join-Path $webotsRoot 'msys64\mingw64\bin'), (Join-Path $webotsRoot 'msys64\usr\bin'), $oldPath) -join ';'
+  & $make -C $controllerDir clean
+  if ($LASTEXITCODE -ne 0) {
+    throw "Webots R2025a controller clean failed with exit code $LASTEXITCODE."
+  }
+  & $make -C $controllerDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "Webots R2025a controller build failed with exit code $LASTEXITCODE."
+  }
 }
-$webotsMsys = Convert-ToMsysPath -Path $webotsRoot
-$controllerMsys = Convert-ToMsysPath -Path $controllerDir
-$env:MSYSTEM = 'MINGW64'
-$buildCommand = "set -euo pipefail; export WEBOTS_HOME='$webotsMsys'; export PATH='$webotsMsys/msys64/mingw64/bin:$webotsMsys/msys64/usr/bin':`$PATH; make -C '$controllerMsys' clean; make -C '$controllerMsys'"
-& $bash -lc $buildCommand
-if ($LASTEXITCODE -ne 0) {
-  throw "Webots R2025a controller build failed with exit code $LASTEXITCODE."
+finally {
+  $env:WEBOTS_HOME = $oldWebotsHome
+  $env:PATH = $oldPath
 }
 $controllerBinary = Join-Path $controllerDir 'crazyflie_runtime_v2.exe'
 if (-not (Test-Path -LiteralPath $controllerBinary -PathType Leaf) -or (Get-Item $controllerBinary).Length -le 0) {

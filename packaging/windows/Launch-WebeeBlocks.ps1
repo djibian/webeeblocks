@@ -28,15 +28,28 @@ foreach ($commandName in @('webotsw.exe', 'webots.exe')) {
   if ($null -ne $command) { $candidates.Add($command.Source) }
 }
 
-$webots = $candidates | Where-Object {
-  -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_ -PathType Leaf)
-} | Select-Object -First 1
+function Test-WebotsR2025a {
+  param([string]$Executable)
+  if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+    return $false
+  }
+  $versionExecutable = $Executable
+  if ([System.IO.Path]::GetFileName($Executable).Equals('webotsw.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+    $consoleExecutable = Join-Path (Split-Path $Executable -Parent) 'webots.exe'
+    if (-not (Test-Path -LiteralPath $consoleExecutable -PathType Leaf)) { return $false }
+    $versionExecutable = $consoleExecutable
+  }
+  $version = (& $versionExecutable --version 2>&1 | Out-String).Trim()
+  return ($LASTEXITCODE -eq 0 -and $version -match 'R2025a')
+}
+
+$webots = $candidates | Where-Object { Test-WebotsR2025a -Executable $_ } | Select-Object -First 1
 if ([string]::IsNullOrWhiteSpace($webots)) {
-  throw 'Webots R2025a est introuvable. Installez-le dans C:\Program Files\Webots ou definissez WEBOTS_HOME.'
+  throw 'Webots R2025a est introuvable. Installez exactement R2025a dans C:\Program Files\Webots ou definissez WEBOTS_HOME.'
 }
 
 if ($ValidateOnly) {
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a"
   exit 0
 }
 

@@ -1,5 +1,6 @@
 // Vendored from Webots R2025a commit c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b.
 // Source: resources/web/wwi/RobotWindow.js (Apache-2.0).
+// Local hardening: malformed robot payloads are logged and ignored instead of throwing.
 import {getGETQueryValue} from './request_methods.js';
 
 export default class RobotWindow {
@@ -49,8 +50,14 @@ export default class RobotWindow {
       const data = socketData[i];
       const ignoreData = ['application/json:', 'stdout:', 'stderr:'].some(sw => data.startsWith(sw));
       if (data.startsWith('robot:')) {
-        let message = data.match('"message":"(.*)","name"')[1];
-        const robot = data.match(',"name":"(.*)"}')[1];
+        const messageMatch = data.match('"message":"(.*)","name"');
+        const robotMatch = data.match(',"name":"(.*)"}');
+        if (!messageMatch || !robotMatch) {
+          console.log('WebSocket error: Malformed robot message ignored: "' + data + '"');
+          continue;
+        }
+        let message = messageMatch[1];
+        const robot = robotMatch[1];
         message = message.replace(/\\/g, '');
         if (this.name === robot) // receive only the messages of our robot.
           this.receive(message, robot);
