@@ -298,11 +298,11 @@ window.onload = async function() {
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true});
     robotWindow.receive = receiveMessage;
-    setRuntimeStatus('INITIALISATION', 'Attente du Runtime v2');
+    setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();
     if (runtimeBackend.capabilities && runtimeBackend.capabilities.simulationDebug === true) document.getElementById('debugPanel').hidden = false;
     updateRuntimeActions();
-    setRuntimeStatus('PRÊT', 'Runtime v2 connecté');
+    setRuntimeStatus('PRÊT', 'Simulation connectée');
   } catch (error) { setRuntimeFailure(error); }
 };
 
