@@ -124,7 +124,13 @@ Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Objec
 Copy-RequiredFile `
   (Join-Path $repoRoot 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js') `
   (Join-Path $packageDir 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js')
-Copy-RequiredFile $controllerBinary (Join-Path $packageDir 'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe')
+$packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
+Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
+$runtimeIni = @'
+[environment variables with paths]
+WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw64/bin
+'@
+Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
 
 $crazyflieRoot = Join-Path $projectsRoot 'robots\bitcraze\crazyflie\protos'
 $protoSource = Join-Path $crazyflieRoot 'Crazyflie.proto'
