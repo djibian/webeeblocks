@@ -106,10 +106,28 @@ a head never independently approves that head.
 
 ## Terminal handoff
 
-Repository facts remain authoritative. Do not create a parallel state log.
+Repository facts remain authoritative. Handoff comments and reviews are
+append-only notification events, never a parallel state log.
 
-- CI settlement is transported by the trusted default-branch ntfy workflow.
+- Before a terminal stop that needs Emmanuel to act, publish exactly one
+  handoff artifact for the terminal status and current full SHA. Do not
+  duplicate an artifact already present for that status/SHA.
+- Worker `READY_FOR_REVIEW`: add a PR comment whose first line is
+  `CONTROLLER_HANDOFF READY_FOR_REVIEW <head-sha>`, followed by the outcome,
+  evidence and the request to launch a fresh Reviewer-Integrator.
+- Reviewer `NO_GO` or `UNPROVEN`: the native PR review is the handoff. Its
+  first line remains `NO_GO <head-sha>` or `UNPROVEN <head-sha>`, followed by
+  the smallest actionable repair or proof boundary. Do not add a second
+  comment.
+- `HUMAN_REQUIRED`, `BLOCKED` or `SESSION_LIMIT`: add a comment to the
+  active PR, or otherwise to the relevant issue, whose first line is
+  `CONTROLLER_HANDOFF <status> <sha>`, followed by one precise action. Use the
+  current PR head SHA for a PR and current `develop` SHA for an issue-only
+  handoff.
+- A pending or settled CI, `GO` and `COMPLETED` are silent. They never emit a
+  handoff artifact or ntfy request.
 - Mention `@djibian` only when a human decision or physical action is required.
 - A final report begins with its terminal status and states the mode, outcome
   or reviewed SHA, tests, PR/commit, `develop` state, `main` state and the next
   actionable event.
+

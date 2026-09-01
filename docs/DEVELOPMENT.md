@@ -57,17 +57,22 @@ the protected up-to-date requirement is the pre-merge integration proof.
 
 ## Productive waiting
 
-A manual Controller launch is a productive session of about 60 minutes. Within
-its current mode it waits for `CI Gate`, polls moderately and resumes from the
-settled result. It uses recent comparable durations when readily available;
-otherwise the first wait is four minutes, followed by checks about every minute.
+A manual Controller launch is one productive session. Around 60 minutes it
+reconstructs the exact state and records a progress checkpoint, but continues
+while safe, material progress is occurring. It waits for `CI Gate`, polls
+moderately and resumes from the settled result. It uses recent comparable
+durations when readily available; otherwise the first wait is four minutes,
+followed by checks about every minute.
 
-The trusted workflow on the default branch still observes completion without
-checkout or candidate execution and sends one ntfy message containing the PR,
-full head, result and link. This is the fallback when no session is active or a
-session reaches its limit; it is not workflow state.
+CI pending and CI completion are silent: the active session observes them
+directly. The trusted default-branch workflow sends ntfy only after a terminal
+Controller handoff that requires Emmanuel to intervene or launch the next fresh
+mode: `READY_FOR_REVIEW`, `NO_GO`, `UNPROVEN`, `HUMAN_REQUIRED`, `BLOCKED`
+or `SESSION_LIMIT`. `GO` and `COMPLETED` remain silent.
 
-Issue comments, Draft/Ready and notification payloads are not controller state.
+Handoff comments and reviews contain an exact status/SHA and actionable detail,
+but do not store Controller state. Draft/Ready and notification payloads are not
+role locks or workflow state.
 
 ## Repository protections
 
@@ -95,3 +100,4 @@ authority; it is not required for the current manual-release model.
 The full gate also builds the Windows classroom ZIP with the official Webots
 R2025a toolchain. Runtime-only PRs retain the fast Windows AST and project-file
 contract; nightly runs and promotions rebuild the complete offline artifact.
+

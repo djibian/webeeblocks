@@ -1,44 +1,64 @@
 # Controller notifications
 
-Notifications transport an external event; they never store Controller state.
+Notifications transport a terminal handoff; they never store Controller state.
 
-## CI settlement
+## When ntfy is sent
 
-The trusted default-branch workflow observes only completion of the top-level
-`CI Gate`. It performs no checkout, executes no candidate code, writes nothing
-to GitHub and has no merge authority.
+CI pending and CI completion are silent. An active Controller session waits,
+polls moderately and continues from the exact result without asking Emmanuel
+to relaunch it.
 
-For the PR and exact head attached to the completed run, it sends one ntfy
-message containing:
+The trusted default-branch workflow sends one notification only when a terminal
+Controller handoff requires an external action:
 
-- PR number;
-- full head SHA;
-- the GitHub conclusion;
-- the workflow-run URL.
+| Status | GitHub artifact | Requested action |
+| --- | --- | --- |
+| `READY_FOR_REVIEW` | PR comment | launch a fresh Reviewer-Integrator |
+| `NO_GO` | native PR review | launch a Worker to repair the same PR |
+| `UNPROVEN` | native PR review | arbitrate or obtain the missing proof |
+| `HUMAN_REQUIRED` | PR or issue comment | perform the stated human action |
+| `BLOCKED` | PR or issue comment | resolve the stated blocker |
+| `SESSION_LIMIT` | PR or issue comment | relaunch the same mode |
 
-The event is ignored when its embedded current PR head differs from the
-completed run SHA. Every accepted notification still includes the exact SHA,
-so the Controller can reject any event superseded after delivery.
+`GO`, `COMPLETED`, ordinary comments/reviews and every CI event are silent.
 
-The message says that CI settled, not that the change is approved. An active
-Controller session also polls moderately and reconstructs the result itself.
-When no session is active, the notification prompts a fresh launch, which
-chooses Worker or Reviewer-Integrator from GitHub.
+## Strict handoff protocol
 
-## Human action
+Worker and non-review terminal comments use an exact first line:
 
-When a product decision, permission or physical test is indispensable, the
-Controller mentions `@djibian` in the relevant issue or PR and asks one precise
-question with a recommendation. GitHub Mobile is the durable fallback.
+```text
+CONTROLLER_HANDOFF <STATUS> <full-sha>
+```
 
-No `READY_FOR_CONTROLLER`, `WAITING_EXTERNAL`, Draft transition or issue-log
-comment is required to derive a mode.
+The allowed comment statuses are `READY_FOR_REVIEW`, `HUMAN_REQUIRED`,
+`BLOCKED` and `SESSION_LIMIT`. The following lines must contain a precise,
+actionable detail.
+
+Reviewer handoffs use the existing native review verdict as the exact first
+line:
+
+```text
+NO_GO <full-sha>
+UNPROVEN <full-sha>
+```
+
+The workflow accepts an event only when:
+
+- repository and author are exactly the trusted repository owner;
+- a PR handoff names the current full head SHA of a PR to `develop`;
+- an issue-only handoff names the current full `develop` SHA;
+- the first line matches the strict grammar and details are non-empty.
+
+Stale or ordinary events are ignored. The Controller emits at most one artifact
+for a terminal status/SHA. GitHub remains authoritative if ntfy delivery fails.
 
 ## Security
 
 - fixed ntfy server `https://ntfy.sh/`;
 - secret limited to `NTFY_TOPIC`;
-- no candidate checkout or import;
-- no GitHub write permission;
-- an event whose embedded PR head already differs from the run SHA is ignored;
+- `permissions: {}`;
+- no candidate checkout, import or execution;
+- no GitHub write, CI orchestration or merge authority;
+- event JSON is parsed as data and current public GitHub state is revalidated;
 - transport failure cannot change CI, review or merge truth.
+

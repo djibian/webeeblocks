@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prevent the productive-session contract from regressing into CI handoffs."""
+"""Prevent the productive-session and terminal-handoff contracts from regressing."""
 
 from pathlib import Path
 import unittest
@@ -30,19 +30,50 @@ class ControllerContractTests(unittest.TestCase):
         self.assertNotIn("about 60 minutes maximum", contract)
         self.assertNotIn("Do not poll", contract)
 
-    def test_documentation_keeps_two_fresh_modes_and_ntfy_fallback(self) -> None:
+    def test_terminal_handoff_is_exact_and_ci_is_silent(self) -> None:
+        contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
             encoding="utf-8"
         )
         notifications = (ROOT / "docs" / "CONTROLLER_NOTIFICATIONS.md").read_text(
             encoding="utf-8"
         )
+        workflow = (
+            ROOT / ".github" / "workflows" / "controller-handoff-ntfy.yml"
+        ).read_text(encoding="utf-8")
+
         self.assertIn("one continuous Worker", development)
         self.assertIn("one fresh\n  Reviewer-Integrator", development)
-        self.assertIn("fallback when no session is active", development)
-        self.assertIn("polls moderately", notifications)
+        self.assertIn("CI pending and CI completion are silent", development)
+        self.assertIn(
+            "CONTROLLER_HANDOFF READY_FOR_REVIEW <head-sha>", contract
+        )
+        self.assertIn("NO_GO <head-sha>", contract)
+        self.assertIn("UNPROVEN <head-sha>", contract)
+        self.assertIn(
+            "A pending or settled CI, `GO` and `COMPLETED` are silent",
+            contract,
+        )
+        for status in (
+            "READY_FOR_REVIEW",
+            "NO_GO",
+            "UNPROVEN",
+            "HUMAN_REQUIRED",
+            "BLOCKED",
+            "SESSION_LIMIT",
+        ):
+            self.assertIn(status, notifications)
+
+        self.assertIn("issue_comment:", workflow)
+        self.assertIn("pull_request_review:", workflow)
+        self.assertIn("permissions: {}", workflow)
+        self.assertNotIn("workflow_run:", workflow)
+        self.assertNotIn("actions/checkout", workflow)
+        self.assertNotIn("observes completion", development)
+        self.assertNotIn("fallback when no session is active", development)
         self.assertNotIn("never waits inside", development)
 
 
 if __name__ == "__main__":
     unittest.main()
+
