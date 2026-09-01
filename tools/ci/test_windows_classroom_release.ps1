@@ -114,13 +114,12 @@ $stderrPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stderr.lo
 Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
 if ($world.Contains('"')) { throw 'The packaged world path contains an unsupported quote.' }
 $webotsArguments = '--stdout --stderr --batch --minimize --no-rendering --mode=fast "' + $world + '"'
-$oldQtQpaPlatform = $env:QT_QPA_PLATFORM
 $oldQtOpenGl = $env:QT_OPENGL
 try {
-  # GitHub-hosted Windows runners have no interactive desktop. Webots is a Qt/OpenGL
-  # application even with rendering disabled, so give this CI-only startup oracle an
-  # explicit offscreen/software platform while preserving the packaged controller env.
-  $env:QT_QPA_PLATFORM = 'offscreen'
+  # Keep the native Windows Qt platform plugin selected by the installed Webots
+  # runtime. The Windows package ships qwindows.dll; forcing an unavailable
+  # offscreen QPA backend makes Webots terminate before loading the world.
+  # Software OpenGL remains CI-only and does not alter the packaged controller.
   $env:QT_OPENGL = 'software'
   $process = Start-Process `
     -FilePath $webotsExe `
@@ -131,7 +130,6 @@ try {
     -PassThru
 }
 finally {
-  $env:QT_QPA_PLATFORM = $oldQtQpaPlatform
   $env:QT_OPENGL = $oldQtOpenGl
 }
 $ready = $false
