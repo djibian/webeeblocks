@@ -86,6 +86,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("  pull_request:\n", transport)
         self.assertNotIn("actions/checkout", transport)
         self.assertNotIn("github.token", transport)
+        self.assertIn("Si une session Contrôleur est active", transport)
+        self.assertIn("ne lance pas de seconde", transport)
+        self.assertNotIn(
+            '"Relancer le Contrôleur pour reconstruire l’état GitHub."',
+            transport,
+        )
 
     def test_every_oracle_job_is_preserved_once(self) -> None:
         observed: set[str] = set()
