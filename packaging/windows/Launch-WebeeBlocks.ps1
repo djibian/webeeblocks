@@ -56,4 +56,4 @@ if ($ValidateOnly) {
 if ($world.Contains('"')) { throw 'Le chemin du monde contient un guillemet non pris en charge.' }
 $worldArgument = '"' + $world + '"'
 Start-Process -FilePath $webots -ArgumentList @('--mode=pause', $worldArgument) -WorkingDirectory $PSScriptRoot
-Write-Host 'WebeeBlocks demarre. La fenetre Blockly va s’ouvrir dans le navigateur configure par Webots.'
+Write-Host "WebeeBlocks demarre. La fenetre Blockly va s'ouvrir dans le navigateur configure par Webots."
