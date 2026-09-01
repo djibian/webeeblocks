@@ -99,7 +99,6 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
     (Join-Path $repoRoot "packaging\windows\$name") `
     (Join-Path $packageDir $name)
 }
-Copy-RequiredFile (Join-Path $repoRoot 'LICENSE') (Join-Path $packageDir 'LICENSE')
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
