@@ -18,10 +18,10 @@ if ($worldText -match '"(?:https?|webots)://') {
 }
 
 $candidates = [System.Collections.Generic.List[string]]::new()
-foreach ($home in @($WebotsHome, (Join-Path $env:ProgramFiles 'Webots'))) {
-  if ([string]::IsNullOrWhiteSpace($home)) { continue }
-  $candidates.Add((Join-Path $home 'msys64\mingw64\bin\webotsw.exe'))
-  $candidates.Add((Join-Path $home 'msys64\mingw64\bin\webots.exe'))
+foreach ($candidateHome in @($WebotsHome, (Join-Path $env:ProgramFiles 'Webots'))) {
+  if ([string]::IsNullOrWhiteSpace($candidateHome)) { continue }
+  $candidates.Add((Join-Path $candidateHome 'msys64\mingw64\bin\webotsw.exe'))
+  $candidates.Add((Join-Path $candidateHome 'msys64\mingw64\bin\webots.exe'))
 }
 foreach ($commandName in @('webotsw.exe', 'webots.exe')) {
   $command = Get-Command $commandName -ErrorAction SilentlyContinue
