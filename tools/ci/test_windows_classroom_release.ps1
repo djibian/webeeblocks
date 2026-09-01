@@ -70,8 +70,8 @@ $version = (Get-Content -LiteralPath (Join-Path $testRoot 'plugins\robot_windows
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
 
 $runtimeIni = Get-Content -LiteralPath (Join-Path $testRoot 'controllers\crazyflie_runtime_v2\runtime.ini') -Raw
-Assert-Release ($runtimeIni -match '(?m)^\[environment variables with paths\]$') 'Controller runtime.ini lacks the path-aware environment section.'
-Assert-Release ($runtimeIni -match '(?m)^WEBOTS_LIBRARY_PATH\s*=\s*\$\(WEBOTS_HOME\)/lib/controller:\$\(WEBOTS_HOME\)/msys64/mingw64/bin$') 'Controller runtime.ini does not bind the prebuilt executable to Webots R2025a libraries.'
+Assert-Release ($runtimeIni -match '(?m)^\[environment variables with paths\]\r?$') 'Controller runtime.ini lacks the path-aware environment section.'
+Assert-Release ($runtimeIni -match '(?m)^WEBOTS_LIBRARY_PATH\s*=\s*\$\(WEBOTS_HOME\)/lib/controller:\$\(WEBOTS_HOME\)/msys64/mingw64/bin\r?$') 'Controller runtime.ini does not bind the prebuilt executable to Webots R2025a libraries.'
 
 $forbidden = @(Get-ChildItem -LiteralPath $testRoot -Recurse -Force | Where-Object {
   $_.Name -in @('node_modules', 'package.json', 'package-lock.json', 'Makefile') -or
