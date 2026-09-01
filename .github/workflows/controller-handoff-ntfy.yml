@@ -86,11 +86,15 @@ jobs:
               f"CI Gate terminé pour la PR #{number}.\n"
               f"HEAD: {head}\n"
               f"RESULT: {conclusion}\n"
-              "Relancer le Contrôleur pour reconstruire l’état GitHub."
+              "Si une session Contrôleur est active, ne pas en lancer une "
+              "seconde : elle reprendra automatiquement. Sinon, relancer le "
+              "Contrôleur."
           )
           copy_text = (
-              f"Reprends WebeeBlocks depuis GitHub. CI Gate terminé pour la PR "
-              f"#{number}, HEAD {head}, résultat {conclusion}."
+              f"Si aucune session Contrôleur n'est active, reprends WebeeBlocks "
+              f"depuis GitHub : CI Gate terminé pour la PR #{number}, HEAD "
+              f"{head}, résultat {conclusion}. Sinon, ne lance pas de seconde "
+              "session."
           )
           payload = {
               'topic': topic,
