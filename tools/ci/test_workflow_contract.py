@@ -64,34 +64,44 @@ class WorkflowContractTests(unittest.TestCase):
         transport = (WORKFLOWS / "controller-handoff-ntfy.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("  workflow_run:\n", transport)
-        self.assertIn("workflows: [CI Gate]", transport)
+        self.assertIn("  issue_comment:\n", transport)
+        self.assertIn("  pull_request_review:\n", transport)
+        self.assertNotIn("  workflow_run:\n", transport)
+        self.assertNotIn("workflows: [CI Gate]", transport)
+        self.assertIn("github.repository == 'djibian/webeeblocks'", transport)
+        self.assertIn("github.actor == 'djibian'", transport)
+        self.assertIn("sender.get('login') != TRUSTED_AUTHOR", transport)
         self.assertIn(
-            "pull_requests[0].head.sha == github.event.workflow_run.head_sha",
-            transport,
-        )
-        self.assertIn(
-            "https://api.github.com/repos/djibian/webeeblocks/pulls/{number}",
+            "https://api.github.com/repos/{REPOSITORY}/pulls/{number}",
             transport,
         )
         self.assertIn(
             "current_head != head or current_base != 'develop'",
             transport,
         )
-        self.assertLess(
-            transport.index("current_request = urllib.request.Request("),
-            transport.index("topic = os.environ.get('NTFY_TOPIC'"),
-        )
-        self.assertIn("permissions: {}", transport)
-        self.assertNotIn("  pull_request:\n", transport)
-        self.assertNotIn("actions/checkout", transport)
-        self.assertNotIn("github.token", transport)
-        self.assertIn("Si une session Contrôleur est active", transport)
-        self.assertIn("ne lance pas de seconde", transport)
-        self.assertNotIn(
-            '"Relancer le Contrôleur pour reconstruire l’état GitHub."',
+        self.assertIn(
+            "https://api.github.com/repos/{REPOSITORY}/commits/develop",
             transport,
         )
+        self.assertLess(
+            transport.index("if is_pull_request:"),
+            transport.index("topic = os.environ.get('NTFY_TOPIC'"),
+        )
+        for status in (
+            "READY_FOR_REVIEW",
+            "NO_GO",
+            "UNPROVEN",
+            "HUMAN_REQUIRED",
+            "BLOCKED",
+            "SESSION_LIMIT",
+        ):
+            self.assertIn(status, transport)
+        self.assertIn("permissions: {}", transport)
+        self.assertNotIn("  pull_request:\n", transport)
+        self.assertNotIn("  pull_request_target:\n", transport)
+        self.assertNotIn("actions/checkout", transport)
+        self.assertNotIn("github.token", transport)
+        self.assertNotIn("CI Gate terminé", transport)
 
     def test_every_oracle_job_is_preserved_once(self) -> None:
         observed: set[str] = set()
@@ -206,3 +216,4 @@ class WorkflowContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
