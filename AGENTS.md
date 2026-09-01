@@ -27,13 +27,26 @@ flight and release promotion remain human decisions.
 | --- | --- |
 | No active PR | **Worker** delivers one vertical product slice |
 | Active PR with failing evidence or requested changes | **Worker** repairs that PR |
-| Active PR with pending evidence | no Controller launch is useful |
+| Active PR with pending evidence | wait, then reconstruct before selecting or resuming a mode |
 | Active PR exact-head green without a current verdict | **Reviewer-Integrator** |
 | Active PR with `GO <head>` | **Reviewer-Integrator** rechecks and merges |
 | Human authority or physical evidence required | stop and ask one precise question |
 
-A launch has one mode. The run that writes a head never independently approves
-that head.
+A launch may wait, but it has one mode after selection. The launch that writes
+a head never independently approves that head.
+
+## Productive session
+
+- Treat a manual launch as one productive session of about 60 minutes maximum.
+- A pending `CI Gate` is not a reason to stop. Wait idly, poll moderately, then
+  continue from the result while the current mode can still progress safely.
+- When readily available, use up to five recent comparable non-cancelled gate
+  durations for the first wait. Use their median, clamped to 2–8 minutes; fall
+  back to 4 minutes. After that, check about every 60 seconds, never tightly.
+- After each significant transition—push, settled gate, review verdict or
+  merge—re-read the PR head, exact gate and relevant GitHub state.
+- End only as `COMPLETED`, `READY_FOR_REVIEW`, `HUMAN_REQUIRED`, `BLOCKED` or
+  `SESSION_LIMIT`. ntfy remains the fallback when no session is active.
 
 ## Worker
 
@@ -46,8 +59,11 @@ that head.
    `develop`. Keep repairs on that same PR.
 5. Inspect the full diff and publish evidence without claiming more than the
    oracle exercises.
-6. When `CI Gate` is pending and no same-mode work remains, stop. Do not poll,
-   sleep or spend Work waiting.
+6. After every push, wait for the exact-head `CI Gate`. On failure, identify a
+   cause before changing code or retrying; a targeted rerun is acceptable only
+   for a demonstrated external transient. Repair the same PR and repeat.
+7. When the exact head is green, stop as `READY_FOR_REVIEW`. Do not review,
+   approve or merge a candidate written by this launch.
 
 ## Reviewer-Integrator
 
@@ -61,6 +77,8 @@ that head.
    - `UNPROVEN <sha>` when the required evidence cannot be obtained.
 4. On `GO`, immediately re-read the head and gate, then merge unchanged into
    `develop`. Never merge to `main`.
+5. On `NO_GO` or `UNPROVEN`, stop without repairing the candidate in the same
+   launch. After a merge, stop as `COMPLETED`; do not start another slice.
 
 ## CI and evidence
 
@@ -81,5 +99,6 @@ Repository facts remain authoritative. Do not create a parallel state log.
 
 - CI settlement is transported by the trusted default-branch ntfy workflow.
 - Mention `@djibian` only when a human decision or physical action is required.
-- A final report states the mode, outcome or reviewed SHA, tests, PR/commit,
-  `develop` state, `main` state and the next actionable event.
+- A final report begins with its terminal status and states the mode, outcome
+  or reviewed SHA, tests, PR/commit, `develop` state, `main` state and the next
+  actionable event.

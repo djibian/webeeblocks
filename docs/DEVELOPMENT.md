@@ -3,7 +3,8 @@
 ## Purpose
 
 This document describes the small GitHub-native control plane used to develop
-WebeeBlocks without polling CI or maintaining a second workflow state.
+WebeeBlocks through productive manual sessions without maintaining a second
+workflow state.
 
 ## Branches
 
@@ -26,8 +27,9 @@ smallest possible code edit. It includes its acceptance oracle and any human or
 physical boundary. Several coherent implementation commits are preferable to
 several CI-only pull requests for the same outcome.
 
-Only one integration PR is active. Worker and Reviewer-Integrator are separate
-launches for the same head.
+Only one integration PR is active. Worker and Reviewer-Integrator remain fresh,
+separate launches for the same head. Waiting for CI does not split one mode into
+several launches.
 
 ## CI topology
 
@@ -53,12 +55,17 @@ remain visible for diagnosis, but branch protection requires only `CI Gate`.
 There is no post-merge duplicate suite on `develop`. A current merge-ref plus
 the protected up-to-date requirement is the pre-merge integration proof.
 
-## External waiting
+## Productive waiting
 
-The Controller never waits inside a Work launch. The trusted workflow on the
-default branch observes completion of `CI Gate` without checkout or candidate
-execution and sends one ntfy message containing the PR, full head, result and
-link. Emmanuel then starts the next Controller mode.
+A manual Controller launch is a productive session of about 60 minutes. Within
+its current mode it waits for `CI Gate`, polls moderately and resumes from the
+settled result. It uses recent comparable durations when readily available;
+otherwise the first wait is four minutes, followed by checks about every minute.
+
+The trusted workflow on the default branch still observes completion without
+checkout or candidate execution and sends one ntfy message containing the PR,
+full head, result and link. This is the fallback when no session is active or a
+session reaches its limit; it is not workflow state.
 
 Issue comments, Draft/Ready and notification payloads are not controller state.
 
@@ -77,8 +84,9 @@ authority; it is not required for the current manual-release model.
 
 ## Operational targets
 
-- two Work launches for a green slice: Worker, then Reviewer-Integrator;
-- no Work launch while CI is pending;
+- two launches for a green slice: one continuous Worker, then one fresh
+  Reviewer-Integrator;
+- no additional launch merely because CI is pending;
 - no network-caused rerun of a behavioral oracle;
 - one required check and at most one active integration PR;
 - two permanent development branches and automatic feature-branch deletion;

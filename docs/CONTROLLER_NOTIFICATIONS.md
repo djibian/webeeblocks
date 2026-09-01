@@ -20,9 +20,10 @@ The event is ignored when its embedded current PR head differs from the
 completed run SHA. Every accepted notification still includes the exact SHA,
 so the Controller can reject any event superseded after delivery.
 
-The message says that CI settled, not that the change is approved. A fresh
-Controller launch reconstructs the result and chooses Worker or
-Reviewer-Integrator.
+The message says that CI settled, not that the change is approved. An active
+Controller session also polls moderately and reconstructs the result itself.
+When no session is active, the notification prompts a fresh launch, which
+chooses Worker or Reviewer-Integrator from GitHub.
 
 ## Human action
 

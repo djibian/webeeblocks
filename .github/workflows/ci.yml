@@ -37,6 +37,7 @@ jobs:
           python3 tools/ci/test_localize_webots_world.py
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
+          python3 tools/ci/test_controller_contract.py
 
       - name: Select required suites
         id: scope
