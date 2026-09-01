@@ -108,7 +108,6 @@ jobs:
               raise SystemExit('Terminal handoff must contain an actionable detail')
 
           issue = event.get('issue') or {}
-          pull_request_event = event.get('pull_request') or {}
           is_pull_request = event_name == 'pull_request_review' or bool(issue.get('pull_request'))
           if status in {'READY_FOR_REVIEW', 'NO_GO', 'UNPROVEN'} and not is_pull_request:
               raise SystemExit(f'{status} requires a pull request')
