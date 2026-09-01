@@ -37,7 +37,16 @@ a head never independently approves that head.
 
 ## Productive session
 
-- Treat a manual launch as one productive session of about 60 minutes maximum.
+- Treat a manual launch as one continuous productive session. Around 60
+  minutes, perform a progress checkpoint; elapsed time alone is not a reason
+  to stop.
+- At that checkpoint, reconstruct the exact GitHub state and continue while
+  the current mode is making safe, material progress. Material progress
+  includes a causal diagnosis, a tested correction, a new head, a settled gate
+  analysis, or movement toward the mode's required handoff.
+- Stop as `BLOCKED` when about 30 minutes produce no material progress, or
+  when the same causal correction cycle repeats twice without new evidence.
+  Do not count bounded CI waiting as lack of progress.
 - A pending `CI Gate` is not a reason to stop. Wait idly, poll moderately, then
   continue from the result while the current mode can still progress safely.
 - When readily available, use up to five recent comparable non-cancelled gate
@@ -46,7 +55,9 @@ a head never independently approves that head.
 - After each significant transition—push, settled gate, review verdict or
   merge—re-read the PR head, exact gate and relevant GitHub state.
 - End only as `COMPLETED`, `READY_FOR_REVIEW`, `HUMAN_REQUIRED`, `BLOCKED` or
-  `SESSION_LIMIT`. ntfy remains the fallback when no session is active.
+  `SESSION_LIMIT`. Reserve `SESSION_LIMIT` for an actual platform/runtime
+  limit; never choose it solely because about 60 minutes elapsed. ntfy remains
+  the fallback when no session is active.
 
 ## Worker
 
