@@ -37,7 +37,16 @@ a head never independently approves that head.
 
 ## Productive session
 
-- Treat a manual launch as one productive session of about 60 minutes maximum.
+- Treat a manual launch as one continuous productive session. Around 60
+  minutes, perform a progress checkpoint; elapsed time alone is not a reason
+  to stop.
+- At that checkpoint, reconstruct the exact GitHub state and continue while
+  the current mode is making safe, material progress. Material progress
+  includes a causal diagnosis, a tested correction, a new head, a settled gate
+  analysis, or movement toward the mode's required handoff.
+- Stop as `BLOCKED` when about 30 minutes produce no material progress, or
+  when the same causal correction cycle repeats twice without new evidence.
+  Do not count bounded CI waiting as lack of progress.
 - A pending `CI Gate` is not a reason to stop. Wait idly, poll moderately, then
   continue from the result while the current mode can still progress safely.
 - When readily available, use up to five recent comparable non-cancelled gate
@@ -46,7 +55,9 @@ a head never independently approves that head.
 - After each significant transition—push, settled gate, review verdict or
   merge—re-read the PR head, exact gate and relevant GitHub state.
 - End only as `COMPLETED`, `READY_FOR_REVIEW`, `HUMAN_REQUIRED`, `BLOCKED` or
-  `SESSION_LIMIT`. ntfy remains the fallback when no session is active.
+  `SESSION_LIMIT`. Reserve `SESSION_LIMIT` for an actual platform/runtime
+  limit; never choose it solely because about 60 minutes elapsed. ntfy remains
+  the fallback when no session is active.
 
 ## Worker
 
@@ -95,10 +106,28 @@ a head never independently approves that head.
 
 ## Terminal handoff
 
-Repository facts remain authoritative. Do not create a parallel state log.
+Repository facts remain authoritative. Handoff comments and reviews are
+append-only notification events, never a parallel state log.
 
-- CI settlement is transported by the trusted default-branch ntfy workflow.
+- Before a terminal stop that needs Emmanuel to act, publish exactly one
+  handoff artifact for the terminal status and current full SHA. Do not
+  duplicate an artifact already present for that status/SHA.
+- Worker `READY_FOR_REVIEW`: add a PR comment whose first line is
+  `CONTROLLER_HANDOFF READY_FOR_REVIEW <head-sha>`, followed by the outcome,
+  evidence and the request to launch a fresh Reviewer-Integrator.
+- Reviewer `NO_GO` or `UNPROVEN`: the native PR review is the handoff. Its
+  first line remains `NO_GO <head-sha>` or `UNPROVEN <head-sha>`, followed by
+  the smallest actionable repair or proof boundary. Do not add a second
+  comment.
+- `HUMAN_REQUIRED`, `BLOCKED` or `SESSION_LIMIT`: add a comment to the
+  active PR, or otherwise to the relevant issue, whose first line is
+  `CONTROLLER_HANDOFF <status> <sha>`, followed by one precise action. Use the
+  current PR head SHA for a PR and current `develop` SHA for an issue-only
+  handoff.
+- A pending or settled CI, `GO` and `COMPLETED` are silent. They never emit a
+  handoff artifact or ntfy request.
 - Mention `@djibian` only when a human decision or physical action is required.
 - A final report begins with its terminal status and states the mode, outcome
   or reviewed SHA, tests, PR/commit, `develop` state, `main` state and the next
   actionable event.
+

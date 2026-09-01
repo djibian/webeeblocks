@@ -1,120 +1,202 @@
-name: CI Gate completion to ntfy
+name: Controller terminal handoff to ntfy
 
 on:
-  workflow_run:
-    workflows: [CI Gate]
-    types: [completed]
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
 
 permissions: {}
 
 concurrency:
-  group: ci-gate-ntfy-${{ github.event.workflow_run.id }}
+  group: controller-terminal-ntfy-${{ github.event_name }}-${{ github.event.comment.id || github.event.review.id }}
   cancel-in-progress: false
 
 jobs:
   notify:
-    name: Relay trusted CI completion
+    name: Relay trusted terminal handoff
     if: >-
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.pull_requests[0].base.ref == 'develop' &&
-      github.event.workflow_run.pull_requests[0].head.sha == github.event.workflow_run.head_sha &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.repository == 'djibian/webeeblocks' &&
+      github.actor == 'djibian'
     runs-on: ubuntu-latest
     steps:
-      - name: Validate event and publish notification
+      - name: Validate handoff and publish notification
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           python3 - <<'PY'
           import json
           import os
+          import re
           import urllib.request
+
+          REPOSITORY = 'djibian/webeeblocks'
+          TRUSTED_AUTHOR = 'djibian'
+          SHA = r'[0-9a-f]{40}'
+          COMMENT_PATTERN = re.compile(
+              rf'CONTROLLER_HANDOFF '
+              rf'(READY_FOR_REVIEW|HUMAN_REQUIRED|BLOCKED|SESSION_LIMIT) '
+              rf'({SHA})'
+          )
+          REVIEW_PATTERN = re.compile(rf'(NO_GO|UNPROVEN) ({SHA})')
+
+          def api_json(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'User-Agent': 'webeeblocks-terminal-ntfy',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return json.load(response)
+
+          def first_line_and_details(body):
+              normalized = (body or '').replace('\r\n', '\n')
+              first, separator, remainder = normalized.partition('\n')
+              details = remainder.strip() if separator else ''
+              return first.strip(), details
 
           with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as stream:
               event = json.load(stream)
 
-          repository = event['repository']
-          run = event['workflow_run']
-          pull_requests = run.get('pull_requests') or []
-
-          if repository['full_name'] != 'djibian/webeeblocks':
+          repository = event.get('repository') or {}
+          sender = event.get('sender') or {}
+          if repository.get('full_name') != REPOSITORY:
               raise SystemExit('Unexpected repository')
-          if run['name'] != 'CI Gate' or run['event'] != 'pull_request':
-              raise SystemExit('Unexpected workflow run')
-          if run['status'] != 'completed':
-              raise SystemExit('Workflow run is not complete')
-          if run['head_repository']['full_name'] != repository['full_name']:
-              raise SystemExit('Only repository-owned candidate branches may notify')
-          if len(pull_requests) != 1 or pull_requests[0]['base']['ref'] != 'develop':
-              raise SystemExit('Expected exactly one pull request to develop')
+          if sender.get('login') != TRUSTED_AUTHOR:
+              raise SystemExit('Only the repository owner may emit a handoff')
 
-          pull_request = pull_requests[0]
-          number = int(pull_request['number'])
-          head = run['head_sha']
-          conclusion = run.get('conclusion') or 'unknown'
-          if len(head) != 40 or any(character not in '0123456789abcdef' for character in head):
-              raise SystemExit('Invalid head SHA')
-          current_request = urllib.request.Request(
-              f"https://api.github.com/repos/djibian/webeeblocks/pulls/{number}",
-              headers={
-                  'Accept': 'application/vnd.github+json',
-                  'User-Agent': 'webeeblocks-ci-gate-ntfy',
-              },
-          )
-          with urllib.request.urlopen(current_request, timeout=20) as response:
-              current_pull_request = json.load(response)
-          current_head = (current_pull_request.get('head') or {}).get('sha')
-          current_base = (current_pull_request.get('base') or {}).get('ref')
-          if current_head != head or current_base != 'develop':
-              print('PR no longer matches this completed run; stale event ignored.')
-              raise SystemExit(0)
+          event_name = os.environ.get('GITHUB_EVENT_NAME')
+          status = head = details = target_url = None
+          number = None
+
+          if event_name == 'pull_request_review':
+              if event.get('action') != 'submitted':
+                  raise SystemExit('Unexpected review action')
+              review = event.get('review') or {}
+              pull_request = event.get('pull_request') or {}
+              if (review.get('user') or {}).get('login') != TRUSTED_AUTHOR:
+                  raise SystemExit('Untrusted review author')
+              first_line, details = first_line_and_details(review.get('body'))
+              match = REVIEW_PATTERN.fullmatch(first_line)
+              if not match:
+                  print('Review is not a terminal controller handoff; ignored.')
+                  raise SystemExit(0)
+              status, head = match.groups()
+              number = int(pull_request['number'])
+              target_url = review.get('html_url') or pull_request.get('html_url')
+          elif event_name == 'issue_comment':
+              if event.get('action') != 'created':
+                  raise SystemExit('Unexpected comment action')
+              comment = event.get('comment') or {}
+              issue = event.get('issue') or {}
+              if (comment.get('user') or {}).get('login') != TRUSTED_AUTHOR:
+                  raise SystemExit('Untrusted comment author')
+              first_line, details = first_line_and_details(comment.get('body'))
+              match = COMMENT_PATTERN.fullmatch(first_line)
+              if not match:
+                  print('Comment is not a terminal controller handoff; ignored.')
+                  raise SystemExit(0)
+              status, head = match.groups()
+              number = int(issue['number'])
+              target_url = comment.get('html_url') or issue.get('html_url')
+          else:
+              raise SystemExit('Unexpected event type')
+
+          if not details:
+              raise SystemExit('Terminal handoff must contain an actionable detail')
+
+          issue = event.get('issue') or {}
+          is_pull_request = event_name == 'pull_request_review' or bool(issue.get('pull_request'))
+          if status in {'READY_FOR_REVIEW', 'NO_GO', 'UNPROVEN'} and not is_pull_request:
+              raise SystemExit(f'{status} requires a pull request')
+
+          if is_pull_request:
+              current = api_json(f'https://api.github.com/repos/{REPOSITORY}/pulls/{number}')
+              current_head = (current.get('head') or {}).get('sha')
+              current_base = (current.get('base') or {}).get('ref')
+              if current_head != head or current_base != 'develop':
+                  print('Handoff does not match the current PR head/base; ignored.')
+                  raise SystemExit(0)
+          else:
+              current = api_json(f'https://api.github.com/repos/{REPOSITORY}/commits/develop')
+              if current.get('sha') != head:
+                  print('Handoff does not match current develop; ignored.')
+                  raise SystemExit(0)
 
           topic = os.environ.get('NTFY_TOPIC', '').strip()
           if not topic:
-              print('NTFY_TOPIC is not configured; CI and GitHub remain authoritative.')
+              print('NTFY_TOPIC is not configured; GitHub remains authoritative.')
               raise SystemExit(0)
           if any(character in topic for character in '/?#') or len(topic) > 256:
               raise SystemExit('NTFY_TOPIC has an invalid format')
 
-          pull_request_url = (
-              f"https://github.com/djibian/webeeblocks/pull/{number}"
-          )
-          run_url = run['html_url']
-          success = conclusion == 'success'
-          title = 'WebeeBlocks — CI VERTE' if success else 'WebeeBlocks — CI TERMINÉE'
+          presentation = {
+              'READY_FOR_REVIEW': (
+                  'WebeeBlocks — REVUE À LANCER',
+                  'Relancer le Contrôleur en Reviewer-Integrator',
+                  4,
+                  ['mag', 'robot'],
+              ),
+              'NO_GO': (
+                  'WebeeBlocks — CORRECTION À LANCER',
+                  'Relancer le Contrôleur en Worker',
+                  4,
+                  ['wrench', 'robot'],
+              ),
+              'UNPROVEN': (
+                  'WebeeBlocks — PREUVE À ARBITRER',
+                  'Examiner la preuve manquante puis relancer le Contrôleur',
+                  5,
+                  ['warning', 'robot'],
+              ),
+              'HUMAN_REQUIRED': (
+                  'WebeeBlocks — INTERVENTION REQUISE',
+                  'Effectuer l’action humaine indiquée',
+                  5,
+                  ['raising_hand', 'robot'],
+              ),
+              'BLOCKED': (
+                  'WebeeBlocks — BLOCAGE À TRAITER',
+                  'Examiner le blocage avant de relancer le Contrôleur',
+                  5,
+                  ['no_entry', 'robot'],
+              ),
+              'SESSION_LIMIT': (
+                  'WebeeBlocks — SESSION À RELANCER',
+                  'Relancer le Contrôleur dans le même mode',
+                  4,
+                  ['hourglass', 'robot'],
+              ),
+          }
+          title, next_action, priority, tags = presentation[status]
+          context = f'PR #{number}' if is_pull_request else f'issue #{number}'
+          safe_details = details[:1400]
           message = (
-              f"CI Gate terminé pour la PR #{number}.\n"
-              f"HEAD: {head}\n"
-              f"RESULT: {conclusion}\n"
-              "Si une session Contrôleur est active, ne pas en lancer une "
-              "seconde : elle reprendra automatiquement. Sinon, relancer le "
-              "Contrôleur."
+              f'{status} — {context}\n'
+              f'SHA: {head}\n'
+              f'{safe_details}\n\n'
+              f'Action : {next_action}.'
           )
           copy_text = (
-              f"Si aucune session Contrôleur n'est active, reprends WebeeBlocks "
-              f"depuis GitHub : CI Gate terminé pour la PR #{number}, HEAD "
-              f"{head}, résultat {conclusion}. Sinon, ne lance pas de seconde "
-              "session."
+              f'Reprends WebeeBlocks depuis GitHub. Handoff {status} pour '
+              f'{context}, SHA {head}. {safe_details}'
           )
           payload = {
               'topic': topic,
               'title': title,
               'message': message,
-              'priority': 3 if success else 4,
-              'tags': ['white_check_mark' if success else 'warning', 'robot'],
-              'click': pull_request_url,
+              'priority': priority,
+              'tags': tags,
+              'click': target_url,
               'actions': [
                   {'action': 'copy', 'label': 'Copier', 'value': copy_text},
                   {
                       'action': 'view',
-                      'label': 'Ouvrir la PR',
-                      'url': pull_request_url,
+                      'label': 'Ouvrir GitHub',
+                      'url': target_url,
                       'clear': True,
-                  },
-                  {
-                      'action': 'view',
-                      'label': 'Voir la CI',
-                      'url': run_url,
                   },
               ],
           }
@@ -129,3 +211,4 @@ jobs:
                   raise RuntimeError(f'ntfy returned HTTP {response.status}')
               print(f'ntfy status: {response.status}')
           PY
+
