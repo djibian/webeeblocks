@@ -387,9 +387,13 @@ jobs:
               assert panel['state'] == 'TERMINÉ', terminal_detail
               assert panel['result'] == expected, terminal_detail
               assert panel['time'].endswith(' s') and panel['time'] != '—', terminal_detail
-              assert terminal_detail['runtimeState'] == 'WAITING', terminal_detail
+              assert terminal_detail['runtimeStateAtTerminal'] == 'RECOVERING', terminal_detail
+              assert terminal_detail['runtimeStateAfterFreeze'] in ('RECOVERING', 'WAITING'), terminal_detail
           initial = [e for e in events if e['event'] == 'INITIAL'][-1]
           assert json.loads(initial['detail'])['state'] == 'PRÊT'
+          final_ready = [e for e in events if e['event'] == 'FINAL_RUNTIME_READY']
+          assert final_ready, events
+          assert json.loads(final_ready[-1]['detail'])['runtimeState'] == 'WAITING', final_ready[-1]
           assert any(e['event'] == 'CHALLENGE_TEST_COMPLETE' for e in events), events
 
           challenge = [json.loads(e['detail']) for e in events if e['event'] == 'CHALLENGE']

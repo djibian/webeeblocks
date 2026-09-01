@@ -2,6 +2,12 @@ name: CI Runtime Suite
 
 on:
   workflow_call:
+    inputs:
+      full:
+        description: Build the complete Windows classroom release.
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
 
 permissions:
@@ -61,6 +67,18 @@ jobs:
       - name: Reject malformed AST before backend actions on Windows
         shell: pwsh
         run: node tools/ci/test_runtime_v2_preflight.js
+
+      - name: Validate project-file core and AST round-trip on Windows
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly_v2/project_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
@@ -994,4 +1012,92 @@ jobs:
         with:
           name: experimental-runtime-v2-student-ui
           path: ci-artifacts/runtime-v2-student-ui/
+          if-no-files-found: error
+
+  runtime-v2-windows-release:
+    needs: runtime-v2-windows-assets
+    if: ${{ needs.runtime-v2-windows-assets.result == 'success' && (github.event_name != 'pull_request' || inputs.full) }}
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Webots R2025a release assets
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache official Webots R2025a installer
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\webots-R2025a_setup.exe
+          key: webots-R2025a-windows-9e326a54c104fc5
+
+      - name: Install verified Webots R2025a
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          $expected = '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            Invoke-WebRequest `
+              -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' `
+              -OutFile $installer
+          }
+          $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            Remove-Item -LiteralPath $installer -Force
+            throw "Webots installer checksum mismatch: $actual"
+          }
+          $webotsHome = Join-Path $env:ProgramFiles 'Webots'
+          $webotsExe = Join-Path $webotsHome 'msys64\mingw64\bin\webots.exe'
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            $process = Start-Process `
+              -FilePath $installer `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') `
+              -Wait `
+              -PassThru
+            if ($process.ExitCode -ne 0) { throw "Webots installer exited with $($process.ExitCode)." }
+          }
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            throw 'Verified Webots R2025a installation is missing webots.exe.'
+          }
+          $version = (& $webotsExe --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') {
+            throw "Unexpected Webots version: $version"
+          }
+          "WEBOTS_HOME=$webotsHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "WEBEEBLOCKS_WEBOTS_VERSION=$version"
+
+      - name: Build self-contained Windows classroom release
+        shell: pwsh
+        run: |
+          ./tools/build_windows_classroom_release.ps1 `
+            -WebotsHome $env:WEBOTS_HOME `
+            -WebotsProjectsPath '.ci-webots-r2025a\projects' `
+            -OutputDirectory 'ci-artifacts\windows-release'
+
+      - name: Validate archive from a path containing spaces
+        shell: pwsh
+        run: |
+          ./tools/ci/test_windows_classroom_release.ps1 `
+            -ArchivePath 'ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a.zip' `
+            -WebotsHome $env:WEBOTS_HOME
+
+      - name: Upload Windows classroom release
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Windows-R2025a
+          path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
           if-no-files-found: error

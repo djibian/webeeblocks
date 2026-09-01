@@ -48,9 +48,11 @@ Windows PowerShell:
 ./tools/prepare_runtime_v2.ps1
 ```
 
-The command prepares the pinned Blockly browser distribution used by the Robot
-Window. Students do not run Node.js or npm; prepared classroom releases contain
-the required assets.
+These developer commands prepare the pinned Blockly browser distribution used
+by the Robot Window. Students do not run Node.js or npm. The Windows classroom
+artifact additionally contains the compiled controller, local R2025a Robot
+Window bridge, offline Crazyflie assets, one-click launcher and integrity
+manifest. See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 ## Development
 

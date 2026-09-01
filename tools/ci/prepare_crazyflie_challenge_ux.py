@@ -151,6 +151,7 @@ script = r'''
     await waitFor(() => challengeEvents.slice(beforeChallenge).some(e => e.state === 'FINISHED' && e.result === expectedResult), name + ' result ' + expectedResult, 70000);
     await waitFor(() => responses.slice(beforeResponses).indexOf('WEBEEBLOCKS_MISSION_V1 DONE') !== -1, name + ' DONE', 5000);
     await waitFor(() => crazyflieRuntimeState === 'RECOVERING', name + ' transport RECOVERING', 1000);
+    const runtimeStateAtTerminal = crazyflieRuntimeState;
     const frozen = panel();
     if (frozen.state !== 'TERMINÉ' || frozen.result !== expectedResult || !/^[0-9]+\.[0-9]{2} s$/.test(frozen.time))
       throw new Error(name + ' terminal panel invalid: ' + JSON.stringify(frozen));
@@ -158,7 +159,11 @@ script = r'''
     await sleep(350);
     if (panel().time !== frozenTime)
       throw new Error(name + ' timer did not remain frozen');
-    await report(name + '_TERMINAL', JSON.stringify({panel: panel(), runtimeState: crazyflieRuntimeState}));
+    await report(name + '_TERMINAL', JSON.stringify({
+      panel: panel(),
+      runtimeStateAtTerminal: runtimeStateAtTerminal,
+      runtimeStateAfterFreeze: crazyflieRuntimeState,
+    }));
     return {responseStart: beforeResponses};
   }
 

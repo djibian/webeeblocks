@@ -84,3 +84,6 @@ authority; it is not required for the current manual-release model.
 - two permanent development branches and automatic feature-branch deletion;
 - full regression nightly and before human promotion.
 
+The full gate also builds the Windows classroom ZIP with the official Webots
+R2025a toolchain. Runtime-only PRs retain the fast Windows AST and project-file
+contract; nightly runs and promotions rebuild the complete offline artifact.

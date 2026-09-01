@@ -16,6 +16,7 @@ EXPECTED = {
     "ci-runtime.yml": {
         "runtime-v2-core",
         "runtime-v2-windows-assets",
+        "runtime-v2-windows-release",
         "clean-checkout-runtime-v2",
         "runtime-v2-observability",
         "runtime-v2-project-files",
@@ -101,6 +102,10 @@ class WorkflowContractTests(unittest.TestCase):
             "python3 tools/ci/test_repository_hygiene.py",
             orchestrator,
         )
+        self.assertIn(
+            "python3 tools/ci/test_windows_release_contract.py",
+            orchestrator,
+        )
         self.assertIn("branches: [develop, main]", orchestrator)
         self.assertIn(
             "types: [opened, synchronize, reopened, ready_for_review]",
@@ -110,6 +115,19 @@ class WorkflowContractTests(unittest.TestCase):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
             self.assertIn("  workflow_call:\n", suite)
             self.assertNotIn("  pull_request:\n", suite)
+
+    def test_windows_release_is_full_gate_only_and_pinned(self) -> None:
+        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        self.assertIn("full: ${{ needs.select.outputs.full == 'true' }}", orchestrator)
+        release = runtime.split("\n  runtime-v2-windows-release:\n", 1)[1]
+        self.assertIn("github.event_name != 'pull_request' || inputs.full", release)
+        self.assertIn("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b", release)
+        self.assertIn(
+            "9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7",
+            release,
+        )
+        self.assertIn("test_windows_classroom_release.ps1", release)
 
     def test_no_post_merge_push_trigger(self) -> None:
         for path in WORKFLOWS.glob("*.yml"):
