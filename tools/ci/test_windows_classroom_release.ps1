@@ -72,7 +72,8 @@ $forbidden = @(Get-ChildItem -LiteralPath $testRoot -Recurse -Force | Where-Obje
   $_.Name -in @('node_modules', 'package.json', 'package-lock.json', 'Makefile') -or
   $_.Extension -in @('.c', '.o', '.a')
 })
-Assert-Release ($forbidden.Count -eq 0) ("Development-only release paths: " + (($forbidden.FullName) -join ', '))
+$forbiddenPaths = @($forbidden | ForEach-Object { $_.FullName })
+Assert-Release ($forbidden.Count -eq 0) ("Development-only release paths: " + ($forbiddenPaths -join ', '))
 
 $runtimeText = Get-ChildItem -LiteralPath $testRoot -Recurse -File | Where-Object {
   $_.Extension -in @('.wbt', '.proto', '.html', '.css') -or $_.Name -in @('main.js', 'project_ui.js')
