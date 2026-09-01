@@ -48,6 +48,7 @@ $required = @(
   'README-WINDOWS.md',
   'WINDOWS-ACCEPTANCE.md',
   'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe',
+  'controllers\crazyflie_runtime_v2\runtime.ini',
   'plugins\robot_windows\blockly_v2\blockly_v2.html',
   'plugins\robot_windows\blockly_v2\vendor\VERSION',
   'plugins\robot_windows\blockly_v2\vendor\blockly_compressed.js',
@@ -67,6 +68,10 @@ foreach ($relative in $required) {
 
 $version = (Get-Content -LiteralPath (Join-Path $testRoot 'plugins\robot_windows\blockly_v2\vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
+
+$runtimeIni = Get-Content -LiteralPath (Join-Path $testRoot 'controllers\crazyflie_runtime_v2\runtime.ini') -Raw
+Assert-Release ($runtimeIni -match '(?m)^\[environment variables with paths\]$') 'Controller runtime.ini lacks the path-aware environment section.'
+Assert-Release ($runtimeIni -match '(?m)^WEBOTS_LIBRARY_PATH\s*=\s*\$\(WEBOTS_HOME\)/lib/controller:\$\(WEBOTS_HOME\)/msys64/mingw64/bin$') 'Controller runtime.ini does not bind the prebuilt executable to Webots R2025a libraries.'
 
 $forbidden = @(Get-ChildItem -LiteralPath $testRoot -Recurse -Force | Where-Object {
   $_.Name -in @('node_modules', 'package.json', 'package-lock.json', 'Makefile') -or
@@ -101,4 +106,44 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
 & (Join-Path $testRoot 'Launch-WebeeBlocks.ps1') -ValidateOnly -WebotsHome $WebotsHome
 if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed.' }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe and launcher-ready ($($manifestEntries.Count) files)."
+$webotsExe = Join-Path $WebotsHome 'msys64\mingw64\bin\webots.exe'
+Assert-Release (Test-Path -LiteralPath $webotsExe -PathType Leaf) 'Webots console executable is missing for packaged startup proof.'
+$world = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
+$stdoutPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stdout.log'
+$stderrPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stderr.log'
+Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+$worldArgument = '"' + $world + '"'
+$process = Start-Process `
+  -FilePath $webotsExe `
+  -ArgumentList @('--stdout', '--stderr', '--batch', '--mode=fast', $worldArgument) `
+  -WorkingDirectory $testRoot `
+  -RedirectStandardOutput $stdoutPath `
+  -RedirectStandardError $stderrPath `
+  -PassThru
+$ready = $false
+try {
+  $deadline = [DateTime]::UtcNow.AddSeconds(35)
+  do {
+    Start-Sleep -Seconds 1
+    $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
+    if ($stdout -match '(?m)^WEBEEBLOCKS_RUNTIME_V2 READY\s*$') {
+      $ready = $true
+      break
+    }
+    $process.Refresh()
+  } while (-not $process.HasExited -and [DateTime]::UtcNow -lt $deadline)
+}
+finally {
+  $process.Refresh()
+  if (-not $process.HasExited) {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    $process.WaitForExit()
+  }
+}
+if (-not $ready) {
+  $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '<no stdout>' }
+  $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '<no stderr>' }
+  throw "Packaged Webots world never reached controller READY.`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+}
+
+Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, launcher-ready and starts its packaged controller ($($manifestEntries.Count) files)."
