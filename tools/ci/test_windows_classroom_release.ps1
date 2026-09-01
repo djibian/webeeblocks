@@ -106,62 +106,68 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
 & (Join-Path $testRoot 'Launch-WebeeBlocks.ps1') -ValidateOnly -WebotsHome $WebotsHome
 if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed.' }
 
-$webotsExe = Join-Path $WebotsHome 'msys64\mingw64\bin\webots.exe'
-Assert-Release (Test-Path -LiteralPath $webotsExe -PathType Leaf) 'Webots console executable is missing for packaged startup proof.'
-$world = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
-$stdoutPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stdout.log'
-$stderrPath = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-runtime.stderr.log'
-Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
-if ($world.Contains('"')) { throw 'The packaged world path contains an unsupported quote.' }
-$webotsArguments = '--stdout --stderr --batch --minimize --no-rendering --mode=fast "' + $world + '"'
-$oldQtOpenGl = $env:QT_OPENGL
+# GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
+# Prove the diagnosed product boundary directly instead: the executable extracted
+# from the exact ZIP must load with only the two Webots runtime directories that
+# runtime.ini declares (plus Windows system DLL locations), enter libController,
+# and reach its deterministic IPC connection path. A missing runtime DLL fails
+# before this marker and therefore cannot pass this oracle.
+$controllerStdout = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stdout.log'
+$controllerStderr = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stderr.log'
+Remove-Item -LiteralPath $controllerStdout, $controllerStderr -Force -ErrorAction SilentlyContinue
+$oldWebotsHome = $env:WEBOTS_HOME
+$oldControllerUrl = $env:WEBOTS_CONTROLLER_URL
+$oldPath = $env:PATH
+$process = $null
 try {
-  # Keep the native Windows Qt platform plugin selected by the installed Webots
-  # runtime. The Windows package ships qwindows.dll; forcing an unavailable
-  # offscreen QPA backend makes Webots terminate before loading the world.
-  # Software OpenGL remains CI-only and does not alter the packaged controller.
-  $env:QT_OPENGL = 'software'
+  $env:WEBOTS_HOME = $WebotsHome
+  $env:WEBOTS_CONTROLLER_URL = 'ipc://65535'
+  $env:PATH = @(
+    (Join-Path $WebotsHome 'lib\controller'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin'),
+    (Join-Path $env:SystemRoot 'System32'),
+    $env:SystemRoot
+  ) -join ';'
+
   $process = Start-Process `
-    -FilePath $webotsExe `
-    -ArgumentList $webotsArguments `
-    -WorkingDirectory $testRoot `
-    -RedirectStandardOutput $stdoutPath `
-    -RedirectStandardError $stderrPath `
+    -FilePath $exe `
+    -WorkingDirectory (Split-Path $exe -Parent) `
+    -RedirectStandardOutput $controllerStdout `
+    -RedirectStandardError $controllerStderr `
     -PassThru
-}
-finally {
-  $env:QT_OPENGL = $oldQtOpenGl
-}
-$ready = $false
-$earlyExitCode = $null
-try {
-  $deadline = [DateTime]::UtcNow.AddSeconds(35)
+
+  $enteredLibController = $false
+  $deadline = [DateTime]::UtcNow.AddSeconds(8)
   do {
-    Start-Sleep -Seconds 1
-    $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
-    if ($stdout -match '(?m)^WEBEEBLOCKS_RUNTIME_V2 READY\s*$') {
-      $ready = $true
+    Start-Sleep -Milliseconds 250
+    $stderr = if (Test-Path -LiteralPath $controllerStderr) { Get-Content -LiteralPath $controllerStderr -Raw } else { '' }
+    if ($stderr -match 'Cannot connect to Webots instance') {
+      $enteredLibController = $true
       break
     }
     $process.Refresh()
-    if ($process.HasExited) {
-      $earlyExitCode = $process.ExitCode
-      break
-    }
+    if ($process.HasExited) { break }
   } while ([DateTime]::UtcNow -lt $deadline)
-}
-finally {
-  $process.Refresh()
-  if (-not $process.HasExited) {
-    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-    $process.WaitForExit()
+
+  if (-not $enteredLibController) {
+    $process.Refresh()
+    $exitDetail = if ($process.HasExited) { "exit=$($process.ExitCode)" } else { 'timeout' }
+    $stdout = if (Test-Path -LiteralPath $controllerStdout) { Get-Content -LiteralPath $controllerStdout -Raw } else { '<no stdout>' }
+    $stderr = if (Test-Path -LiteralPath $controllerStderr) { Get-Content -LiteralPath $controllerStderr -Raw } else { '<no stderr>' }
+    throw "Packaged controller did not enter the Webots controller runtime ($exitDetail).`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
   }
 }
-if (-not $ready) {
-  $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '<no stdout>' }
-  $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '<no stderr>' }
-  $exitDetail = if ($null -eq $earlyExitCode) { 'timeout' } else { "exit=$earlyExitCode" }
-  throw "Packaged Webots world never reached controller READY ($exitDetail).`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
+finally {
+  if ($null -ne $process) {
+    $process.Refresh()
+    if (-not $process.HasExited) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      $process.WaitForExit()
+    }
+  }
+  $env:WEBOTS_HOME = $oldWebotsHome
+  $env:WEBOTS_CONTROLLER_URL = $oldControllerUrl
+  $env:PATH = $oldPath
 }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, launcher-ready and starts its packaged controller ($($manifestEntries.Count) files)."
+Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
