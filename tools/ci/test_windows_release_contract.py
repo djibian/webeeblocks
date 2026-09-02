@@ -41,6 +41,8 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "& $make -C $controllerDir clean",
             "& $make -C $controllerDir",
             "crazyflie_runtime_v2.exe",
+            "classroom_fixes.css",
+            "classroom_fixes.js",
             "Expected exactly four pinned remote references",
             "../protos/Crazyflie.proto",
             "textures/fast_helix.png",
@@ -55,6 +57,11 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\usr\\bin\\make.exe", packager)
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
+
+    def test_classroom_ui_loads_packaged_fixes(self) -> None:
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        self.assertIn('href="classroom_fixes.css"', html)
+        self.assertIn('src="classroom_fixes.js"', html)
 
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
@@ -71,7 +78,9 @@ class WindowsReleaseContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("worlds\\crazyflie_runtime_v2.wbt", launcher)
-        self.assertIn("--mode=pause", launcher)
+        self.assertIn("--mode=realtime", launcher)
+        self.assertNotIn("--mode=pause", launcher)
+        self.assertNotIn("--mode=run", launcher)
         self.assertIn("$worldArgument = '\"' + $world + '\"'", launcher)
         self.assertIn("Test-WebotsR2025a", launcher)
         self.assertIn("--version", launcher)

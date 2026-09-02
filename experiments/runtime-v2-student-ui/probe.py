@@ -113,17 +113,19 @@ RENDER_LOCALE=r'''(() => {
  const logicOr=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='OR'&&block.getRelativeToSurfaceXY().x>500);
  const range=workspace.getBlocksByType('webeeblocks_v2_range',false).find(block=>block.getRelativeToSurfaceXY().x>500);
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
- if(!logicAnd||!logicOr||!range||!repeat)throw new Error('rendered locale evidence blocks missing');
+ const condition=workspace.getBlocksByType('controls_if',false)[0];
+ if(!logicAnd||!logicOr||!range||!repeat||!condition)throw new Error('rendered locale evidence blocks missing');
  const field=range.getField('DIRECTION');
  const fieldRoot=field.getSvgRoot();
  const repeatRoot=repeat.getSvgRoot();
  const repeatPath=repeatRoot&&repeatRoot.querySelector('.blocklyPath');
+ const repeatText=[...(repeatRoot&&repeatRoot.querySelectorAll('.blocklyText')||[])].find(el=>(el.textContent||'').trim().toLowerCase().startsWith('répéter'));
  return {
    logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
    logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
    logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
    directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
-   repeatRect:rect(repeatPath||repeatRoot),
+   repeatRect:rect(repeatText||repeatPath||repeatRoot),repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
    workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
  };
 })()'''
@@ -223,6 +225,12 @@ def main():
     for expected in ('vrai','ou','faux'):
         if expected not in rendered_or:
             raise RuntimeError('rendered OR program lacks '+expected+': '+rendered_or)
+    condition_text=rendered['conditionSvgText'].lower()
+    repeat_text=rendered['repeatSvgText'].lower()
+    if 'alors' not in condition_text or ' faire' in condition_text:
+        raise RuntimeError('rendered condition must use "alors": '+condition_text)
+    if 'faire' in repeat_text:
+        raise RuntimeError('rendered repeat block must not display "faire": '+repeat_text)
     if rendered['workspaceAriaLabel']!='Programme Blockly':
         raise RuntimeError('rendered workspace accessibility label is not French: '+str(rendered['workspaceAriaLabel']))
     screenshot=Path(a.screenshot)
@@ -253,4 +261,5 @@ def main():
     Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
+
 if __name__=='__main__': main()

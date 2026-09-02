@@ -1,0 +1,10 @@
+/* Keep selected Blockly categories readable on low-end classroom displays. */
+.blocklyToolboxSelected .blocklyToolboxCategoryLabel,
+.blocklyTreeSelected .blocklyTreeLabel {
+  color: #17212b !important;
+}
+
+body[data-runtime-state="À COMPLÉTER"] #runtimeState {
+  background: #fff2cc;
+  color: #725500;
+}
