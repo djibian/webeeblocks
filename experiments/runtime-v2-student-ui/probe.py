@@ -125,7 +125,7 @@ RENDER_LOCALE=r'''(() => {
    logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
    logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
    directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
-   repeatRect:rect(repeatText||repeatPath||repeatRoot),repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
+   repeatRect:rect(repeatPath||repeatText||repeatRoot),repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
    workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
  };
 })()'''
