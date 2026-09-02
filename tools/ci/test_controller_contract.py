@@ -51,6 +51,21 @@ class ControllerContractTests(unittest.TestCase):
         self.assertIn("NO_GO <head-sha>", contract)
         self.assertIn("UNPROVEN <head-sha>", contract)
         self.assertIn(
+            "A pending or settled CI and `GO` are silent", contract
+        )
+        self.assertIn(
+            "physical test, human decision or Controller relaunch after merge uses the",
+            contract,
+        )
+        self.assertIn(
+            "stop as `HUMAN_REQUIRED` with an issue-level handoff asking Emmanuel",
+            contract,
+        )
+        self.assertIn(
+            "`COMPLETED` remains silent only when there is genuinely nothing for Emmanuel to",
+            development,
+        )
+        self.assertNotIn(
             "A pending or settled CI, `GO` and `COMPLETED` are silent",
             contract,
         )
@@ -76,4 +91,3 @@ class ControllerContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
