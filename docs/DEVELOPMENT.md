@@ -68,7 +68,11 @@ CI pending and CI completion are silent: the active session observes them
 directly. The trusted default-branch workflow sends ntfy only after a terminal
 Controller handoff that requires Emmanuel to intervene or launch the next fresh
 mode: `READY_FOR_REVIEW`, `NO_GO`, `UNPROVEN`, `HUMAN_REQUIRED`, `BLOCKED`
-or `SESSION_LIMIT`. `GO` and `COMPLETED` remain silent.
+or `SESSION_LIMIT`. `GO` is silent. After a successful merge, the Reviewer
+reconstructs the new `develop` state: if a physical test, human decision or
+fresh Worker launch is required, it emits an issue-level `HUMAN_REQUIRED`;
+`COMPLETED` remains silent only when there is genuinely nothing for Emmanuel to
+do and no next product slice to start.
 
 Handoff comments and reviews contain an exact status/SHA and actionable detail,
 but do not store Controller state. Draft/Ready and notification payloads are not
@@ -100,4 +104,3 @@ authority; it is not required for the current manual-release model.
 The full gate also builds the Windows classroom ZIP with the official Webots
 R2025a toolchain. Runtime-only PRs retain the fast Windows AST and project-file
 contract; nightly runs and promotions rebuild the complete offline artifact.
-

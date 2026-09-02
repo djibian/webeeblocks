@@ -89,7 +89,16 @@ a head never independently approves that head.
 4. On `GO`, immediately re-read the head and gate, then merge unchanged into
    `develop`. Never merge to `main`.
 5. On `NO_GO` or `UNPROVEN`, stop without repairing the candidate in the same
-   launch. After a merge, stop as `COMPLETED`; do not start another slice.
+   launch. After a merge, reconstruct the new `develop` state and the linked
+   product boundary, but do not start another slice in the same launch:
+   - if physical evidence, a human decision or another human action is required
+     before safe software progress, stop as `HUMAN_REQUIRED` with one precise
+     issue-level handoff;
+   - if product work remains and only a fresh Worker launch may start the next
+     slice, stop as `HUMAN_REQUIRED` with an issue-level handoff asking Emmanuel
+     to relaunch the Controller;
+   - stop as silent `COMPLETED` only when no Emmanuel action and no next product
+     slice are currently required or relevant.
 
 ## CI and evidence
 
@@ -124,10 +133,11 @@ append-only notification events, never a parallel state log.
   `CONTROLLER_HANDOFF <status> <sha>`, followed by one precise action. Use the
   current PR head SHA for a PR and current `develop` SHA for an issue-only
   handoff.
-- A pending or settled CI, `GO` and `COMPLETED` are silent. They never emit a
-  handoff artifact or ntfy request.
+- A pending or settled CI and `GO` are silent. `COMPLETED` is silent only when
+  no action from Emmanuel and no fresh Worker launch is needed. A required
+  physical test, human decision or Controller relaunch after merge uses the
+  issue-level `HUMAN_REQUIRED` handoff instead.
 - Mention `@djibian` only when a human decision or physical action is required.
 - A final report begins with its terminal status and states the mode, outcome
   or reviewed SHA, tests, PR/commit, `develop` state, `main` state and the next
   actionable event.
-
