@@ -255,7 +255,9 @@ async function runProgram() {
     });
     runtimeRunning = false; runtimeTerminal = true; setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
-    runtimeRunning = false; runtimeTerminal = true; setRuntimeFailure(error);
+    runtimeRunning = false;
+    runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
+    setRuntimeFailure(error);
   } finally {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;
