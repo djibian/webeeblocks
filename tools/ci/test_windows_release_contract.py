@@ -78,8 +78,9 @@ class WindowsReleaseContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("worlds\\crazyflie_runtime_v2.wbt", launcher)
-        self.assertIn("--mode=run", launcher)
+        self.assertIn("--mode=realtime", launcher)
         self.assertNotIn("--mode=pause", launcher)
+        self.assertNotIn("--mode=run", launcher)
         self.assertIn("$worldArgument = '\"' + $world + '\"'", launcher)
         self.assertIn("Test-WebotsR2025a", launcher)
         self.assertIn("--version", launcher)
