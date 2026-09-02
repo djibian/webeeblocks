@@ -135,7 +135,7 @@ function receiveMessage(value) {
 
 function setDebugControls(paused) {
   document.getElementById('stepNext').disabled = !paused;
-  document.getElementById('stepContinue').disabled = !runtimeRunning;
+  document.getElementById('stepContinue').disabled = !paused;
   document.getElementById('stepMode').disabled = runtimeRunning || runtimeResetPending;
 }
 function studentDirectionLabel(direction) {
