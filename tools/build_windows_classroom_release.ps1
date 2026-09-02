@@ -102,7 +102,7 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js')) {
+foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js', 'classroom_fixes.css', 'classroom_fixes.js')) {
   Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
 }
 foreach ($directory in @('vendor', 'webots')) {
