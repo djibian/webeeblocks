@@ -8,6 +8,13 @@
 
   function classify(error) {
     var machineCode = error && typeof error.code === 'string' ? error.code : null;
+    if (machineCode === 'PROGRAM_INVALID') {
+      return {
+        state: 'À CORRIGER',
+        detail: error && typeof error.studentDetail === 'string' && error.studentDetail ? error.studentDetail : 'Le programme doit être corrigé avant de lancer.',
+        machineCode: machineCode
+      };
+    }
     if (machineCode === 'UNSAFE_OR_TIMEOUT') {
       return {
         state: 'ARRÊTÉ',
