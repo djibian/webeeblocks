@@ -9,8 +9,12 @@ const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_
 
 const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
 const projectUiSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
+const classroomFixesSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/classroom_fixes.css'), 'utf8');
 assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/);
 assert.doesNotMatch(mainSource, /getElementById\('stepContinue'\)\.disabled = !runtimeRunning;/);
+assert.match(mainSource, /submit\.disabled = !ready \|\| runtimeRunning \|\| runtimeTerminal \|\| runtimeResetPending;/);
+assert.match(mainSource, /runtimeTerminal = !WebeeBlocksRuntimeOutcome\.isRetryable\(error\);/);
+assert.match(classroomFixesSource, /body\[data-runtime-state="À CORRIGER"\] #runtimeState/);
 assert.match(projectUiSource, /setRuntimeLocked\(state === 'EN VOL' \|\| state === 'RÉINITIALISATION'\);/);
 assert.match(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
@@ -37,7 +41,7 @@ async function until(p,label){var start=Date.now();while(Date.now()-start<1000){
   await until(()=>pauses.length===6,'if');assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4]]);assert.deepStrictEqual(pauses[5].slice(0,2),['if','if']);assert.strictEqual(pauses[5][3],false);obs.next();
   await until(()=>pauses.length===7,'chosen move');assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4]]);assert.deepStrictEqual(pauses[6].slice(0,2),['left-action','move']);obs.continueRun();await run;obs.finish();
   assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4],['move','left',.3],['range','front',.8],['move','forward',.3],['range','front',.3],['move','left',.3],['land']]);
-  var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(wwi.capabilities.simulationDebug,true);
+  var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(Outcome.isRetryable({code:'PROGRAM_INVALID'}),true);assert.strictEqual(Outcome.isRetryable(error),false);assert.strictEqual(Outcome.isRetryable(Error('technical')),false);assert.strictEqual(wwi.capabilities.simulationDebug,true);
   var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);
-  console.log('PASS: execution state keeps project/workspace coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
+  console.log('PASS: execution state keeps project/workspace coherent, program validation remains retryable without reset, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
