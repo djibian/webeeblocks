@@ -7,8 +7,9 @@
   'use strict';
   var BACKEND_ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'land'];
   function fail(message) { throw new Error('activity contract: ' + message); }
+  function studentFail(message, detail) { var error = new Error('activity contract: ' + message); error.code = 'PROGRAM_INVALID'; error.studentDetail = detail; throw error; }
   function workspaceTypes(workspace) { if (!workspace || typeof workspace.getAllBlocks !== 'function') fail('invalid Blockly workspace'); return workspace.getAllBlocks(false).map(function(block) { return block.type; }); }
-  function preflightWorkspace(profile, workspace) { var allowed = new Set(profile.toolbox); var types = workspaceTypes(workspace); types.forEach(function(type) { if (!allowed.has(type)) fail('block forbidden by profile: ' + type); }); return types; }
+  function preflightWorkspace(profile, workspace) { var allowed = new Set(profile.toolbox); var types = workspaceTypes(workspace); types.forEach(function(type) { if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.'); }); return types; }
   function applyFieldBounds(profile, workspace) { var definitions = profile.parameterBounds || {}; workspace.getAllBlocks(false).forEach(function(block) { var fields = definitions[block.type] || {}; Object.keys(fields).forEach(function(fieldName) { var field = block.getField(fieldName); if (!field || typeof field.setConstraints !== 'function') fail('field bound target unavailable: ' + block.type + '.' + fieldName); var bounds = fields[fieldName]; field.setConstraints(bounds.min, bounds.max, bounds.step); }); }); }
   function collectAst(ast) {
     var statements = new Set(), ranges = new Set(), moves = new Set(), verticals = new Set();

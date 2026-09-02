@@ -6,8 +6,19 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
+  function isRetryable(error) {
+    return !!(error && error.code === 'PROGRAM_INVALID');
+  }
+
   function classify(error) {
     var machineCode = error && typeof error.code === 'string' ? error.code : null;
+    if (machineCode === 'PROGRAM_INVALID') {
+      return {
+        state: 'À CORRIGER',
+        detail: error && typeof error.studentDetail === 'string' && error.studentDetail ? error.studentDetail : 'Le programme doit être corrigé avant de lancer.',
+        machineCode: machineCode
+      };
+    }
     if (machineCode === 'UNSAFE_OR_TIMEOUT') {
       return {
         state: 'ARRÊTÉ',
@@ -22,5 +33,5 @@
     };
   }
 
-  return {classify: classify};
+  return {classify: classify, isRetryable: isRetryable};
 });

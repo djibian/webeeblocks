@@ -4,7 +4,8 @@
   color: #17212b !important;
 }
 
-body[data-runtime-state="À COMPLÉTER"] #runtimeState {
+body[data-runtime-state="À COMPLÉTER"] #runtimeState,
+body[data-runtime-state="À CORRIGER"] #runtimeState {
   background: #fff2cc;
   color: #725500;
 }
