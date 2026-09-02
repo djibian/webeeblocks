@@ -49,11 +49,11 @@ if ([string]::IsNullOrWhiteSpace($webots)) {
 }
 
 if ($ValidateOnly) {
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=run"
   exit 0
 }
 
 if ($world.Contains('"')) { throw 'Le chemin du monde contient un guillemet non pris en charge.' }
 $worldArgument = '"' + $world + '"'
-Start-Process -FilePath $webots -ArgumentList @('--mode=pause', $worldArgument) -WorkingDirectory $PSScriptRoot
-Write-Host "WebeeBlocks demarre. La fenetre Blockly va s'ouvrir dans le navigateur configure par Webots."
+Start-Process -FilePath $webots -ArgumentList @('--mode=run', $worldArgument) -WorkingDirectory $PSScriptRoot
+Write-Host "WebeeBlocks demarre. La simulation et la fenetre Blockly vont s'initialiser automatiquement."
