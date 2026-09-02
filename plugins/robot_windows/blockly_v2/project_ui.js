@@ -77,8 +77,7 @@
 
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
-    if (state === 'RÉINITIALISATION') setRuntimeLocked(true);
-    else if (runtimeLocked) setRuntimeLocked(false);
+    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
   });
 
   window.addEventListener('load', function() {

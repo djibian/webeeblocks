@@ -1,9 +1,21 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
 const Observer = require('../../plugins/robot_windows/blockly/webeeblocks/execution_observer.js');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+
+const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
+const projectUiSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
+assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/);
+assert.doesNotMatch(mainSource, /getElementById\('stepContinue'\)\.disabled = !runtimeRunning;/);
+assert.match(projectUiSource, /setRuntimeLocked\(state === 'EN VOL' \|\| state === 'RÉINITIALISATION'\);/);
+assert.match(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
+assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
+assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked\) return null;/);
+
 function block(id,type,inputs){return{id,type,_next:null,_inputs:inputs||{},getNextBlock(){return this._next;},getInputTargetBlock(name){return this._inputs[name]||null;}};}
 function link(){var blocks=Array.from(arguments);for(var i=0;i<blocks.length-1;i++)blocks[i]._next=blocks[i+1];return blocks[0];}
 function ast(){return{version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:1},{kind:'repeat',count:3,body:[{kind:'if',condition:{kind:'compare',op:'LT',left:{kind:'range',direction:'front',unit:'m'},right:{kind:'number',value:.5}},then:[{kind:'move',direction:'left',distance_m:.3}],else:[{kind:'move',direction:'forward',distance_m:.3}]}]},{kind:'land'}]};}
@@ -27,5 +39,5 @@ async function until(p,label){var start=Date.now();while(Date.now()-start<1000){
   assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4],['move','left',.3],['range','front',.8],['move','forward',.3],['range','front',.3],['move','left',.3],['land']]);
   var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(wwi.capabilities.simulationDebug,true);
   var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);
-  console.log('PASS: observability is optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
+  console.log('PASS: execution state keeps project/workspace coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});

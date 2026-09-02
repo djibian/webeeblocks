@@ -118,14 +118,25 @@ RENDER_LOCALE=r'''(() => {
  const field=range.getField('DIRECTION');
  const fieldRoot=field.getSvgRoot();
  const repeatRoot=repeat.getSvgRoot();
- const repeatPath=repeatRoot&&repeatRoot.querySelector('.blocklyPath');
  const repeatText=[...(repeatRoot&&repeatRoot.querySelectorAll('.blocklyText')||[])].find(el=>(el.textContent||'').trim().toLowerCase().startsWith('répéter'));
+ const rb=repeatRoot.getBoundingClientRect();
+ let repeatHoverRect=null;
+ outer: for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
+   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
+     const hit=document.elementFromPoint(x,y);
+     if(hit&&repeatRoot.contains(hit)){
+       repeatHoverRect={x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
+       break outer;
+     }
+   }
+ }
+ if(!repeatHoverRect)throw new Error('no real hit-tested hover point on repeat block');
  return {
    logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
    logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
    logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
    directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
-   repeatRect:rect(repeatText||repeatPath||repeatRoot),repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
+   repeatRect:repeatHoverRect,repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
    workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
  };
 })()'''
