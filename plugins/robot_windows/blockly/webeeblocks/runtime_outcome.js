@@ -6,6 +6,10 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
+  function isRetryable(error) {
+    return !!(error && error.code === 'PROGRAM_INVALID');
+  }
+
   function classify(error) {
     var machineCode = error && typeof error.code === 'string' ? error.code : null;
     if (machineCode === 'PROGRAM_INVALID') {
@@ -29,5 +33,5 @@
     };
   }
 
-  return {classify: classify};
+  return {classify: classify, isRetryable: isRetryable};
 });
