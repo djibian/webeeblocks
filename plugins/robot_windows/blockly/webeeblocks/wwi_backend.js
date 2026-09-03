@@ -18,12 +18,6 @@
   RuntimeV2BackendError.prototype = Object.create(Error.prototype);
   RuntimeV2BackendError.prototype.constructor = RuntimeV2BackendError;
 
-  function unavailableStudentCapability() {
-    var error = new RuntimeV2BackendError('PROGRAM_INVALID');
-    error.studentDetail = 'Ce bloc n’est pas encore pris en charge dans cette simulation.';
-    return error;
-  }
-
   function RuntimeV2WwiBackend(robotWindow, options) {
     if (!robotWindow || typeof robotWindow.send !== 'function')
       throw new Error('Runtime v2 RobotWindow transport unavailable');
@@ -144,10 +138,10 @@
       throw error;
     });
   };
-  RuntimeV2WwiBackend.prototype.vertical = function() { return Promise.reject(unavailableStudentCapability()); };
-  RuntimeV2WwiBackend.prototype.turn = function() { return Promise.reject(unavailableStudentCapability()); };
-  RuntimeV2WwiBackend.prototype.wait = function() { return Promise.reject(unavailableStudentCapability()); };
-  RuntimeV2WwiBackend.prototype.setSpeed = function() { return Promise.reject(unavailableStudentCapability()); };
+  RuntimeV2WwiBackend.prototype.vertical = function() { return Promise.reject(new Error('Runtime v2 Webots backend vertical capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.turn = function() { return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.wait = function() { return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable')); };
+  RuntimeV2WwiBackend.prototype.setSpeed = function() { return Promise.reject(new Error('Runtime v2 Webots backend speed capability unavailable')); };
 
   RuntimeV2WwiBackend.BackendError = RuntimeV2BackendError;
   return RuntimeV2WwiBackend;
