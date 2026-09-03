@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract for the V3 CI topology and trusted transport boundary."""
+"""Static contract for the CI topology and trusted transport boundary."""
 
 from pathlib import Path
 import re
@@ -90,12 +90,15 @@ class WorkflowContractTests(unittest.TestCase):
         for status in (
             "READY_FOR_REVIEW",
             "NO_GO",
-            "UNPROVEN",
             "HUMAN_REQUIRED",
             "BLOCKED",
             "SESSION_LIMIT",
         ):
             self.assertIn(status, transport)
+        self.assertNotIn("UNPROVEN", transport)
+        self.assertIn("WebeeBlocks — TEST À EFFECTUER", transport)
+        self.assertIn("WebeeBlocks — RELANCE CONTRÔLEUR", transport)
+        self.assertNotIn("PREUVE À ARBITRER", transport)
         self.assertIn("permissions: {}", transport)
         self.assertNotIn("  pull_request:\n", transport)
         self.assertNotIn("  pull_request_target:\n", transport)
