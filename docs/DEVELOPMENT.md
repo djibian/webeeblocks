@@ -27,6 +27,15 @@ a preparatory branch, but it cannot become a concurrent integration PR. If
 `develop` moves, preparatory code must be reconstructed and revalidated against
 the new base before publication.
 
+A reserve PR is not allowed to become a priority inversion. If it was opened
+only because higher-priority work was externally blocked and new human/external
+evidence makes that higher-priority work executable, the Controller yields the
+reserve PR at the next safe checkpoint. It may finish the reserve PR first only
+when that is immediate and does not violate independent review or materially
+delay the priority path. Otherwise it closes the reserve PR without merge,
+retains its branch as the one preparatory context, and revalidates it on the
+future `develop` before reopening or publishing it again.
+
 ## Unit of delivery
 
 An integration PR delivers the smallest complete vertical product outcome or
@@ -43,14 +52,18 @@ continue as Worker on a different roadmap atom.
 
 The Controller optimizes project throughput, not session length.
 
-1. An active PR owns the integration lane.
+1. An active priority PR owns the integration lane.
 2. If the current launch can safely advance it, that work has priority.
 3. If it is waiting only for CI or a human/manual test, the Controller may use
    the wait for one demonstrably independent roadmap atom.
-4. If progress on the priority PR requires a fresh Controller launch, the
+4. If a reserve PR is open and newly settled external evidence makes a
+   higher-priority atom executable, the reserve PR yields at a safe checkpoint;
+   close it without merge when necessary rather than making the critical path
+   wait behind reserve integration.
+5. If progress on the priority PR requires a fresh Controller launch, the
    current session stops and requests that relaunch instead of producing
    secondary busywork.
-5. Reserve work is preempted only at a safe checkpoint when the priority path
+6. Reserve work is preempted only at a safe checkpoint when the priority path
    becomes actionable again.
 
 No explicit queue or scheduler state is stored. The Controller reconstructs the
@@ -132,6 +145,8 @@ cannot be written or merged by the Controller without exact human authority.
 ## Operational targets
 
 - one active integration PR and at most one independent preparatory context;
+- no priority inversion from a reserve PR after higher-priority external
+  evidence settles;
 - no extra launch merely because CI or a human test is pending;
 - immediate fresh launch when independent review/repair is the critical-path
   requirement;

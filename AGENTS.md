@@ -50,16 +50,27 @@ or merge:
 
 ### Critical-path rules
 
-If an active PR exists, it owns the integration lane.
+If an active PR exists, it owns the integration lane unless it is reserve work
+that has just been outranked by newly executable higher-priority work.
 
-- If this launch may safely advance that PR, do so before starting reserve work.
-- If the PR is waiting only on an external event that this launch cannot speed
-  up, such as CI or a human physical/manual test, use the wait for one
-  independent roadmap atom when useful. Return to the PR at the next safe
-  checkpoint once the event settles.
-- If the PR has reached a freshness barrier where a new Controller launch is
-  required by independent review, stop and request the relaunch. Do not delay
-  the critical path by filling the session with secondary work.
+- If this launch may safely advance the priority PR, do so before starting
+  reserve work.
+- If the priority PR is waiting only on an external event that this launch
+  cannot speed up, such as CI or a human physical/manual test, use the wait for
+  one independent roadmap atom when useful. Return to the priority path at the
+  next safe checkpoint once the event settles.
+- A PR created only from reserve work while a higher-priority atom was
+  externally blocked is yieldable. If new human/external evidence makes that
+  higher-priority atom executable, stop reserve work at the next safe
+  checkpoint and reconstruct. Conclude the reserve PR first only when this
+  launch can do so immediately without violating review independence or
+  materially delaying the higher-priority path. Otherwise close the reserve PR
+  without merge, keep its branch as the single preparatory context, and resume
+  the higher-priority atom. Before any later reopen/publication, reconstruct
+  that reserve work on the then-current `develop` and rerun its evidence.
+- If the priority PR has reached a freshness barrier where a new Controller
+  launch is required by independent review, stop and request the relaunch. Do
+  not delay the critical path by filling the session with secondary work.
 - A launch that writes a candidate head never independently reviews, approves
   or merges that candidate head.
 - A Reviewer that records `NO_GO` does not repair that candidate in the same
@@ -93,7 +104,9 @@ doubt, treat the atoms as dependent.
 - Work on only one context at a time.
 - Preempt reserve work only at a safe checkpoint: complete the current small
   coherent unit, preserve the evidence/notes or branch state, then reconstruct
-  the priority PR.
+  the priority path.
+- A closed yieldable reserve PR counts as the single preparatory context while
+  its branch is retained; do not start another reserve context around it.
 - A preparatory branch becomes stale when `develop` moves. Before publication
   as a PR, reconstruct it on the current `develop`, recheck its assumptions and
   rerun the relevant evidence.
@@ -144,8 +157,8 @@ for elapsed time.
 
 ## Worker
 
-1. If repairing an active PR, keep the same branch and smallest causal repair
-   boundary.
+1. If repairing an active priority PR, keep the same branch and smallest causal
+   repair boundary.
 2. Otherwise select the highest-priority executable roadmap atom and derive the
    smallest complete vertical product slice, bounded research result or proof
    that advances its parent issue.
@@ -157,7 +170,8 @@ for elapsed time.
 5. Inspect the full diff and publish evidence without claiming more than the
    oracle exercises.
 6. After every push, follow the critical-path scheduling rules while the exact
-   head CI Gate settles. Repair causal failures on the same PR.
+   head CI Gate settles. Repair causal failures on the same priority PR; yield a
+   reserve PR only under the explicit higher-priority preemption rule above.
 7. When a head written by this launch is exact-head green and ready for an
    independent verdict, stop `READY_FOR_REVIEW`. A fresh Reviewer-Integrator is
    the fastest valid action; do not keep doing reserve work merely to prolong
