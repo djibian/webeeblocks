@@ -1,0 +1,42 @@
+name: Candidate Evidence
+
+on:
+  workflow_call:
+    inputs:
+      target_sha:
+        description: Exact candidate HEAD to prove.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-runtime:
+    name: Candidate Runtime evidence
+    uses: ./.github/workflows/ci-runtime.yml
+    with:
+      target_sha: ${{ inputs.target_sha }}
+      full: true
+
+  candidate-webots:
+    name: Candidate Webots evidence
+    uses: ./.github/workflows/ci-webots.yml
+    with:
+      target_sha: ${{ inputs.target_sha }}
+
+  candidate-evidence:
+    name: Candidate Evidence
+    if: ${{ always() }}
+    needs: [candidate-runtime, candidate-webots]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Require complete deterministic candidate evidence
+        env:
+          RUNTIME_RESULT: ${{ needs.candidate-runtime.result }}
+          WEBOTS_RESULT: ${{ needs.candidate-webots.result }}
+        run: |
+          set -euo pipefail
+          test "$RUNTIME_RESULT" = "success"
+          test "$WEBOTS_RESULT" = "success"
+          echo "Complete deterministic evidence acquired for ${{ inputs.target_sha }}"
