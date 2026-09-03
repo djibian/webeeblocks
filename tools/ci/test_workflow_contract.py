@@ -135,6 +135,23 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertIn("  workflow_call:\n", suite)
             self.assertNotIn("  pull_request:\n", suite)
 
+    def test_reusable_suites_receive_an_explicit_git_target(self) -> None:
+        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertEqual(orchestrator.count("target_sha: ${{ github.sha }}"), 2)
+        self.assertEqual(orchestrator.count("ref: ${{ github.sha }}"), 2)
+
+        target_ref = "ref: ${{ inputs.target_sha || github.sha }}"
+        for name in ("ci-runtime.yml", "ci-webots.yml"):
+            suite = (WORKFLOWS / name).read_text(encoding="utf-8")
+            self.assertIn("      target_sha:\n", suite, name)
+            self.assertIn("        required: true\n", suite, name)
+            self.assertIn("        type: string\n", suite, name)
+            all_checkouts = suite.count("uses: actions/checkout@v4")
+            external_checkouts = suite.count("repository: cyberbotics/webots")
+            repository_checkouts = all_checkouts - external_checkouts
+            self.assertGreater(repository_checkouts, 0, name)
+            self.assertEqual(suite.count(target_ref), repository_checkouts, name)
+
     def test_windows_release_is_full_gate_only_and_pinned(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
@@ -219,4 +236,3 @@ class WorkflowContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
