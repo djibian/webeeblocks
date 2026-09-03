@@ -80,6 +80,51 @@ class ControllerContractTests(unittest.TestCase):
         self.assertIn("If progress on the priority PR requires a fresh Controller launch", development)
         self.assertIn("instead of producing secondary busywork", development)
 
+    def test_human_required_is_gated_by_action_ready_support(self) -> None:
+        contract_raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        roadmap_raw = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+        development_raw = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
+            encoding="utf-8"
+        )
+        notifications_raw = (ROOT / "docs" / "CONTROLLER_NOTIFICATIONS.md").read_text(
+            encoding="utf-8"
+        )
+        contract = flat(contract_raw)
+        roadmap = flat(roadmap_raw)
+        development = flat(development_raw)
+        notifications = flat(notifications_raw)
+
+        self.assertIn("### Human-readiness gate", contract_raw)
+        self.assertIn(
+            "The fact that the next proof type is human does not mean the human action is ready",
+            contract,
+        )
+        self.assertIn("identify the exact target revision, version or deployed state", contract)
+        self.assertIn("verify that every required support exists now and is accessible", contract)
+        self.assertIn("bind that support to the target with explicit provenance", contract)
+        self.assertIn("without an uncompleted technical preparation step", contract)
+        self.assertIn("A green aggregate CI result is not proof", contract)
+        self.assertIn("skipped artifact-producing job", contract)
+        self.assertIn("must happen before `HUMAN_REQUIRED`", contract)
+        self.assertIn("only after the Human-readiness gate passes", contract)
+
+        self.assertIn("Human-readiness gate proving an accessible current Windows release artifact", roadmap)
+        self.assertIn("runtime-v2-windows-release", roadmap_raw)
+        self.assertIn("W1 is not executable", roadmap)
+        self.assertIn("human gate only after readiness passes", roadmap)
+
+        self.assertIn("Before `HUMAN_REQUIRED`, the Controller applies a Human-readiness gate", development)
+        self.assertIn("skipped artifact-producing job", development)
+        self.assertIn(
+            "no `HUMAN_REQUIRED` before target, support, provenance, accessibility and procedure are proven action-ready",
+            development,
+        )
+
+        self.assertIn("## Human-readiness prerequisite", notifications_raw)
+        self.assertIn("human evidence is logically next", notifications)
+        self.assertIn("ntfy must stay silent", notifications)
+        self.assertIn("relay intentionally does not attempt to infer arbitrary support readiness", notifications)
+
     def test_notifications_mean_only_test_or_relaunch_and_ci_is_silent(self) -> None:
         contract_raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         development_raw = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
@@ -117,8 +162,8 @@ class ControllerContractTests(unittest.TestCase):
 
         self.assertIn("CI, `GO`, merges, roadmap changes", development)
         self.assertIn("and `UNPROVEN` by itself are silent", development)
-        self.assertIn("`HUMAN_REQUIRED` is reserved for a precise test", development)
-        self.assertIn("Relaunch events use `READY_FOR_REVIEW`, `NO_GO`", development)
+        self.assertIn("`HUMAN_REQUIRED` is reserved for a precise, action-ready test", development)
+        self.assertIn("Relaunch events use `READY_FOR_REVIEW`,", development)
 
         self.assertIn("issue_comment:", workflow)
         self.assertIn("pull_request_review:", workflow)
