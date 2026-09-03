@@ -17,9 +17,12 @@ dependencies.
 1. Protect the current integration critical path.
 2. Use unavoidable CI or human-test waits for one independent reserve atom.
 3. Keep one active integration PR plus at most one preparatory context.
-4. Never invent work merely to keep a Controller session active.
-5. Reconcile the affected local subgraph when new evidence changes a dependency.
-6. Expand distant work only when it becomes relevant to scheduling.
+4. A reserve PR yields at a safe checkpoint when new external evidence makes a
+   higher-priority atom executable; it may be closed without merge and retained
+   as the single preparatory context until revalidated on current `develop`.
+5. Never invent work merely to keep a Controller session active.
+6. Reconcile the affected local subgraph when new evidence changes a dependency.
+7. Expand distant work only when it becomes relevant to scheduling.
 
 ## Product priority
 
@@ -86,7 +89,10 @@ new physical evidence is requested.
   program behavior; Open/Save/Save As; no regression of the previously proven
   Chrome path
 - scheduling: human gate. A pending W1 must not globally idle the Controller;
-  notify once, then use an independent reserve atom when available.
+  notify once, then use an independent reserve atom when available. If the W1
+  result arrives while a reserve PR owns the lane and makes #81 executable,
+  apply the reserve-PR yield rule rather than making #81 wait behind reserve
+  integration.
 
 ### W2 — formal 30-minute low-end Windows stability acceptance
 
