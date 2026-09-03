@@ -43,6 +43,82 @@ function mustRejectStudentValidation(action, detailPattern) {
   assert(detailPattern.test(outcome.detail), 'validation detail was not preserved in runtime outcome');
 }
 
+async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
+  let currentAst = {
+    version: 1,
+    semantics: 'webeeblocks-ast-v1',
+    program: [
+      {kind: 'takeoff', height_m: 0.5},
+      {kind: 'turn', angle_deg: 90},
+      {kind: 'land'}
+    ]
+  };
+  let interpreterRuns = 0;
+  let backendActions = 0;
+  const testBackend = {
+    capabilities: {
+      actions: ['takeoff', 'move', 'land'],
+      rangeDirections: ['front'],
+      moveDirections: ['forward', 'left'],
+      verticalDirections: []
+    },
+    async takeoff() { backendActions++; },
+    async land() { backendActions++; },
+    async turn() { backendActions++; }
+  };
+  const testInterpreter = {
+    async run(ast, selectedBackend) {
+      interpreterRuns++;
+      for (const statement of ast.program) {
+        if (statement.kind === 'takeoff') await selectedBackend.takeoff(statement.height_m);
+        else if (statement.kind === 'turn') await selectedBackend.turn(statement.angle_deg);
+        else if (statement.kind === 'land') await selectedBackend.land();
+      }
+    }
+  };
+  const profile = {
+    toolbox: ['allowed'],
+    parameterBounds: {},
+    runtime: {
+      allowedStatementKinds: ['takeoff', 'turn', 'land'],
+      rangeDirections: [],
+      moveDirections: [],
+      verticalDirections: [],
+      astBounds: {}
+    }
+  };
+  const workspace = {getAllBlocks: () => [{type: 'allowed'}]};
+  const compiler = {compileWorkspace: () => currentAst};
+
+  let error = null;
+  try {
+    await ActivityContract.execute(profile, workspace, compiler, testInterpreter, testBackend);
+  } catch (caught) { error = caught; }
+  assert(error, 'unsupported visible backend capability was not rejected');
+  assert.strictEqual(error.code, 'PROGRAM_INVALID');
+  assert.strictEqual(error.studentDetail, 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.');
+  assert.deepStrictEqual(Outcome.classify(error), {
+    state: 'À CORRIGER',
+    detail: 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.',
+    machineCode: 'PROGRAM_INVALID'
+  });
+  assert.strictEqual(Outcome.isRetryable(error), true);
+  assert.strictEqual(interpreterRuns, 0, 'unsupported capability reached interpreter');
+  assert.strictEqual(backendActions, 0, 'unsupported capability executed backend action before rejection');
+
+  currentAst = {
+    version: 1,
+    semantics: 'webeeblocks-ast-v1',
+    program: [
+      {kind: 'takeoff', height_m: 0.5},
+      {kind: 'land'}
+    ]
+  };
+  await ActivityContract.execute(profile, workspace, compiler, testInterpreter, testBackend);
+  assert.strictEqual(interpreterRuns, 1, 'corrected program was not retryable without reset');
+  assert.strictEqual(backendActions, 2, 'corrected program did not execute normally');
+}
+
 (async function() {
   await mustReject({
     version: 1,
@@ -106,7 +182,9 @@ function mustRejectStudentValidation(action, detailPattern) {
     machineCode: 'PROGRAM_INVALID'
   });
 
-  console.log('PASS Runtime v2 preflight rejects malformed AST and gives fail-closed student guidance for forbidden or disconnected Blockly programs');
+  await proveUnavailableBackendCapabilityIsStudentCorrectable();
+
+  console.log('PASS Runtime v2 preflight rejects malformed AST and gives fail-closed student guidance for forbidden, disconnected, or backend-unavailable Blockly programs');
 })().catch(error => {
   console.error(error);
   process.exit(1);

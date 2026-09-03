@@ -35,7 +35,7 @@
     var capabilities = backend && backend.capabilities;
     if (!capabilities) fail('backend capabilities unavailable');
     var actions = new Set(capabilities.actions || []);
-    facts.statements.forEach(function(kind) { if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind)) fail('backend action capability unavailable: ' + kind); });
+    facts.statements.forEach(function(kind) { if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind)) studentFail('backend action capability unavailable: ' + kind, 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.'); });
     requireDirections(facts, 'ranges', capabilities.rangeDirections, 'backend range capability unavailable: ');
     requireDirections(facts, 'moveDirections', capabilities.moveDirections, 'backend move direction unavailable: ');
     requireDirections(facts, 'verticalDirections', capabilities.verticalDirections, 'backend vertical direction unavailable: ');
