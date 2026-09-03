@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract for the CI topology and trusted transport boundary."""
+"""Static contract for the CI topology, candidate evidence and trusted transport boundary."""
 
 from pathlib import Path
 import re
@@ -12,6 +12,11 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
 
 EXPECTED = {
+    "candidate-evidence.yml": {
+        "candidate-runtime",
+        "candidate-webots",
+        "candidate-evidence",
+    },
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "runtime-v2-core",
@@ -56,7 +61,7 @@ def job_ids(text: str) -> set[str]:
 
 
 class WorkflowContractTests(unittest.TestCase):
-    def test_only_three_ci_workflows_plus_transport_exist(self) -> None:
+    def test_expected_workflows_plus_transport_exist(self) -> None:
         names = {path.name for path in WORKFLOWS.glob("*.yml")}
         self.assertEqual(names, set(EXPECTED).union(TRANSPORT_WORKFLOWS))
 
@@ -106,7 +111,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("github.token", transport)
         self.assertNotIn("CI Gate terminé", transport)
 
-    def test_every_oracle_job_is_preserved_once(self) -> None:
+    def test_every_workflow_job_is_preserved_once(self) -> None:
         observed: set[str] = set()
         for name, expected in EXPECTED.items():
             current = job_ids((WORKFLOWS / name).read_text(encoding="utf-8"))
@@ -130,10 +135,36 @@ class WorkflowContractTests(unittest.TestCase):
             "types: [opened, synchronize, reopened, ready_for_review]",
             orchestrator,
         )
-        for name in ("ci-runtime.yml", "ci-webots.yml"):
+        for name in ("candidate-evidence.yml", "ci-runtime.yml", "ci-webots.yml"):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
             self.assertIn("  workflow_call:\n", suite)
             self.assertNotIn("  pull_request:\n", suite)
+
+    def test_candidate_evidence_is_exact_head_full_and_dormant(self) -> None:
+        candidate = (WORKFLOWS / "candidate-evidence.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("name: Candidate Evidence\n", candidate)
+        self.assertIn("  workflow_call:\n", candidate)
+        self.assertNotIn("  workflow_dispatch:\n", candidate)
+        self.assertNotIn("  pull_request:\n", candidate)
+        self.assertNotIn("  pull_request_review:\n", candidate)
+        self.assertNotIn("  issue_comment:\n", candidate)
+        self.assertNotIn("  push:\n", candidate)
+        self.assertIn("permissions:\n  contents: read\n", candidate)
+        self.assertIn("      target_sha:\n", candidate)
+        self.assertIn("        required: true\n", candidate)
+        self.assertIn("        type: string\n", candidate)
+        self.assertEqual(candidate.count("target_sha: ${{ inputs.target_sha }}"), 2)
+        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", candidate)
+        self.assertIn("uses: ./.github/workflows/ci-webots.yml", candidate)
+        self.assertIn("      full: true\n", candidate)
+        self.assertIn(
+            "needs: [candidate-runtime, candidate-webots]",
+            candidate,
+        )
+        self.assertNotIn("actions/checkout", candidate)
+        self.assertNotIn("CI Gate", candidate)
 
     def test_reusable_suites_receive_an_explicit_git_target(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
@@ -152,7 +183,7 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertGreater(repository_checkouts, 0, name)
             self.assertEqual(suite.count(target_ref), repository_checkouts, name)
 
-    def test_windows_release_is_full_gate_only_and_pinned(self) -> None:
+    def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
         self.assertIn("full: ${{ needs.select.outputs.full == 'true' }}", orchestrator)
