@@ -2,34 +2,71 @@
 
 ## Purpose
 
-This document describes the small GitHub-native control plane used to develop
-WebeeBlocks through productive manual sessions without maintaining a second
-workflow state.
+WebeeBlocks uses a small GitHub-native control plane. A manual Controller session
+protects the current integration critical path and uses unavoidable external
+waits for useful independent work without creating a second workflow state.
 
-## Branches
+The operational authority is the exact-`develop` `AGENTS.md`. Product objectives
+come from `docs/PRODUCT_VISION.md` and GitHub issues. `docs/ROADMAP.md` is a
+rolling, derived dependency projection used only to choose useful work.
+
+## Branches and integration lane
 
 | Branch | Purpose | Authority |
 | --- | --- | --- |
 | `develop` | current integrated product | Controller through reviewed PRs |
 | `main` | stable classroom/release line | Emmanuel only |
-| `feature/<issue>-<slug>` | one vertical slice | deleted after merge |
+| short-lived branch | one integration candidate or bounded preparation | Controller under `AGENTS.md` |
 
-Archive tags or `archive/*` references preserve pre-migration and unique
-historical heads. They are evidence, not active development branches.
+`main` and `develop` remain reconcilable. A release is promoted from `develop`
+to `main` only with Emmanuel's explicit authorization for that exact operation.
 
-`main` and `develop` must remain reconcilable. A human hotfix on `main` is
-merged back into `develop`; a release is promoted from `develop` to `main`.
+Only one integration PR toward `develop` is active. At most one additional
+independent preparatory context may exist. It may contain research, diagnosis or
+a preparatory branch, but it cannot become a concurrent integration PR. If
+`develop` moves, preparatory code must be reconstructed and revalidated against
+the new base before publication.
 
 ## Unit of delivery
 
-A pull request delivers the smallest complete vertical outcome, not the
-smallest possible code edit. It includes its acceptance oracle and any human or
-physical boundary. Several coherent implementation commits are preferable to
-several CI-only pull requests for the same outcome.
+An integration PR delivers the smallest complete vertical product outcome or
+other complete governed change, not the smallest code edit. It contains its
+acceptance proof and any human boundary. Research that requires no product code
+may instead conclude through issue evidence and roadmap reconciliation.
 
-Only one integration PR is active. Worker and Reviewer-Integrator remain fresh,
-separate launches for the same head. Waiting for CI does not split one mode into
-several launches.
+The launch that writes a candidate HEAD never independently reviews or merges
+that HEAD. A fresh Reviewer-Integrator falsifies it. Conversely, after a
+Reviewer merges an unchanged candidate it did not write, that same launch may
+continue as Worker on a different roadmap atom.
+
+## Critical-path scheduling
+
+The Controller optimizes project throughput, not session length.
+
+1. An active PR owns the integration lane.
+2. If the current launch can safely advance it, that work has priority.
+3. If it is waiting only for CI or a human/manual test, the Controller may use
+   the wait for one demonstrably independent roadmap atom.
+4. If progress on the priority PR requires a fresh Controller launch, the
+   current session stops and requests that relaunch instead of producing
+   secondary busywork.
+5. Reserve work is preempted only at a safe checkpoint when the priority path
+   becomes actionable again.
+
+No explicit queue or scheduler state is stored. The Controller reconstructs the
+active PR, exact HEAD, gate, reviews, issue evidence and current roadmap after
+material transitions.
+
+## Roadmap
+
+`docs/ROADMAP.md` is deliberately compact and rolling. It records near-term
+atoms, dependencies and exit proofs only far enough to choose the next useful
+work. New technical evidence may add, remove or rewrite a local dependency.
+Completed atoms can be condensed into the baseline; Git history and issues
+preserve the evidence.
+
+The roadmap never overrides a newer product decision and does not contain
+manual `TODO/READY/BLOCKED/DONE` workflow status.
 
 ## CI topology
 
@@ -39,68 +76,70 @@ several launches.
 - `ci-runtime.yml`: Runtime, Blockly, project-file and Windows contracts;
 - `ci-webots.yml`: Webots, Crazyflie and retained legacy regression contracts.
 
-The selector is conservative:
+The selector remains conservative: documentation-only changes run policy
+checks; isolated Runtime changes run Runtime; controller/world/legacy changes
+run Webots and Runtime when shared behavior is affected; workflow/shared/unknown
+changes run both suites; scheduled runs and PRs to `main` run both suites.
 
-- documentation-only changes run policy checks only;
-- isolated Runtime UI/AST changes run the Runtime suite;
-- controller/world/legacy changes run the Webots suite and Runtime when the
-  shared execution path may be affected;
-- workflow, selector, shared or unknown changes run both suites;
-- scheduled runs and PRs to `main` run both suites.
-
-The final gate fails when selection fails, when any selected suite is skipped,
-cancelled or fails, or when its result cannot be interpreted. Individual jobs
-remain visible for diagnosis, but branch protection requires only `CI Gate`.
-
-There is no post-merge duplicate suite on `develop`. A current merge-ref plus
-the protected up-to-date requirement is the pre-merge integration proof.
+The final gate fails when selection fails, when a selected suite is skipped,
+cancelled or fails, or when its result cannot be interpreted. Branch protection
+requires only `CI Gate`.
 
 ## Productive waiting
 
-A manual Controller launch is one productive session. Around 60 minutes it
-reconstructs the exact state and records a progress checkpoint, but continues
-while safe, material progress is occurring. It waits for `CI Gate`, polls
-moderately and resumes from the settled result. It uses recent comparable
-durations when readily available; otherwise the first wait is four minutes,
-followed by checks about every minute.
+A manual launch is one productive session. Around 60 minutes it reconstructs
+state and makes a progress checkpoint; elapsed time alone is not a stop reason.
+A pending CI is not a stop reason either.
 
-CI pending and CI completion are silent: the active session observes them
-directly. The trusted default-branch workflow sends ntfy only after a terminal
-Controller handoff that requires Emmanuel to intervene or launch the next fresh
-mode: `READY_FOR_REVIEW`, `NO_GO`, `UNPROVEN`, `HUMAN_REQUIRED`, `BLOCKED`
-or `SESSION_LIMIT`. `GO` is silent. After a successful merge, the Reviewer
-reconstructs the new `develop` state: if a physical test, human decision or
-fresh Worker launch is required, it emits an issue-level `HUMAN_REQUIRED`;
-`COMPLETED` remains silent only when there is genuinely nothing for Emmanuel to
-do and no next product slice to start.
+When no independent work is useful, the session waits and polls moderately,
+using recent comparable durations when readily available. When reserve work is
+useful, CI is checked at safe reserve checkpoints rather than interrupting that
+work tightly.
 
-Handoff comments and reviews contain an exact status/SHA and actionable detail,
-but do not store Controller state. Draft/Ready and notification payloads are not
-role locks or workflow state.
+The Controller stops `BLOCKED` after roughly 30 minutes without material
+progress or after the same causal correction cycle repeats twice without new
+evidence. Blind reruns are forbidden.
+
+## Human actions and notifications
+
+ntfy is deliberately narrower than GitHub evidence. It alerts Emmanuel only
+for two kinds of action:
+
+1. a concrete human/manual or physical **test/evidence step**;
+2. a **Controller relaunch** that is the next useful action.
+
+CI, `GO`, merges, roadmap changes, context switches, ordinary comments and
+`UNPROVEN` by itself are silent.
+
+`HUMAN_REQUIRED` is reserved for a precise test/manual evidence action and may
+be non-terminal: once the handoff is published, the Controller may continue on
+one independent atom. Relaunch events use `READY_FOR_REVIEW`, `NO_GO`,
+`BLOCKED` or `SESSION_LIMIT` only when the current session truly must stop and a
+fresh Controller launch is useful.
+
+The trusted default-branch relay validates the repository owner and exact
+current PR HEAD/base or exact `develop` SHA before accessing the ntfy secret.
+The handoff is notification transport, never workflow state.
 
 ## Repository protections
 
-`develop` requires a PR, the `CI Gate`, an up-to-date branch and resolved
-blocking conversations. Force-push and branch deletion are disabled.
+`develop` requires a PR, `CI Gate`, an up-to-date branch and resolved blocking
+conversations. Force-push and branch deletion are disabled.
 
-`main` requires a promotion PR, the full gate and Emmanuel's explicit merge.
-It cannot be pushed, force-pushed or deleted by the Controller.
-
-If GitHub operations use the same account for human and automation, procedural
-human-only authority cannot be distinguished cryptographically. A separate
-least-privilege GitHub App is required before granting unattended release
-authority; it is not required for the current manual-release model.
+`main` requires a promotion PR, the full gate and Emmanuel's explicit merge. It
+cannot be written or merged by the Controller without exact human authority.
 
 ## Operational targets
 
-- two launches for a green slice: one continuous Worker, then one fresh
-  Reviewer-Integrator;
-- no additional launch merely because CI is pending;
+- one active integration PR and at most one independent preparatory context;
+- no extra launch merely because CI or a human test is pending;
+- immediate fresh launch when independent review/repair is the critical-path
+  requirement;
 - no network-caused rerun of a behavioral oracle;
-- one required check and at most one active integration PR;
-- two permanent development branches and automatic feature-branch deletion;
-- full regression nightly and before human promotion.
+- one required decision check (`CI Gate`);
+- full regression nightly and before human promotion;
+- no queue, role token, agent fleet or duplicated workflow-state database.
 
 The full gate also builds the Windows classroom ZIP with the official Webots
-R2025a toolchain. Runtime-only PRs retain the fast Windows AST and project-file
-contract; nightly runs and promotions rebuild the complete offline artifact.
+R2025a toolchain. Runtime-only PRs retain the fast Windows AST/project-file
+contract; full runs rebuild the complete offline artifact.
