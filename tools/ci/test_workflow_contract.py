@@ -13,6 +13,7 @@ TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
 
 EXPECTED = {
     "candidate-evidence.yml": {
+        "validate_target",
         "candidate_runtime",
         "candidate_webots",
         "candidate_evidence",
@@ -155,6 +156,11 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("      target_sha:\n", candidate)
         self.assertIn("        required: true\n", candidate)
         self.assertIn("        type: string\n", candidate)
+        self.assertIn("  validate_target:\n", candidate)
+        self.assertIn("TARGET_SHA: ${{ inputs.target_sha }}", candidate)
+        self.assertIn('test "${#TARGET_SHA}" -eq 40', candidate)
+        self.assertIn("*[!0-9a-fA-F]*|'')", candidate)
+        self.assertEqual(candidate.count("needs: validate_target"), 2)
         self.assertEqual(candidate.count("target_sha: ${{ inputs.target_sha }}"), 2)
         self.assertIn("uses: ./.github/workflows/ci-runtime.yml", candidate)
         self.assertIn("uses: ./.github/workflows/ci-webots.yml", candidate)
