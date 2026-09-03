@@ -48,6 +48,14 @@ coherence and PR #129 addressed student-facing invalid-program handling. The
 remaining #81 acceptance is therefore primarily real human revalidation and the
 formal stability gate, not another speculative packaging redesign.
 
+The discriminating weak-PC benchmark recorded in #80 has also settled the
+interface architecture: **option A, standard Webots GUI + automatically opened
+Robot Window, is the retained classroom path; option B must not be prototyped
+without new contradictory evidence**. Chrome was observed fluid on the reference
+low-end Windows PC, the Robot Window opened without window hunting, and offline
+relaunch worked after preparation/cache. Remaining cache, browser and packaging
+revalidation belongs to #81 rather than a heavier #80 architecture.
+
 Chrome remains the reference browser for the current product-development phase.
 Known Edge and Firefox gaps do not block the next Chrome-based product slices;
 Firefox final same-file semantics remain tracked by #87.
@@ -87,19 +95,6 @@ Firefox final same-file semantics remain tracked by #87.
 - note: do not expand this node while Chrome-based product work remains the
   validated development path.
 
-### U1 — characterize whether the current standard one-action path closes #80-A
-
-- parent: #80
-- depends: current proven Chrome/Webots one-action baseline
-- action: bounded research/characterization, not a new integration PR while
-  another PR owns the lane
-- proof: compare the present standard Webots + Robot Window launch against #80
-  criteria for window management, startup, recovery, offline use and classroom
-  friction; state whether option A is already sufficient or what smallest
-  discriminating gap remains before investigating option B
-- independence: suitable reserve work while W1/W2 wait on Emmanuel, provided no
-  unstable #81 implementation surface is modified.
-
 ### F1 — inventory remaining visible non-French student surfaces
 
 - parent: #79
@@ -108,7 +103,8 @@ Firefox final same-file semantics remain tracked by #87.
 - proof: precise remaining student-visible strings/surfaces, separated from
   internal identifiers and machine diagnostics, with no AST/backend translation
 - note: implementation becomes a normal vertical PR only when the integration
-  lane is free and after checking whether U1 changes the presentation surface.
+  lane is free and after checking whether the retained option A presentation
+  surface changes the inventory.
 
 ### B1 — formalize the declarative activity model and compact progression
 
@@ -119,8 +115,8 @@ Firefox final same-file semantics remain tracked by #87.
 - proof: a coherent model that preserves generic blocks and the
   `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
   pipeline without student progress state or a graphical activity studio
-- note: mass activity production waits until the #80 presentation direction is
-  sufficiently settled.
+- note: mass activity production may rely on the now-settled option A
+  presentation direction, but still waits for higher-priority product work.
 
 ### X1 — reconstruct the current Crazyflie altitude causal path
 
