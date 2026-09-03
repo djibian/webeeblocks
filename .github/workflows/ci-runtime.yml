@@ -3,6 +3,10 @@ name: CI Runtime Suite
 on:
   workflow_call:
     inputs:
+      target_sha:
+        description: Exact WebeeBlocks Git object to prove.
+        required: true
+        type: string
       full:
         description: Build the complete Windows classroom release.
         required: false
@@ -18,6 +22,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -41,6 +47,8 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -85,6 +93,8 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -194,6 +204,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -407,6 +419,8 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -522,6 +536,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -545,6 +561,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -658,6 +676,8 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -880,6 +900,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -1022,6 +1044,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Checkout pinned Webots R2025a release assets
         uses: actions/checkout@v4

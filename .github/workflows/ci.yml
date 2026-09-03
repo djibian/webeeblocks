@@ -27,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Verify selector
@@ -56,6 +57,7 @@ jobs:
     if: ${{ needs.select.outputs.runtime == 'true' }}
     uses: ./.github/workflows/ci-runtime.yml
     with:
+      target_sha: ${{ github.sha }}
       full: ${{ needs.select.outputs.full == 'true' }}
 
   webots:
@@ -63,6 +65,8 @@ jobs:
     needs: select
     if: ${{ needs.select.outputs.webots == 'true' }}
     uses: ./.github/workflows/ci-webots.yml
+    with:
+      target_sha: ${{ github.sha }}
 
   gate:
     name: CI Gate
@@ -71,6 +75,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Require every selected suite
         env:
