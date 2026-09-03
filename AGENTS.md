@@ -55,10 +55,13 @@ that has just been outranked by newly executable higher-priority work.
 
 - If this launch may safely advance the priority PR, do so before starting
   reserve work.
+- Treat a human/manual proof as an external wait only after the Human-readiness
+  gate below passes. If its required support is missing or stale, preparing and
+  proving that support remains critical-path technical work, not a human wait.
 - If the priority PR is waiting only on an external event that this launch
-  cannot speed up, such as CI or a human physical/manual test, use the wait for
-  one independent roadmap atom when useful. Return to the priority path at the
-  next safe checkpoint once the event settles.
+  cannot speed up, such as CI or an action-ready human physical/manual test,
+  use the wait for one independent roadmap atom when useful. Return to the
+  priority path at the next safe checkpoint once the event settles.
 - A PR created only from reserve work while a higher-priority atom was
   externally blocked is yieldable. If new human/external evidence makes that
   higher-priority atom executable, stop reserve work at the next safe
@@ -193,11 +196,13 @@ for elapsed time.
    `develop`. Never merge to `main`. Reconstruct state and continue on the next
    executable atom when useful.
 5. On `NO_GO`, stop after the native review; a fresh Worker launch is required.
-6. On `UNPROVEN`, do not fabricate a pass. If the missing evidence is a concrete
-   human/manual test, publish the single test handoff described below, park the
-   PR and use an independent reserve atom if one exists. Otherwise report the
-   evidence gap without generating an ntfy event merely because proof is
-   missing.
+6. On `UNPROVEN`, do not fabricate a pass. If the next proof type is a
+   human/manual test, apply the Human-readiness gate below before publishing a
+   test handoff. If the gate is not satisfied, finish any Controller-executable
+   technical preparation first or report the evidence gap silently; do not ask
+   Emmanuel to perform a downstream test that is not yet executable. Otherwise
+   report the evidence gap without generating an ntfy event merely because
+   proof is missing.
 
 ## Optional Copilot review probation
 
@@ -237,15 +242,42 @@ probation covers at most three eligible technical PRs beginning 2 September
 GitHub remains authoritative. Notifications exist only when Emmanuel must do a
 real test/manual evidence step or must relaunch the Controller.
 
+### Human-readiness gate
+
+The fact that the next proof type is human does not mean the human action is
+ready. Before any `HUMAN_REQUIRED`, prove that the requested action is
+immediately executable:
+
+- identify the exact target revision, version or deployed state to be tested;
+- verify that every required support exists now and is accessible to Emmanuel:
+  artifact, ZIP, binary, firmware, dataset, report, deployed version or other
+  material/software prerequisite;
+- bind that support to the target with explicit provenance, or document a
+  technically justified equivalence when byte-for-byte/exact-SHA identity is
+  not the relevant property;
+- verify that the procedure and requested result can be performed without an
+  uncompleted technical preparation step.
+
+A green aggregate CI result is not proof that a human-test support exists. A
+skipped artifact-producing job, an expired or unavailable artifact, a stale
+binary/firmware, or an unverified deployment fails this gate. If the Controller
+can perform the missing build, package, deploy, export or provenance step, that
+work stays on the critical path and must happen before `HUMAN_REQUIRED`. If a
+separate human-only prerequisite is unavoidable, request only that prerequisite
+when it is itself action-ready; never request the downstream test prematurely.
+
 ### Test notification
 
-Use `CONTROLLER_HANDOFF HUMAN_REQUIRED <sha>` only for a concrete human or
-physical test/manual evidence action. Describe exactly one test and the result
-to report. This handoff may be non-terminal: after publishing it, continue on
-one independent atom when useful.
+Use `CONTROLLER_HANDOFF HUMAN_REQUIRED <sha>` only after the Human-readiness
+gate passes for one concrete human or physical test/manual evidence action.
+Describe exactly one test, the exact support/target to use, how to access it and
+the result to report. This handoff may be non-terminal: after publishing it,
+continue on one independent atom when useful.
 
 Do not repeat the same unresolved human test merely because `develop` later
-moves. Check existing issue/PR handoffs and human evidence first.
+moves. Check existing issue/PR handoffs and human evidence first. If the target
+or required support changes, re-evaluate Human readiness before relying on an
+older handoff.
 
 ### Relaunch notification
 
@@ -265,7 +297,8 @@ still advance the critical path. Do not duplicate an already-current handoff.
 
 `VERDICT UNPROVEN`, pending/settled CI, `GO`, merges, roadmap changes, context
 switches and silent `COMPLETED` do not trigger ntfy. If `UNPROVEN` requires a
-human test, use the separate `HUMAN_REQUIRED` test handoff once.
+human test, use the separate `HUMAN_REQUIRED` test handoff only after Human
+readiness is proven.
 
 Mention `@djibian` only for a concrete human/manual test or a decision that must
 be made before the announced relaunch. A final report states the current
