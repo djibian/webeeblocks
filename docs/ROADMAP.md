@@ -81,18 +81,27 @@ new physical evidence is requested.
 ### W1 — real Chrome coherence retest
 
 - parent: #81
-- depends: integrated execution-state and invalid-program corrections
-- action: human/manual test on the lowest-spec classroom Windows PC with the
-  current exact release artifact
+- depends: integrated execution-state and invalid-program corrections plus a
+  Human-readiness gate proving an accessible current Windows release artifact
+  for the exact test target
+- action: human/manual test on the lowest-spec classroom Windows PC with that
+  proven current release artifact
+- readiness: before `HUMAN_REQUIRED`, verify the artifact exists now, is
+  downloadable/usable by Emmanuel, and has explicit provenance to the exact
+  target revision or a documented technically equivalent tree/state. A green
+  aggregate gate is insufficient: if `runtime-v2-windows-release` or any other
+  required artifact-producing job was skipped, or the artifact is expired,
+  stale or unavailable, W1 is not executable and technical preparation stays
+  on the critical path.
 - proof: one-action offline startup to `PRÊT`; normal and step execution;
   coherent workspace/file controls during execution; student-facing invalid
   program behavior; Open/Save/Save As; no regression of the previously proven
   Chrome path
-- scheduling: human gate. A pending W1 must not globally idle the Controller;
-  notify once, then use an independent reserve atom when available. If the W1
-  result arrives while a reserve PR owns the lane and makes #81 executable,
-  apply the reserve-PR yield rule rather than making #81 wait behind reserve
-  integration.
+- scheduling: human gate only after readiness passes. A ready-but-pending W1
+  must not globally idle the Controller; notify once, then use an independent
+  reserve atom when available. If the W1 result arrives while a reserve PR owns
+  the lane and makes #81 executable, apply the reserve-PR yield rule rather than
+  making #81 wait behind reserve integration.
 
 ### W2 — formal 30-minute low-end Windows stability acceptance
 
