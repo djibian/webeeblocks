@@ -1,56 +1,77 @@
 # Controller notifications
 
-Notifications transport a terminal handoff; they never store Controller state.
+Notifications transport a requested human action; they never store Controller
+state and they are intentionally narrower than GitHub evidence.
 
 ## When ntfy is sent
 
-CI pending and CI completion are silent. An active Controller session waits,
-polls moderately and continues from the exact result without asking Emmanuel
-to relaunch it.
+There are only two notification purposes:
 
-The trusted default-branch workflow sends one notification only when a terminal
-Controller handoff requires an external action:
+1. **TEST** — Emmanuel must perform a concrete manual/physical test or collect
+   human-only evidence.
+2. **RELAUNCH** — the current Controller session must stop and a fresh Controller
+   launch is the next useful action.
 
-| Status | GitHub artifact | Requested action |
+Everything else is silent: CI pending/completion, `GO`, merges, roadmap changes,
+context switches, ordinary comments/reviews and `UNPROVEN` by itself.
+
+| GitHub artifact | Meaning for ntfy | Session effect |
 | --- | --- | --- |
-| `READY_FOR_REVIEW` | PR comment | launch a fresh Reviewer-Integrator |
-| `NO_GO` | native PR review | launch a Worker to repair the same PR |
-| `UNPROVEN` | native PR review | arbitrate or obtain the missing proof |
-| `HUMAN_REQUIRED` | PR or issue comment | perform the stated human action |
-| `BLOCKED` | PR or issue comment | resolve the stated blocker |
-| `SESSION_LIMIT` | PR or issue comment | relaunch the same mode |
+| `CONTROLLER_HANDOFF HUMAN_REQUIRED <sha>` | TEST | may continue on one independent atom |
+| `CONTROLLER_HANDOFF READY_FOR_REVIEW <sha>` | RELAUNCH for independent review | stop |
+| native review `NO_GO <sha>` | RELAUNCH for fresh Worker repair | stop |
+| `CONTROLLER_HANDOFF BLOCKED <sha>` | RELAUNCH only when a fresh run is useful | stop |
+| `CONTROLLER_HANDOFF SESSION_LIMIT <sha>` | RELAUNCH after real platform/runtime limit | stop |
 
-`GO`, `COMPLETED`, ordinary comments/reviews and every CI event are silent.
+A missing proof that does not itself require Emmanuel is recorded as
+`VERDICT UNPROVEN <sha>` and does not match the ntfy transport grammar. If the
+missing proof is a human test, publish the separate `HUMAN_REQUIRED` test
+handoff once.
 
 ## Strict handoff protocol
 
-Worker and non-review terminal comments use an exact first line:
+Comment handoffs use an exact first line:
 
 ```text
 CONTROLLER_HANDOFF <STATUS> <full-sha>
 ```
 
-The allowed comment statuses are `READY_FOR_REVIEW`, `HUMAN_REQUIRED`,
-`BLOCKED` and `SESSION_LIMIT`. The following lines must contain a precise,
-actionable detail.
+The transport-recognized comment statuses are `READY_FOR_REVIEW`,
+`HUMAN_REQUIRED`, `BLOCKED` and `SESSION_LIMIT`. The following lines contain one
+precise actionable detail.
 
-Reviewer handoffs use the existing native review verdict as the exact first
-line:
+The only native review that requests a relaunch is:
 
 ```text
 NO_GO <full-sha>
-UNPROVEN <full-sha>
 ```
+
+`GO <full-sha>` and `VERDICT UNPROVEN <full-sha>` remain GitHub evidence but are
+silent notification-wise.
 
 The workflow accepts an event only when:
 
 - repository and author are exactly the trusted repository owner;
-- a PR handoff names the current full head SHA of a PR to `develop`;
+- a PR handoff names the current full HEAD SHA of a PR to `develop`;
 - an issue-only handoff names the current full `develop` SHA;
 - the first line matches the strict grammar and details are non-empty.
 
-Stale or ordinary events are ignored. The Controller emits at most one artifact
-for a terminal status/SHA. GitHub remains authoritative if ntfy delivery fails.
+Stale or ordinary events are ignored. The Controller must not duplicate an
+already-current relaunch handoff or an unresolved identical human test. GitHub
+remains authoritative if ntfy delivery fails.
+
+## Compatibility during develop/main separation
+
+GitHub executes the trusted notification workflow from the default branch. The
+optimized Controller protocol therefore deliberately reuses the existing
+transport-recognized statuses: once the new `AGENTS.md` is authoritative,
+`HUMAN_REQUIRED` is emitted only for a test and the other recognized statuses
+only for a required relaunch. `VERDICT UNPROVEN` intentionally does not match
+the older `UNPROVEN <sha>` review grammar.
+
+This means the semantic migration does not require an unauthorized direct write
+to `main`. The updated workflow wording reaches `main` only through a later
+human-authorized normal promotion.
 
 ## Security
 
@@ -61,4 +82,3 @@ for a terminal status/SHA. GitHub remains authoritative if ntfy delivery fails.
 - no GitHub write, CI orchestration or merge authority;
 - event JSON is parsed as data and current public GitHub state is revalidated;
 - transport failure cannot change CI, review or merge truth.
-
