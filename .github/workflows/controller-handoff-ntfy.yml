@@ -1,4 +1,4 @@
-name: Controller terminal handoff to ntfy
+name: Controller action handoff to ntfy
 
 on:
   issue_comment:
@@ -9,12 +9,12 @@ on:
 permissions: {}
 
 concurrency:
-  group: controller-terminal-ntfy-${{ github.event_name }}-${{ github.event.comment.id || github.event.review.id }}
+  group: controller-action-ntfy-${{ github.event_name }}-${{ github.event.comment.id || github.event.review.id }}
   cancel-in-progress: false
 
 jobs:
   notify:
-    name: Relay trusted terminal handoff
+    name: Relay trusted human action
     if: >-
       github.repository == 'djibian/webeeblocks' &&
       github.actor == 'djibian'
@@ -38,14 +38,14 @@ jobs:
               rf'(READY_FOR_REVIEW|HUMAN_REQUIRED|BLOCKED|SESSION_LIMIT) '
               rf'({SHA})'
           )
-          REVIEW_PATTERN = re.compile(rf'(NO_GO|UNPROVEN) ({SHA})')
+          REVIEW_PATTERN = re.compile(rf'NO_GO ({SHA})')
 
           def api_json(url):
               request = urllib.request.Request(
                   url,
                   headers={
                       'Accept': 'application/vnd.github+json',
-                      'User-Agent': 'webeeblocks-terminal-ntfy',
+                      'User-Agent': 'webeeblocks-action-ntfy',
                   },
               )
               with urllib.request.urlopen(request, timeout=20) as response:
@@ -81,9 +81,10 @@ jobs:
               first_line, details = first_line_and_details(review.get('body'))
               match = REVIEW_PATTERN.fullmatch(first_line)
               if not match:
-                  print('Review is not a terminal controller handoff; ignored.')
+                  print('Review does not request a Controller relaunch; ignored.')
                   raise SystemExit(0)
-              status, head = match.groups()
+              status = 'NO_GO'
+              head = match.group(1)
               number = int(pull_request['number'])
               target_url = review.get('html_url') or pull_request.get('html_url')
           elif event_name == 'issue_comment':
@@ -96,7 +97,7 @@ jobs:
               first_line, details = first_line_and_details(comment.get('body'))
               match = COMMENT_PATTERN.fullmatch(first_line)
               if not match:
-                  print('Comment is not a terminal controller handoff; ignored.')
+                  print('Comment does not request a human action; ignored.')
                   raise SystemExit(0)
               status, head = match.groups()
               number = int(issue['number'])
@@ -105,11 +106,11 @@ jobs:
               raise SystemExit('Unexpected event type')
 
           if not details:
-              raise SystemExit('Terminal handoff must contain an actionable detail')
+              raise SystemExit('Human-action handoff must contain an actionable detail')
 
           issue = event.get('issue') or {}
           is_pull_request = event_name == 'pull_request_review' or bool(issue.get('pull_request'))
-          if status in {'READY_FOR_REVIEW', 'NO_GO', 'UNPROVEN'} and not is_pull_request:
+          if status in {'READY_FOR_REVIEW', 'NO_GO'} and not is_pull_request:
               raise SystemExit(f'{status} requires a pull request')
 
           if is_pull_request:
@@ -133,41 +134,35 @@ jobs:
               raise SystemExit('NTFY_TOPIC has an invalid format')
 
           presentation = {
+              'HUMAN_REQUIRED': (
+                  'WebeeBlocks — TEST À EFFECTUER',
+                  'Effectuer le test ou relevé manuel indiqué',
+                  5,
+                  ['test_tube', 'robot'],
+              ),
               'READY_FOR_REVIEW': (
-                  'WebeeBlocks — REVUE À LANCER',
-                  'Relancer le Contrôleur en Reviewer-Integrator',
+                  'WebeeBlocks — RELANCE CONTRÔLEUR',
+                  'Relancer le Contrôleur pour la revue indépendante',
                   4,
-                  ['mag', 'robot'],
+                  ['arrows_counterclockwise', 'robot'],
               ),
               'NO_GO': (
-                  'WebeeBlocks — CORRECTION À LANCER',
-                  'Relancer le Contrôleur en Worker',
+                  'WebeeBlocks — RELANCE CONTRÔLEUR',
+                  'Relancer le Contrôleur en Worker pour la réparation indiquée',
                   4,
-                  ['wrench', 'robot'],
-              ),
-              'UNPROVEN': (
-                  'WebeeBlocks — PREUVE À ARBITRER',
-                  'Examiner la preuve manquante puis relancer le Contrôleur',
-                  5,
-                  ['warning', 'robot'],
-              ),
-              'HUMAN_REQUIRED': (
-                  'WebeeBlocks — INTERVENTION REQUISE',
-                  'Effectuer l’action humaine indiquée',
-                  5,
-                  ['raising_hand', 'robot'],
+                  ['arrows_counterclockwise', 'robot'],
               ),
               'BLOCKED': (
-                  'WebeeBlocks — BLOCAGE À TRAITER',
-                  'Examiner le blocage avant de relancer le Contrôleur',
-                  5,
-                  ['no_entry', 'robot'],
+                  'WebeeBlocks — RELANCE CONTRÔLEUR',
+                  'Relancer le Contrôleur avec le blocage indiqué',
+                  4,
+                  ['arrows_counterclockwise', 'robot'],
               ),
               'SESSION_LIMIT': (
-                  'WebeeBlocks — SESSION À RELANCER',
-                  'Relancer le Contrôleur dans le même mode',
+                  'WebeeBlocks — RELANCE CONTRÔLEUR',
+                  'Relancer le Contrôleur pour poursuivre depuis GitHub',
                   4,
-                  ['hourglass', 'robot'],
+                  ['arrows_counterclockwise', 'robot'],
               ),
           }
           title, next_action, priority, tags = presentation[status]
@@ -211,4 +206,3 @@ jobs:
                   raise RuntimeError(f'ntfy returned HTTP {response.status}')
               print(f'ntfy status: {response.status}')
           PY
-
