@@ -1005,7 +1005,7 @@ jobs:
           assert locale['directionOptions']==expected_directions, locale['directionOptions']
           assert locale['sensorText']=='devant = 1 m · derrière = 2 m · à gauche = 3 m · à droite = 4 m · au-dessus = 5 m', locale['sensorText']
           visible=' '.join(locale['blocks'].values()).lower()
-          assert not re.search(r'\b(repeat|if|do|else|and|or|true|false)\b',visible), locale['blocks']
+          assert not re.search(r'\\b(repeat|if|do|else|and|or|true|false)\\b',visible), locale['blocks']
           assert i['viewport']=={'width':1366,'height':768}, i['viewport']
           assert all(i['controls'].values()), i['controls']
           assert i['geometry']['toolbar'] and i['geometry']['toolbar']['width']>0, i['geometry']
