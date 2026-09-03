@@ -13,9 +13,9 @@ TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
 
 EXPECTED = {
     "candidate-evidence.yml": {
-        "candidate-runtime",
-        "candidate-webots",
-        "candidate-evidence",
+        "candidate_runtime",
+        "candidate_webots",
+        "candidate_evidence",
     },
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
@@ -160,7 +160,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ci-webots.yml", candidate)
         self.assertIn("      full: true\n", candidate)
         self.assertIn(
-            "needs: [candidate-runtime, candidate-webots]",
+            "needs: [candidate_runtime, candidate_webots]",
             candidate,
         )
         self.assertNotIn("actions/checkout", candidate)
