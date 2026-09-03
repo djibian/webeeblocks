@@ -12,29 +12,29 @@ permissions:
   contents: read
 
 jobs:
-  candidate-runtime:
+  candidate_runtime:
     name: Candidate Runtime evidence
     uses: ./.github/workflows/ci-runtime.yml
     with:
       target_sha: ${{ inputs.target_sha }}
       full: true
 
-  candidate-webots:
+  candidate_webots:
     name: Candidate Webots evidence
     uses: ./.github/workflows/ci-webots.yml
     with:
       target_sha: ${{ inputs.target_sha }}
 
-  candidate-evidence:
+  candidate_evidence:
     name: Candidate Evidence
     if: ${{ always() }}
-    needs: [candidate-runtime, candidate-webots]
+    needs: [candidate_runtime, candidate_webots]
     runs-on: ubuntu-22.04
     steps:
       - name: Require complete deterministic candidate evidence
         env:
-          RUNTIME_RESULT: ${{ needs.candidate-runtime.result }}
-          WEBOTS_RESULT: ${{ needs.candidate-webots.result }}
+          RUNTIME_RESULT: ${{ needs.candidate_runtime.result }}
+          WEBOTS_RESULT: ${{ needs.candidate_webots.result }}
         run: |
           set -euo pipefail
           test "$RUNTIME_RESULT" = "success"
