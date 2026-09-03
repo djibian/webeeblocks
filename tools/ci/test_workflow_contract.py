@@ -12,6 +12,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
 
 EXPECTED = {
+    "candidate-evidence-on-unproven.yml": {"validate", "evidence"},
     "candidate-evidence.yml": {
         "validate_target",
         "candidate_runtime",

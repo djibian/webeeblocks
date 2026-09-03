@@ -304,3 +304,46 @@ Mention `@djibian` only for a concrete human/manual test or a decision that must
 be made before the announced relaunch. A final report states the current
 outcome, PR/head when relevant, evidence, `develop` and `main`, any waiting human
 test, and the next actionable event.
+
+## Candidate evidence escalation
+
+Evidence is attached to the decision its failure must block. If required
+evidence would prevent merging the current candidate, obtain it on that exact
+candidate before merge. Evidence meaningful only for an integrated combination
+or milestone belongs on `develop` after integration. Never merge a PR while
+evidence required for one of its merge-blocking claims remains `UNPROVEN`.
+
+For an active PR, `VERDICT UNPROVEN <sha>` is the strict canonical signal that
+an independent Reviewer has not refuted the candidate but merge-blocking
+evidence for that exact HEAD is still missing. Submitted verdict reviews are
+append-only operational evidence: never edit one to change its meaning, and
+never submit a second `VERDICT UNPROVEN` for the same PR HEAD.
+
+The read-only `pull_request_review` listener may authorize exactly one
+`Candidate Evidence` escalation for a trusted canonical UNPROVEN review after
+binding the declared SHA to `review.commit_id` and the live same-repository PR
+HEAD on base `develop`, and after confirming that no earlier trusted UNPROVEN
+exists for that HEAD. Ambiguous, contradictory, stale, forked or malformed
+review state fails closed and starts no evidence run.
+
+`Candidate Evidence` is supplementary exact-HEAD deterministic evidence, not a
+second `CI Gate`, not a required check and never a `GO` by itself. It runs the
+integrated Runtime evidence with `full: true` plus the Webots evidence on the
+explicit immutable candidate SHA. Its start and completion are silent: they do
+not generate ntfy notifications.
+
+After recording an eligible UNPROVEN verdict, keep the productive Reviewer
+session alive and poll the resulting Candidate Evidence moderately when
+possible. When it settles, reconstruct the live PR and exact unchanged HEAD from
+GitHub before deciding again. A successful evidence run can justify a later
+`GO` review only if the scoped claim is now actually proven. A causal candidate
+defect can justify `NO_GO`. If deterministic preparation has merely made a real
+human/manual proof action-ready, apply the Human-readiness gate and use
+`HUMAN_REQUIRED`. If evidence is still genuinely unavailable, keep the gap
+`UNPROVEN` and silent rather than fabricating a pass or emitting another
+UNPROVEN review.
+
+A later evidence-driven `GO` or `NO_GO` is a new append-only review based on new
+evidence; it never edits the earlier UNPROVEN review. A human action must never
+be requested merely to perform deterministic technical preparation that the
+infrastructure can perform itself.

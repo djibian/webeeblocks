@@ -1,0 +1,181 @@
+name: Candidate Evidence on UNPROVEN
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+concurrency:
+  group: candidate-evidence-unproven-${{ github.event.pull_request.number }}-${{ github.event.review.commit_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate trusted UNPROVEN
+    if: >-
+      github.event.review.state == 'commented' &&
+      github.event.review.user.login == 'djibian' &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: read
+    outputs:
+      target_sha: ${{ steps.validate.outputs.target_sha }}
+    steps:
+      - id: validate
+        name: Bind verdict to live PR HEAD and review history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import urllib.request
+
+          TRUSTED_AUTHOR = "djibian"
+          SHA_RE = re.compile(r"[0-9a-f]{40}")
+          UNPROVEN_RE = re.compile(r"VERDICT UNPROVEN ([0-9a-f]{40})")
+          VERDICT_PREFIXES = ("GO ", "NO_GO ", "VERDICT UNPROVEN ")
+
+          def ignore(reason):
+              print(f"Candidate Evidence not started: {reason}")
+              raise SystemExit(0)
+
+          def first_line(body):
+              lines = (body or "").splitlines()
+              return lines[0] if lines else ""
+
+          def parse_verdict(line):
+              for prefix in VERDICT_PREFIXES:
+                  if not line.startswith(prefix):
+                      continue
+                  sha = line[len(prefix):]
+                  if not SHA_RE.fullmatch(sha):
+                      return ("MALFORMED", None)
+                  return (prefix.strip(), sha)
+              return None
+
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as handle:
+              event = json.load(handle)
+
+          review = event.get("review") or {}
+          event_pr = event.get("pull_request") or {}
+          repository = os.environ["REPOSITORY"]
+
+          if str(review.get("state", "")).lower() != "commented":
+              ignore("review state is not commented")
+          if (review.get("user") or {}).get("login") != TRUSTED_AUTHOR:
+              ignore("review author is not trusted")
+          if (event_pr.get("base") or {}).get("ref") != "develop":
+              ignore("event PR base is not develop")
+          if ((event_pr.get("head") or {}).get("repo") or {}).get("full_name") != repository:
+              ignore("event PR is not from the same repository")
+
+          line = first_line(review.get("body"))
+          match = UNPROVEN_RE.fullmatch(line)
+          if not match:
+              ignore("first line is not the canonical UNPROVEN verdict")
+          declared_sha = match.group(1)
+          if review.get("commit_id") != declared_sha:
+              ignore("declared SHA differs from review.commit_id")
+
+          number = event_pr.get("number")
+          if not isinstance(number, int):
+              raise RuntimeError("pull request number missing from review event")
+
+          token = os.environ["GH_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "webeeblocks-candidate-evidence",
+          }
+
+          def api_get(path):
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}{path}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          live_pr = api_get(f"/pulls/{number}")
+          if live_pr.get("state") != "open":
+              ignore("live PR is not open")
+          if (live_pr.get("base") or {}).get("ref") != "develop":
+              ignore("live PR base is not develop")
+          if ((live_pr.get("head") or {}).get("repo") or {}).get("full_name") != repository:
+              ignore("live PR is not from the same repository")
+          if (live_pr.get("head") or {}).get("sha") != declared_sha:
+              ignore("live PR HEAD differs from declared SHA")
+
+          reviews = []
+          page = 1
+          while True:
+              batch = api_get(f"/pulls/{number}/reviews?per_page=100&page={page}")
+              if not isinstance(batch, list):
+                  raise RuntimeError("unexpected reviews API response")
+              reviews.extend(batch)
+              if len(batch) < 100:
+                  break
+              page += 1
+              if page > 100:
+                  raise RuntimeError("review pagination exceeded safety bound")
+
+          current_id = review.get("id")
+          trusted_verdicts = []
+          for item in reviews:
+              if (item.get("user") or {}).get("login") != TRUSTED_AUTHOR:
+                  continue
+              if str(item.get("state", "")).lower() != "commented":
+                  continue
+              if item.get("commit_id") != declared_sha:
+                  continue
+              parsed = parse_verdict(first_line(item.get("body")))
+              if parsed is None:
+                  continue
+              kind, verdict_sha = parsed
+              if kind == "MALFORMED" or verdict_sha != declared_sha:
+                  ignore("trusted verdict history for this HEAD is ambiguous")
+              trusted_verdicts.append(
+                  (item.get("submitted_at") or "", int(item.get("id")), kind)
+              )
+
+          trusted_verdicts.sort(key=lambda item: (item[0], item[1]))
+          current_positions = [
+              index
+              for index, item in enumerate(trusted_verdicts)
+              if item[1] == int(current_id)
+          ]
+          if len(current_positions) != 1:
+              ignore("current review is not uniquely present in live review history")
+
+          current_position = current_positions[0]
+          if trusted_verdicts[current_position][2] != "VERDICT UNPROVEN":
+              ignore("current trusted verdict is not UNPROVEN")
+
+          previous = trusted_verdicts[:current_position]
+          if any(item[2] == "VERDICT UNPROVEN" for item in previous):
+              ignore("an earlier trusted UNPROVEN already exists for this PR HEAD")
+          if any(item[2] in {"GO", "NO_GO"} for item in previous):
+              ignore("trusted verdict history for this HEAD is contradictory")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"target_sha={declared_sha}\n")
+          print(f"Candidate Evidence authorized for PR #{number} at {declared_sha}")
+          PY
+
+  evidence:
+    name: Run exact-HEAD Candidate Evidence
+    needs: validate
+    if: needs.validate.outputs.target_sha != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/candidate-evidence.yml
+    with:
+      target_sha: ${{ needs.validate.outputs.target_sha }}
