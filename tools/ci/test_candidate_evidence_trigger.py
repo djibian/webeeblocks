@@ -44,6 +44,8 @@ class CandidateEvidenceTriggerTests(unittest.TestCase):
         self.assertNotIn("contents: write", text)
         self.assertNotIn("pull-requests: write", text)
         self.assertNotIn("issues: write", text)
+        self.assertNotIn("${{ github.event_path }}", text)
+        self.assertIn('os.environ["GITHUB_EVENT_PATH"]', text)
 
     def test_event_gate_is_trusted_same_repo_develop_commented_review(self) -> None:
         text = self.listener
