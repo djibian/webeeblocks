@@ -7,12 +7,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 LISTENER = ROOT / ".github" / "workflows" / "candidate-evidence-on-unproven.yml"
+CONTRACT = ROOT / "AGENTS.md"
 
 
 class CandidateEvidenceTriggerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.listener = LISTENER.read_text(encoding="utf-8")
+        cls.contract = CONTRACT.read_text(encoding="utf-8")
 
     def test_only_submitted_reviews_can_trigger(self) -> None:
         text = self.listener
@@ -112,6 +114,26 @@ class CandidateEvidenceTriggerTests(unittest.TestCase):
         self.assertNotIn("label", text.lower())
         self.assertNotIn("READY_FOR_REVIEW", text)
         self.assertNotIn("HUMAN_REQUIRED", text)
+
+    def test_controller_contract_places_and_reassesses_candidate_evidence(self) -> None:
+        text = self.contract
+        for required in (
+            "## Candidate evidence escalation",
+            "Evidence is attached to the decision its failure must block",
+            "Never merge a PR while",
+            "never submit a second `VERDICT UNPROVEN` for the same PR HEAD",
+            "authorize exactly one",
+            "binding the declared SHA to `review.commit_id`",
+            "not a second `CI Gate`",
+            "not a required check and never a `GO` by itself",
+            "Its start and completion are silent",
+            "keep the productive Reviewer session alive",
+            "reconstruct the live PR and exact unchanged HEAD",
+            "A causal candidate defect can justify `NO_GO`",
+            "apply the Human-readiness gate and use `HUMAN_REQUIRED`",
+            "never edits the earlier UNPROVEN review",
+        ):
+            self.assertIn(required, text)
 
 
 if __name__ == "__main__":
