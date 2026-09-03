@@ -54,16 +54,20 @@ The Controller optimizes project throughput, not session length.
 
 1. An active priority PR owns the integration lane.
 2. If the current launch can safely advance it, that work has priority.
-3. If it is waiting only for CI or a human/manual test, the Controller may use
-   the wait for one demonstrably independent roadmap atom.
-4. If a reserve PR is open and newly settled external evidence makes a
+3. A human proof is an external wait only after its required support is proven
+   action-ready; missing build/package/deploy/export/provenance work stays on
+   the technical critical path.
+4. If the priority path is waiting only for CI or an action-ready human/manual
+   test, the Controller may use the wait for one demonstrably independent
+   roadmap atom.
+5. If a reserve PR is open and newly settled external evidence makes a
    higher-priority atom executable, the reserve PR yields at a safe checkpoint;
    close it without merge when necessary rather than making the critical path
    wait behind reserve integration.
-5. If progress on the priority PR requires a fresh Controller launch, the
+6. If progress on the priority PR requires a fresh Controller launch, the
    current session stops and requests that relaunch instead of producing
    secondary busywork.
-6. Reserve work is preempted only at a safe checkpoint when the priority path
+7. Reserve work is preempted only at a safe checkpoint when the priority path
    becomes actionable again.
 
 No explicit queue or scheduler state is stored. The Controller reconstructs the
@@ -124,15 +128,25 @@ for two kinds of action:
 CI, `GO`, merges, roadmap changes, context switches, ordinary comments and
 `UNPROVEN` by itself are silent.
 
-`HUMAN_REQUIRED` is reserved for a precise test/manual evidence action and may
-be non-terminal: once the handoff is published, the Controller may continue on
-one independent atom. Relaunch events use `READY_FOR_REVIEW`, `NO_GO`,
-`BLOCKED` or `SESSION_LIMIT` only when the current session truly must stop and a
-fresh Controller launch is useful.
+Before `HUMAN_REQUIRED`, the Controller applies a Human-readiness gate. The next
+proof being human is not enough: the exact target must be identified, every
+required artifact/binary/firmware/dataset/report/deployment must exist and be
+accessible, its provenance or justified equivalence to the target must be
+proven, and no Controller-executable preparation may remain. A green aggregate
+CI result does not substitute for this check; a skipped artifact-producing job,
+an expired artifact or an unverified deployment leaves the human test not ready.
+
+`HUMAN_REQUIRED` is reserved for a precise, action-ready test/manual evidence
+action and may be non-terminal: once the handoff is published, the Controller
+may continue on one independent atom. Relaunch events use `READY_FOR_REVIEW`,
+`NO_GO`, `BLOCKED` or `SESSION_LIMIT` only when the current session truly must
+stop and a fresh Controller launch is useful.
 
 The trusted default-branch relay validates the repository owner and exact
 current PR HEAD/base or exact `develop` SHA before accessing the ntfy secret.
-The handoff is notification transport, never workflow state.
+The relay does not infer arbitrary test-support readiness; that is a Controller
+precondition before the handoff is emitted. The handoff is notification
+transport, never workflow state.
 
 ## Repository protections
 
@@ -147,6 +161,8 @@ cannot be written or merged by the Controller without exact human authority.
 - one active integration PR and at most one independent preparatory context;
 - no priority inversion from a reserve PR after higher-priority external
   evidence settles;
+- no `HUMAN_REQUIRED` before target, support, provenance, accessibility and
+  procedure are proven action-ready;
 - no extra launch merely because CI or a human test is pending;
 - immediate fresh launch when independent review/repair is the critical-path
   requirement;
