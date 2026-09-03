@@ -59,7 +59,8 @@ class ControllerContractTests(unittest.TestCase):
         self.assertIn("option A, standard Webots GUI + automatically opened Robot Window", roadmap)
         self.assertIn("option B must not be prototyped without new contradictory evidence", roadmap)
         self.assertNotIn("U1 — characterize whether the current standard one-action path", roadmap)
-        self.assertIn("X1 — reconstruct the current Crazyflie altitude causal path", roadmap)
+        self.assertIn("X3 — reconstruct and validate the minimal surface-offset Lab prototype", roadmap)
+        self.assertNotIn("X1 — reconstruct the current Crazyflie altitude causal path", roadmap)
         self.assertNotIn("status: DONE", roadmap_raw)
         self.assertNotIn("status: READY", roadmap_raw)
 

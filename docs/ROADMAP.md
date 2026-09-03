@@ -60,6 +60,19 @@ Chrome remains the reference browser for the current product-development phase.
 Known Edge and Firefox gaps do not block the next Chrome-based product slices;
 Firefox final same-file semantics remain tracked by #87.
 
+#70 has also moved beyond source-only characterization. Props-off measurements
+on the real Crazyflie falsified both stock UKF gate extremes: gate 100 followed
+the 20 cm raised surface in estimated Z, while gate 20 rejected ToF but lost a
+strong Z reference and suspended Flow fusion, producing severe estimator drift.
+A minimal local-surface-range Flow split then kept fresh local range available
+through rejection, but stock barometer authority did not hold world Z and a
+stronger barometer weighting diverged. The next Lab candidate is therefore the
+pre-registered scalar `surfaceOffset` discontinuity classifier with mandatory
+true-vertical-motion negative controls, not more gate/barometer tuning. Bitcraze
+stable firmware 2026.08 retains the same relevant UKF ToF/Flow semantics, so the
+prototype must be reconstructed and revalidated on that current source before
+new physical evidence is requested.
+
 ## Near-term graph
 
 ### W1 — real Chrome coherence retest
@@ -118,16 +131,23 @@ Firefox final same-file semantics remain tracked by #87.
 - note: mass activity production may rely on the now-settled option A
   presentation direction, but still waits for higher-priority product work.
 
-### X1 — reconstruct the current Crazyflie altitude causal path
+### X3 — reconstruct and validate the minimal surface-offset Lab prototype
 
 - parent: #70
-- depends: current Bitcraze primary documentation/code and preserved #70 evidence
-- action: independent firmware/source research covering EKF, UKF, downward ToF,
-  optical-flow height scaling and the autonomous setpoint/controller path
-- proof: evidence-classified causal model sufficient to design the smallest
-  non-motorized discriminating experiment required by #70
-- independence: preferred deep reserve work when current Runtime/UI work is
-  externally waiting; do not modify Runtime v2 or perform motorized flight.
+- depends: preserved S1/S2 physical evidence and current Bitcraze stable source
+- action: reconstruct the isolated S3 `surfaceOffset` candidate against
+  `crazyflie-firmware` 2026.08, preserving the proven local-range Flow split and
+  the pre-registered terrain/true-vertical-motion controls; validate build and
+  source assumptions before requesting any new props-off physical trace
+- proof: fail-closed patch/applicator or equivalent isolated artifact against an
+  exact upstream SHA, with static/build evidence and logs exposing local range,
+  offset/classifier state, ToF/Flow diagnostics and the independent vertical
+  cues required by S3-A/S3-B/S3-C
+- independence: preferred deep reserve work while #81 waits on W1; do not modify
+  Runtime v2, tune ToF/barometer against outcomes, or perform motorized flight
+- boundary: only after the reconstructed candidate is proven executable should
+  the existing props-off S3 terrain and negative-control matrix become a new
+  human evidence request.
 
 ## Later gates kept intentionally coarse
 
