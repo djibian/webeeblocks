@@ -12,8 +12,26 @@ permissions:
   contents: read
 
 jobs:
+  validate_target:
+    name: Validate exact candidate SHA
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Reject mutable or malformed targets
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          test "${#TARGET_SHA}" -eq 40
+          case "$TARGET_SHA" in
+            *[!0-9a-fA-F]*|'')
+              echo "target_sha must be a full 40-hex Git commit SHA" >&2
+              exit 1
+              ;;
+          esac
+
   candidate_runtime:
     name: Candidate Runtime evidence
+    needs: validate_target
     uses: ./.github/workflows/ci-runtime.yml
     with:
       target_sha: ${{ inputs.target_sha }}
@@ -21,6 +39,7 @@ jobs:
 
   candidate_webots:
     name: Candidate Webots evidence
+    needs: validate_target
     uses: ./.github/workflows/ci-webots.yml
     with:
       target_sha: ${{ inputs.target_sha }}
