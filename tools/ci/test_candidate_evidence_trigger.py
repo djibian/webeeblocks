@@ -10,6 +10,10 @@ LISTENER = ROOT / ".github" / "workflows" / "candidate-evidence-on-unproven.yml"
 CONTRACT = ROOT / "AGENTS.md"
 
 
+def flat(text: str) -> str:
+    return " ".join(text.split())
+
+
 class CandidateEvidenceTriggerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -116,7 +120,7 @@ class CandidateEvidenceTriggerTests(unittest.TestCase):
         self.assertNotIn("HUMAN_REQUIRED", text)
 
     def test_controller_contract_places_and_reassesses_candidate_evidence(self) -> None:
-        text = self.contract
+        text = flat(self.contract)
         for required in (
             "## Candidate evidence escalation",
             "Evidence is attached to the decision its failure must block",
