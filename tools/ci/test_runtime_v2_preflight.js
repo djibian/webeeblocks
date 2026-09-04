@@ -4,6 +4,8 @@ const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/int
 const ActivityContract = require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract.js');
 const SemanticAst = require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast.js');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
+const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
+const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/activities.js');
 
 let actions = 0;
 const backend = {
@@ -119,7 +121,126 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
   assert.strictEqual(backendActions, 2, 'corrected program did not execute normally');
 }
 
+function proveProgressionProfilesAndFieldOptions() {
+  const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
+  const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-repeat-v1', Activities.BLOCK_CATALOG);
+  const p3 = Profiles.resolveById(Activities.DOCUMENT, 'progression-reactive-v1', Activities.BLOCK_CATALOG);
+
+  assert.strictEqual(p1.world, p2.world);
+  assert.strictEqual(p2.world, p3.world);
+  assert(p1.toolbox.every(type => p2.toolbox.includes(type)), 'profile 2 must be cumulative over profile 1');
+  assert(p2.toolbox.every(type => p3.toolbox.includes(type)), 'profile 3 must be cumulative over profile 2');
+  assert(!p1.toolbox.includes('controls_repeat_ext'));
+  assert(p2.toolbox.includes('controls_repeat_ext'));
+  assert(!p2.toolbox.includes('webeeblocks_v2_range'));
+  assert(p3.toolbox.includes('webeeblocks_v2_range'));
+  assert(p3.toolbox.includes('controls_if'));
+  assert(!p1.hardware.includes('multi-ranger-deck'));
+  assert(!p2.hardware.includes('multi-ranger-deck'));
+  assert(p3.hardware.includes('multi-ranger-deck'));
+  assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
+  assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
+  assert.deepStrictEqual(p2.parameterBounds.math_number.NUM, {min:1,max:10,step:1});
+  assert.deepStrictEqual(p3.parameterBounds.math_number.NUM, p2.parameterBounds.math_number.NUM,
+    'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
+
+  const duplicate = JSON.parse(JSON.stringify(p1));
+  duplicate.fieldOptions.webeeblocks_v2_move.DIRECTION = ['forward','forward'];
+  assert.throws(() => Profiles.validateProfile(duplicate, Activities.BLOCK_CATALOG), /duplicate field option/);
+  const hidden = JSON.parse(JSON.stringify(p1));
+  hidden.fieldOptions.webeeblocks_v2_range = {DIRECTION:['front']};
+  assert.throws(() => Profiles.validateProfile(hidden, Activities.BLOCK_CATALOG), /hidden block/);
+
+  function dropdown(options) {
+    return {
+      options: options.map(option => option.slice()),
+      value: options[0][1],
+      setOptionsCalls: 0,
+      getOptions() { return this.options.map(option => option.slice()); },
+      setOptions(next) {
+        this.setOptionsCalls += 1;
+        this.options = next.map(option => option.slice());
+        this.value = this.options[0][1];
+      },
+      getValue() { return this.value; },
+      setValue(value) { this.value = value; }
+    };
+  }
+
+  const definitions = {
+    webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
+    webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }}
+  };
+  class FakeWorkspace {
+    constructor(isFlyout) { this.blocks = []; this.isFlyout = !!isFlyout; }
+    newBlock(type) {
+      const block = {type, fields:{}, isInFlyout:this.isFlyout, getField(name) { return this.fields[name] || null; }, dispose() {}};
+      definitions[type].init.call(block);
+      this.blocks.push(block);
+      return block;
+    }
+    getAllBlocks() { return this.blocks.slice(); }
+    getToolbox() { return null; }
+    dispose() {}
+  }
+  const FakeBlockly = {Blocks:definitions, Workspace:FakeWorkspace};
+  const controller = Profiles.createFieldOptionController(Activities.DOCUMENT, Activities.BLOCK_CATALOG, FakeBlockly);
+
+  controller.setProfile(p1, null);
+  const flyoutWorkspace = new FakeWorkspace(true);
+  const flyoutMove = flyoutWorkspace.newBlock('webeeblocks_v2_move');
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  const callsBeforeNoop = flyoutMove.getField('DIRECTION').setOptionsCalls;
+  controller.applyWorkspace(flyoutWorkspace);
+  assert.strictEqual(flyoutMove.getField('DIRECTION').setOptionsCalls, callsBeforeNoop,
+    'reapplying an already-correct profile menu must be a Blockly no-op');
+
+  controller.setProfile(p3, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
+  const flyoutRange = flyoutWorkspace.newBlock('webeeblocks_v2_range');
+  assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
+
+  const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+  controller.setProfile(genericProfile, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
+  assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
+
+  controller.setProfile(genericProfile, null);
+  const workspace = new FakeWorkspace(false);
+  const move = workspace.newBlock('webeeblocks_v2_move');
+  move.getField('DIRECTION').setValue('left');
+  controller.setProfile(p1, workspace);
+  assert.strictEqual(move.getField('DIRECTION').getValue(), 'left',
+    'profile filtering must not silently rewrite an existing student program');
+  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right'],
+    'an incompatible existing block must keep its generic menu until the student corrects it');
+
+  const preservedWorkspace = {
+    getAllBlocks() {
+      return [{type:'webeeblocks_v2_move', getField(name) { return name === 'DIRECTION' ? {getValue:() => 'left'} : null; }}];
+    }
+  };
+  assert.throws(() => ActivityContract.preflightWorkspace(p1, preservedWorkspace), /field option forbidden by profile/,
+    'the authority boundary must reject the preserved incompatible value');
+
+  const forbiddenWorkspace = {
+    getAllBlocks() {
+      return [{type:'webeeblocks_v2_move', getField(name) { return name === 'DIRECTION' ? {getValue:() => 'right'} : null; }}];
+    }
+  };
+  mustRejectStudentValidation(
+    () => ActivityContract.preflightWorkspace(p1, forbiddenWorkspace),
+    /option de ce programme/
+  );
+  assert.throws(
+    () => ActivityContract.preflightAst(p1, {program:[{kind:'move',direction:'right',distance_m:0.5}]}),
+    /move direction unavailable/
+  );
+}
+
 (async function() {
+  proveProgressionProfilesAndFieldOptions();
   await mustReject({
     version: 1,
     semantics: 'webeeblocks-ast-v1',
@@ -192,7 +313,7 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
 
   await proveUnavailableBackendCapabilityIsStudentCorrectable();
 
-  console.log('PASS Runtime v2 preflight rejects malformed AST and gives fail-closed student guidance for missing flight boundaries, forbidden, disconnected, or backend-unavailable Blockly programs');
+  console.log('PASS Runtime v2 preflight + 66-A cumulative profiles/field options/fail-closed hidden capability checks');
 })().catch(error => {
   console.error(error);
   process.exit(1);

@@ -9,7 +9,21 @@
   function fail(message) { throw new Error('activity contract: ' + message); }
   function studentFail(message, detail) { var error = new Error('activity contract: ' + message); error.code = 'PROGRAM_INVALID'; error.studentDetail = detail; throw error; }
   function workspaceTypes(workspace) { if (!workspace || typeof workspace.getAllBlocks !== 'function') fail('invalid Blockly workspace'); return workspace.getAllBlocks(false).map(function(block) { return block.type; }); }
-  function preflightWorkspace(profile, workspace) { var allowed = new Set(profile.toolbox); var types = workspaceTypes(workspace); types.forEach(function(type) { if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.'); }); return types; }
+  function preflightFieldOptions(profile, workspace) {
+    var definitions = profile.fieldOptions || {};
+    workspace.getAllBlocks(false).forEach(function(block) {
+      var fields = definitions[block.type] || {};
+      Object.keys(fields).forEach(function(fieldName) {
+        var field = block.getField(fieldName);
+        if (!field || typeof field.getValue !== 'function') fail('field-option target unavailable: ' + block.type + '.' + fieldName);
+        var value = field.getValue();
+        if (fields[fieldName].indexOf(value) < 0)
+          studentFail('field option forbidden by profile: ' + block.type + '.' + fieldName + '=' + value, 'Une option de ce programme n’est pas disponible dans cette activité. Modifiez-la avant de lancer.');
+      });
+    });
+    return true;
+  }
+  function preflightWorkspace(profile, workspace) { var allowed = new Set(profile.toolbox); var types = workspaceTypes(workspace); types.forEach(function(type) { if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.'); }); preflightFieldOptions(profile, workspace); return types; }
   function applyFieldBounds(profile, workspace) { var definitions = profile.parameterBounds || {}; workspace.getAllBlocks(false).forEach(function(block) { var fields = definitions[block.type] || {}; Object.keys(fields).forEach(function(fieldName) { var field = block.getField(fieldName); if (!field || typeof field.setConstraints !== 'function') fail('field bound target unavailable: ' + block.type + '.' + fieldName); var bounds = fields[fieldName]; field.setConstraints(bounds.min, bounds.max, bounds.step); }); }); }
   function collectAst(ast) {
     var statements = new Set(), ranges = new Set(), moves = new Set(), verticals = new Set();
@@ -54,5 +68,5 @@
     await interpreter.run(ast, backend, interpreterOptions);
     return ast;
   }
-  return {preflightWorkspace: preflightWorkspace, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute};
+  return {preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute};
 });

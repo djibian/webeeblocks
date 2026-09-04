@@ -115,12 +115,33 @@
     return value;
   }
 
+  function validateSerializedFieldOptions(profile, workspaceState) {
+    var definitions = profile.fieldOptions || {};
+    function visit(value) {
+      if (Array.isArray(value)) { value.forEach(visit); return; }
+      if (!isObject(value)) return;
+      if (typeof value.type === 'string' && isObject(value.fields) && definitions[value.type]) {
+        var fields = definitions[value.type];
+        Object.keys(fields).forEach(function(fieldName) {
+          if (!Object.prototype.hasOwnProperty.call(value.fields, fieldName)) return;
+          var fieldValue = value.fields[fieldName];
+          if (fields[fieldName].indexOf(fieldValue) < 0)
+            fail('workspace field forbidden by profile: ' + value.type + '.' + fieldName + '=' + String(fieldValue));
+        });
+      }
+      Object.keys(value).forEach(function(key) { visit(value[key]); });
+    }
+    visit(workspaceState);
+    return true;
+  }
+
   function validateProjectText(text, currentProfile, options) {
     requireDependencies(options);
     var project = parseProject(text);
     var profile = options.profiles.resolveById(options.activitiesDocument, project.activity.id, options.blockCatalog);
     if (!currentProfile || profile.world !== currentProfile.world)
       fail('activity is incompatible with the current Webots world');
+    validateSerializedFieldOptions(profile, project.workspace);
 
     var temporary = new options.Blockly.Workspace();
     try {

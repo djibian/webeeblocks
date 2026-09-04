@@ -226,6 +226,14 @@ async function exerciseBrowserBoundary() {
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(extraHistory), liveWorkspace, profileRef, 'unsupported history field');
   const invalidWorkspace = JSON.parse(validText); invalidWorkspace.workspace = {blocks:{languageVersion:0,blocks:[{type:'does_not_exist'}]}};
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(invalidWorkspace), liveWorkspace, profileRef, 'invalid workspace');
+  const injectedProfile = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
+  const injected = {
+    format:'webeeblocks-project',
+    version:1,
+    activity:{id:injectedProfile.id,semantics:'webeeblocks-ast-v1'},
+    workspace:{blocks:{languageVersion:0,blocks:[{type:'webeeblocks_v2_move',fields:{DIRECTION:'right',DISTANCE:0.3}}]}}
+  };
+  await expectRejectedWithoutMutation(manager, transport, JSON.stringify(injected), liveWorkspace, profileRef, 'hidden dropdown injection');
   assert.strictEqual(transport.state.writes.length, writesBeforeSave + 1, 'failed opens caused persistence writes');
 
   // A student must be able to save unfinished work. It is a valid project even
@@ -252,5 +260,5 @@ async function exerciseBrowserBoundary() {
   assert(uiSource.includes('!manager.hasCurrentTarget()'), 'UI must disable Save without a current handle');
   assert(uiSource.includes('utilisez Google Chrome'), 'unsupported-browser message must be explicit');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
-  console.log('PASS project-files: Chrome .wbb/options/same-handle/state/fail-closed/no-fallback/no-autosave');
+  console.log('PASS project-files: Chrome .wbb/options/same-handle/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
 })().catch(error => { console.error(error); process.exit(1); });

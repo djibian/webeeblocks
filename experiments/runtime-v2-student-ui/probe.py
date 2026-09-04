@@ -359,50 +359,67 @@ def main():
         raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
     c.screenshot(screenshot.with_name('repeat-tooltip-1366x768.png'))
 
-    # #66 experiment: prove a profile-style FieldDropdown restriction can cover
-    # both the real flyout block and a block actually dragged into the workspace.
+    # #66 product proof: exercise the real declarative profile controller on the
+    # real Blockly toolbox/flyout. The first observable flyout must already be
+    # restricted; post-display mutation is not accepted.
     c.key('Escape'); time.sleep(.2)
-    c.eval(PROFILE_FIELD_INSTALL)
-    vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
-
-    # Restriction A is active before the category is opened. No post-open mutation
-    # is allowed: the first observable real flyout must already be restricted.
-    generic_options=c.eval(PROFILE_FIELD_SET % json.dumps(['forward','left']))
+    generic_options=c.eval(r'''(() => profileFieldOptions.genericOptions('webeeblocks_v2_move','DIRECTION').map(option=>({label:option[0],value:option[1]})))()''')
     generic_values=[option['value'] for option in generic_options]
     for value in ('forward','back','left','right'):
         if value not in generic_values:
             raise RuntimeError('generic move definition lacks '+value+': '+json.dumps(generic_options,ensure_ascii=False))
+
+    c.eval(r'''(() => {
+      const profile=WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT,'progression-sequence-v1',WebeeBlocksActivities.BLOCK_CATALOG);
+      runtimeProfile=profile;
+      profileFieldOptions.setProfile(profile,workspace);
+      workspace.updateToolbox(buildToolbox(profile));
+      profileFieldOptions.applyWorkspace(workspace);
+      return true;
+    })()''')
+    vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
     c.click(vol_rect); time.sleep(.15)
     field_flyout=c.eval(PROFILE_FIELD_FLYOUT)
-    expected_values=['forward','left']
+    expected_values=['forward']
     flyout_values=[option['value'] for option in field_flyout['options']]
     if flyout_values != expected_values:
-        raise RuntimeError('first observable real flyout was not profile-restricted: '+json.dumps(field_flyout,ensure_ascii=False))
+        raise RuntimeError('first observable product flyout was not profile-restricted: '+json.dumps(field_flyout,ensure_ascii=False))
     c.drag(field_flyout['rect'],520,610); time.sleep(.7)
     field_created=c.eval(PROFILE_FIELD_NEW_BLOCK % json.dumps(field_flyout['workspaceMoveIds']))
     created_values=[option['value'] for option in field_created['options']]
     if created_values != expected_values:
-        raise RuntimeError('profile field restriction did not reach dragged workspace block: '+json.dumps(field_created,ensure_ascii=False))
-    if field_created['value'] not in expected_values:
-        raise RuntimeError('dragged block retained a forbidden direction: '+json.dumps(field_created,ensure_ascii=False))
+        raise RuntimeError('product profile restriction did not reach dragged workspace block: '+json.dumps(field_created,ensure_ascii=False))
 
-    # Simulate switching/opening profiles. First restore the unrestricted generic
-    # options, then apply restriction B containing 'right', which was absent from A.
-    # This falsifies implementations that progressively shrink the current menu.
-    restored_generic=c.eval(PROFILE_FIELD_SET % 'null')
+    c.eval(r'''(() => {
+      const profile=WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT,'reactive-obstacle-v2',WebeeBlocksActivities.BLOCK_CATALOG);
+      runtimeProfile=profile;
+      profileFieldOptions.setProfile(profile,workspace);
+      workspace.updateToolbox(buildToolbox(profile));
+      profileFieldOptions.applyWorkspace(workspace);
+      return true;
+    })()''')
+    vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
     c.click(vol_rect); time.sleep(.15)
     restored_flyout=c.eval(PROFILE_FIELD_FLYOUT)
-    if [option['value'] for option in restored_flyout['options']] != [option['value'] for option in restored_generic]:
-        raise RuntimeError('profile switch did not restore generic flyout options: '+json.dumps(restored_flyout,ensure_ascii=False))
+    if [option['value'] for option in restored_flyout['options']] != generic_values:
+        raise RuntimeError('product profile switch did not restore generic flyout options: '+json.dumps(restored_flyout,ensure_ascii=False))
 
-    c.eval(PROFILE_FIELD_SET % json.dumps(['right','forward']))
+    c.eval(r'''(() => {
+      const profile=WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT,'progression-reactive-v1',WebeeBlocksActivities.BLOCK_CATALOG);
+      runtimeProfile=profile;
+      profileFieldOptions.setProfile(profile,workspace);
+      workspace.updateToolbox(buildToolbox(profile));
+      profileFieldOptions.applyWorkspace(workspace);
+      return true;
+    })()''')
+    vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
     c.click(vol_rect); time.sleep(.15)
     switched_flyout=c.eval(PROFILE_FIELD_FLYOUT)
     switched_values=[option['value'] for option in switched_flyout['options']]
-    if switched_values != ['forward','right']:
-        raise RuntimeError('second profile restriction was cumulatively shrunk or reordered unexpectedly: '+json.dumps(switched_flyout,ensure_ascii=False))
+    if switched_values != ['forward','left']:
+        raise RuntimeError('product reactive profile was cumulatively shrunk or mis-filtered: '+json.dumps(switched_flyout,ensure_ascii=False))
     final=c.eval(SNAP)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'generic':generic_options,'firstFlyout':field_flyout,'created':field_created,'restoredFlyout':restored_flyout,'switchedFlyout':switched_flyout},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'generic':generic_options,'firstProductFlyout':field_flyout,'created':field_created,'restoredFlyout':restored_flyout,'reactiveFlyout':switched_flyout},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 
