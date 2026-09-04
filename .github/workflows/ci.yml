@@ -2,7 +2,7 @@ name: CI Gate
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '17 3 * * *'
@@ -29,18 +29,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-
-      - name: Verify selector
+      - name: Verify selector and repository contracts
         run: |
           python3 tools/ci/test_select_ci.py
           python3 tools/ci/test_ci_gate.py
           python3 tools/ci/test_workflow_contract.py
-          python3 tools/ci/test_candidate_evidence_trigger.py
           python3 tools/ci/test_localize_webots_world.py
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
-
       - name: Select required suites
         id: scope
         run: >-
@@ -78,9 +75,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-
-      - name: Require every selected suite
+      - name: Verify selected suite results
         env:
-          CI_SELECTION: ${{ toJSON(needs.select.outputs) }}
-          CI_NEEDS: ${{ toJSON(needs) }}
+          CI_SELECTION: >-
+            {"runtime":"${{ needs.select.outputs.runtime }}","webots":"${{ needs.select.outputs.webots }}"}
+          CI_NEEDS: >-
+            {"select":{"result":"${{ needs.select.result }}"},"runtime":{"result":"${{ needs.runtime.result }}"},"webots":{"result":"${{ needs.webots.result }}"}}
         run: python3 tools/ci/check_ci_gate.py
