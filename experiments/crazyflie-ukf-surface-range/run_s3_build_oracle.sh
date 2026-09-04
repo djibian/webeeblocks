@@ -20,6 +20,10 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   grep -Fq 'static uint8_t surfaceOffsetS3 = 0;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, surfOffset, &surfaceOffset)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'PARAM_ADD(PARAM_UINT8, surfaceOffsetS3, &surfaceOffsetS3)' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq '#define S3_CLEARANCE_WINDOW 5U' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'sameSignPersistent' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'LOG_ADD(LOG_FLOAT, surfBefore, &surfaceBaselineClearance)' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'LOG_ADD(LOG_FLOAT, surfAfter, &surfaceAfterClearance)' src/modules/src/estimator/estimator_ukf.c
 
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
