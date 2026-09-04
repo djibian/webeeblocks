@@ -139,6 +139,12 @@
         var previousAllowed = options.some(function(option) { return option[1] === previous; });
         if (!allowDefaultCoercion && !previousAllowed)
           return;
+        var current = typeof field.getOptions === 'function' ? copyOptions(field.getOptions(false)) : [];
+        var optionsUnchanged = current.length === options.length && current.every(function(option, index) {
+          return option[0] === options[index][0] && option[1] === options[index][1];
+        });
+        if (optionsUnchanged)
+          return;
         field.setOptions(options);
         if (typeof field.setValue === 'function') {
           if (allowDefaultCoercion && !previousAllowed)
