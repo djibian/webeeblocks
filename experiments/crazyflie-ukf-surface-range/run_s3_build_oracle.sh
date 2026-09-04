@@ -28,16 +28,32 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
     make cf2_defconfig
-    # Flow Deck support selects ESTIMATOR_KALMAN_ENABLE as compiled support.
-    # Keep that stock dependency; select UKF as the default estimator instead.
+    # The stock cf2 defconfig enables most deck drivers by default. S3 only needs
+    # the real Flow Deck driver/ToF path plus UKF; disable unrelated default deck
+    # drivers so the experimental firmware fits the CF2 CCMRAM budget without
+    # removing Flow support or weakening the artifact oracle.
     cat > /tmp/s3-ukf-default.config <<'EOF'
 # CONFIG_ESTIMATOR_AUTO_SELECT is not set
 CONFIG_ESTIMATOR_UKF_ENABLE=y
 CONFIG_ESTIMATOR_UKF=y
+CONFIG_DECK_FLOW=y
+CONFIG_DECK_ZRANGER=y
+CONFIG_DECK_ZRANGER2=y
+# CONFIG_DECK_ACTIVE_MARKER is not set
+# CONFIG_DECK_AI is not set
+# CONFIG_DECK_BUZZ is not set
+# CONFIG_DECK_LEDRING is not set
+# CONFIG_DECK_LIGHTHOUSE is not set
+# CONFIG_DECK_LOCO is not set
+# CONFIG_DECK_MULTIRANGER is not set
+# CONFIG_DECK_OA is not set
+# CONFIG_DECK_USD is not set
 EOF
     ./scripts/kconfig/merge_config.sh -O build -m build/.config /tmp/s3-ukf-default.config
     make olddefconfig
     grep -q "^CONFIG_DECK_FLOW=y$" build/.config
+    grep -q "^CONFIG_DECK_ZRANGER=y$" build/.config
+    grep -q "^CONFIG_DECK_ZRANGER2=y$" build/.config
     grep -q "^CONFIG_ESTIMATOR_KALMAN_ENABLE=y$" build/.config
     grep -q "^# CONFIG_ESTIMATOR_AUTO_SELECT is not set$" build/.config
     grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" build/.config
