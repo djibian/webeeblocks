@@ -34,6 +34,7 @@ RUNTIME = (
     "plugins/robot_windows/blockly/webeeblocks/**",
     "tools/prepare_runtime_v2.*",
     "tools/ci/*runtime_v2*",
+    "experiments/runtime-v2-student-ui/**",
 )
 WEBOTS = (
     "controllers/**",
@@ -43,6 +44,7 @@ WEBOTS = (
     "experiments/**",
 )
 SHARED_RUNTIME_WEBOTS = (
+    "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
     "plugins/robot_windows/blockly/webeeblocks/wwi_backend.js",
