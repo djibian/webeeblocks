@@ -154,7 +154,10 @@ function proveProgressionProfilesAndFieldOptions() {
       options: options.map(option => option.slice()),
       value: options[0][1],
       getOptions() { return this.options.map(option => option.slice()); },
-      setOptions(next) { this.options = next.map(option => option.slice()); },
+      setOptions(next) {
+        this.options = next.map(option => option.slice());
+        this.value = this.options[0][1];
+      },
       getValue() { return this.value; },
       setValue(value) { this.value = value; }
     };
@@ -200,7 +203,13 @@ function proveProgressionProfilesAndFieldOptions() {
     'profile filtering must not silently rewrite an existing student program');
   assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right'],
     'an incompatible existing block must keep its generic menu until the student corrects it');
-  assert.throws(() => ActivityContract.preflightWorkspace(p1, workspace), /field option forbidden by profile/,
+
+  const preservedWorkspace = {
+    getAllBlocks() {
+      return [{type:'webeeblocks_v2_move', getField(name) { return name === 'DIRECTION' ? {getValue:() => 'left'} : null; }}];
+    }
+  };
+  assert.throws(() => ActivityContract.preflightWorkspace(p1, preservedWorkspace), /field option forbidden by profile/,
     'the authority boundary must reject the preserved incompatible value');
 
   const forbiddenWorkspace = {
