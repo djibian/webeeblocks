@@ -44,6 +44,7 @@ WEBOTS = (
     "experiments/**",
 )
 SHARED_RUNTIME_WEBOTS = (
+    "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
     "plugins/robot_windows/blockly/webeeblocks/wwi_backend.js",
