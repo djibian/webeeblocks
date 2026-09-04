@@ -16,12 +16,15 @@ here.
 1. **#81 — Windows classroom deployment**
 2. **#80 — one-click unified classroom interface**
 3. **#79 — fully French student interface**
-4. **#66 — progressive pedagogical activity model**
+4. **#157 — minimum functional pedagogical capability baseline**
+5. **#66 — progressive pedagogical activity model**
 
-Secondary / opportunistic product work:
-
-- **#157 — reference Crazyflie/deck capability coverage**, complementing #66
-  without displacing the current pedagogical progression priority.
+The priority relationship between #157 and #66 is intentionally narrow: establish
+first the smallest simulation-usable generic capability vocabulary needed to avoid
+biasing the representative pedagogical progression toward temporary Runtime gaps.
+Do **not** require exhaustive reference-hardware coverage before progressing #66.
+Once that minimum baseline is established, broader #157 coverage continues
+incrementally and may proceed in parallel with #66.
 
 Research / later work:
 
@@ -125,35 +128,54 @@ revalidated on that current source before new physical evidence is requested.
 - boundary: implementation becomes normal small product PRs under current
   `AGENTS.md`.
 
+### C1a — establish the minimum functional pedagogical capability baseline
+
+- parent: #157
+- depends: PRODUCT_VISION.md, the generic activity/profile architecture and the
+  integrated #157 capability matrix
+- target: the smallest generic capability set whose missing Runtime support would
+  otherwise constrain or distort the representative #66 progression
+- action: complete simulation-usable support for the pedagogically fundamental
+  generic semantics already present where practical, and add only genuinely
+  missing semantics needed for the progression; evaluate movement breadth,
+  directional ranging, downward ranging and a compact Color LED action by
+  pedagogical value rather than by firmware feature count
+- proof: representative generic student intents are expressible through
+  `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
+  with observable Webots behavior and fail-closed profile capability boundaries
+- boundary: this is **not** exhaustive hardware coverage, does not require the
+  physical backend to be proven, and must stop once #66 can be designed without
+  being shaped by temporary simulation capability gaps.
+
 ### B1 — formalize the declarative activity model and compact progression
 
 - parent: #66
-- depends: PRODUCT_VISION.md
+- depends: PRODUCT_VISION.md and C1a minimum functional capability baseline
 - action: bounded design/research of the smallest versionable activity/profile
   schema and representative 8–12 activity progression
 - proof: a coherent model preserving generic blocks and
   `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
   without student progress state or a graphical activity studio
-- note: mass activity production may rely on the settled option A presentation
-  direction but still follows current product priority.
+- note: activity/profile architecture work that does not commit the representative
+  progression may continue independently; the representative progression itself
+  should rely on the settled C1a baseline.
 
-### C1 — cover the reference Crazyflie/deck capability surface
+### C1b — broaden reference Crazyflie/deck capability coverage
 
 - parent: #157
-- depends: PRODUCT_VISION.md and the generic activity/profile architecture
+- depends: C1a; thereafter may proceed incrementally alongside #66
 - target hardware: Crazyflie 2.1 + Flow Deck V2 + Multi-ranger +
   bottom-mounted Color LED Deck
-- action: inventory pedagogically useful capabilities, map each to the smallest
-  generic/composable Blockly and backend-neutral semantics, then implement
-  missing slices without maximizing block count
-- proof: a compact capability matrix covering Blockly/AST, Webots and physical
-  backend support or an explicit justified exclusion
+- action: continue closing useful capability gaps from the integrated matrix,
+  reusing existing generic semantics first and adding new student-facing
+  primitives only when a demonstrated pedagogical need requires them
+- proof: the capability matrix records Blockly/AST, Webots and physical-backend
+  support or an explicit justified exclusion for each relevant capability
 - simulation direction: where relevant, student-facing capabilities have an
   observable Webots equivalent; Color LED coverage may use a simple,
   reasonably recognizable bottom-deck model with a visible controllable light
   surface rather than detailed electronics simulation
-- scheduling: secondary/opportunistic product work; do not displace #66 merely
-  to broaden hardware coverage.
+- scheduling: broader coverage must not block #66 once C1a is satisfied.
 
 ### X3 — reconstruct and validate the minimal surface-offset Lab prototype
 
