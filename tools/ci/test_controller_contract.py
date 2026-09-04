@@ -84,9 +84,13 @@ class ContractTests(unittest.TestCase):
     def test_roadmap_records_w1_w2_and_findings(self):
         self.assertIn("W1 — coherence: PASS", self.roadmap)
         self.assertIn("W2 — 30-minute stability: PASS", self.roadmap)
-        self.assertIn("without `atterrir`", self.roadmap)
-        self.assertIn("voluntarily interrupt", self.roadmap)
-        self.assertIn("purely visual movement", self.roadmap)
+        self.assertIn("subsequently closed", self.roadmap)
+        self.assertIn("missing-`atterrir`", self.roadmap)
+        self.assertIn("#129", self.roadmap)
+        self.assertIn("voluntary interruption", self.roadmap)
+        self.assertIn("#150", self.roadmap)
+        self.assertIn("purely visual Blockly moves", self.roadmap)
+        self.assertIn("#144", self.roadmap)
 
 if __name__ == "__main__":
     unittest.main()
