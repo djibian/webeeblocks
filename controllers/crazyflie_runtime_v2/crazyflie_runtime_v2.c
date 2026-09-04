@@ -35,6 +35,7 @@ typedef enum {
   CMD_IDLE,
   CMD_TAKEOFF,
   CMD_MOVE,
+  CMD_VERTICAL,
   CMD_LAND,
   CMD_RESET
 } command_t;
@@ -43,6 +44,7 @@ typedef enum {
   REQUEST_INVALID,
   REQUEST_TAKEOFF,
   REQUEST_MOVE,
+  REQUEST_VERTICAL,
   REQUEST_LAND,
   REQUEST_RANGE,
   REQUEST_RESET,
@@ -152,6 +154,13 @@ static request_t parse_request(const char *message) {
     strncpy(request.direction, direction, sizeof(request.direction) - 1);
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d VERTICAL %31s %lf %1s", &id, direction, &value, extra) == 3) {
+    request.id = id;
+    request.kind = REQUEST_VERTICAL;
+    request.value = value;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
   if (sscanf(message, PREFIX " REQUEST %d RANGE %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
     request.kind = REQUEST_RANGE;
@@ -185,6 +194,11 @@ static void trace_takeoff(double value) {
 
 static void trace_move(const char *direction, double value) {
   printf(PREFIX " TRACE MOVE %s distance=%.9f stop=1\n", direction, value);
+  fflush(stdout);
+}
+
+static void trace_vertical(const char *direction, double value) {
+  printf(PREFIX " TRACE VERTICAL %s distance=%.9f stop=1\n", direction, value);
   fflush(stdout);
 }
 
@@ -461,6 +475,30 @@ int main(void) {
         action_start = now;
         continue;
       }
+      if (request.kind == REQUEST_VERTICAL) {
+        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 0.8 ||
+            (strcmp(request.direction, "up") != 0 && strcmp(request.direction, "down") != 0)) {
+          response_error(request.id, "INVALID_VERTICAL");
+          continue;
+        }
+        const double next_target_z = z + (strcmp(request.direction, "up") == 0 ? request.value : -request.value);
+        if (next_target_z <= origin_z + ALT_TOL || next_target_z > origin_z + 1.5) {
+          response_error(request.id, "INVALID_VERTICAL");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        strncpy(active_direction, request.direction, sizeof(active_direction) - 1);
+        active_direction[sizeof(active_direction) - 1] = '\0';
+        target_x = x;
+        target_y = y;
+        target_z = next_target_z;
+        target_yaw = yaw;
+        command = CMD_VERTICAL;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
       if (request.kind == REQUEST_LAND) {
         if (!airborne) {
           response_error(request.id, "INVALID_LAND");
@@ -551,7 +589,7 @@ int main(void) {
       } else {
         stable_since = -1.0;
       }
-    } else if (command == CMD_MOVE) {
+    } else if (command == CMD_MOVE || command == CMD_VERTICAL) {
       const double error_x = target_x - x;
       const double error_y = target_y - y;
       const double body_x = error_x * cy + error_y * sy;
@@ -567,7 +605,10 @@ int main(void) {
         if (stable_since < 0.0)
           stable_since = now;
         if (now - stable_since >= STOP_WINDOW) {
-          trace_move(active_direction, active_value);
+          if (command == CMD_MOVE)
+            trace_move(active_direction, active_value);
+          else
+            trace_vertical(active_direction, active_value);
           response_ok(active_id);
           command = CMD_IDLE;
           stable_since = -1.0;
