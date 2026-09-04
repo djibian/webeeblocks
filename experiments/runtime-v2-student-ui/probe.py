@@ -158,24 +158,40 @@ VISIBLE_OVERLAY=r'''(() => {
 
 
 PROFILE_FIELD_INSTALL=r'''(() => {
- const allowed=['forward','left'];
+ const definition=Blockly.Blocks.webeeblocks_v2_move;
+ if(!definition||typeof definition.init!=='function')throw new Error('generic move definition unavailable');
+ const originalInit=definition.init;
+ const scratch=new Blockly.Workspace();
+ const generic=scratch.newBlock('webeeblocks_v2_move');
+ const genericField=generic.getField('DIRECTION');
+ if(!genericField||typeof genericField.getOptions!=='function'||typeof genericField.setOptions!=='function')throw new Error('public FieldDropdown API unavailable');
+ const genericOptions=genericField.getOptions(false).map(option=>[option[0],option[1]]);
+ generic.dispose(false); scratch.dispose();
+ let allowed=null;
  const filterBlock=block=>{
    if(!block||block.type!=='webeeblocks_v2_move')return;
    const field=block.getField('DIRECTION');
-   if(!field||typeof field.getOptions!=='function'||typeof field.setOptions!=='function')throw new Error('public FieldDropdown API unavailable');
-   const options=field.getOptions(false);
-   const filtered=options.filter(option=>allowed.includes(option[1]));
-   if(filtered.length!==allowed.length)throw new Error('expected generic move options missing');
+   const source=genericOptions.map(option=>[option[0],option[1]]);
+   const filtered=allowed===null ? source : source.filter(option=>allowed.includes(option[1]));
+   if(!filtered.length)throw new Error('profile restriction produced empty move dropdown');
    field.setOptions(filtered);
+   if(!filtered.some(option=>option[1]===field.getValue()))field.setValue(filtered[0][1]);
  };
- const filterWorkspace=ws=>ws.getAllBlocks(false).forEach(filterBlock);
- filterWorkspace(workspace);
- workspace.addChangeListener(event=>{
-   if(event&&event.type===Blockly.Events.BLOCK_CREATE){
-     (event.ids||[]).forEach(id=>filterBlock(workspace.getBlockById(id)));
+ definition.init=function(){ originalInit.call(this); filterBlock(this); };
+ const setAllowed=values=>{
+   if(values!==null){
+     const seen=new Set();
+     values.forEach(value=>{
+       if(seen.has(value))throw new Error('duplicate profile field option: '+value);
+       seen.add(value);
+       if(!genericOptions.some(option=>option[1]===value))throw new Error('unknown generic move option: '+value);
+     });
+     if(!values.length)throw new Error('empty profile field restriction');
    }
- });
- window.__profileFieldExperiment={allowed,filterWorkspace,filterBlock};
+   allowed=values===null ? null : values.slice();
+   workspace.getAllBlocks(false).forEach(filterBlock);
+ };
+ window.__profileFieldExperiment={genericOptions:genericOptions,setAllowed:setAllowed,filterBlock:filterBlock};
  return true;
 })()'''
 
@@ -191,7 +207,6 @@ PROFILE_FIELD_FLYOUT=r'''(() => {
  const flyout=workspace.getToolbox().getFlyout();
  const flyoutWorkspace=flyout&&flyout.getWorkspace&&flyout.getWorkspace();
  if(!flyoutWorkspace)throw new Error('real flyout workspace unavailable');
- window.__profileFieldExperiment.filterWorkspace(flyoutWorkspace);
  const move=flyoutWorkspace.getBlocksByType('webeeblocks_v2_move',false)[0];
  if(!move)throw new Error('move block missing from real Vol flyout');
  const field=move.getField('DIRECTION');
@@ -199,6 +214,15 @@ PROFILE_FIELD_FLYOUT=r'''(() => {
  const r=move.getSvgRoot().getBoundingClientRect();
  return {options:options,rect:{x:r.x,y:r.y,width:r.width,height:r.height},workspaceMoveIds:workspace.getBlocksByType('webeeblocks_v2_move',false).map(block=>block.id)};
 })()'''
+
+PROFILE_FIELD_SET=r'''((values) => {
+ window.__profileFieldExperiment.setAllowed(values);
+ const toolbox=workspace.getToolbox();
+ if(typeof toolbox.clearSelection==='function')toolbox.clearSelection();
+ const flyout=toolbox.getFlyout&&toolbox.getFlyout();
+ if(flyout&&typeof flyout.hide==='function')flyout.hide();
+ return window.__profileFieldExperiment.genericOptions.map(option=>({label:option[0],value:option[1]}));
+})(%s)'''
 
 PROFILE_FIELD_NEW_BLOCK=r'''((beforeIds) => {
  const blocks=workspace.getBlocksByType('webeeblocks_v2_move',false);
@@ -336,12 +360,20 @@ def main():
     c.key('Escape'); time.sleep(.2)
     c.eval(PROFILE_FIELD_INSTALL)
     vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
-    c.click(vol_rect); time.sleep(.4)
+
+    # Restriction A is active before the category is opened. No post-open mutation
+    # is allowed: the first observable real flyout must already be restricted.
+    generic_options=c.eval(PROFILE_FIELD_SET % json.dumps(['forward','left']))
+    generic_values=[option['value'] for option in generic_options]
+    for value in ('forward','back','left','right'):
+        if value not in generic_values:
+            raise RuntimeError('generic move definition lacks '+value+': '+json.dumps(generic_options,ensure_ascii=False))
+    c.click(vol_rect); time.sleep(.15)
     field_flyout=c.eval(PROFILE_FIELD_FLYOUT)
     expected_values=['forward','left']
     flyout_values=[option['value'] for option in field_flyout['options']]
     if flyout_values != expected_values:
-        raise RuntimeError('profile field restriction did not reach real flyout: '+json.dumps(field_flyout,ensure_ascii=False))
+        raise RuntimeError('first observable real flyout was not profile-restricted: '+json.dumps(field_flyout,ensure_ascii=False))
     c.drag(field_flyout['rect'],520,610); time.sleep(.7)
     field_created=c.eval(PROFILE_FIELD_NEW_BLOCK % json.dumps(field_flyout['workspaceMoveIds']))
     created_values=[option['value'] for option in field_created['options']]
@@ -350,8 +382,23 @@ def main():
     if field_created['value'] not in expected_values:
         raise RuntimeError('dragged block retained a forbidden direction: '+json.dumps(field_created,ensure_ascii=False))
 
+    # Simulate switching/opening profiles. First restore the unrestricted generic
+    # options, then apply restriction B containing 'right', which was absent from A.
+    # This falsifies implementations that progressively shrink the current menu.
+    restored_generic=c.eval(PROFILE_FIELD_SET % 'null')
+    c.click(vol_rect); time.sleep(.15)
+    restored_flyout=c.eval(PROFILE_FIELD_FLYOUT)
+    if [option['value'] for option in restored_flyout['options']] != [option['value'] for option in restored_generic]:
+        raise RuntimeError('profile switch did not restore generic flyout options: '+json.dumps(restored_flyout,ensure_ascii=False))
+
+    c.eval(PROFILE_FIELD_SET % json.dumps(['right','forward']))
+    c.click(vol_rect); time.sleep(.15)
+    switched_flyout=c.eval(PROFILE_FIELD_FLYOUT)
+    switched_values=[option['value'] for option in switched_flyout['options']]
+    if switched_values != ['forward','right']:
+        raise RuntimeError('second profile restriction was cumulatively shrunk or reordered unexpectedly: '+json.dumps(switched_flyout,ensure_ascii=False))
     final=c.eval(SNAP)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'flyout':field_flyout,'created':field_created},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'generic':generic_options,'firstFlyout':field_flyout,'created':field_created,'restoredFlyout':restored_flyout,'switchedFlyout':switched_flyout},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 
