@@ -14,17 +14,15 @@ here.
 ## Product priority
 
 1. **#81 — Windows classroom deployment**
-2. **#80 — one-click unified classroom interface**
-3. **#79 — fully French student interface**
-4. **#157 — minimum functional pedagogical capability baseline**
-5. **#66 — progressive pedagogical activity model**
+2. **#157 — broader useful reference-capability coverage**
+3. **#66 — progressive pedagogical activity model**
 
-The priority relationship between #157 and #66 is intentionally narrow: establish
-first the smallest simulation-usable generic capability vocabulary needed to avoid
-biasing the representative pedagogical progression toward temporary Runtime gaps.
-Do **not** require exhaustive reference-hardware coverage before progressing #66.
-Once that minimum baseline is established, broader #157 coverage continues
-incrementally and may proceed in parallel with #66.
+#80 (one-click unified classroom interface) and #79 (fully French student
+interface) are validated baseline, not active priority nodes. The narrow #157 →
+#66 prerequisite is also satisfied: the C1a simulation baseline is established.
+Broader #157 C1b coverage continues incrementally and may proceed in parallel
+with #66; it must not block the representative progression unless a concrete
+activity demonstrates that a missing simulation capability is indispensable.
 
 Research / later work:
 
@@ -90,6 +88,12 @@ Chrome remains the reference browser for the current product-development phase.
 Known Edge and Firefox gaps do not block Chrome-based product slices; Firefox
 final same-file semantics remain tracked by #87.
 
+The current-main F1 inventory on #79 found no remaining student-visible English
+surface: the local official French Blockly messages, Runtime/project/debug UI,
+activity wording and displayed sensor directions are French while internal
+AST/backend identifiers remain unchanged. #79 is therefore a validated baseline;
+no localization slice remains active without new contradictory evidence.
+
 ## Preserved #70 physical-research baseline
 
 #70 has moved beyond source-only characterization. Props-off measurements on the
@@ -119,16 +123,6 @@ revalidated on that current source before new physical evidence is requested.
 - proof: #81 acceptance criteria can be closed without pretending unsupported
   browser behavior is proven
 - note: do not expand this node while higher-value Chrome/product work remains.
-
-### F1 — inventory remaining visible non-French student surfaces
-
-- parent: #79
-- depends: current Runtime v2 UI
-- action: bounded audit of remaining student-visible strings/surfaces, separated
-  from internal identifiers and machine diagnostics
-- proof: precise inventory with no AST/backend translation
-- boundary: implementation becomes normal small product PRs under current
-  `AGENTS.md`.
 
 ### C1a — minimum functional pedagogical capability baseline established
 
