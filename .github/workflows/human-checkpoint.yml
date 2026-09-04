@@ -73,10 +73,20 @@ jobs:
   publish:
     name: Publish one TEST_REQUIRED
     needs: [validate, runtime, webots]
-    if: needs.runtime.result == 'success' && needs.webots.result == 'success'
+    if: >-
+      needs.validate.outputs.target_sha != '' &&
+      needs.runtime.result == 'success' &&
+      needs.webots.result == 'success'
     runs-on: ubuntu-22.04
     concurrency:
       group: webeeblocks-human-test-open
       cancel-in-progress: false
+    env:
+      TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+      TEST_PROFILE: ${{ needs.validate.outputs.test_profile }}
+      PURPOSE: ${{ needs.validate.outputs.purpose }}
+      INSTRUCTIONS_B64: ${{ needs.validate.outputs.instructions_b64 }}
+      SOURCE_URL: ${{ needs.validate.outputs.source_url }}
+      REQUIRED_ARTIFACT: ${{ needs.validate.outputs.artifact_name }}
     steps:
       - run: echo "publish schema probe"
