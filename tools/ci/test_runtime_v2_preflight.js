@@ -141,6 +141,9 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
+  assert.deepStrictEqual(p2.parameterBounds.math_number.NUM, {min:1,max:10,step:1});
+  assert.deepStrictEqual(p3.parameterBounds.math_number.NUM, p2.parameterBounds.math_number.NUM,
+    'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
 
   const duplicate = JSON.parse(JSON.stringify(p1));
   duplicate.fieldOptions.webeeblocks_v2_move.DIRECTION = ['forward','forward'];
