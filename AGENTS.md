@@ -135,7 +135,11 @@ At launch and after every durable transition:
 5. otherwise start the highest-value product work not already sufficiently
    covered, in an isolated short branch; publish a PR only once real durable work
    exists, Draft if still mutable and Ready if complete;
-6. if no useful eligible action exists, terminate silently.
+6. before terminating, resolve exact current main and rebuild relevant engaged
+   GitHub work one final time, then apply this Controller loop again. Terminate
+   silently only if that reconstruction exposes no useful eligible action.
+   Completion of the execution's current local work is never by itself a
+   termination condition.
 
 Pending CI is not a reason to notify or globally idle. Use its latency for
 independent useful work when available.
