@@ -21,7 +21,9 @@ CHECKPOINT_REQUEST <40-char-sha> <test-profile> <checkpoint|release>
 
 human-checkpoint.yml performs deterministic preparation and may emit
 TEST_REQUIRED only after the exact target, full evidence, required artifact,
-provenance/digest and procedure are ready.
+provenance/digest and procedure are ready. At cut-over, `windows-low-end` is the
+only enabled profile; any unknown profile is rejected until its preparation is
+implemented explicitly.
 
 ## Human concurrency and idempotence
 
