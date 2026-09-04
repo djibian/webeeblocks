@@ -34,6 +34,7 @@ class ContractTests(unittest.TestCase):
         self.assertIn("Draft means mutable work in progress", self.contract)
         self.assertIn("Ready means an exact candidate frozen for validation", self.contract)
         self.assertIn("Any new HEAD is a new candidate", self.contract)
+        self.assertIn("must never publish the required check context named `CI Gate`", self.contract)
         self.assertIn("fresh CI and fresh independent review", self.contract)
         self.assertIn("mutated a PR cannot provide its independent review", self.contract)
         self.assertIn("may repair that PR after recording NO_GO", self.contract)
