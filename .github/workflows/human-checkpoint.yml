@@ -36,8 +36,22 @@ jobs:
        (github.event_name == 'issue_comment' &&
         startsWith(github.event.comment.body, 'CHECKPOINT_REQUEST ')))
     runs-on: ubuntu-22.04
+    outputs:
+      target_sha: ${{ steps.request.outputs.target_sha }}
+      test_profile: ${{ steps.request.outputs.test_profile }}
+      purpose: ${{ steps.request.outputs.purpose }}
+      instructions_b64: ${{ steps.request.outputs.instructions_b64 }}
+      source_url: ${{ steps.request.outputs.source_url }}
+      artifact_name: ${{ steps.request.outputs.artifact_name }}
     steps:
-      - run: echo "schema probe"
+      - id: request
+        run: |
+          echo "target_sha=adc8f56d64d2222bfab06547992a75b95a69b25d" >> "$GITHUB_OUTPUT"
+          echo "test_profile=windows-low-end" >> "$GITHUB_OUTPUT"
+          echo "purpose=checkpoint" >> "$GITHUB_OUTPUT"
+          echo "instructions_b64=cHJvYmU=" >> "$GITHUB_OUTPUT"
+          echo "source_url=probe" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=WebeeBlocks-Windows-R2025a" >> "$GITHUB_OUTPUT"
 
   runtime:
     name: Full Runtime evidence
@@ -45,7 +59,7 @@ jobs:
     if: needs.validate.result == 'success'
     uses: ./.github/workflows/ci-runtime.yml
     with:
-      target_sha: adc8f56d64d2222bfab06547992a75b95a69b25d
+      target_sha: ${{ needs.validate.outputs.target_sha }}
       full: true
 
   webots:
@@ -54,7 +68,7 @@ jobs:
     if: needs.validate.result == 'success'
     uses: ./.github/workflows/ci-webots.yml
     with:
-      target_sha: adc8f56d64d2222bfab06547992a75b95a69b25d
+      target_sha: ${{ needs.validate.outputs.target_sha }}
 
   publish:
     name: Publish one TEST_REQUIRED
