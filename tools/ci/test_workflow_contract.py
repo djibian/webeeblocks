@@ -25,6 +25,7 @@ EXPECTED = {
         "stop-vs-chain", "strategy-timing", "historical-blockly-ui",
         "encoders-historical", "gyro-gps-historical", "light-sensor-historical",
         "sensor-probing-historical", "robot-window-roundtrip", "webots-smoke",
+        "s3-surface-offset-build",
     },
 }
 
@@ -123,7 +124,10 @@ class WorkflowTests(unittest.TestCase):
         for name in ("ci-runtime.yml", "ci-webots.yml"):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
             all_checkouts = suite.count("uses: actions/checkout@v4")
-            external = suite.count("repository: cyberbotics/webots")
+            external = (
+                suite.count("repository: cyberbotics/webots")
+                + suite.count("repository: bitcraze/crazyflie-firmware")
+            )
             self.assertEqual(suite.count(target), all_checkouts - external, name)
 
     def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
