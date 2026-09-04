@@ -5,6 +5,7 @@ var runtimeBackend = null;
 var runtimeRunning = false;
 var runtimeTerminal = false;
 var runtimeResetPending = false;
+var runtimeStopPending = false;
 var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -41,11 +42,17 @@ function updateRuntimeActions() {
   var ready = !!(runtimeBackend && runtimeBackend.ready);
   var submit = document.getElementById('submit');
   var reset = document.getElementById('resetSimulation');
-  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending;
+  var stop = document.getElementById('stopSimulation');
+  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending;
+  if (stop) {
+    var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
+    stop.hidden = !stopSupported || !runtimeRunning;
+    stop.disabled = !stopSupported || !ready || !runtimeRunning || runtimeStopPending;
+  }
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || !runtimeTerminal;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || runtimeStopPending || !runtimeTerminal;
   }
 }
 
@@ -195,6 +202,26 @@ function serializedWorkspace() {
   return JSON.stringify(Blockly.serialization.workspaces.save(workspace));
 }
 
+async function stopSimulation() {
+  if (!runtimeRunning || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready)
+    return;
+  if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
+    return;
+  runtimeStopPending = true;
+  updateRuntimeActions();
+  setDebugControls(false);
+  try {
+    await runtimeBackend.stopSimulation();
+  } catch (error) {
+    runtimeRunning = false;
+    runtimeTerminal = true;
+    setRuntimeFailure(error);
+  } finally {
+    runtimeStopPending = false;
+    updateRuntimeActions();
+  }
+}
+
 async function resetSimulation() {
   if (runtimeRunning || runtimeResetPending || !runtimeTerminal || !runtimeBackend || !runtimeBackend.ready)
     return;
@@ -283,6 +310,7 @@ function wireWorkspaceControls() {
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
   document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
+  document.getElementById('stopSimulation').addEventListener('click', stopSimulation);
 }
 
 window.onload = async function() {
@@ -302,7 +330,7 @@ window.onload = async function() {
   try {
     var module = await import('./webots/RobotWindow.js');
     robotWindow = new module.default();
-    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true});
+    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true});
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();

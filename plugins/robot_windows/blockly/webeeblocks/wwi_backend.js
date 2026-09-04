@@ -37,6 +37,8 @@
       capabilities.simulationDebug = true;
     if (options && options.simulationReset === true)
       capabilities.simulationReset = true;
+    if (options && options.simulationStop === true)
+      capabilities.simulationStop = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -124,6 +126,11 @@
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype.stopSimulation = function() {
+    if (!this.capabilities || this.capabilities.simulationStop !== true)
+      return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
+    return this._request(['STOP']);
+  };
   RuntimeV2WwiBackend.prototype.resetSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
