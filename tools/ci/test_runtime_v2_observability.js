@@ -33,10 +33,10 @@ async function proveProgramInvalidRetryWithoutReset() {
     if (!elements[id]) elements[id] = {id, disabled:false, hidden:false, checked:false, textContent:'', addEventListener(){}};
     return elements[id];
   }
-  const testWorkspace = {valid:false, getAllBlocks(){return [{type:this.valid?'allowed':'forbidden'}];}};
+  const testWorkspace = {valid:false, logicalChanged:false, getAllBlocks(){return [{type:this.valid?'allowed':'forbidden'}];}};
   let compileCalls = 0;
   let interpreterRuns = 0;
-  const compiler = {compileWorkspace(){compileCalls += 1; return {version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:1},{kind:'land'}]};}};
+  const compiler = {compileWorkspace(){compileCalls += 1; return {version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:testWorkspace.logicalChanged?2:1},{kind:'land'}]};}};
   const interpreter = {async run(){interpreterRuns += 1;}};
   const uiBackend = {ready:true, capabilities:{actions:['takeoff','land'],rangeDirections:[],moveDirections:[],verticalDirections:[],simulationDebug:true,simulationReset:true}};
   const profile = {toolbox:['allowed'],parameterBounds:{},runtime:{allowedStatementKinds:['takeoff','land'],rangeDirections:[],moveDirections:[],verticalDirections:[],astBounds:{}}};
@@ -79,6 +79,14 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.strictEqual(compileCalls,1,'corrected workspace did not reach compiler on second attempt');
   assert.strictEqual(interpreterRuns,1,'corrected workspace did not execute on second attempt');
   assert.strictEqual(element('runtimeState').textContent,'TERMINÉ');
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté');
+
+  context.onWorkspaceChange({type:'move'});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté','purely visual Blockly movement must not require reset');
+
+  testWorkspace.logicalChanged = true;
+  context.onWorkspaceChange({type:'change'});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme modifié — réinitialisez la simulation avant de relancer','semantic program changes must still require reset');
 }
 
 (async()=>{
@@ -99,5 +107,5 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4],['move','left',.3],['range','front',.8],['move','forward',.3],['range','front',.3],['move','left',.3],['land']]);
   var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(Outcome.isRetryable({code:'PROGRAM_INVALID'}),true);assert.strictEqual(Outcome.isRetryable(error),false);assert.strictEqual(Outcome.isRetryable(Error('technical')),false);assert.strictEqual(wwi.capabilities.simulationDebug,true);
   var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);
-  console.log('PASS: invalid programs are retryable through the real UI runtime without reset, execution state stays coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
+  console.log('PASS: invalid programs are retryable through the real UI runtime without reset, visual-only Blockly moves do not create a false modified-program warning, semantic changes still require reset, execution state stays coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
