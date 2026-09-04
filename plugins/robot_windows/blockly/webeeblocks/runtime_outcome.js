@@ -19,6 +19,13 @@
         machineCode: machineCode
       };
     }
+    if (machineCode === 'USER_STOPPED') {
+      return {
+        state: 'ARRÊTÉ',
+        detail: 'Vol arrêté — réinitialisez la simulation avant de relancer',
+        machineCode: machineCode
+      };
+    }
     if (machineCode === 'UNSAFE_OR_TIMEOUT') {
       return {
         state: 'ARRÊTÉ',
