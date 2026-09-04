@@ -31,7 +31,7 @@
     var capabilities = {
       actions: ['takeoff', 'move', 'land'],
       rangeDirections: ['front', 'left', 'right'],
-      moveDirections: ['forward', 'left'],
+      moveDirections: ['forward', 'back', 'left', 'right'],
       verticalDirections: []
     };
     if (options && options.simulationDebug === true)

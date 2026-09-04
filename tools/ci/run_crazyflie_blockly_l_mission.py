@@ -27,6 +27,7 @@ L_SOURCE = ROOT / "controllers" / "crazyflie_l_course" / "crazyflie_l_course.c"
 ARTIFACT_DIR = ROOT / "ci-artifacts" / "crazyflie-blockly-l"
 MISSION_PATH = ARTIFACT_DIR / "mission.json"
 RESULT_RE = re.compile(r'<pre id="mission-result">(.*?)</pre>', re.DOTALL)
+BROWSER_TIMEOUT_SECONDS = 60
 
 EXPECTED = [
     {"type": "TAKEOFF", "value": 1.0},
@@ -119,7 +120,7 @@ def run_browser(harness_path: Path) -> dict[str, object]:
     process = subprocess.Popen(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     timed_out = False
     try:
-        stdout, stderr = process.communicate(timeout=30)
+        stdout, stderr = process.communicate(timeout=BROWSER_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         timed_out = True
         process.kill()

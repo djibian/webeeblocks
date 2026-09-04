@@ -27,6 +27,10 @@ assert.match(controllerSource, /wb_robot_get_device\("range_left"\)/);
 assert.match(controllerSource, /wb_robot_get_device\("range_right"\)/);
 assert.match(controllerSource, /strcmp\(request\.direction, "left"\) == 0/);
 assert.match(controllerSource, /strcmp\(request\.direction, "right"\) == 0/);
+assert.match(controllerSource, /strcmp\(request\.direction, "back"\) != 0/);
+assert.match(controllerSource, /strcmp\(request\.direction, "right"\) != 0/);
+assert.match(controllerSource, /target_x = x - cos\(yaw\) \* request\.value/);
+assert.match(controllerSource, /target_y = y - cos\(yaw\) \* request\.value/);
 assert.match(controllerSource, /response_error\(active_id, "USER_STOPPED"\)/);
 assert.match(controllerSource, /target_x = x;[\s\S]*target_y = y;[\s\S]*target_z = z;[\s\S]*failsafe_latched = 1;/);
 assert.doesNotMatch(controllerSource, /command == CMD_IDLE \|\| command == CMD_RESET/);
@@ -137,6 +141,6 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.strictEqual(blockedError.code,'USER_STOPPED');assert.strictEqual(stopSent.length,sentBeforeBlockedMove,'stopped backend emitted a later AST action');
   var resetRequest=stopBackend.resetSimulation();assert.match(stopSent[stopSent.length-1],/ REQUEST 3 RESET$/);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');await resetRequest;
   var afterReset=stopBackend.move('forward',.3);assert.match(stopSent[stopSent.length-1],/ REQUEST 4 MOVE forward /);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');await afterReset;
-  var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);assert.deepStrictEqual(physical.capabilities.rangeDirections,['front','left','right']);
+  var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);assert.deepStrictEqual(physical.capabilities.rangeDirections,['front','left','right']);assert.deepStrictEqual(physical.capabilities.moveDirections,['forward','back','left','right']);
   console.log('PASS: invalid programs are retryable through the real UI runtime without reset, execution state stays coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
