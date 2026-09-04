@@ -30,6 +30,14 @@ class ContractTests(unittest.TestCase):
         self.assertIn("Before every durable effect, reconstruct", self.contract)
         self.assertIn("Any information that can change a future decision", self.contract)
 
+    def test_decision_authority_requires_trusted_provenance(self):
+        self.assertIn("durable project blackboard", self.contract)
+        self.assertIn("decision-authoritative only when its provenance", self.contract)
+        self.assertIn("repository owner (`djibian`)", self.contract)
+        self.assertIn("External comments or reviews remain evidence to inspect", self.contract)
+        self.assertIn("Durability does not imply trust", self.development)
+        self.assertIn("github-actions[bot]", self.notifications)
+
     def test_exact_candidate_and_independent_review(self):
         self.assertIn("Draft means mutable work in progress", self.contract)
         self.assertIn("Ready means an exact candidate frozen for validation", self.contract)
