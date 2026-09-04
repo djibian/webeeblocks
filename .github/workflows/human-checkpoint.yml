@@ -38,3 +38,20 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - run: echo "schema probe"
+
+  runtime:
+    name: Full Runtime evidence
+    needs: validate
+    if: needs.validate.result == 'success'
+    uses: ./.github/workflows/ci-runtime.yml
+    with:
+      target_sha: adc8f56d64d2222bfab06547992a75b95a69b25d
+      full: true
+
+  webots:
+    name: Full Webots evidence
+    needs: validate
+    if: needs.validate.result == 'success'
+    uses: ./.github/workflows/ci-webots.yml
+    with:
+      target_sha: adc8f56d64d2222bfab06547992a75b95a69b25d
