@@ -155,7 +155,7 @@
       var flyout = toolbox && typeof toolbox.getFlyout === 'function' ? toolbox.getFlyout() : null;
       var flyoutWorkspace = flyout && typeof flyout.getWorkspace === 'function' ? flyout.getWorkspace() : null;
       if (flyoutWorkspace && typeof flyoutWorkspace.getAllBlocks === 'function')
-        flyoutWorkspace.getAllBlocks(false).forEach(applyBlock);
+        flyoutWorkspace.getAllBlocks(false).forEach(function(block) { applyBlock(block, false); });
     }
 
     function setProfile(profile, workspace) {
