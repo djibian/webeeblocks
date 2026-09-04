@@ -14,17 +14,15 @@ here.
 ## Product priority
 
 1. **#81 — Windows classroom deployment**
-2. **#80 — one-click unified classroom interface**
-3. **#79 — fully French student interface**
-4. **#157 — minimum functional pedagogical capability baseline**
-5. **#66 — progressive pedagogical activity model**
+2. **#157 — broader useful reference-capability coverage**
+3. **#66 — progressive pedagogical activity model**
 
-The priority relationship between #157 and #66 is intentionally narrow: establish
-first the smallest simulation-usable generic capability vocabulary needed to avoid
-biasing the representative pedagogical progression toward temporary Runtime gaps.
-Do **not** require exhaustive reference-hardware coverage before progressing #66.
-Once that minimum baseline is established, broader #157 coverage continues
-incrementally and may proceed in parallel with #66.
+#80 (one-click unified classroom interface) and #79 (fully French student
+interface) are validated baseline, not active priority nodes. The narrow #157 →
+#66 prerequisite is also satisfied: the C1a simulation baseline is established.
+Broader #157 C1b coverage continues incrementally and may proceed in parallel
+with #66; it must not block the representative progression unless a concrete
+activity demonstrates that a missing simulation capability is indispensable.
 
 Research / later work:
 
@@ -65,17 +63,19 @@ implicitly prove final Firefox/Edge parity or every future artifact.
 
 ### Product findings discovered during W2
 
-These remain durable product work and do not invalidate W2 stability:
+The three functional findings discovered during W2 were subsequently closed by
+small integrated product slices and remain useful historical acceptance evidence:
 
-1. a program without `atterrir` currently produces a generic technical error
-   instead of a student-correctable diagnostic;
-2. there is no user command to voluntarily interrupt an active flight;
-3. a purely visual movement of the Blockly program can trigger a false
+1. the missing-`atterrir` generic technical error was replaced by a
+   student-correctable preflight diagnostic in #129;
+2. voluntary interruption of an active simulation flight was added in #150 with
+   neutral `USER_STOPPED` handling;
+3. purely visual Blockly moves no longer trigger the false
    `Programme modifié : Réinitialisez la simulation avant de relancer` warning
-   although program logic did not change.
+   after #144.
 
-Controllers should turn these findings into the smallest useful product slices
-according to current #81/#80 priority and existing GitHub work.
+Do not duplicate these slices without new contradictory evidence. Their discovery
+does not invalidate the W2 stability PASS.
 
 The discriminating weak-PC benchmark recorded in #80 has also settled the
 interface architecture: **option A, standard Webots GUI + automatically opened
@@ -87,6 +87,12 @@ relaunch worked after preparation/cache.
 Chrome remains the reference browser for the current product-development phase.
 Known Edge and Firefox gaps do not block Chrome-based product slices; Firefox
 final same-file semantics remain tracked by #87.
+
+The current-main F1 inventory on #79 found no remaining student-visible English
+surface: the local official French Blockly messages, Runtime/project/debug UI,
+activity wording and displayed sensor directions are French while internal
+AST/backend identifiers remain unchanged. #79 is therefore a validated baseline;
+no localization slice remains active without new contradictory evidence.
 
 ## Preserved #70 physical-research baseline
 
@@ -118,47 +124,32 @@ revalidated on that current source before new physical evidence is requested.
   browser behavior is proven
 - note: do not expand this node while higher-value Chrome/product work remains.
 
-### F1 — inventory remaining visible non-French student surfaces
-
-- parent: #79
-- depends: current Runtime v2 UI
-- action: bounded audit of remaining student-visible strings/surfaces, separated
-  from internal identifiers and machine diagnostics
-- proof: precise inventory with no AST/backend translation
-- boundary: implementation becomes normal small product PRs under current
-  `AGENTS.md`.
-
-### C1a — establish the minimum functional pedagogical capability baseline
+### C1a — minimum functional pedagogical capability baseline established
 
 - parent: #157
-- depends: PRODUCT_VISION.md, the generic activity/profile architecture and the
-  integrated #157 capability matrix
-- target: the smallest generic capability set whose missing Runtime support would
-  otherwise constrain or distort the representative #66 progression
-- action: complete simulation-usable support for the pedagogically fundamental
-  generic semantics already present where practical, and add only genuinely
-  missing semantics needed for the progression; evaluate movement breadth,
-  directional ranging, downward ranging and a compact Color LED action by
-  pedagogical value rather than by firmware feature count
-- proof: representative generic student intents are expressible through
-  `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
-  with observable Webots behavior and fail-closed profile capability boundaries
-- boundary: this is **not** exhaustive hardware coverage, does not require the
-  physical backend to be proven, and must stop once #66 can be designed without
-  being shaped by temporary simulation capability gaps.
+- evidence: the integrated capability matrix plus #163 establish the smallest
+  simulation-usable baseline needed for the representative #66 progression,
+  including observable Multi-ranger `front/left/right` through the existing
+  generic `range(direction)` path and fail-closed unsupported directions
+- exit consequence: #66 is no longer blocked by C1a and may commit the
+  representative progression against this baseline
+- boundary: this is **not** exhaustive hardware coverage and does not claim a
+  proven physical backend; movement breadth, downward ranging, Color LED and
+  other useful capability gaps continue under C1b unless a concrete #66 activity
+  demonstrates that one is indispensable.
 
 ### B1 — formalize the declarative activity model and compact progression
 
 - parent: #66
-- depends: PRODUCT_VISION.md and C1a minimum functional capability baseline
+- depends: PRODUCT_VISION.md and the satisfied C1a minimum functional capability
+  baseline
 - action: bounded design/research of the smallest versionable activity/profile
   schema and representative 8–12 activity progression
 - proof: a coherent model preserving generic blocks and
   `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
   without student progress state or a graphical activity studio
-- note: activity/profile architecture work that does not commit the representative
-  progression may continue independently; the representative progression itself
-  should rely on the settled C1a baseline.
+- note: activity/profile architecture work and the representative progression may
+  now proceed on the settled C1a baseline; broader C1b coverage is parallel work.
 
 ### C1b — broaden reference Crazyflie/deck capability coverage
 
