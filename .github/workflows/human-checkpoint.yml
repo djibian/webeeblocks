@@ -33,9 +33,9 @@ jobs:
     name: Validate checkpoint request
     if: >-
       github.repository == 'djibian/webeeblocks' &&
+      github.actor == 'djibian' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'issue_comment' &&
-        github.actor == 'djibian' &&
         startsWith(github.event.comment.body, 'CHECKPOINT_REQUEST ')))
     runs-on: ubuntu-22.04
     outputs:
