@@ -56,12 +56,16 @@ manifest. See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 ## Development
 
-- `develop` is the integration branch;
-- `main` is the human-controlled stable branch;
-- one vertical product slice is delivered through one Ready pull request;
-- `CI Gate` is the single required check and selects conservative Runtime and
-  Webots suites;
-- promotion to `main` and physical Crazyflie tests are human operations.
+WebeeBlocks V4 uses trunk-based development:
+
+- `main` is the single healthy integration trunk and default branch;
+- Controller executions are stateless, interchangeable and may run in parallel
+  from isolated worktrees/branches;
+- Draft PRs are mutable; Ready PRs are exact frozen candidates;
+- `CI Gate` plus an independent exact-candidate review protect integration;
+- no agent lifecycle event notifies Emmanuel;
+- real-world validation is rare and arrives only as one prepared
+  `TEST_REQUIRED` checkpoint.
 
 See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) and [`AGENTS.md`](AGENTS.md).
 

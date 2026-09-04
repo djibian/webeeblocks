@@ -1,180 +1,72 @@
 #!/usr/bin/env python3
-"""Prevent the critical-path scheduler and human-action contracts from regressing."""
+"""Fail-closed static contract for V4 multi-Controller governance."""
 
 from pathlib import Path
 import unittest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
-
 def flat(text: str) -> str:
-    """Normalize Markdown wrapping without weakening phrase-level assertions."""
     return " ".join(text.split())
 
+class ContractTests(unittest.TestCase):
+    def setUp(self):
+        self.raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.contract = flat(self.raw)
+        self.development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(encoding="utf-8")
+        self.notifications = (ROOT / "docs" / "CONTROLLER_NOTIFICATIONS.md").read_text(encoding="utf-8")
+        self.roadmap = flat((ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8"))
 
-class ControllerContractTests(unittest.TestCase):
-    def test_critical_path_scheduler_preserves_review_independence_and_bounded_wip(self) -> None:
-        contract_raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        roadmap_raw = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
-        development_raw = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
-            encoding="utf-8"
-        )
-        contract = flat(contract_raw)
-        roadmap = flat(roadmap_raw)
-        development = flat(development_raw)
+    def test_five_principles(self):
+        for heading in (
+            "## 1 — Stateless Controllers",
+            "## 2 — Optimistic Isolation",
+            "## 3 — Stable Candidate",
+            "## 4 — Healthy Trunk",
+            "## 5 — Human Boundary",
+        ):
+            self.assertIn(heading, self.raw)
+        self.assertIn("state of a Controller execution is never project state", self.contract)
+        self.assertIn("Before every durable effect, reconstruct", self.contract)
+        self.assertIn("Any information that can change a future decision", self.contract)
 
-        self.assertIn("Optimize the project critical path, not session duration", contract)
-        self.assertIn("one active integration PR", contract)
-        self.assertIn("at most one independent preparatory context", contract)
-        self.assertIn("owns the integration lane unless it is reserve work", contract)
-        self.assertIn("waiting only on an external event", contract)
-        self.assertIn("use the wait for one independent roadmap atom", contract)
-        self.assertIn("A PR created only from reserve work", contract)
-        self.assertIn("new human/external evidence makes that higher-priority atom executable", contract)
-        self.assertIn("close the reserve PR without merge", contract)
-        self.assertIn("single preparatory context", contract)
-        self.assertIn("a new Controller launch is required by independent review", contract)
-        self.assertIn("Do not delay the critical path", contract)
-        self.assertIn("never independently reviews, approves or merges that candidate head", contract)
-        self.assertIn("A Reviewer that records `NO_GO` does not repair", contract)
-        self.assertIn("A Reviewer that merges an unchanged `GO` head may", contract)
-        self.assertIn("Absence of a roadmap dependency is not by itself proof", contract)
-        self.assertIn("A closed yieldable reserve PR counts as the single preparatory context", contract)
-        self.assertIn("A preparatory branch becomes stale when `develop` moves", contract)
-        self.assertIn("Do not create a chain of parked branches", contract)
+    def test_exact_candidate_and_independent_review(self):
+        self.assertIn("Draft means mutable work in progress", self.contract)
+        self.assertIn("Ready means an exact candidate frozen for validation", self.contract)
+        self.assertIn("Any new HEAD is a new candidate", self.contract)
+        self.assertIn("must never publish the required check context named `CI Gate`", self.contract)
+        self.assertIn("fresh CI and fresh independent review", self.contract)
+        self.assertIn("mutated a PR cannot provide its independent review", self.contract)
+        self.assertIn("may repair that PR after recording NO_GO", self.contract)
 
-        self.assertIn("one continuous productive session", contract)
-        self.assertIn("perform a progress checkpoint", contract)
-        self.assertIn("elapsed time alone is not a reason", contract)
-        self.assertIn("Stop `BLOCKED` after about 30 minutes", contract)
-        self.assertIn("same causal correction cycle repeats twice", contract)
-        self.assertIn("A pending CI is not a reason to stop", contract)
-        self.assertIn("five comparable non-cancelled gate durations", contract)
-        self.assertIn("prefer checking the waiting CI at safe reserve checkpoints", contract)
-        self.assertIn("Reserve `SESSION_LIMIT` for a real platform/runtime limit", contract)
-        self.assertNotIn("about 60 minutes maximum", contract)
-        self.assertNotIn("Do not poll", contract)
+    def test_healthy_main_and_late_refutation(self):
+        self.assertIn("main is the single long-lived trunk", self.contract)
+        self.assertIn("ordinary integrations are suspended until restoration", self.contract)
+        self.assertIn("late NO_GO on an already merged candidate", self.contract)
+        self.assertIn("valid unresolved NO_GO blocks integration", self.contract)
 
-        self.assertIn("rolling operational projection", roadmap)
-        self.assertIn("Protect the current integration critical path", roadmap)
-        self.assertIn("Keep one active integration PR plus at most one preparatory context", roadmap)
-        self.assertIn("A reserve PR yields at a safe checkpoint", roadmap)
-        self.assertIn("higher-priority atom executable", roadmap)
-        self.assertIn("If the W1 result arrives while a reserve PR owns the lane", roadmap)
-        self.assertIn("Never invent work merely to keep a Controller session active", roadmap)
-        self.assertIn("W1 — real Chrome coherence retest", roadmap)
-        self.assertIn("option A, standard Webots GUI + automatically opened Robot Window", roadmap)
-        self.assertIn("option B must not be prototyped without new contradictory evidence", roadmap)
-        self.assertNotIn("U1 — characterize whether the current standard one-action path", roadmap)
-        self.assertIn("X3 — reconstruct and validate the minimal surface-offset Lab prototype", roadmap)
-        self.assertNotIn("X1 — reconstruct the current Crazyflie altitude causal path", roadmap)
-        self.assertNotIn("status: DONE", roadmap_raw)
-        self.assertNotIn("status: READY", roadmap_raw)
+    def test_only_test_required_notifies(self):
+        self.assertIn("only notification class is TEST_REQUIRED", self.contract)
+        self.assertIn("There is no human-test queue", self.contract)
+        self.assertIn("A Controller never sends ntfy directly", self.contract)
+        self.assertIn("unknown profiles fail closed", self.contract)
+        combined = self.raw + self.development + self.notifications
+        for obsolete in (
+            "READY_FOR_REVIEW",
+            "SESSION_LIMIT",
+            "RELANCE CONTRÔLEUR",
+            "Human-readiness gate",
+            "Candidate evidence escalation",
+            "preparatory context",
+        ):
+            self.assertNotIn(obsolete, combined)
 
-        self.assertIn("optimizes project throughput, not session length", development)
-        self.assertIn("Only one integration PR toward `develop` is active", development)
-        self.assertIn("At most one additional independent preparatory context", development)
-        self.assertIn("A reserve PR is not allowed to become a priority inversion", development)
-        self.assertIn("closes the reserve PR without merge", development)
-        self.assertIn("If progress on the priority PR requires a fresh Controller launch", development)
-        self.assertIn("instead of producing secondary busywork", development)
-
-    def test_human_required_is_gated_by_action_ready_support(self) -> None:
-        contract_raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        roadmap_raw = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
-        development_raw = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
-            encoding="utf-8"
-        )
-        notifications_raw = (ROOT / "docs" / "CONTROLLER_NOTIFICATIONS.md").read_text(
-            encoding="utf-8"
-        )
-        contract = flat(contract_raw)
-        roadmap = flat(roadmap_raw)
-        development = flat(development_raw)
-        notifications = flat(notifications_raw)
-
-        self.assertIn("### Human-readiness gate", contract_raw)
-        self.assertIn(
-            "The fact that the next proof type is human does not mean the human action is ready",
-            contract,
-        )
-        self.assertIn("identify the exact target revision, version or deployed state", contract)
-        self.assertIn("verify that every required support exists now and is accessible", contract)
-        self.assertIn("bind that support to the target with explicit provenance", contract)
-        self.assertIn("without an uncompleted technical preparation step", contract)
-        self.assertIn("A green aggregate CI result is not proof", contract)
-        self.assertIn("skipped artifact-producing job", contract)
-        self.assertIn("must happen before `HUMAN_REQUIRED`", contract)
-        self.assertIn("only after the Human-readiness gate passes", contract)
-
-        self.assertIn("Human-readiness gate proving an accessible current Windows release artifact", roadmap)
-        self.assertIn("runtime-v2-windows-release", roadmap_raw)
-        self.assertIn("W1 is not executable", roadmap)
-        self.assertIn("human gate only after readiness passes", roadmap)
-
-        self.assertIn("Before `HUMAN_REQUIRED`, the Controller applies a Human-readiness gate", development)
-        self.assertIn("skipped artifact-producing job", development)
-        self.assertIn(
-            "no `HUMAN_REQUIRED` before target, support, provenance, accessibility and procedure are proven action-ready",
-            development,
-        )
-
-        self.assertIn("## Human-readiness prerequisite", notifications_raw)
-        self.assertIn("human evidence is logically next", notifications)
-        self.assertIn("ntfy must stay silent", notifications)
-        self.assertIn("relay intentionally does not attempt to infer arbitrary support readiness", notifications)
-
-    def test_notifications_mean_only_test_or_relaunch_and_ci_is_silent(self) -> None:
-        contract_raw = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        development_raw = (ROOT / "docs" / "DEVELOPMENT.md").read_text(
-            encoding="utf-8"
-        )
-        notifications_raw = (ROOT / "docs" / "CONTROLLER_NOTIFICATIONS.md").read_text(
-            encoding="utf-8"
-        )
-        workflow = (
-            ROOT / ".github" / "workflows" / "controller-handoff-ntfy.yml"
-        ).read_text(encoding="utf-8")
-        contract = flat(contract_raw)
-        development = flat(development_raw)
-        notifications = flat(notifications_raw)
-
-        self.assertIn(
-            "Notifications exist only when Emmanuel must do a real test/manual evidence step or must relaunch the Controller",
-            contract,
-        )
-        self.assertIn("CONTROLLER_HANDOFF HUMAN_REQUIRED <sha>", contract_raw)
-        self.assertIn("This handoff may be non-terminal", contract)
-        self.assertIn("CONTROLLER_HANDOFF READY_FOR_REVIEW <head-sha>", contract_raw)
-        self.assertIn("NO_GO <head-sha>", contract_raw)
-        self.assertIn("VERDICT UNPROVEN <sha>", contract_raw)
-        self.assertIn("`VERDICT UNPROVEN`, pending/settled CI, `GO`, merges", contract_raw)
-        self.assertIn("do not trigger ntfy", contract)
-
-        self.assertIn("There are only two notification purposes", notifications)
-        self.assertIn("**TEST**", notifications_raw)
-        self.assertIn("**RELAUNCH**", notifications_raw)
-        self.assertIn("may continue on one independent atom", notifications)
-        self.assertIn("`VERDICT UNPROVEN <sha>`", notifications_raw)
-        self.assertIn("does not match the ntfy transport grammar", notifications)
-        self.assertIn("semantic migration does not require an unauthorized direct write", notifications)
-
-        self.assertIn("CI, `GO`, merges, roadmap changes", development)
-        self.assertIn("and `UNPROVEN` by itself are silent", development)
-        self.assertIn("`HUMAN_REQUIRED` is reserved for a precise, action-ready test", development)
-        self.assertIn("Relaunch events use `READY_FOR_REVIEW`,", development)
-
-        self.assertIn("issue_comment:", workflow)
-        self.assertIn("pull_request_review:", workflow)
-        self.assertIn("permissions: {}", workflow)
-        self.assertNotIn("workflow_run:", workflow)
-        self.assertNotIn("actions/checkout", workflow)
-        self.assertIn("WebeeBlocks — TEST À EFFECTUER", workflow)
-        self.assertIn("WebeeBlocks — RELANCE CONTRÔLEUR", workflow)
-        self.assertNotIn("UNPROVEN", workflow)
-        self.assertNotIn("PREUVE À ARBITRER", workflow)
-
+    def test_roadmap_records_w1_w2_and_findings(self):
+        self.assertIn("W1 — coherence: PASS", self.roadmap)
+        self.assertIn("W2 — 30-minute stability: PASS", self.roadmap)
+        self.assertIn("without `atterrir`", self.roadmap)
+        self.assertIn("voluntarily interrupt", self.roadmap)
+        self.assertIn("purely visual movement", self.roadmap)
 
 if __name__ == "__main__":
     unittest.main()

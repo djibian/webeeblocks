@@ -64,6 +64,12 @@ class SelectCiTests(unittest.TestCase):
         result = select([])
         self.assertTrue(result.full)
 
+    def test_explicit_full_is_full(self) -> None:
+        result = select(["README.md"], force_full=True)
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)
+        self.assertTrue(result.full)
+
     @mock.patch("select_ci.subprocess.run")
     def test_git_diff_keeps_deletion_and_both_rename_sides(
         self, run: mock.Mock
