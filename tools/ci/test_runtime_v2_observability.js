@@ -42,7 +42,7 @@ async function proveProgramInvalidRetryWithoutReset() {
   const profile = {toolbox:['allowed'],parameterBounds:{},runtime:{allowedStatementKinds:['takeoff','land'],rangeDirections:[],moveDirections:[],verticalDirections:[],astBounds:{}}};
   const context = {
     console:{log(){},error(){}},
-    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui'},Blocks:{}},
+    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui',BLOCK_MOVE:'move'},Blocks:{}},
     document:{getElementById:element,body:{dataset:{}},createElement(){return{setAttribute(){},appendChild(){}};}},
     window:{dispatchEvent(){},addEventListener(){}},
     CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
@@ -79,6 +79,15 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.strictEqual(compileCalls,1,'corrected workspace did not reach compiler on second attempt');
   assert.strictEqual(interpreterRuns,1,'corrected workspace did not execute on second attempt');
   assert.strictEqual(element('runtimeState').textContent,'TERMINÉ');
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté');
+
+  context.onWorkspaceChange({type:'move',oldParentId:null,newParentId:null});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté',
+    'moving an unconnected top-level stack visually must not require simulation reset');
+
+  context.onWorkspaceChange({type:'move',oldParentId:null,newParentId:'parent-block'});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme modifié — réinitialisez la simulation avant de relancer',
+    'a structural Blockly move must still require simulation reset');
 }
 
 (async()=>{

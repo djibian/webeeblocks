@@ -265,8 +265,12 @@ async function runProgram() {
   }
 }
 
+function isPureVisualWorkspaceMove(event) {
+  return !!(event && event.type === Blockly.Events.BLOCK_MOVE &&
+    event.oldParentId == null && event.newParentId == null);
+}
 function onWorkspaceChange(event) {
-  if (!event || event.type === Blockly.Events.UI) return;
+  if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
   try { WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace); } catch (error) { console.error(error); }
   if (!runtimeRunning && runtimeTerminal)
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
