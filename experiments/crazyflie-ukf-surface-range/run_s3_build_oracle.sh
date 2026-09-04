@@ -24,12 +24,12 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
     make cf2_defconfig
-    if grep -q "^# CONFIG_ESTIMATOR_UKF_ENABLE is not set$" .config; then
-      sed -i "s/^# CONFIG_ESTIMATOR_UKF_ENABLE is not set$/CONFIG_ESTIMATOR_UKF_ENABLE=y/" .config
+    if grep -q "^# CONFIG_ESTIMATOR_UKF_ENABLE is not set$" build/.config; then
+      sed -i "s/^# CONFIG_ESTIMATOR_UKF_ENABLE is not set$/CONFIG_ESTIMATOR_UKF_ENABLE=y/" build/.config
     fi
-    grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" .config
+    grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" build/.config
     make olddefconfig
-    grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" .config
+    grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" build/.config
     ./tools/build/build UNIT_TEST_STYLE=min
   '
 
