@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify selector and repository contracts
         run: |
@@ -55,7 +55,7 @@ jobs:
     if: ${{ needs.select.outputs.runtime == 'true' }}
     uses: ./.github/workflows/ci-runtime.yml
     with:
-      target_sha: ${{ github.sha }}
+      target_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       full: ${{ needs.select.outputs.full == 'true' }}
 
   webots:
@@ -64,17 +64,17 @@ jobs:
     if: ${{ needs.select.outputs.webots == 'true' }}
     uses: ./.github/workflows/ci-webots.yml
     with:
-      target_sha: ${{ github.sha }}
+      target_sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
   gate:
-    name: CI Gate
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate' }}
     if: ${{ always() }}
     needs: [select, runtime, webots]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify selected suite results
         env:
           CI_SELECTION: >-
