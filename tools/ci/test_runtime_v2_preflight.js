@@ -198,7 +198,10 @@ function proveProgressionProfilesAndFieldOptions() {
   controller.setProfile(p1, workspace);
   assert.strictEqual(move.getField('DIRECTION').getValue(), 'left',
     'profile filtering must not silently rewrite an existing student program');
-  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right'],
+    'an incompatible existing block must keep its generic menu until the student corrects it');
+  assert.throws(() => ActivityContract.preflightWorkspace(p1, workspace), /field option forbidden by profile/,
+    'the authority boundary must reject the preserved incompatible value');
 
   const forbiddenWorkspace = {
     getAllBlocks() {
