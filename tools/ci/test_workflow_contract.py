@@ -67,6 +67,7 @@ class WorkflowTests(unittest.TestCase):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
         for required in (
             "CHECKPOINT_REQUEST ([0-9a-f]{40})",
+            "github.actor == 'djibian'",
             "uses: ./.github/workflows/ci-runtime.yml",
             "uses: ./.github/workflows/ci-webots.yml",
             "full: true",
