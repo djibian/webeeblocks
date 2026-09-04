@@ -140,8 +140,12 @@
         if (!allowDefaultCoercion && !previousAllowed)
           return;
         field.setOptions(options);
-        if (allowDefaultCoercion && !previousAllowed && typeof field.setValue === 'function')
-          field.setValue(options[0][1]);
+        if (typeof field.setValue === 'function') {
+          if (allowDefaultCoercion && !previousAllowed)
+            field.setValue(options[0][1]);
+          else
+            field.setValue(previous);
+        }
       });
     }
 
