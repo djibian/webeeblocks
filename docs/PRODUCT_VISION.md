@@ -67,6 +67,22 @@ The same student program should be able to target Webots and, when relevant and 
 
 Activity authoring does **not** currently require a teacher-facing graphical editor. Activities may be maintained as declarative, versionable files and created/modified by the project owner with AI/development assistance. Do not build a large “activity studio” without a demonstrated need.
 
+## Reference Crazyflie capability coverage
+
+The reference physical platform is **Crazyflie 2.1 with Flow Deck V2, Multi-ranger and a bottom-mounted Color LED Deck**.
+
+WebeeBlocks should cover as completely as practical the **pedagogically useful capabilities** of this reference hardware through the smallest coherent set of generic, composable Blockly primitives. The objective is capability coverage, not maximum block count or one block per firmware feature.
+
+Capability breadth belongs to the global Blockly/runtime catalogue. Individual activity profiles expose only the subset needed for their learning objective, so a rich platform does not imply a complex beginner toolbox.
+
+For student-facing capabilities, preserve when relevant the same intent through:
+
+`activity/profile → Blockly → backend-neutral AST → preflight → shared interpreter → backend`
+
+A capability intended for both simulation and real hardware should have an observable equivalent in Webots and on the physical backend once that backend is proven safe. Internal estimator diagnostics, firmware tuning parameters and safety mechanisms remain infrastructure unless a demonstrated pedagogical need makes them student-facing.
+
+The Webots reference Crazyflie should eventually represent the bottom-mounted Color LED Deck with a **simple, reasonably recognizable model and a visible controllable light surface**. Simulate the pedagogically observable light effect, not deck electronics, electrical consumption, thermal behavior or photometric fidelity.
+
 ## Execution observability
 
 WebeeBlocks should make program execution observable **without helping the student solve the algorithm**.
@@ -182,3 +198,4 @@ WebeeBlocks is not intended to become:
 9. **Generic configurable activities over task-specific product forks**.
 10. **WebeeBlocks stays a focused training tool; Moodle and evaluation remain external concerns**.
 11. **Blockly 13.2.1 + Zelos is the fixed visual-programming foundation; Scratch familiarity guides ergonomics without turning WebeeBlocks into a Scratch clone**.
+12. **Broad reference-hardware capability coverage through a small generic Blockly vocabulary, with simulation/physical continuity where relevant**.

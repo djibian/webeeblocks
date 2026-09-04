@@ -18,6 +18,11 @@ here.
 3. **#79 — fully French student interface**
 4. **#66 — progressive pedagogical activity model**
 
+Secondary / opportunistic product work:
+
+- **#157 — reference Crazyflie/deck capability coverage**, complementing #66
+  without displacing the current pedagogical progression priority.
+
 Research / later work:
 
 - **#70 — world altitude over surface discontinuities**
@@ -132,6 +137,24 @@ revalidated on that current source before new physical evidence is requested.
 - note: mass activity production may rely on the settled option A presentation
   direction but still follows current product priority.
 
+### C1 — cover the reference Crazyflie/deck capability surface
+
+- parent: #157
+- depends: PRODUCT_VISION.md and the generic activity/profile architecture
+- target hardware: Crazyflie 2.1 + Flow Deck V2 + Multi-ranger +
+  bottom-mounted Color LED Deck
+- action: inventory pedagogically useful capabilities, map each to the smallest
+  generic/composable Blockly and backend-neutral semantics, then implement
+  missing slices without maximizing block count
+- proof: a compact capability matrix covering Blockly/AST, Webots and physical
+  backend support or an explicit justified exclusion
+- simulation direction: where relevant, student-facing capabilities have an
+  observable Webots equivalent; Color LED coverage may use a simple,
+  reasonably recognizable bottom-deck model with a visible controllable light
+  surface rather than detailed electronics simulation
+- scheduling: secondary/opportunistic product work; do not displace #66 merely
+  to broaden hardware coverage.
+
 ### X3 — reconstruct and validate the minimal surface-offset Lab prototype
 
 - parent: #70
@@ -170,8 +193,8 @@ revalidated on that current source before new physical evidence is requested.
 ### R — final real-flight activity
 
 - parent: #72
-- depends: coherent progression + proven physical backend + any #70 capability
-  required by the chosen final mission
+- depends: coherent progression + relevant #157 capability coverage + proven
+  physical backend + any #70 capability required by the chosen final mission
 - proof direction: exact simulation-validated student program, explicit teacher
   authorization, independent preflight/failsafe and representative safe real
   execution
