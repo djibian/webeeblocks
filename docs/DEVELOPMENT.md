@@ -31,6 +31,8 @@ heartbeats, relaunch state and agent pools do not exist.
 
 - Draft means the change may still be mutated.
 - Ready means the exact HEAD is frozen for decision CI/review.
+- Draft runs may perform policy checks, but only a Ready candidate may publish
+  the required `CI Gate` check context.
 - Mutating a Ready PR requires returning it to Draft first.
 - Every new HEAD requires a fresh decision CI and fresh independent review.
 - An execution that mutates a PR cannot independently review that PR during the
