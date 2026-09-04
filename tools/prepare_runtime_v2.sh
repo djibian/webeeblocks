@@ -20,13 +20,15 @@ if [ "$node_major" -lt 22 ]; then
 fi
 
 cd "$BLOCKLY_DIR"
-npm install --ignore-scripts --no-audit --no-fund
+npm ci --ignore-scripts --no-audit --no-fund
 npm run prepare:blockly
 
 test "$(cat vendor/VERSION)" = "13.2.1"
 test -s vendor/blockly_compressed.js
 test -s vendor/blocks_compressed.js
-test -s vendor/msg/en.js
+test -s vendor/msg/fr.js
 test -d vendor/media
+test -s webots/RobotWindow.js
+test -s webots/request_methods.js
 
 echo "Runtime v2 Blockly assets ready: blockly@13.2.1"

@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WebeeBlocks Runtime v2</title>
+  <title>WebeeBlocks — Programmation du drone</title>
   <link rel="stylesheet" href="main.css">
   <link rel="stylesheet" href="execution_observer.css">
   <link rel="stylesheet" href="project_files.css">
+  <link rel="stylesheet" href="classroom_fixes.css">
   <script src="vendor/blockly_compressed.js"></script>
   <script src="vendor/blocks_compressed.js"></script>
-  <script src="vendor/msg/en.js"></script>
+  <script src="vendor/msg/fr.js"></script>
   <script src="../blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js"></script>
   <script src="../blockly/webeeblocks/activity_profiles.js"></script>
   <script src="../blockly/webeeblocks/activities.js"></script>
@@ -31,6 +32,7 @@
       <button id="projectOpen" type="button">Ouvrir</button>
       <button id="projectSave" type="button">Enregistrer</button>
       <button id="projectSaveAs" type="button">Enregistrer sous</button>
+      <button id="resetSimulation" type="button" hidden disabled>Réinitialiser</button>
       <button id="submit" disabled>Lancer le vol</button>
     </div>
   </header>
@@ -57,6 +59,7 @@
     </nav>
   </main>
   <script src="main.js"></script>
-  <script src="project_ui.js"></script>
+  <script src="classroom_fixes.js"></script>
+  <script src="project_ui.js?rev=20260830-1"></script>
 </body>
 </html>

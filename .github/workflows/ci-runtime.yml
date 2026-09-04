@@ -1,0 +1,1127 @@
+name: CI Runtime Suite
+
+on:
+  workflow_call:
+    inputs:
+      target_sha:
+        description: Exact WebeeBlocks Git object to prove.
+        required: true
+        type: string
+      full:
+        description: Build the complete Windows classroom release.
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-v2-core:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare product Blockly 13.2.1 assets
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Check product JavaScript syntax
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_profiles.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
+          node --check plugins/robot_windows/blockly/webeeblocks/semantic_ast.js
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check tools/ci/test_runtime_v2_preflight.js
+      - name: Reject malformed AST before backend actions
+        run: node tools/ci/test_runtime_v2_preflight.js
+      - name: Exercise reactive semantics through product Blockly and Runtime v2 core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+  runtime-v2-windows-assets:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare product Blockly 13.2.1 assets without Bash
+        shell: pwsh
+        run: ./tools/prepare_runtime_v2.ps1
+      - name: Check Runtime v2 JavaScript syntax on Windows
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_profiles.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly/webeeblocks/semantic_ast.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/ci/test_runtime_v2_preflight.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reject malformed AST before backend actions on Windows
+        shell: pwsh
+        run: node tools/ci/test_runtime_v2_preflight.js
+
+      - name: Validate project-file core and AST round-trip on Windows
+        shell: pwsh
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check plugins/robot_windows/blockly_v2/project_ui.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/ci/test_runtime_v2_project_files.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  clean-checkout-runtime-v2:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prove generated Blockly assets are absent in checkout
+        run: |
+          test ! -e plugins/robot_windows/blockly_v2/vendor/VERSION
+          test ! -e plugins/robot_windows/blockly_v2/node_modules/blockly/package.json
+
+      - name: Prepare Runtime v2 through supported product command
+        run: |
+          ./tools/prepare_runtime_v2.sh
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
+          node --check plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js
+          node --check plugins/robot_windows/blockly_v2/vendor/blocks_compressed.js
+          test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
+          test -d plugins/robot_windows/blockly_v2/vendor/media
+
+      - name: Prepare real Runtime v2 Robot Window harness
+        run: |
+          python3 -m py_compile tools/ci/prepare_runtime_v2_webots.py
+          python3 tools/ci/prepare_runtime_v2_webots.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-clean-checkout
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-clean-checkout/build.log
+
+      - name: Open real Runtime v2 Robot Window
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-clean-checkout \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-clean-checkout/browser-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-clean-checkout/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-clean-checkout/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            exit 1
+          fi
+
+      - name: Prove clean-checkout product path opened Blockly 13.2.1
+        run: |
+          set -euo pipefail
+          test -s ci-artifacts/runtime-v2-clean-checkout/browser-events.jsonl
+          test -s ci-artifacts/runtime-v2-clean-checkout/browser-launch.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-clean-checkout/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
+          if errors:
+              raise AssertionError(errors[0])
+          assert any(e.get('event') == 'BLOCKLY_VERSION' and e.get('detail') == '13.2.1' for e in events), events
+          assert any(e.get('event') == 'PRE_READY' for e in events), events
+          print('PASS: clean checkout -> supported product preparation -> real Webots Robot Window -> Blockly 13.2.1')
+          PY
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-clean-checkout-packaging
+          path: ci-artifacts/runtime-v2-clean-checkout/
+          if-no-files-found: error
+  runtime-v2-observability:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        run: ./tools/prepare_runtime_v2.sh
+
+      - name: Validate observability product sources and semantic invariants
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          node --check plugins/robot_windows/blockly/webeeblocks/execution_observer.js
+          node --check plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js
+          node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          node --check plugins/robot_windows/blockly_v2/main.js
+          node --check tools/ci/test_runtime_v2_observability.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_observability.py
+          node tools/ci/test_runtime_v2_observability.js
+          ! grep -Eq 'breakpoint|call.?stack|developer console|suggested block|automatic diagnosis' \
+            plugins/robot_windows/blockly/webeeblocks/execution_observer.js \
+            plugins/robot_windows/blockly_v2/main.js
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged dynamic Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-observability
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/build.log
+
+      - name: Prepare semantic step harness
+        run: python3 tools/ci/prepare_runtime_v2_observability.py --mode step
+
+      - name: Run real Robot Window semantic step scenario
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-observability/step \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-observability/step /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-observability/step/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 65s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/step-webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-observability/step-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate causal semantic steps, active block and fresh raw sensor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-observability/step/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          names = [e.get('event') for e in events]
+          for required in (
+              'TECHNICAL_FAILURE_OK','TECHNICAL_FAILURE_RESET_OK','STEP_TAKEOFF_HELD','STEP_REPEAT_HELD','STEP_RANGE_HELD',
+              'STEP_NUMBER_HELD_AFTER_SENSOR','STEP_COMPARE_HELD','STEP_IF_HELD','SEMANTIC_DECISION_CHAIN_OK',
+              'STEP_CONTINUE_DONE','STEP_SCENARIO_DONE'):
+              assert required in names, (required, names)
+          tech = next(e for e in events if e.get('event') == 'TECHNICAL_FAILURE_OK')['detail']
+          assert tech['state'] == 'ERREUR', tech
+          pauses = [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED']
+          expected = [
+              ('takeoff','webeeblocks_v2_takeoff'),
+              ('repeat','controls_repeat_ext'),
+              ('range','webeeblocks_v2_range'),
+              ('number','math_number'),
+              ('compare','logic_compare'),
+              ('if','controls_if'),
+              ('move','webeeblocks_v2_move')]
+          assert len(pauses) == len(expected), pauses
+          for pause, (kind, block_type) in zip(pauses, expected):
+              assert pause['kind'] == kind and pause['blockType'] == block_type, (pause, kind, block_type)
+          assert pauses[1]['iteration'] == 0, pauses[1]
+          assert 'decision' not in pauses[5], pauses[5]
+          assert pauses[6]['direction'] == 'left', pauses[6]
+          sensors = [e['detail'] for e in events if e.get('event') == 'DEBUG_SENSOR']
+          assert len(sensors) >= 1 and sensors[0]['sensorDirection'] == 'front', sensors
+          raw = float(sensors[0]['sensorValue'])
+          log = Path('ci-artifacts/runtime-v2-observability/step-webots.log').read_text(errors='replace')
+          m = re.search(r'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front value=([0-9.]+)', log)
+          assert m, 'missing native controller range trace'
+          native = float(m.group(1))
+          assert abs(raw - native) < 1e-9, (raw, native)
+          chain = next(e['detail'] for e in events if e.get('event') == 'SEMANTIC_DECISION_CHAIN_OK')
+          assert [p['kind'] for p in chain['pauses']] == ['range','number','compare','if','move'], chain
+          assert 'decision' not in chain['pauses'][3], chain
+          step_tx_baseline = int(pauses[0]['txCount'])
+          assert all(int(p['txCount']) - step_tx_baseline <= 2 for p in [e['detail'] for e in events if e.get('event') == 'DEBUG_PAUSED'][2:7]), pauses
+          move_pause = pauses[6]
+          assert int(move_pause['txCount']) - step_tx_baseline <= 2, move_pause
+          trace=[]
+          for line in log.splitlines():
+              if ' TRACE TAKEOFF ' in line: trace.append('TAKEOFF')
+              elif ' TRACE RANGE front ' in line: trace.append('RANGE')
+              elif ' TRACE MOVE left ' in line: trace.append('MOVE_LEFT')
+              elif ' TRACE MOVE forward ' in line: trace.append('MOVE_FORWARD')
+              elif ' TRACE LAND ' in line: trace.append('LAND')
+          assert trace[:8] == ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'], trace
+          print('PASS: R2025a semantic stepping pauses through branch boundaries without exposing branch outcome and preserves native trace.')
+          PY
+
+      - name: Prepare real fail-safe outcome harness
+        run: python3 tools/ci/prepare_runtime_v2_observability.py --mode unsafe
+
+      - name: Run real wall-blocked action to controller fail-safe
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-observability/unsafe \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-observability/unsafe /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-observability/unsafe/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 55s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-observability/unsafe-webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-observability/unsafe-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate neutral student stop and preserved fail-closed code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-observability/unsafe/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          done = [e for e in events if e.get('event') == 'UNSAFE_SCENARIO_DONE']
+          assert len(done) == 1, events
+          detail = done[0]['detail']
+          assert detail['diagnostic']['machineCode'] == 'UNSAFE_OR_TIMEOUT', detail
+          assert detail['diagnostic']['studentState'] == 'ARRÊTÉ', detail
+          assert detail['snapshot']['state'] == 'ARRÊTÉ', detail
+          assert detail['snapshot']['detail'] == 'L’action n’a pas pu être terminée', detail
+          assert 'UNSAFE_OR_TIMEOUT' not in detail['snapshot']['detail']
+          log = Path('ci-artifacts/runtime-v2-observability/unsafe-webots.log').read_text(errors='replace')
+          assert 'ERR UNSAFE_OR_TIMEOUT' in log, 'controller low-level error code missing'
+          assert 'FATAL unsafe attitude or action timeout' in log, 'controller fail-safe path missing'
+          print('PASS: real controller fail-safe is preserved while student UI reports neutral ARRÊTÉ outcome.')
+          PY
+
+      - name: Upload observability diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-observability-r2025a
+          path: ci-artifacts/runtime-v2-observability/
+          if-no-files-found: error
+  runtime-v2-project-files:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 assets
+        run: ./tools/prepare_runtime_v2.sh
+
+      - name: Validate project file core contract
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/project_files.js
+          node --check plugins/robot_windows/blockly_v2/project_ui.js
+          node --check tools/ci/test_runtime_v2_project_files.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_project_files.py
+          node tools/ci/test_runtime_v2_project_files.js
+          ! grep -REi 'autosave|attemptHistory|scoreHistory|studentIdentity|moodle|cloudSync' \
+            plugins/robot_windows/blockly/webeeblocks/project_files.js \
+            plugins/robot_windows/blockly_v2/project_ui.js
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-project-files
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-project-files/build.log
+
+      - name: Prepare real Robot Window project-file harness
+        run: python3 tools/ci/prepare_runtime_v2_project_files.py
+
+      - name: Exercise explicit Save As Open Save and fail-closed behavior
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-project-files \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-project-files /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-project-files/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-project-files/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-project-files/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate causal project-file evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          event_path = Path('ci-artifacts/runtime-v2-project-files/browser-events.jsonl')
+          assert event_path.exists() and event_path.stat().st_size > 0, 'missing browser project-file evidence'
+          events = [json.loads(line) for line in event_path.read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR','WINDOW_ERROR','UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          names = [e.get('event') for e in events]
+          for required in ('FILE_API_BOUNDARY','INITIAL_AST','SAVE_AS_OK','CANCELLATION_STATE_OK','EDIT_NO_WRITE_OK','OPEN_ROUNDTRIP_OK','PICKER_OPTIONS_OK','SAVE_UPDATE_OK','FAIL_CLOSED_OK','RUN_DEBUG_NO_WRITE_OK','PROJECT_FILES_TEST_COMPLETE'):
+              assert required in names, (required, names)
+          boundary = next(e['detail'] for e in events if e.get('event') == 'FILE_API_BOUNDARY')
+          assert set(boundary) == {'open','save','secureContext'}, boundary
+          save_as = next(e['detail'] for e in events if e.get('event') == 'SAVE_AS_OK')
+          save_update = next(e['detail'] for e in events if e.get('event') == 'SAVE_UPDATE_OK')
+          assert save_as['writes'] == 1, save_as
+          assert save_update['writes'] == 2, save_update
+          no_write = next(e['detail'] for e in events if e.get('event') == 'RUN_DEBUG_NO_WRITE_OK')
+          assert no_write['writes'] == 2, no_write
+          assert save_update['ast']['semantics'] == 'webeeblocks-ast-v1', save_update
+          log = Path('ci-artifacts/runtime-v2-project-files/webots.log').read_text(errors='replace')
+          assert 'ERROR:' not in log, log[-2000:]
+          print('PASS: real R2025a Robot Window explicit project round-trip/save/fail-closed; browser file API boundary=', boundary)
+          PY
+
+      - name: Upload project-file diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-project-files-r2025a
+          path: ci-artifacts/runtime-v2-project-files/
+          if-no-files-found: error
+  reset-contract-fast:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate reset protocol and product sources
+        run: |
+          set -euo pipefail
+          node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          node --check plugins/robot_windows/blockly_v2/main.js
+          node --check tools/ci/test_runtime_v2_reset.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_reset.py
+          node tools/ci/test_runtime_v2_reset.js
+          grep -q 'id="resetSimulation"' plugins/robot_windows/blockly_v2/blockly_v2.html
+          grep -q 'supervisor TRUE' worlds/crazyflie_runtime_v2.wbt
+          grep -q 'REQUEST_RESET' controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c
+          grep -q 'wb_supervisor_node_reset_physics' controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c
+
+  reset-replay-webots:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    needs: reset-contract-fast
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        run: ./tools/prepare_runtime_v2.sh
+
+      - name: Build Runtime v2 controller with official Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-reset
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-reset/build.log
+
+      - name: Prepare reset/replay Robot Window harness
+        run: python3 tools/ci/prepare_runtime_v2_reset.py
+
+      - name: Run real Webots reset/replay scenario
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /workspace/ci-artifacts/runtime-v2-reset /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-reset/browser-events.jsonl &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 150s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-reset/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/runtime-v2-reset/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
+
+      - name: Validate workspace preservation, reset pose and replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/runtime-v2-reset/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
+          assert not errors, errors[:1]
+          names = [e.get('event') for e in events]
+          assert names.count('RESET_OK') >= 3, names
+          for required in ('NORMAL_FIRST_DONE', 'NORMAL_REPLAY_DONE', 'UNSAFE_FIRST_DONE', 'UNSAFE_REPLAY_DONE'):
+              assert required in names, (required, names)
+          reset_events = [e for e in events if e.get('event') == 'RESET_EVENT']
+          assert len(reset_events) >= 3, reset_events
+          assert all(e.get('detail', {}).get('workspacePreserved') is True for e in reset_events), reset_events
+
+          reset_proofs = [e['detail'] for e in events if e.get('event') == 'RESET_OK']
+          for proof in reset_proofs:
+              snap = proof['snapshot']
+              assert snap['state'] == 'PRÊT', snap
+              assert snap['backendReady'] is True and snap['pending'] == 0, snap
+              assert snap['submitDisabled'] is False, snap
+
+          log = Path('ci-artifacts/runtime-v2-reset/webots.log').read_text(errors='replace')
+          traces = re.findall(
+              r'WEBEEBLOCKS_RUNTIME_V2 TRACE RESET x=([-0-9.]+) y=([-0-9.]+) z=([-0-9.]+) origin_x=([-0-9.]+) origin_y=([-0-9.]+) origin_z=([-0-9.]+)',
+              log)
+          assert len(traces) >= 3, traces
+          for values in traces:
+              x, y, z, ox, oy, oz = map(float, values)
+              assert abs(x - ox) < 0.03, values
+              assert abs(y - oy) < 0.03, values
+              assert abs(z - oz) < 0.05, values
+          assert log.count('ERR UNSAFE_OR_TIMEOUT') >= 2, 'unsafe fail-safe not exercised twice'
+          assert log.count('FATAL unsafe attitude or action timeout') >= 2, 'native fail-safe trace missing'
+          print('PASS: real R2025a reset preserves Blockly program, restores the Crazyflie, and supports replay after TERMINÉ and ARRÊTÉ.')
+          PY
+
+      - name: Upload reset/replay diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-reset-replay-r2025a
+          path: ci-artifacts/runtime-v2-reset/
+          if-no-files-found: error
+  runtime-v2-webots:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+          node --check vendor/blockly_compressed.js
+          node --check vendor/blocks_compressed.js
+          test -s vendor/msg/fr.js
+          test -d vendor/media
+
+      - name: Validate Runtime v2 product sources
+        run: |
+          node --check plugins/robot_windows/blockly/webeeblocks/wwi_backend.js
+          node --check plugins/robot_windows/blockly_v2/main.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_webots.py
+          grep -Fq 'vendor/blockly_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          grep -Fq 'vendor/blocks_compressed.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          if grep -Fq 'google-blockly-31ee4ea/blockly_' plugins/robot_windows/blockly_v2/blockly_v2.html; then
+            echo '::error::legacy google-blockly asset reference is forbidden'
+            exit 1
+          fi
+          grep -Fq 'window "blockly_v2"' worlds/crazyflie_runtime_v2.wbt
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          source = Path('controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
+          used = set(re.findall(r'\b(wb_supervisor_[A-Za-z0-9_]+)\s*\(', source))
+          allowed = {
+              'wb_supervisor_node_get_self',
+              'wb_supervisor_node_get_field',
+              'wb_supervisor_field_get_sf_vec3f',
+              'wb_supervisor_field_get_sf_rotation',
+              'wb_supervisor_field_set_sf_vec3f',
+              'wb_supervisor_field_set_sf_rotation',
+              'wb_supervisor_node_reset_physics',
+          }
+          assert used == allowed, f'unexpected Runtime v2 Supervisor API set: used={sorted(used)} allowed={sorted(allowed)}'
+          PY
+          if grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2; then
+            echo '::error::bridge.py dependency is forbidden in Runtime v2'
+            exit 1
+          fi
+
+      - name: Re-prove Runtime v2 semantic core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+      - name: Prepare actual Runtime v2 Robot Window
+        run: python3 tools/ci/prepare_runtime_v2_webots.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build dynamic Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-webots
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-webots/build.log
+
+      - name: Run real Blockly to dynamic Webots Runtime v2
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/runtime-v2-webots/browser-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 80s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+            ' \
+            2>&1 | tee ci-artifacts/runtime-v2-webots/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/runtime-v2-webots/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Runtime v2 Webots run exited unexpectedly with $code"
+            exit 1
+          fi
+
+      - name: Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOG=ci-artifacts/runtime-v2-webots/webots.log
+          EVENTS=ci-artifacts/runtime-v2-webots/browser-events.jsonl
+          test -s ci-artifacts/runtime-v2-webots/browser-launch.log
+          test -s "$EVENTS"
+          grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_BEGIN' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 CI READY_DELAY_END' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' "$LOG"
+          if grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 FATAL' "$LOG"; then
+            echo '::error::Runtime v2 emitted FATAL'
+            exit 1
+          fi
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots log contains ERROR:'
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          event_path = Path('ci-artifacts/runtime-v2-webots/browser-events.jsonl')
+          events = [json.loads(line) for line in event_path.read_text().splitlines() if line.strip()]
+          print('BROWSER_EVENTS:')
+          for event in events:
+              print(json.dumps(event, ensure_ascii=False, sort_keys=True))
+
+          browser_errors = [e for e in events if e.get('event') in ('ERROR', 'WINDOW_ERROR', 'UNHANDLED_REJECTION')]
+          if browser_errors:
+              first = browser_errors[0]
+              raise AssertionError('first browser error: ' + json.dumps(first, ensure_ascii=False, sort_keys=True))
+
+          version_events = [e for e in events if e.get('event') == 'BLOCKLY_VERSION']
+          assert version_events, 'missing BLOCKLY_VERSION runtime event'
+          assert version_events[0].get('detail') == '13.2.1', version_events[0]
+
+          snapshots = [e.get('detail') for e in events if e.get('event') in ('HARNESS_START', 'DIAG', 'PRE_READY', 'READY', 'FINAL_DIAG') and isinstance(e.get('detail'), dict)]
+          runtime_versions = [s.get('blocklyVersion') for s in snapshots if s.get('blocklyVersion')]
+          assert '13.2.1' in runtime_versions, runtime_versions
+
+          log = Path('ci-artifacts/runtime-v2-webots/webots.log').read_text(errors='replace')
+          trace = []
+          ranges = []
+          for line in log.splitlines():
+              if 'WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF' in line:
+                  trace.append('TAKEOFF')
+                  assert 'stop=1' in line
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE front' in line:
+                  trace.append('RANGE')
+                  m = re.search(r'value=([0-9.]+)', line)
+                  assert m, line
+                  ranges.append(float(m.group(1)))
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE ' in line:
+                  m = re.search(r'TRACE MOVE (forward|left) distance=', line)
+                  assert m and 'stop=1' in line, line
+                  trace.append('MOVE_' + m.group(1).upper())
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
+                  trace.append('LAND')
+                  assert 'stop=1' in line
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND']
+          assert trace == expected, (trace, expected)
+          assert len(ranges) == 3, ranges
+          assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
+
+          def first_index(predicate, label):
+              for index, event in enumerate(events):
+                  if predicate(event):
+                      return index
+              raise AssertionError('missing event: ' + label)
+
+          version = first_index(lambda e: e.get('event') == 'BLOCKLY_VERSION' and e.get('detail') == '13.2.1', 'BLOCKLY_VERSION 13.2.1')
+          pre = first_index(lambda e: e.get('event') == 'PRE_READY', 'PRE_READY')
+          guard = first_index(lambda e: e.get('event') == 'PRE_READY_GUARD_OK', 'PRE_READY_GUARD_OK')
+          ready_rx = first_index(lambda e: e.get('event') == 'WWI_RX' and e.get('detail') == 'WEBEEBLOCKS_RUNTIME_V2 READY', 'READY WWI_RX')
+          ready = first_index(lambda e: e.get('event') == 'READY', 'READY')
+          ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
+          submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
+          done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
+          assert version < pre < guard < ready_rx < ready < ast < submit < done, [(e.get('event'), e.get('detail')) for e in events]
+
+          pre_detail = events[pre]['detail']
+          guard_detail = events[guard]['detail']
+          ready_detail = events[ready]['detail']
+          assert pre_detail['blocklyVersion'] == '13.2.1', pre_detail
+          assert ready_detail['blocklyVersion'] == '13.2.1', ready_detail
+          assert pre_detail['backendReady'] is False and pre_detail['submitDisabled'] is True and pre_detail['state'] == 'INITIALISATION', pre_detail
+          assert guard_detail['backendReady'] is False and guard_detail['submitDisabled'] is True and guard_detail['state'] == 'INITIALISATION', guard_detail
+          assert guard_detail['backendNextId'] == pre_detail['backendNextId'], (pre_detail, guard_detail)
+          assert guard_detail['backendPending'] == 0 and guard_detail['astEvents'] == 0 and guard_detail['runtimeRunning'] is False, guard_detail
+          assert ready_detail['backendReady'] is True and ready_detail['submitDisabled'] is False and ready_detail['state'] == 'PRÊT', ready_detail
+
+          states = [e.get('detail', {}).get('state') for e in events if e.get('event') == 'STATE' and isinstance(e.get('detail'), dict)]
+          assert 'EN VOL' in states and 'TERMINÉ' in states, states
+          print('PASS: Blockly.VERSION=13.2.1 -> causal pre-READY guard -> real READY -> Blockly AST -> RobotWindow WWI -> dynamic PID/STOP -> fresh range decisions.')
+          PY
+
+      - name: Upload Runtime v2 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-webots-wwi-r2025a
+          path: ci-artifacts/runtime-v2-webots/
+          if-no-files-found: error
+  student-ui:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare pinned Blockly 13.2.1 product assets
+        run: |
+          ./tools/prepare_runtime_v2.sh
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
+
+      - name: Re-prove unchanged Runtime v2 semantic core
+        run: python3 tools/ci/run_runtime_v2_core_harness.py
+
+      - name: Validate UI experiment sources and canonical fixture
+        run: |
+          node --check plugins/robot_windows/blockly_v2/main.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check plugins/robot_windows/blockly/webeeblocks/activities.js
+          python3 -m py_compile experiments/runtime-v2-student-ui/probe.py
+          bash -n experiments/runtime-v2-student-ui/browser.sh experiments/runtime-v2-student-ui/run.sh
+          grep -F "renderer: 'zelos'" plugins/robot_windows/blockly_v2/main.js
+          grep -F '<script src="vendor/msg/fr.js"></script>' plugins/robot_windows/blockly_v2/blockly_v2.html
+          ! grep -F 'vendor/msg/en.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
+          grep -F "message0:'distance %1'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 6
+          test "$(grep -o "style:'control_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
+          test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
+          grep -F "webeeblocks_v2_wait:{category:'control'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "logic_compare:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "logic_operation:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "math_number:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          grep -F "flight_category: {colour: '#2563EB'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "control_category: {colour: '#7C3AED'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "sensor_category: {colour: '#0E7490'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "operator_category: {colour: '#047857'}" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('logic_compare', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('logic_operation', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
+          grep -F "overrideBuiltinBlockStyle('math_number', 'operator_blocks')" plugins/robot_windows/blockly_v2/main.js
+          grep -F "#zoomFit .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
+          ! grep -F "#workspaceToolbar .toolbarText { display: none; }" plugins/robot_windows/blockly_v2/main.css
+          test "$(sha256sum controllers/Blockly_Programs/CrazyflieReactiveV2.xml | awk '{print $1}')" = "32b281611dc06f6d488fcad97055d309493a8050b455fd57c8a6079a9b9aaaa1"
+          python3 -m json.tool experiments/runtime-v2-student-ui/expected_ast.json >/dev/null
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged Runtime v2 controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-student-ui
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_runtime_v2 \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/runtime-v2-student-ui/build.log
+
+      - name: Run styled Zelos UI in real Runtime v2 Robot Window
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash /workspace/experiments/runtime-v2-student-ui/run.sh
+
+      - name: Validate visual shell, strict AST and keyboard path
+        run: |
+          test -s ci-artifacts/runtime-v2-student-ui/metrics.json
+          test -s ci-artifacts/runtime-v2-student-ui/workspace-1366x768.png
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          def colour(value):
+              value=(value or '').strip()
+              if re.fullmatch(r'#[0-9a-fA-F]{6}', value):
+                  return value.upper()
+              match=re.fullmatch(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[0-9.]+)?\s*\)', value, re.I)
+              if match:
+                  return '#%02X%02X%02X' % tuple(int(part) for part in match.groups())
+              return value.upper()
+          r=json.loads(Path('ci-artifacts/runtime-v2-student-ui/metrics.json').read_text())
+          expected=json.loads(Path('experiments/runtime-v2-student-ui/expected_ast.json').read_text())
+          i=r['initial']; k=r['keyboard']; narrow=r['responsive800']; locale=r['locale']
+          assert i['version']=='13.2.1', i
+          assert i['rendererMatchesRegistry'] is True, i
+          assert r['astMatchesExpected'] is True, r
+          assert r['ast']==expected, {'expected':expected,'actual':r['ast']}
+          assert locale['messages']['repeat'].lower().startswith('répéter'), locale
+          assert locale['messages']['if'].lower()=='si' and locale['messages']['do'].lower()=='faire' and locale['messages']['else'].lower()=='sinon', locale
+          assert locale['messages']['and'].lower()=='et' and locale['messages']['or'].lower()=='ou', locale
+          assert locale['messages']['trueValue'].lower()=='vrai' and locale['messages']['falseValue'].lower()=='faux', locale
+          assert locale['messages']['repeatTooltip'] and 'repeat' not in locale['messages']['repeatTooltip'].lower(), locale
+          expected_directions=[{'label':'devant','value':'front'},{'label':'derrière','value':'back'},{'label':'à gauche','value':'left'},{'label':'à droite','value':'right'},{'label':'au-dessus','value':'up'}]
+          assert locale['directionOptions']==expected_directions, locale['directionOptions']
+          assert locale['sensorText']=='devant = 1 m · derrière = 2 m · à gauche = 3 m · à droite = 4 m · au-dessus = 5 m', locale['sensorText']
+          visible=' '.join(locale['blocks'].values()).lower()
+          assert not re.search(r'\\b(repeat|if|do|else|and|or|true|false)\\b',visible), locale['blocks']
+          assert i['viewport']=={'width':1366,'height':768}, i['viewport']
+          assert all(i['controls'].values()), i['controls']
+          assert i['geometry']['toolbar'] and i['geometry']['toolbar']['width']>0, i['geometry']
+          assert i['geometry']['trash'] and i['geometry']['trash']['width']>0, i['geometry']
+          assert narrow['viewport']=={'width':800,'height':768}, narrow
+          assert narrow['resetLabel']=='100 %' and narrow['resetLabelVisible'] is True, narrow
+          expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
+          toolbox={item['name']:colour(item.get('colour')) for item in i['toolboxItems']}
+          assert list(toolbox)==list(expected_colours), toolbox
+          assert toolbox==expected_colours, toolbox
+          for group, expected_colour in (
+              (('webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'),'#2563EB'),
+              (('controls_repeat_ext','controls_if'),'#7C3AED'),
+              (('webeeblocks_v2_range',),'#0E7490'),
+              (('logic_compare','math_number'),'#047857')):
+              colours=[colour(i['blockColours'][name][0]) for name in group]
+              assert set(colours)=={expected_colour}, (group,colours)
+          for name in ('toolboxEntry','arrowDown','arrowUp','categoryActivation','flyoutBlockReachable','workspaceFocusReturn'):
+              assert k[name] is True, (name,k)
+          print(json.dumps({'blockly':i['version'],'zelos':i['rendererMatchesRegistry'],'strictAst':r['astMatchesExpected'],'toolbox':toolbox,'responsive800':narrow,'geometry':i['geometry'],'keyboard':{x:k[x] for x in k if x!='steps'}},ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload student UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-runtime-v2-student-ui
+          path: ci-artifacts/runtime-v2-student-ui/
+          if-no-files-found: error
+
+  runtime-v2-windows-release:
+    needs: runtime-v2-windows-assets
+    if: ${{ needs.runtime-v2-windows-assets.result == 'success' && (github.event_name != 'pull_request' || inputs.full) }}
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a release assets
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: |
+            /projects/robots/bitcraze/crazyflie/protos/
+            /projects/default/protos/textures/fast_helix.png
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache official Webots R2025a installer
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\webots-R2025a_setup.exe
+          key: webots-R2025a-windows-9e326a54c104fc5
+
+      - name: Install verified Webots R2025a
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          $expected = '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            Invoke-WebRequest `
+              -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' `
+              -OutFile $installer
+          }
+          $actual = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            Remove-Item -LiteralPath $installer -Force
+            throw "Webots installer checksum mismatch: $actual"
+          }
+          $webotsHome = Join-Path $env:ProgramFiles 'Webots'
+          $webotsExe = Join-Path $webotsHome 'msys64\mingw64\bin\webots.exe'
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            $process = Start-Process `
+              -FilePath $installer `
+              -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') `
+              -Wait `
+              -PassThru
+            if ($process.ExitCode -ne 0) { throw "Webots installer exited with $($process.ExitCode)." }
+          }
+          if (-not (Test-Path -LiteralPath $webotsExe -PathType Leaf)) {
+            throw 'Verified Webots R2025a installation is missing webots.exe.'
+          }
+          $version = (& $webotsExe --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'R2025a') {
+            throw "Unexpected Webots version: $version"
+          }
+          "WEBOTS_HOME=$webotsHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "WEBEEBLOCKS_WEBOTS_VERSION=$version"
+
+      - name: Build self-contained Windows classroom release
+        shell: pwsh
+        run: |
+          ./tools/build_windows_classroom_release.ps1 `
+            -WebotsHome $env:WEBOTS_HOME `
+            -WebotsProjectsPath '.ci-webots-r2025a\projects' `
+            -OutputDirectory 'ci-artifacts\windows-release'
+
+      - name: Validate archive from a path containing spaces
+        shell: pwsh
+        run: |
+          ./tools/ci/test_windows_classroom_release.ps1 `
+            -ArchivePath 'ci-artifacts\windows-release\WebeeBlocks-Windows-R2025a.zip' `
+            -WebotsHome $env:WEBOTS_HOME
+
+      - name: Upload Windows classroom release
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Windows-R2025a
+          path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
+          if-no-files-found: error

@@ -9,6 +9,7 @@
   var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
   function fail(message){throw new Error('semantic AST: '+message);}
+  function studentFail(message,detail){var error=new Error('semantic AST: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
   function bounded(value,name,limits){var n=finite(value,name);if(n<limits.min||n>limits.max)fail(name+' out of bounds: '+n);return n;}
   function field(block,name){if(!block||typeof block.getFieldValue!=='function')fail('invalid Blockly block');return block.getFieldValue(name);}
@@ -60,7 +61,13 @@
     }
   }
 
-  function compileWorkspace(workspace){if(!workspace||typeof workspace.getTopBlocks!=='function')fail('invalid Blockly workspace');var tops=workspace.getTopBlocks(true);if(tops.length!==1)fail('Crazyflie program must have exactly one top-level sequence');var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};}
+  function compileWorkspace(workspace){
+    if(!workspace||typeof workspace.getTopBlocks!=='function')fail('invalid Blockly workspace');
+    var tops=workspace.getTopBlocks(true);
+    if(tops.length===0)studentFail('Crazyflie program must have exactly one top-level sequence','Construisez un programme relié avant de lancer.');
+    if(tops.length!==1)studentFail('Crazyflie program must have exactly one top-level sequence','Des blocs sont détachés du programme principal. Reliez-les ou supprimez-les avant de lancer.');
+    var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
+  }
 
   return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
 });

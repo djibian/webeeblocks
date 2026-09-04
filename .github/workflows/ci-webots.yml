@@ -1,0 +1,2490 @@
+name: CI Webots Suite
+
+on:
+  workflow_call:
+    inputs:
+      target_sha:
+        description: Exact WebeeBlocks Git object to prove.
+        required: true
+        type: string
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crazyflie-ab-matrix:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build backend A and backend B controllers
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-ab-matrix
+          for controller in crazyflie_square crazyflie_square_position; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-ab-matrix/build-${controller}.log"
+          done
+
+      - name: Run five common deterministic scenarios for A and B
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/ci/run_crazyflie_ab_matrix.py
+
+      - name: Publish matrix summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-ab-matrix/matrix.md ]; then
+            cat ci-artifacts/crazyflie-ab-matrix/matrix.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload A/B diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-ab-perturbation-r2025a
+          path: ci-artifacts/crazyflie-ab-matrix/
+          if-no-files-found: error
+  crazyflie-b-edges:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build backend B controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-b-edge-matrix
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_square_position \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-b-edge-matrix/build.log
+
+      - name: Run four backend B edge cases
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/ci/run_crazyflie_b_edge_matrix.py
+
+      - name: Publish edge characterization
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-b-edge-matrix/matrix.md ]; then
+            cat ci-artifacts/crazyflie-b-edge-matrix/matrix.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-b-edge-characterization-r2025a
+          path: ci-artifacts/crazyflie-b-edge-matrix/
+          if-no-files-found: error
+  crazyflie-blockly-l:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Generate exact semantic mission from real Blockly 2020
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-blockly-l
+          python3 tools/ci/run_crazyflie_blockly_l_mission.py \
+            2>&1 | tee ci-artifacts/crazyflie-blockly-l/blockly-mission.log
+          cat ci-artifacts/crazyflie-blockly-l/mission.json
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build existing shared STOP L-course executor with Blockly mission
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_l_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-blockly-l/build.log
+
+      - name: Execute Blockly-derived L mission in Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_l_course.wbt' \
+            2>&1 | tee ci-artifacts/crazyflie-blockly-l/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-blockly-l/exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Blockly-derived L-course Webots run exited with $code"
+            exit 1
+          fi
+
+      - name: Validate semantic equality and STOP reference behavior
+        shell: bash
+        run: |
+          set -o pipefail
+          RESULT=ci-artifacts/crazyflie-l-course-result.txt
+          LOG=ci-artifacts/crazyflie-blockly-l/webots.log
+          test -s "$RESULT"
+          cat "$RESULT" | tee ci-artifacts/crazyflie-blockly-l/result.txt
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=failure' "$RESULT"
+          ! grep -Fq 'ERROR:' "$LOG"
+          python3 - <<'PY'
+          import json, math, re
+          from pathlib import Path
+
+          mission = json.loads(Path('ci-artifacts/crazyflie-blockly-l/mission.json').read_text())
+          expected = [
+              ('TAKEOFF', 1.0),
+              ('FORWARD', 1.0),
+              ('TURN', math.pi / 2.0),
+              ('FORWARD', 1.0),
+              ('LAND', 0.0),
+          ]
+          assert len(mission) == len(expected)
+          for got, (kind, value) in zip(mission, expected):
+              assert got['type'] == kind, (got, kind)
+              assert math.isclose(float(got['value']), value, rel_tol=0.0, abs_tol=1e-12), (got, value)
+
+          line = Path('ci-artifacts/crazyflie-l-course-result.txt').read_text().strip()
+          pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+          assert pairs.get('status') == 'success'
+          assert pairs.get('gates') == '2'
+          g1 = float(pairs['g1_time'])
+          g2 = float(pairs['g2_time'])
+          endpoint = float(pairs['endpoint_error_xy'])
+          yaw = float(pairs['yaw_error_deg'])
+          total = float(pairs['total_s'])
+          # R2025a's 32 ms timestep makes a ±20 ms time oracle artificially tighter
+          # than one simulation step. Geometry/order/STOP remain the strong oracle.
+          assert abs(g1 - 12.287) <= 0.10, g1
+          assert abs(g2 - 21.315) <= 0.10, g2
+          assert endpoint <= 0.02, endpoint
+          assert yaw <= 2.0, yaw
+          assert abs(total - 26.144) <= 0.10, total
+          print('PASS: real Blockly semantic L mission reached G1, G2 and landing through shared STOP executor.')
+          PY
+
+      - name: Publish Blockly L result
+        if: always()
+        shell: bash
+        run: |
+          echo '## Blockly → semantic mission → shared STOP executor' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f ci-artifacts/crazyflie-blockly-l/mission.json ]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat ci-artifacts/crazyflie-blockly-l/mission.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f ci-artifacts/crazyflie-l-course-result.txt ]; then
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat ci-artifacts/crazyflie-l-course-result.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-blockly-l-r2025a
+          path: |
+            ci-artifacts/crazyflie-blockly-l/
+            ci-artifacts/crazyflie-l-course-result.txt
+          if-no-files-found: error
+  timed-challenge-ux:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Validate challenge UX sources
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_challenge_ux.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          detour = Path('controllers/Blockly_Programs/CrazyflieDetourOffset.xml').read_text()
+          reference = Path('controllers/Blockly_Programs/CrazyflieL.xml').read_text()
+          assert detour != reference, 'detour fixture must differ from reference L'
+          assert '<field name="DISTANCE">1.1</field>' in detour, 'detour must contain representable 1.1 m second leg'
+
+          html = Path('plugins/robot_windows/blockly/blockly.html').read_text()
+          assert 'Assemble les blocs nécessaires de la rubrique <em>Crazyflie</em>.' in html
+          assert 'Assemble les 4 blocs' not in html
+
+          world = Path('worlds/crazyflie_runtime_obstacle.wbt').read_text()
+          controller = Path('controllers/crazyflie_l_course/crazyflie_l_course.c').read_text()
+          match = re.search(r'#define GATE_HALF_WIDTH_M\s+([0-9.]+)', controller)
+          assert match, 'GATE_HALF_WIDTH_M missing from controller'
+          gate_half_width = float(match.group(1))
+          post_thickness = 0.035
+          post_center = gate_half_width + post_thickness / 2.0
+          assert f'translation 0.9 -{post_center:.4f} 1.0' in world
+          assert f'translation 0.9 {post_center:.4f} 1.0' in world
+          assert f'translation {1.0 - post_center:.4f} 0.9 1.0' in world
+          assert f'translation {1.0 + post_center:.4f} 0.9 1.0' in world
+          assert 'geometry Box { size 0.025 0.67 0.035 }' in world
+          assert 'geometry Box { size 0.67 0.025 0.035 }' in world
+          assert 'LANDING_TARGET' not in world, 'visual landing target must not imply a success criterion that does not exist'
+          PY
+
+      - name: Prepare same-session challenge harness
+        run: |
+          python3 tools/ci/prepare_crazyflie_challenge_ux.py
+          python3 tools/ci/instrument_runtime_done_ack.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged STOP runtime and physical evaluator
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-challenge-ux
+          for controller in crazyflie_l_course crazyflie_collision_observer; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-challenge-ux/build-${controller}.log"
+          done
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-challenge-ux/controller-before.sha256
+
+      - name: Run three student attempts in one Robot Window session
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-challenge-ux/events.jsonl
+          rm -f ci-artifacts/crazyflie-challenge-ux/complete.sentinel
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-obstacle-contact.txt
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-runtime-mission-result.txt
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_wwi_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl \
+                --completion-sentinel /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel &
+              event_server_pid=$!
+              xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt > /workspace/ci-artifacts/crazyflie-challenge-ux/webots.log 2>&1 &
+              webots_pid=$!
+              cleanup() {
+                kill $webots_pid 2>/dev/null || true
+                kill $event_server_pid 2>/dev/null || true
+                wait $webots_pid 2>/dev/null || true
+                wait $event_server_pid 2>/dev/null || true
+              }
+              trap cleanup EXIT
+              complete=0
+              for i in $(seq 1 1500); do
+                if test -s /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel; then
+                  complete=1
+                  break
+                fi
+                if grep -Fq "\"event\":\"ERROR\"" /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null; then
+                  cat /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl
+                  exit 1
+                fi
+                if ! kill -0 $webots_pid 2>/dev/null; then
+                  cat /workspace/ci-artifacts/crazyflie-challenge-ux/webots.log
+                  exit 1
+                fi
+                sleep 0.1
+              done
+              if test -s /workspace/ci-artifacts/crazyflie-challenge-ux/complete.sentinel; then
+                complete=1
+              fi
+              if [ "$complete" -ne 1 ]; then
+                echo "Challenge UX harness did not complete in time"
+                cat /workspace/ci-artifacts/crazyflie-challenge-ux/events.jsonl 2>/dev/null || true
+                cat /workspace/ci-artifacts/crazyflie-challenge-ux/webots.log
+                exit 1
+              fi
+            '
+
+      - name: Prove causal states timer results and same-session resubmission
+        shell: bash
+        run: |
+          set -o pipefail
+          EVENTS=ci-artifacts/crazyflie-challenge-ux/events.jsonl
+          LOG=ci-artifacts/crazyflie-challenge-ux/webots.log
+          test -s "$EVENTS"
+          test -s "$LOG"
+          test -s ci-artifacts/crazyflie-challenge-ux/complete.sentinel
+          ! grep -Fq 'ERROR:' "$LOG"
+          ! grep -Fq 'DONE_ACK_TIMEOUT' "$LOG"
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 VALIDATED' "$LOG")" -eq 3
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' "$LOG")" -eq 3
+          grep -Fq 'WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT COLLISION' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT GATE_MISSED' "$LOG"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/crazyflie-challenge-ux/events.jsonl').read_text().splitlines() if line.strip()]
+          assert any(e['event'] == 'INVALID_REJECTED_NO_TIMER' for e in events), events
+          assert not any(e['event'] == 'ERROR' for e in events), events
+          for attempt, expected in [
+              ('DIRECT', 'COLLISION'),
+              ('DETOUR', 'RÉUSSI'),
+              ('GATE_MISS', 'PASSAGE MANQUÉ'),
+          ]:
+              terminal = [e for e in events if e['event'] == attempt + '_TERMINAL']
+              assert terminal, (attempt, events)
+              terminal_detail = json.loads(terminal[-1]['detail'])
+              panel = terminal_detail['panel']
+              assert panel['state'] == 'TERMINÉ', terminal_detail
+              assert panel['result'] == expected, terminal_detail
+              assert panel['time'].endswith(' s') and panel['time'] != '—', terminal_detail
+              assert terminal_detail['runtimeStateAtTerminal'] == 'RECOVERING', terminal_detail
+              assert terminal_detail['runtimeStateAfterFreeze'] in ('RECOVERING', 'WAITING'), terminal_detail
+          initial = [e for e in events if e['event'] == 'INITIAL'][-1]
+          assert json.loads(initial['detail'])['state'] == 'PRÊT'
+          final_ready = [e for e in events if e['event'] == 'FINAL_RUNTIME_READY']
+          assert final_ready, events
+          assert json.loads(final_ready[-1]['detail'])['runtimeState'] == 'WAITING', final_ready[-1]
+          assert any(e['event'] == 'CHALLENGE_TEST_COMPLETE' for e in events), events
+
+          challenge = [json.loads(e['detail']) for e in events if e['event'] == 'CHALLENGE']
+          starts = [e for e in challenge if e.get('state') == 'RUNNING' and e.get('elapsed') == 0]
+          assert len(starts) == 3, starts
+          terminals = [e for e in challenge if e.get('state') == 'FINISHED']
+          assert [e.get('result') for e in terminals] == ['COLLISION', 'RÉUSSI', 'PASSAGE MANQUÉ'], terminals
+          assert all(float(e['elapsed']) > 0 for e in terminals), terminals
+          print('PASS: one Robot Window session completed COLLISION -> edit/resubmit -> SUCCESS -> edit/resubmit -> GATE_MISSED with Webots-derived frozen times.')
+          PY
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-challenge-ux/controller-after.sha256
+          cmp ci-artifacts/crazyflie-challenge-ux/controller-before.sha256 \
+              ci-artifacts/crazyflie-challenge-ux/controller-after.sha256
+
+      - name: Upload challenge UX diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-challenge-ux-r2025a
+          path: |
+            ci-artifacts/crazyflie-challenge-ux/
+            ci-artifacts/crazyflie-done-ack-trace.txt
+            ci-artifacts/crazyflie-obstacle-contact.txt
+            ci-artifacts/crazyflie-l-course-result.txt
+            ci-artifacts/crazyflie-runtime-mission-result.txt
+          if-no-files-found: warn
+  first-collision-obstacle:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build flight controllers and collision observer
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-first-obstacle
+          for controller in crazyflie_square_position crazyflie_l_course crazyflie_collision_observer; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-first-obstacle/build-${controller}.log"
+          done
+
+      - name: Run direct collision witness and STOP L detour
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/ci/run_crazyflie_first_obstacle.py
+
+      - name: Publish obstacle summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-first-obstacle/summary.md ]; then
+            cat ci-artifacts/crazyflie-first-obstacle/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload obstacle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-first-collision-obstacle-r2025a
+          path: |
+            ci-artifacts/crazyflie-first-obstacle/
+            ci-artifacts/crazyflie-obstacle-contact.txt
+            ci-artifacts/crazyflie-l-course-result.txt
+          if-no-files-found: warn
+  crazyflie-l-course:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build L-course controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-l-course
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_l_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-l-course/build.log
+
+      - name: Run measured L course
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_l_course.wbt' \
+            2>&1 | tee ci-artifacts/crazyflie-l-course/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-l-course/exit-code.txt
+          if [ "$code" -ne 0 ]; then
+            echo "::error::L-course Webots run exited with $code"
+            exit 1
+          fi
+
+      - name: Validate ordered virtual gates and landing
+        shell: bash
+        run: |
+          set -o pipefail
+          RESULT=ci-artifacts/crazyflie-l-course-result.txt
+          LOG=ci-artifacts/crazyflie-l-course/webots.log
+          test -s "$RESULT"
+          cat "$RESULT" | tee ci-artifacts/crazyflie-l-course/result.txt
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=failure' "$RESULT"
+          ! grep -Fq 'ERROR:' "$LOG"
+          ! grep -Fq 'WEBEEBLOCKS_CF_POSITION_FAILED' "$LOG"
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          line = Path('ci-artifacts/crazyflie-l-course-result.txt').read_text().strip()
+          pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+          assert pairs.get('status') == 'success'
+          assert pairs.get('gates') == '2'
+          g1 = float(pairs['g1_time'])
+          g2 = float(pairs['g2_time'])
+          total = float(pairs['total_s'])
+          assert 0 < g1 < g2 < total, (g1, g2, total)
+          assert abs(float(pairs['g1_lateral'])) <= 0.30
+          assert abs(float(pairs['g2_lateral'])) <= 0.30
+          assert abs(float(pairs['g1_altitude_error'])) <= 0.20
+          assert abs(float(pairs['g2_altitude_error'])) <= 0.20
+          print('PASS: G1 then G2 crossed inside openings, then landed.')
+          PY
+
+      - name: Publish L-course result
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-l-course-result.txt ]; then
+            echo '## Crazyflie L-course virtual-gate result' >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat ci-artifacts/crazyflie-l-course-result.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-l-course-r2025a
+          path: |
+            ci-artifacts/crazyflie-l-course/
+            ci-artifacts/crazyflie-l-course-result.txt
+          if-no-files-found: error
+  parametric-blockly-obstacle:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Validate parametric Blockly/runtime syntax
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_parametric_obstacle.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared STOP runtime and collision observer once
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-parametric-obstacle
+          python3 tools/ci/instrument_runtime_done_ack.py
+          for controller in crazyflie_l_course crazyflie_collision_observer; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-parametric-obstacle/build-${controller}.log"
+          done
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-parametric-obstacle/controller-before.sha256
+
+      - name: Install browser helper files
+        run: chmod +x tools/ci/webots_runtime_wwi_browser.sh
+
+      - name: Run direct Blockly mission into physical obstacle
+        shell: bash
+        run: |
+          set -o pipefail
+          git checkout -- plugins/robot_windows/blockly/blockly.html
+          python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieDirect.xml
+          rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-runtime-mission-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+            ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/direct-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Direct runtime obstacle run exited unexpectedly with $code"
+            exit 1
+          fi
+          test -s ci-artifacts/crazyflie-obstacle-contact.txt
+          cp ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-parametric-obstacle/direct-contact.txt
+          grep -Fq 'WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION' ci-artifacts/crazyflie-obstacle-contact.txt
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT COLLISION' ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED' ci-artifacts/crazyflie-parametric-obstacle/direct.log
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' ci-artifacts/crazyflie-parametric-obstacle/direct.log)" -ge 2
+          ! test -s ci-artifacts/crazyflie-runtime-mission-result.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/direct-events.jsonl').read_text().splitlines() if x.strip()]
+          details = {(e['event'], e.get('detail')) for e in events}
+          assert any(e['event'] == 'BLOCKS' and 'webeeblocks_forward:2' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'MISSION' and 'FORWARD 2.0000000000000000' in (e.get('detail') or '') for e in events), events
+          assert ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK') in details, events
+          assert ('STATE_AFTER_ACK', 'RUNNING') in details, events
+          assert any(e['event'] == 'RX' and str(e.get('detail') or '').startswith('WEBEEBLOCKS_CHALLENGE_V1 RESULT COLLISION elapsed=') for e in events), events
+          assert not any(e['event'] == 'ERROR' for e in events), events
+          print('PASS: Blockly direct mission -> runtime ACK -> physical collision -> causal challenge result -> runtime rearmed.')
+          PY
+
+      - name: Run Blockly L detour around the same obstacle
+        shell: bash
+        run: |
+          set -o pipefail
+          git checkout -- plugins/robot_windows/blockly/blockly.html
+          python3 tools/ci/prepare_crazyflie_parametric_obstacle.py controllers/Blockly_Programs/CrazyflieL.xml --expect-done
+          rm -f ci-artifacts/crazyflie-obstacle-contact.txt ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+            ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-parametric-obstacle/detour-exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Detour runtime obstacle run exited unexpectedly with $code"
+            exit 1
+          fi
+          ! test -s ci-artifacts/crazyflie-obstacle-contact.txt
+          test -s ci-artifacts/crazyflie-l-course-result.txt
+          test -s ci-artifacts/crazyflie-done-ack-trace.txt
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' ci-artifacts/crazyflie-l-course-result.txt
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' ci-artifacts/crazyflie-parametric-obstacle/detour.log
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' ci-artifacts/crazyflie-l-course-result.txt
+          test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' ci-artifacts/crazyflie-parametric-obstacle/detour.log)" -ge 2
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events = [json.loads(x) for x in Path('ci-artifacts/crazyflie-parametric-obstacle/detour-events.jsonl').read_text().splitlines() if x.strip()]
+          expected = [
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
+              ('STATE_AFTER_DONE', 'RECOVERING'),
+              ('DONE_ACK_SEND_CALL', 'RECOVERING'),
+              ('DONE_ACK_SEND_RETURN', 'RECOVERING'),
+              ('DONE_ACK_SENT', 'RECOVERING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY'),
+              ('STATE_AFTER_RUNTIME_READY', 'WAITING'),
+          ]
+          cursor = 0
+          for event in events:
+              assert 'wall_ms' in event and 'performance_ms' in event, event
+              if cursor < len(expected) and event.get('event') == expected[cursor][0] and event.get('detail') == expected[cursor][1]:
+                  cursor += 1
+          assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
+          assert any(e['event'] == 'BLOCKS' and 'webeeblocks_turn:90' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'MISSION' and 'TURN 1.5707963267948966' in (e.get('detail') or '') for e in events), events
+          assert any(e['event'] == 'RX' and e.get('detail') == 'WEBEEBLOCKS_MISSION_V1 ACK' for e in events), events
+          assert any(e['event'] == 'RX' and str(e.get('detail') or '').startswith('WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=') for e in events), events
+          assert not any(e['event'] == 'ERROR' for e in events), events
+          print('PASS: real Blockly detour -> no collision -> G1/G2/LAND -> SUCCESS -> DONE_ACK -> RUNTIME_READY -> WAITING.')
+          PY
+          cat ci-artifacts/crazyflie-done-ack-trace.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = [line for line in Path('ci-artifacts/crazyflie-done-ack-trace.txt').read_text().splitlines() if line.strip()]
+          ack = [line for line in lines if 'payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK' in line]
+          assert ack, lines
+          assert any('phase=before_step ' in line or 'phase=after_step ' in line for line in ack), ack
+          print('PASS: controller terminal WWI drain observed exact DONE_ACK payload.')
+          PY
+
+      - name: Prove controller binary unchanged across both Submit runs
+        run: |
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-parametric-obstacle/controller-after.sha256
+          cmp ci-artifacts/crazyflie-parametric-obstacle/controller-before.sha256 \
+              ci-artifacts/crazyflie-parametric-obstacle/controller-after.sha256
+
+      - name: Upload parametric obstacle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-parametric-blockly-obstacle-r2025a
+          path: |
+            ci-artifacts/crazyflie-parametric-obstacle/
+            ci-artifacts/crazyflie-l-course-result.txt
+            ci-artifacts/crazyflie-obstacle-contact.txt
+            ci-artifacts/crazyflie-done-ack-trace.txt
+          if-no-files-found: warn
+  crazyflie-primitive-matrix:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build backend A and backend B controllers
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-primitive-matrix
+          for controller in crazyflie_square crazyflie_square_position; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-primitive-matrix/build-${controller}.log"
+          done
+
+      - name: Run primitive missions for A and B
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/ci/run_crazyflie_primitive_matrix.py
+
+      - name: Publish primitive matrix summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ci-artifacts/crazyflie-primitive-matrix/matrix.md ]; then
+            cat ci-artifacts/crazyflie-primitive-matrix/matrix.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload primitive diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-primitive-matrix-r2025a
+          path: ci-artifacts/crazyflie-primitive-matrix/
+          if-no-files-found: error
+  crazyflie-runtime-wwi:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Validate browser-side runtime transport syntax
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_runtime_wwi.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
+
+      - name: Prepare actual Blockly Robot Window runtime harness
+        run: |
+          python3 tools/ci/prepare_crazyflie_runtime_wwi.py
+          python3 tools/ci/instrument_runtime_done_ack.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared STOP controller once before Submit
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-runtime-wwi
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_l_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/build.log
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-runtime-wwi/controller-before.sha256
+
+      - name: Run real Blockly Submit through Robot Window WWI
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -f ci-artifacts/crazyflie-l-course-result.txt
+          rm -f ci-artifacts/crazyflie-done-ack-trace.txt
+          rm -f ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_wwi_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              python3 /workspace/tools/ci/runtime_wwi_event_server.py \
+                --output /workspace/ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl &
+              event_server_pid=$!
+              trap "kill $event_server_pid 2>/dev/null || true" EXIT
+              sleep 0.5
+              timeout -k 5s 65s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_wwi.wbt
+            ' \
+            2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/webots.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/crazyflie-runtime-wwi/exit-code.txt
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::Runtime WWI Webots run exited unexpectedly with $code"
+            exit 1
+          fi
+          if [ "$code" -eq 124 ]; then
+            echo "Persistent challenge session intentionally remained in WAITING after the first completed mission."
+          fi
+
+      - name: Prove browser handshake atomic validation BUSY and unchanged binary
+        shell: bash
+        run: |
+          set -o pipefail
+          LOG=ci-artifacts/crazyflie-runtime-wwi/webots.log
+          EVENTS=ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl
+          TRACE=ci-artifacts/crazyflie-done-ack-trace.txt
+          RESULT=ci-artifacts/crazyflie-l-course-result.txt
+          test -s ci-artifacts/crazyflie-runtime-wwi/browser-launch.log
+          test -s "$EVENTS"
+          test -s "$TRACE"
+          test -s "$RESULT"
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-runtime-wwi/controller-after.sha256
+          cmp ci-artifacts/crazyflie-runtime-wwi/controller-before.sha256 \
+              ci-artifacts/crazyflie-runtime-wwi/controller-after.sha256
+
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG"
+          grep -Fq 'WEBEEBLOCKS_MISSION_V1 VALIDATED count=5' "$LOG"
+          ! grep -Fq 'ERROR:' "$LOG"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          events = [json.loads(line) for line in Path('ci-artifacts/crazyflie-runtime-wwi/browser-events.jsonl').read_text().splitlines() if line.strip()]
+          expected = [
+              ('TX_NEGATIVE_VERSION', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR VERSION'),
+              ('TX_NEGATIVE_COMMAND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR COMMAND'),
+              ('TX_NEGATIVE_PARAMETER', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR PARAMETER'),
+              ('TX_NEGATIVE_SEQUENCE', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE'),
+              ('TX_NEGATIVE_TOO_LONG', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG'),
+              ('SUBMIT_CLICK', None), ('STATE_AFTER_SUBMIT', 'PENDING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 ACK'), ('STATE_AFTER_ACK', 'RUNNING'),
+              ('SECOND_SUBMIT_CLICK', None), ('SECOND_SUBMIT_BLOCKED_LOCAL', 'RUNNING'),
+              ('BUSY_PROBE_SEND', None), ('RX', 'WEBEEBLOCKS_MISSION_V1 ERR BUSY'),
+              ('STATE_AFTER_BUSY', 'RUNNING'), ('RX', 'WEBEEBLOCKS_MISSION_V1 DONE'),
+              ('STATE_AFTER_DONE', 'RECOVERING'),
+              ('DONE_ACK_SEND_CALL', 'RECOVERING'), ('DONE_ACK_SEND_RETURN', 'RECOVERING'),
+              ('DONE_ACK_SENT', 'RECOVERING'),
+              ('RX', 'WEBEEBLOCKS_MISSION_V1 RUNTIME_READY'),
+              ('STATE_AFTER_RUNTIME_READY', 'WAITING'),
+          ]
+          cursor = 0
+          for event in events:
+              assert 'wall_ms' in event and 'performance_ms' in event, event
+              if cursor >= len(expected):
+                  continue
+              kind, detail = expected[cursor]
+              if event.get('event') == kind and (detail is None or event.get('detail') == detail):
+                  cursor += 1
+          assert cursor == len(expected), (cursor, expected[cursor] if cursor < len(expected) else None, events)
+          assert not any(event.get('event') == 'ERROR' for event in events), events
+          print('PASS: real Robot Window applied DONE -> RECOVERING, sent DONE_ACK, then returned to WAITING only after RUNTIME_READY.')
+          PY
+
+          cat "$TRACE"
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = [line for line in Path('ci-artifacts/crazyflie-done-ack-trace.txt').read_text().splitlines() if line.strip()]
+          assert any('phase=wait_begin payload=NULL' in line for line in lines), lines
+          ack = [line for line in lines if 'payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK' in line]
+          assert ack, lines
+          assert any('phase=before_step ' in line or 'phase=after_step ' in line for line in ack), ack
+          print('PASS: controller drain observed the exact DONE_ACK payload with Webots timestamp and drain phase.')
+          PY
+
+          cat "$RESULT"
+          grep -Fq 'WEBEEBLOCKS_CF_L_RESULT status=success gates=2' "$RESULT"
+          ! grep -Fq 'reason=DONE_ACK_TIMEOUT' "$RESULT"
+          grep -Fq 'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS' "$LOG"
+          if [ "$(cat ci-artifacts/crazyflie-runtime-wwi/exit-code.txt)" = "124" ]; then
+            test "$(grep -Fc 'WEBEEBLOCKS_MISSION_V1 WAITING' "$LOG")" -ge 2
+          fi
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          line = Path('ci-artifacts/crazyflie-l-course-result.txt').read_text().strip()
+          pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+          assert pairs['status'] == 'success' and pairs['gates'] == '2'
+          assert abs(float(pairs['g1_time']) - 12.287) <= 0.10
+          assert abs(float(pairs['g2_time']) - 21.315) <= 0.10
+          assert float(pairs['endpoint_error_xy']) <= 0.02
+          assert float(pairs['yaw_error_deg']) <= 2.0
+          assert abs(float(pairs['total_s']) - 26.144) <= 0.15
+          print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
+          PY
+
+      - name: Upload runtime WWI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-runtime-wwi-r2025a
+          path: |
+            ci-artifacts/crazyflie-runtime-wwi/
+            ci-artifacts/crazyflie-l-course-result.txt
+            ci-artifacts/crazyflie-done-ack-trace.txt
+          if-no-files-found: error
+  crazyflie-square-position:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build position-target square controller
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          rm -f ci-artifacts/crazyflie-square-position-result.txt
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_square_position \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-square-position-build.log
+
+      - name: Fly one measured global-target 1 m square
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_square_position.wbt' \
+            2>&1 | tee ci-artifacts/crazyflie-square-position.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" > ci-artifacts/crazyflie-square-position-exit-code.txt
+          exit "$code"
+
+      - name: Validate measured position-target result
+        shell: bash
+        run: |
+          LOG=ci-artifacts/crazyflie-square-position.log
+          RESULT_FILE=ci-artifacts/crazyflie-square-position-result.txt
+          if grep -Fq 'WEBEEBLOCKS_CF_POSITION_FAILED' "$LOG"; then
+            grep -F 'WEBEEBLOCKS_CF_POSITION_FAILED' "$LOG"
+            exit 1
+          fi
+          if grep -Fq 'ERROR:' "$LOG"; then
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+          if [ ! -s "$RESULT_FILE" ]; then
+            echo '::error::Position-target square result file missing.'
+            exit 1
+          fi
+          RESULT=$(tail -1 "$RESULT_FILE")
+          echo "$RESULT"
+          echo "$RESULT" | grep -Fq 'WEBEEBLOCKS_CF_POSITION_RESULT status=success'
+          echo "$RESULT" | grep -Fq 'legs=4'
+
+      - name: Upload position-target diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-square-position-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  crazyflie-square:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build measured square controller
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/crazyflie-repeatability
+          rm -f ci-artifacts/crazyflie-square-result.txt
+          rm -f ci-artifacts/crazyflie-repeatability/*
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_square \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-square-build.log
+
+      - name: Fly ten identical measured 1 m squares
+        shell: bash
+        run: |
+          set -euo pipefail
+          for run in $(seq 1 10); do
+            printf -v run_id '%02d' "$run"
+            LOG="ci-artifacts/crazyflie-repeatability/run-${run_id}.log"
+            EXIT_FILE="ci-artifacts/crazyflie-repeatability/run-${run_id}-exit-code.txt"
+            RESULT_COPY="ci-artifacts/crazyflie-repeatability/run-${run_id}-result.txt"
+            RESULT_FILE="ci-artifacts/crazyflie-square-result.txt"
+
+            # Fail closed against stale output: every Webots process must create
+            # its own fresh persisted result.
+            rm -f "$RESULT_FILE"
+
+            set +e
+            docker run --rm \
+              -e LIBGL_ALWAYS_SOFTWARE=true \
+              -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              -v "${{ github.workspace }}:/workspace" \
+              -w /workspace \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_square.wbt' \
+              2>&1 | tee "$LOG"
+            code=${PIPESTATUS[0]}
+            set -e
+            echo "$code" > "$EXIT_FILE"
+
+            if [ "$code" -ne 0 ]; then
+              echo "::error::Crazyflie repeatability run $run exited with code $code"
+              exit "$code"
+            fi
+            if grep -Fq 'WEBEEBLOCKS_CF_SQUARE_FAILED' "$LOG"; then
+              grep -F 'WEBEEBLOCKS_CF_SQUARE_FAILED' "$LOG"
+              exit 1
+            fi
+            if grep -Fq 'ERROR:' "$LOG"; then
+              grep -F 'ERROR:' "$LOG"
+              exit 1
+            fi
+            if [ ! -s "$RESULT_FILE" ]; then
+              echo "::error::Crazyflie repeatability run $run produced no fresh result file"
+              exit 1
+            fi
+
+            RESULT=$(tail -1 "$RESULT_FILE")
+            echo "run=$run $RESULT"
+            echo "$RESULT" | grep -Fq 'WEBEEBLOCKS_CF_SQUARE_RESULT status=success'
+            echo "$RESULT" | grep -Fq 'legs=4'
+            cp "$RESULT_FILE" "$RESULT_COPY"
+          done
+
+      - name: Summarize repeatability distribution
+        shell: bash
+        run: |
+          python3 tools/ci/summarize_crazyflie_repeatability.py \
+            ci-artifacts/crazyflie-repeatability/run-??-result.txt \
+            --json ci-artifacts/crazyflie-repeatability-summary.json \
+            --text ci-artifacts/crazyflie-repeatability-summary.txt
+
+      - name: Upload Crazyflie square diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-square-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  stop-vs-chain:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build shared handoff controller
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-handoff
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/crazyflie_handoff_course \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/crazyflie-handoff/build.log
+
+      - name: Run identical L course with STOP and CHAIN
+        shell: bash
+        run: |
+          set -o pipefail
+          for policy in STOP CHAIN; do
+            rm -f "ci-artifacts/crazyflie-handoff-${policy}-result.txt"
+            set +e
+            docker run --rm \
+              -e LIBGL_ALWAYS_SOFTWARE=true \
+              -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              -e WEBEEBLOCKS_HANDOFF_POLICY="${policy}" \
+              -v "${{ github.workspace }}:/workspace" \
+              -w /workspace \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_handoff_course.wbt' \
+              2>&1 | tee "ci-artifacts/crazyflie-handoff/${policy}.log"
+            code=${PIPESTATUS[0]}
+            set -e
+            echo "$code" > "ci-artifacts/crazyflie-handoff/${policy}-exit-code.txt"
+            if [ "$code" -ne 0 ]; then
+              echo "::error::${policy} Webots run exited with $code"
+              exit 1
+            fi
+          done
+
+      - name: Validate same mission and publish comparison
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          def parse(policy):
+              result = Path(f"ci-artifacts/crazyflie-handoff-{policy}-result.txt")
+              log = Path(f"ci-artifacts/crazyflie-handoff/{policy}.log")
+              assert result.is_file() and result.stat().st_size > 0
+              line = result.read_text().strip()
+              pairs = dict(re.findall(r'([A-Za-z0-9_]+)=([^\s]+)', line))
+              assert pairs.get("status") == "success", line
+              assert pairs.get("policy") == policy, line
+              assert pairs.get("gates") == "2", line
+              text = log.read_text()
+              assert "ERROR:" not in text
+              assert "WEBEEBLOCKS_CF_POSITION_FAILED" not in text
+              g1 = float(pairs["g1_time"])
+              g2 = float(pairs["g2_time"])
+              total = float(pairs["total_s"])
+              assert 0 < g1 < g2 < total
+              assert abs(float(pairs["g1_lateral"])) <= 0.30
+              assert abs(float(pairs["g2_lateral"])) <= 0.30
+              assert abs(float(pairs["g1_altitude_error"])) <= 0.20
+              assert abs(float(pairs["g2_altitude_error"])) <= 0.20
+              assert float(pairs["corner_max_overshoot"]) < 0.50
+              assert float(pairs["corner_max_l_deviation"]) < 0.50
+              assert 45.0 < float(pairs["turn_handoff_yaw_travel_deg"]) < 135.0
+              assert float(pairs["turn_max_yaw_overshoot_deg"]) < 45.0
+              assert float(pairs["endpoint_error_xy"]) < 0.50
+              assert float(pairs["yaw_error_deg"]) < 45.0
+              return pairs
+
+          stop = parse("STOP")
+          chain = parse("CHAIN")
+
+          keys = [
+              "g1_lateral", "g1_altitude_error",
+              "g2_lateral", "g2_altitude_error",
+              "corner_handoff_error_xy", "corner_handoff_speed",
+              "corner_max_overshoot", "corner_max_l_deviation",
+              "turn_handoff_yaw_travel_deg", "turn_max_yaw_overshoot_deg",
+              "endpoint_error_xy", "yaw_error_deg", "total_s",
+          ]
+          print("metric STOP CHAIN delta_CHAIN_minus_STOP")
+          for key in keys:
+              a = float(stop[key])
+              b = float(chain[key])
+              print(f"{key} {a:.6f} {b:.6f} {b-a:+.6f}")
+          PY
+
+      - name: Publish STOP-vs-CHAIN results
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Crazyflie STOP vs CHAIN'
+            echo '```text'
+            for policy in STOP CHAIN; do
+              if [ -f "ci-artifacts/crazyflie-handoff-${policy}-result.txt" ]; then
+                cat "ci-artifacts/crazyflie-handoff-${policy}-result.txt"
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-stop-vs-chain-r2025a
+          path: |
+            ci-artifacts/crazyflie-handoff/
+            ci-artifacts/crazyflie-handoff-STOP-result.txt
+            ci-artifacts/crazyflie-handoff-CHAIN-result.txt
+          if-no-files-found: error
+  strategy-timing:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Validate student-grid fixtures and harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check plugins/robot_windows/blockly/main.js
+          python3 -m py_compile tools/ci/prepare_crazyflie_parametric_obstacle.py
+          python3 -m py_compile tools/ci/runtime_wwi_event_server.py
+          python3 - <<'PY'
+          from pathlib import Path
+          reference = Path('controllers/Blockly_Programs/CrazyflieL.xml').read_text()
+          shortcut = Path('controllers/Blockly_Programs/CrazyflieShortcut85.xml').read_text()
+          assert reference != shortcut
+          assert '<field name="DISTANCE">1</field>' in shortcut
+          assert '<field name="ANGLE">85</field>' in shortcut
+          assert '0.91' not in shortcut and '84.857' not in shortcut and '1.004' not in shortcut
+          print('PASS: both strategies are representable on the current student grid (0.1 m, 1 degree).')
+          PY
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Build unchanged runtime and collision observer
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/crazyflie-strategy-timing
+          for controller in crazyflie_l_course crazyflie_collision_observer; do
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -w "/workspace/controllers/${controller}" \
+              cyberbotics/webots:R2025a-ubuntu22.04 \
+              bash -lc 'make clean && make' \
+              2>&1 | tee "ci-artifacts/crazyflie-strategy-timing/build-${controller}.log"
+          done
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-strategy-timing/controller-before.sha256
+
+      - name: Run both Blockly strategies in fresh Webots processes
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -euo pipefail
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_runtime_wwi_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" "[RobotWindow]" "browser=/workspace/tools/ci/webots_runtime_wwi_browser.sh" "newBrowserWindow=false" > /root/.config/Cyberbotics/Webots-R2025a.conf
+              cp /workspace/plugins/robot_windows/blockly/blockly.html /tmp/blockly.original.html
+              restore_html() { cp /tmp/blockly.original.html /workspace/plugins/robot_windows/blockly/blockly.html; }
+              trap restore_html EXIT
+
+              run_strategy() {
+                label="$1"
+                fixture="$2"
+                out="/workspace/ci-artifacts/crazyflie-strategy-timing/${label}"
+                mkdir -p "$out"
+                restore_html
+                python3 /workspace/tools/ci/prepare_crazyflie_parametric_obstacle.py "$fixture" --expect-done
+                rm -f /workspace/ci-artifacts/crazyflie-l-course-result.txt
+                rm -f /workspace/ci-artifacts/crazyflie-runtime-mission-result.txt
+                rm -f /workspace/ci-artifacts/crazyflie-obstacle-contact.txt
+                rm -f "$out/events.jsonl"
+
+                python3 /workspace/tools/ci/runtime_wwi_event_server.py --output "$out/events.jsonl" &
+                event_pid=$!
+                xvfb-run -a webots --stdout --stderr --batch --mode=realtime \
+                  /workspace/worlds/crazyflie_runtime_obstacle.wbt > "$out/webots.log" 2>&1 &
+                webots_pid=$!
+                complete=0
+                for i in $(seq 1 1000); do
+                  if grep -Fq "STATE_AFTER_RUNTIME_READY" "$out/events.jsonl" 2>/dev/null; then
+                    complete=1
+                    break
+                  fi
+                  if grep -Fq "\"event\":\"ERROR\"" "$out/events.jsonl" 2>/dev/null; then
+                    cat "$out/events.jsonl"
+                    kill "$webots_pid" "$event_pid" 2>/dev/null || true
+                    exit 1
+                  fi
+                  if ! kill -0 "$webots_pid" 2>/dev/null; then
+                    cat "$out/webots.log"
+                    kill "$event_pid" 2>/dev/null || true
+                    exit 1
+                  fi
+                  sleep 0.1
+                done
+                kill "$webots_pid" "$event_pid" 2>/dev/null || true
+                wait "$webots_pid" 2>/dev/null || true
+                wait "$event_pid" 2>/dev/null || true
+                pkill -x chrome 2>/dev/null || true
+                pkill -x google-chrome 2>/dev/null || true
+
+                if [ "$complete" -ne 1 ]; then
+                  echo "Strategy $label did not reach RUNTIME_READY"
+                  cat "$out/events.jsonl" 2>/dev/null || true
+                  cat "$out/webots.log"
+                  exit 1
+                fi
+                grep -Fq "WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS" "$out/webots.log"
+                ! grep -Fq "WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION" "$out/webots.log"
+                if test -s /workspace/ci-artifacts/crazyflie-runtime-mission-result.txt; then
+                  cp /workspace/ci-artifacts/crazyflie-runtime-mission-result.txt "$out/runtime-result.txt"
+                fi
+                if test -s /workspace/ci-artifacts/crazyflie-l-course-result.txt; then
+                  cp /workspace/ci-artifacts/crazyflie-l-course-result.txt "$out/reference-l-result.txt"
+                fi
+                if test -s /workspace/ci-artifacts/crazyflie-obstacle-contact.txt; then
+                  cp /workspace/ci-artifacts/crazyflie-obstacle-contact.txt "$out/obstacle-contact.txt"
+                fi
+              }
+
+              run_strategy S0 controllers/Blockly_Programs/CrazyflieL.xml
+              run_strategy S1 controllers/Blockly_Programs/CrazyflieShortcut85.xml
+            '
+
+      - name: Compare physical success and Webots times
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          root = Path('ci-artifacts/crazyflie-strategy-timing')
+          expected_blocks = {
+              'S0': ['webeeblocks_forward:1', 'webeeblocks_turn:90', 'webeeblocks_forward:1'],
+              'S1': ['webeeblocks_forward:1', 'webeeblocks_turn:85', 'webeeblocks_forward:1'],
+          }
+          elapsed = {}
+          summary = {}
+          for label in ('S0', 'S1'):
+              out = root / label
+              log = (out / 'webots.log').read_text()
+              events = [json.loads(line) for line in (out / 'events.jsonl').read_text().splitlines() if line.strip()]
+              assert not any(e['event'] == 'ERROR' for e in events), (label, events)
+              blocks = [e['detail'] for e in events if e['event'] == 'BLOCKS'][-1]
+              for token in expected_blocks[label]:
+                  assert token in blocks, (label, token, blocks)
+              assert any(e['event'] == 'STATE_AFTER_RUNTIME_READY' for e in events), (label, events)
+              matches = re.findall(r'WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=([0-9.]+)', log)
+              assert matches, (label, log[-4000:])
+              elapsed[label] = float(matches[-1])
+              summary[label] = {'elapsed_s': elapsed[label], 'blocks': blocks}
+
+          delta = elapsed['S0'] - elapsed['S1']
+          assert delta > 0.0, f'grid-valid shortcut was not faster: S0={elapsed["S0"]:.3f}s S1={elapsed["S1"]:.3f}s'
+          summary['comparison'] = {'S0_minus_S1_s': delta, 'faster': 'S1'}
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2, ensure_ascii=False) + '\n')
+          print(f'PASS: both Blockly strategies physically succeeded; S0={elapsed["S0"]:.3f}s, S1={elapsed["S1"]:.3f}s, gain={delta:.3f}s.')
+          PY
+          sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
+            | tee ci-artifacts/crazyflie-strategy-timing/controller-after.sha256
+          cmp ci-artifacts/crazyflie-strategy-timing/controller-before.sha256 \
+              ci-artifacts/crazyflie-strategy-timing/controller-after.sha256
+
+      - name: Upload strategy timing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crazyflie-strategy-timing-r2025a
+          path: ci-artifacts/crazyflie-strategy-timing/
+          if-no-files-found: error
+  historical-blockly-ui:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild historical Blockly sidecar
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/supervisor/blocklyServer \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev && rm -f blocklyServer && make'
+
+      - name: Exercise real Blockly Save Submit Restore buttons
+        run: python3 tools/ci/run_blockly_ui_sidecar_diagnostic.py
+  encoders-historical:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
+      - name: Prepare diagnostics
+        run: mkdir -p ci-artifacts
+
+      - name: Prepare offline historical encoder world
+        run: |
+          python3 tools/ci/localize_webots_world.py \
+            worlds/boxChallenge.wbt worlds/.ci-boxChallenge-encoders-local.wbt --expected 5
+
+      - name: Export exact historical BoxWithEncoders controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-encoders-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithEncoders.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild sidecar and supervisor for R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
+              cd /workspace/controllers/supervisor/blocklyServer
+              rm -f blocklyServer
+              make
+              cd /workspace/controllers/supervisor
+              make clean
+              make
+            ' 2>&1 | tee ci-artifacts/encoders-build.log
+
+      - name: Execute historical encoder program in box challenge
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-boxChallenge-encoders-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-box-encoders.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-box-encoders-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore historical controller
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-encoders-backup.py ]; then
+            mv controllers/my_controller/.ci-encoders-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate encoder historical behavior
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-box-encoders.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error while running BoxWithEncoders.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Historical encoder Python raised an exception.'
+            grep -A30 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated BoxWithEncoders controller did not start.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_BOX_ENCODERS_PROGRAM_COMPLETED' "$LOG"; then
+            echo '::error::Generated BoxWithEncoders controller did not complete its four encoder-driven movement cycles.'
+            exit 1
+          fi
+
+          echo 'PASS: exact historical BoxWithEncoders Blockly Python completed under Webots R2025a.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-encoders-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  gyro-gps-historical:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
+      - name: Prepare diagnostics
+        run: mkdir -p ci-artifacts
+
+      - name: Export exact historical BoxWithGyroGPS controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-gyro-gps-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithGyroGPS.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Prepare offline historical Gyro GPS world
+        run: |
+          python3 tools/ci/localize_webots_world.py \
+            worlds/boxChallenge.wbt \
+            worlds/.ci-boxChallenge-gyro-gps-local.wbt \
+            --expected 5
+
+      - name: Rebuild sidecar and supervisor for R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
+              cd /workspace/controllers/supervisor/blocklyServer
+              rm -f blocklyServer
+              make
+              cd /workspace/controllers/supervisor
+              make clean
+              make
+            ' 2>&1 | tee ci-artifacts/gyro-gps-build.log
+
+      - name: Execute historical Gyro GPS program in box challenge
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-boxChallenge-gyro-gps-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-box-gyro-gps.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-box-gyro-gps-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore historical controller
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-gyro-gps-backup.py ]; then
+            mv controllers/my_controller/.ci-gyro-gps-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate Gyro GPS historical behavior
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-box-gyro-gps.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error while running BoxWithGyroGPS.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Historical Gyro GPS Python raised an exception.'
+            grep -A30 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated BoxWithGyroGPS controller did not start.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_BOX_GYRO_GPS_BEHAVIOR_EXECUTED' "$LOG"; then
+            echo '::error::Generated BoxWithGyroGPS controller never reached its Blockly text_print behavior.'
+            exit 1
+          fi
+
+          echo 'PASS: exact historical BoxWithGyroGPS Blockly Python reached observable behavior under Webots R2025a.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-gyro-gps-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  light-sensor-historical:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
+      - name: Prepare diagnostics
+        run: mkdir -p ci-artifacts
+
+      - name: Export exact historical BoxWithLightSensor controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-light-sensor-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithLightSensor.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild sidecar and supervisor for R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
+              cd /workspace/controllers/supervisor/blocklyServer
+              rm -f blocklyServer
+              make
+              cd /workspace/controllers/supervisor
+              make clean
+              make
+            ' 2>&1 | tee ci-artifacts/light-sensor-build.log
+
+      - name: Prepare offline historical world
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('worlds/lightSensorBoxChallenge.wbt')
+          target = Path('worlds/.ci-lightSensorBoxChallenge-local.wbt')
+          remote_prefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/'
+          local_prefix = 'webots://'
+
+          original = source.read_text(encoding='utf-8')
+          if 'webots://' in original:
+              raise SystemExit('Unexpected pre-existing webots:// reference in historical source world.')
+
+          replacements = original.count(remote_prefix)
+          if replacements != 7:
+              raise SystemExit(f'Expected exactly 7 Cyberbotics R2025a remote EXTERNPROTO references, found {replacements}.')
+
+          localized = original.replace(remote_prefix, local_prefix)
+          if 'raw.githubusercontent.com/cyberbotics/webots/' in localized:
+              raise SystemExit('A Cyberbotics raw.githubusercontent.com dependency remains after localization.')
+
+          if localized.replace(local_prefix, remote_prefix) != original:
+              raise SystemExit('Offline world differs from the historical world by more than the allowed URL-prefix localization.')
+
+          projects = Path('.ci-webots-r2025a/projects')
+          required = [
+              'objects/backgrounds/protos/TexturedBackground.proto',
+              'objects/backgrounds/protos/TexturedBackgroundLight.proto',
+              'objects/floors/protos/RectangleArena.proto',
+              'objects/floors/protos/Floor.proto',
+              'appearances/protos/Parquetry.proto',
+              'objects/apartment_structure/protos/Wall.proto',
+              'robots/adept/pioneer3/protos/Pioneer3dx.proto',
+          ]
+          missing = [path for path in required if not (projects / path).is_file()]
+          if missing:
+              raise SystemExit('Pinned Webots R2025a checkout is missing required PROTOs: ' + ', '.join(missing))
+
+          target.write_text(localized, encoding='utf-8')
+          print(f'PASS: localized exactly {replacements} Webots R2025a EXTERNPROTO references without changing world semantics.')
+          print('PASS: all seven required PROTOs exist in the pinned Cyberbotics R2025a checkout.')
+          PY
+
+      - name: Execute historical light sensor program offline
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-lightSensorBoxChallenge-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-light-sensor.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-light-sensor-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore historical controller
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-light-sensor-backup.py ]; then
+            mv controllers/my_controller/.ci-light-sensor-backup.py controllers/my_controller/my_controller.py
+          fi
+          rm -f worlds/.ci-lightSensorBoxChallenge-local.wbt
+
+      - name: Validate historical light sensor behavior
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-light-sensor.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error while running BoxWithLightSensor.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Historical light-sensor Python raised an exception.'
+            grep -A30 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated BoxWithLightSensor controller did not start.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_BOX_LIGHT_SENSOR_BEHAVIOR_EXECUTED' "$LOG"; then
+            echo '::error::Generated BoxWithLightSensor controller never reached its Blockly text_print behavior.'
+            exit 1
+          fi
+
+          echo 'PASS: exact historical BoxWithLightSensor Blockly Python reached observable behavior under Webots R2025a with runtime networking disabled.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-light-sensor-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  sensor-probing-historical:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
+      - name: Prepare diagnostics
+        run: mkdir -p ci-artifacts
+
+      - name: Prepare offline historical sensor-probing world
+        run: |
+          python3 tools/ci/localize_webots_world.py \
+            worlds/empty.wbt \
+            worlds/.ci-empty-sensor-probing-local.wbt \
+            --expected 5
+
+      - name: Export exact historical sensorProbing controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-sensor-probing-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            sensorProbing.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild sidecar and supervisor for R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
+              cd /workspace/controllers/supervisor/blocklyServer
+              rm -f blocklyServer
+              make
+              cd /workspace/controllers/supervisor
+              make clean
+              make
+            ' 2>&1 | tee ci-artifacts/sensor-probing-build.log
+
+      - name: Execute historical sensor probing program in empty world
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-empty-sensor-probing-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-sensor-probing.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-sensor-probing-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore historical controller
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-sensor-probing-backup.py ]; then
+            mv controllers/my_controller/.ci-sensor-probing-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate multi-sensor historical behavior
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-sensor-probing.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error while running sensorProbing.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Historical sensorProbing Python raised an exception.'
+            grep -A30 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated sensorProbing controller did not start.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_SENSOR_PROBE_BEHAVIOR_EXECUTED' "$LOG"; then
+            echo '::error::sensorProbing did not reach Gyro, GPS, DistanceSensor and color outputs.'
+            exit 1
+          fi
+
+          for prefix in 'Gyro:' 'GPS:' 'getDist:' 'getColor:'; do
+            if ! grep -Fq "$prefix" "$LOG"; then
+              echo "::error::Missing historical sensor output: $prefix"
+              exit 1
+            fi
+          done
+
+          echo 'PASS: exact historical sensorProbing Blockly Python exercised Gyro, GPS, DistanceSensor and color sensor under Webots R2025a.'
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-sensor-probing-r2025a
+          path: ci-artifacts/
+          if-no-files-found: error
+  robot-window-roundtrip:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Instrument actual Blockly Robot Window for CI only
+        run: python3 tools/ci/prepare_robot_window_probe.py
+
+      - name: Run actual Blockly Robot Window in Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts
+          echo "CI_BEFORE_WEBOTS" | tee ci-artifacts/robot-window.log
+          echo "Command: Webots R2025a + explicit Google Chrome Robot Window browser" | tee -a ci-artifacts/robot-window.log
+          set +e
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc '
+              set -e
+              apt-get update >/dev/null
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+              wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+              DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+              chmod +x /workspace/tools/ci/webots_robot_window_browser.sh
+              mkdir -p /root/.config/Cyberbotics
+              printf "%s\n" \
+                "[RobotWindow]" \
+                "browser=/workspace/tools/ci/webots_robot_window_browser.sh" \
+                "newBrowserWindow=false" \
+                > /root/.config/Cyberbotics/Webots-R2025a.conf
+              echo "CI_BROWSER=$(command -v google-chrome)"
+              cat /root/.config/Cyberbotics/Webots-R2025a.conf
+              timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_robot_window_probe.wbt
+            ' \
+            2>&1 | tee -a ci-artifacts/robot-window.log
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "Webots exit code: $code" | tee -a ci-artifacts/robot-window.log
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ] && [ "$code" -ne 137 ]; then
+            exit "$code"
+          fi
+
+      - name: Prove bidirectional Robot Window WWI round trip
+        shell: bash
+        run: |
+          LOG=ci-artifacts/robot-window.log
+
+          grep -F "CI_BEFORE_WEBOTS" "$LOG"
+          grep -F "CI_BROWSER=/usr/bin/google-chrome" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED" "$LOG"
+
+          if ! grep -Fq "BROWSER_LAUNCHED" ci-artifacts/browser-launch.log 2>/dev/null; then
+            echo "::error::Webots started the controller but never launched the configured Robot Window browser."
+            echo "--- robot-window.log ---"
+            cat "$LOG"
+            exit 1
+          fi
+          cat ci-artifacts/browser-launch.log
+
+          grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"
+          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$LOG"
+          echo "PASS: actual Blockly Robot Window loaded R2025a RobotWindow.js and completed window -> controller -> window -> controller WWI round trip."
+
+      - name: Upload Robot Window diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-window-r2025a-roundtrip
+          path: ci-artifacts/
+          if-no-files-found: error
+  webots-smoke:
+    if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
+    runs-on: ubuntu-22.04
+    timeout-minutes: 7
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Webots R2025a projects
+        uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-r2025a
+          sparse-checkout: projects
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+
+      - name: Prepare offline smoke worlds
+        run: |
+          python3 tools/ci/localize_webots_world.py \
+            worlds/empty.wbt worlds/.ci-empty-local.wbt --expected 5
+          python3 tools/ci/localize_webots_world.py \
+            worlds/boxChallenge.wbt worlds/.ci-boxChallenge-local.wbt --expected 5
+
+      - name: Validate historical Blockly programs
+        run: python3 tools/ci/check_historical_blockly_programs.py
+
+      - name: Execute historical Blockly browser oracle
+        run: python3 tools/ci/run_historical_blockly_oracle.py
+
+      - name: Prepare diagnostics directory
+        run: mkdir -p ci-artifacts
+
+      - name: Validate Robot Window JavaScript
+        shell: bash
+        run: |
+          node --check plugins/robot_windows/blockly/main.js
+          if grep -Fq 'webots.window(' plugins/robot_windows/blockly/main.js; then
+            echo "::error::Legacy Robot Window API is still present."
+            exit 1
+          fi
+
+      - name: Validate camera generator API
+        shell: bash
+        run: |
+          CAMERA=plugins/robot_windows/blockly/google-blockly-31ee4ea/generators/python/camera.js
+          node --check "$CAMERA"
+          if grep -Eq '\.get_(position|colors)\(' "$CAMERA"; then
+            echo "::error::Legacy CameraRecognitionObject snake_case API is still present."
+            exit 1
+          fi
+
+      - name: Validate restart smoke helpers
+        run: python3 -m py_compile controllers/ci_restart_supervisor/*.py
+
+      - name: Pull official Webots R2025a image
+        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+
+      - name: Rebuild and exercise Blockly sidecar protocol
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/supervisor/blocklyServer \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev python3-pip && python3 -m pip install --no-cache-dir websockets==10.4 && rm -f blocklyServer && make && python3 protocol_smoke.py && python3 execution_smoke.py prepare' \
+            2>&1 | tee ci-artifacts/blockly-server-protocol.log
+
+      - name: Rebuild supervisor for Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace/controllers/supervisor \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'make clean && make' \
+            2>&1 | tee ci-artifacts/supervisor-build.log
+
+      - name: Run historical empty world in Webots R2025a
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-empty-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-empty.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+
+          echo "$code" | tee ci-artifacts/webots-exit-code.txt
+          echo "Webots exit code: $code"
+
+          # 124 = timeout normal.
+          # 137 = Webots had to be killed after the diagnostic window.
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            echo "Webots remained alive for the diagnostic window."
+            exit 0
+          fi
+
+          exit "$code"
+
+      - name: Restore historical robot controller
+        if: always()
+        run: python3 controllers/supervisor/blocklyServer/execution_smoke.py restore
+
+      - name: Validate Webots runtime diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-empty.log
+
+          if grep -Fq 'has different size in shared object' "$LOG"; then
+            echo "::error::Supervisor ABI mismatch detected."
+            grep -F 'has different size in shared object' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'ERROR: Missing declaration for' "$LOG"; then
+            echo "::error::World still has unresolved EXTERNPROTO declarations."
+            grep -F 'ERROR: Missing declaration for' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: supervisor: Starting controller:' "$LOG"; then
+            echo "::error::Supervisor controller did not start."
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo "::error::Historical robot controller did not start."
+            exit 1
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_CI_SUBMITTED_CONTROLLER_EXECUTED' "$LOG"; then
+            echo "::error::Controller installed through historical SEND_CODE was not executed by Webots."
+            exit 1
+          fi
+
+          echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
+
+      - name: Export historical BoxWithDistSensor controller
+        shell: bash
+        run: |
+          cp controllers/my_controller/my_controller.py controllers/my_controller/.ci-controller-backup.py
+          python3 tools/ci/export_historical_blockly_program.py \
+            BoxWithDistSensor.xml \
+            controllers/my_controller/my_controller.py
+
+      - name: Execute generated historical controller in box challenge
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/.ci-boxChallenge-local.wbt' \
+            2>&1 | tee ci-artifacts/webots-box-challenge.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-box-challenge-exit-code.txt
+
+          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+            echo 'Generated historical controller remained active for the diagnostic window.'
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Restore controller after box challenge
+        if: always()
+        shell: bash
+        run: |
+          if [ -f controllers/my_controller/.ci-controller-backup.py ]; then
+            mv controllers/my_controller/.ci-controller-backup.py controllers/my_controller/my_controller.py
+          fi
+
+      - name: Validate generated historical controller diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-box-challenge.log
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo '::error::Webots emitted an error in boxChallenge.wbt.'
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          if grep -Fq 'Traceback (most recent call last)' "$LOG"; then
+            echo '::error::Generated historical Blockly Python raised an exception.'
+            grep -A20 -F 'Traceback (most recent call last)' "$LOG"
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: supervisor: Starting controller:' "$LOG"; then
+            echo '::error::Supervisor did not start in boxChallenge.wbt.'
+            exit 1
+          fi
+
+          if ! grep -Fq 'INFO: my_controller: Starting controller:' "$LOG"; then
+            echo '::error::Generated historical controller did not start in boxChallenge.wbt.'
+            exit 1
+          fi
+
+          echo 'PASS: Blockly-generated BoxWithDistSensor Python started in boxChallenge.wbt under R2025a without Webots or Python runtime errors.'
+
+      - name: Prepare controller restart smoke fixture
+        run: python3 controllers/ci_restart_supervisor/restart_smoke.py prepare
+
+      - name: Exercise simulation reset and controller restart
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          docker run --rm \
+            --network none \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
+              --stdout \
+              --stderr \
+              --batch \
+              --mode=fast \
+              /workspace/worlds/ci_restart_smoke.wbt' \
+            2>&1 | tee ci-artifacts/webots-restart.log
+
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "$code" | tee ci-artifacts/webots-restart-exit-code.txt
+
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Restart smoke Webots run exited with code $code."
+            exit "$code"
+          fi
+
+      - name: Restore restart smoke fixtures
+        if: always()
+        run: python3 controllers/ci_restart_supervisor/restart_smoke.py restore
+
+      - name: Validate controller restart diagnostics
+        shell: bash
+        run: |
+          LOG=ci-artifacts/webots-restart.log
+
+          for marker in \
+            WEBEEBLOCKS_CI_RESTART_SUPERVISOR_STARTED \
+            WEBEEBLOCKS_CI_RESTART_INITIAL \
+            WEBEEBLOCKS_CI_RESTARTED_CONTROLLER; do
+            if ! grep -Fq "$marker" "$LOG"; then
+              echo "::error::Restart smoke marker missing: $marker"
+              exit 1
+            fi
+          done
+
+          if grep -Fq 'ERROR:' "$LOG"; then
+            echo "::error::Webots emitted an error during restart smoke."
+            grep -F 'ERROR:' "$LOG"
+            exit 1
+          fi
+
+          echo 'PASS: simulationReset + restartController reloaded the updated Python controller in R2025a.'
+
+      - name: Upload Webots diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webots-r2025a-smoke-logs
+          path: ci-artifacts/
+          if-no-files-found: error

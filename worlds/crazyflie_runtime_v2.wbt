@@ -9,12 +9,12 @@ WorldInfo {
   basicTimeStep 32
   randomSeed 1
   optimalThreadCount 1
-  title "WebeeBlocks Runtime v2 reactive obstacle"
+  title "WebeeBlocks — obstacle réactif"
 }
 Viewpoint {
   orientation -0.45 0.47 0.76 1.05
   position -2.4 -2.4 2.2
-  follow "Crazyflie Runtime v2"
+  follow "Crazyflie WebeeBlocks"
 }
 TexturedBackground { }
 TexturedBackgroundLight { }
@@ -42,8 +42,9 @@ DEF SECOND_OBSTACLE Solid {
 }
 
 Crazyflie {
-  name "Crazyflie Runtime v2"
+  name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
+  supervisor TRUE
   synchronization TRUE
 }

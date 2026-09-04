@@ -36,6 +36,15 @@ class Cdp:
         vk={'Tab':9,'Enter':13,'Escape':27,'ArrowDown':40,'ArrowUp':38}.get(key,0); code=code or key
         base={'key':key,'code':code,'windowsVirtualKeyCode':vk,'nativeVirtualKeyCode':vk}
         self.call('Input.dispatchKeyEvent',dict(base,type='keyDown')); self.call('Input.dispatchKeyEvent',dict(base,type='keyUp'))
+    def click(self,rect):
+        x=rect['x']+rect['width']/2; y=rect['y']+rect['height']/2
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y})
+        self.call('Input.dispatchMouseEvent',{'type':'mousePressed','x':x,'y':y,'button':'left','clickCount':1})
+        self.call('Input.dispatchMouseEvent',{'type':'mouseReleased','x':x,'y':y,'button':'left','clickCount':1})
+    def hover(self,rect):
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':1,'y':1})
+        time.sleep(.1)
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['x']+rect['width']/2,'y':rect['y']+rect['height']/2})
     def screenshot(self,path):
         data=self.call('Page.captureScreenshot',{'format':'png','fromSurface':True})['data']
         Path(path).write_bytes(base64.b64decode(data))
@@ -78,6 +87,64 @@ RESPONSIVE=r'''(() => {
  const reset=document.querySelector('#zoomReset .toolbarText');
  const fit=document.querySelector('#zoomFit .toolbarText');
  return {viewport:{width:innerWidth,height:innerHeight},resetLabel:(reset&&reset.textContent.trim())||'',resetLabelVisible:visible(reset),fitLabelVisible:visible(fit),toolbarWidth:(document.getElementById('workspaceToolbar').getBoundingClientRect().width)};
+})()'''
+
+LOCALE=r'''(() => {
+ const blockText=type=>{const block=workspace.newBlock(type);try{return block.toString();}finally{block.dispose(false);}};
+ const range=workspace.newBlock('webeeblocks_v2_range');
+ let directionOptions;
+ try{directionOptions=range.getField('DIRECTION').getOptions(false).map(option=>({label:option[0],value:option[1]}));}
+ finally{range.dispose(false);}
+ renderSensorValues({front:1,back:2,left:3,right:4,up:5});
+ return {
+   messages:{repeat:Blockly.Msg.CONTROLS_REPEAT_TITLE,if:Blockly.Msg.CONTROLS_IF_MSG_IF,do:Blockly.Msg.CONTROLS_IF_MSG_THEN,else:Blockly.Msg.CONTROLS_IF_MSG_ELSE,and:Blockly.Msg.LOGIC_OPERATION_AND,or:Blockly.Msg.LOGIC_OPERATION_OR,trueValue:Blockly.Msg.LOGIC_BOOLEAN_TRUE,falseValue:Blockly.Msg.LOGIC_BOOLEAN_FALSE,repeatTooltip:Blockly.Msg.CONTROLS_REPEAT_TOOLTIP},
+   blocks:{repeat:blockText('controls_repeat_ext'),condition:blockText('controls_if'),logic:blockText('logic_operation'),comparison:blockText('logic_compare'),boolean:blockText('logic_boolean')},
+   directionOptions:directionOptions,
+   sensorText:document.getElementById('debugSensors').textContent
+ };
+})()'''
+
+RENDER_LOCALE=r'''(() => {
+ const rect=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}};
+ const xml='<xml xmlns="https://developers.google.com/blockly/xml"><block type="logic_operation" x="650" y="50"><field name="OP">AND</field><value name="A"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value><value name="B"><block type="logic_boolean"><field name="BOOL">FALSE</field></block></value></block><block type="logic_operation" x="650" y="180"><field name="OP">OR</field><value name="A"><block type="logic_boolean"><field name="BOOL">TRUE</field></block></value><value name="B"><block type="logic_boolean"><field name="BOOL">FALSE</field></block></value></block><block type="webeeblocks_v2_range" x="650" y="310"><field name="DIRECTION">front</field></block></xml>';
+ Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml),workspace);
+ Blockly.svgResize(workspace);
+ const logicAnd=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='AND'&&block.getRelativeToSurfaceXY().x>500);
+ const logicOr=workspace.getBlocksByType('logic_operation',false).find(block=>block.getFieldValue('OP')==='OR'&&block.getRelativeToSurfaceXY().x>500);
+ const range=workspace.getBlocksByType('webeeblocks_v2_range',false).find(block=>block.getRelativeToSurfaceXY().x>500);
+ const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+ const condition=workspace.getBlocksByType('controls_if',false)[0];
+ if(!logicAnd||!logicOr||!range||!repeat||!condition)throw new Error('rendered locale evidence blocks missing');
+ const field=range.getField('DIRECTION');
+ const fieldRoot=field.getSvgRoot();
+ const repeatRoot=repeat.getSvgRoot();
+ const repeatText=[...(repeatRoot&&repeatRoot.querySelectorAll('.blocklyText')||[])].find(el=>(el.textContent||'').trim().toLowerCase().startsWith('répéter'));
+ const rb=repeatRoot.getBoundingClientRect();
+ let repeatHoverRect=null;
+ outer: for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
+   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
+     const hit=document.elementFromPoint(x,y);
+     if(hit&&repeatRoot.contains(hit)){
+       repeatHoverRect={x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
+       break outer;
+     }
+   }
+ }
+ if(!repeatHoverRect)throw new Error('no real hit-tested hover point on repeat block');
+ return {
+   logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
+   logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
+   logicRects:[rect(logicAnd.getSvgRoot()),rect(logicOr.getSvgRoot())],directionFieldRect:rect(fieldRoot),directionFieldText:fieldRoot.textContent,
+   directionFieldRole:fieldRoot.getAttribute('role'),directionFieldAriaLabel:fieldRoot.getAttribute('aria-label'),
+   repeatRect:repeatHoverRect,repeatSvgText:repeatRoot.textContent,conditionSvgText:condition.getSvgRoot().textContent,
+   workspaceAriaLabel:document.getElementById('blocklyDiv').getAttribute('aria-label')
+ };
+})()'''
+
+VISIBLE_OVERLAY=r'''(() => {
+ const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect(),s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;};
+ const nodes=[...document.querySelectorAll('.blocklyDropDownDiv,.blocklyWidgetDiv,[role="menu"],[role="listbox"],.blocklyTooltipDiv')].filter(visible);
+ return nodes.map(el=>({className:el.className||'',role:el.getAttribute('role'),ariaLabel:el.getAttribute('aria-label'),text:(el.innerText||el.textContent||'').trim(),html:el.outerHTML.slice(0,1200)}));
 })()'''
 
 def keyboard(c):
@@ -130,7 +197,7 @@ def main():
     fixture=Path(a.fixture).read_text(encoding='utf-8')
     expected_ast=json.loads(Path(a.expected_ast).read_text(encoding='utf-8'))
     c.eval("workspace.clear();Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(%s),workspace);Blockly.svgResize(workspace);true"%json.dumps(fixture)); time.sleep(.5)
-    ast=c.eval('WebeeBlocksSemanticAst.compileWorkspace(workspace)'); initial=c.eval(SNAP)
+    ast=c.eval('WebeeBlocksSemanticAst.compileWorkspace(workspace)'); initial=c.eval(SNAP); locale=c.eval(LOCALE)
     if ast != expected_ast:
         raise RuntimeError('compiled fixture AST differs from canonical pre-#75 AST: '+json.dumps({'expected':expected_ast,'actual':ast},ensure_ascii=False,separators=(',',':')))
     if not initial['rendererMatchesRegistry']: raise RuntimeError('Zelos not actually instantiated')
@@ -159,8 +226,51 @@ def main():
     if responsive['resetLabel']!='100 %' or not responsive['resetLabelVisible']:
         raise RuntimeError('100 % reset label must remain visible at narrow width: '+json.dumps(responsive,ensure_ascii=False))
     c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False}); c.eval('Blockly.svgResize(workspace);true'); time.sleep(.25)
-    final=c.eval(SNAP); c.screenshot(a.screenshot)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+
+    rendered=c.eval(RENDER_LOCALE); time.sleep(.5)
+    rendered_and=(rendered['logicAndSvgText']+' '+rendered['logicAndText']).lower()
+    rendered_or=(rendered['logicOrSvgText']+' '+rendered['logicOrText']).lower()
+    for expected in ('vrai','et','faux'):
+        if expected not in rendered_and:
+            raise RuntimeError('rendered AND program lacks '+expected+': '+rendered_and)
+    for expected in ('vrai','ou','faux'):
+        if expected not in rendered_or:
+            raise RuntimeError('rendered OR program lacks '+expected+': '+rendered_or)
+    condition_text=rendered['conditionSvgText'].lower()
+    repeat_text=rendered['repeatSvgText'].lower()
+    if 'alors' not in condition_text or ' faire' in condition_text:
+        raise RuntimeError('rendered condition must use "alors": '+condition_text)
+    if 'faire' in repeat_text:
+        raise RuntimeError('rendered repeat block must not display "faire": '+repeat_text)
+    if rendered['workspaceAriaLabel']!='Programme Blockly':
+        raise RuntimeError('rendered workspace accessibility label is not French: '+str(rendered['workspaceAriaLabel']))
+    screenshot=Path(a.screenshot)
+    c.screenshot(screenshot)
+    c.click(rendered['directionFieldRect']); time.sleep(.4)
+    direction_menu=c.eval(VISIBLE_OVERLAY)
+    if not direction_menu: raise RuntimeError('real direction dropdown did not open')
+    menu_text=' '.join(entry['text'] for entry in direction_menu).lower()
+    for expected in ('devant','derrière','à gauche','à droite','au-dessus'):
+        if expected not in menu_text:
+            raise RuntimeError('real direction dropdown lacks '+expected+': '+menu_text)
+    c.screenshot(screenshot.with_name('direction-menu-1366x768.png'))
+    c.key('Escape'); time.sleep(.2)
+    c.hover(rendered['repeatRect'])
+    tooltip=[]
+    end=time.time()+5.0
+    while time.time()<end:
+        overlay=c.eval(VISIBLE_OVERLAY)
+        tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
+        if tooltip: break
+        time.sleep(.1)
+    if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty after hover within 5.0s')
+    tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
+    if not tooltip_text or 'repeat' in tooltip_text:
+        raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
+    c.screenshot(screenshot.with_name('repeat-tooltip-1366x768.png'))
+    final=c.eval(SNAP)
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
+
 if __name__=='__main__': main()

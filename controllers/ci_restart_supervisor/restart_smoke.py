@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-WORLD = ROOT / "worlds" / "empty.wbt"
+WORLD = ROOT / "worlds" / ".ci-empty-local.wbt"
 TEMP_WORLD = ROOT / "worlds" / "ci_restart_smoke.wbt"
 CONTROLLER = ROOT / "controllers" / "my_controller" / "my_controller.py"
 BACKUP = Path(__file__).resolve().parent / "my_controller.py.restart-smoke-backup"
@@ -28,7 +28,7 @@ def prepare():
     old = 'controller "supervisor"'
     if source.count(old) != 1:
         restore()
-        raise RuntimeError(f"expected exactly one {old!r} in empty.wbt")
+        raise RuntimeError(f"expected exactly one {old!r} in {WORLD.name}")
     TEMP_WORLD.write_text(source.replace(old, 'controller "ci_restart_supervisor"', 1), encoding="utf-8")
     print(f"PASS: prepared {TEMP_WORLD.name} and initial controller marker")
 
