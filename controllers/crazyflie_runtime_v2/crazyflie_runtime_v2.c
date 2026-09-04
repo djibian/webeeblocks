@@ -45,7 +45,8 @@ typedef enum {
   REQUEST_MOVE,
   REQUEST_LAND,
   REQUEST_RANGE,
-  REQUEST_RESET
+  REQUEST_RESET,
+  REQUEST_STOP
 } request_kind_t;
 
 typedef struct {
@@ -163,6 +164,8 @@ static request_t parse_request(const char *message) {
       request.kind = REQUEST_LAND;
     else if (strcmp(command, "RESET") == 0)
       request.kind = REQUEST_RESET;
+    else if (strcmp(command, "STOP") == 0)
+      request.kind = REQUEST_STOP;
     return request;
   }
 
@@ -333,6 +336,29 @@ int main(void) {
         continue;
       if (request.kind == REQUEST_INVALID) {
         response_error(request.id, "INVALID_REQUEST");
+        continue;
+      }
+      if (request.kind == REQUEST_STOP) {
+        if (command == CMD_RESET) {
+          response_error(request.id, "NOT_RUNNING");
+          continue;
+        }
+        if (active_id >= 1)
+          response_error(active_id, "USER_STOPPED");
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        airborne = z > origin_z + ALT_TOL ? 1 : 0;
+        failsafe_latched = 1;
+        command = CMD_IDLE;
+        active_id = -1;
+        active_value = 0.0;
+        active_direction[0] = '\0';
+        stable_since = -1.0;
+        response_ok(request.id);
+        if (!airborne)
+          stop_motors(m1, m2, m3, m4);
         continue;
       }
       if (command != CMD_IDLE) {

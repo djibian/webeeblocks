@@ -158,6 +158,14 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
     () => SemanticAst.compileWorkspace({getTopBlocks: () => []}),
     /programme relié/
   );
+  mustRejectStudentValidation(
+    () => SemanticAst.compileWorkspace({getTopBlocks: () => [{
+      type: 'webeeblocks_v2_takeoff',
+      getFieldValue: name => name === 'HEIGHT' ? 0.5 : null,
+      getNextBlock: () => null
+    }]}),
+    /se terminer par « atterrir »/
+  );
 
   let compilerCalled = false;
   let interpreterCalled = false;
@@ -184,7 +192,7 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
 
   await proveUnavailableBackendCapabilityIsStudentCorrectable();
 
-  console.log('PASS Runtime v2 preflight rejects malformed AST and gives fail-closed student guidance for forbidden, disconnected, or backend-unavailable Blockly programs');
+  console.log('PASS Runtime v2 preflight rejects malformed AST and gives fail-closed student guidance for missing flight boundaries, forbidden, disconnected, or backend-unavailable Blockly programs');
 })().catch(error => {
   console.error(error);
   process.exit(1);

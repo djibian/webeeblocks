@@ -27,6 +27,7 @@
     this.pending = Object.create(null);
     this.ready = false;
     this.readyWaiters = [];
+    this.simulationStopped = false;
     var capabilities = {
       actions: ['takeoff', 'move', 'land'],
       rangeDirections: ['front'],
@@ -37,6 +38,8 @@
       capabilities.simulationDebug = true;
     if (options && options.simulationReset === true)
       capabilities.simulationReset = true;
+    if (options && options.simulationStop === true)
+      capabilities.simulationStop = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -120,10 +123,20 @@
     return true;
   };
 
-  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
-  RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
-  RuntimeV2WwiBackend.prototype.land = function() { return this._request(['LAND']); };
-  RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype._guardSimulationStopped = function() {
+    return this.simulationStopped ? Promise.reject(new RuntimeV2BackendError('USER_STOPPED')) : null;
+  };
+
+  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
+  RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype.stopSimulation = function() {
+    if (!this.capabilities || this.capabilities.simulationStop !== true)
+      return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
+    this.simulationStopped = true;
+    return this._request(['STOP']);
+  };
   RuntimeV2WwiBackend.prototype.resetSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
@@ -132,6 +145,7 @@
     var self = this;
     return this._request(['RESET']).then(function(value) {
       self.ready = true;
+      self.simulationStopped = false;
       return value;
     }, function(error) {
       self.ready = true;

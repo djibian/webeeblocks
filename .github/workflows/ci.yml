@@ -2,7 +2,7 @@ name: CI Gate
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '17 3 * * *'
@@ -27,10 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-
-      - name: Verify selector
+      - name: Verify selector and repository contracts
         run: |
           python3 tools/ci/test_select_ci.py
           python3 tools/ci/test_ci_gate.py
@@ -39,7 +38,6 @@ jobs:
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
-
       - name: Select required suites
         id: scope
         run: >-
@@ -57,7 +55,7 @@ jobs:
     if: ${{ needs.select.outputs.runtime == 'true' }}
     uses: ./.github/workflows/ci-runtime.yml
     with:
-      target_sha: ${{ github.sha }}
+      target_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       full: ${{ needs.select.outputs.full == 'true' }}
 
   webots:
@@ -66,20 +64,21 @@ jobs:
     if: ${{ needs.select.outputs.webots == 'true' }}
     uses: ./.github/workflows/ci-webots.yml
     with:
-      target_sha: ${{ github.sha }}
+      target_sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
   gate:
-    name: CI Gate
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate' }}
     if: ${{ always() }}
     needs: [select, runtime, webots]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
-
-      - name: Require every selected suite
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify selected suite results
         env:
-          CI_SELECTION: ${{ toJSON(needs.select.outputs) }}
-          CI_NEEDS: ${{ toJSON(needs) }}
+          CI_SELECTION: >-
+            {"runtime":"${{ needs.select.outputs.runtime }}","webots":"${{ needs.select.outputs.webots }}"}
+          CI_NEEDS: >-
+            {"select":{"result":"${{ needs.select.result }}"},"runtime":{"result":"${{ needs.runtime.result }}"},"webots":{"result":"${{ needs.webots.result }}"}}
         run: python3 tools/ci/check_ci_gate.py

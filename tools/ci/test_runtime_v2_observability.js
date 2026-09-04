@@ -10,6 +10,7 @@ const ActivityContract = require('../../plugins/robot_windows/blockly/webeeblock
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 
 const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
+const controllerSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
 const projectUiSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
 const classroomFixesSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/classroom_fixes.css'), 'utf8');
 assert.match(mainSource, /getElementById\('stepContinue'\)\.disabled = !paused;/);
@@ -19,6 +20,16 @@ assert.match(projectUiSource, /setRuntimeLocked\(state === 'EN VOL' \|\| state =
 assert.match(projectUiSource, /blocklyDiv\.inert = runtimeLocked;/);
 assert.match(projectUiSource, /if \(open\) open\.disabled = locked;/);
 assert.match(projectUiSource, /if \(busy \|\| !supported \|\| runtimeLocked\) return null;/);
+assert.match(mainSource, /getElementById\('stopSimulation'\)/);
+assert.match(mainSource, /await runtimeBackend\.stopSimulation\(\)/);
+assert.match(controllerSource, /request\.kind == REQUEST_STOP/);
+assert.match(controllerSource, /response_error\(active_id, "USER_STOPPED"\)/);
+assert.match(controllerSource, /target_x = x;[\s\S]*target_y = y;[\s\S]*target_z = z;[\s\S]*failsafe_latched = 1;/);
+assert.doesNotMatch(controllerSource, /command == CMD_IDLE \|\| command == CMD_RESET/);
+assert.match(controllerSource, /if \(active_id >= 1\)[\s\S]*response_error\(active_id, "USER_STOPPED"\)/);
+assert.match(mainSource, /runtimeStopRequested = true;/);
+assert.match(mainSource, /runtimeDebug\.continueRun\(\)/);
+assert.match(mainSource, /if \(runtimeStopRequested\) throw userStoppedError\(\);/);
 
 function block(id,type,inputs){return{id,type,_next:null,_inputs:inputs||{},getNextBlock(){return this._next;},getInputTargetBlock(name){return this._inputs[name]||null;}};}
 function link(){var blocks=Array.from(arguments);for(var i=0;i<blocks.length-1;i++)blocks[i]._next=blocks[i+1];return blocks[0];}
@@ -42,7 +53,7 @@ async function proveProgramInvalidRetryWithoutReset() {
   const profile = {toolbox:['allowed'],parameterBounds:{},runtime:{allowedStatementKinds:['takeoff','land'],rangeDirections:[],moveDirections:[],verticalDirections:[],astBounds:{}}};
   const context = {
     console:{log(){},error(){}},
-    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui'},Blocks:{}},
+    Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui',BLOCK_MOVE:'move'},Blocks:{}},
     document:{getElementById:element,body:{dataset:{}},createElement(){return{setAttribute(){},appendChild(){}};}},
     window:{dispatchEvent(){},addEventListener(){}},
     CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
@@ -79,6 +90,15 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.strictEqual(compileCalls,1,'corrected workspace did not reach compiler on second attempt');
   assert.strictEqual(interpreterRuns,1,'corrected workspace did not execute on second attempt');
   assert.strictEqual(element('runtimeState').textContent,'TERMINÉ');
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté');
+
+  context.onWorkspaceChange({type:'move',oldParentId:null,newParentId:null});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme exécuté',
+    'moving an unconnected top-level stack visually must not require simulation reset');
+
+  context.onWorkspaceChange({type:'move',oldParentId:null,newParentId:'parent-block'});
+  assert.strictEqual(element('runtimeDetail').textContent,'Programme modifié — réinitialisez la simulation avant de relancer',
+    'a structural Blockly move must still require simulation reset');
 }
 
 (async()=>{
@@ -97,7 +117,22 @@ async function proveProgramInvalidRetryWithoutReset() {
   await until(()=>pauses.length===6,'if');assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4]]);assert.deepStrictEqual(pauses[5].slice(0,2),['if','if']);assert.strictEqual(pauses[5][3],false);obs.next();
   await until(()=>pauses.length===7,'chosen move');assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4]]);assert.deepStrictEqual(pauses[6].slice(0,2),['left-action','move']);obs.continueRun();await run;obs.finish();
   assert.deepStrictEqual(c.trace,[['takeoff',1],['range','front',.4],['move','left',.3],['range','front',.8],['move','forward',.3],['range','front',.3],['move','left',.3],['land']]);
-  var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(Outcome.isRetryable({code:'PROGRAM_INVALID'}),true);assert.strictEqual(Outcome.isRetryable(error),false);assert.strictEqual(Outcome.isRetryable(Error('technical')),false);assert.strictEqual(wwi.capabilities.simulationDebug,true);
+  var sent=[],wwi=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:true,simulationStop:true});var req=wwi.move('forward',2);wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT');var error;try{await req;}catch(e){error=e;}assert.strictEqual(error.code,'UNSAFE_OR_TIMEOUT');assert.strictEqual(error.message,'Runtime v2 backend error: UNSAFE_OR_TIMEOUT');assert.deepStrictEqual(Outcome.classify(error),{state:'ARRÊTÉ',detail:'L’action n’a pas pu être terminée',machineCode:'UNSAFE_OR_TIMEOUT'});assert.strictEqual(Outcome.classify(Error('technical')).state,'ERREUR');assert.strictEqual(Outcome.isRetryable({code:'PROGRAM_INVALID'}),true);assert.strictEqual(Outcome.isRetryable(error),false);assert.strictEqual(Outcome.isRetryable(Error('technical')),false);assert.strictEqual(wwi.capabilities.simulationDebug,true);assert.strictEqual(wwi.capabilities.simulationStop,true);
+  var stopSent=[],stopBackend=new WwiBackend({send:m=>stopSent.push(m)},{timeoutMs:500,simulationStop:true,simulationReset:true});
+  var activeMove=stopBackend.move('forward',2),stopRequest=stopBackend.stopSimulation();
+  assert.match(stopSent[0],/ REQUEST 1 MOVE forward /);assert.match(stopSent[1],/ REQUEST 2 STOP$/);
+  stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR USER_STOPPED');
+  var stoppedError;try{await activeMove;}catch(e){stoppedError=e;}
+  assert.strictEqual(stoppedError.code,'USER_STOPPED');
+  assert.deepStrictEqual(Outcome.classify(stoppedError),{state:'ARRÊTÉ',detail:'Vol arrêté — réinitialisez la simulation avant de relancer',machineCode:'USER_STOPPED'});
+  stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK');await stopRequest;
+  assert.strictEqual(Object.keys(stopBackend.pending).length,0);
+  assert.strictEqual(stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK'),true);
+  assert.strictEqual(Object.keys(stopBackend.pending).length,0);
+  var sentBeforeBlockedMove=stopSent.length,blockedMove=stopBackend.move('forward',.3),blockedError;try{await blockedMove;}catch(e){blockedError=e;}
+  assert.strictEqual(blockedError.code,'USER_STOPPED');assert.strictEqual(stopSent.length,sentBeforeBlockedMove,'stopped backend emitted a later AST action');
+  var resetRequest=stopBackend.resetSimulation();assert.match(stopSent[stopSent.length-1],/ REQUEST 3 RESET$/);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');await resetRequest;
+  var afterReset=stopBackend.move('forward',.3);assert.match(stopSent[stopSent.length-1],/ REQUEST 4 MOVE forward /);stopBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');await afterReset;
   var physical=new WwiBackend({send:m=>sent.push(m)},{timeoutMs:500,simulationDebug:false});assert.notStrictEqual(physical.capabilities.simulationDebug,true);
   console.log('PASS: invalid programs are retryable through the real UI runtime without reset, execution state stays coherent, Continue is pause-only, observability remains optional, semantic stepping hides branch outcomes, raw sensor is fresh, movement waits for its own step, and machine codes remain testable.');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});

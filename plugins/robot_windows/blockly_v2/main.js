@@ -5,6 +5,8 @@ var runtimeBackend = null;
 var runtimeRunning = false;
 var runtimeTerminal = false;
 var runtimeResetPending = false;
+var runtimeStopPending = false;
+var runtimeStopRequested = false;
 var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -41,11 +43,17 @@ function updateRuntimeActions() {
   var ready = !!(runtimeBackend && runtimeBackend.ready);
   var submit = document.getElementById('submit');
   var reset = document.getElementById('resetSimulation');
-  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending;
+  var stop = document.getElementById('stopSimulation');
+  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending;
+  if (stop) {
+    var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
+    stop.hidden = !stopSupported || !runtimeRunning || runtimeStopRequested;
+    stop.disabled = !stopSupported || !ready || !runtimeRunning || runtimeStopPending || runtimeStopRequested;
+  }
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || !runtimeTerminal;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || runtimeStopPending || !runtimeTerminal;
   }
 }
 
@@ -189,10 +197,39 @@ function wireDebugControls() {
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
 }
 
+function userStoppedError() {
+  var error = new Error('Runtime v2 simulation stopped by user');
+  error.code = 'USER_STOPPED';
+  return error;
+}
+
 function serializedWorkspace() {
   if (!workspace || !Blockly.serialization || !Blockly.serialization.workspaces)
     throw new Error('Blockly workspace serialization unavailable');
   return JSON.stringify(Blockly.serialization.workspaces.save(workspace));
+}
+
+async function stopSimulation() {
+  if (!runtimeRunning || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready)
+    return;
+  if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
+    return;
+  runtimeStopPending = true;
+  runtimeStopRequested = true;
+  updateRuntimeActions();
+  setDebugControls(false);
+  if (runtimeDebug) runtimeDebug.continueRun();
+  try {
+    await runtimeBackend.stopSimulation();
+    runtimeTerminal = true;
+    setRuntimeFailure(userStoppedError());
+  } catch (error) {
+    runtimeTerminal = true;
+    setRuntimeFailure(error);
+  } finally {
+    runtimeStopPending = false;
+    updateRuntimeActions();
+  }
 }
 
 async function resetSimulation() {
@@ -216,6 +253,7 @@ async function resetSimulation() {
     if (runtimeProfile !== profile)
       throw new Error('Simulation reset changed activity profile');
     runtimeTerminal = false;
+    runtimeStopRequested = false;
     renderSensorValues({});
     renderVariables(null);
     if (runtimeDebug) runtimeDebug.finish();
@@ -233,7 +271,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeResetPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -243,6 +281,7 @@ async function runProgram() {
   }
   submit.disabled = true;
   runtimeTerminal = false;
+  runtimeStopRequested = false;
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
@@ -253,6 +292,7 @@ async function runProgram() {
         runtimeRunning = true; setDebugControls(false); setRuntimeStatus('EN VOL', 'Programme réactif en cours');
       }
     });
+    if (runtimeStopRequested) throw userStoppedError();
     runtimeRunning = false; runtimeTerminal = true; setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
     runtimeRunning = false;
@@ -265,8 +305,12 @@ async function runProgram() {
   }
 }
 
+function isPureVisualWorkspaceMove(event) {
+  return !!(event && event.type === Blockly.Events.BLOCK_MOVE &&
+    event.oldParentId == null && event.newParentId == null);
+}
 function onWorkspaceChange(event) {
-  if (!event || event.type === Blockly.Events.UI) return;
+  if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
   try { WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace); } catch (error) { console.error(error); }
   if (!runtimeRunning && runtimeTerminal)
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
@@ -279,6 +323,7 @@ function wireWorkspaceControls() {
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
   document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
+  document.getElementById('stopSimulation').addEventListener('click', stopSimulation);
 }
 
 window.onload = async function() {
@@ -298,7 +343,7 @@ window.onload = async function() {
   try {
     var module = await import('./webots/RobotWindow.js');
     robotWindow = new module.default();
-    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true});
+    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true});
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();

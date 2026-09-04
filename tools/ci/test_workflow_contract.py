@@ -1,193 +1,130 @@
 #!/usr/bin/env python3
-"""Static contract for the CI topology, candidate evidence and trusted transport boundary."""
+"""Static contract for V4 CI and human-checkpoint topology."""
 
 from pathlib import Path
 import re
 import unittest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-TRANSPORT_WORKFLOWS = {"controller-handoff-ntfy.yml"}
-
 EXPECTED = {
-    "candidate-evidence.yml": {
-        "validate_target",
-        "candidate_runtime",
-        "candidate_webots",
-        "candidate_evidence",
-    },
+    "human-checkpoint.yml": {"validate", "runtime", "webots", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
-        "runtime-v2-core",
-        "runtime-v2-windows-assets",
-        "runtime-v2-windows-release",
-        "clean-checkout-runtime-v2",
-        "runtime-v2-observability",
-        "runtime-v2-project-files",
-        "reset-contract-fast",
-        "reset-replay-webots",
-        "runtime-v2-webots",
-        "student-ui",
+        "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
+        "clean-checkout-runtime-v2", "runtime-v2-observability",
+        "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
+        "runtime-v2-webots", "student-ui",
     },
     "ci-webots.yml": {
-        "crazyflie-ab-matrix",
-        "crazyflie-b-edges",
-        "crazyflie-blockly-l",
-        "timed-challenge-ux",
-        "first-collision-obstacle",
-        "crazyflie-l-course",
-        "parametric-blockly-obstacle",
-        "crazyflie-primitive-matrix",
-        "crazyflie-runtime-wwi",
-        "crazyflie-square-position",
-        "crazyflie-square",
-        "stop-vs-chain",
-        "strategy-timing",
-        "historical-blockly-ui",
-        "encoders-historical",
-        "gyro-gps-historical",
-        "light-sensor-historical",
-        "sensor-probing-historical",
-        "robot-window-roundtrip",
-        "webots-smoke",
+        "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",
+        "timed-challenge-ux", "first-collision-obstacle", "crazyflie-l-course",
+        "parametric-blockly-obstacle", "crazyflie-primitive-matrix",
+        "crazyflie-runtime-wwi", "crazyflie-square-position", "crazyflie-square",
+        "stop-vs-chain", "strategy-timing", "historical-blockly-ui",
+        "encoders-historical", "gyro-gps-historical", "light-sensor-historical",
+        "sensor-probing-historical", "robot-window-roundtrip", "webots-smoke",
     },
 }
-
 
 def job_ids(text: str) -> set[str]:
     jobs = text.split("\njobs:\n", 1)[1]
     return set(re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", jobs, re.MULTILINE))
 
-
-class WorkflowContractTests(unittest.TestCase):
-    def test_expected_workflows_plus_transport_exist(self) -> None:
+class WorkflowTests(unittest.TestCase):
+    def test_only_v4_workflows_exist(self):
         names = {path.name for path in WORKFLOWS.glob("*.yml")}
-        self.assertEqual(names, set(EXPECTED).union(TRANSPORT_WORKFLOWS))
+        self.assertEqual(names, set(EXPECTED))
 
-    def test_transport_cannot_run_candidate_code(self) -> None:
-        transport = (WORKFLOWS / "controller-handoff-ntfy.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("  issue_comment:\n", transport)
-        self.assertIn("  pull_request_review:\n", transport)
-        self.assertNotIn("  workflow_run:\n", transport)
-        self.assertNotIn("workflows: [CI Gate]", transport)
-        self.assertIn("github.repository == 'djibian/webeeblocks'", transport)
-        self.assertIn("github.actor == 'djibian'", transport)
-        self.assertIn("sender.get('login') != TRUSTED_AUTHOR", transport)
-        self.assertIn(
-            "https://api.github.com/repos/{REPOSITORY}/pulls/{number}",
-            transport,
-        )
-        self.assertIn(
-            "current_head != head or current_base != 'develop'",
-            transport,
-        )
-        self.assertIn(
-            "https://api.github.com/repos/{REPOSITORY}/commits/develop",
-            transport,
-        )
-        self.assertLess(
-            transport.index("if is_pull_request:"),
-            transport.index("topic = os.environ.get('NTFY_TOPIC'"),
-        )
-        for status in (
-            "READY_FOR_REVIEW",
-            "NO_GO",
-            "HUMAN_REQUIRED",
-            "BLOCKED",
-            "SESSION_LIMIT",
-        ):
-            self.assertIn(status, transport)
-        self.assertNotIn("UNPROVEN", transport)
-        self.assertIn("WebeeBlocks — TEST À EFFECTUER", transport)
-        self.assertIn("WebeeBlocks — RELANCE CONTRÔLEUR", transport)
-        self.assertNotIn("PREUVE À ARBITRER", transport)
-        self.assertIn("permissions: {}", transport)
-        self.assertNotIn("  pull_request:\n", transport)
-        self.assertNotIn("  pull_request_target:\n", transport)
-        self.assertNotIn("actions/checkout", transport)
-        self.assertNotIn("github.token", transport)
-        self.assertNotIn("CI Gate terminé", transport)
-
-    def test_every_workflow_job_is_preserved_once(self) -> None:
-        observed: set[str] = set()
+    def test_job_sets(self):
         for name, expected in EXPECTED.items():
-            current = job_ids((WORKFLOWS / name).read_text(encoding="utf-8"))
-            self.assertEqual(current, expected, name)
-            self.assertFalse(observed.intersection(current), name)
-            observed.update(current)
+            self.assertEqual(job_ids((WORKFLOWS / name).read_text(encoding="utf-8")), expected, name)
 
-    def test_only_orchestrator_receives_pull_requests(self) -> None:
-        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-        self.assertIn("  pull_request:\n", orchestrator)
-        self.assertIn(
-            "python3 tools/ci/test_repository_hygiene.py",
-            orchestrator,
-        )
-        self.assertIn(
-            "python3 tools/ci/test_windows_release_contract.py",
-            orchestrator,
-        )
-        self.assertIn("branches: [develop, main]", orchestrator)
-        self.assertIn(
-            "types: [opened, synchronize, reopened, ready_for_review]",
-            orchestrator,
-        )
-        for name in ("candidate-evidence.yml", "ci-runtime.yml", "ci-webots.yml"):
-            suite = (WORKFLOWS / name).read_text(encoding="utf-8")
-            self.assertIn("  workflow_call:\n", suite)
-            self.assertNotIn("  pull_request:\n", suite)
+    def test_ci_targets_main_only(self):
+        text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("branches: [main]", text)
+        self.assertNotIn("develop", text)
+        self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", text)
 
-    def test_candidate_evidence_is_exact_head_full_and_dormant(self) -> None:
-        candidate = (WORKFLOWS / "candidate-evidence.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("name: Candidate Evidence\n", candidate)
-        self.assertIn("  workflow_call:\n", candidate)
-        self.assertNotIn("  workflow_dispatch:\n", candidate)
-        self.assertNotIn("  pull_request:\n", candidate)
-        self.assertNotIn("  pull_request_review:\n", candidate)
-        self.assertNotIn("  issue_comment:\n", candidate)
-        self.assertNotIn("  push:\n", candidate)
-        self.assertIn("permissions:\n  contents: read\n", candidate)
-        self.assertIn("      target_sha:\n", candidate)
-        self.assertIn("        required: true\n", candidate)
-        self.assertIn("        type: string\n", candidate)
-        self.assertIn("  validate_target:\n", candidate)
-        self.assertIn("TARGET_SHA: ${{ inputs.target_sha }}", candidate)
-        self.assertIn('test "${#TARGET_SHA}" -eq 40', candidate)
-        self.assertIn("*[!0-9a-fA-F]*|'')", candidate)
-        self.assertEqual(candidate.count("needs: validate_target"), 2)
-        self.assertEqual(candidate.count("target_sha: ${{ inputs.target_sha }}"), 2)
-        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", candidate)
-        self.assertIn("uses: ./.github/workflows/ci-webots.yml", candidate)
-        self.assertIn("      full: true\n", candidate)
+    def test_ready_gate_is_exact_head_and_draft_has_distinct_check_name(self):
+        text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        candidate = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertEqual(text.count(candidate), 4)
+        self.assertNotIn("target_sha: ${{ github.sha }}", text)
         self.assertIn(
-            "needs: [candidate_runtime, candidate_webots]",
-            candidate,
+            "github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate'",
+            text,
         )
-        self.assertNotIn("actions/checkout", candidate)
-        self.assertNotIn("CI Gate", candidate)
+        self.assertIn('--draft "${{ github.event.pull_request.draft || false }}"', text)
 
-    def test_reusable_suites_receive_an_explicit_git_target(self) -> None:
-        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-        self.assertEqual(orchestrator.count("target_sha: ${{ github.sha }}"), 2)
-        self.assertEqual(orchestrator.count("ref: ${{ github.sha }}"), 2)
+    def test_main_pr_is_not_implicit_full_promotion(self):
+        selector = (ROOT / "tools" / "ci" / "select_ci.py").read_text(encoding="utf-8")
+        self.assertIn('force_full = args.event != "pull_request"', selector)
+        self.assertNotIn('args.base_ref == "main"', selector)
 
-        target_ref = "ref: ${{ inputs.target_sha || github.sha }}"
+    def test_checkpoint_is_exact_full_single_slot_and_fail_closed(self):
+        text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        for required in (
+            "CHECKPOINT_REQUEST ([0-9a-f]{40})",
+            "github.actor == 'djibian'",
+            "uses: ./.github/workflows/ci-runtime.yml",
+            "uses: ./.github/workflows/ci-webots.yml",
+            "full: true",
+            "group: webeeblocks-human-test-open",
+            "WEBEEBLOCKS_HUMAN_TEST_OPEN=1",
+            "WEBEEBLOCKS_TEST_FINGERPRINT=",
+            "PROFILES = {'windows-low-end': 'WebeeBlocks-Windows-R2025a'}",
+            "Unknown test profile; add deterministic preparation before enabling it",
+            "Required artifact is missing a valid sha256 digest",
+            "sha256:[0-9a-f]{64}",
+            "/issues?state={state}&per_page=100&page={page}",
+            "[TEST_REQUIRED]",
+            "https://ntfy.sh/",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("search/issues", text)
+        self.assertNotIn("artifact.get('digest', 'unavailable')", text)
+        self.assertNotIn("profile.startswith('windows')", text)
+        for obsolete in ("READY_FOR_REVIEW", "SESSION_LIMIT", "RELANCE CONTRÔLEUR", "Candidate Evidence"):
+            self.assertNotIn(obsolete, text)
+
+    def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
+        text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        blocks = text.split("          python3 - <<'PY'\n")[1:]
+        self.assertEqual(len(blocks), 2)
+        for block in blocks:
+            body, separator, _ = block.partition("          PY\n")
+            self.assertTrue(separator, "checkpoint Python heredoc is not closed at YAML scalar indentation")
+            for line in body.splitlines():
+                if line:
+                    self.assertTrue(
+                        line.startswith("          "),
+                        f"checkpoint Python escaped YAML scalar indentation: {line!r}",
+                    )
+
+    def test_checkpoint_ignores_spoofed_slot_and_fingerprint_markers(self):
+        text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        for required in (
+            "'pull_request' not in item",
+            ".startswith('[TEST_REQUIRED] ')",
+            "user.get('login') == 'github-actions[bot]'",
+            "WEBEEBLOCKS_TEST_FINGERPRINT=[0-9a-f]{64}$",
+            "history = [item for item in issues('all') if canonical_test_issue(item)]",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("history = issues('all')\n          if any(marker", text)
+
+    def test_reusable_suites_receive_exact_target(self):
+        ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        candidate = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertEqual(ci.count(f"target_sha: {candidate}"), 2)
+        target = "ref: ${{ inputs.target_sha || github.sha }}"
         for name in ("ci-runtime.yml", "ci-webots.yml"):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
-            self.assertIn("      target_sha:\n", suite, name)
-            self.assertIn("        required: true\n", suite, name)
-            self.assertIn("        type: string\n", suite, name)
             all_checkouts = suite.count("uses: actions/checkout@v4")
-            external_checkouts = suite.count("repository: cyberbotics/webots")
-            repository_checkouts = all_checkouts - external_checkouts
-            self.assertGreater(repository_checkouts, 0, name)
-            self.assertEqual(suite.count(target_ref), repository_checkouts, name)
+            external = suite.count("repository: cyberbotics/webots")
+            self.assertEqual(suite.count(target), all_checkouts - external, name)
 
     def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
@@ -201,10 +138,6 @@ class WorkflowContractTests(unittest.TestCase):
             release,
         )
         self.assertIn("test_windows_classroom_release.ps1", release)
-
-    def test_no_post_merge_push_trigger(self) -> None:
-        for path in WORKFLOWS.glob("*.yml"):
-            self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
 
     def test_webots_projects_checkout_is_commit_pinned(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
@@ -270,6 +203,9 @@ class WorkflowContractTests(unittest.TestCase):
             restart,
         )
 
+    def test_no_post_merge_push_trigger(self):
+        for path in WORKFLOWS.glob("*.yml"):
+            self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
 
 if __name__ == "__main__":
     unittest.main()

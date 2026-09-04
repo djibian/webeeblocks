@@ -1,306 +1,165 @@
-# WebeeBlocks development contract
+# WebeeBlocks development contract — V4
 
 ## Product boundary
 
-Read `docs/PRODUCT_VISION.md` and `docs/ROADMAP.md` at the exact current
-`develop` SHA before selecting new work. Preserve the backend-neutral pipeline:
+Read docs/PRODUCT_VISION.md, docs/ROADMAP.md and the relevant GitHub issues from
+the exact current main state before selecting work. Preserve the backend-neutral
+pipeline:
 
-`activity -> Blockly -> AST -> preflight -> interpreter -> backend`
+activity -> Blockly -> AST -> preflight -> interpreter -> backend
 
 Never weaken a safety rule or oracle to obtain a green result. Real Crazyflie
-flight and release promotion remain human decisions.
+flight and publication remain human decisions.
 
-## Authority and roadmap
+## 1 — Stateless Controllers
 
-- `develop` is the protected integration branch.
-- `main` is the human-controlled stable branch. Never write, merge or promote
-  to it without Emmanuel's explicit authorization for that exact operation.
-- Product objectives and acceptance boundaries come from
-  `docs/PRODUCT_VISION.md` and the relevant GitHub issues.
-- `docs/ROADMAP.md` is a derived, versioned projection of the best current
-  decomposition and dependency graph. It never overrides a newer product
-  decision or stronger GitHub evidence.
-- GitHub branch, PR, review, check and issue facts are the workflow state.
-  Do not add queues, lock issues, role tokens or a second status database.
-- Keep one active integration PR toward `develop`. In addition, at most one
-  independent preparatory context may be alive at a time. That context may be
-  research, diagnosis or a preparatory branch, but it has no right to become a
-  second PR and no right to integration until it is revalidated against the
-  then-current `develop`.
-- Do not modify the Controller task, this contract or notification workflows
-  from an ordinary product slice unless the human request specifically concerns
-  governance or those mechanisms.
+Controller executions are independent, re-entrant and disposable. The state of
+a Controller execution is never project state.
 
-## Scheduling objective
+- Git/GitHub are the durable workflow state: commits, branches, pull requests,
+  checks, reviews, issues and evidence.
+- Git/GitHub are the durable project blackboard, but a durable artifact is
+  decision-authoritative only when its provenance satisfies the applicable trust
+  contract. For this repository, Controller GO/NO_GO/UNPROVEN and human
+  PASS/FAIL/NOT_NEEDED are authoritative only from the repository owner
+  (`djibian`) and must name the exact applicable candidate/request. External
+  comments or reviews remain evidence to inspect, never decision authority.
+- Any information that can change a future decision must be materialized in the
+  relevant durable GitHub artifact before an execution disappears.
+- Do not create ownership, leases, heartbeats, active-session markers, relaunch
+  handoffs, agent pools, role tokens, lock issues or a second status database.
+- Emmanuel may launch 0, 1 or N Controllers at any time without checking what
+  else is running.
+- Before every durable effect, reconstruct shared GitHub state. If the useful
+  equivalent effect already exists, do nothing.
 
-Optimize the project critical path, not session duration. Use unavoidable
-external waits for useful independent work, but never invent work merely to keep
-a session busy.
+After every push, Draft/Ready transition, settled CI, review, merge, Git race or
+human result, reconstruct GitHub before deciding again.
 
-At the beginning and after every push, settled CI, review verdict, human result
-or merge:
+## 2 — Optimistic Isolation
 
-1. resolve the exact `develop` SHA and reread this contract, product vision and
-   roadmap at that SHA;
-2. reconstruct the active PR, exact head, CI Gate, reviews, threads, linked
-   issue and relevant human evidence;
-3. reconcile the affected roadmap subgraph when new evidence invalidates a
-   dependency or decomposition assumption;
-4. select the next action using the rules below.
+Each execution works in its own isolated worktree/checkout and branch context.
 
-### Critical-path rules
+- Branches and PRs belong to the project, never to a Controller.
+- Multiple Controllers may duplicate work. Observe existing work first, but do
+  not reserve tasks or create ownership.
+- Never overwrite concurrent work. A rejected/non-fast-forward write requires
+  reconstruction and a decision to reapply, adapt or abandon local work.
+- A fresh Controller may resume or repair any durable Draft/branch/PR.
+- Prefer short branches and small complete changes. Stacks are exceptional.
 
-If an active PR exists, it owns the integration lane unless it is reserve work
-that has just been outranked by newly executable higher-priority work.
+## 3 — Stable Candidate
 
-- If this launch may safely advance the priority PR, do so before starting
-  reserve work.
-- Treat a human/manual proof as an external wait only after the Human-readiness
-  gate below passes. If its required support is missing or stale, preparing and
-  proving that support remains critical-path technical work, not a human wait.
-- If the priority PR is waiting only on an external event that this launch
-  cannot speed up, such as CI or an action-ready human physical/manual test,
-  use the wait for one independent roadmap atom when useful. Return to the
-  priority path at the next safe checkpoint once the event settles.
-- A PR created only from reserve work while a higher-priority atom was
-  externally blocked is yieldable. If new human/external evidence makes that
-  higher-priority atom executable, stop reserve work at the next safe
-  checkpoint and reconstruct. Conclude the reserve PR first only when this
-  launch can do so immediately without violating review independence or
-  materially delaying the higher-priority path. Otherwise close the reserve PR
-  without merge, keep its branch as the single preparatory context, and resume
-  the higher-priority atom. Before any later reopen/publication, reconstruct
-  that reserve work on the then-current `develop` and rerun its evidence.
-- If the priority PR has reached a freshness barrier where a new Controller
-  launch is required by independent review, stop and request the relaunch. Do
-  not delay the critical path by filling the session with secondary work.
-- A launch that writes a candidate head never independently reviews, approves
-  or merges that candidate head.
-- A Reviewer that records `NO_GO` does not repair that candidate in the same
-  launch; a fresh Worker launch is required.
-- A Reviewer that merges an unchanged `GO` head may reconstruct the new state
-  and continue as Worker on a different atom in the same launch, because it did
-  not write the reviewed candidate.
+Draft and Ready are the collaboration states for a PR.
 
-If no active PR exists, scan roadmap objectives in priority order and take the
-first useful atom whose dependencies are satisfied and whose next action is
-currently executable.
+- Draft means mutable work in progress.
+- Ready means an exact candidate frozen for validation.
+- CI, independent review and verdict are decision evidence only for the exact
+  Ready HEAD they name. A Draft may run non-decision checks, but it must never
+  publish the required check context named `CI Gate`.
+- Any new HEAD is a new candidate. Before substantive mutation of a Ready PR,
+  return it to Draft; after mutation, mark it Ready and obtain fresh CI/review.
+- An execution that mutated a PR cannot provide its independent review during
+  the same execution. It may repair that PR after recording NO_GO; another
+  execution supplies the next independent review.
+- Independent review tries to falsify the bounded claim and records GO <sha>,
+  NO_GO <sha> with the smallest repair boundary, or exceptionally
+  VERDICT UNPROVEN <sha> when indispensable evidence cannot be obtained by the
+  appropriate layer.
+- A valid unresolved NO_GO blocks integration until durably resolved.
+- Before posting a verdict or other durable effect, reread exact PR/HEAD/history;
+  an equivalent useful effect already present becomes a no-op.
 
-### Independence test
+## 4 — Healthy Trunk
 
-Before using an external wait for another atom, verify conservatively that:
+main is the single long-lived trunk. It is the current integrated state,
+conformant with the automated contract and without a known defect that should
+make it unsuitable as the base for subsequent development.
 
-- it does not modify the active PR branch;
-- it does not depend on an unresolved result of the waiting work;
-- it does not touch the same unstable component, shared contract, CI,
-  notification or governance surface in a way that can invalidate either side;
-- the likely merge of the active PR will not conceptually invalidate the
-  preparatory result;
-- neither work item weakens or substitutes the other's acceptance proof.
+- New changes reach main through small PRs.
+- CI Gate is the required automated integration decision check.
+- A Ready candidate may enter main only with successful exact-candidate CI, an
+  applicable independent GO, no unresolved applicable refutation, and an
+  up-to-date base as required by branch protection.
+- Integration is serialized. If another merge moves the base and updating a PR
+  creates a new HEAD, obtain fresh CI and fresh independent review.
+- A late NO_GO on an already merged candidate becomes durable trunk-health
+  evidence. Determine whether it still affects current main, then fix-forward
+  or revert narrowly if needed.
+- If main is known unsuitable as a healthy base, ordinary integrations are
+  suspended until restoration. Machine work, diagnosis, review and independent
+  preparation may continue; once a credible repair path is durably engaged,
+  unrelated work need not idle.
+- Do not blindly retry failures. Rerun only after causal diagnosis or relevant
+  external-state change.
+- A future merge queue may optimize contention but V4 does not depend on one.
 
-Absence of a roadmap dependency is not by itself proof of independence. If in
-doubt, treat the atoms as dependent.
+## 5 — Human Boundary
 
-### WIP limit and checkpoints
+No machine lifecycle event notifies Emmanuel. There is no notification for CI,
+reviews, GO/NO_GO, merges, blocked sessions, session limits or relaunch.
 
-- Keep at most one active integration PR plus one preparatory context.
-- Work on only one context at a time.
-- Preempt reserve work only at a safe checkpoint: complete the current small
-  coherent unit, preserve the evidence/notes or branch state, then reconstruct
-  the priority path.
-- A closed yieldable reserve PR counts as the single preparatory context while
-  its branch is retained; do not start another reserve context around it.
-- A preparatory branch becomes stale when `develop` moves. Before publication
-  as a PR, reconstruct it on the current `develop`, recheck its assumptions and
-  rerun the relevant evidence.
-- Do not create a chain of parked branches. Finish, discard or clearly park the
-  single preparatory context before starting another one.
+The only notification class is TEST_REQUIRED. It is legitimate only when:
+1. information unavailable to the machine is indispensable to an important
+   decision/work path; or
+2. an exact artifact intended for publication is ready for real acceptance.
 
-## Living roadmap
+A Controller never sends ntfy directly. It records a checkpoint request through
+the trusted GitHub checkpoint mechanism. Before notifying, that mechanism must:
+- bind an exact Git SHA and a test profile/purpose whose deterministic preparation is explicitly implemented; unknown profiles fail closed;
+- run required deterministic evidence;
+- prepare every required artifact/support;
+- record provenance/digest and an executable procedure;
+- ensure no other unresolved TEST_REQUIRED exists;
+- deduplicate an already requested/resolved identical fingerprint.
 
-`docs/ROADMAP.md` is intentionally rolling and compact. Decompose only far
-enough to choose useful near-term work and expose real dependency gates.
+There is no human-test queue. While one request is open, additional real-world
+needs stay silently documented in their own issue/PR/evidence.
 
-- After a proof, experiment or technical discovery changes a dependency,
-  update the affected local subgraph before relying on the old dependency for
-  future scheduling.
-- Do not retain a dependency merely because it used to be listed when recent
-  proof refutes it, and do not remove one without explicit technical evidence
-  or justification.
-- Do not rewrite distant speculative work into many pseudo-tasks. Expand a
-  later convergence node only when it becomes relevant to scheduling.
-- Completed atoms may be condensed into a short baseline rather than retained
-  as a manual `DONE` status. Git history, PRs and issues preserve the evidence.
-- Roadmap maintenance must not create a competing integration PR. Include a
-  causally related roadmap adjustment in the current PR when appropriate;
-  otherwise reconcile it when the integration lane is next free.
+TEST_REQUIRED resolves only as PASS, FAIL or NOT_NEEDED. NOT_NEEDED is valid
+only when the result can no longer affect any relevant future decision. A late
+PASS/FAIL after NOT_NEEDED remains historical evidence for its original subject
+and does not reopen the request or become evidence for a newer state.
 
-## Productive session
+## Controller loop
 
-Treat a manual launch as one continuous productive session, but do not optimize
-for elapsed time.
+At launch and after every durable transition:
+1. resolve exact main, reread this contract/product vision/roadmap and rebuild
+   relevant PRs, exact HEADs, CI, reviews, issues and evidence;
+2. if main is known unhealthy, contribute to restoration first unless a credible
+   repair path is durably engaged and another independent action is more useful;
+3. prefer useful actions that reduce remaining engaged work: validate/integrate
+   a Ready PR this execution did not mutate, repair/complete existing work, or
+   close a dominated duplicate;
+4. otherwise progress existing useful work;
+5. otherwise start the highest-value product work not already sufficiently
+   covered, in an isolated short branch; publish a PR only once real durable work
+   exists, Draft if still mutable and Ready if complete;
+6. before terminating, resolve exact current main and rebuild relevant engaged
+   GitHub work one final time, then apply this Controller loop again. Terminate
+   silently only if that reconstruction exposes no useful eligible action.
+   Completion of the execution's current local work is never by itself a
+   termination condition.
 
-- Around 60 minutes, reconstruct state and perform a progress checkpoint;
-  elapsed time alone is not a reason to stop.
-- Material progress includes causal diagnosis, tested correction, a new head,
-  settled evidence, a research conclusion that changes the roadmap, or movement
-  toward a required proof.
-- Stop `BLOCKED` after about 30 minutes without material progress, or after the
-  same causal correction cycle repeats twice without new evidence.
-- A pending CI is not a reason to stop. If there is no useful independent atom,
-  wait and poll moderately. When readily available, use up to five comparable
-  non-cancelled gate durations for the first wait; use their median clamped to
-  2-8 minutes, falling back to 4 minutes. After that, never poll tightly.
-- If useful reserve work is active, prefer checking the waiting CI at safe
-  reserve checkpoints rather than interrupting useful work every minute.
-- Never retry a failure without identifying a cause. A targeted rerun is
-  acceptable only for a demonstrated external transient.
-- End only as `COMPLETED`, `READY_FOR_REVIEW`, `HUMAN_REQUIRED`, `BLOCKED` or
-  `SESSION_LIMIT`. Reserve `SESSION_LIMIT` for a real platform/runtime limit.
-
-## Worker
-
-1. If repairing an active priority PR, keep the same branch and smallest causal
-   repair boundary.
-2. Otherwise select the highest-priority executable roadmap atom and derive the
-   smallest complete vertical product slice, bounded research result or proof
-   that advances its parent issue.
-3. Define outcome, acceptance oracle, scope, non-goals and human boundary before
-   broadening implementation.
-4. Use targeted local evidence before publication. Product code reaches
-   `develop` through one Ready PR; research that requires no repository change
-   may conclude with evidence on the parent issue and roadmap reconciliation.
-5. Inspect the full diff and publish evidence without claiming more than the
-   oracle exercises.
-6. After every push, follow the critical-path scheduling rules while the exact
-   head CI Gate settles. Repair causal failures on the same priority PR; yield a
-   reserve PR only under the explicit higher-priority preemption rule above.
-7. When a head written by this launch is exact-head green and ready for an
-   independent verdict, stop `READY_FOR_REVIEW`. A fresh Reviewer-Integrator is
-   the fastest valid action; do not keep doing reserve work merely to prolong
-   the session.
-
-## Reviewer-Integrator
-
-1. Resolve the full head SHA, base `develop`, complete diff, linked outcome,
-   unresolved review threads and exact CI Gate result.
-2. Try to falsify the claim: hidden skip, stale result, weak assertion,
-   untested platform boundary, scope creep, safety regression or product
-   regression.
-3. Record one verdict for the full SHA:
-   - `GO <sha>` when the scoped outcome is proven;
-   - `NO_GO <sha>` with the smallest repair boundary;
-   - `VERDICT UNPROVEN <sha>` when required evidence cannot currently be
-     obtained.
-4. On `GO`, immediately reread the head and gate, then merge unchanged into
-   `develop`. Never merge to `main`. Reconstruct state and continue on the next
-   executable atom when useful.
-5. On `NO_GO`, stop after the native review; a fresh Worker launch is required.
-6. On `UNPROVEN`, do not fabricate a pass. If the next proof type is a
-   human/manual test, apply the Human-readiness gate below before publishing a
-   test handoff. If the gate is not satisfied, finish any Controller-executable
-   technical preparation first or report the evidence gap silently; do not ask
-   Emmanuel to perform a downstream test that is not yet executable. Otherwise
-   report the evidence gap without generating an ntfy event merely because
-   proof is missing.
-
-## Optional Copilot review probation
-
-Copilot Code Review is optional and Reviewer-Integrator-only. The existing
-probation covers at most three eligible technical PRs beginning 2 September
-2026; do not request a fourth without new human authorization.
-
-- First identify the principal risks independently and verify that no Copilot
-  review has already been requested for the PR.
-- Use at most one `copilot-pull-request-reviewer[bot]` request per PR, only for
-  substantive technical logic such as Windows/PowerShell paths and quoting,
-  browser/async JavaScript, C/C++, parsing/validation, Actions/scripts or
-  fail-closed error handling. Do not use it for governance, documentation,
-  translation or trivial declarative changes.
-- Continue independent review while waiting and do not wait more than about two
-  minutes. Never request a second Copilot review for the same PR.
-- Verify every finding yourself. Classify useful findings as `CONFIRMED`,
-  `FALSE_POSITIVE`, `NON_BLOCKING` or `STALE`. Copilot never supplies a verdict,
-  proof, code repair or merge authority.
+Pending CI is not a reason to notify or globally idle. Use its latency for
+independent useful work when available.
 
 ## CI and evidence
 
-- `CI Gate` is the only required PR decision check. Its conservative selector
-  runs both suites for workflow, shared or unknown changes.
-- Runtime-only and Webots/legacy suites may be selected independently. The full
-  suite runs on schedule and for promotion PRs to `main`.
-- A skipped selected suite is a failure. Unsupported evidence is `UNPROVEN`,
-  never a pass.
-- Network availability must not be an acceptance oracle. Dependencies used by
-  behavioral tests are pinned and prepared outside the assertion.
-- Use `PROVEN_BY_TEST`, `VERIFIED_BY_CI`, `VERIFIED_BY_PRIMARY_SOURCE`,
-  `VERIFIED_BY_CODE_INSPECTION`, `UNPROVEN`, `REFUTED`, `FALSE_POSITIVE` and
-  `REGRESSION` when useful.
+- CI proves only the automated properties its oracles exercise.
+- A red result should strongly refute an automated property; a green result
+  should strongly establish that scoped property, not full product acceptance.
+- Unsupported required evidence is never fabricated into a pass.
+- Network availability is not an acceptance oracle.
+- There is no Candidate Evidence pipeline. Automated evidence required for PR
+  integration belongs in CI Gate; real-world evidence belongs at the human
+  checkpoint boundary.
 
-## Human handoffs and ntfy
+## Roadmap
 
-GitHub remains authoritative. Notifications exist only when Emmanuel must do a
-real test/manual evidence step or must relaunch the Controller.
+docs/ROADMAP.md expresses product intent, priority, dependencies and exit
+criteria. GitHub provides live execution state. Roadmap prose never overrides
+newer GitHub evidence.
 
-### Human-readiness gate
-
-The fact that the next proof type is human does not mean the human action is
-ready. Before any `HUMAN_REQUIRED`, prove that the requested action is
-immediately executable:
-
-- identify the exact target revision, version or deployed state to be tested;
-- verify that every required support exists now and is accessible to Emmanuel:
-  artifact, ZIP, binary, firmware, dataset, report, deployed version or other
-  material/software prerequisite;
-- bind that support to the target with explicit provenance, or document a
-  technically justified equivalence when byte-for-byte/exact-SHA identity is
-  not the relevant property;
-- verify that the procedure and requested result can be performed without an
-  uncompleted technical preparation step.
-
-A green aggregate CI result is not proof that a human-test support exists. A
-skipped artifact-producing job, an expired or unavailable artifact, a stale
-binary/firmware, or an unverified deployment fails this gate. If the Controller
-can perform the missing build, package, deploy, export or provenance step, that
-work stays on the critical path and must happen before `HUMAN_REQUIRED`. If a
-separate human-only prerequisite is unavoidable, request only that prerequisite
-when it is itself action-ready; never request the downstream test prematurely.
-
-### Test notification
-
-Use `CONTROLLER_HANDOFF HUMAN_REQUIRED <sha>` only after the Human-readiness
-gate passes for one concrete human or physical test/manual evidence action.
-Describe exactly one test, the exact support/target to use, how to access it and
-the result to report. This handoff may be non-terminal: after publishing it,
-continue on one independent atom when useful.
-
-Do not repeat the same unresolved human test merely because `develop` later
-moves. Check existing issue/PR handoffs and human evidence first. If the target
-or required support changes, re-evaluate Human readiness before relying on an
-older handoff.
-
-### Relaunch notification
-
-A notification asking Emmanuel to relaunch is appropriate only when the current
-session must stop and a fresh Controller launch is the next useful action:
-
-- Worker exact-head green: PR comment first line
-  `CONTROLLER_HANDOFF READY_FOR_REVIEW <head-sha>`;
-- Reviewer `NO_GO`: native review first line `NO_GO <head-sha>`;
-- a genuine blockage for which a fresh Controller run is the next action:
-  `CONTROLLER_HANDOFF BLOCKED <sha>`;
-- real platform/runtime exhaustion:
-  `CONTROLLER_HANDOFF SESSION_LIMIT <sha>`.
-
-Do not emit these relaunch handoffs while useful work in the same launch can
-still advance the critical path. Do not duplicate an already-current handoff.
-
-`VERDICT UNPROVEN`, pending/settled CI, `GO`, merges, roadmap changes, context
-switches and silent `COMPLETED` do not trigger ntfy. If `UNPROVEN` requires a
-human test, use the separate `HUMAN_REQUIRED` test handoff only after Human
-readiness is proven.
-
-Mention `@djibian` only for a concrete human/manual test or a decision that must
-be made before the announced relaunch. A final report states the current
-outcome, PR/head when relevant, evidence, `develop` and `main`, any waiting human
-test, and the next actionable event.
+Do not modify this contract or checkpoint/notification mechanisms from an
+ordinary product PR unless the requested work specifically concerns governance.

@@ -1,28 +1,15 @@
-# WebeeBlocks — execution roadmap
+# WebeeBlocks — product roadmap
 
-This file is the rolling operational projection of the product work. It is not
-a second source of product truth and it is not a status database.
+This file is a compact, versioned projection of product intent, dependencies and
+exit criteria. It is not a workflow-state database.
 
 Authority order:
 
 `PRODUCT_VISION.md -> product issues -> ROADMAP.md -> Controller execution`
 
-GitHub PR/check/review facts describe the live state. Product issues define the
-outcomes and acceptance boundaries. This roadmap only decomposes enough of the
-near-term path to let the Controller choose useful work and expose real
-dependencies.
-
-## Scheduling principles
-
-1. Protect the current integration critical path.
-2. Use unavoidable CI or human-test waits for one independent reserve atom.
-3. Keep one active integration PR plus at most one preparatory context.
-4. A reserve PR yields at a safe checkpoint when new external evidence makes a
-   higher-priority atom executable; it may be closed without merge and retained
-   as the single preparatory context until revalidated on current `develop`.
-5. Never invent work merely to keep a Controller session active.
-6. Reconcile the affected local subgraph when new evidence changes a dependency.
-7. Expand distant work only when it becomes relevant to scheduling.
+GitHub commits, PRs, checks, reviews, issues and evidence describe live execution
+state. Do not duplicate agent/session state, WIP counters, ownership or queues
+here.
 
 ## Product priority
 
@@ -31,138 +18,136 @@ dependencies.
 3. **#79 — fully French student interface**
 4. **#66 — progressive pedagogical activity model**
 
-Reserve / research when higher-priority work is externally waiting:
+Research / later work:
 
 - **#70 — world altitude over surface discontinuities**
-- **#87 — Firefox direct `.wbb` parity**, deferred behind more valuable reserve
-  work unless new evidence changes that order.
-
-Convergence later:
-
+- **#87 — Firefox direct `.wbb` parity**
 - **#72 — teacher-authorized final real-flight activity**, gated by the
   pedagogical progression and proven physical backend/capabilities.
 
-## Current baseline
+Controllers choose useful work from the current GitHub state and this dependency
+graph under `AGENTS.md`. Parallelism and PR lifecycle are not encoded in this
+file.
 
-Recent #81 work has established the real low-end Windows classroom Chrome path:
-one-action launch, Robot Window `PRÊT`, offline operation, execution/debug,
-project files and usable performance. PR #128 addressed execution-state/UI
-coherence and PR #129 addressed student-facing invalid-program handling. The
-remaining #81 acceptance is therefore primarily real human revalidation and the
-formal stability gate, not another speculative packaging redesign.
+## Validated Windows and interface baseline
+
+The low-end classroom reference path has now passed both real Windows gates on
+the Dell OptiPlex 3050 with Windows 11, Chrome and Webots R2025a.
+
+### W1 — coherence: PASS
+
+Exact Windows artifact evidence on issue #81 established:
+
+- one-action offline startup to Robot Window `PRÊT`;
+- normal and step execution;
+- coherent workspace/file controls during execution;
+- student-facing unsupported-block handling with correction then immediate rerun;
+- Open, Save As, Save and reopening of the modified project.
+
+### W2 — 30-minute stability: PASS
+
+The same low-end reference PC completed 30 minutes offline with repeated normal
+run, step, Continue, reset, Open, Save As and Save cycles. Simulation, Blockly
+interaction and the Runtime remained usable without progressive memory,
+responsiveness or connection degradation. Exact artifact/run provenance and
+machine/browser/Webots facts remain on issue #81.
+
+W1/W2 therefore establish the current Chrome low-end baseline; they do not
+implicitly prove final Firefox/Edge parity or every future artifact.
+
+### Product findings discovered during W2
+
+These remain durable product work and do not invalidate W2 stability:
+
+1. a program without `atterrir` currently produces a generic technical error
+   instead of a student-correctable diagnostic;
+2. there is no user command to voluntarily interrupt an active flight;
+3. a purely visual movement of the Blockly program can trigger a false
+   `Programme modifié : Réinitialisez la simulation avant de relancer` warning
+   although program logic did not change.
+
+Controllers should turn these findings into the smallest useful product slices
+according to current #81/#80 priority and existing GitHub work.
 
 The discriminating weak-PC benchmark recorded in #80 has also settled the
 interface architecture: **option A, standard Webots GUI + automatically opened
 Robot Window, is the retained classroom path; option B must not be prototyped
 without new contradictory evidence**. Chrome was observed fluid on the reference
 low-end Windows PC, the Robot Window opened without window hunting, and offline
-relaunch worked after preparation/cache. Remaining cache, browser and packaging
-revalidation belongs to #81 rather than a heavier #80 architecture.
+relaunch worked after preparation/cache.
 
 Chrome remains the reference browser for the current product-development phase.
-Known Edge and Firefox gaps do not block the next Chrome-based product slices;
-Firefox final same-file semantics remain tracked by #87.
+Known Edge and Firefox gaps do not block Chrome-based product slices; Firefox
+final same-file semantics remain tracked by #87.
 
-#70 has also moved beyond source-only characterization. Props-off measurements
-on the real Crazyflie falsified both stock UKF gate extremes: gate 100 followed
-the 20 cm raised surface in estimated Z, while gate 20 rejected ToF but lost a
-strong Z reference and suspended Flow fusion, producing severe estimator drift.
+## Preserved #70 physical-research baseline
+
+#70 has moved beyond source-only characterization. Props-off measurements on the
+real Crazyflie falsified both stock UKF gate extremes:
+
+- gate 100 followed the 20 cm raised surface in estimated Z;
+- gate 20 rejected ToF but lost a strong Z reference and suspended Flow fusion,
+  producing severe estimator drift.
+
 A minimal local-surface-range Flow split then kept fresh local range available
 through rejection, but stock barometer authority did not hold world Z and a
-stronger barometer weighting diverged. The next Lab candidate is therefore the
-pre-registered scalar `surfaceOffset` discontinuity classifier with mandatory
-true-vertical-motion negative controls, not more gate/barometer tuning. Bitcraze
-stable firmware 2026.08 retains the same relevant UKF ToF/Flow semantics, so the
-prototype must be reconstructed and revalidated on that current source before
-new physical evidence is requested.
+stronger barometer weighting diverged.
+
+The next Lab candidate is therefore the pre-registered scalar `surfaceOffset`
+discontinuity classifier with mandatory true-vertical-motion negative controls,
+not more gate/barometer tuning. Bitcraze stable firmware 2026.08 retains the
+same relevant UKF ToF/Flow semantics, so the prototype must be reconstructed and
+revalidated on that current source before new physical evidence is requested.
 
 ## Near-term graph
-
-### W1 — real Chrome coherence retest
-
-- parent: #81
-- depends: integrated execution-state and invalid-program corrections plus a
-  Human-readiness gate proving an accessible current Windows release artifact
-  for the exact test target
-- action: human/manual test on the lowest-spec classroom Windows PC with that
-  proven current release artifact
-- readiness: before `HUMAN_REQUIRED`, verify the artifact exists now, is
-  downloadable/usable by Emmanuel, and has explicit provenance to the exact
-  target revision or a documented technically equivalent tree/state. A green
-  aggregate gate is insufficient: if `runtime-v2-windows-release` or any other
-  required artifact-producing job was skipped, or the artifact is expired,
-  stale or unavailable, W1 is not executable and technical preparation stays
-  on the critical path.
-- proof: one-action offline startup to `PRÊT`; normal and step execution;
-  coherent workspace/file controls during execution; student-facing invalid
-  program behavior; Open/Save/Save As; no regression of the previously proven
-  Chrome path
-- scheduling: human gate only after readiness passes. A ready-but-pending W1
-  must not globally idle the Controller; notify once, then use an independent
-  reserve atom when available. If the W1 result arrives while a reserve PR owns
-  the lane and makes #81 executable, apply the reserve-PR yield rule rather than
-  making #81 wait behind reserve integration.
-
-### W2 — formal 30-minute low-end Windows stability acceptance
-
-- parent: #81
-- depends: W1 passes
-- action: human/manual stability run on the same lowest-spec classroom PC
-- proof: 30 minutes offline with repeated run/reset/open/save cycles, usable
-  real-time simulation, fluid Blockly interaction and no progressive memory,
-  responsiveness or connection degradation; record the machine/browser/Webots
-  facts required by #81
 
 ### W3 — final Windows browser/deployment closure
 
 - parent: #81
-- depends: W2 and the later browser boundary selected by current product
-  priorities
+- depends: W1 PASS and W2 PASS (satisfied) plus the later browser boundary
+  selected by current product priorities
 - proof: #81 acceptance criteria can be closed without pretending unsupported
   browser behavior is proven
-- note: do not expand this node while Chrome-based product work remains the
-  validated development path.
+- note: do not expand this node while higher-value Chrome/product work remains.
 
 ### F1 — inventory remaining visible non-French student surfaces
 
 - parent: #79
 - depends: current Runtime v2 UI
-- action: bounded audit only while another integration PR owns the lane
-- proof: precise remaining student-visible strings/surfaces, separated from
-  internal identifiers and machine diagnostics, with no AST/backend translation
-- note: implementation becomes a normal vertical PR only when the integration
-  lane is free and after checking whether the retained option A presentation
-  surface changes the inventory.
+- action: bounded audit of remaining student-visible strings/surfaces, separated
+  from internal identifiers and machine diagnostics
+- proof: precise inventory with no AST/backend translation
+- boundary: implementation becomes normal small product PRs under current
+  `AGENTS.md`.
 
 ### B1 — formalize the declarative activity model and compact progression
 
 - parent: #66
 - depends: PRODUCT_VISION.md
 - action: bounded design/research of the smallest versionable activity/profile
-  schema and representative 8-12 activity progression
-- proof: a coherent model that preserves generic blocks and the
+  schema and representative 8–12 activity progression
+- proof: a coherent model preserving generic blocks and
   `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
-  pipeline without student progress state or a graphical activity studio
-- note: mass activity production may rely on the now-settled option A
-  presentation direction, but still waits for higher-priority product work.
+  without student progress state or a graphical activity studio
+- note: mass activity production may rely on the settled option A presentation
+  direction but still follows current product priority.
 
 ### X3 — reconstruct and validate the minimal surface-offset Lab prototype
 
 - parent: #70
 - depends: preserved S1/S2 physical evidence and current Bitcraze stable source
 - action: reconstruct the isolated S3 `surfaceOffset` candidate against
-  `crazyflie-firmware` 2026.08, preserving the proven local-range Flow split and
-  the pre-registered terrain/true-vertical-motion controls; validate build and
-  source assumptions before requesting any new props-off physical trace
+  `crazyflie-firmware` 2026.08, preserving the proven local-range Flow split
+  and the pre-registered terrain/true-vertical-motion controls
 - proof: fail-closed patch/applicator or equivalent isolated artifact against an
   exact upstream SHA, with static/build evidence and logs exposing local range,
   offset/classifier state, ToF/Flow diagnostics and the independent vertical
   cues required by S3-A/S3-B/S3-C
-- independence: preferred deep reserve work while #81 waits on W1; do not modify
-  Runtime v2, tune ToF/barometer against outcomes, or perform motorized flight
-- boundary: only after the reconstructed candidate is proven executable should
-  the existing props-off S3 terrain and negative-control matrix become a new
-  human evidence request.
+- safety boundary: do not modify product Runtime v2, tune ToF/barometer against
+  outcomes, or perform motorized real flight as an agent
+- real-world boundary: only after the reconstructed candidate is deterministically
+  executable can a supported human-checkpoint profile be added for a new
+  physical trace; until such preparation exists, the profile must fail closed.
 
 ## Later gates kept intentionally coarse
 
@@ -180,7 +165,7 @@ new physical evidence is requested.
 - depends: preserved native-bridge/browser evidence
 - proof direction: causal diagnosis first, implementation only after a viable
   same-file path is proven
-- keep deferred while higher-value critical/reserve work remains executable.
+- keep deferred while higher-value work remains executable.
 
 ### R — final real-flight activity
 
@@ -194,8 +179,10 @@ new physical evidence is requested.
 
 ## Roadmap maintenance rule
 
-A proof or experiment that changes a prerequisite changes this file before the
-old prerequisite is used to schedule later work. Keep the edit local: remove or
-rewrite the affected dependency, or add a newly demonstrated gate. Completed
-near-term atoms may be condensed into the baseline instead of accumulating
-manual status fields.
+When evidence changes a product prerequisite, update the smallest affected
+roadmap fragment before relying on the old dependency. Completed nodes may be
+condensed into the validated baseline because GitHub history preserves their
+evidence.
+
+Do not add manual READY/BLOCKED/DONE states, agent ownership, WIP counters,
+session handoffs or execution queues to this file.

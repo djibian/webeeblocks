@@ -1,0 +1,295 @@
+name: Human checkpoint
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact 40-character Git SHA to test.
+        required: true
+        type: string
+      test_profile:
+        description: Stable test profile identifier.
+        required: true
+        type: string
+      purpose:
+        description: checkpoint or release
+        required: true
+        type: choice
+        options: [checkpoint, release]
+      instructions:
+        description: Actionable human test procedure.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  validate:
+    name: Validate checkpoint request
+    if: >-
+      github.repository == 'djibian/webeeblocks' &&
+      github.actor == 'djibian' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'issue_comment' &&
+        startsWith(github.event.comment.body, 'CHECKPOINT_REQUEST ')))
+    runs-on: ubuntu-22.04
+    outputs:
+      target_sha: ${{ steps.request.outputs.target_sha }}
+      test_profile: ${{ steps.request.outputs.test_profile }}
+      purpose: ${{ steps.request.outputs.purpose }}
+      instructions_b64: ${{ steps.request.outputs.instructions_b64 }}
+      source_url: ${{ steps.request.outputs.source_url }}
+      artifact_name: ${{ steps.request.outputs.artifact_name }}
+    steps:
+      - name: Parse and validate request
+        id: request
+        env:
+          DISPATCH_SHA: ${{ inputs.target_sha }}
+          DISPATCH_PROFILE: ${{ inputs.test_profile }}
+          DISPATCH_PURPOSE: ${{ inputs.purpose }}
+          DISPATCH_INSTRUCTIONS: ${{ inputs.instructions }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, re, urllib.request
+          REPO = 'djibian/webeeblocks'
+          PATTERN = re.compile(r'CHECKPOINT_REQUEST ([0-9a-f]{40}) ([a-z0-9][a-z0-9._-]{0,63}) (checkpoint|release)')
+          PROFILES = {'windows-low-end': 'WebeeBlocks-Windows-R2025a'}
+
+          def get_commit(sha):
+              req = urllib.request.Request(
+                  f'https://api.github.com/repos/{REPO}/commits/{sha}',
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'User-Agent': 'webeeblocks-human-checkpoint',
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.load(response)
+
+          event_name = os.environ['GITHUB_EVENT_NAME']
+          with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as stream:
+              event = json.load(stream)
+
+          if event_name == 'workflow_dispatch':
+              sha = (os.environ.get('DISPATCH_SHA') or '').strip()
+              profile = (os.environ.get('DISPATCH_PROFILE') or '').strip()
+              purpose = (os.environ.get('DISPATCH_PURPOSE') or '').strip()
+              instructions = (os.environ.get('DISPATCH_INSTRUCTIONS') or '').strip()
+              source_url = f"https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          else:
+              comment = event.get('comment') or {}
+              issue = event.get('issue') or {}
+              body = (comment.get('body') or '').replace('\r\n', '\n')
+              first, _, remainder = body.partition('\n')
+              match = PATTERN.fullmatch(first.strip())
+              if not match:
+                  raise SystemExit('Malformed checkpoint request')
+              sha, profile, purpose = match.groups()
+              instructions = remainder.strip()
+              source_url = comment.get('html_url') or issue.get('html_url') or ''
+
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('Exact lowercase 40-character SHA required')
+          if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{0,63}', profile):
+              raise SystemExit('Invalid test profile')
+          if profile not in PROFILES:
+              raise SystemExit('Unknown test profile; add deterministic preparation before enabling it')
+          if purpose not in {'checkpoint', 'release'} or not instructions:
+              raise SystemExit('Invalid checkpoint request')
+          if get_commit(sha).get('sha') != sha:
+              raise SystemExit('Target does not resolve exactly')
+
+          encoded = base64.b64encode(instructions.encode()).decode()
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'target_sha={sha}\n')
+              output.write(f'test_profile={profile}\n')
+              output.write(f'purpose={purpose}\n')
+              output.write(f'instructions_b64={encoded}\n')
+              output.write(f'source_url={source_url}\n')
+              output.write(f'artifact_name={PROFILES[profile]}\n')
+          PY
+
+  runtime:
+    name: Full Runtime evidence
+    needs: validate
+    if: needs.validate.outputs.target_sha != ''
+    uses: ./.github/workflows/ci-runtime.yml
+    with:
+      target_sha: ${{ needs.validate.outputs.target_sha }}
+      full: true
+
+  webots:
+    name: Full Webots evidence
+    needs: validate
+    if: needs.validate.outputs.target_sha != ''
+    uses: ./.github/workflows/ci-webots.yml
+    with:
+      target_sha: ${{ needs.validate.outputs.target_sha }}
+
+  publish:
+    name: Publish one TEST_REQUIRED
+    needs: [validate, runtime, webots]
+    if: >-
+      needs.validate.outputs.target_sha != '' &&
+      needs.runtime.result == 'success' &&
+      needs.webots.result == 'success'
+    runs-on: ubuntu-22.04
+    concurrency:
+      group: webeeblocks-human-test-open
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+      TEST_PROFILE: ${{ needs.validate.outputs.test_profile }}
+      PURPOSE: ${{ needs.validate.outputs.purpose }}
+      INSTRUCTIONS_B64: ${{ needs.validate.outputs.instructions_b64 }}
+      SOURCE_URL: ${{ needs.validate.outputs.source_url }}
+      REQUIRED_ARTIFACT: ${{ needs.validate.outputs.artifact_name }}
+    steps:
+      - name: Deduplicate, persist and notify
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, re, urllib.request
+          REPO = 'djibian/webeeblocks'
+          API = f'https://api.github.com/repos/{REPO}'
+          sha = os.environ['TARGET_SHA']
+          profile = os.environ['TEST_PROFILE']
+          purpose = os.environ['PURPOSE']
+          required_artifact = os.environ['REQUIRED_ARTIFACT']
+          instructions = base64.b64decode(os.environ['INSTRUCTIONS_B64']).decode()
+          fingerprint = hashlib.sha256(f'{sha}|{profile}|{purpose}'.encode()).hexdigest()
+          marker = f'WEBEEBLOCKS_TEST_FINGERPRINT={fingerprint}'
+          open_marker = 'WEBEEBLOCKS_HUMAN_TEST_OPEN=1'
+
+          def api(method, url, payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(
+                  url, data=data, method=method,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'User-Agent': 'webeeblocks-human-checkpoint',
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.load(response)
+
+          def issues(state):
+              found = []
+              for page in range(1, 21):
+                  batch = api('GET', f'{API}/issues?state={state}&per_page=100&page={page}')
+                  if not isinstance(batch, list):
+                      raise RuntimeError('Unexpected issues API response')
+                  found.extend(batch)
+                  if len(batch) < 100:
+                      return found
+              raise RuntimeError('Issue pagination exceeded safety bound')
+
+          def canonical_test_issue(item):
+              body = item.get('body') or ''
+              user = item.get('user') or {}
+              return (
+                  'pull_request' not in item
+                  and (item.get('title') or '').startswith('[TEST_REQUIRED] ')
+                  and user.get('login') == 'github-actions[bot]'
+                  and open_marker in body
+                  and re.search(r'(?m)^WEBEEBLOCKS_TEST_FINGERPRINT=[0-9a-f]{64}$', body)
+              )
+
+          history = [item for item in issues('all') if canonical_test_issue(item)]
+          if any(marker in (item.get('body') or '') for item in history):
+              print('Fingerprint already recorded; no-op.')
+              raise SystemExit(0)
+          if any(item.get('state') == 'open' for item in history):
+              print('Human test already open; silent no-op.')
+              raise SystemExit(0)
+
+          artifacts = api(
+              'GET',
+              f"{API}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts?per_page=100",
+          ).get('artifacts', [])
+          matching = [a for a in artifacts if a.get('name') == required_artifact]
+          if len(matching) != 1:
+              raise SystemExit(f'Profile {profile} requires exactly one {required_artifact} artifact')
+          artifact = matching[0]
+          if artifact.get('expired'):
+              raise SystemExit('Required artifact is already expired')
+          digest = artifact.get('digest') or ''
+          if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+              raise SystemExit('Required artifact is missing a valid sha256 digest')
+          artifact_text = (
+              f"Artifact: {artifact['name']}\n"
+              f"Artifact id: {artifact['id']}\n"
+              f"Artifact digest: {digest}"
+          )
+
+          run_url = f"https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          body = '\n'.join([
+              open_marker,
+              marker,
+              '',
+              'TEST_REQUIRED',
+              '',
+              f'Target SHA: {sha}',
+              f'Profile: {profile}',
+              f'Purpose: {purpose}',
+              f'Evidence run: {run_url}',
+              artifact_text,
+              f"Request source: {os.environ.get('SOURCE_URL', '')}",
+              '',
+              'Procedure:',
+              instructions,
+              '',
+              'Resolution:',
+              'Comment PASS, FAIL with the observed phenomenon, or NOT_NEEDED only if this',
+              'result can no longer affect any relevant future decision. A Controller records',
+              'the result durably and closes this issue.',
+              '',
+          ])
+          created = api(
+              'POST',
+              f'{API}/issues',
+              {'title': f'[TEST_REQUIRED] {profile} {sha[:12]}', 'body': body},
+          )
+          issue_url = created['html_url']
+
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+          if not topic:
+              print(f'NTFY_TOPIC missing; authoritative request: {issue_url}')
+              raise SystemExit(0)
+          if any(character in topic for character in '/?#') or len(topic) > 256:
+              raise SystemExit('Invalid NTFY_TOPIC')
+
+          payload = {
+              'topic': topic,
+              'title': 'WebeeBlocks — TEST À EFFECTUER',
+              'message': (
+                  f'TEST_REQUIRED\nSHA: {sha}\nProfil: {profile}\nBut: {purpose}\n\n'
+                  f'{instructions[:1200]}'
+              ),
+              'priority': 5,
+              'tags': ['test_tube', 'robot'],
+              'click': issue_url,
+              'actions': [
+                  {'action': 'view', 'label': 'Ouvrir le test', 'url': issue_url, 'clear': True}
+              ],
+          }
+          req = urllib.request.Request(
+              'https://ntfy.sh/',
+              data=json.dumps(payload).encode(),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(req, timeout=20) as response:
+              if response.status >= 300:
+                  raise RuntimeError(f'ntfy returned HTTP {response.status}')
+              print(f'TEST_REQUIRED published: {issue_url}')
+          PY
