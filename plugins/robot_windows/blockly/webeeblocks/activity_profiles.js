@@ -152,7 +152,10 @@
     Object.keys(targets).forEach(function(blockType) {
       var definition = Blockly.Blocks[blockType];
       var originalInit = definition.init;
-      definition.init = function() { originalInit.call(this); applyBlock(this, true); };
+      definition.init = function() {
+        originalInit.call(this);
+        if (this.isInFlyout) applyBlock(this, true);
+      };
     });
 
     function applyWorkspace(workspace) {

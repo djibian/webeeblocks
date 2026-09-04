@@ -168,9 +168,9 @@ function proveProgressionProfilesAndFieldOptions() {
     webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }}
   };
   class FakeWorkspace {
-    constructor() { this.blocks = []; }
+    constructor(isFlyout) { this.blocks = []; this.isFlyout = !!isFlyout; }
     newBlock(type) {
-      const block = {type, fields:{}, getField(name) { return this.fields[name] || null; }, dispose() {}};
+      const block = {type, fields:{}, isInFlyout:this.isFlyout, getField(name) { return this.fields[name] || null; }, dispose() {}};
       definitions[type].init.call(block);
       this.blocks.push(block);
       return block;
@@ -183,20 +183,23 @@ function proveProgressionProfilesAndFieldOptions() {
   const controller = Profiles.createFieldOptionController(Activities.DOCUMENT, Activities.BLOCK_CATALOG, FakeBlockly);
 
   controller.setProfile(p1, null);
-  const workspace = new FakeWorkspace();
-  const move = workspace.newBlock('webeeblocks_v2_move');
-  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  const flyoutWorkspace = new FakeWorkspace(true);
+  const flyoutMove = flyoutWorkspace.newBlock('webeeblocks_v2_move');
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
 
-  controller.setProfile(p3, workspace);
-  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
-  const range = workspace.newBlock('webeeblocks_v2_range');
-  assert.deepStrictEqual(range.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
+  controller.setProfile(p3, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
+  const flyoutRange = flyoutWorkspace.newBlock('webeeblocks_v2_range');
+  assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
 
   const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
-  controller.setProfile(genericProfile, workspace);
-  assert.deepStrictEqual(move.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
-  assert.deepStrictEqual(range.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
+  controller.setProfile(genericProfile, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
+  assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
 
+  controller.setProfile(genericProfile, null);
+  const workspace = new FakeWorkspace(false);
+  const move = workspace.newBlock('webeeblocks_v2_move');
   move.getField('DIRECTION').setValue('left');
   controller.setProfile(p1, workspace);
   assert.strictEqual(move.getField('DIRECTION').getValue(), 'left',
