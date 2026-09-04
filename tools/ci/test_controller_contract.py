@@ -48,6 +48,7 @@ class ContractTests(unittest.TestCase):
         self.assertIn("only notification class is TEST_REQUIRED", self.contract)
         self.assertIn("There is no human-test queue", self.contract)
         self.assertIn("A Controller never sends ntfy directly", self.contract)
+        self.assertIn("unknown profiles fail closed", self.contract)
         combined = self.raw + self.development + self.notifications
         for obsolete in (
             "READY_FOR_REVIEW",
