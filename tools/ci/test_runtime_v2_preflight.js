@@ -153,8 +153,10 @@ function proveProgressionProfilesAndFieldOptions() {
     return {
       options: options.map(option => option.slice()),
       value: options[0][1],
+      setOptionsCalls: 0,
       getOptions() { return this.options.map(option => option.slice()); },
       setOptions(next) {
+        this.setOptionsCalls += 1;
         this.options = next.map(option => option.slice());
         this.value = this.options[0][1];
       },
@@ -186,6 +188,10 @@ function proveProgressionProfilesAndFieldOptions() {
   const flyoutWorkspace = new FakeWorkspace(true);
   const flyoutMove = flyoutWorkspace.newBlock('webeeblocks_v2_move');
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward']);
+  const callsBeforeNoop = flyoutMove.getField('DIRECTION').setOptionsCalls;
+  controller.applyWorkspace(flyoutWorkspace);
+  assert.strictEqual(flyoutMove.getField('DIRECTION').setOptionsCalls, callsBeforeNoop,
+    'reapplying an already-correct profile menu must be a Blockly no-op');
 
   controller.setProfile(p3, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
