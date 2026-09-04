@@ -47,11 +47,18 @@ move_start_replacement = r'''        target_yaw = yaw;
 if move_start_needle not in controller:
     raise SystemExit('Runtime v2 MOVE start instrumentation point not found')
 controller = controller.replace(move_start_needle, move_start_replacement, 1)
-move_end_needle = '''          trace_move(active_direction, active_value);
+move_end_needle = '''          if (command == CMD_MOVE)
+            trace_move(active_direction, active_value);
+          else
+            trace_vertical(active_direction, active_value);
           response_ok(active_id);'''
-move_end_replacement = r'''          trace_move(active_direction, active_value);
-          printf(PREFIX " CI MOVE_END %s x=%.9f y=%.9f yaw=%.9f\n", active_direction, x, y, yaw);
-          fflush(stdout);
+move_end_replacement = r'''          if (command == CMD_MOVE) {
+            trace_move(active_direction, active_value);
+            printf(PREFIX " CI MOVE_END %s x=%.9f y=%.9f yaw=%.9f\n", active_direction, x, y, yaw);
+            fflush(stdout);
+          } else {
+            trace_vertical(active_direction, active_value);
+          }
           response_ok(active_id);'''
 if move_end_needle not in controller:
     raise SystemExit('Runtime v2 MOVE end instrumentation point not found')
@@ -147,16 +154,12 @@ script = r'''
   try {
     await report('HARNESS_START', snapshot());
 
-    // The CI controller intentionally withholds READY until simulation time 12 s.
-    // Observe the actual product UI during that interval, with a valid program
-    // already loaded so an old eager runProgram() would generate AST/WWI traffic.
     await waitFor(() => window.workspace && window.runtimeBackend && window.robotWindow,
       'Runtime v2 pre-READY objects', 12000);
     if (String(Blockly.VERSION || '') !== '13.2.1')
       throw new Error('unexpected runtime Blockly.VERSION=' + String(Blockly.VERSION || ''));
     await report('BLOCKLY_VERSION', String(Blockly.VERSION));
 
-    // Observe the exact product WWI commands emitted by the shared interpreter.
     const originalRobotWindowSend = robotWindow.send.bind(robotWindow);
     robotWindow.send = function(message) {
       const text = String(message);
@@ -184,8 +187,6 @@ script = r'''
       throw new Error('UI not INITIALISATION before controller READY: ' + JSON.stringify(snapshot()));
     await report('PRE_READY', snapshot());
 
-    // Exercise both user click semantics and the public run function. Neither may
-    // compile an AST nor emit a product request while backend.ready is false.
     submit.click();
     await window.runProgram();
     await sleep(300);
@@ -207,9 +208,6 @@ script = r'''
     await waitFor(() => !submit.disabled && state.textContent === 'PRÊT', 'post-READY UI enable', 2000);
     await report('READY', snapshot());
 
-    // Discriminating fail-closed proof on the actual WWI backend object. Remove
-    // range(front) only from the backend contract and require ActivityContract to
-    // reject the valid workspace before the interpreter can emit TAKEOFF or RANGE.
     const originalCapabilities = runtimeBackend.capabilities;
     runtimeBackend.capabilities = Object.freeze({
       actions: originalCapabilities.actions.slice(),
