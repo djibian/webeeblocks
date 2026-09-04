@@ -272,6 +272,9 @@ script = r'''
 
     await runtimeBackend.resetSimulation();
     await runtimeBackend.takeoff(0.35);
+    await runtimeBackend.vertical('up', 0.15);
+    await runtimeBackend.vertical('down', 0.15);
+    await report('VERTICAL_MOVES_OK', {directions:['up','down']});
     await runtimeBackend.move('back', 0.20);
     await runtimeBackend.move('right', 0.20);
     await runtimeBackend.land();
