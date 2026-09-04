@@ -13,6 +13,48 @@ permissions:
   contents: read
 
 jobs:
+  s3-surface-offset-build:
+    if: ${{ hashFiles('experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh') != '' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Checkout pinned Crazyflie firmware 2026.08
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-firmware
+          ref: 54f31e243a0b28b67efef5ba20dbb6d9890a5478
+          path: .ci-crazyflie-firmware
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Validate exact source, apply S3 and build UKF-enabled cf2
+        run: bash experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh .ci-crazyflie-firmware
+
+      - name: Record deterministic S3 evidence
+        if: always()
+        run: |
+          mkdir -p ci-artifacts/s3-surface-offset
+          git -C .ci-crazyflie-firmware rev-parse HEAD > ci-artifacts/s3-surface-offset/upstream-sha.txt
+          git -C .ci-crazyflie-firmware diff -- src/modules/src/estimator/estimator_ukf.c > ci-artifacts/s3-surface-offset/estimator_ukf.patch || true
+          if [ -f .ci-crazyflie-firmware/build/cf2.elf ]; then
+            sha256sum .ci-crazyflie-firmware/build/cf2.elf > ci-artifacts/s3-surface-offset/cf2.elf.sha256
+          fi
+          if [ -f .ci-crazyflie-firmware/build/cf2.bin ]; then
+            sha256sum .ci-crazyflie-firmware/build/cf2.bin > ci-artifacts/s3-surface-offset/cf2.bin.sha256
+          fi
+
+      - name: Upload S3 build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-s3-surface-offset-2026-08
+          path: ci-artifacts/s3-surface-offset/
+          if-no-files-found: error
+
   crazyflie-ab-matrix:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
