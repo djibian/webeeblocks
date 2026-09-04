@@ -49,7 +49,8 @@ Draft and Ready are the collaboration states for a PR.
 - Draft means mutable work in progress.
 - Ready means an exact candidate frozen for validation.
 - CI, independent review and verdict are decision evidence only for the exact
-  Ready HEAD they name.
+  Ready HEAD they name. A Draft may run non-decision checks, but it must never
+  publish the required check context named `CI Gate`.
 - Any new HEAD is a new candidate. Before substantive mutation of a Ready PR,
   return it to Draft; after mutation, mark it Ready and obtain fresh CI/review.
 - An execution that mutated a PR cannot provide its independent review during
