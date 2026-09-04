@@ -89,6 +89,32 @@ class WorkflowTests(unittest.TestCase):
         for obsolete in ("READY_FOR_REVIEW", "SESSION_LIMIT", "RELANCE CONTRÔLEUR", "Candidate Evidence"):
             self.assertNotIn(obsolete, text)
 
+    def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
+        text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        blocks = text.split("          python3 - <<'PY'\n")[1:]
+        self.assertEqual(len(blocks), 2)
+        for block in blocks:
+            body, separator, _ = block.partition("          PY\n")
+            self.assertTrue(separator, "checkpoint Python heredoc is not closed at YAML scalar indentation")
+            for line in body.splitlines():
+                if line:
+                    self.assertTrue(
+                        line.startswith("          "),
+                        f"checkpoint Python escaped YAML scalar indentation: {line!r}",
+                    )
+
+    def test_checkpoint_ignores_spoofed_slot_and_fingerprint_markers(self):
+        text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        for required in (
+            "'pull_request' not in item",
+            ".startswith('[TEST_REQUIRED] ')",
+            "user.get('login') == 'github-actions[bot]'",
+            "WEBEEBLOCKS_TEST_FINGERPRINT=[0-9a-f]{64}$",
+            "history = [item for item in issues('all') if canonical_test_issue(item)]",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("history = issues('all')\n          if any(marker", text)
+
     def test_reusable_suites_receive_exact_target(self):
         ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         candidate = "${{ github.event.pull_request.head.sha || github.sha }}"

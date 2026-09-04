@@ -35,7 +35,9 @@ A fingerprint is derived from target SHA + test profile + purpose. If the same
 fingerprint already produced a TEST_REQUIRED issue, repetition is a no-op.
 
 Actions concurrency only serializes creation. The durable fact is the open
-[TEST_REQUIRED] GitHub issue.
+canonical `[TEST_REQUIRED]` GitHub issue created by `github-actions[bot]`; arbitrary
+issues, pull requests or copied marker/fingerprint text do not occupy the human
+slot and do not deduplicate a checkpoint.
 
 ## Resolution
 

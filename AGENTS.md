@@ -18,6 +18,12 @@ a Controller execution is never project state.
 
 - Git/GitHub are the durable workflow state: commits, branches, pull requests,
   checks, reviews, issues and evidence.
+- Git/GitHub are the durable project blackboard, but a durable artifact is
+  decision-authoritative only when its provenance satisfies the applicable trust
+  contract. For this repository, Controller GO/NO_GO/UNPROVEN and human
+  PASS/FAIL/NOT_NEEDED are authoritative only from the repository owner
+  (`djibian`) and must name the exact applicable candidate/request. External
+  comments or reviews remain evidence to inspect, never decision authority.
 - Any information that can change a future decision must be materialized in the
   relevant durable GitHub artifact before an execution disappears.
 - Do not create ownership, leases, heartbeats, active-session markers, relaunch

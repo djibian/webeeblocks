@@ -193,15 +193,22 @@ jobs:
                       return found
               raise RuntimeError('Issue pagination exceeded safety bound')
 
-          history = issues('all')
+          def canonical_test_issue(item):
+              body = item.get('body') or ''
+              user = item.get('user') or {}
+              return (
+                  'pull_request' not in item
+                  and (item.get('title') or '').startswith('[TEST_REQUIRED] ')
+                  and user.get('login') == 'github-actions[bot]'
+                  and open_marker in body
+                  and re.search(r'(?m)^WEBEEBLOCKS_TEST_FINGERPRINT=[0-9a-f]{64}$', body)
+              )
+
+          history = [item for item in issues('all') if canonical_test_issue(item)]
           if any(marker in (item.get('body') or '') for item in history):
               print('Fingerprint already recorded; no-op.')
               raise SystemExit(0)
-          if any(
-              open_marker in (item.get('body') or '')
-              for item in history
-              if item.get('state') == 'open'
-          ):
+          if any(item.get('state') == 'open' for item in history):
               print('Human test already open; silent no-op.')
               raise SystemExit(0)
 
@@ -225,26 +232,28 @@ jobs:
           )
 
           run_url = f"https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-          body = f'''{open_marker}
-{marker}
-
-TEST_REQUIRED
-
-Target SHA: {sha}
-Profile: {profile}
-Purpose: {purpose}
-Evidence run: {run_url}
-{artifact_text}
-Request source: {os.environ.get('SOURCE_URL', '')}
-
-Procedure:
-{instructions}
-
-Resolution:
-Comment PASS, FAIL with the observed phenomenon, or NOT_NEEDED only if this
-result can no longer affect any relevant future decision. A Controller records
-the result durably and closes this issue.
-'''
+          body = '\n'.join([
+              open_marker,
+              marker,
+              '',
+              'TEST_REQUIRED',
+              '',
+              f'Target SHA: {sha}',
+              f'Profile: {profile}',
+              f'Purpose: {purpose}',
+              f'Evidence run: {run_url}',
+              artifact_text,
+              f"Request source: {os.environ.get('SOURCE_URL', '')}",
+              '',
+              'Procedure:',
+              instructions,
+              '',
+              'Resolution:',
+              'Comment PASS, FAIL with the observed phenomenon, or NOT_NEEDED only if this',
+              'result can no longer affect any relevant future decision. A Controller records',
+              'the result durably and closes this issue.',
+              '',
+          ])
           created = api(
               'POST',
               f'{API}/issues',
