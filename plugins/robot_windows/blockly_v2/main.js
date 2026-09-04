@@ -6,6 +6,8 @@ var runtimeRunning = false;
 var runtimeTerminal = false;
 var runtimeResetPending = false;
 var runtimeDebug = null;
+var runtimeCompletedAstFingerprint = null;
+var runtimeCurrentAstFingerprint = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 
@@ -216,6 +218,8 @@ async function resetSimulation() {
     if (runtimeProfile !== profile)
       throw new Error('Simulation reset changed activity profile');
     runtimeTerminal = false;
+    runtimeCompletedAstFingerprint = null;
+    runtimeCurrentAstFingerprint = null;
     renderSensorValues({});
     renderVariables(null);
     if (runtimeDebug) runtimeDebug.finish();
@@ -249,14 +253,19 @@ async function runProgram() {
       maxSteps: 1000,
       hooks: hooks,
       onAst: function(ast) {
+        runtimeCurrentAstFingerprint = JSON.stringify(ast);
         window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
         runtimeRunning = true; setDebugControls(false); setRuntimeStatus('EN VOL', 'Programme réactif en cours');
       }
     });
-    runtimeRunning = false; runtimeTerminal = true; setRuntimeStatus('TERMINÉ', 'Programme exécuté');
+    runtimeRunning = false;
+    runtimeTerminal = true;
+    runtimeCompletedAstFingerprint = runtimeCurrentAstFingerprint;
+    setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
     runtimeRunning = false;
     runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
+    runtimeCompletedAstFingerprint = null;
     setRuntimeFailure(error);
   } finally {
     if (runtimeDebug) runtimeDebug.finish();
@@ -268,8 +277,15 @@ async function runProgram() {
 function onWorkspaceChange(event) {
   if (!event || event.type === Blockly.Events.UI) return;
   try { WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace); } catch (error) { console.error(error); }
-  if (!runtimeRunning && runtimeTerminal)
-    document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
+  if (!runtimeRunning && runtimeTerminal && runtimeCompletedAstFingerprint !== null) {
+    try {
+      var currentFingerprint = JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(workspace));
+      if (currentFingerprint !== runtimeCompletedAstFingerprint)
+        document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
+    } catch (error) {
+      document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
+    }
+  }
 }
 function wireWorkspaceControls() {
   document.getElementById('zoomIn').addEventListener('click', function() { workspace.zoomCenter(1); });
