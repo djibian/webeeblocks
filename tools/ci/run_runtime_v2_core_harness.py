@@ -9,7 +9,12 @@ def browser_binary():
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
 def main():
-    browser=browser_binary(); os.chdir(REPO_ROOT)
+    os.chdir(REPO_ROOT)
+    variable_test=subprocess.run(['node','tools/ci/test_runtime_v2_variables.js'],text=True,capture_output=True)
+    if variable_test.returncode:
+        print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
+    print(variable_test.stdout.strip())
+    browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
         process=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=5000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)

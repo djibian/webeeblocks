@@ -28,7 +28,7 @@
   function collectAst(ast) {
     var statements = new Set(), ranges = new Set(), moves = new Set(), verticals = new Set();
     function expression(node) { if (!node) return; if (node.kind === 'range') ranges.add(node.direction); if (node.left) expression(node.left); if (node.right) expression(node.right); }
-    function sequence(items) { (items || []).forEach(function(statement) { statements.add(statement.kind); if (statement.kind === 'move') moves.add(statement.direction); if (statement.kind === 'vertical') verticals.add(statement.direction); if (statement.kind === 'if') { expression(statement.condition); sequence(statement.then); sequence(statement.else); } else if (statement.kind === 'repeat') sequence(statement.body); }); }
+    function sequence(items) { (items || []).forEach(function(statement) { statements.add(statement.kind); if (statement.kind === 'move') moves.add(statement.direction); if (statement.kind === 'vertical') verticals.add(statement.direction); if (statement.kind === 'set_variable') expression(statement.value); if (statement.kind === 'if') { expression(statement.condition); sequence(statement.then); sequence(statement.else); } else if (statement.kind === 'repeat') sequence(statement.body); }); }
     sequence(ast && ast.program);
     return {statements: statements, ranges: ranges, moveDirections: moves, verticalDirections: verticals};
   }
@@ -56,17 +56,7 @@
     return true;
   }
   async function execute(profile, workspace, compiler, interpreter, backend, options) {
-    preflightWorkspace(profile, workspace);
-    applyFieldBounds(profile, workspace);
-    var ast = compiler.compileWorkspace(workspace);
-    var facts = preflightAst(profile, ast);
-    preflightBackend(profile, facts, backend);
-    var interpreterOptions = Object.assign({}, options || {});
-    var onAst = interpreterOptions.onAst;
-    delete interpreterOptions.onAst;
-    if (typeof onAst === 'function') onAst(ast);
-    await interpreter.run(ast, backend, interpreterOptions);
-    return ast;
+    preflightWorkspace(profile, workspace);applyFieldBounds(profile, workspace);var ast=compiler.compileWorkspace(workspace);var facts=preflightAst(profile, ast);preflightBackend(profile, facts, backend);var interpreterOptions=Object.assign({}, options || {});var onAst=interpreterOptions.onAst;delete interpreterOptions.onAst;if(typeof onAst==='function')onAst(ast);await interpreter.run(ast, backend, interpreterOptions);return ast;
   }
   return {preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute};
 });
