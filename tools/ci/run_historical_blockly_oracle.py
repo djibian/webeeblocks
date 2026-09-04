@@ -35,6 +35,7 @@ EXPECTED_PYTHON_SHA256 = {
 }
 PROGRAMS = tuple(EXPECTED_PYTHON_SHA256)
 RESULT_RE = re.compile(r'<pre id="oracle-result">(.*?)</pre>', re.DOTALL)
+BROWSER_TIMEOUT_SECONDS = 60
 
 
 class ScriptParser(HTMLParser):
@@ -126,7 +127,7 @@ def run_browser(harness_path: Path) -> dict[str, object]:
     )
     timed_out = False
     try:
-        stdout, stderr = process.communicate(timeout=30)
+        stdout, stderr = process.communicate(timeout=BROWSER_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         # Some hosted Chrome builds can finish --dump-dom yet linger during
         # browser shutdown. Kill the browser, collect its already-produced DOM,
