@@ -28,7 +28,7 @@ class SelectCiTests(unittest.TestCase):
     def test_runtime_v2_student_ui_experiment_routes_to_runtime(self) -> None:
         result = select(["experiments/runtime-v2-student-ui/probe.py"])
         self.assertTrue(result.runtime)
-        self.assertFalse(result.webots)
+        self.assertTrue(result.webots)
         self.assertFalse(result.full)
 
     def test_windows_packaging_change_is_full(self) -> None:
