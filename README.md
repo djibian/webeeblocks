@@ -10,27 +10,64 @@ reuse the same backend-neutral program with a real Crazyflie.
 - Webots R2025a;
 - Blockly 13.2.1 with the Zelos renderer;
 - French student interface;
-- explicit Open, Save and Save As for portable .wbb projects;
+- explicit Open, Save and Save As for portable `.wbb` projects;
 - a backend-neutral AST, preflight validation and shared interpreter;
 - Webots simulation as the normal classroom execution environment;
 - no student accounts, progress tracking, grading engine or automatic hints.
 
-The durable product constraints are in docs/PRODUCT_VISION.md.
+The durable product constraints are in
+[`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md).
+
+## Source layout
+
+| Path | Contents |
+| --- | --- |
+| `plugins/robot_windows/blockly_v2/` | current Blockly 13.2.1 Robot Window UI |
+| `plugins/robot_windows/blockly/webeeblocks/` | AST, interpreter and product contracts |
+| `controllers/crazyflie_runtime_v2/` | shared Webots Runtime controller |
+| `worlds/` | Webots activities and regression worlds |
+| `tools/ci/` | executable acceptance oracles and preparation tools |
+| `experiments/` | explicitly non-product research artifacts |
+
+The historical Blockly/Runtime implementation is retained temporarily for
+regression evidence. Its runtime files remain active; its upstream development
+demos, tests and tooling are preserved by the
+`v3-archive/pre-v3-webots-ci` tag instead of the active tree.
+
+## Prepare the current Runtime
+
+Linux:
+
+```bash
+./tools/prepare_runtime_v2.sh
+```
+
+Windows PowerShell:
+
+```powershell
+./tools/prepare_runtime_v2.ps1
+```
+
+These developer commands prepare the pinned Blockly browser distribution used
+by the Robot Window. Students do not run Node.js or npm. The Windows classroom
+artifact additionally contains the compiled controller, local R2025a Robot
+Window bridge, offline Crazyflie assets, one-click launcher and integrity
+manifest. See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 ## Development
 
 WebeeBlocks V4 uses trunk-based development:
 
-- main is the single healthy integration trunk and default branch;
+- `main` is the single healthy integration trunk and default branch;
 - Controller executions are stateless, interchangeable and may run in parallel
   from isolated worktrees/branches;
 - Draft PRs are mutable; Ready PRs are exact frozen candidates;
-- CI Gate plus an independent exact-candidate review protect integration;
+- `CI Gate` plus an independent exact-candidate review protect integration;
 - no agent lifecycle event notifies Emmanuel;
-- real-world validation is rare and arrives only as one prepared TEST_REQUIRED
-  checkpoint.
+- real-world validation is rare and arrives only as one prepared
+  `TEST_REQUIRED` checkpoint.
 
-See docs/DEVELOPMENT.md and AGENTS.md.
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) and [`AGENTS.md`](AGENTS.md).
 
 ## License
 
