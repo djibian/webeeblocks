@@ -62,9 +62,9 @@ class ContractTests(unittest.TestCase):
             self.assertNotIn(obsolete, combined)
 
     def test_roadmap_records_w1_w2_and_findings(self):
-        self.assertIn("W1 coherence: PASS", self.roadmap)
-        self.assertIn("W2 stability: PASS", self.roadmap)
-        self.assertIn("without atterrir", self.roadmap)
+        self.assertIn("W1 — coherence: PASS", self.roadmap)
+        self.assertIn("W2 — 30-minute stability: PASS", self.roadmap)
+        self.assertIn("without `atterrir`", self.roadmap)
         self.assertIn("voluntarily interrupt", self.roadmap)
         self.assertIn("purely visual movement", self.roadmap)
 
