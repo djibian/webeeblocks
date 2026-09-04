@@ -32,6 +32,7 @@ jobs:
       - name: Verify selector and repository contracts
         run: |
           python3 tools/ci/test_select_ci.py
+          python3 tools/ci/test_select_s3_build.py
           python3 tools/ci/test_ci_gate.py
           python3 tools/ci/test_workflow_contract.py
           python3 tools/ci/test_localize_webots_world.py

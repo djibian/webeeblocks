@@ -144,6 +144,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(
             s3.count("always() && steps.s3-scope.outputs.run == 'true'"), 2
         )
+        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("python3 tools/ci/test_select_s3_build.py", orchestrator)
         selector = (ROOT / "tools" / "ci" / "select_s3_build.py").read_text(
             encoding="utf-8"
         )
