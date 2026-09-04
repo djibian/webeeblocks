@@ -24,15 +24,17 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
     make cf2_defconfig
-    cat > /tmp/s3-ukf-only.config <<'EOF'
-# CONFIG_ESTIMATOR_KALMAN_ENABLE is not set
+    # Flow Deck support selects ESTIMATOR_KALMAN_ENABLE as compiled support.
+    # Keep that stock dependency; select UKF as the default estimator instead.
+    cat > /tmp/s3-ukf-default.config <<'EOF'
 # CONFIG_ESTIMATOR_AUTO_SELECT is not set
 CONFIG_ESTIMATOR_UKF_ENABLE=y
 CONFIG_ESTIMATOR_UKF=y
 EOF
-    ./scripts/kconfig/merge_config.sh -O build -m build/.config /tmp/s3-ukf-only.config
+    ./scripts/kconfig/merge_config.sh -O build -m build/.config /tmp/s3-ukf-default.config
     make olddefconfig
-    grep -q "^# CONFIG_ESTIMATOR_KALMAN_ENABLE is not set$" build/.config
+    grep -q "^CONFIG_DECK_FLOW=y$" build/.config
+    grep -q "^CONFIG_ESTIMATOR_KALMAN_ENABLE=y$" build/.config
     grep -q "^# CONFIG_ESTIMATOR_AUTO_SELECT is not set$" build/.config
     grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" build/.config
     grep -q "^CONFIG_ESTIMATOR_UKF=y$" build/.config
