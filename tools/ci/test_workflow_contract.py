@@ -80,6 +80,83 @@ class WorkflowTests(unittest.TestCase):
             external = suite.count("repository: cyberbotics/webots")
             self.assertEqual(suite.count(target), all_checkouts - external, name)
 
+    def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
+        orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        self.assertIn("full: ${{ needs.select.outputs.full == 'true' }}", orchestrator)
+        release = runtime.split("\n  runtime-v2-windows-release:\n", 1)[1]
+        self.assertIn("github.event_name != 'pull_request' || inputs.full", release)
+        self.assertIn("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b", release)
+        self.assertIn(
+            "9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7",
+            release,
+        )
+        self.assertIn("test_windows_classroom_release.ps1", release)
+
+    def test_webots_projects_checkout_is_commit_pinned(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        self.assertNotIn("ref: R2025a", suite)
+        self.assertEqual(
+            suite.count("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"),
+            5,
+        )
+
+    def test_encoders_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        encoders = suite.split("\n  encoders-historical:\n", 1)[1].split(
+            "\n  gyro-gps-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical encoder world", encoders)
+        self.assertIn(
+            "/workspace/worlds/.ci-boxChallenge-encoders-local.wbt",
+            encoders,
+        )
+        self.assertIn("--network none", encoders)
+        self.assertIn("/usr/local/webots/projects:ro", encoders)
+
+    def test_gyro_gps_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        gyro = suite.split("\n  gyro-gps-historical:\n", 1)[1].split(
+            "\n  light-sensor-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical Gyro GPS world", gyro)
+        self.assertIn("/workspace/worlds/.ci-boxChallenge-gyro-gps-local.wbt", gyro)
+        self.assertIn("--network none", gyro)
+        self.assertIn("/usr/local/webots/projects:ro", gyro)
+
+    def test_sensor_probing_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        sensor = suite.split("\n  sensor-probing-historical:\n", 1)[1].split(
+            "\n  robot-window-roundtrip:\n", 1
+        )[0]
+        self.assertIn(
+            "Prepare offline historical sensor-probing world",
+            sensor,
+        )
+        self.assertIn(
+            "/workspace/worlds/.ci-empty-sensor-probing-local.wbt",
+            sensor,
+        )
+        self.assertIn("--network none", sensor)
+        self.assertIn("/usr/local/webots/projects:ro", sensor)
+
+    def test_webots_smoke_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        smoke = suite.split("\n  webots-smoke:\n", 1)[1]
+        self.assertIn("Prepare offline smoke worlds", smoke)
+        self.assertIn("Checkout pinned Webots R2025a projects", smoke)
+        self.assertIn("/workspace/worlds/.ci-empty-local.wbt", smoke)
+        self.assertIn("/workspace/worlds/.ci-boxChallenge-local.wbt", smoke)
+        self.assertEqual(smoke.count("--network none"), 3)
+        self.assertEqual(smoke.count("/usr/local/webots/projects:ro"), 3)
+        restart = (
+            ROOT / "controllers" / "ci_restart_supervisor" / "restart_smoke.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'WORLD = ROOT / "worlds" / ".ci-empty-local.wbt"',
+            restart,
+        )
+
     def test_no_post_merge_push_trigger(self):
         for path in WORKFLOWS.glob("*.yml"):
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
