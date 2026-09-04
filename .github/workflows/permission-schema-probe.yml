@@ -1,0 +1,12 @@
+name: Permission schema probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  issues: write
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo ok
