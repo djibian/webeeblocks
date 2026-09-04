@@ -9,6 +9,7 @@ const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeb
 const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'));
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
+const ExecutionObserver = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/execution_observer.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 
 Blockly.defineBlocksWithJsonArray([
@@ -61,8 +62,23 @@ async function roundTrip(workspace, expectedAst){const p={value:profile()},trans
   const normal=await execute(ast,{}),variableEvents=[];
   const observed=await execute(ast,{onNode:async()=>{},beforeStep:async()=>{},onSensor:async()=>{},onVariables:async detail=>{variableEvents.push(detail.values);}});
   assert.deepStrictEqual(observed.log,normal.log,'debug hooks changed normal execution semantics');assert.deepStrictEqual(normal.result.variables,{'distance mémorisée':0.4});assert.deepStrictEqual(variableEvents.at(-1),{'distance mémorisée':0.4});assert(normal.log.some(item=>item[0]==='move'&&item[1]==='left'),'stored value was not reused in decision');
+
+  const observerVariableEvents=[],activeEvents=[];
+  const observer=ExecutionObserver.create(workspace,{
+    onActive:detail=>{activeEvents.push({blockId:detail.blockId,kind:detail.node&&detail.node.kind});},
+    onVariables:detail=>{observerVariableEvents.push(detail.values);}
+  });
+  const observerHooks=observer.begin(true);
+  observer.continueRun();
+  const throughObserver=await execute(ast,observerHooks);
+  observer.finish();
+  const setBlock=workspace.getAllBlocks(false).find(block=>block.type==='variables_set');
+  assert.deepStrictEqual(throughObserver.log,normal.log,'execution observer changed variable-program semantics');
+  assert.deepStrictEqual(observerVariableEvents.at(-1),{'distance mémorisée':0.4},'execution observer did not surface current variable values');
+  assert(activeEvents.some(detail=>detail.kind==='set_variable'&&detail.blockId===setBlock.id),'set-variable interpreter event did not map back to its real Blockly block');
+
   let backendActions=0;await assert.rejects(Interpreter.run({version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'if',condition:{kind:'variable_get',variable:{id:'x',name:'x'}},then:[],else:[]},{kind:'land'}]},{async takeoff(){backendActions++;},async land(){backendActions++;}}),/read before assignment/);assert.strictEqual(backendActions,0,'uninitialized variable was not rejected before backend action');
   await assert.rejects(Interpreter.run(ast,backend([]),{maxSteps:1}),/execution budget exceeded/);
   await roundTrip(workspace,ast);
-  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> observability -> project round-trip');
+  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip');
 })().catch(error=>{console.error(error);process.exit(1);});
