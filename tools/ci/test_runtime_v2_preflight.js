@@ -6,6 +6,7 @@ const SemanticAst = require('../../plugins/robot_windows/blockly/webeeblocks/sem
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
 const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
 const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/activities.js');
+const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 
 let actions = 0;
 const backend = {
@@ -125,25 +126,46 @@ function proveProgressionProfilesAndFieldOptions() {
   const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
   const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-repeat-v1', Activities.BLOCK_CATALOG);
   const p3 = Profiles.resolveById(Activities.DOCUMENT, 'progression-reactive-v1', Activities.BLOCK_CATALOG);
+  const p4 = Profiles.resolveById(Activities.DOCUMENT, 'progression-combined-decisions-v1', Activities.BLOCK_CATALOG);
 
   assert.strictEqual(p1.world, p2.world);
   assert.strictEqual(p2.world, p3.world);
+  assert.strictEqual(p3.world, p4.world);
   assert(p1.toolbox.every(type => p2.toolbox.includes(type)), 'profile 2 must be cumulative over profile 1');
   assert(p2.toolbox.every(type => p3.toolbox.includes(type)), 'profile 3 must be cumulative over profile 2');
+  assert(p3.toolbox.every(type => p4.toolbox.includes(type)), 'profile 4 must be cumulative over profile 3');
   assert(!p1.toolbox.includes('controls_repeat_ext'));
   assert(p2.toolbox.includes('controls_repeat_ext'));
   assert(!p2.toolbox.includes('webeeblocks_v2_range'));
   assert(p3.toolbox.includes('webeeblocks_v2_range'));
   assert(p3.toolbox.includes('controls_if'));
+  assert(!p3.toolbox.includes('logic_operation'));
+  assert(p4.toolbox.includes('logic_operation'));
   assert(!p1.hardware.includes('multi-ranger-deck'));
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
   assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
+  assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
+  assert.deepStrictEqual(p4.runtime.rangeDirections, ['front','left','right']);
   assert.deepStrictEqual(p2.parameterBounds.math_number.NUM, {min:1,max:10,step:1});
   assert.deepStrictEqual(p3.parameterBounds.math_number.NUM, p2.parameterBounds.math_number.NUM,
     'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
+  assert.deepStrictEqual(p4.parameterBounds.math_number.NUM, p3.parameterBounds.math_number.NUM,
+    'profile 4 must preserve the cumulative repeat-count numeric bound');
+  const currentWebotsCapabilities = new WwiBackend({send() {}}, {timeoutMs:50}).capabilities;
+  const backendActionKinds = ['takeoff','move','vertical','turn','wait','set_speed','land'];
+  const requiredBackendActions = p4.runtime.allowedStatementKinds.filter(kind => backendActionKinds.includes(kind));
+  assert(requiredBackendActions.every(kind => currentWebotsCapabilities.actions.includes(kind)),
+    'profile 4 must not expose an unproven Webots backend action');
+  assert(p4.runtime.rangeDirections.every(direction => currentWebotsCapabilities.rangeDirections.includes(direction)),
+    'profile 4 must not expose an unproven Webots range direction');
+  assert(p4.runtime.moveDirections.every(direction => currentWebotsCapabilities.moveDirections.includes(direction)),
+    'profile 4 must not expose an unproven Webots move direction');
+  assert(p4.runtime.verticalDirections.every(direction => currentWebotsCapabilities.verticalDirections.includes(direction)),
+    'profile 4 must not expose an unproven Webots vertical direction');
 
   const duplicate = JSON.parse(JSON.stringify(p1));
   duplicate.fieldOptions.webeeblocks_v2_move.DIRECTION = ['forward','forward'];
@@ -313,7 +335,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   await proveUnavailableBackendCapabilityIsStudentCorrectable();
 
-  console.log('PASS Runtime v2 preflight + 66-A cumulative profiles/field options/fail-closed hidden capability checks');
+  console.log('PASS Runtime v2 preflight + 66-B cumulative combined-decision profile/current-Webots capability/fail-closed checks');
 })().catch(error => {
   console.error(error);
   process.exit(1);
