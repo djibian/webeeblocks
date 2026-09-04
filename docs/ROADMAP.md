@@ -1,91 +1,188 @@
-# WebeeBlocks roadmap
+# WebeeBlocks — product roadmap
 
-PRODUCT_VISION -> product issues -> ROADMAP -> Controller execution
+This file is a compact, versioned projection of product intent, dependencies and
+exit criteria. It is not a workflow-state database.
 
-This file expresses product intent, dependencies, priority and exit criteria.
-GitHub contains live branches, PRs, HEADs, CI, reviews and evidence and is
-authoritative over stale prose here.
+Authority order:
 
-## Priority order
+`PRODUCT_VISION.md -> product issues -> ROADMAP.md -> Controller execution`
 
-1. #81 — Windows classroom deployment
-2. #80 — one-click unified classroom interface
-3. #79 — fully French student interface
-4. #66 — progressive pedagogical activity model
+GitHub commits, PRs, checks, reviews, issues and evidence describe live execution
+state. Do not duplicate agent/session state, WIP counters, ownership or queues
+here.
 
-Research/later work:
-- #70 — world altitude over surface discontinuities
-- #87 — Firefox direct .wbb parity
-- #72 — teacher-authorized final real-flight activity
+## Product priority
 
-## Validated Windows baseline
+1. **#81 — Windows classroom deployment**
+2. **#80 — one-click unified classroom interface**
+3. **#79 — fully French student interface**
+4. **#66 — progressive pedagogical activity model**
 
-Reference path: Dell OptiPlex 3050, Windows 11, Chrome, Webots R2025a.
+Research / later work:
 
-- W1 coherence: PASS — exact Windows artifact, offline one-action startup to
-  PRÊT, normal/step execution, coherent execution-state controls,
-  student-facing unsupported-block handling and Open/Save/Save As.
-- W2 stability: PASS — 30 minutes offline with repeated run, step, Continue,
-  reset, Open, Save As and Save cycles; simulation/Blockly/runtime remained
-  fluid with no progressive degradation.
+- **#70 — world altitude over surface discontinuities**
+- **#87 — Firefox direct `.wbb` parity**
+- **#72 — teacher-authorized final real-flight activity**, gated by the
+  pedagogical progression and proven physical backend/capabilities.
 
-Exact W1/W2 evidence and artifact provenance are preserved on issue #81.
+Controllers choose useful work from the current GitHub state and this dependency
+graph under `AGENTS.md`. Parallelism and PR lifecycle are not encoded in this
+file.
+
+## Validated Windows and interface baseline
+
+The low-end classroom reference path has now passed both real Windows gates on
+the Dell OptiPlex 3050 with Windows 11, Chrome and Webots R2025a.
+
+### W1 — coherence: PASS
+
+Exact Windows artifact evidence on issue #81 established:
+
+- one-action offline startup to Robot Window `PRÊT`;
+- normal and step execution;
+- coherent workspace/file controls during execution;
+- student-facing unsupported-block handling with correction then immediate rerun;
+- Open, Save As, Save and reopening of the modified project.
+
+### W2 — 30-minute stability: PASS
+
+The same low-end reference PC completed 30 minutes offline with repeated normal
+run, step, Continue, reset, Open, Save As and Save cycles. Simulation, Blockly
+interaction and the Runtime remained usable without progressive memory,
+responsiveness or connection degradation. Exact artifact/run provenance and
+machine/browser/Webots facts remain on issue #81.
+
+W1/W2 therefore establish the current Chrome low-end baseline; they do not
+implicitly prove final Firefox/Edge parity or every future artifact.
 
 ### Product findings discovered during W2
 
-These are durable product work and do not invalidate W2 stability:
-1. a program without atterrir currently produces a generic technical error
+These remain durable product work and do not invalidate W2 stability:
+
+1. a program without `atterrir` currently produces a generic technical error
    instead of a student-correctable diagnostic;
 2. there is no user command to voluntarily interrupt an active flight;
 3. a purely visual movement of the Blockly program can trigger a false
-   "Programme modifié : Réinitialisez la simulation avant de relancer" warning
+   `Programme modifié : Réinitialisez la simulation avant de relancer` warning
    although program logic did not change.
 
-Controllers should turn these into the smallest useful product slices according
-to current #81/#80 priority and existing GitHub work.
+Controllers should turn these findings into the smallest useful product slices
+according to current #81/#80 priority and existing GitHub work.
 
-Chrome remains the reference browser for current product development. Known Edge
-and Firefox gaps do not block Chrome-based slices; Firefox same-file semantics
-remain tracked by #87.
+The discriminating weak-PC benchmark recorded in #80 has also settled the
+interface architecture: **option A, standard Webots GUI + automatically opened
+Robot Window, is the retained classroom path; option B must not be prototyped
+without new contradictory evidence**. Chrome was observed fluid on the reference
+low-end Windows PC, the Robot Window opened without window hunting, and offline
+relaunch worked after preparation/cache.
 
-## Near-term nodes
+Chrome remains the reference browser for the current product-development phase.
+Known Edge and Firefox gaps do not block Chrome-based product slices; Firefox
+final same-file semantics remain tracked by #87.
+
+## Preserved #70 physical-research baseline
+
+#70 has moved beyond source-only characterization. Props-off measurements on the
+real Crazyflie falsified both stock UKF gate extremes:
+
+- gate 100 followed the 20 cm raised surface in estimated Z;
+- gate 20 rejected ToF but lost a strong Z reference and suspended Flow fusion,
+  producing severe estimator drift.
+
+A minimal local-surface-range Flow split then kept fresh local range available
+through rejection, but stock barometer authority did not hold world Z and a
+stronger barometer weighting diverged.
+
+The next Lab candidate is therefore the pre-registered scalar `surfaceOffset`
+discontinuity classifier with mandatory true-vertical-motion negative controls,
+not more gate/barometer tuning. Bitcraze stable firmware 2026.08 retains the
+same relevant UKF ToF/Flow semantics, so the prototype must be reconstructed and
+revalidated on that current source before new physical evidence is requested.
+
+## Near-term graph
 
 ### W3 — final Windows browser/deployment closure
+
 - parent: #81
 - depends: W1 PASS and W2 PASS (satisfied) plus the later browser boundary
-- proof: close #81 acceptance without claiming unsupported browser behavior.
+  selected by current product priorities
+- proof: #81 acceptance criteria can be closed without pretending unsupported
+  browser behavior is proven
+- note: do not expand this node while higher-value Chrome/product work remains.
 
-### F1 — remaining visible non-French student surfaces
+### F1 — inventory remaining visible non-French student surfaces
+
 - parent: #79
-- proof: bounded inventory separating student-visible strings from internal
-  identifiers/diagnostics.
+- depends: current Runtime v2 UI
+- action: bounded audit of remaining student-visible strings/surfaces, separated
+  from internal identifiers and machine diagnostics
+- proof: precise inventory with no AST/backend translation
+- boundary: implementation becomes normal small product PRs under current
+  `AGENTS.md`.
 
-### B1 — declarative activity model and compact progression
+### B1 — formalize the declarative activity model and compact progression
+
 - parent: #66
-- proof: smallest versionable activity/profile schema and representative 8–12
-  activity progression preserving the backend-neutral pipeline.
+- depends: PRODUCT_VISION.md
+- action: bounded design/research of the smallest versionable activity/profile
+  schema and representative 8–12 activity progression
+- proof: a coherent model preserving generic blocks and
+  `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
+  without student progress state or a graphical activity studio
+- note: mass activity production may rely on the settled option A presentation
+  direction but still follows current product priority.
 
-### X3 — surface-offset Lab prototype
+### X3 — reconstruct and validate the minimal surface-offset Lab prototype
+
 - parent: #70
 - depends: preserved S1/S2 physical evidence and current Bitcraze stable source
-- proof: isolated exact-upstream candidate with build/static diagnostics before
-  any new physical trace is requested.
+- action: reconstruct the isolated S3 `surfaceOffset` candidate against
+  `crazyflie-firmware` 2026.08, preserving the proven local-range Flow split
+  and the pre-registered terrain/true-vertical-motion controls
+- proof: fail-closed patch/applicator or equivalent isolated artifact against an
+  exact upstream SHA, with static/build evidence and logs exposing local range,
+  offset/classifier state, ToF/Flow diagnostics and the independent vertical
+  cues required by S3-A/S3-B/S3-C
+- safety boundary: do not modify product Runtime v2, tune ToF/barometer against
+  outcomes, or perform motorized real flight as an agent
+- real-world boundary: only after the reconstructed candidate is deterministically
+  executable can a supported human-checkpoint profile be added for a new
+  physical trace; until such preparation exists, the profile must fail closed.
 
-## Later gates
+## Later gates kept intentionally coarse
 
 ### P — physical backend capability and safety
-Capability contract, preflight, arming/abort/failsafe and simulation/physical
-AST continuity without granting authority to student code.
 
-### FF — Firefox same-file semantics
-Parent #87. Causal diagnosis first; implementation after a viable path is proven.
+- parents: physical-backend product work and #70 evidence
+- depends: demonstrated Crazyradio/deck capability path and backend-neutral AST
+- proof direction: capability contract, preflight, arming/abort/failsafe and
+  simulation/physical AST continuity without granting authority to student code
+- expand only when this becomes near-term work.
+
+### FF — Firefox same-file project semantics
+
+- parent: #87
+- depends: preserved native-bridge/browser evidence
+- proof direction: causal diagnosis first, implementation only after a viable
+  same-file path is proven
+- keep deferred while higher-value work remains executable.
 
 ### R — final real-flight activity
-Parent #72. Depends on coherent progression and proven physical backend; requires
-explicit teacher authorization and representative safe real execution.
 
-## Maintenance rule
+- parent: #72
+- depends: coherent progression + proven physical backend + any #70 capability
+  required by the chosen final mission
+- proof direction: exact simulation-validated student program, explicit teacher
+  authorization, independent preflight/failsafe and representative safe real
+  execution
+- do not decompose the detailed final course before these gates converge.
 
-When evidence changes a product dependency, update the smallest affected roadmap
-fragment. Completed nodes may be condensed into the validated baseline. Do not
-add manual workflow states, agent ownership, WIP counters or execution queues.
+## Roadmap maintenance rule
+
+When evidence changes a product prerequisite, update the smallest affected
+roadmap fragment before relying on the old dependency. Completed nodes may be
+condensed into the validated baseline because GitHub history preserves their
+evidence.
+
+Do not add manual READY/BLOCKED/DONE states, agent ownership, WIP counters,
+session handoffs or execution queues to this file.
