@@ -69,6 +69,11 @@ class ContractTests(unittest.TestCase):
         ):
             self.assertNotIn(obsolete, combined)
 
+    def test_termination_requires_final_reconstruction(self):
+        self.assertIn("rebuild relevant engaged GitHub work one final time", self.contract)
+        self.assertIn("Terminate silently only if that reconstruction exposes no useful eligible action", self.contract)
+        self.assertIn("current local work is never by itself a termination condition", self.contract)
+
     def test_roadmap_records_w1_w2_and_findings(self):
         self.assertIn("W1 — coherence: PASS", self.roadmap)
         self.assertIn("W2 — 30-minute stability: PASS", self.roadmap)
