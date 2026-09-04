@@ -34,6 +34,7 @@ RUNTIME = (
     "plugins/robot_windows/blockly/webeeblocks/**",
     "tools/prepare_runtime_v2.*",
     "tools/ci/*runtime_v2*",
+    "experiments/runtime-v2-student-ui/**",
 )
 WEBOTS = (
     "controllers/**",
