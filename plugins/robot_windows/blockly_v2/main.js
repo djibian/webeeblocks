@@ -6,6 +6,7 @@ var runtimeRunning = false;
 var runtimeTerminal = false;
 var runtimeResetPending = false;
 var runtimeStopPending = false;
+var runtimeStopRequested = false;
 var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
@@ -46,8 +47,8 @@ function updateRuntimeActions() {
   submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending;
   if (stop) {
     var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
-    stop.hidden = !stopSupported || !runtimeRunning;
-    stop.disabled = !stopSupported || !ready || !runtimeRunning || runtimeStopPending;
+    stop.hidden = !stopSupported || !runtimeRunning || runtimeStopRequested;
+    stop.disabled = !stopSupported || !ready || !runtimeRunning || runtimeStopPending || runtimeStopRequested;
   }
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
@@ -196,6 +197,12 @@ function wireDebugControls() {
   document.getElementById('stepContinue').addEventListener('click', function() { runtimeDebug.continueRun(); });
 }
 
+function userStoppedError() {
+  var error = new Error('Runtime v2 simulation stopped by user');
+  error.code = 'USER_STOPPED';
+  return error;
+}
+
 function serializedWorkspace() {
   if (!workspace || !Blockly.serialization || !Blockly.serialization.workspaces)
     throw new Error('Blockly workspace serialization unavailable');
@@ -208,12 +215,15 @@ async function stopSimulation() {
   if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationStop !== true)
     return;
   runtimeStopPending = true;
+  runtimeStopRequested = true;
   updateRuntimeActions();
   setDebugControls(false);
+  if (runtimeDebug) runtimeDebug.continueRun();
   try {
     await runtimeBackend.stopSimulation();
+    runtimeTerminal = true;
+    setRuntimeFailure(userStoppedError());
   } catch (error) {
-    runtimeRunning = false;
     runtimeTerminal = true;
     setRuntimeFailure(error);
   } finally {
@@ -243,6 +253,7 @@ async function resetSimulation() {
     if (runtimeProfile !== profile)
       throw new Error('Simulation reset changed activity profile');
     runtimeTerminal = false;
+    runtimeStopRequested = false;
     renderSensorValues({});
     renderVariables(null);
     if (runtimeDebug) runtimeDebug.finish();
@@ -260,7 +271,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeResetPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -270,6 +281,7 @@ async function runProgram() {
   }
   submit.disabled = true;
   runtimeTerminal = false;
+  runtimeStopRequested = false;
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
@@ -280,6 +292,7 @@ async function runProgram() {
         runtimeRunning = true; setDebugControls(false); setRuntimeStatus('EN VOL', 'Programme réactif en cours');
       }
     });
+    if (runtimeStopRequested) throw userStoppedError();
     runtimeRunning = false; runtimeTerminal = true; setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
     runtimeRunning = false;
