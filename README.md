@@ -176,7 +176,6 @@ See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 | Path | Purpose |
 | --- | --- |
-| `activities/` | declarative activity/profile material |
 | `plugins/robot_windows/blockly_v2/` | current Blockly Robot Window UI |
 | `plugins/robot_windows/blockly/webeeblocks/` | AST, interpreter and product contracts |
 | `controllers/crazyflie_runtime_v2/` | current Webots Runtime controller |
