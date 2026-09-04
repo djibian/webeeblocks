@@ -1,4 +1,5 @@
 var runtimeProfile = null;
+var profileFieldOptions = null;
 var workspace = null;
 var robotWindow = null;
 var runtimeBackend = null;
@@ -311,7 +312,10 @@ function isPureVisualWorkspaceMove(event) {
 }
 function onWorkspaceChange(event) {
   if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
-  try { WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace); } catch (error) { console.error(error); }
+  try {
+    if (profileFieldOptions) profileFieldOptions.applyWorkspace(workspace);
+    WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace);
+  } catch (error) { console.error(error); }
   if (!runtimeRunning && runtimeTerminal)
     document.getElementById('runtimeDetail').textContent = 'Programme modifié — réinitialisez la simulation avant de relancer';
 }
@@ -327,7 +331,9 @@ function wireWorkspaceControls() {
 }
 
 window.onload = async function() {
+  profileFieldOptions = WebeeBlocksActivityProfiles.createFieldOptionController(WebeeBlocksActivities.DOCUMENT, WebeeBlocksActivities.BLOCK_CATALOG, Blockly);
   runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
+  profileFieldOptions.setProfile(runtimeProfile, null);
   document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
   document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;
   applySemanticBuiltinStyles();
@@ -337,6 +343,7 @@ window.onload = async function() {
     zoom: {controls: false, wheel: true, startScale: WEBEEBLOCKS_WORKSPACE_SCALE, maxScale: 1.40, minScale: 0.55, scaleSpeed: 1.10, pinch: true},
     trashcan: true, media: 'vendor/media/', sounds: false
   });
+  profileFieldOptions.applyWorkspace(workspace);
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
