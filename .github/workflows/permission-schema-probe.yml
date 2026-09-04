@@ -1,3 +1,8 @@
+# Diagnosis for issue #146:
+# main's human-checkpoint publish run scalar is broken because the Python
+# triple-quoted TEST_REQUIRED body is dedented to YAML column 0. Keep every
+# body line and the closing triple quote inside the run: | indentation.
+# Add a real YAML parse oracle before the existing textual contract checks.
 name: Permission schema probe
 on:
   push:
