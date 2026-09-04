@@ -38,14 +38,21 @@ class ContractTests(unittest.TestCase):
         self.assertIn("Durability does not imply trust", self.development)
         self.assertIn("github-actions[bot]", self.notifications)
 
-    def test_exact_candidate_and_independent_review(self):
+    def test_optimistic_candidate_validation_and_exact_head_integration(self):
         self.assertIn("Draft means mutable work in progress", self.contract)
-        self.assertIn("Ready means an exact candidate frozen for validation", self.contract)
-        self.assertIn("Any new HEAD is a new candidate", self.contract)
+        self.assertIn("Ready means the current exact HEAD is offered for validation", self.contract)
+        self.assertIn("it is not a coordination lock", self.contract)
+        self.assertIn("Positive decision evidence for prior HEADs cannot authorize it", self.contract)
+        self.assertIn("Findings from authoritative refutations remain decision-relevant while applicable", self.contract)
+        self.assertIn("Before a later candidate can receive GO", self.contract)
+        self.assertIn("independent review must establish every still-applicable such finding as resolved or no longer applicable", self.contract)
+        self.assertIn("observes a Ready PR and intends substantive mutation", self.contract)
+        self.assertIn("Concurrent Ready/push races are tolerated", self.contract)
         self.assertIn("must never publish the required check context named `CI Gate`", self.contract)
-        self.assertIn("fresh CI and fresh independent review", self.contract)
         self.assertIn("mutated a PR cannot provide its independent review", self.contract)
         self.assertIn("may repair that PR after recording NO_GO", self.contract)
+        self.assertIn("`expected_head_sha`", self.contract)
+        self.assertIn("merge must fail/no-op and the Controller reconstructs current GitHub state", self.contract)
 
     def test_healthy_main_and_late_refutation(self):
         self.assertIn("main is the single long-lived trunk", self.contract)
