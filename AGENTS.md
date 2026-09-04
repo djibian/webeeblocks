@@ -53,12 +53,22 @@ Each execution works in its own isolated worktree/checkout and branch context.
 Draft and Ready are the collaboration states for a PR.
 
 - Draft means mutable work in progress.
-- Ready means an exact candidate frozen for validation.
-- CI, independent review and verdict are decision evidence only for the exact
-  Ready HEAD they name. A Draft may run non-decision checks, but it must never
-  publish the required check context named `CI Gate`.
-- Any new HEAD is a new candidate. Before substantive mutation of a Ready PR,
-  return it to Draft; after mutation, mark it Ready and obtain fresh CI/review.
+- Ready means the current exact HEAD is offered for validation and is expected
+  to remain stable under the normal collaboration protocol; it is not a
+  coordination lock.
+- CI and positive independent review/GO evidence are decision-authoritative only
+  for the exact Ready HEAD they name. A Draft may run non-decision checks, but it
+  must never publish the required check context named `CI Gate`.
+- Any new HEAD is a new candidate. Positive decision evidence for prior HEADs
+  cannot authorize it.
+- Findings from authoritative refutations remain decision-relevant while
+  applicable. Before a later candidate can receive GO, its independent review
+  must establish every still-applicable such finding as resolved or no longer
+  applicable.
+- A Controller that observes a Ready PR and intends substantive mutation must
+  return it to Draft first; after mutation, mark it Ready and obtain fresh
+  CI/review. Concurrent Ready/push races are tolerated and reconciled from the
+  resulting exact HEAD.
 - An execution that mutated a PR cannot provide its independent review during
   the same execution. It may repair that PR after recording NO_GO; another
   execution supplies the next independent review.
@@ -81,6 +91,9 @@ make it unsuitable as the base for subsequent development.
 - A Ready candidate may enter main only with successful exact-candidate CI, an
   applicable independent GO, no unresolved applicable refutation, and an
   up-to-date base as required by branch protection.
+- Integration must be conditional on the exact validated PR HEAD and must use
+  that SHA as `expected_head_sha`. If the PR HEAD moves before the merge effect,
+  the merge must fail/no-op and the Controller reconstructs current GitHub state.
 - Integration is serialized. If another merge moves the base and updating a PR
   creates a new HEAD, obtain fresh CI and fresh independent review.
 - A late NO_GO on an already merged candidate becomes durable trunk-health
