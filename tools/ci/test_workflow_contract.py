@@ -47,12 +47,23 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("develop", text)
         self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", text)
 
+    def test_ready_gate_is_exact_head_and_draft_has_distinct_check_name(self):
+        text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        candidate = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertEqual(text.count(candidate), 4)
+        self.assertNotIn("target_sha: ${{ github.sha }}", text)
+        self.assertIn(
+            "github.event.pull_request.draft && 'CI Gate (Draft)' || 'CI Gate'",
+            text,
+        )
+        self.assertIn('--draft "${{ github.event.pull_request.draft || false }}"', text)
+
     def test_main_pr_is_not_implicit_full_promotion(self):
         selector = (ROOT / "tools" / "ci" / "select_ci.py").read_text(encoding="utf-8")
         self.assertIn('force_full = args.event != "pull_request"', selector)
         self.assertNotIn('args.base_ref == "main"', selector)
 
-    def test_checkpoint_is_exact_full_and_single_slot(self):
+    def test_checkpoint_is_exact_full_single_slot_and_fail_closed(self):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
         for required in (
             "CHECKPOINT_REQUEST ([0-9a-f]{40})",
@@ -62,17 +73,25 @@ class WorkflowTests(unittest.TestCase):
             "group: webeeblocks-human-test-open",
             "WEBEEBLOCKS_HUMAN_TEST_OPEN=1",
             "WEBEEBLOCKS_TEST_FINGERPRINT=",
-            "WebeeBlocks-Windows-R2025a",
+            "PROFILES = {'windows-low-end': 'WebeeBlocks-Windows-R2025a'}",
+            "Unknown test profile; add deterministic preparation before enabling it",
+            "Required artifact is missing a valid sha256 digest",
+            "sha256:[0-9a-f]{64}",
+            "/issues?state={state}&per_page=100&page={page}",
             "[TEST_REQUIRED]",
             "https://ntfy.sh/",
         ):
             self.assertIn(required, text)
+        self.assertNotIn("search/issues", text)
+        self.assertNotIn("artifact.get('digest', 'unavailable')", text)
+        self.assertNotIn("profile.startswith('windows')", text)
         for obsolete in ("READY_FOR_REVIEW", "SESSION_LIMIT", "RELANCE CONTRÔLEUR", "Candidate Evidence"):
             self.assertNotIn(obsolete, text)
 
     def test_reusable_suites_receive_exact_target(self):
         ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
-        self.assertEqual(ci.count("target_sha: ${{ github.sha }}"), 2)
+        candidate = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertEqual(ci.count(f"target_sha: {candidate}"), 2)
         target = "ref: ${{ inputs.target_sha || github.sha }}"
         for name in ("ci-runtime.yml", "ci-webots.yml"):
             suite = (WORKFLOWS / name).read_text(encoding="utf-8")
