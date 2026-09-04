@@ -136,8 +136,11 @@
         var options = allowed ? source.filter(function(option) { return allowed.indexOf(option[1]) >= 0; }) : source;
         if (!options.length) fail('active field restriction produced empty dropdown: ' + block.type + '.' + fieldName);
         var previous = field.getValue();
+        var previousAllowed = options.some(function(option) { return option[1] === previous; });
+        if (!allowDefaultCoercion && !previousAllowed)
+          return;
         field.setOptions(options);
-        if (allowDefaultCoercion && !options.some(function(option) { return option[1] === previous; }) && typeof field.setValue === 'function')
+        if (allowDefaultCoercion && !previousAllowed && typeof field.setValue === 'function')
           field.setValue(options[0][1]);
       });
     }
