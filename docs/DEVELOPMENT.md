@@ -73,6 +73,10 @@ Runtime + Webots evidence, requires the relevant built artifact, records
 provenance/digest, serializes the publication step, refuses a second open human
 test, then creates one durable [TEST_REQUIRED] issue and sends ntfy.
 
+The only enabled profile at V4 cut-over is `windows-low-end`, backed by the
+`WebeeBlocks-Windows-R2025a` artifact. Unknown profiles fail closed until their
+deterministic preparation is explicitly implemented.
+
 There is no human-test queue. Other needs remain silent in their original GitHub
 context until the open request resolves. TEST_REQUIRED resolves as PASS, FAIL or
 strictly NOT_NEEDED.
