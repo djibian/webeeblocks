@@ -190,6 +190,10 @@ PROFILE_FIELD_INSTALL=r'''(() => {
    }
    allowed=values===null ? null : values.slice();
    workspace.getAllBlocks(false).forEach(filterBlock);
+   const toolbox=workspace.getToolbox&&workspace.getToolbox();
+   const flyout=toolbox&&toolbox.getFlyout&&toolbox.getFlyout();
+   const flyoutWorkspace=flyout&&flyout.getWorkspace&&flyout.getWorkspace();
+   if(flyoutWorkspace)flyoutWorkspace.getAllBlocks(false).forEach(filterBlock);
  };
  window.__profileFieldExperiment={genericOptions:genericOptions,setAllowed:setAllowed,filterBlock:filterBlock};
  return true;
@@ -216,11 +220,11 @@ PROFILE_FIELD_FLYOUT=r'''(() => {
 })()'''
 
 PROFILE_FIELD_SET=r'''((values) => {
- window.__profileFieldExperiment.setAllowed(values);
  const toolbox=workspace.getToolbox();
  if(typeof toolbox.clearSelection==='function')toolbox.clearSelection();
  const flyout=toolbox.getFlyout&&toolbox.getFlyout();
  if(flyout&&typeof flyout.hide==='function')flyout.hide();
+ window.__profileFieldExperiment.setAllowed(values);
  return window.__profileFieldExperiment.genericOptions.map(option=>({label:option[0],value:option[1]}));
 })(%s)'''
 
