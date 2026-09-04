@@ -56,6 +56,32 @@ move_end_replacement = r'''          trace_move(active_direction, active_value);
 if move_end_needle not in controller:
     raise SystemExit('Runtime v2 MOVE end instrumentation point not found')
 controller = controller.replace(move_end_needle, move_end_replacement, 1)
+vertical_start_needle = '''        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
+        target_z = next_target_z;
+        command = CMD_VERTICAL;'''
+vertical_start_replacement = r'''        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
+        target_z = next_target_z;
+        printf(PREFIX " CI VERTICAL_START %s x=%.9f y=%.9f z=%.9f yaw=%.9f target_z=%.9f\n",
+               request.direction, x, y, z, yaw, target_z);
+        fflush(stdout);
+        command = CMD_VERTICAL;'''
+if vertical_start_needle not in controller:
+    raise SystemExit('Runtime v2 VERTICAL start instrumentation point not found')
+controller = controller.replace(vertical_start_needle, vertical_start_replacement, 1)
+vertical_end_needle = '''          trace_vertical(active_direction, active_value);
+          response_ok(active_id);'''
+vertical_end_replacement = r'''          trace_vertical(active_direction, active_value);
+          printf(PREFIX " CI VERTICAL_END %s x=%.9f y=%.9f z=%.9f yaw=%.9f\n",
+                 active_direction, x, y, z, yaw);
+          fflush(stdout);
+          response_ok(active_id);'''
+if vertical_end_needle not in controller:
+    raise SystemExit('Runtime v2 VERTICAL end instrumentation point not found')
+controller = controller.replace(vertical_end_needle, vertical_end_replacement, 1)
 controller_path.write_text(controller, encoding='utf-8')
 
 script = r'''
@@ -274,8 +300,11 @@ script = r'''
     await runtimeBackend.takeoff(0.35);
     await runtimeBackend.move('back', 0.20);
     await runtimeBackend.move('right', 0.20);
+    await runtimeBackend.vertical('up', 0.10);
+    await runtimeBackend.vertical('down', 0.10);
     await runtimeBackend.land();
     await report('HORIZONTAL_MOVES_OK', {directions:['back','right']});
+    await report('VERTICAL_MOVES_OK', {directions:['up','down'], distance_m:0.10});
 
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;
