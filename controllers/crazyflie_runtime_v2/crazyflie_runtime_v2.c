@@ -173,8 +173,8 @@ static request_t parse_request(const char *message) {
   return request;
 }
 
-static void trace_range(double value) {
-  printf(PREFIX " TRACE RANGE front value=%.9f\n", value);
+static void trace_range(const char *direction, double value) {
+  printf(PREFIX " TRACE RANGE %s value=%.9f\n", direction, value);
   fflush(stdout);
 }
 
@@ -211,8 +211,10 @@ int main(void) {
   WbDeviceTag imu = wb_robot_get_device("inertial_unit");
   WbDeviceTag gyro = wb_robot_get_device("gyro");
   WbDeviceTag range_front = wb_robot_get_device("range_front");
+  WbDeviceTag range_left = wb_robot_get_device("range_left");
+  WbDeviceTag range_right = wb_robot_get_device("range_right");
 
-  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front) {
+  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_left || !range_right) {
     fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
     wb_robot_cleanup();
     return 1;
@@ -241,6 +243,8 @@ int main(void) {
   wb_inertial_unit_enable(imu, step);
   wb_gyro_enable(gyro, step);
   wb_distance_sensor_enable(range_front, step);
+  wb_distance_sensor_enable(range_left, step);
+  wb_distance_sensor_enable(range_right, step);
 
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {
   }
@@ -390,16 +394,23 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_RANGE) {
-        if (strcmp(request.direction, "front") != 0) {
+        WbDeviceTag range_sensor = 0;
+        if (strcmp(request.direction, "front") == 0)
+          range_sensor = range_front;
+        else if (strcmp(request.direction, "left") == 0)
+          range_sensor = range_left;
+        else if (strcmp(request.direction, "right") == 0)
+          range_sensor = range_right;
+        if (!range_sensor) {
           response_error(request.id, "CAPABILITY_UNAVAILABLE");
           continue;
         }
-        const double range_m = wb_distance_sensor_get_value(range_front) / 1000.0;
+        const double range_m = wb_distance_sensor_get_value(range_sensor) / 1000.0;
         if (!isfinite(range_m) || range_m < 0.0 || range_m > 2.001) {
           response_error(request.id, "INVALID_RANGE_SAMPLE");
           continue;
         }
-        trace_range(range_m);
+        trace_range(request.direction, range_m);
         response_value(request.id, range_m);
         continue;
       }

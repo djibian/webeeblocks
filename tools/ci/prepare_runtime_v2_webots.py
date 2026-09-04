@@ -242,6 +242,15 @@ script = r'''
       throw new Error('unexpected WWI request ids: ' + JSON.stringify(actualIds));
     await report('WWI_SEQUENCE_OK', normalized);
 
+    const lateralRanges = {};
+    for (const direction of ['left', 'right']) {
+      const value = await runtimeBackend.readRange(direction);
+      if (!Number.isFinite(value) || value < 0 || value > 2.001)
+        throw new Error('invalid ' + direction + ' range sample: ' + String(value));
+      lateralRanges[direction] = value;
+    }
+    await report('LATERAL_RANGES_OK', lateralRanges);
+
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;
     console.log('WEBEEBLOCKS_CI_RUNTIME_V2_DONE');
