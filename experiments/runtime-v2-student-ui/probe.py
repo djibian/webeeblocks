@@ -45,6 +45,15 @@ class Cdp:
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':1,'y':1})
         time.sleep(.1)
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['x']+rect['width']/2,'y':rect['y']+rect['height']/2})
+    def drag(self,rect,target_x,target_y,steps=12):
+        start_x=rect['x']+rect['width']/2; start_y=rect['y']+rect['height']/2
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':start_x,'y':start_y})
+        self.call('Input.dispatchMouseEvent',{'type':'mousePressed','x':start_x,'y':start_y,'button':'left','buttons':1,'clickCount':1})
+        for i in range(1,steps+1):
+            x=start_x+(target_x-start_x)*i/steps; y=start_y+(target_y-start_y)*i/steps
+            self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y,'button':'left','buttons':1})
+            time.sleep(.03)
+        self.call('Input.dispatchMouseEvent',{'type':'mouseReleased','x':target_x,'y':target_y,'button':'left','buttons':0,'clickCount':1})
     def screenshot(self,path):
         data=self.call('Page.captureScreenshot',{'format':'png','fromSurface':True})['data']
         Path(path).write_bytes(base64.b64decode(data))
@@ -146,6 +155,59 @@ VISIBLE_OVERLAY=r'''(() => {
  const nodes=[...document.querySelectorAll('.blocklyDropDownDiv,.blocklyWidgetDiv,[role="menu"],[role="listbox"],.blocklyTooltipDiv')].filter(visible);
  return nodes.map(el=>({className:el.className||'',role:el.getAttribute('role'),ariaLabel:el.getAttribute('aria-label'),text:(el.innerText||el.textContent||'').trim(),html:el.outerHTML.slice(0,1200)}));
 })()'''
+
+
+PROFILE_FIELD_INSTALL=r'''(() => {
+ const allowed=['forward','left'];
+ const filterBlock=block=>{
+   if(!block||block.type!=='webeeblocks_v2_move')return;
+   const field=block.getField('DIRECTION');
+   if(!field||typeof field.getOptions!=='function'||typeof field.setOptions!=='function')throw new Error('public FieldDropdown API unavailable');
+   const options=field.getOptions(false);
+   const filtered=options.filter(option=>allowed.includes(option[1]));
+   if(filtered.length!==allowed.length)throw new Error('expected generic move options missing');
+   field.setOptions(filtered);
+ };
+ const filterWorkspace=ws=>ws.getAllBlocks(false).forEach(filterBlock);
+ filterWorkspace(workspace);
+ workspace.addChangeListener(event=>{
+   if(event&&event.type===Blockly.Events.BLOCK_CREATE){
+     (event.ids||[]).forEach(id=>filterBlock(workspace.getBlockById(id)));
+   }
+ });
+ window.__profileFieldExperiment={allowed,filterWorkspace,filterBlock};
+ return true;
+})()'''
+
+PROFILE_FIELD_VOL_RECT=r'''(() => {
+ const toolbox=workspace.getToolbox();
+ const item=toolbox.getToolboxItems().find(x=>typeof x.getName==='function'&&x.getName()==='Vol');
+ if(!item||typeof item.getDiv!=='function')throw new Error('Vol toolbox category unavailable');
+ const r=item.getDiv().getBoundingClientRect();
+ return {x:r.x,y:r.y,width:r.width,height:r.height};
+})()'''
+
+PROFILE_FIELD_FLYOUT=r'''(() => {
+ const flyout=workspace.getToolbox().getFlyout();
+ const flyoutWorkspace=flyout&&flyout.getWorkspace&&flyout.getWorkspace();
+ if(!flyoutWorkspace)throw new Error('real flyout workspace unavailable');
+ window.__profileFieldExperiment.filterWorkspace(flyoutWorkspace);
+ const move=flyoutWorkspace.getBlocksByType('webeeblocks_v2_move',false)[0];
+ if(!move)throw new Error('move block missing from real Vol flyout');
+ const field=move.getField('DIRECTION');
+ const options=field.getOptions(false).map(option=>({label:option[0],value:option[1]}));
+ const r=move.getSvgRoot().getBoundingClientRect();
+ return {options:options,rect:{x:r.x,y:r.y,width:r.width,height:r.height},workspaceMoveIds:workspace.getBlocksByType('webeeblocks_v2_move',false).map(block=>block.id)};
+})()'''
+
+PROFILE_FIELD_NEW_BLOCK=r'''((beforeIds) => {
+ const blocks=workspace.getBlocksByType('webeeblocks_v2_move',false);
+ const created=blocks.filter(block=>!beforeIds.includes(block.id));
+ if(created.length!==1)throw new Error('expected exactly one dragged move block, got '+created.length);
+ const block=created[0];
+ const field=block.getField('DIRECTION');
+ return {id:block.id,value:block.getFieldValue('DIRECTION'),options:field.getOptions(false).map(option=>({label:option[0],value:option[1]}))};
+})(%s)'''
 
 def keyboard(c):
     c.eval("document.activeElement&&document.activeElement.blur();document.body.setAttribute('tabindex','-1');document.body.focus();true")
@@ -268,8 +330,28 @@ def main():
     if not tooltip_text or 'repeat' in tooltip_text:
         raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
     c.screenshot(screenshot.with_name('repeat-tooltip-1366x768.png'))
+
+    # #66 experiment: prove a profile-style FieldDropdown restriction can cover
+    # both the real flyout block and a block actually dragged into the workspace.
+    c.key('Escape'); time.sleep(.2)
+    c.eval(PROFILE_FIELD_INSTALL)
+    vol_rect=c.eval(PROFILE_FIELD_VOL_RECT)
+    c.click(vol_rect); time.sleep(.4)
+    field_flyout=c.eval(PROFILE_FIELD_FLYOUT)
+    expected_values=['forward','left']
+    flyout_values=[option['value'] for option in field_flyout['options']]
+    if flyout_values != expected_values:
+        raise RuntimeError('profile field restriction did not reach real flyout: '+json.dumps(field_flyout,ensure_ascii=False))
+    c.drag(field_flyout['rect'],520,610); time.sleep(.7)
+    field_created=c.eval(PROFILE_FIELD_NEW_BLOCK % json.dumps(field_flyout['workspaceMoveIds']))
+    created_values=[option['value'] for option in field_created['options']]
+    if created_values != expected_values:
+        raise RuntimeError('profile field restriction did not reach dragged workspace block: '+json.dumps(field_created,ensure_ascii=False))
+    if field_created['value'] not in expected_values:
+        raise RuntimeError('dragged block retained a forbidden direction: '+json.dumps(field_created,ensure_ascii=False))
+
     final=c.eval(SNAP)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'flyout':field_flyout,'created':field_created},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 
