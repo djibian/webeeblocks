@@ -30,7 +30,7 @@
     this.simulationStopped = false;
     var capabilities = {
       actions: ['takeoff', 'move', 'land'],
-      rangeDirections: ['front'],
+      rangeDirections: ['front', 'left', 'right'],
       moveDirections: ['forward', 'left'],
       verticalDirections: []
     };
