@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   s3-surface-offset-build:
-    if: ${{ hashFiles('experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh') != '' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
