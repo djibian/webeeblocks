@@ -99,7 +99,7 @@ The only notification class is TEST_REQUIRED. It is legitimate only when:
 
 A Controller never sends ntfy directly. It records a checkpoint request through
 the trusted GitHub checkpoint mechanism. Before notifying, that mechanism must:
-- bind an exact Git SHA and test profile/purpose;
+- bind an exact Git SHA and a test profile/purpose whose deterministic preparation is explicitly implemented; unknown profiles fail closed;
 - run required deterministic evidence;
 - prepare every required artifact/support;
 - record provenance/digest and an executable procedure;
