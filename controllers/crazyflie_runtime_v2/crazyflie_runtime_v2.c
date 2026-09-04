@@ -433,7 +433,8 @@ int main(void) {
       }
       if (request.kind == REQUEST_MOVE) {
         if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 2.0 ||
-            (strcmp(request.direction, "forward") != 0 && strcmp(request.direction, "left") != 0)) {
+            (strcmp(request.direction, "forward") != 0 && strcmp(request.direction, "back") != 0 &&
+             strcmp(request.direction, "left") != 0 && strcmp(request.direction, "right") != 0)) {
           response_error(request.id, "INVALID_MOVE");
           continue;
         }
@@ -445,9 +446,15 @@ int main(void) {
         if (strcmp(request.direction, "forward") == 0) {
           target_x = x + cos(yaw) * request.value;
           target_y = y + sin(yaw) * request.value;
-        } else {
+        } else if (strcmp(request.direction, "back") == 0) {
+          target_x = x - cos(yaw) * request.value;
+          target_y = y - sin(yaw) * request.value;
+        } else if (strcmp(request.direction, "left") == 0) {
           target_x = x - sin(yaw) * request.value;
           target_y = y + cos(yaw) * request.value;
+        } else {
+          target_x = x + sin(yaw) * request.value;
+          target_y = y - cos(yaw) * request.value;
         }
         command = CMD_MOVE;
         stable_since = -1.0;

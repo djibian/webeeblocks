@@ -844,15 +844,37 @@ jobs:
                   assert m, line
                   ranges.append(float(m.group(1)))
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE ' in line:
-                  m = re.search(r'TRACE MOVE (forward|left) distance=', line)
+                  m = re.search(r'TRACE MOVE (forward|back|left|right) distance=', line)
                   assert m and 'stop=1' in line, line
                   trace.append('MOVE_' + m.group(1).upper())
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
+
+          starts = {}
+          ends = {}
+          for line in log.splitlines():
+              m = re.search(r'CI MOVE_(START|END) (back|right) x=([-0-9.]+) y=([-0-9.]+) yaw=([-0-9.]+)', line)
+              if not m:
+                  continue
+              sample = (float(m.group(3)), float(m.group(4)), float(m.group(5)))
+              (starts if m.group(1) == 'START' else ends)[m.group(2)] = sample
+          assert set(starts) == {'back','right'} and set(ends) == {'back','right'}, (starts, ends)
+          import math
+          def body_projection(direction):
+              sx, sy, yaw = starts[direction]
+              ex, ey, _ = ends[direction]
+              dx, dy = ex - sx, ey - sy
+              forward = dx * math.cos(yaw) + dy * math.sin(yaw)
+              left = -dx * math.sin(yaw) + dy * math.cos(yaw)
+              return forward, left
+          back_forward, back_left = body_projection('back')
+          right_forward, right_left = body_projection('right')
+          assert back_forward < -0.12 and abs(back_left) < 0.08, (back_forward, back_left)
+          assert right_left < -0.12 and abs(right_forward) < 0.08, (right_forward, right_left)
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
           def first_index(predicate, label):
@@ -868,8 +890,9 @@ jobs:
           ready = first_index(lambda e: e.get('event') == 'READY', 'READY')
           ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
           submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
+          horizontal = first_index(lambda e: e.get('event') == 'HORIZONTAL_MOVES_OK', 'HORIZONTAL_MOVES_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < horizontal < done, [(e.get('event'), e.get('detail')) for e in events]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']

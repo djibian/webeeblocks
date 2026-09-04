@@ -37,7 +37,26 @@ replacement = r'''  printf(PREFIX " CI READY_DELAY_BEGIN time=%.3f\n", wb_robot_
 '''
 if needle not in controller:
     raise SystemExit('Runtime v2 READY injection point not found')
-controller_path.write_text(controller.replace(needle, replacement, 1), encoding='utf-8')
+controller = controller.replace(needle, replacement, 1)
+move_start_needle = '''        target_yaw = yaw;
+        if (strcmp(request.direction, "forward") == 0) {'''
+move_start_replacement = r'''        target_yaw = yaw;
+        printf(PREFIX " CI MOVE_START %s x=%.9f y=%.9f yaw=%.9f\n", request.direction, x, y, yaw);
+        fflush(stdout);
+        if (strcmp(request.direction, "forward") == 0) {'''
+if move_start_needle not in controller:
+    raise SystemExit('Runtime v2 MOVE start instrumentation point not found')
+controller = controller.replace(move_start_needle, move_start_replacement, 1)
+move_end_needle = '''          trace_move(active_direction, active_value);
+          response_ok(active_id);'''
+move_end_replacement = r'''          trace_move(active_direction, active_value);
+          printf(PREFIX " CI MOVE_END %s x=%.9f y=%.9f yaw=%.9f\n", active_direction, x, y, yaw);
+          fflush(stdout);
+          response_ok(active_id);'''
+if move_end_needle not in controller:
+    raise SystemExit('Runtime v2 MOVE end instrumentation point not found')
+controller = controller.replace(move_end_needle, move_end_replacement, 1)
+controller_path.write_text(controller, encoding='utf-8')
 
 script = r'''
 <script>
@@ -250,6 +269,13 @@ script = r'''
       lateralRanges[direction] = value;
     }
     await report('LATERAL_RANGES_OK', lateralRanges);
+
+    await runtimeBackend.resetSimulation();
+    await runtimeBackend.takeoff(0.35);
+    await runtimeBackend.move('back', 0.20);
+    await runtimeBackend.move('right', 0.20);
+    await runtimeBackend.land();
+    await report('HORIZONTAL_MOVES_OK', {directions:['back','right']});
 
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;
