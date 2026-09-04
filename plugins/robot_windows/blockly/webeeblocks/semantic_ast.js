@@ -51,7 +51,7 @@
 
   function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='repeat')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
   function validateFlightBoundaries(program){
-    if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')fail('program must start with takeoff and end with land');
+    if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
       if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
