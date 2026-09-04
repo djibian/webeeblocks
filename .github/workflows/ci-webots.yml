@@ -43,7 +43,12 @@ jobs:
 
       - name: Validate exact source, apply S3 and build UKF-enabled cf2
         if: steps.s3-scope.outputs.run == 'true'
-        run: bash experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh .ci-crazyflie-firmware
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/s3-surface-offset
+          set -o pipefail
+          bash experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh .ci-crazyflie-firmware \
+            2>&1 | tee ci-artifacts/s3-surface-offset/build-oracle.log
 
       - name: Record deterministic S3 evidence
         if: ${{ always() && steps.s3-scope.outputs.run == 'true' }}
