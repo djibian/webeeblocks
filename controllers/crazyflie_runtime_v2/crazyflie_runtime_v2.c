@@ -339,11 +339,12 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_STOP) {
-        if (command == CMD_IDLE || command == CMD_RESET) {
+        if (command == CMD_RESET) {
           response_error(request.id, "NOT_RUNNING");
           continue;
         }
-        response_error(active_id, "USER_STOPPED");
+        if (active_id >= 1)
+          response_error(active_id, "USER_STOPPED");
         target_x = x;
         target_y = y;
         target_z = z;
