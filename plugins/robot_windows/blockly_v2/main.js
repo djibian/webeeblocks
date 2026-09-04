@@ -313,6 +313,8 @@ function isPureVisualWorkspaceMove(event) {
 function onWorkspaceChange(event) {
   if (!event || event.type === Blockly.Events.UI || isPureVisualWorkspaceMove(event)) return;
   try {
+    if (event.type === Blockly.Events.BLOCK_CREATE)
+      profileFieldOptions.applyWorkspace(workspace);
     WebeeBlocksActivityContract.applyFieldBounds(runtimeProfile, workspace);
   } catch (error) { console.error(error); }
   if (!runtimeRunning && runtimeTerminal)
