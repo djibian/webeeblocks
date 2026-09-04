@@ -193,15 +193,104 @@ jobs:
                       return found
               raise RuntimeError('Issue pagination exceeded safety bound')
 
-          history = issues('all')
+          def canonical_test_issue(item):
+              body = item.get('body') or ''
+              user = item.get('user') or {}
+              return (
+                  'pull_request' not in item
+                  and (item.get('title') or '').startswith('[TEST_REQUIRED] ')
+                  and user.get('login') == 'github-actions[bot]'
+                  and open_marker in body
+                  and re.search(r'(?m)^WEBEEBLOCKS_TEST_FINGERPRINT=[0-9a-f]{64}
+          artifacts = api(
+              'GET',
+              f"{API}/actions/runs/{os.environ['GITHUB_RUN_ID']}/artifacts?per_page=100",
+          ).get('artifacts', [])
+          matching = [a for a in artifacts if a.get('name') == required_artifact]
+          if len(matching) != 1:
+              raise SystemExit(f'Profile {profile} requires exactly one {required_artifact} artifact')
+          artifact = matching[0]
+          if artifact.get('expired'):
+              raise SystemExit('Required artifact is already expired')
+          digest = artifact.get('digest') or ''
+          if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+              raise SystemExit('Required artifact is missing a valid sha256 digest')
+          artifact_text = (
+              f"Artifact: {artifact['name']}\n"
+              f"Artifact id: {artifact['id']}\n"
+              f"Artifact digest: {digest}"
+          )
+
+          run_url = f"https://github.com/{REPO}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          body = '\n'.join([
+              open_marker,
+              marker,
+              '',
+              'TEST_REQUIRED',
+              '',
+              f'Target SHA: {sha}',
+              f'Profile: {profile}',
+              f'Purpose: {purpose}',
+              f'Evidence run: {run_url}',
+              artifact_text,
+              f"Request source: {os.environ.get('SOURCE_URL', '')}",
+              '',
+              'Procedure:',
+              instructions,
+              '',
+              'Resolution:',
+              'Comment PASS, FAIL with the observed phenomenon, or NOT_NEEDED only if this',
+              'result can no longer affect any relevant future decision. A Controller records',
+              'the result durably and closes this issue.',
+              '',
+          ])
+          created = api(
+              'POST',
+              f'{API}/issues',
+              {'title': f'[TEST_REQUIRED] {profile} {sha[:12]}', 'body': body},
+          )
+          issue_url = created['html_url']
+
+          topic = os.environ.get('NTFY_TOPIC', '').strip()
+          if not topic:
+              print(f'NTFY_TOPIC missing; authoritative request: {issue_url}')
+              raise SystemExit(0)
+          if any(character in topic for character in '/?#') or len(topic) > 256:
+              raise SystemExit('Invalid NTFY_TOPIC')
+
+          payload = {
+              'topic': topic,
+              'title': 'WebeeBlocks — TEST À EFFECTUER',
+              'message': (
+                  f'TEST_REQUIRED\nSHA: {sha}\nProfil: {profile}\nBut: {purpose}\n\n'
+                  f'{instructions[:1200]}'
+              ),
+              'priority': 5,
+              'tags': ['test_tube', 'robot'],
+              'click': issue_url,
+              'actions': [
+                  {'action': 'view', 'label': 'Ouvrir le test', 'url': issue_url, 'clear': True}
+              ],
+          }
+          req = urllib.request.Request(
+              'https://ntfy.sh/',
+              data=json.dumps(payload).encode(),
+              headers={'Content-Type': 'application/json'},
+              method='POST',
+          )
+          with urllib.request.urlopen(req, timeout=20) as response:
+              if response.status >= 300:
+                  raise RuntimeError(f'ntfy returned HTTP {response.status}')
+              print(f'TEST_REQUIRED published: {issue_url}')
+          PY
+, body)
+              )
+
+          history = [item for item in issues('all') if canonical_test_issue(item)]
           if any(marker in (item.get('body') or '') for item in history):
               print('Fingerprint already recorded; no-op.')
               raise SystemExit(0)
-          if any(
-              open_marker in (item.get('body') or '')
-              for item in history
-              if item.get('state') == 'open'
-          ):
+          if any(item.get('state') == 'open' for item in history):
               print('Human test already open; silent no-op.')
               raise SystemExit(0)
 
