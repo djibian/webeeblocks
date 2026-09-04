@@ -130,6 +130,26 @@ class WorkflowTests(unittest.TestCase):
             )
             self.assertEqual(suite.count(target), all_checkouts - external, name)
 
+    def test_s3_build_is_bounded_before_external_checkout(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        s3 = suite.split("\n  s3-surface-offset-build:\n", 1)[1].split(
+            "\n  crazyflie-ab-matrix:\n", 1
+        )[0]
+        self.assertIn("python3 tools/ci/select_s3_build.py", s3)
+        self.assertIn("id: s3-scope", s3)
+        self.assertIn("fetch-depth: 0", s3)
+        self.assertGreaterEqual(
+            s3.count("if: steps.s3-scope.outputs.run == 'true'"), 2
+        )
+        self.assertEqual(
+            s3.count("always() && steps.s3-scope.outputs.run == 'true'"), 2
+        )
+        selector = (ROOT / "tools" / "ci" / "select_s3_build.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"experiments/crazyflie-ukf-surface-range/**"', selector)
+        self.assertIn('".github/workflows/ci-webots.yml"', selector)
+
     def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")

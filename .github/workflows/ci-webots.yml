@@ -20,8 +20,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Select bounded S3 build scope
+        id: s3-scope
+        run: >-
+          python3 tools/ci/select_s3_build.py
+          --event "${{ github.event_name }}"
+          --base "${{ github.event.pull_request.base.sha }}"
+          --head "${{ inputs.target_sha || github.sha }}"
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Checkout pinned Crazyflie firmware 2026.08
+        if: steps.s3-scope.outputs.run == 'true'
         uses: actions/checkout@v4
         with:
           repository: bitcraze/crazyflie-firmware
@@ -31,10 +42,11 @@ jobs:
           fetch-depth: 1
 
       - name: Validate exact source, apply S3 and build UKF-enabled cf2
+        if: steps.s3-scope.outputs.run == 'true'
         run: bash experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh .ci-crazyflie-firmware
 
       - name: Record deterministic S3 evidence
-        if: always()
+        if: ${{ always() && steps.s3-scope.outputs.run == 'true' }}
         run: |
           mkdir -p ci-artifacts/s3-surface-offset
           git -C .ci-crazyflie-firmware rev-parse HEAD > ci-artifacts/s3-surface-offset/upstream-sha.txt
@@ -47,7 +59,7 @@ jobs:
           fi
 
       - name: Upload S3 build evidence
-        if: always()
+        if: ${{ always() && steps.s3-scope.outputs.run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: experimental-s3-surface-offset-2026-08
