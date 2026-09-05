@@ -25,13 +25,19 @@ cd "$HERE"
 
 java -cp "$JAR" tla2sany.SANY WebeeBlocksV5.tla WebeeBlocksV5_MC.tla
 
-configs=(
+default_configs=(
   WebeeBlocksV5_Ordering.cfg
   WebeeBlocksV5_Epoch.cfg
   WebeeBlocksV5_Duplicate.cfg
   WebeeBlocksV5_Checkpoint.cfg
   WebeeBlocksV5_Migration.cfg
 )
+
+if (( "$#" > 0 )); then
+  configs=("$@")
+else
+  configs=("${default_configs[@]}")
+fi
 
 for cfg in "${configs[@]}"; do
   echo
