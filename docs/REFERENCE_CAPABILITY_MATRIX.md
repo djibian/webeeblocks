@@ -27,7 +27,7 @@ Status vocabulary:
 | Wait / pacing | Generic Runtime timing semantic; no dedicated hardware source | `webeeblocks_v2_wait` → `wait(seconds)` | Current WWI backend advertises and executes bounded waits while holding position, altitude and yaw; real-Webots CI checks requested simulated duration and hold tolerances | Physical student backend not proven | Broad reactive profile only | **covered** in simulation; **physical unproven** |
 | Speed selection | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_speed` → `set_speed(speed)` | Webots Runtime v2 applies a bounded 0.1–0.35 m/s limit to subsequent horizontal `move` actions only; RESET restores the proven 0.35 m/s default; real-Webots CI compares slow/fast traversal causally | Physical student backend not proven | Broad reactive profile only | **covered** in simulation inside the existing proven horizontal envelope; **physical unproven** |
 | Multi-ranger directional distance | Multi-ranger deck | `webeeblocks_v2_range` → `range(direction)`; AST vocabulary has front/back/left/right/up | Current WWI backend advertises and reads front/back/left/right/up through dedicated Webots sensors | Physical student backend not proven | Progression 3 exposes front; broad reactive profile declares front/back/left/right/up | **covered** in simulation for the generic directional range vocabulary; **physical unproven** |
-| Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **missing** as a student-facing capability; decide whether downward range has a real pedagogical use before adding vocabulary |
+| Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **infrastructure only / justified student-vocabulary exclusion** at current evidence; reopen only for a concrete pupil-facing downward-clearance objective |
 | Flow Deck V2 optical flow / stabilization | Flow Deck V2 | No direct student primitive by design | Used as simulation/flight infrastructure, not as an algorithm block | Physical behavior belongs to backend/safety validation | Implicit hardware requirement | **infrastructure only**; do not expose estimator/flow internals without a pedagogical need |
 | Multi-ranger upward range | Multi-ranger deck | Generic AST already admits `up` | Current WWI backend advertises and reads `up` through a dedicated upward Webots distance sensor | Physical student backend not proven | Broad reactive profile declares `up` | **covered** in simulation; **physical unproven** |
 | Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | `webeeblocks_v2_light` → `set_light(color)` with a bounded generic palette | Runtime v2 exposes the action through WWI and a simple bottom-mounted RGB LED surface on the reference Crazyflie model | Physical student backend not proven | Broad reactive profile only | **covered** in simulation for the generic light/color intent; **physical unproven** |
@@ -35,20 +35,23 @@ Status vocabulary:
 
 ## Conclusions for #157
 
-The existing generic Runtime semantics now have simulation coverage for the full
-Multi-ranger directional vocabulary `front/back/left/right/up`. Capability work
-should continue to prefer closing remaining existing generic simulation gaps
-before adding new block families.
+The currently justified student-facing generic Runtime surface is now covered in
+simulation: takeoff/land, four-way horizontal movement, vertical movement, yaw,
+wait/pacing, bounded speed selection, Multi-ranger
+`front/back/left/right/up`, and the generic bottom Color LED light/color intent.
+There is therefore no default #157 simulation primitive/backend backlog remaining.
 
-One genuine vocabulary decision remains visible: whether Flow Deck downward
-range is pedagogically useful enough to justify a generic student-facing `down`
-range direction.
+Flow Deck downward ToF remains a deliberate infrastructure-only exclusion at
+current product evidence. No current activity has a pupil-facing
+downward-clearance learning objective, while #70 uses that signal for estimator
+and safety research. Do not add `range(down)` merely for hardware completeness;
+reopen the vocabulary only when a concrete activity demonstrates that need.
 
 Color LED simulation uses one generic light/color action and a simple
 bottom-mounted controllable RGB surface. It deliberately models the observable
-student effect rather than deck electronics; physical execution remains
-unproven.
+student effect rather than deck electronics.
 
+The substantive remaining #157 boundary is physical-backend continuity/proof.
 Physical support remains explicitly unproven for student execution. Do not turn
 source availability, Lab firmware experiments, or simulation coverage into a
 real-hardware support claim. The eventual physical backend must preserve the
