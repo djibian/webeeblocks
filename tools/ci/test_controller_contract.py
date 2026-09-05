@@ -38,6 +38,19 @@ class ContractTests(unittest.TestCase):
         self.assertIn("Durability does not imply trust", self.development)
         self.assertIn("github-actions[bot]", self.notifications)
 
+    def test_transient_branch_cleanup_requires_durable_authority_and_atomic_ref_safety(self):
+        self.assertIn("Short-lived branches are transient project references", self.contract)
+        self.assertIn("durable applicable project evidence under the existing provenance and authority rules", self.contract)
+        self.assertIn("no open PR or other still-applicable work depends on it", self.contract)
+        self.assertIn("no unique useful work still requires durable preservation", self.contract)
+        self.assertIn("integrated or otherwise preserved by an appropriate durable reference before deletion", self.contract)
+        self.assertIn("atomic conditional ref deletion against the exact reconstructed branch tip", self.contract)
+        self.assertIn("must fail closed if that ref has changed", self.contract)
+        self.assertIn("separate observation followed by an unconditional deletion does not satisfy this invariant", self.contract)
+        self.assertIn("materially reduces repository ambiguity or completes the abandonment of an already-engaged path", self.contract)
+        self.assertIn("mere existence of a deletable branch does not create work", self.contract)
+        self.assertIn("require repository-wide housekeeping, or prevent Controller termination", self.contract)
+
     def test_optimistic_candidate_validation_and_exact_head_integration(self):
         self.assertIn("Draft means mutable work in progress", self.contract)
         self.assertIn("Ready means the current exact HEAD is offered for validation", self.contract)
