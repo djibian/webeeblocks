@@ -84,6 +84,8 @@ Canonical serialization, hashes, Git commit identity and collision resistance ar
 
 `PREPARE` makes negative evidence durable and blocks **new positive publication**, but negative authority linearizes only at `Gate -> FAILURE`. Therefore a merge that linearizes before Gate failure is classified as a late refutation rather than a protocol violation.
 
+Rollback has an additional fail-closed rule: V5 requirements cannot be removed while any PREPARE remains unlinearized, and a new PREPARE is not admitted after all V5 requirements have been removed. This is intended to preserve write-ahead evidence across V5 -> V4 without redefining PREPARE itself as the NO_GO linearization point.
+
 Try to decide whether this boundary is acceptable or whether PREPARE itself must close merge eligibility.
 
 ### B — Duplicate Protocol-App writer
@@ -106,7 +108,7 @@ Negative authority has durable write-ahead memory. Positive authority is deliber
 2. Can an epoch transition make a stale/old SUCCESS usable under a new manifest?
 3. Does review blocking across two PRs sharing the same head match GitHub closely enough?
 4. Can rollback project only currently visible blockers and accidentally lose a finding applicable to a future candidate?
-5. Does `WF_vars(PublisherStep)` overstate real liveness?
+5. After requiring each publisher disjunct to make strict progress when enabled, does aggregate `WF_vars(PublisherStep)` still overstate real liveness or permit starvation among reconciliation classes?
 6. Can `LoseObservability` after SUCCESS leave a protocol-compliant merge path that should have been blocked?
 7. Is the V4 upgrade abstraction too strong because `LegacyFindings` are globally known before import?
 8. Does a second NO_GO on an already failed head need a different linearization rule?
