@@ -571,7 +571,7 @@ AddDisposition(p) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, importedLegacy,
+                      prepared, linearized, committed, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                       activeReviews, corruptedReviews,
