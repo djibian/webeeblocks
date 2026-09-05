@@ -1081,9 +1081,12 @@ Next ==
   \/ PublisherStep
   \/ EnvironmentStep
 
-Spec ==
+SafetySpec ==
   /\ Init
   /\ [][Next]_vars
+
+Spec ==
+  /\ SafetySpec
   /\ WF_vars(PublisherStep)
 
 (***************************************************************************)
