@@ -90,7 +90,9 @@ Governance succession does not erase decision history:
 - GO proposals are bound to their proposal epoch;
 - positive Gate publication is allowed only for the active, required epoch;
 - the active epoch cannot advance while its negative authority work is
-  unprepared, pending or uncommitted.
+  unprepared, pending or uncommitted;
+- advancing from E1 to E2 permanently adds E1 to `retiredEpochs`;
+- a retired epoch can never become active or required again.
 
 A temporary loss of governance observability may be restored only if the
 manifest still matches. An observed governance drift cannot be repaired in
@@ -266,6 +268,7 @@ Inv_V5RemovalRequiresV4Fallback
 Inv_V4ProjectionPreservesTerminalHeads
 Inv_NoPendingAfterV5Removal
 Inv_EpochChangeDoesNotEraseFindings
+Inv_ActiveEpochNeverRetired
 ```
 
 ## High-value traces to search
@@ -275,17 +278,18 @@ Inv_EpochChangeDoesNotEraseFindings
 3. crash after `PREPARE`, after Gate FAILURE, and before/after COMMIT;
 4. `FAILURE(E1,H) -> E2 -> attempt SUCCESS(E2,H)`;
 5. old-epoch GO reused after `AdvanceEpoch`;
-6. governance observability loss then recovery without drift;
-7. governance drift then attempted in-place reconfiguration;
-8. duplicate Gate before SUCCESS, after SUCCESS, and during rollback;
-9. `PASS -> SUCCESS -> HUMAN_FAIL` on the exact same head;
-10. V4 -> V4+V5 -> V5 with legacy rejected-head authority;
-11. V5 -> V5+V4 -> V4 with unprepared/pending/uncommitted negative work;
-12. V5 rollback with a finding that only becomes applicable to a future head;
-13. V5 rollback with terminal head memory and later branch rollback to that SHA;
-14. protected-base advance followed by refresh without a new head;
-15. two open PRs pointing to the same head while one carries a blocking review;
-16. proposal mutation before PREPARE and after authority publication;
-17. review mutation before and after finding disposition;
-18. aggregate Publisher fairness with multiple independent reconciliation classes;
-19. human-root governance override during cut-over.
+6. `E1 -> E2 -> E1` attempted epoch reactivation after E1 retirement;
+7. governance observability loss then recovery without drift;
+8. governance drift then attempted in-place reconfiguration;
+9. duplicate Gate before SUCCESS, after SUCCESS, and during rollback;
+10. `PASS -> SUCCESS -> HUMAN_FAIL` on the exact same head;
+11. V4 -> V4+V5 -> V5 with legacy rejected-head authority;
+12. V5 -> V5+V4 -> V4 with unprepared/pending/uncommitted negative work;
+13. V5 rollback with a finding that only becomes applicable to a future head;
+14. V5 rollback with terminal head memory and later branch rollback to that SHA;
+15. protected-base advance followed by refresh without a new head;
+16. two open PRs pointing to the same head while one carries a blocking review;
+17. proposal mutation before PREPARE and after authority publication;
+18. review mutation before and after finding disposition;
+19. aggregate Publisher fairness with multiple independent reconciliation classes;
+20. human-root governance override during cut-over.
