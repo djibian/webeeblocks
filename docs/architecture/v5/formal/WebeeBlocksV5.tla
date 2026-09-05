@@ -1075,6 +1075,7 @@ HeadChange(pr,h) ==
   /\ pr \in prOpen
   /\ h \in Heads
   /\ h # prHead[pr]
+  /\ h \notin MergedHeads
   /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ UNCHANGED << guaranteeActive,
                   prOpen, baseFresh, merged, mergeHead,
