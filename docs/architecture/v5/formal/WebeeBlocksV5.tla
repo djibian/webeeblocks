@@ -385,6 +385,7 @@ ApplyCheckpointResult(p) ==
 PrepareRejection(r) ==
   LET p == RejectionProposal[r]
   IN  /\ r \in Rejections \ prepared
+      /\ requiredEpochs # {}
       /\ TrustedNegative(p)
       /\ ProposalHead[p] = RejectionHead[r]
       /\ RejectionEpoch[r] = activeEpoch
@@ -818,6 +819,7 @@ RemoveV5Requirements ==
   /\ requiredEpochs # {}
   /\ v4Guard
   /\ v4Verified
+  /\ PendingRejections = {}
   /\ DowngradeProjectionComplete
   /\ requiredEpochs' = {}
   /\ UNCHANGED << guaranteeActive,
@@ -1008,6 +1010,11 @@ Inv_V5RemovalRequiresV4Fallback ==
   /\ requiredEpochs = {}
   => v4Guard
 
+Inv_NoPendingAfterV5Removal ==
+  /\ guaranteeActive
+  /\ requiredEpochs = {}
+  => PendingRejections = {}
+
 Inv_EpochChangeDoesNotEraseFindings ==
   AuthorityFindings = UNION {RejectionFindings[r] : r \in linearized}
 
@@ -1040,8 +1047,11 @@ findings are independent from activeEpoch and requiredEpochs. Governance change
 never erases unresolved authority.
 
 R6 Rollback:
-RemoveV5Requirements is impossible until V4 is restored, verified and all
-globally unresolved V5 findings / live checkpoints are projected.
+RemoveV5Requirements is impossible until V4 is restored and verified, every
+durable PREPARE has drained through negative linearization, and all globally
+unresolved V5 findings / live checkpoints are projected. PrepareRejection is
+disabled while no V5 epoch is required, so downgrade cannot be followed by a
+new V5-only pending rejection that V4 does not know about.
 
 R7 Merge:
 MergePR abstracts expected_head_sha = current prHead[pr] plus strict current
