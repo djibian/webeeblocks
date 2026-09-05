@@ -60,7 +60,8 @@ jobs:
             sha256sum .ci-crazyflie-firmware/build/cf2.elf > ci-artifacts/s3-surface-offset/cf2.elf.sha256
           fi
           if [ -f .ci-crazyflie-firmware/build/cf2.bin ]; then
-            sha256sum .ci-crazyflie-firmware/build/cf2.bin > ci-artifacts/s3-surface-offset/cf2.bin.sha256
+            cp .ci-crazyflie-firmware/build/cf2.bin ci-artifacts/s3-surface-offset/cf2.bin
+            sha256sum ci-artifacts/s3-surface-offset/cf2.bin > ci-artifacts/s3-surface-offset/cf2.bin.sha256
           fi
 
       - name: Upload S3 build evidence
