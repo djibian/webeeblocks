@@ -177,6 +177,19 @@ DEF CRAZYFLIE Crazyflie {
         }
       ]
     }
+    Pose {
+      translation 0 0 0.02
+      rotation 0 1 0 -1.57079632679
+      children [
+        DistanceSensor {
+          name "range_up"
+          lookupTable [
+            0 0 0
+            2 2000 0
+          ]
+        }
+      ]
+    }
   ]
 }
 Robot {

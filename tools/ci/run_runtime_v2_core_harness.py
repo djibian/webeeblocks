@@ -10,6 +10,10 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
 def main():
     os.chdir(REPO_ROOT)
+    up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
+    if up_range_test.returncode:
+        print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode
+    print(up_range_test.stdout.strip())
     expected_starters = {
         '01-sequence.wbb':'progression-sequence-v1',
         '02-precise-movement.wbb':'progression-precise-movement-v1',
