@@ -329,7 +329,7 @@ script = r'''
     const lightBlue = workspace.newBlock('webeeblocks_v2_light');
     const lightOff = workspace.newBlock('webeeblocks_v2_light');
     const lightLand = workspace.newBlock('webeeblocks_v2_land');
-    lightTakeoff.setFieldValue('0.35', 'HEIGHT');
+    lightTakeoff.setFieldValue('0.4', 'HEIGHT');
     lightBlue.setFieldValue('blue', 'COLOR');
     lightOff.setFieldValue('off', 'COLOR');
     lightTakeoff.nextConnection.connect(lightBlue.previousConnection);
@@ -337,7 +337,7 @@ script = r'''
     lightOff.nextConnection.connect(lightLand.previousConnection);
     const lightAst = WebeeBlocksSemanticAst.compileWorkspace(workspace);
     const expectedLightAst = {version:1,semantics:'webeeblocks-ast-v1',program:[
-      {kind:'takeoff',height_m:0.35},{kind:'set_light',color:'blue'},{kind:'set_light',color:'off'},{kind:'land'}
+      {kind:'takeoff',height_m:0.4},{kind:'set_light',color:'blue'},{kind:'set_light',color:'off'},{kind:'land'}
     ]};
     if (JSON.stringify(lightAst) !== JSON.stringify(expectedLightAst))
       throw new Error('unexpected Color LED AST: ' + JSON.stringify(lightAst));
@@ -346,7 +346,7 @@ script = r'''
     );
     const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, ''));
     const expectedLightRequests = [
-      'TAKEOFF ' + Number(0.35).toPrecision(17),
+      'TAKEOFF ' + Number(0.4).toPrecision(17),
       'LIGHT blue',
       'LIGHT off',
       'LAND'
