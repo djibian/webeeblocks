@@ -236,7 +236,8 @@ additional workflows.
 The focused scenarios cover:
 
 - trusted GO/NO_GO ordering and new-head repair;
-- GovernanceEpoch succession;
+- GovernanceEpoch terminality / same-head non-resurrection;
+- cross-epoch inherited-finding repair on a new head;
 - duplicate Protocol Gate poisoning;
 - human checkpoint authority;
 - V4/V5 semantic migration and rollback.
