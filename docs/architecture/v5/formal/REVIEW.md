@@ -37,14 +37,17 @@ The canonical finite TLC harness is:
 - `WebeeBlocksV5_Duplicate.cfg`;
 - `WebeeBlocksV5_Checkpoint.cfg`;
 - `WebeeBlocksV5_Migration.cfg`;
-- `.github/workflows/v5-formal-tlc.yml`.
+- `run_tlc.sh`.
 
-The CI harness checks out exactly
-`github.event.pull_request.head.sha`, verifies the checked-out SHA, uses
-TLA+ 1.7.4 with a pinned SHA-256, parses with SANY, and model-checks the focused
-finite safety configurations.
+`run_tlc.sh` verifies a pinned TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses
+with SANY, and executes all five finite safety configurations.
 
-A green CI run is evidence, not a proof of the whole protocol.
+During model authoring, a temporary branch-only Actions workflow may call this
+runner against the exact PR HEAD. That workflow is experimental test
+infrastructure only and must be removed before the candidate is frozen, because
+the active V4 repository contract forbids additional workflows.
+
+A successful finite TLC run is evidence, not a proof of the whole protocol.
 
 ## Scope represented by the model
 
@@ -307,15 +310,18 @@ accidentally.
 
 1. Reconstruct Draft PR #191 and record its exact current HEAD.
 2. Read the three canonical design files completely.
-3. Inspect the finite MC module/configurations and the exact-head CI workflow.
-4. Inspect the latest `V5 Formal TLC` run for the exact reviewed HEAD.
-5. Do not infer proof from green CI.
-6. Try explicit state-machine traces, TLA+/TLC variants, and GitHub refinement
+3. Inspect the finite MC module/configurations and `run_tlc.sh`.
+4. Execute `bash docs/architecture/v5/formal/run_tlc.sh` on the exact reviewed
+   SHA if your environment permits it. If not, state that limitation explicitly.
+5. You may inspect historical temporary `V5 Formal TLC` authoring runs as
+   supporting evidence, but do not treat them as authority for a different SHA.
+6. Do not infer proof from a green finite run.
+7. Try explicit state-machine traces, TLA+/TLC variants, and GitHub refinement
    attacks.
-7. Re-evaluate earlier findings against the **new** candidate rather than merely
+8. Re-evaluate earlier findings against the **new** candidate rather than merely
    checking the diff that purported to fix them.
-8. Publish findings directly on PR #191.
-9. Do not modify the branch.
+9. Publish findings directly on PR #191.
+10. Do not modify the branch.
 
 ## Required reviewer output
 
