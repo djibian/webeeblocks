@@ -114,6 +114,7 @@ VARIABLES
 
   v4Guard,
   v4Verified,
+  v5Retired,
   v4ProjectedFindings,
   v4ProjectedRejectedHeads,
   v4ProjectedCheckpoints,
@@ -131,7 +132,7 @@ vars ==
      activeReviews, corruptedReviews,
      manifestObservable, manifestMatches, bootstrapped,
      requiredEpochs, operationalEpochs, activeEpoch,
-     v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads,
+     v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads,
      v4ProjectedCheckpoints,
      positiveAudit >>
 
@@ -175,6 +176,7 @@ TypeOK ==
 
   /\ v4Guard \in BOOLEAN
   /\ v4Verified \in BOOLEAN
+  /\ v5Retired \in BOOLEAN
   /\ v4ProjectedFindings \subseteq Findings
   /\ v4ProjectedRejectedHeads \subseteq Heads
   /\ v4ProjectedCheckpoints \subseteq Heads
@@ -398,6 +400,7 @@ Init ==
 
   /\ v4Guard = TRUE
   /\ v4Verified = TRUE
+  /\ v5Retired = FALSE
   /\ v4ProjectedFindings = {}
   /\ v4ProjectedRejectedHeads = {}
   /\ v4ProjectedCheckpoints = {}
@@ -417,7 +420,7 @@ PublishProposal(p) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 EditProposal(p) ==
@@ -432,7 +435,7 @@ EditProposal(p) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 ApplyCheckpointResult(p) ==
@@ -454,7 +457,7 @@ ApplyCheckpointResult(p) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PrepareRejection(r) ==
@@ -475,7 +478,7 @@ PrepareRejection(r) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 LinearizeNegative(r) ==
@@ -501,7 +504,7 @@ LinearizeNegative(r) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 CommitRejection(r) ==
@@ -516,7 +519,7 @@ CommitRejection(r) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 CreateReviewProjection(r) ==
@@ -536,7 +539,7 @@ CreateReviewProjection(r) ==
                   corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 CorruptReview(pr,r) ==
@@ -551,7 +554,7 @@ CorruptReview(pr,r) ==
                   activeReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AddDisposition(p) ==
@@ -571,7 +574,7 @@ AddDisposition(p) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 ProjectionResolved(pr,r) ==
@@ -593,7 +596,7 @@ DismissProjection(pr,r) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PositiveEligible(e,h) ==
@@ -627,7 +630,7 @@ PublishSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 ExpireSuccess(e,h) ==
   LET x == <<e,h>>
@@ -643,7 +646,7 @@ ExpireSuccess(e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 RevalidateSuccess(p,e,h) ==
@@ -665,7 +668,7 @@ RevalidateSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 InjectDuplicate(e,h) ==
   LET x == <<e,h>>
@@ -681,7 +684,7 @@ InjectDuplicate(e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 PoisonDuplicate(e,h) ==
@@ -700,7 +703,7 @@ PoisonDuplicate(e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 ConfigureEpoch(e) ==
@@ -715,7 +718,7 @@ ConfigureEpoch(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   bootstrapped, requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 LoseObservability(e) ==
@@ -731,7 +734,7 @@ LoseObservability(e) ==
                   activeReviews, corruptedReviews,
                   manifestMatches, bootstrapped, requiredEpochs,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 DriftGovernance(e) ==
@@ -747,7 +750,7 @@ DriftGovernance(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, bootstrapped, requiredEpochs,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 BootstrapEpoch(e) ==
@@ -764,10 +767,11 @@ BootstrapEpoch(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RequireEpoch(e) ==
+  /\ ~v5Retired
   /\ e \in bootstrapped \ requiredEpochs
   /\ requiredEpochs' = requiredEpochs \cup {e}
   /\ UNCHANGED << guaranteeActive,
@@ -779,7 +783,7 @@ RequireEpoch(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 VerifyEpoch(e) ==
@@ -797,7 +801,7 @@ VerifyEpoch(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AdvanceEpoch(e) ==
@@ -814,7 +818,7 @@ AdvanceEpoch(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RemoveOldEpoch(old) ==
@@ -832,7 +836,7 @@ RemoveOldEpoch(old) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AuthorityUpgradeProjection ==
@@ -848,7 +852,7 @@ AuthorityUpgradeProjection ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RemoveV4Guard ==
@@ -867,7 +871,7 @@ RemoveV4Guard ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
                   v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit >>
+                  v5Retired, positiveAudit >>
 
 RestoreV4Guard ==
   /\ ~v4Guard
@@ -883,7 +887,7 @@ RestoreV4Guard ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
                   v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit >>
+                  v5Retired, positiveAudit >>
 
 VerifyV4 ==
   /\ v4Guard
@@ -899,7 +903,7 @@ VerifyV4 ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
                   v4Guard, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit >>
+                  v5Retired, positiveAudit >>
 
 AuthorityDowngradeProjection ==
   /\ v4Guard
@@ -920,7 +924,7 @@ AuthorityDowngradeProjection ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
                   v4Guard, v4Verified,
-                  positiveAudit >>
+                  v5Retired, positiveAudit >>
 
 RemoveV5Requirements ==
   /\ requiredEpochs # {}
@@ -933,6 +937,7 @@ RemoveV5Requirements ==
   /\ corruptedReviews = {}
   /\ DowngradeProjectionComplete
   /\ requiredEpochs' = {}
+  /\ v5Retired' = TRUE
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
@@ -959,7 +964,7 @@ HeadChange(pr,h) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 BaseAdvance ==
@@ -975,7 +980,7 @@ BaseAdvance ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RefreshBase(pr,h) ==
@@ -994,7 +999,7 @@ RefreshBase(pr,h) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 MergePR(pr) ==
@@ -1012,7 +1017,7 @@ MergePR(pr) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 HumanGovernanceOverride ==
@@ -1026,7 +1031,7 @@ HumanGovernanceOverride ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PublisherStep ==
@@ -1135,7 +1140,7 @@ Inv_V5RemovalRequiresV4Fallback ==
 
 Inv_V4ProjectionPreservesTerminalHeads ==
   /\ guaranteeActive
-  /\ requiredEpochs = {}
+  /\ v5Retired
   => V5TerminalHeads \subseteq v4ProjectedRejectedHeads
 
 Inv_NoPendingAfterV5Removal ==
