@@ -134,6 +134,34 @@ only when the result can no longer affect any relevant future decision. A late
 PASS/FAIL after NOT_NEEDED remains historical evidence for its original subject
 and does not reopen the request or become evidence for a newer state.
 
+## Adaptive planning
+
+**Goals constrain; plans adapt.** Product goals, priorities, invariants and
+applicable governance constraints constrain planning, but priority alone does not
+prescribe execution order, actionability or establish a dependency. Operational
+paths, decomposition and sequencing are revisable by default.
+
+**Dependencies need justification.** Impose ordering only when an applicable
+product constraint, demonstrable logical or technical necessity, or durable
+evidence establishes it. Prior placement in a plan, roadmap sequence or issue
+history is not sufficient justification by itself.
+
+**Pull the smallest useful complete result.** Prefer reducing useful engaged work
+when that is a strong next result; otherwise take the smallest complete result
+that usefully advances or unblocks an active product outcome. Reducing engaged
+work may mean validating, integrating, repairing, completing, closing or
+abandoning a branch, candidate, duplicate or transient decomposition. Do not
+continue work merely because effort has already been invested when current
+evidence makes it dominated, obsolete, unsafe or no longer useful. Abandoning
+work never abandons a product goal or priority unless durable product authority
+changes that goal or priority.
+
+**Persist knowledge, not planning scaffolding.** Materialize durable evidence,
+constraints, discoveries and conclusions that can affect future decisions.
+Transient paths, decompositions, controller-local rankings and internal planning
+representations need no durable representation unless their conclusions can
+affect a later decision.
+
 ## Controller loop
 
 At launch and after every durable transition:
@@ -141,18 +169,27 @@ At launch and after every durable transition:
    relevant PRs, exact HEADs, CI, reviews, issues and evidence;
 2. if main is known unhealthy, contribute to restoration first unless a credible
    repair path is durably engaged and another independent action is more useful;
-3. prefer useful actions that reduce remaining engaged work: validate/integrate
-   a Ready PR this execution did not mutate, repair/complete existing work, or
-   close a dominated duplicate;
-4. otherwise progress existing useful work;
-5. otherwise start the highest-value product work not already sufficiently
-   covered, in an isolated short branch; publish a PR only once real durable work
-   exists, Draft if still mutable and Ready if complete;
+3. prefer a useful action that reduces remaining engaged work when it is a strong
+   next result: validate/integrate a Ready PR this execution did not mutate,
+   repair/complete existing useful work, or close/abandon a dominated duplicate
+   or obsolete path;
+4. otherwise select the smallest useful complete result that best advances the
+   current product priorities and is not already sufficiently covered. Compare
+   progressing existing work with starting new work using product value,
+   unblocking, evidence, uncertainty and useful independent parallelism rather
+   than age, sunk cost or prior plan placement;
+5. execute that result through an existing suitable branch/PR or an isolated
+   short branch; publish a PR only once real durable work exists, Draft if still
+   mutable and Ready if complete;
 6. before terminating, resolve exact current main and rebuild relevant engaged
    GitHub work one final time, then apply this Controller loop again. Terminate
    silently only if that reconstruction exposes no useful eligible action.
    Completion of the execution's current local work is never by itself a
    termination condition.
+
+Product priority is a strong selection signal, not a strict execution queue. A
+higher-priority outcome does not block independent useful work merely because it
+remains incomplete.
 
 Pending CI is not a reason to notify or globally idle. Use its latency for
 independent useful work when available.
@@ -170,9 +207,18 @@ independent useful work when available.
 
 ## Roadmap
 
-docs/ROADMAP.md expresses product intent, priority, dependencies and exit
-criteria. GitHub provides live execution state. Roadmap prose never overrides
-newer GitHub evidence.
+docs/ROADMAP.md expresses product intent, product priorities, justified
+dependencies and exit criteria. GitHub provides live execution state. Product
+priority guides selection but does not by itself establish actionability,
+dependency or execution order. Roadmap numbering, textual order, prior plan
+placement and issue history are not execution queues and do not create a
+dependency without separate justification. Roadmap prose never overrides newer
+GitHub evidence.
+
+When evidence changes a prerequisite or another conclusion that can affect a
+later decision, materialize the smallest affected durable conclusion. Do not
+persist transient Controller paths, decompositions or local rankings merely to
+record a plan.
 
 Do not modify this contract or checkpoint/notification mechanisms from an
 ordinary product PR unless the requested work specifically concerns governance.
