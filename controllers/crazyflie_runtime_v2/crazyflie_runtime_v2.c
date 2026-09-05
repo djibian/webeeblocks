@@ -285,9 +285,10 @@ int main(void) {
   WbDeviceTag range_back = wb_robot_get_device("range_back");
   WbDeviceTag range_left = wb_robot_get_device("range_left");
   WbDeviceTag range_right = wb_robot_get_device("range_right");
+  WbDeviceTag range_up = wb_robot_get_device("range_up");
   WbDeviceTag color_led = wb_robot_get_device("color_led");
 
-  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_back || !range_left || !range_right || !color_led) {
+  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_back || !range_left || !range_right || !range_up || !color_led) {
     fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
     wb_robot_cleanup();
     return 1;
@@ -319,6 +320,7 @@ int main(void) {
   wb_distance_sensor_enable(range_back, step);
   wb_distance_sensor_enable(range_left, step);
   wb_distance_sensor_enable(range_right, step);
+  wb_distance_sensor_enable(range_up, step);
   wb_led_set(color_led, 0);
 
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {
@@ -479,6 +481,8 @@ int main(void) {
           range_sensor = range_left;
         else if (strcmp(request.direction, "right") == 0)
           range_sensor = range_right;
+        else if (strcmp(request.direction, "up") == 0)
+          range_sensor = range_up;
         if (!range_sensor) {
           response_error(request.id, "CAPABILITY_UNAVAILABLE");
           continue;
