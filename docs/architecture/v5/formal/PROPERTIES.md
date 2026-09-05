@@ -83,11 +83,11 @@ V4 guard cannot be removed until all still-live V4 authority has been imported a
 
 ## P15 — V5 -> V4 semantic downgrade
 
-V5 required guards cannot be removed until V4 is restored and verified and all unresolved V5 findings/checkpoints have a V4-compatible representation.
+V5 required guards cannot be removed until V4 is restored and verified, every durable negative `PREPARE` has drained through negative linearization, and all unresolved V5 findings/checkpoints have a V4-compatible representation. Once no V5 epoch is required, the model must not admit a new V5-only `PREPARE`.
 
 ## P16 — Publisher reconstruction to quiescence
 
-Under a stable environment and finite protocol work, a weakly-fair repeated `PublisherStep` eventually drains all deterministic protocol transitions. This is a liveness assumption to challenge, not a GitHub theorem.
+Under a stable environment and finite protocol work, every enabled `PublisherStep` disjunct must make strict protocol progress. With that condition, a weakly-fair repeated `PublisherStep` is intended to drain all deterministic protocol transitions. This is a liveness assumption to challenge, not a GitHub theorem; an idempotently enabled publisher action is a counterexample because it can mask starvation of unrelated work.
 
 ## P17 — Human root boundary
 
@@ -114,6 +114,7 @@ Inv_NoSuccessWithCorruptedProjection
 Inv_RequiredSuccessRequiresObservableManifest
 Inv_V4RemovalRequiresImportedAuthority
 Inv_V5RemovalRequiresV4Fallback
+Inv_NoPendingAfterV5Removal
 Inv_EpochChangeDoesNotEraseFindings
 ```
 
@@ -126,8 +127,9 @@ Inv_EpochChangeDoesNotEraseFindings
 5. duplicate Protocol-App Gate before and after SUCCESS
 6. freshness expiry while new negative evidence appears
 7. V4 -> V4+V5 -> V5 with unresolved V4 authority
-8. V5 -> V5+V4 -> V4 with unresolved V5 findings/checkpoints
+8. V5 -> V5+V4 -> V4 with an unresolved PREPARE, proving requirements cannot be removed before it linearizes and is projected
 9. proposal edited after PREPARE
 10. review projection edited after COMMIT
 11. governance observability lost after SUCCESS but before merge
 12. human-root override during cut-over
+13. duplicate Gate -> poison once while unrelated publisher work remains pending; prove poisoning cannot stutter forever and mask reconciliation
