@@ -444,6 +444,9 @@ CreateReviewProjection(r) ==
   /\ r \in committed
   /\ RejectionPR[r] \in prOpen
   /\ <<RejectionPR[r],r>> \notin activeReviews
+  /\ \E f \in RejectionFindings[r] :
+       /\ <<f,prHead[RejectionPR[r]]>> \in Applies
+       /\ <<f,prHead[RejectionPR[r]]>> \notin dispositions
   /\ activeReviews' = activeReviews \cup {<<RejectionPR[r],r>>}
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
@@ -1037,6 +1040,12 @@ fail-closed for new SUCCESS because UnresolvedPending must be empty.
 R3 Gate:
 UniqueFreshSuccess abstracts exactly one fresh Check Run from the exact
 Protocol App. Same-name checks from any other App do not count.
+
+R3a Review projection:
+CreateReviewProjection is enabled only while at least one rejection finding is
+still applicable and unresolved for that PR's current head. Once a resolved
+projection is dismissed it cannot oscillate back into existence unless a later
+head makes the rejection semantically blocking again.
 
 R4 Duplicate:
 an undetected second Protocol-App writer is outside the normal trust envelope.
