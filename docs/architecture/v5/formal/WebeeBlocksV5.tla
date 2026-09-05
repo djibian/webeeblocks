@@ -56,6 +56,12 @@ ASSUME /\ Epochs # {}
        /\ RejectionPR \in [Rejections -> PRs]
        /\ RejectionFindings \in [Rejections -> SUBSET Findings]
        /\ \A r \in Rejections : RejectionFindings[r] # {}
+       /\ \A p \in Proposals, e \in Epochs :
+            ProposalKind[p] \in NegativeKinds =>
+              Cardinality({r \in Rejections :
+                /\ RejectionProposal[r] = p
+                /\ RejectionEpoch[r] = e
+                /\ RejectionHead[r] = ProposalHead[p]}) = 1
        /\ Applies \subseteq (Findings \X Heads)
        /\ LegacyFindings \subseteq Findings
        /\ CheckpointHeads \subseteq Heads
@@ -183,6 +189,15 @@ TrustedDisposition(p) ==
   /\ Trusted(p)
   /\ ProposalKind[p] \in DispositionKinds
 
+PreparedNegativeProposals ==
+  {RejectionProposal[r] : r \in prepared}
+
+UnpreparedTrustedNegatives(h) ==
+  {p \in Proposals :
+    /\ TrustedNegative(p)
+    /\ ProposalHead[p] = h
+    /\ p \notin PreparedNegativeProposals}
+
 AuthorityFindings ==
   UNION {RejectionFindings[r] : r \in linearized}
 
@@ -205,11 +220,8 @@ UnresolvedPending(h) ==
      /\ <<f,h>> \in Applies
      /\ <<f,h>> \notin dispositions}
 
-GloballyUnresolvedV5 ==
-  {f \in AuthorityFindings :
-     \E h \in Heads :
-       /\ <<f,h>> \in Applies
-       /\ <<f,h>> \notin dispositions}
+V5FindingsForDowngrade ==
+  AuthorityFindings
 
 CheckpointAllows(h) ==
   IF h \in CheckpointHeads
@@ -283,7 +295,7 @@ LegacyImportComplete ==
   importedLegacy = LegacyFindings
 
 DowngradeProjectionComplete ==
-  /\ GloballyUnresolvedV5 \subseteq v4ProjectedFindings
+  /\ V5FindingsForDowngrade \subseteq v4ProjectedFindings
   /\ LiveCheckpointHeads \subseteq v4ProjectedCheckpoints
 
 Init ==
@@ -365,6 +377,7 @@ ApplyCheckpointResult(p) ==
   /\ Trusted(p)
   /\ ProposalHead[p] \in CheckpointHeads
   /\ ProposalKind[p] \in {"HUMAN_PASS","HUMAN_FAIL","HUMAN_NA"}
+  /\ checkpoint[ProposalHead[p]] = "PENDING"
   /\ checkpoint' =
        [checkpoint EXCEPT
          ![ProposalHead[p]] =
@@ -387,6 +400,7 @@ PrepareRejection(r) ==
   IN  /\ r \in Rejections \ prepared
       /\ requiredEpochs # {}
       /\ TrustedNegative(p)
+      /\ p \notin PreparedNegativeProposals
       /\ ProposalHead[p] = RejectionHead[r]
       /\ RejectionEpoch[r] = activeEpoch
       /\ prepared' = prepared \cup {r}
@@ -521,6 +535,7 @@ PositiveEligible(e,h) ==
   /\ manifestObservable[e]
   /\ manifestMatches[e]
   /\ ~TerminalFailure(e,h)
+  /\ UnpreparedTrustedNegatives(h) = {}
   /\ UnresolvedDurable(h) = {}
   /\ UnresolvedPending(h) = {}
   /\ CheckpointAllows(h)
@@ -804,7 +819,7 @@ AuthorityDowngradeProjection ==
   /\ v4Guard
   /\ v4Verified
   /\ ~DowngradeProjectionComplete
-  /\ v4ProjectedFindings' = v4ProjectedFindings \cup GloballyUnresolvedV5
+  /\ v4ProjectedFindings' = v4ProjectedFindings \cup V5FindingsForDowngrade
   /\ v4ProjectedCheckpoints' =
        v4ProjectedCheckpoints \cup LiveCheckpointHeads
   /\ UNCHANGED << guaranteeActive,
@@ -871,12 +886,15 @@ BaseAdvance ==
                   v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
                   positiveAudit >>
 
-RefreshBase(pr) ==
+RefreshBase(pr,h) ==
   /\ pr \in prOpen
   /\ ~baseFresh[pr]
+  /\ h \in Heads
+  /\ h # prHead[pr]
+  /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ baseFresh' = [baseFresh EXCEPT ![pr] = TRUE]
   /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, merged, mergeHead,
+                  prOpen, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy,
                   checkpoint,
@@ -920,6 +938,7 @@ HumanGovernanceOverride ==
                   positiveAudit >>
 
 PublisherStep ==
+  \/ \E p \in Proposals : ApplyCheckpointResult(p)
   \/ \E r \in Rejections : PrepareRejection(r)
   \/ \E r \in Rejections : LinearizeNegative(r)
   \/ \E r \in Rejections : CommitRejection(r)
@@ -935,7 +954,6 @@ PublisherStep ==
 EnvironmentStep ==
   \/ \E p \in Proposals : PublishProposal(p)
   \/ \E p \in Proposals : EditProposal(p)
-  \/ \E p \in Proposals : ApplyCheckpointResult(p)
   \/ \E pr \in PRs, r \in Rejections : CorruptReview(pr,r)
   \/ \E e \in Epochs, h \in Heads : ExpireSuccess(e,h)
   \/ \E e \in Epochs, h \in Heads : InjectDuplicate(e,h)
@@ -952,7 +970,7 @@ EnvironmentStep ==
   \/ RemoveV5Requirements
   \/ \E pr \in PRs, h \in Heads : HeadChange(pr,h)
   \/ BaseAdvance
-  \/ \E pr \in PRs : RefreshBase(pr)
+  \/ \E pr \in PRs, h \in Heads : RefreshBase(pr,h)
   \/ \E pr \in PRs : MergePR(pr)
   \/ HumanGovernanceOverride
 
@@ -982,27 +1000,29 @@ Inv_NoPositiveAfterTerminalFailure ==
   \A e \in Epochs, h \in Heads :
     TerminalFailure(e,h) => ~UniqueFreshSuccess(e,h)
 
-Inv_NoSuccessWithUnresolvedDurableFinding ==
-  \A e \in Epochs, h \in Heads :
-    UniqueFreshSuccess(e,h) => UnresolvedDurable(h) = {}
+Inv_MergeHasNoUnresolvedDurableFinding ==
+  \A pr \in PRs :
+    /\ MergeAllowed(pr)
+    /\ requiredEpochs # {}
+    => UnresolvedDurable(prHead[pr]) = {}
 
-Inv_NoFreshSuccessWithPendingNegative ==
-  \A e \in Epochs, h \in Heads :
-    UniqueFreshSuccess(e,h) => UnresolvedPending(h) = {}
+Inv_MergeRequiresCheckpoint ==
+  \A pr \in PRs :
+    MergeAllowed(pr) => CheckpointAllows(prHead[pr])
 
-Inv_NoSuccessWithBlockingCheckpoint ==
-  \A e \in Epochs, h \in Heads :
-    UniqueFreshSuccess(e,h) => CheckpointAllows(h)
+Inv_MergeHasNoCorruptedProjection ==
+  \A pr \in PRs :
+    /\ MergeAllowed(pr)
+    /\ requiredEpochs # {}
+    => ~CorruptedForHead(prHead[pr])
 
-Inv_NoSuccessWithCorruptedProjection ==
-  \A e \in Epochs, h \in Heads :
-    UniqueFreshSuccess(e,h) => ~CorruptedForHead(h)
-
-Inv_RequiredSuccessRequiresObservableManifest ==
-  \A e \in requiredEpochs, h \in Heads :
-    UniqueFreshSuccess(e,h) =>
-      /\ manifestObservable[e]
-      /\ manifestMatches[e]
+Inv_MergeRequiresObservableManifest ==
+  \A pr \in PRs :
+    /\ MergeAllowed(pr)
+    /\ requiredEpochs # {}
+    => \A e \in requiredEpochs :
+         /\ manifestObservable[e]
+         /\ manifestMatches[e]
 
 Inv_V4RemovalRequiresImportedAuthority ==
   ~v4Guard =>
@@ -1034,8 +1054,12 @@ allowing deletion or non-fast-forward history rewrite.
 
 R2 Negative crash consistency:
 PREPARE is durable before LinearizeNegative. A crash after Gate FAILURE but
-before COMMIT must be reconstructible from PREPARE. An unresolved PREPARE is
-fail-closed for new SUCCESS because UnresolvedPending must be empty.
+before COMMIT must be reconstructible from PREPARE. A durable trusted negative
+proposal blocks new SUCCESS even before PREPARE; once PREPARED, unresolved
+pending findings continue to block new SUCCESS. PREPARE does not retroactively
+erase an already fresh SUCCESS: until Gate FAILURE linearizes the negative,
+a merge race is classified as late refutation by the deliberate boundary in
+REVIEW.md.
 
 R3 Gate:
 UniqueFreshSuccess abstracts exactly one fresh Check Run from the exact
@@ -1054,19 +1078,26 @@ makes the pair terminally negative.
 
 R5 Epoch:
 findings are independent from activeEpoch and requiredEpochs. Governance change
-never erases unresolved authority.
+never erases unresolved authority. Terminal FAILURE is scoped to an
+(Epoch,Head) pair; the same Head may be reconsidered in a later epoch only after
+every inherited applicable finding has an explicit disposition.
 
 R6 Rollback:
 RemoveV5Requirements is impossible until V4 is restored and verified, every
-durable PREPARE has drained through negative linearization, and all globally
-unresolved V5 findings / live checkpoints are projected. PrepareRejection is
-disabled while no V5 epoch is required, so downgrade cannot be followed by a
-new V5-only pending rejection that V4 does not know about.
+durable PREPARE has drained through negative linearization, and every
+authoritative V5 finding plus every live checkpoint has a V4-compatible
+projection. Candidate-specific dispositions do not retire findings at global
+scope, so downgrade conservatively preserves findings that may become applicable
+to future candidates. PrepareRejection is disabled while no V5 epoch is required,
+so downgrade cannot be followed by a new V5-only pending rejection that V4 does
+not know about.
 
 R7 Merge:
 MergePR abstracts expected_head_sha = current prHead[pr] plus strict current
-base. A deliberate root-human merge outside the protocol is a governance
-override, not a protocol transition.
+base. RefreshBase creates a new Head identity, modeling the real protected-base
+update that invalidates exact-candidate positive evidence. A deliberate
+root-human merge outside the protocol is a governance override, not a protocol
+transition.
 
 R8 Liveness:
 WF_vars(PublisherStep) abstracts periodic reconciliation. Under a stable finite
