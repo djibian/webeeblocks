@@ -11,6 +11,8 @@
     'setLight', 'arm', 'disarm', 'startMotors', 'stopMotors', 'setpoint',
     'sendSetpoint', 'thrust'
   ];
+  var ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'];
+  var EXACT_AIRFRAME = 'crazyflie-2.1';
 
   function fail(message) {
     throw new Error('physical capability contract: ' + message);
@@ -38,6 +40,24 @@
     });
   }
 
+  function normalizeIdentity(value) {
+    if (!isObject(value))
+      fail('identity must be an object');
+    if (value.family !== 'crazyflie')
+      fail('unsupported device family: ' + String(value.family));
+    if (value.modelEvidence !== 'unproven' && value.modelEvidence !== 'verified')
+      fail('identity.modelEvidence must be unproven or verified');
+
+    if (value.modelEvidence === 'unproven') {
+      if (value.model !== null)
+        fail('unproven exact model must be null');
+      return {family: 'crazyflie', model: null, modelEvidence: 'unproven'};
+    }
+
+    requireString(value.model, 'identity.model');
+    return {family: 'crazyflie', model: value.model, modelEvidence: 'verified'};
+  }
+
   function normalizeDescriptor(value) {
     if (!isObject(value))
       fail('descriptor must be an object');
@@ -45,22 +65,22 @@
       fail('unsupported transport: ' + String(value.transport));
     if (value.connected !== true)
       fail('Crazyflie connection is not established');
+    if (value.executionAuthority !== false)
+      fail('read-only descriptor must declare executionAuthority=false');
 
-    requireString(value.device, 'device');
-    if (value.device !== 'crazyflie-2.1')
-      fail('unsupported device: ' + value.device);
-
+    var identity = normalizeIdentity(value.identity);
     var hardware = normalizeStringArray(value.hardware, 'hardware');
-    if (hardware.indexOf('crazyflie-2.1') < 0)
-      fail('hardware must include crazyflie-2.1');
+    if (hardware.indexOf(EXACT_AIRFRAME) >= 0)
+      fail('exact airframe identity must not be encoded as generic hardware evidence');
 
     if (!isObject(value.capabilities))
       fail('capabilities must be an object');
 
-    var descriptor = {
+    return {
       transport: 'crazyradio',
       connected: true,
-      device: 'crazyflie-2.1',
+      executionAuthority: false,
+      identity: identity,
       hardware: hardware,
       capabilities: {
         actions: normalizeStringArray(value.capabilities.actions, 'capabilities.actions'),
@@ -69,8 +89,6 @@
         verticalDirections: normalizeStringArray(value.capabilities.verticalDirections, 'capabilities.verticalDirections')
       }
     };
-
-    return descriptor;
   }
 
   function assertReadOnlyAdapter(adapter) {
@@ -96,6 +114,19 @@
     });
   }
 
+  function requireHardware(profile, descriptor) {
+    profile.hardware.forEach(function(requirement) {
+      if (requirement === EXACT_AIRFRAME) {
+        if (descriptor.identity.modelEvidence !== 'verified' ||
+            descriptor.identity.model !== EXACT_AIRFRAME)
+          fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
+        return;
+      }
+      if (descriptor.hardware.indexOf(requirement) < 0)
+        fail('required hardware unavailable: ' + requirement);
+    });
+  }
+
   function preflight(profile, facts, descriptorValue) {
     if (!profile || !Array.isArray(profile.hardware))
       fail('profile hardware requirements unavailable');
@@ -104,12 +135,11 @@
       fail('AST capability facts unavailable');
 
     var descriptor = normalizeDescriptor(descriptorValue);
-    requireSubset(profile.hardware, descriptor.hardware, 'required hardware unavailable: ');
+    requireHardware(profile, descriptor);
 
     var actions = descriptor.capabilities.actions;
     facts.statements.forEach(function(kind) {
-      if (['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'].indexOf(kind) >= 0 &&
-          actions.indexOf(kind) < 0)
+      if (ACTION_KINDS.indexOf(kind) >= 0 && actions.indexOf(kind) < 0)
         fail('physical action capability unavailable: ' + kind);
     });
     requireSubset(Array.from(facts.ranges), descriptor.capabilities.rangeDirections,
