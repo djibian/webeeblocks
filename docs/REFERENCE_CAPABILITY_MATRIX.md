@@ -26,24 +26,25 @@ Status vocabulary:
 | Yaw turn | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_turn` → `turn(angle)` | Current WWI backend advertises and executes bounded signed yaw turns while holding position/altitude | Physical student backend not proven | Broad reactive profile only | **covered** in simulation for the generic yaw-turn vocabulary; **physical unproven** |
 | Wait / pacing | Generic Runtime timing semantic; no dedicated hardware source | `webeeblocks_v2_wait` → `wait(seconds)` | Current WWI backend advertises and executes bounded waits while holding position, altitude and yaw; real-Webots CI checks requested simulated duration and hold tolerances | Physical student backend not proven | Broad reactive profile only | **covered** in simulation; **physical unproven** |
 | Speed selection | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_speed` → `set_speed(speed)` | Current WWI backend explicitly rejects speed execution | Physical student backend not proven | Broad reactive profile only | **partial/missing execution** |
-| Multi-ranger directional distance | Multi-ranger deck | `webeeblocks_v2_range` → `range(direction)`; AST vocabulary has front/back/left/right/up | Current WWI backend advertises and reads front/back/left/right; real-Webots CI exercises the rear sensor path | Physical student backend not proven | Progression 3 exposes front; broad reactive profile declares front/back/left/right/up | **partial**: horizontal front/back/left/right is covered in Webots; up remains outside the current backend |
+| Multi-ranger directional distance | Multi-ranger deck | `webeeblocks_v2_range` → `range(direction)`; AST vocabulary has front/back/left/right/up | Current WWI backend advertises and reads front/back/left/right/up through dedicated Webots sensors | Physical student backend not proven | Progression 3 exposes front; broad reactive profile declares front/back/left/right/up | **covered** in simulation for the generic directional range vocabulary; **physical unproven** |
 | Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **missing** as a student-facing capability; decide whether downward range has a real pedagogical use before adding vocabulary |
 | Flow Deck V2 optical flow / stabilization | Flow Deck V2 | No direct student primitive by design | Used as simulation/flight infrastructure, not as an algorithm block | Physical behavior belongs to backend/safety validation | Implicit hardware requirement | **infrastructure only**; do not expose estimator/flow internals without a pedagogical need |
-| Multi-ranger upward range | Multi-ranger deck | Generic AST already admits `up` | Current WWI backend does not advertise `up` | Physical student backend not proven | Broad reactive profile declares `up` | **partial** |
+| Multi-ranger upward range | Multi-ranger deck | Generic AST already admits `up` | Current WWI backend advertises and reads `up` through a dedicated upward Webots distance sensor | Physical student backend not proven | Broad reactive profile declares `up` | **covered** in simulation; **physical unproven** |
 | Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | `webeeblocks_v2_light` → `set_light(color)` with a bounded generic palette | Runtime v2 exposes the action through WWI and a simple bottom-mounted RGB LED surface on the reference Crazyflie model | Physical student backend not proven | Broad reactive profile only | **covered** in simulation for the generic light/color intent; **physical unproven** |
 | Estimator diagnostics / tuning | Crazyflie 2.1 firmware/estimator infrastructure, informed by attached deck sensors | No student vocabulary | Internal only | #70 Lab/research only | None | **infrastructure only** by product rule |
 
 ## Conclusions for #157
 
-The generic AST still covers more motion and ranging intent than the current
-Webots WWI backend advertises. Capability work should therefore continue to prefer
-**closing existing generic simulation gaps before adding block families**.
+The existing generic Runtime semantics now have simulation coverage for the full
+Multi-ranger directional vocabulary `front/back/left/right/up`. Capability work
+should continue to prefer closing remaining existing generic simulation gaps
+before adding new block families.
 
 One genuine vocabulary decision remains visible: whether Flow Deck downward
 range is pedagogically useful enough to justify a generic student-facing `down`
 range direction.
 
-Color LED simulation now uses one generic light/color action and a simple
+Color LED simulation uses one generic light/color action and a simple
 bottom-mounted controllable RGB surface. It deliberately models the observable
 student effect rather than deck electronics; physical execution remains
 unproven.
