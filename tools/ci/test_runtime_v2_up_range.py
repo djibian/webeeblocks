@@ -4,12 +4,18 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-world = (ROOT / "worlds" / "crazyflie_runtime_obstacle.wbt").read_text(encoding="utf-8")
+runtime_worlds = [
+    ROOT / "worlds" / "crazyflie_runtime_obstacle.wbt",
+    ROOT / "worlds" / "crazyflie_runtime_v2.wbt",
+]
 controller = (ROOT / "controllers" / "crazyflie_runtime_v2" / "crazyflie_runtime_v2.c").read_text(encoding="utf-8")
 backend = (ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks" / "wwi_backend.js").read_text(encoding="utf-8")
 
-assert 'name "range_up"' in world
-assert 'rotation 0 1 0 -1.57079632679' in world
+for world_path in runtime_worlds:
+    world = world_path.read_text(encoding="utf-8")
+    assert 'name "range_up"' in world, world_path
+    assert 'rotation 0 1 0 -1.57079632679' in world, world_path
+
 assert 'wb_robot_get_device("range_up")' in controller
 assert '!range_up' in controller
 assert 'wb_distance_sensor_enable(range_up, step);' in controller
