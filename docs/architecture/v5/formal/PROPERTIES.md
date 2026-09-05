@@ -318,12 +318,15 @@ modules with SANY, and model-checks nine focused finite safety domains:
 - `Ordering` — trusted GO/NO_GO ordering and new-head repair;
 - `EpochTerminal` — no same-head resurrection across epochs;
 - `EpochRepair` — inherited finding repair plus old-epoch disposition attack;
-- `Duplicate` — physical duplicate + trusted NO_GO + poison reconciliation;
+- `Duplicate` — two-epoch physical duplicate + trusted NO_GO + poison
+  reconciliation, including unprepared-poison succession attacks and Check
+  projection loss;
 - `PendingHead` — PREPARE remains head-blocking with `Applies = {}`;
 - `SharedHead` — two PRs sharing one Head cannot both merge on one base;
 - `LateRefutation` — merge-wins race produces trunk-health block;
 - `Checkpoint` — human PASS/FAIL negative monotonicity;
-- `Migration` — V4/V5 authority projection and rollback.
+- `Migration` — V4/V5 authority projection and rollback, including a live
+  projected checkpoint and attempted post-retirement V5 evidence.
 
 Passing them means only that no invariant counterexample exists in those finite
 domains.
@@ -418,6 +421,8 @@ Inv_LateRefutationBlocksV5Merge
 Inv_V4ProjectedTrunkBlockBlocksMerge
 Inv_NoTwoMergedPRsShareExactHead
 Inv_ActiveEpochNeverRetired
+Inv_V5RetiredClosesPublisher
+Inv_V5RetiredClosesProposalPublication
 ```
 
 ## High-value traces to search
