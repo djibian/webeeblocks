@@ -1,4 +1,4 @@
-name: V5 Substrate Skipped Check Experiment
+name: V5 Substrate Review Mutation Experiment
 
 on:
   pull_request:
@@ -7,19 +7,28 @@ on:
 
 permissions:
   contents: read
-  checks: write
+  pull-requests: write
 
 jobs:
   driver:
-    name: Skipped-check driver
+    name: Review-mutation driver
     runs-on: ubuntu-22.04
     steps:
-      - name: Create skipped CI Gate
+      - name: Create, edit, then dismiss exact review
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          payload=$(jq -nc --arg sha "$HEAD_SHA"             '{name:"CI Gate", head_sha:$sha, status:"completed", conclusion:"skipped", output:{title:"V5 skipped required check", summary:"Substrate experiment."}}')
-          curl --fail-with-body -sS -L             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/$REPO/check-runs"             -d "$payload"
+          reviews_api="https://api.github.com/repos/$REPO/pulls/$PR/reviews"
+          create_payload=$(jq -nc --arg sha "$HEAD_SHA"             '{commit_id:$sha, body:"V5 review mutation experiment: ORIGINAL BODY", event:"REQUEST_CHANGES"}')
+          response=$(curl --fail-with-body -sS -L             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api"             -d "$create_payload")
+          review_id=$(printf '%s' "$response" | jq -r '.id')
+
+          edit_payload=$(jq -nc '{body:"V5 review mutation experiment: EDITED BODY"}')
+          curl --fail-with-body -sS -L             -X PUT             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api/$review_id"             -d "$edit_payload"
+
+          dismiss_payload=$(jq -nc '{message:"V5 substrate experiment: app self-dismiss exact review."}')
+          curl --fail-with-body -sS -L             -X PUT             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api/$review_id/dismissals"             -d "$dismiss_payload"
