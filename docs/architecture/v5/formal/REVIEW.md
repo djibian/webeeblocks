@@ -141,4 +141,4 @@ FORMAL_REVIEW: UNPROVEN <sha>
 
 ## Where to publish findings
 
-Publish the review directly on this Draft PR. Prefer one top-level review containing all findings. Do not modify the branch unless explicitly asked; the author/controller will produce the next candidate HEAD.
+Publish the review directly on this Draft PR. Because the reviewer connection uses the same GitHub identity (`djibian`) as the PR author, GitHub cannot accept `REQUEST_CHANGES` on this PR. Use a PR comment or a `COMMENTED` review and encode authority in the exact textual verdict bound to the reviewed SHA. Do not modify the branch unless explicitly asked; the author/controller will produce the next candidate HEAD.
