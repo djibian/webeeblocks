@@ -110,6 +110,7 @@ VARIABLES
   bootstrapped,
   requiredEpochs,
   operationalEpochs,
+  retiredEpochs,
   activeEpoch,
 
   v4Guard,
@@ -131,7 +132,7 @@ vars ==
      gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
      activeReviews, corruptedReviews,
      manifestObservable, manifestMatches, bootstrapped,
-     requiredEpochs, operationalEpochs, activeEpoch,
+     requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads,
      v4ProjectedCheckpoints,
      positiveAudit >>
@@ -172,6 +173,7 @@ TypeOK ==
   /\ bootstrapped \subseteq Epochs
   /\ requiredEpochs \subseteq Epochs
   /\ operationalEpochs \subseteq Epochs
+  /\ retiredEpochs \subseteq Epochs
   /\ activeEpoch \in Epochs
 
   /\ v4Guard \in BOOLEAN
@@ -398,6 +400,7 @@ Init ==
   /\ bootstrapped = {}
   /\ requiredEpochs = {}
   /\ operationalEpochs = {}
+  /\ retiredEpochs = {}
   /\ activeEpoch = InitialEpoch
 
   /\ v4Guard = TRUE
@@ -421,7 +424,7 @@ PublishProposal(p) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -436,7 +439,7 @@ EditProposal(p) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -458,7 +461,7 @@ ApplyCheckpointResult(p) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -479,7 +482,7 @@ PrepareRejection(r) ==
                       gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -505,7 +508,7 @@ LinearizeNegative(r) ==
                       poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -520,7 +523,7 @@ CommitRejection(r) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -542,7 +545,7 @@ CreateReviewProjection(r) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -557,7 +560,7 @@ CorruptReview(pr,r) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -577,7 +580,7 @@ AddDisposition(p) ==
                       gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -600,7 +603,7 @@ DismissProjection(pr,r) ==
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -637,7 +640,7 @@ PublishSuccess(p,e,h) ==
                       gateFailure, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 ExpireSuccess(e,h) ==
@@ -653,7 +656,7 @@ ExpireSuccess(e,h) ==
                       gateSuccess, gateFailure, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -675,7 +678,7 @@ RevalidateSuccess(p,e,h) ==
                       gateSuccess, gateFailure, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 InjectDuplicate(e,h) ==
@@ -692,7 +695,7 @@ InjectDuplicate(e,h) ==
                       gateSuccess, gateFailure, gateFresh, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -711,7 +714,7 @@ PoisonDuplicate(e,h) ==
                       checkpoint, gateCount,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
-                      requiredEpochs, operationalEpochs, activeEpoch,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
@@ -728,7 +731,7 @@ ConfigureEpoch(e) ==
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
-                  bootstrapped, requiredEpochs, operationalEpochs, activeEpoch,
+                  bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -744,7 +747,7 @@ LoseObservability(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestMatches, bootstrapped, requiredEpochs,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -761,7 +764,7 @@ RestoreObservability(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestMatches, bootstrapped, requiredEpochs,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -777,7 +780,7 @@ DriftGovernance(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, bootstrapped, requiredEpochs,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -794,12 +797,13 @@ BootstrapEpoch(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RequireEpoch(e) ==
   /\ ~v5Retired
+  /\ e \notin retiredEpochs
   /\ e \in bootstrapped \ requiredEpochs
   /\ requiredEpochs' = requiredEpochs \cup {e}
   /\ UNCHANGED << guaranteeActive,
@@ -810,7 +814,7 @@ RequireEpoch(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -835,7 +839,9 @@ VerifyEpoch(e) ==
 AdvanceEpoch(e) ==
   /\ e \in requiredEpochs \cap operationalEpochs
   /\ e # activeEpoch
+  /\ e \notin retiredEpochs
   /\ EpochAuthorityQuiescent(activeEpoch)
+  /\ retiredEpochs' = retiredEpochs \cup {activeEpoch}
   /\ activeEpoch' = e
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
@@ -863,7 +869,7 @@ RemoveOldEpoch(old) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -879,7 +885,7 @@ AuthorityUpgradeProjection ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -897,7 +903,7 @@ RemoveV4Guard ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   v5Retired, positiveAudit >>
 
@@ -913,7 +919,7 @@ RestoreV4Guard ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   v5Retired, positiveAudit >>
 
@@ -929,7 +935,7 @@ VerifyV4 ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   v5Retired, positiveAudit >>
 
@@ -950,7 +956,7 @@ AuthorityDowngradeProjection ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified,
                   v5Retired, positiveAudit >>
 
@@ -975,7 +981,7 @@ RemoveV5Requirements ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  operationalEpochs, activeEpoch,
+                  operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -992,7 +998,7 @@ HeadChange(pr,h) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -1008,7 +1014,7 @@ BaseAdvance ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -1027,7 +1033,7 @@ RefreshBase(pr,h) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -1045,7 +1051,7 @@ MergePR(pr) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -1059,7 +1065,7 @@ HumanGovernanceOverride ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, activeEpoch,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
@@ -1192,6 +1198,9 @@ Inv_NoPendingAfterV5Removal ==
 Inv_EpochChangeDoesNotEraseFindings ==
   AuthorityFindings = UNION {RejectionFindings[r] : r \in linearized}
 
+Inv_ActiveEpochNeverRetired ==
+  activeEpoch \notin retiredEpochs
+
 (***************************************************************************)
 (* REVIEW / REFINEMENT OBLIGATIONS                                         *)
 (***************************************************************************)
@@ -1233,7 +1242,9 @@ rejected or poisoned is terminal across all epochs: repair requires a distinct
 Head. GO proposals are epoch-bound and can mint authority only for the active,
 required epoch. A temporary loss of observability can be restored only while
 the manifest still matches; an observed governance drift cannot be repaired
-in-place and requires a new epoch.
+in-place and requires a new epoch. Epoch succession is monotone: when E1 is
+replaced by E2, E1 enters retiredEpochs and can never become active or required
+again in that protocol instance.
 
 R6 Rollback:
 RemoveV5Requirements is impossible until V4 is restored and verified, all
