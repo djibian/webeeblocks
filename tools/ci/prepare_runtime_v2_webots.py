@@ -353,6 +353,11 @@ script = r'''
       throw new Error('invalid back range sample: ' + String(rearRange));
     await report('REAR_RANGE_OK', {back:rearRange});
 
+    const upwardRange = await runtimeBackend.readRange('up');
+    if (!Number.isFinite(upwardRange) || upwardRange < 1.5 || upwardRange > 2.001)
+      throw new Error('invalid upward open-sky range sample: ' + String(upwardRange));
+    await report('UP_RANGE_OK', {up:upwardRange});
+
     await runtimeBackend.resetSimulation();
     const lightTxStart = wwiTx.length;
     workspace.clear();
