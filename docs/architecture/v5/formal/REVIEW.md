@@ -33,14 +33,15 @@ The canonical finite TLC harness is:
 
 - `WebeeBlocksV5_MC.tla`;
 - `WebeeBlocksV5_Ordering.cfg`;
-- `WebeeBlocksV5_Epoch.cfg`;
+- `WebeeBlocksV5_EpochTerminal.cfg`;
+- `WebeeBlocksV5_EpochRepair.cfg`;
 - `WebeeBlocksV5_Duplicate.cfg`;
 - `WebeeBlocksV5_Checkpoint.cfg`;
 - `WebeeBlocksV5_Migration.cfg`;
 - `run_tlc.sh`.
 
 `run_tlc.sh` verifies a pinned TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses
-with SANY, and executes all five finite safety configurations.
+with SANY, and executes all six finite safety configurations.
 
 During model authoring, a temporary branch-only Actions workflow may call this
 runner against the exact PR HEAD. That workflow is experimental test
@@ -303,7 +304,7 @@ accidentally.
     `guaranteeActive = TRUE` but before the Publisher can observe it?
 16. Is the Authority Ledger permission model implementable without giving the
     Protocol App an unacceptable product-history rewrite capability?
-17. Do the five finite TLC scenarios omit a small domain that can expose a
+17. Do the six finite TLC scenarios omit a small domain that can expose a
     qualitatively different counterexample?
 
 ## Required reviewer procedure
