@@ -297,6 +297,15 @@ UnreconciledDuplicatePairs ==
 UnreconciledDuplicateHeads ==
   {h \in Heads : \E e \in Epochs : <<e,h>> \in UnreconciledDuplicatePairs}
 
+OutstandingMerges ==
+  mergePrepared \ mergeCommitted
+
+MergeTransactionIdle ==
+  OutstandingMerges = {}
+
+MergeOutcomeKnown(pr) ==
+  pr \in (mergeRemoteSucceeded \cup mergeRemoteFailed)
+
 EpochAuthorityQuiescent(e) ==
   /\ MergeTransactionIdle
   /\ UnpreparedTrustedNegativesForEpoch(e) = {}
@@ -334,8 +343,11 @@ V5TerminalHeads ==
 MergedHeads ==
   {mergeHead[pr] : pr \in merged}
 
+TrustedAuthorityProposals ==
+  {p \in proposalPresent : ProposalActor[p] = Owner}
+
 TrustedAuthorityProposalHeads ==
-  {ProposalHead[p] : p \in proposalPresent /\ ProposalActor[p] = Owner}
+  {ProposalHead[p] : p \in TrustedAuthorityProposals}
 
 PositiveAuditHeads ==
   {h \in Heads : \E e \in Epochs : <<e,h>> \in positiveAudit}
@@ -343,15 +355,6 @@ PositiveAuditHeads ==
 AuthoritySeenHeads ==
   TrustedAuthorityProposalHeads \cup PositiveAuditHeads \cup
   MergedHeads \cup V5TerminalHeads
-
-OutstandingMerges ==
-  mergePrepared \ mergeCommitted
-
-MergeTransactionIdle ==
-  OutstandingMerges = {}
-
-MergeOutcomeKnown(pr) ==
-  pr \in (mergeRemoteSucceeded \cup mergeRemoteFailed)
 
 HeadTerminal(h) ==
   h \in (importedLegacyRejectedHeads \cup V5TerminalHeads)
