@@ -29,7 +29,7 @@
     this.readyWaiters = [];
     this.simulationStopped = false;
     var capabilities = {
-      actions: ['takeoff', 'move', 'vertical', 'land'],
+      actions: ['takeoff', 'move', 'vertical', 'turn', 'land'],
       rangeDirections: ['front', 'left', 'right'],
       moveDirections: ['forward', 'back', 'left', 'right'],
       verticalDirections: ['up', 'down']
@@ -130,6 +130,7 @@
   RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.turn = function(angleDeg) { return this._guardSimulationStopped() || this._request(['TURN', Number(angleDeg).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
   RuntimeV2WwiBackend.prototype.stopSimulation = function() {
@@ -153,7 +154,6 @@
       throw error;
     });
   };
-  RuntimeV2WwiBackend.prototype.turn = function() { return Promise.reject(new Error('Runtime v2 Webots backend turn capability unavailable')); };
   RuntimeV2WwiBackend.prototype.wait = function() { return Promise.reject(new Error('Runtime v2 Webots backend wait capability unavailable')); };
   RuntimeV2WwiBackend.prototype.setSpeed = function() { return Promise.reject(new Error('Runtime v2 Webots backend speed capability unavailable')); };
 

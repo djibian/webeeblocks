@@ -36,6 +36,7 @@ typedef enum {
   CMD_TAKEOFF,
   CMD_MOVE,
   CMD_VERTICAL,
+  CMD_TURN,
   CMD_LAND,
   CMD_RESET
 } command_t;
@@ -45,6 +46,7 @@ typedef enum {
   REQUEST_TAKEOFF,
   REQUEST_MOVE,
   REQUEST_VERTICAL,
+  REQUEST_TURN,
   REQUEST_LAND,
   REQUEST_RANGE,
   REQUEST_RESET,
@@ -161,6 +163,12 @@ static request_t parse_request(const char *message) {
     strncpy(request.direction, direction, sizeof(request.direction) - 1);
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d TURN %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_TURN;
+    request.value = value;
+    return request;
+  }
   if (sscanf(message, PREFIX " REQUEST %d RANGE %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
     request.kind = REQUEST_RANGE;
@@ -199,6 +207,11 @@ static void trace_move(const char *direction, double value) {
 
 static void trace_vertical(const char *direction, double value) {
   printf(PREFIX " TRACE VERTICAL %s distance=%.9f stop=1\n", direction, value);
+  fflush(stdout);
+}
+
+static void trace_turn(double value) {
+  printf(PREFIX " TRACE TURN angle_deg=%.9f stop=1\n", value);
   fflush(stdout);
 }
 
@@ -499,6 +512,23 @@ int main(void) {
         action_start = now;
         continue;
       }
+      if (request.kind == REQUEST_TURN) {
+        if (!airborne || !isfinite(request.value) || fabs(request.value) < 1.0 || fabs(request.value) > 179.0) {
+          response_error(request.id, "INVALID_TURN");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = wrap_angle(yaw + request.value * PI / 180.0);
+        command = CMD_TURN;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
       if (request.kind == REQUEST_LAND) {
         if (!airborne) {
           response_error(request.id, "INVALID_LAND");
@@ -630,6 +660,30 @@ int main(void) {
           stable_since = now;
         if (now - stable_since >= STOP_WINDOW) {
           trace_vertical(active_direction, active_value);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_TURN) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          trace_turn(active_value);
           response_ok(active_id);
           command = CMD_IDLE;
           stable_since = -1.0;
