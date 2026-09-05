@@ -124,19 +124,27 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
 
 function proveProgressionProfilesAndFieldOptions() {
   const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
+  const pPrecision = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
   const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-repeat-v1', Activities.BLOCK_CATALOG);
+  const pDecision = Profiles.resolveById(Activities.DOCUMENT, 'progression-simple-decision-v1', Activities.BLOCK_CATALOG);
   const p3 = Profiles.resolveById(Activities.DOCUMENT, 'progression-reactive-v1', Activities.BLOCK_CATALOG);
   const p4 = Profiles.resolveById(Activities.DOCUMENT, 'progression-combined-decisions-v1', Activities.BLOCK_CATALOG);
   const p5 = Profiles.resolveById(Activities.DOCUMENT, 'progression-memory-v1', Activities.BLOCK_CATALOG);
   const p6 = Profiles.resolveById(Activities.DOCUMENT, 'progression-autonomous-strategy-v1', Activities.BLOCK_CATALOG);
 
-  assert.strictEqual(p1.world, p2.world);
-  assert.strictEqual(p2.world, p3.world);
+  assert.strictEqual(p1.world, pPrecision.world);
+  assert.strictEqual(pPrecision.world, p2.world);
+  assert.strictEqual(p2.world, pDecision.world);
+  assert.strictEqual(pDecision.world, p3.world);
   assert.strictEqual(p3.world, p4.world);
   assert.strictEqual(p4.world, p5.world);
   assert.strictEqual(p5.world, p6.world);
-  assert(p1.toolbox.every(type => p2.toolbox.includes(type)), 'profile 2 must be cumulative over profile 1');
-  assert(p2.toolbox.every(type => p3.toolbox.includes(type)), 'profile 3 must be cumulative over profile 2');
+  assert(p1.toolbox.every(type => pPrecision.toolbox.includes(type)), 'precise-movement profile must reuse sequence blocks');
+  assert(pPrecision.toolbox.every(type => p2.toolbox.includes(type)), 'repeat profile must reuse precise-movement blocks');
+  assert(pPrecision.toolbox.every(type => pDecision.toolbox.includes(type)), 'simple-decision profile must reuse movement blocks');
+  assert(!pDecision.toolbox.includes('controls_repeat_ext'), 'simple decision must stay focused before repeated reaction');
+  assert(p2.toolbox.every(type => p3.toolbox.includes(type)), 'reactive profile must reuse repetition blocks');
+  assert(pDecision.toolbox.every(type => p3.toolbox.includes(type)), 'reactive profile must combine simple decision with repetition');
   assert(p3.toolbox.every(type => p4.toolbox.includes(type)), 'profile 4 must be cumulative over profile 3');
   assert(p4.toolbox.every(type => p5.toolbox.includes(type)), 'profile 5 must be cumulative over profile 4');
   assert(p5.toolbox.every(type => p6.toolbox.includes(type)), 'profile 6 must be cumulative over profile 5');
@@ -157,6 +165,14 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
   assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
+  assert.deepStrictEqual(pPrecision.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(pPrecision.runtime.moveDirections, ['forward','left']);
+  assert.deepStrictEqual(p2.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(pDecision.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(pDecision.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
+  assert.deepStrictEqual(pDecision.runtime.rangeDirections, ['front']);
+  assert(!pDecision.runtime.allowedStatementKinds.includes('repeat'));
+  assert.deepStrictEqual(pDecision.parameterBounds.math_number.NUM, {min:0.1,max:2.0,step:0.1});
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
@@ -363,7 +379,7 @@ function proveProgressionProfilesAndFieldOptions() {
 
   await proveUnavailableBackendCapabilityIsStudentCorrectable();
 
-  console.log('PASS Runtime v2 preflight + 66-B cumulative combined-decision profile/current-Webots capability/fail-closed checks');
+  console.log('PASS Runtime v2 preflight + compact #66 pedagogical granularity/current-Webots capability/fail-closed checks');
 })().catch(error => {
   console.error(error);
   process.exit(1);
