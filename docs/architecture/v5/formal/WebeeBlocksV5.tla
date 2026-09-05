@@ -1383,6 +1383,13 @@ Inv_NoTwoMergedPRsShareExactHead ==
 Inv_ActiveEpochNeverRetired ==
   activeEpoch \notin retiredEpochs
 
+Inv_V5RetiredClosesPublisher ==
+  v5Retired => ~ENABLED PublisherStep
+
+Inv_V5RetiredClosesProposalPublication ==
+  v5Retired =>
+    \A p \in Proposals : ~ENABLED PublishProposal(p)
+
 (***************************************************************************)
 (* REVIEW / REFINEMENT OBLIGATIONS                                         *)
 (***************************************************************************)
