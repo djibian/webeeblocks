@@ -21,11 +21,11 @@ Abstract atomic actions requiring separate GitHub refinement evidence:
 CONSTANTS
   Epochs, Heads, PRs, Proposals, Rejections, Findings,
   Owner, ExternalActor,
-  ProposalActor, ProposalKind, ProposalHead, ProposalFinding,
+  ProposalActor, ProposalKind, ProposalHead, ProposalFinding, ProposalEpoch,
   RejectionProposal, RejectionEpoch, RejectionHead, RejectionPR,
   RejectionFindings,
   Applies,
-  LegacyFindings,
+  LegacyFindings, LegacyRejectedHeads,
   CheckpointHeads,
   InitialPRs, InitialPRHead, InitialEpoch,
   FaultInjection
@@ -50,20 +50,23 @@ ASSUME /\ Epochs # {}
        /\ ProposalKind \in [Proposals -> ProposalKinds]
        /\ ProposalHead \in [Proposals -> Heads]
        /\ ProposalFinding \in [Proposals -> Findings]
+       /\ ProposalEpoch \in [Proposals -> Epochs]
        /\ RejectionProposal \in [Rejections -> Proposals]
        /\ RejectionEpoch \in [Rejections -> Epochs]
        /\ RejectionHead \in [Rejections -> Heads]
        /\ RejectionPR \in [Rejections -> PRs]
        /\ RejectionFindings \in [Rejections -> SUBSET Findings]
-       /\ \A r \in Rejections : RejectionFindings[r] # {}
-       /\ \A p \in Proposals, e \in Epochs :
+       /\ \A r \in Rejections :
+            /\ RejectionFindings[r] # {}
+            /\ ProposalKind[RejectionProposal[r]] \in NegativeKinds
+            /\ RejectionEpoch[r] = ProposalEpoch[RejectionProposal[r]]
+            /\ RejectionHead[r] = ProposalHead[RejectionProposal[r]]
+       /\ \A p \in Proposals :
             ProposalKind[p] \in NegativeKinds =>
-              Cardinality({r \in Rejections :
-                /\ RejectionProposal[r] = p
-                /\ RejectionEpoch[r] = e
-                /\ RejectionHead[r] = ProposalHead[p]}) = 1
+              Cardinality({r \in Rejections : RejectionProposal[r] = p}) = 1
        /\ Applies \subseteq (Findings \X Heads)
        /\ LegacyFindings \subseteq Findings
+       /\ LegacyRejectedHeads \subseteq Heads
        /\ CheckpointHeads \subseteq Heads
        /\ InitialPRs \subseteq PRs
        /\ InitialPRHead \in [PRs -> Heads]
@@ -89,6 +92,7 @@ VARIABLES
   committed,
   dispositions,
   importedLegacy,
+  importedLegacyRejectedHeads,
 
   checkpoint,
 
@@ -111,6 +115,7 @@ VARIABLES
   v4Guard,
   v4Verified,
   v4ProjectedFindings,
+  v4ProjectedRejectedHeads,
   v4ProjectedCheckpoints,
 
   positiveAudit
@@ -119,13 +124,15 @@ vars ==
   << guaranteeActive,
      prOpen, prHead, baseFresh, merged, mergeHead,
      proposalPresent, proposalCorrupt,
-     prepared, linearized, committed, dispositions, importedLegacy,
+     prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
+     importedLegacyRejectedHeads,
      checkpoint,
      gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
      activeReviews, corruptedReviews,
      manifestObservable, manifestMatches, bootstrapped,
      requiredEpochs, operationalEpochs, activeEpoch,
-     v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+     v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads,
+     v4ProjectedCheckpoints,
      positiveAudit >>
 
 Pairs == Epochs \X Heads
@@ -146,6 +153,7 @@ TypeOK ==
   /\ committed \subseteq Rejections
   /\ dispositions \subseteq (Findings \X Heads)
   /\ importedLegacy \subseteq LegacyFindings
+  /\ importedLegacyRejectedHeads \subseteq LegacyRejectedHeads
 
   /\ checkpoint \in [Heads -> CheckpointStates]
 
@@ -168,6 +176,7 @@ TypeOK ==
   /\ v4Guard \in BOOLEAN
   /\ v4Verified \in BOOLEAN
   /\ v4ProjectedFindings \subseteq Findings
+  /\ v4ProjectedRejectedHeads \subseteq Heads
   /\ v4ProjectedCheckpoints \subseteq Heads
 
   /\ positiveAudit \subseteq Pairs
@@ -185,6 +194,10 @@ TrustedGo(p) ==
   /\ Trusted(p)
   /\ ProposalKind[p] = "GO"
 
+TrustedGoFor(p,e) ==
+  /\ TrustedGo(p)
+  /\ ProposalEpoch[p] = e
+
 TrustedDisposition(p) ==
   /\ Trusted(p)
   /\ ProposalKind[p] \in DispositionKinds
@@ -198,6 +211,14 @@ UnpreparedTrustedNegatives(h) ==
     /\ ProposalHead[p] = h
     /\ p \notin PreparedNegativeProposals}
 
+UnpreparedTrustedNegativeProposals ==
+  {p \in Proposals :
+    /\ TrustedNegative(p)
+    /\ p \notin PreparedNegativeProposals}
+
+UnpreparedTrustedNegativesForEpoch(e) ==
+  {p \in UnpreparedTrustedNegativeProposals : ProposalEpoch[p] = e}
+
 AuthorityFindings ==
   UNION {RejectionFindings[r] : r \in linearized}
 
@@ -207,8 +228,22 @@ PendingRejections ==
 PendingFindings ==
   UNION {RejectionFindings[r] : r \in PendingRejections}
 
+UncommittedRejections ==
+  linearized \ committed
+
+PendingForEpoch(e) ==
+  {r \in PendingRejections : RejectionEpoch[r] = e}
+
+UncommittedForEpoch(e) ==
+  {r \in UncommittedRejections : RejectionEpoch[r] = e}
+
+EpochAuthorityQuiescent(e) ==
+  /\ UnpreparedTrustedNegativesForEpoch(e) = {}
+  /\ PendingForEpoch(e) = {}
+  /\ UncommittedForEpoch(e) = {}
+
 DurableFindings ==
-  LegacyFindings \cup AuthorityFindings
+  importedLegacy \cup AuthorityFindings
 
 UnresolvedDurable(h) ==
   {f \in DurableFindings :
@@ -223,6 +258,24 @@ UnresolvedPending(h) ==
 V5FindingsForDowngrade ==
   AuthorityFindings
 
+V5RejectedHeads ==
+  {h \in Heads : \E r \in linearized : RejectionHead[r] = h}
+
+V5PoisonedHeads ==
+  {h \in Heads : \E e \in Epochs : <<e,h>> \in poisoned}
+
+V5TerminalHeads ==
+  V5RejectedHeads \cup V5PoisonedHeads
+
+HeadTerminal(h) ==
+  h \in (importedLegacyRejectedHeads \cup V5TerminalHeads)
+
+FindingOriginHeads(f) ==
+  {h \in Heads :
+    \E r \in linearized :
+      /\ f \in RejectionFindings[r]
+      /\ RejectionHead[r] = h}
+
 CheckpointAllows(h) ==
   IF h \in CheckpointHeads
   THEN checkpoint[h] \in {"PASS", "NA"}
@@ -232,9 +285,10 @@ LiveCheckpointHeads ==
   {h \in CheckpointHeads : checkpoint[h] \in {"PENDING", "FAIL"}}
 
 NativeBlocked(pr) ==
-  \E r \in Rejections :
-    /\ <<pr,r>> \in activeReviews
+  \E other \in prOpen, r \in Rejections :
     /\ pr \in prOpen
+    /\ <<other,r>> \in activeReviews
+    /\ prHead[other] = prHead[pr]
 
 CorruptedForHead(h) ==
   \E pr \in prOpen, r \in Rejections :
@@ -242,10 +296,7 @@ CorruptedForHead(h) ==
     /\ prHead[pr] = h
 
 TerminalFailure(e,h) ==
-  \/ <<e,h>> \in poisoned
-  \/ \E r \in linearized :
-       /\ RejectionEpoch[r] = e
-       /\ RejectionHead[r] = h
+  HeadTerminal(h)
 
 UniqueFreshSuccess(e,h) ==
   /\ <<e,h>> \in gateSuccess
@@ -262,17 +313,22 @@ RequiredGatesOK(h) ==
 V4KnownFindings ==
   LegacyFindings \cup v4ProjectedFindings
 
+V4RejectedHeads ==
+  LegacyRejectedHeads \cup v4ProjectedRejectedHeads
+
 V4Unresolved(h) ==
   {f \in V4KnownFindings :
      /\ <<f,h>> \in Applies
      /\ <<f,h>> \notin dispositions}
 
 V4Allows(pr) ==
+  /\ prHead[pr] \notin V4RejectedHeads
   /\ V4Unresolved(prHead[pr]) = {}
   /\ ~(prHead[pr] \in v4ProjectedCheckpoints /\
        checkpoint[prHead[pr]] \notin {"PASS","NA"})
 
 V5Allows(pr) ==
+  /\ ~HeadTerminal(prHead[pr])
   /\ RequiredGatesOK(prHead[pr])
   /\ UnresolvedDurable(prHead[pr]) = {}
   /\ CheckpointAllows(prHead[pr])
@@ -292,10 +348,12 @@ NoGuardGap ==
   \/ requiredEpochs # {}
 
 LegacyImportComplete ==
-  importedLegacy = LegacyFindings
+  /\ importedLegacy = LegacyFindings
+  /\ importedLegacyRejectedHeads = LegacyRejectedHeads
 
 DowngradeProjectionComplete ==
   /\ V5FindingsForDowngrade \subseteq v4ProjectedFindings
+  /\ V5TerminalHeads \subseteq v4ProjectedRejectedHeads
   /\ LiveCheckpointHeads \subseteq v4ProjectedCheckpoints
 
 Init ==
@@ -315,6 +373,7 @@ Init ==
   /\ committed = {}
   /\ dispositions = {}
   /\ importedLegacy = {}
+  /\ importedLegacyRejectedHeads = {}
 
   /\ checkpoint =
        [h \in Heads |->
@@ -339,23 +398,25 @@ Init ==
   /\ v4Guard = TRUE
   /\ v4Verified = TRUE
   /\ v4ProjectedFindings = {}
+  /\ v4ProjectedRejectedHeads = {}
   /\ v4ProjectedCheckpoints = {}
 
   /\ positiveAudit = {}
 
 PublishProposal(p) ==
   /\ p \in Proposals \ proposalPresent
+  /\ ProposalEpoch[p] = activeEpoch
   /\ proposalPresent' = proposalPresent \cup {p}
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 EditProposal(p) ==
@@ -364,35 +425,35 @@ EditProposal(p) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 ApplyCheckpointResult(p) ==
   /\ Trusted(p)
+  /\ ProposalEpoch[p] = activeEpoch
   /\ ProposalHead[p] \in CheckpointHeads
-  /\ ProposalKind[p] \in {"HUMAN_PASS","HUMAN_FAIL","HUMAN_NA"}
+  /\ ProposalKind[p] \in {"HUMAN_PASS","HUMAN_NA"}
   /\ checkpoint[ProposalHead[p]] = "PENDING"
   /\ checkpoint' =
        [checkpoint EXCEPT
          ![ProposalHead[p]] =
            CASE ProposalKind[p] = "HUMAN_PASS" -> "PASS"
-             [] ProposalKind[p] = "HUMAN_FAIL" -> "FAIL"
              [] OTHER -> "NA"]
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PrepareRejection(r) ==
@@ -402,18 +463,18 @@ PrepareRejection(r) ==
       /\ TrustedNegative(p)
       /\ p \notin PreparedNegativeProposals
       /\ ProposalHead[p] = RejectionHead[r]
-      /\ RejectionEpoch[r] = activeEpoch
+      /\ RejectionEpoch[r] = ProposalEpoch[p]
       /\ prepared' = prepared \cup {r}
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      linearized, committed, dispositions, importedLegacy,
+                      linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 LinearizeNegative(r) ==
@@ -426,17 +487,20 @@ LinearizeNegative(r) ==
       /\ gateSuccess' = gateSuccess \ {x}
       /\ gateFresh' = gateFresh \ {x}
       /\ gateCount' = [gateCount EXCEPT ![x] = IF @ = 0 THEN 1 ELSE @]
+      /\ checkpoint' =
+           IF ProposalKind[RejectionProposal[r]] = "HUMAN_FAIL"
+           THEN [checkpoint EXCEPT ![h] = "FAIL"]
+           ELSE checkpoint
       /\ linearized' = linearized \cup {r}
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, committed, dispositions, importedLegacy,
-                      checkpoint,
+                      prepared, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 CommitRejection(r) ==
@@ -445,13 +509,13 @@ CommitRejection(r) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, dispositions, importedLegacy,
+                  prepared, linearized, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 CreateReviewProjection(r) ==
@@ -465,13 +529,13 @@ CreateReviewProjection(r) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 CorruptReview(pr,r) ==
@@ -480,13 +544,13 @@ CorruptReview(pr,r) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AddDisposition(p) ==
@@ -494,6 +558,7 @@ AddDisposition(p) ==
       h == ProposalHead[p]
   IN  /\ TrustedDisposition(p)
       /\ f \in DurableFindings
+      /\ h \notin FindingOriginHeads(f)
       /\ <<f,h>> \notin dispositions
       /\ dispositions' = dispositions \cup {<<f,h>>}
       /\ UNCHANGED << guaranteeActive,
@@ -505,7 +570,7 @@ AddDisposition(p) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 ProjectionResolved(pr,r) ==
@@ -522,12 +587,12 @@ DismissProjection(pr,r) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PositiveEligible(e,h) ==
@@ -544,7 +609,7 @@ PositiveEligible(e,h) ==
 
 PublishSuccess(p,e,h) ==
   LET x == <<e,h>>
-  IN  /\ TrustedGo(p)
+  IN  /\ TrustedGoFor(p,e)
       /\ ProposalHead[p] = h
       /\ PositiveEligible(e,h)
       /\ gateCount[x] = 0
@@ -555,7 +620,7 @@ PublishSuccess(p,e,h) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, dispositions, importedLegacy,
+                      prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateFailure, poisoned,
                       activeReviews, corruptedReviews,
@@ -571,18 +636,18 @@ ExpireSuccess(e,h) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, dispositions, importedLegacy,
+                      prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateCount, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 RevalidateSuccess(p,e,h) ==
   LET x == <<e,h>>
-  IN  /\ TrustedGo(p)
+  IN  /\ TrustedGoFor(p,e)
       /\ ProposalHead[p] = h
       /\ PositiveEligible(e,h)
       /\ x \in gateSuccess
@@ -593,7 +658,7 @@ RevalidateSuccess(p,e,h) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, dispositions, importedLegacy,
+                      prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateCount, poisoned,
                       activeReviews, corruptedReviews,
@@ -609,13 +674,13 @@ InjectDuplicate(e,h) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, dispositions, importedLegacy,
+                      prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateFresh, poisoned,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 PoisonDuplicate(e,h) ==
@@ -629,12 +694,12 @@ PoisonDuplicate(e,h) ==
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
-                      prepared, linearized, committed, dispositions, importedLegacy,
+                      prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint, gateCount,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                       positiveAudit >>
 
 ConfigureEpoch(e) ==
@@ -644,12 +709,12 @@ ConfigureEpoch(e) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   bootstrapped, requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 LoseObservability(e) ==
@@ -659,13 +724,29 @@ LoseObservability(e) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestMatches, bootstrapped, requiredEpochs,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  positiveAudit >>
+
+DriftGovernance(e) ==
+  /\ e \in Epochs
+  /\ manifestMatches[e]
+  /\ manifestMatches' = [manifestMatches EXCEPT ![e] = FALSE]
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, merged, mergeHead,
+                  proposalPresent, proposalCorrupt,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
+                  checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
+                  activeReviews, corruptedReviews,
+                  manifestObservable, bootstrapped, requiredEpochs,
+                  operationalEpochs, activeEpoch,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 BootstrapEpoch(e) ==
@@ -676,13 +757,13 @@ BootstrapEpoch(e) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RequireEpoch(e) ==
@@ -691,13 +772,13 @@ RequireEpoch(e) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 VerifyEpoch(e) ==
@@ -709,50 +790,54 @@ VerifyEpoch(e) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AdvanceEpoch(e) ==
   /\ e \in requiredEpochs \cap operationalEpochs
   /\ e # activeEpoch
+  /\ EpochAuthorityQuiescent(activeEpoch)
   /\ activeEpoch' = e
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RemoveOldEpoch(old) ==
   /\ old \in requiredEpochs
+  /\ old # activeEpoch
+  /\ EpochAuthorityQuiescent(old)
   /\ \E e \in requiredEpochs \ {old} : e \in operationalEpochs
   /\ requiredEpochs' = requiredEpochs \ {old}
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AuthorityUpgradeProjection ==
-  /\ importedLegacy # LegacyFindings
+  /\ ~LegacyImportComplete
   /\ importedLegacy' = LegacyFindings
+  /\ importedLegacyRejectedHeads' = LegacyRejectedHeads
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
@@ -762,7 +847,7 @@ AuthorityUpgradeProjection ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RemoveV4Guard ==
@@ -774,7 +859,7 @@ RemoveV4Guard ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
@@ -790,7 +875,7 @@ RestoreV4Guard ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
@@ -806,7 +891,7 @@ VerifyV4 ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
@@ -820,12 +905,14 @@ AuthorityDowngradeProjection ==
   /\ v4Verified
   /\ ~DowngradeProjectionComplete
   /\ v4ProjectedFindings' = v4ProjectedFindings \cup V5FindingsForDowngrade
+  /\ v4ProjectedRejectedHeads' =
+       v4ProjectedRejectedHeads \cup V5TerminalHeads
   /\ v4ProjectedCheckpoints' =
        v4ProjectedCheckpoints \cup LiveCheckpointHeads
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
@@ -838,19 +925,23 @@ RemoveV5Requirements ==
   /\ requiredEpochs # {}
   /\ v4Guard
   /\ v4Verified
+  /\ UnpreparedTrustedNegativeProposals = {}
   /\ PendingRejections = {}
+  /\ UncommittedRejections = {}
+  /\ activeReviews = {}
+  /\ corruptedReviews = {}
   /\ DowngradeProjectionComplete
   /\ requiredEpochs' = {}
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 HeadChange(pr,h) ==
@@ -861,13 +952,13 @@ HeadChange(pr,h) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 BaseAdvance ==
@@ -877,13 +968,13 @@ BaseAdvance ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RefreshBase(pr,h) ==
@@ -896,13 +987,13 @@ RefreshBase(pr,h) ==
   /\ UNCHANGED << guaranteeActive,
                   prOpen, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 MergePR(pr) ==
@@ -914,13 +1005,13 @@ MergePR(pr) ==
   /\ UNCHANGED << guaranteeActive,
                   prHead, baseFresh,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 HumanGovernanceOverride ==
@@ -928,13 +1019,13 @@ HumanGovernanceOverride ==
   /\ guaranteeActive' = FALSE
   /\ UNCHANGED << prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 PublisherStep ==
@@ -959,6 +1050,7 @@ EnvironmentStep ==
   \/ \E e \in Epochs, h \in Heads : InjectDuplicate(e,h)
   \/ \E e \in Epochs : ConfigureEpoch(e)
   \/ \E e \in Epochs : LoseObservability(e)
+  \/ \E e \in Epochs : DriftGovernance(e)
   \/ \E e \in Epochs : BootstrapEpoch(e)
   \/ \E e \in Epochs : RequireEpoch(e)
   \/ \E e \in Epochs : VerifyEpoch(e)
@@ -998,7 +1090,11 @@ Inv_CommittedWasLinearized ==
 
 Inv_NoPositiveAfterTerminalFailure ==
   \A e \in Epochs, h \in Heads :
-    TerminalFailure(e,h) => ~UniqueFreshSuccess(e,h)
+    HeadTerminal(h) => ~UniqueFreshSuccess(e,h)
+
+Inv_MergeNeverUsesTerminalHead ==
+  \A pr \in PRs :
+    MergeAllowed(pr) => ~HeadTerminal(prHead[pr])
 
 Inv_MergeHasNoUnresolvedDurableFinding ==
   \A pr \in PRs :
@@ -1033,6 +1129,11 @@ Inv_V5RemovalRequiresV4Fallback ==
   /\ guaranteeActive
   /\ requiredEpochs = {}
   => v4Guard
+
+Inv_V4ProjectionPreservesTerminalHeads ==
+  /\ guaranteeActive
+  /\ requiredEpochs = {}
+  => V5TerminalHeads \subseteq v4ProjectedRejectedHeads
 
 Inv_NoPendingAfterV5Removal ==
   /\ guaranteeActive
@@ -1078,19 +1179,20 @@ makes the pair terminally negative.
 
 R5 Epoch:
 findings are independent from activeEpoch and requiredEpochs. Governance change
-never erases unresolved authority. Terminal FAILURE is scoped to an
-(Epoch,Head) pair; the same Head may be reconsidered in a later epoch only after
-every inherited applicable finding has an explicit disposition.
+never erases unresolved authority. A Head that has ever been authoritatively
+rejected or poisoned is terminal across all epochs: repair requires a distinct
+Head. GO proposals are epoch-bound and cannot be reused to mint authority in a
+different governance epoch.
 
 R6 Rollback:
-RemoveV5Requirements is impossible until V4 is restored and verified, every
-durable PREPARE has drained through negative linearization, and every
-authoritative V5 finding plus every live checkpoint has a V4-compatible
-projection. Candidate-specific dispositions do not retire findings at global
-scope, so downgrade conservatively preserves findings that may become applicable
-to future candidates. PrepareRejection is disabled while no V5 epoch is required,
-so downgrade cannot be followed by a new V5-only pending rejection that V4 does
-not know about.
+RemoveV5Requirements is impossible until V4 is restored and verified, all
+trusted negative proposals have been prepared, every PREPARE has linearized,
+every linearized rejection has COMMITted, V5 review projections are cleared,
+and every authoritative V5 finding, terminal Head and live checkpoint has a
+V4-compatible projection. Candidate-specific dispositions never retire findings
+at global scope, so downgrade conservatively preserves findings that may become
+applicable to future candidates. PrepareRejection is disabled while no V5 epoch
+is required.
 
 R7 Merge:
 MergePR abstracts expected_head_sha = current prHead[pr] plus strict current
