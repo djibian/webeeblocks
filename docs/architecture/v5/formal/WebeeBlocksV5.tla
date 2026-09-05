@@ -201,7 +201,8 @@ Trusted(p) ==
   /\ ProposalActor[p] = Owner
 
 TrustedNegative(p) ==
-  /\ Trusted(p)
+  /\ p \in proposalPresent
+  /\ ProposalActor[p] = Owner
   /\ ProposalKind[p] \in NegativeKinds
 
 TrustedGo(p) ==
@@ -260,18 +261,28 @@ PendingPoisonForEpoch(e) ==
 UncommittedPoisonForEpoch(e) ==
   {x \in poisoned \ poisonCommitted : x[1] = e}
 
+DuplicatePairs ==
+  {x \in Pairs : gateCount[x] > 1}
+
+UnpreparedPoisonForEpoch(e) ==
+  {x \in DuplicatePairs \ poisonPrepared : x[1] = e}
+
+KnownDuplicatePairs ==
+  DuplicatePairs \cup poisonPrepared
+
+UnreconciledDuplicatePairs ==
+  KnownDuplicatePairs \ poisonCommitted
+
+UnreconciledDuplicateHeads ==
+  {h \in Heads : \E e \in Epochs : <<e,h>> \in UnreconciledDuplicatePairs}
+
 EpochAuthorityQuiescent(e) ==
   /\ UnpreparedTrustedNegativesForEpoch(e) = {}
   /\ PendingForEpoch(e) = {}
   /\ UncommittedForEpoch(e) = {}
+  /\ UnpreparedPoisonForEpoch(e) = {}
   /\ PendingPoisonForEpoch(e) = {}
   /\ UncommittedPoisonForEpoch(e) = {}
-
-DuplicatePairs ==
-  {x \in Pairs : gateCount[x] > 1}
-
-UnreconciledDuplicatePairs ==
-  DuplicatePairs \ poisonCommitted
 
 DurableFindings ==
   importedLegacy \cup AuthorityFindings
@@ -300,6 +311,9 @@ V5TerminalHeads ==
 
 MergedHeads ==
   {mergeHead[pr] : pr \in merged}
+
+AuthoritySeenHeads ==
+  {ProposalHead[p] : p \in proposalPresent} \cup MergedHeads \cup V5TerminalHeads
 
 HeadTerminal(h) ==
   h \in (importedLegacyRejectedHeads \cup V5TerminalHeads)
@@ -448,6 +462,7 @@ Init ==
   /\ positiveAudit = {}
 
 PublishProposal(p) ==
+  /\ ~v5Retired
   /\ p \in Proposals \ proposalPresent
   /\ ProposalEpoch[p] = activeEpoch
   /\ proposalPresent' = proposalPresent \cup {p}
@@ -656,6 +671,7 @@ PositiveEligible(e,h) ==
   /\ manifestObservable[e]
   /\ manifestMatches[e]
   /\ ~TerminalFailure(e,h)
+  /\ h \notin UnreconciledDuplicateHeads
   /\ UnpreparedTrustedNegatives(h) = {}
   /\ PendingRejectionsForHead(h) = {}
   /\ UnresolvedDurable(h) = {}
@@ -727,6 +743,7 @@ InjectDuplicate(e,h) ==
   LET x == <<e,h>>
   IN  /\ FaultInjection
       /\ ~v5Retired
+      /\ e \in requiredEpochs
       /\ gateCount[x] = 1
       /\ gateCount' = [gateCount EXCEPT ![x] = 2]
       /\ UNCHANGED << guaranteeActive,
@@ -761,18 +778,18 @@ PreparePoison(e,h) ==
 LinearizePoison(e,h) ==
   LET x == <<e,h>>
   IN  /\ x \in poisonPrepared \ poisoned
-      /\ gateCount[x] > 1
       /\ poisoned' = poisoned \cup {x}
       /\ gateFailure' = gateFailure \cup {x}
       /\ gateSuccess' = gateSuccess \ {x}
       /\ gateFresh' = gateFresh \ {x}
+      /\ gateCount' = [gateCount EXCEPT ![x] = IF @ = 0 THEN 1 ELSE @]
       /\ trunkBlocked' =
            IF h \in MergedHeads THEN TRUE ELSE trunkBlocked
       /\ UNCHANGED << guaranteeActive,
                       prOpen, prHead, baseFresh, merged, mergeHead,
                       proposalPresent, proposalCorrupt,
                       prepared, linearized, committed, authorityFindingHistory, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                      checkpoint, gateCount, poisonPrepared, poisonCommitted,
+                      checkpoint, poisonPrepared, poisonCommitted,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
@@ -789,6 +806,27 @@ CommitPoison(e,h) ==
                       prepared, linearized, committed, authorityFindingHistory, dispositions, importedLegacy, importedLegacyRejectedHeads,
                       checkpoint,
                       gateSuccess, gateFailure, gateFresh, gateCount, poisonPrepared, poisoned,
+                      activeReviews, corruptedReviews,
+                      manifestObservable, manifestMatches, bootstrapped,
+                      requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, v4ProjectedTrunkBlocked,
+                      positiveAudit >>
+
+LoseCheckProjection(e,h) ==
+  LET x == <<e,h>>
+  IN  /\ FaultInjection
+      /\ ~v5Retired
+      /\ x \in poisonPrepared \ poisoned
+      /\ gateCount[x] > 0
+      /\ gateSuccess' = gateSuccess \ {x}
+      /\ gateFailure' = gateFailure \ {x}
+      /\ gateFresh' = gateFresh \ {x}
+      /\ gateCount' = [gateCount EXCEPT ![x] = 0]
+      /\ UNCHANGED << guaranteeActive,
+                      prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                      proposalPresent, proposalCorrupt,
+                      prepared, linearized, committed, authorityFindingHistory, dispositions, importedLegacy, importedLegacyRejectedHeads,
+                      checkpoint, poisonPrepared, poisoned, poisonCommitted,
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
@@ -1075,7 +1113,7 @@ HeadChange(pr,h) ==
   /\ pr \in prOpen
   /\ h \in Heads
   /\ h # prHead[pr]
-  /\ h \notin MergedHeads
+  /\ h \notin AuthoritySeenHeads
   /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ UNCHANGED << guaranteeActive,
                   prOpen, baseFresh, merged, mergeHead,
@@ -1110,7 +1148,7 @@ RefreshBase(pr,h) ==
   /\ ~baseFresh[pr]
   /\ h \in Heads
   /\ h # prHead[pr]
-  /\ h \notin MergedHeads
+  /\ h \notin AuthoritySeenHeads
   /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ baseFresh' = [baseFresh EXCEPT ![pr] = TRUE]
   /\ UNCHANGED << guaranteeActive,
@@ -1125,7 +1163,7 @@ RefreshBase(pr,h) ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked >>
 
-MergePR(pr) ==
+MergeEffect(pr) ==
   /\ MergeAllowed(pr)
   /\ LET h == prHead[pr]
          remaining == prOpen \ {pr}
@@ -1146,6 +1184,16 @@ MergePR(pr) ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked >>
 
+PublisherMergePR(pr) ==
+  /\ ~v5Retired
+  /\ requiredEpochs # {}
+  /\ MergeEffect(pr)
+
+V4MergePR(pr) ==
+  /\ requiredEpochs = {}
+  /\ v4Guard
+  /\ MergeEffect(pr)
+
 HumanGovernanceOverride ==
   /\ guaranteeActive
   /\ guaranteeActive' = FALSE
@@ -1161,20 +1209,22 @@ HumanGovernanceOverride ==
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked >>
 
 PublisherStep ==
-  \/ \E p \in Proposals : ApplyCheckpointResult(p)
-  \/ \E r \in Rejections : PrepareRejection(r)
-  \/ \E r \in Rejections : LinearizeNegative(r)
-  \/ \E r \in Rejections : CommitRejection(r)
-  \/ \E r \in Rejections : CreateReviewProjection(r)
-  \/ \E p \in Proposals : AddDisposition(p)
-  \/ \E pr \in PRs, r \in Rejections : DismissProjection(pr,r)
-  \/ \E p \in Proposals, e \in Epochs, h \in Heads : PublishSuccess(p,e,h)
-  \/ \E p \in Proposals, e \in Epochs, h \in Heads : RevalidateSuccess(p,e,h)
-  \/ \E e \in Epochs, h \in Heads : PreparePoison(e,h)
-  \/ \E e \in Epochs, h \in Heads : LinearizePoison(e,h)
-  \/ \E e \in Epochs, h \in Heads : CommitPoison(e,h)
-  \/ AuthorityUpgradeProjection
-  \/ AuthorityDowngradeProjection
+  /\ ~v5Retired
+  /\ \/ \E p \in Proposals : ApplyCheckpointResult(p)
+     \/ \E r \in Rejections : PrepareRejection(r)
+     \/ \E r \in Rejections : LinearizeNegative(r)
+     \/ \E r \in Rejections : CommitRejection(r)
+     \/ \E r \in Rejections : CreateReviewProjection(r)
+     \/ \E p \in Proposals : AddDisposition(p)
+     \/ \E pr \in PRs, r \in Rejections : DismissProjection(pr,r)
+     \/ \E p \in Proposals, e \in Epochs, h \in Heads : PublishSuccess(p,e,h)
+     \/ \E p \in Proposals, e \in Epochs, h \in Heads : RevalidateSuccess(p,e,h)
+     \/ \E e \in Epochs, h \in Heads : PreparePoison(e,h)
+     \/ \E e \in Epochs, h \in Heads : LinearizePoison(e,h)
+     \/ \E e \in Epochs, h \in Heads : CommitPoison(e,h)
+     \/ \E pr \in PRs : PublisherMergePR(pr)
+     \/ AuthorityUpgradeProjection
+     \/ AuthorityDowngradeProjection
 
 EnvironmentStep ==
   \/ \E p \in Proposals : PublishProposal(p)
@@ -1182,6 +1232,7 @@ EnvironmentStep ==
   \/ \E pr \in PRs, r \in Rejections : CorruptReview(pr,r)
   \/ \E e \in Epochs, h \in Heads : ExpireSuccess(e,h)
   \/ \E e \in Epochs, h \in Heads : InjectDuplicate(e,h)
+  \/ \E e \in Epochs, h \in Heads : LoseCheckProjection(e,h)
   \/ \E e \in Epochs : ConfigureEpoch(e)
   \/ \E e \in Epochs : LoseObservability(e)
   \/ \E e \in Epochs : RestoreObservability(e)
@@ -1198,7 +1249,7 @@ EnvironmentStep ==
   \/ \E pr \in PRs, h \in Heads : HeadChange(pr,h)
   \/ BaseAdvance
   \/ \E pr \in PRs, h \in Heads : RefreshBase(pr,h)
-  \/ \E pr \in PRs : MergePR(pr)
+  \/ \E pr \in PRs : V4MergePR(pr)
   \/ HumanGovernanceOverride
 
 Next ==
@@ -1306,6 +1357,16 @@ Inv_PendingRejectionBlocksPositiveEligibility ==
   \A e \in Epochs, h \in Heads :
     PendingRejectionsForHead(h) # {} => ~PositiveEligible(e,h)
 
+Inv_ObservedTrustedNegativeBlocksPositiveEligibility ==
+  \A p \in proposalPresent :
+    /\ ProposalActor[p] = Owner
+    /\ ProposalKind[p] \in NegativeKinds
+    => ~PositiveEligible(ProposalEpoch[p], ProposalHead[p])
+
+Inv_UnreconciledDuplicateBlocksPositiveEligibility ==
+  \A e \in Epochs, h \in Heads :
+    h \in UnreconciledDuplicateHeads => ~PositiveEligible(e,h)
+
 Inv_LateRefutationBlocksV5Merge ==
   trunkBlocked =>
     \A pr \in PRs :
@@ -1334,8 +1395,10 @@ allowing deletion or non-fast-forward history rewrite.
 
 R2 Negative crash consistency:
 PREPARE is durable before LinearizeNegative. A crash after Gate FAILURE but
-before COMMIT must be reconstructible from PREPARE. A durable trusted negative
-proposal blocks new SUCCESS even before PREPARE. Once PREPARED, the rejection
+before COMMIT must be reconstructible from PREPARE. Once a trusted negative
+proposal is protocol-visible, later mutation of its mutable GitHub projection
+does not withdraw it; explicit authoritative resolution is required. Such
+observed negative authority blocks new SUCCESS even before PREPARE. Once PREPARED, the rejection
 blocks its exact RejectionHead independently of semantic Applies; finding
 applicability governs inheritance to other candidate heads, not the head-level
 NO_GO barrier. PREPARE does not retroactively erase an already fresh SUCCESS:
@@ -1355,10 +1418,12 @@ head makes the rejection semantically blocking again.
 R4 Duplicate:
 an undetected second Protocol-App writer is outside the normal trust envelope.
 InjectDuplicate exists to falsify recovery logic. Duplicate recovery is a
-durable PREPARE -> Gate FAILURE -> COMMIT poison lifecycle. Physical duplicate
-Check Runs may remain forever; governance considers the duplicate reconciled
-once poisonCommitted records the append-only poison authority. A pending NO_GO
-on an already-poisoned pair can linearize without requiring a unique Gate.
+durable PREPARE -> Gate FAILURE -> COMMIT poison lifecycle. A detected duplicate
+blocks positive authority for its Head across epochs until poison COMMIT.
+After PREPARE, Gate FAILURE may be conservatively reasserted even if Check
+retention removed the original duplicate evidence. Physical duplicate Check
+Runs may remain forever. A pending NO_GO on an already-poisoned pair can
+linearize without requiring a unique Gate.
 
 R5 Epoch:
 findings are independent from activeEpoch and requiredEpochs. Governance change
@@ -1394,10 +1459,14 @@ nor ordinary HeadChange may select a Head that has already been integrated;
 that would not refine a current-base candidate. A deliberate root-human merge
 outside the protocol is a governance override, not a protocol transition.
 
-R7a Late refutation:
-if Gate FAILURE or duplicate poison linearizes after the exact head has already
-merged, trunkBlocked becomes TRUE. Normal V5 integration stops immediately.
-Rollback projects that block into V4 before V5 retirement. Recovery of an
+R7a Late refutation and merge serialization:
+while V5 is required, normal merge effects execute only inside PublisherStep.
+Controllers may propose integration but do not own the GitHub merge effect.
+Gate FAILURE, duplicate poison, positive publication and merge are ordered by
+the same serialized Authority Plane. If Gate FAILURE or duplicate poison
+linearizes after the exact head has already merged, trunkBlocked becomes TRUE.
+Normal later V5 integration stops. Rollback projects that block into V4 before
+V5 retirement. Recovery of an
 unhealthy trunk is intentionally outside this V5-0 autonomous model and remains
 a V4/human-rooted repair obligation.
 
