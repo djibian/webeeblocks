@@ -1335,11 +1335,12 @@ allowing deletion or non-fast-forward history rewrite.
 R2 Negative crash consistency:
 PREPARE is durable before LinearizeNegative. A crash after Gate FAILURE but
 before COMMIT must be reconstructible from PREPARE. A durable trusted negative
-proposal blocks new SUCCESS even before PREPARE; once PREPARED, unresolved
-pending findings continue to block new SUCCESS. PREPARE does not retroactively
-erase an already fresh SUCCESS: until Gate FAILURE linearizes the negative,
-a merge race is classified as late refutation by the deliberate boundary in
-REVIEW.md.
+proposal blocks new SUCCESS even before PREPARE. Once PREPARED, the rejection
+blocks its exact RejectionHead independently of semantic Applies; finding
+applicability governs inheritance to other candidate heads, not the head-level
+NO_GO barrier. PREPARE does not retroactively erase an already fresh SUCCESS:
+until Gate FAILURE linearizes the negative, a merge race is classified as late
+refutation by the deliberate boundary in REVIEW.md.
 
 R3 Gate:
 UniqueFreshSuccess abstracts exactly one fresh Check Run from the exact
@@ -1363,30 +1364,35 @@ R5 Epoch:
 findings are independent from activeEpoch and requiredEpochs. Governance change
 never erases unresolved authority. A Head that has ever been authoritatively
 rejected or poisoned is terminal across all epochs: repair requires a distinct
-Head. GO proposals are epoch-bound and can mint authority only for the active,
-required epoch. A temporary loss of observability can be restored only while
-the manifest still matches; an observed governance drift cannot be repaired
-in-place and requires a new epoch. Epoch succession is monotone: when E1 is
-replaced by E2, E1 enters retiredEpochs and can never become active or required
-again in that protocol instance.
+Head. GO proposals and unapplied disposition proposals are epoch-bound and can
+mint authority only in the active, required epoch; a disposition already
+applied in its epoch remains durable history. Operational epoch membership is
+current-health state: observability loss or manifest drift removes the epoch
+from operationalEpochs. A temporary loss can be verified again only while the
+manifest still matches; observed drift requires a new epoch. Epoch succession
+is monotone: when E1 is replaced by E2, E1 enters retiredEpochs and can never
+become active or required again in that protocol instance.
 
 R6 Rollback:
 RemoveV5Requirements is impossible until V4 is restored and verified, all
-trusted negative proposals have been prepared, every PREPARE has linearized,
-every linearized rejection has COMMITted, V5 review projections are cleared,
-and every authoritative V5 finding, terminal Head and live checkpoint has a
-V4-compatible projection. Candidate-specific dispositions never retire findings
-at global scope, so downgrade conservatively preserves findings that may become
-applicable to future candidates. PrepareRejection is disabled while no V5 epoch
-is required.
+trusted negative proposals have been prepared, every rejection PREPARE has
+linearized and COMMITted, every duplicate poison PREPARE has linearized and
+COMMITted, every physical duplicate is reconciled by durable poison authority,
+V5 review projections are cleared, and every authoritative V5 finding, terminal
+Head, live checkpoint and trunk-health block has a V4-compatible projection.
+Physical duplicate Check Runs need not disappear. Candidate-specific
+dispositions never retire findings at global scope, so downgrade conservatively
+preserves findings that may become applicable to future candidates.
+PrepareRejection and duplicate injection are disabled after V5 retirement.
 
 R7 Merge:
 MergePR abstracts expected_head_sha = current prHead[pr] plus strict current
 base. A successful merge atomically makes every remaining open PR base-stale.
 RefreshBase creates a new Head identity, modeling the real protected-base
-update that invalidates exact-candidate positive evidence. A deliberate
-root-human merge outside the protocol is a governance override, not a protocol
-transition.
+update that invalidates exact-candidate positive evidence. Neither RefreshBase
+nor ordinary HeadChange may select a Head that has already been integrated;
+that would not refine a current-base candidate. A deliberate root-human merge
+outside the protocol is a governance override, not a protocol transition.
 
 R7a Late refutation:
 if Gate FAILURE or duplicate poison linearizes after the exact head has already
