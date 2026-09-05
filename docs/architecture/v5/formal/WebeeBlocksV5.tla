@@ -244,6 +244,9 @@ EpochAuthorityQuiescent(e) ==
   /\ PendingForEpoch(e) = {}
   /\ UncommittedForEpoch(e) = {}
 
+DuplicatePairs ==
+  {x \in Pairs : gateCount[x] > 1}
+
 DurableFindings ==
   importedLegacy \cup AuthorityFindings
 
@@ -673,6 +676,7 @@ RevalidateSuccess(p,e,h) ==
 InjectDuplicate(e,h) ==
   LET x == <<e,h>>
   IN  /\ FaultInjection
+      /\ ~v5Retired
       /\ gateCount[x] = 1
       /\ gateCount' = [gateCount EXCEPT ![x] = 2]
       /\ UNCHANGED << guaranteeActive,
@@ -933,6 +937,7 @@ RemoveV5Requirements ==
   /\ UnpreparedTrustedNegativeProposals = {}
   /\ PendingRejections = {}
   /\ UncommittedRejections = {}
+  /\ DuplicatePairs = {}
   /\ activeReviews = {}
   /\ corruptedReviews = {}
   /\ DowngradeProjectionComplete
