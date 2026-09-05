@@ -37,6 +37,7 @@ typedef enum {
   CMD_MOVE,
   CMD_VERTICAL,
   CMD_TURN,
+  CMD_WAIT,
   CMD_LAND,
   CMD_RESET
 } command_t;
@@ -47,6 +48,7 @@ typedef enum {
   REQUEST_MOVE,
   REQUEST_VERTICAL,
   REQUEST_TURN,
+  REQUEST_WAIT,
   REQUEST_LAND,
   REQUEST_RANGE,
   REQUEST_RESET,
@@ -169,6 +171,12 @@ static request_t parse_request(const char *message) {
     request.value = value;
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d WAIT %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_WAIT;
+    request.value = value;
+    return request;
+  }
   if (sscanf(message, PREFIX " REQUEST %d RANGE %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
     request.kind = REQUEST_RANGE;
@@ -212,6 +220,11 @@ static void trace_vertical(const char *direction, double value) {
 
 static void trace_turn(double value) {
   printf(PREFIX " TRACE TURN angle_deg=%.9f stop=1\n", value);
+  fflush(stdout);
+}
+
+static void trace_wait(double seconds, double elapsed) {
+  printf(PREFIX " TRACE WAIT seconds=%.9f elapsed=%.9f stop=1\n", seconds, elapsed);
   fflush(stdout);
 }
 
@@ -533,6 +546,23 @@ int main(void) {
         action_start = now;
         continue;
       }
+      if (request.kind == REQUEST_WAIT) {
+        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 5.0) {
+          response_error(request.id, "INVALID_WAIT");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        command = CMD_WAIT;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
       if (request.kind == REQUEST_LAND) {
         if (!airborne) {
           response_error(request.id, "INVALID_LAND");
@@ -693,6 +723,25 @@ int main(void) {
           stable_since = -1.0;
         }
       } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_WAIT) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (now - action_start >= active_value &&
+          hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        trace_wait(active_value, now - action_start);
+        response_ok(active_id);
+        command = CMD_IDLE;
         stable_since = -1.0;
       }
     } else if (command == CMD_LAND) {
