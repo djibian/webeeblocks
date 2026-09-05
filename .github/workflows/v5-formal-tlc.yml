@@ -36,12 +36,13 @@ jobs:
             | sha256sum --check -
 
       - name: Parse formal modules
+        working-directory: docs/architecture/v5/formal
         shell: bash
         run: |
           set -euo pipefail
-          java -cp .build/tools/tla2tools.jar tla2sany.SANY \
-            docs/architecture/v5/formal/WebeeBlocksV5.tla \
-            docs/architecture/v5/formal/WebeeBlocksV5_MC.tla
+          java -cp ../../../../.build/tools/tla2tools.jar tla2sany.SANY \
+            WebeeBlocksV5.tla \
+            WebeeBlocksV5_MC.tla
 
       - name: Model-check core authority
         working-directory: docs/architecture/v5/formal
