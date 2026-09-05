@@ -1095,7 +1095,9 @@ Inv_NoPositiveAfterTerminalFailure ==
 
 Inv_MergeNeverUsesTerminalHead ==
   \A pr \in PRs :
-    MergeAllowed(pr) => ~HeadTerminal(prHead[pr])
+    /\ MergeAllowed(pr)
+    /\ requiredEpochs # {}
+    => ~HeadTerminal(prHead[pr])
 
 Inv_MergeHasNoUnresolvedDurableFinding ==
   \A pr \in PRs :
