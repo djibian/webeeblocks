@@ -59,7 +59,14 @@ jobs:
           import base64, json, os, re, urllib.request
           REPO = 'djibian/webeeblocks'
           PATTERN = re.compile(r'CHECKPOINT_REQUEST ([0-9a-f]{40}) ([a-z0-9][a-z0-9._-]{0,63}) (checkpoint|release)')
-          PROFILES = {'windows-low-end': 'WebeeBlocks-Windows-R2025a'}
+          PROFILES = {
+              'windows-low-end': 'WebeeBlocks-Windows-R2025a',
+              's3-props-off': 'experimental-s3-surface-offset-2026-08',
+          }
+          PURPOSES = {
+              'windows-low-end': {'checkpoint', 'release'},
+              's3-props-off': {'checkpoint'},
+          }
 
           def get_commit(sha):
               req = urllib.request.Request(
@@ -103,6 +110,8 @@ jobs:
               raise SystemExit('Unknown test profile; add deterministic preparation before enabling it')
           if purpose not in {'checkpoint', 'release'} or not instructions:
               raise SystemExit('Invalid checkpoint request')
+          if purpose not in PURPOSES[profile]:
+              raise SystemExit(f'Purpose {purpose} is not allowed for profile {profile}')
           if get_commit(sha).get('sha') != sha:
               raise SystemExit('Target does not resolve exactly')
 

@@ -75,7 +75,10 @@ class WorkflowTests(unittest.TestCase):
             "group: webeeblocks-human-test-open",
             "WEBEEBLOCKS_HUMAN_TEST_OPEN=1",
             "WEBEEBLOCKS_TEST_FINGERPRINT=",
-            "PROFILES = {'windows-low-end': 'WebeeBlocks-Windows-R2025a'}",
+            "'windows-low-end': 'WebeeBlocks-Windows-R2025a',",
+            "'s3-props-off': 'experimental-s3-surface-offset-2026-08',",
+            "'s3-props-off': {'checkpoint'},",
+            "Purpose {purpose} is not allowed for profile {profile}",
             "Unknown test profile; add deterministic preparation before enabling it",
             "Required artifact is missing a valid sha256 digest",
             "sha256:[0-9a-f]{64}",
@@ -87,6 +90,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("search/issues", text)
         self.assertNotIn("artifact.get('digest', 'unavailable')", text)
         self.assertNotIn("profile.startswith('windows')", text)
+        webots = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "cp .ci-crazyflie-firmware/build/cf2.bin ci-artifacts/s3-surface-offset/cf2.bin",
+            webots,
+        )
+        self.assertIn(
+            "name: experimental-s3-surface-offset-2026-08",
+            webots,
+        )
         for obsolete in ("READY_FOR_REVIEW", "SESSION_LIMIT", "RELANCE CONTRÔLEUR", "Candidate Evidence"):
             self.assertNotIn(obsolete, text)
 
