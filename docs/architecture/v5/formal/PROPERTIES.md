@@ -208,6 +208,10 @@ A same-head PASS cannot overwrite an authoritative FAIL. Positive
 `HUMAN_PASS` / `HUMAN_NA` application is only allowed while the checkpoint
 is still pending.
 
+Checkpoint merge safety is scoped to the guard that owns it: active V5
+requirements enforce V5 checkpoints, while after downgrade V4 enforces only
+checkpoint heads that were explicitly projected into V4-compatible state.
+
 ## P19 — Governance observability is fail-closed
 
 If a required epoch is not observable, or its manifest no longer matches,
@@ -253,6 +257,7 @@ Inv_NoPositiveAfterTerminalFailure
 Inv_MergeNeverUsesTerminalHead
 Inv_MergeHasNoUnresolvedDurableFinding
 Inv_MergeRequiresCheckpoint
+Inv_V4ProjectedCheckpointBlocksMerge
 Inv_MergeHasNoCorruptedProjection
 Inv_MergeRequiresObservableManifest
 Inv_V4RemovalRequiresImportedAuthority
