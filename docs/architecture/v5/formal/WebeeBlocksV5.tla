@@ -1145,7 +1145,15 @@ Inv_MergeHasNoUnresolvedDurableFinding ==
 
 Inv_MergeRequiresCheckpoint ==
   \A pr \in PRs :
-    MergeAllowed(pr) => CheckpointAllows(prHead[pr])
+    /\ MergeAllowed(pr)
+    /\ requiredEpochs # {}
+    => CheckpointAllows(prHead[pr])
+
+Inv_V4ProjectedCheckpointBlocksMerge ==
+  \A pr \in PRs :
+    /\ MergeAllowed(pr)
+    /\ prHead[pr] \in v4ProjectedCheckpoints
+    => checkpoint[prHead[pr]] \in {"PASS","NA"}
 
 Inv_MergeHasNoCorruptedProjection ==
   \A pr \in PRs :
