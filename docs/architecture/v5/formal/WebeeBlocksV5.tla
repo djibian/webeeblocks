@@ -328,7 +328,6 @@ V4Unresolved(h) ==
 
 V4Allows(pr) ==
   /\ prHead[pr] \notin V4RejectedHeads
-  /\ UnpreparedTrustedNegatives(prHead[pr]) = {}
   /\ V4Unresolved(prHead[pr]) = {}
   /\ ~(prHead[pr] \in v4ProjectedCheckpoints /\
        checkpoint[prHead[pr]] \notin {"PASS","NA"})
@@ -526,6 +525,8 @@ CommitRejection(r) ==
                   positiveAudit >>
 
 CreateReviewProjection(r) ==
+  /\ ~v5Retired
+  /\ requiredEpochs # {}
   /\ r \in committed
   /\ RejectionPR[r] \in prOpen
   /\ <<RejectionPR[r],r>> \notin activeReviews
@@ -587,6 +588,7 @@ ProjectionResolved(pr,r) ==
        \/ <<f,prHead[pr]>> \in dispositions
 
 DismissProjection(pr,r) ==
+  /\ ~v5Retired
   /\ <<pr,r>> \in activeReviews
   /\ ProjectionResolved(pr,r)
   /\ activeReviews' = activeReviews \ {<<pr,r>>}
@@ -603,7 +605,10 @@ DismissProjection(pr,r) ==
                   positiveAudit >>
 
 PositiveEligible(e,h) ==
+  /\ e = activeEpoch
+  /\ e \in requiredEpochs
   /\ e \in bootstrapped
+  /\ LegacyImportComplete
   /\ manifestObservable[e]
   /\ manifestMatches[e]
   /\ ~TerminalFailure(e,h)
@@ -711,7 +716,9 @@ PoisonDuplicate(e,h) ==
                       positiveAudit >>
 
 ConfigureEpoch(e) ==
-  /\ e \in Epochs
+  /\ e \in Epochs \ bootstrapped
+  /\ ~manifestObservable[e]
+  /\ ~manifestMatches[e]
   /\ manifestObservable' = [manifestObservable EXCEPT ![e] = TRUE]
   /\ manifestMatches' = [manifestMatches EXCEPT ![e] = TRUE]
   /\ UNCHANGED << guaranteeActive,
@@ -741,8 +748,25 @@ LoseObservability(e) ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
+RestoreObservability(e) ==
+  /\ e \in bootstrapped
+  /\ ~manifestObservable[e]
+  /\ manifestMatches[e]
+  /\ manifestObservable' = [manifestObservable EXCEPT ![e] = TRUE]
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, merged, mergeHead,
+                  proposalPresent, proposalCorrupt,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
+                  checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
+                  activeReviews, corruptedReviews,
+                  manifestMatches, bootstrapped, requiredEpochs,
+                  operationalEpochs, activeEpoch,
+                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
+                  positiveAudit >>
+
 DriftGovernance(e) ==
-  /\ e \in Epochs
+  /\ e \in bootstrapped
   /\ manifestMatches[e]
   /\ manifestMatches' = [manifestMatches EXCEPT ![e] = FALSE]
   /\ UNCHANGED << guaranteeActive,
@@ -1061,6 +1085,7 @@ EnvironmentStep ==
   \/ \E e \in Epochs, h \in Heads : InjectDuplicate(e,h)
   \/ \E e \in Epochs : ConfigureEpoch(e)
   \/ \E e \in Epochs : LoseObservability(e)
+  \/ \E e \in Epochs : RestoreObservability(e)
   \/ \E e \in Epochs : DriftGovernance(e)
   \/ \E e \in Epochs : BootstrapEpoch(e)
   \/ \E e \in Epochs : RequireEpoch(e)
@@ -1197,8 +1222,10 @@ R5 Epoch:
 findings are independent from activeEpoch and requiredEpochs. Governance change
 never erases unresolved authority. A Head that has ever been authoritatively
 rejected or poisoned is terminal across all epochs: repair requires a distinct
-Head. GO proposals are epoch-bound and cannot be reused to mint authority in a
-different governance epoch.
+Head. GO proposals are epoch-bound and can mint authority only for the active,
+required epoch. A temporary loss of observability can be restored only while
+the manifest still matches; an observed governance drift cannot be repaired
+in-place and requires a new epoch.
 
 R6 Rollback:
 RemoveV5Requirements is impossible until V4 is restored and verified, all
