@@ -778,7 +778,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 80s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              timeout -k 5s 120s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-webots/webots.log
           code=${PIPESTATUS[0]}
@@ -862,6 +862,10 @@ jobs:
                   m = re.search(r'TRACE LIGHT color=(off|red|green|blue|yellow|white) rgb=([0-9a-f]{6})', line)
                   assert m, line
                   trace.append('LIGHT_' + m.group(1).upper())
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE SPEED ' in line:
+                  m = re.search(r'TRACE SPEED speed_m_s=([-0-9.]+)', line)
+                  assert m, line
+                  trace.append('SPEED')
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE WAIT ' in line:
                   m = re.search(r'TRACE WAIT seconds=([-0-9.]+) elapsed=([-0-9.]+)', line)
                   assert m and 'stop=1' in line, line
@@ -870,7 +874,7 @@ jobs:
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','RANGE_BACK','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','RANGE_BACK','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND','TAKEOFF','SPEED','MOVE_FORWARD','SPEED','MOVE_BACK','LAND','TAKEOFF','MOVE_FORWARD','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
           assert len(rear_ranges) == 1 and 0.0 <= rear_ranges[0] <= 2.001, rear_ranges
@@ -948,6 +952,43 @@ jobs:
           assert abs(wrap_angle(eyaw - syaw)) < math.radians(3.0), (wait_start, wait_end)
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
+          timed_move_starts = []
+          timed_move_ends = []
+          for line in log.splitlines():
+              m = re.search(
+                  r'CI MOVE_(START|END) (forward|back|left|right) x=([-0-9.]+) y=([-0-9.]+) yaw=([-0-9.]+) sim_time=([-0-9.]+) speed_limit=([-0-9.]+)',
+                  line)
+              if not m:
+                  continue
+              sample = (m.group(2),) + tuple(map(float, m.groups()[2:]))
+              (timed_move_starts if m.group(1) == 'START' else timed_move_ends).append(sample)
+          assert len(timed_move_starts) == len(timed_move_ends) >= 8, (timed_move_starts, timed_move_ends)
+          speed_starts = timed_move_starts[-3:]
+          speed_ends = timed_move_ends[-3:]
+          assert [s[0] for s in speed_starts] == ['forward','back','forward'], speed_starts
+          assert all(s[0] == e[0] for s, e in zip(speed_starts, speed_ends)), (speed_starts, speed_ends)
+          requested_limits = [s[-1] for s in speed_starts]
+          assert abs(requested_limits[0] - 0.10) < 1e-6, requested_limits
+          assert abs(requested_limits[1] - 0.35) < 1e-6, requested_limits
+          assert abs(requested_limits[2] - 0.35) < 1e-6, ('RESET did not restore default move speed', requested_limits)
+          durations = [e[-2] - s[-2] for s, e in zip(speed_starts, speed_ends)]
+          assert all(duration > 0 for duration in durations), durations
+          assert speed_starts[0][0] == speed_starts[2][0] == 'forward', speed_starts
+          assert abs(speed_starts[0][1] - speed_starts[2][1]) < 0.03, speed_starts
+          assert abs(speed_starts[0][2] - speed_starts[2][2]) < 0.03, speed_starts
+          assert abs(wrap_angle(speed_starts[0][3] - speed_starts[2][3])) < math.radians(2.0), speed_starts
+          assert durations[0] > durations[2] + 0.5, ('lower speed did not causally increase otherwise-identical forward traversal time', durations)
+          for start, end in zip(speed_starts, speed_ends):
+              direction, sx, sy, yaw, _, _ = start
+              _, ex, ey, _, _, _ = end
+              dx, dy = ex - sx, ey - sy
+              forward = dx * math.cos(yaw) + dy * math.sin(yaw)
+              left = -dx * math.sin(yaw) + dy * math.cos(yaw)
+              if direction == 'forward':
+                  assert forward > 0.20 and abs(left) < 0.08, (start, end, forward, left)
+              elif direction == 'back':
+                  assert forward < -0.20 and abs(left) < 0.08, (start, end, forward, left)
+
           def first_index(predicate, label):
               for index, event in enumerate(events):
                   if predicate(event):
@@ -967,9 +1008,13 @@ jobs:
           vertical = first_index(lambda e: e.get('event') == 'VERTICAL_MOVES_OK', 'VERTICAL_MOVES_OK')
           yaw_turns = first_index(lambda e: e.get('event') == 'YAW_TURNS_OK', 'YAW_TURNS_OK')
           wait_ok = first_index(lambda e: e.get('event') == 'WAIT_OK', 'WAIT_OK')
+          speed_reject = first_index(lambda e: e.get('event') == 'SPEED_REJECT_OK', 'SPEED_REJECT_OK')
+          speed_select = first_index(lambda e: e.get('event') == 'SPEED_SELECTION_OK', 'SPEED_SELECTION_OK')
+          speed_reset = first_index(lambda e: e.get('event') == 'SPEED_RESET_OK', 'SPEED_RESET_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < rear_range < color_led < horizontal < vertical < yaw_turns < wait_ok < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < rear_range < color_led < horizontal < vertical < yaw_turns < wait_ok < speed_reject < speed_select < speed_reset < done, [(e.get('event'), e.get('detail')) for e in events]
           assert abs(float(events[wait_ok]['detail']['seconds']) - 0.5) < 1e-6, events[wait_ok]
+          assert events[speed_reject]['detail']['code'] == 'INVALID_SPEED', events[speed_reject]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']
