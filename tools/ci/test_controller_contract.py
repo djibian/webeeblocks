@@ -76,6 +76,23 @@ class ContractTests(unittest.TestCase):
         ):
             self.assertNotIn(obsolete, combined)
 
+    def test_adaptive_planning_preserves_product_authority_without_execution_queue(self):
+        self.assertIn("## Adaptive planning", self.raw)
+        self.assertIn("Goals constrain; plans adapt.", self.contract)
+        self.assertIn("Dependencies need justification.", self.contract)
+        self.assertIn("demonstrable logical or technical necessity", self.contract)
+        self.assertIn("Prior placement in a plan, roadmap sequence or issue history is not sufficient justification", self.contract)
+        self.assertIn("Pull the smallest useful complete result.", self.contract)
+        self.assertIn("Do not continue work merely because effort has already been invested", self.contract)
+        self.assertIn("Abandoning work never abandons a product goal or priority", self.contract)
+        self.assertIn("Persist knowledge, not planning scaffolding.", self.contract)
+        self.assertIn("controller-local rankings", self.contract)
+        self.assertIn("smallest useful complete result that best advances the current product priorities", self.contract)
+        self.assertIn("Product priority is a strong selection signal, not a strict execution queue", self.contract)
+        self.assertIn("higher-priority outcome does not block independent useful work merely because it remains incomplete", self.contract)
+        self.assertIn("Roadmap numbering, textual order, prior plan placement and issue history are not execution queues", self.contract)
+        self.assertNotIn("start the highest-value product work", self.contract)
+
     def test_termination_requires_final_reconstruction(self):
         self.assertIn("rebuild relevant engaged GitHub work one final time", self.contract)
         self.assertIn("Terminate silently only if that reconstruction exposes no useful eligible action", self.contract)
