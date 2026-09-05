@@ -1,5 +1,7 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
 const ActivityContract = require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract.js');
 const SemanticAst = require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast.js');
@@ -120,6 +122,29 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
   await ActivityContract.execute(profile, workspace, compiler, testInterpreter, testBackend);
   assert.strictEqual(interpreterRuns, 1, 'corrected program was not retryable without reset');
   assert.strictEqual(backendActions, 2, 'corrected program did not execute normally');
+}
+
+
+function proveProgressionStarterFiles() {
+  const expected = [
+    ['01-sequence.wbb', 'progression-sequence-v1'],
+    ['02-precise-movement.wbb', 'progression-precise-movement-v1'],
+    ['03-repeat.wbb', 'progression-repeat-v1'],
+    ['04-simple-decision.wbb', 'progression-simple-decision-v1'],
+    ['05-reactive.wbb', 'progression-reactive-v1'],
+    ['06-multi-perception.wbb', 'progression-combined-decisions-v1'],
+    ['07-memory.wbb', 'progression-memory-v1'],
+    ['08-autonomous-strategy.wbb', 'progression-autonomous-strategy-v1']
+  ];
+  const directory = path.resolve(__dirname, '../../activities/progression');
+  const files = fs.readdirSync(directory).filter(name => name.endsWith('.wbb')).sort();
+  assert.deepStrictEqual(files, expected.map(entry => entry[0]),
+    'progression starter filenames must provide one unambiguous ordered activity spine');
+  for (const [filename, activityId] of expected) {
+    const project = JSON.parse(fs.readFileSync(path.join(directory, filename), 'utf8'));
+    assert.strictEqual(project.activity.id, activityId, filename + ' must target its numbered progression profile');
+    assert.strictEqual(project.activity.semantics, 'webeeblocks-ast-v1', filename);
+  }
 }
 
 function proveProgressionProfilesAndFieldOptions() {
@@ -306,6 +331,7 @@ function proveProgressionProfilesAndFieldOptions() {
 }
 
 (async function() {
+  proveProgressionStarterFiles();
   proveProgressionProfilesAndFieldOptions();
   await mustReject({
     version: 1,
