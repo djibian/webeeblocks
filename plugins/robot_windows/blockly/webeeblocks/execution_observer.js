@@ -47,6 +47,8 @@
           sequence(block.getInputTargetBlock('DO0'), path.concat('then'));
           if (block.getInputTargetBlock('ELSE'))
             sequence(block.getInputTargetBlock('ELSE'), path.concat('else'));
+        } else if (block.type === 'variables_set') {
+          expression(block.getInputTargetBlock('VALUE'), path.concat('value'));
         }
         block = typeof block.getNextBlock === 'function' ? block.getNextBlock() : null;
         index += 1;

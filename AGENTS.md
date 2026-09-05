@@ -47,6 +47,18 @@ Each execution works in its own isolated worktree/checkout and branch context.
   reconstruction and a decision to reapply, adapt or abandon local work.
 - A fresh Controller may resume or repair any durable Draft/branch/PR.
 - Prefer short branches and small complete changes. Stacks are exceptional.
+- Short-lived branches are transient project references. A branch may be deleted
+  when reconstruction establishes that its work is integrated, or durable
+  applicable project evidence under the existing provenance and authority rules
+  establishes that its remaining work is abandoned, obsolete or superseded; no
+  open PR or other still-applicable work depends on it; and no unique useful
+  work still requires durable preservation. Any unique useful work that remains
+  relevant must be integrated or otherwise preserved by an appropriate durable
+  reference before deletion.
+- Branch deletion must be an atomic conditional ref deletion against the exact
+  reconstructed branch tip and must fail closed if that ref has changed. A
+  separate observation followed by an unconditional deletion does not satisfy
+  this invariant.
 
 ## 3 — Stable Candidate
 
@@ -190,6 +202,11 @@ At launch and after every durable transition:
 Product priority is a strong selection signal, not a strict execution queue. A
 higher-priority outcome does not block independent useful work merely because it
 remains incomplete.
+
+Branch cleanup may be a useful eligible action when it materially reduces
+repository ambiguity or completes the abandonment of an already-engaged path.
+The mere existence of a deletable branch does not create work, require
+repository-wide housekeeping, or prevent Controller termination.
 
 Pending CI is not a reason to notify or globally idle. Use its latency for
 independent useful work when available.
