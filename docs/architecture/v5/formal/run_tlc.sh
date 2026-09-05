@@ -30,6 +30,9 @@ default_configs=(
   WebeeBlocksV5_EpochTerminal.cfg
   WebeeBlocksV5_EpochRepair.cfg
   WebeeBlocksV5_Duplicate.cfg
+  WebeeBlocksV5_PendingHead.cfg
+  WebeeBlocksV5_SharedHead.cfg
+  WebeeBlocksV5_LateRefutation.cfg
   WebeeBlocksV5_Checkpoint.cfg
   WebeeBlocksV5_Migration.cfg
 )
