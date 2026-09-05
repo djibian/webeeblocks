@@ -69,62 +69,113 @@ OrderingInitialEpoch == "E1"
 OrderingFaultInjection == FALSE
 
 (***************************************************************************)
-(* EPOCH: negative authority in E1, repair/GO in E2, no same-head revival. *)
+(* EPOCH TERMINAL: E1 rejection forbids same-head resurrection in E2.      *)
 (***************************************************************************)
 
-EpochEpochs == {"E1", "E2"}
-EpochHeads == {"H1", "H2"}
-EpochPRs == {"P1"}
-EpochProposals == {"GO_H1_E1", "NO_H1_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
-EpochRejections == {"R_NO_H1"}
-EpochFindings == {"F1"}
+EpochTerminalEpochs == {"E1", "E2"}
+EpochTerminalHeads == {"H1"}
+EpochTerminalPRs == {"P1"}
+EpochTerminalProposals == {"GO_H1_E1", "NO_H1_E1", "GO_H1_E2"}
+EpochTerminalRejections == {"R_NO_H1"}
+EpochTerminalFindings == {"F1"}
 
-EpochProposalActor ==
-  [p \in EpochProposals |-> MCOwner]
+EpochTerminalProposalActor ==
+  [p \in EpochTerminalProposals |-> MCOwner]
 
-EpochProposalKind ==
-  [p \in EpochProposals |->
-    CASE p = "GO_H1_E1" -> "GO"
-      [] p = "NO_H1_E1" -> "NO_GO"
+EpochTerminalProposalKind ==
+  [p \in EpochTerminalProposals |->
+    IF p = "NO_H1_E1" THEN "NO_GO" ELSE "GO"]
+
+EpochTerminalProposalHead ==
+  [p \in EpochTerminalProposals |-> "H1"]
+
+EpochTerminalProposalFinding ==
+  [p \in EpochTerminalProposals |-> "F1"]
+
+EpochTerminalProposalEpoch ==
+  [p \in EpochTerminalProposals |->
+    IF p = "GO_H1_E2" THEN "E2" ELSE "E1"]
+
+EpochTerminalRejectionProposal ==
+  [r \in EpochTerminalRejections |-> "NO_H1_E1"]
+
+EpochTerminalRejectionEpoch ==
+  [r \in EpochTerminalRejections |-> "E1"]
+
+EpochTerminalRejectionHead ==
+  [r \in EpochTerminalRejections |-> "H1"]
+
+EpochTerminalRejectionPR ==
+  [r \in EpochTerminalRejections |-> "P1"]
+
+EpochTerminalRejectionFindings ==
+  [r \in EpochTerminalRejections |-> {"F1"}]
+
+EpochTerminalApplies == {<<"F1","H1">>}
+EpochTerminalLegacyFindings == {}
+EpochTerminalLegacyRejectedHeads == {}
+EpochTerminalCheckpointHeads == {}
+EpochTerminalInitialPRs == {"P1"}
+EpochTerminalInitialPRHead == [p \in EpochTerminalPRs |-> "H1"]
+EpochTerminalInitialEpoch == "E1"
+EpochTerminalFaultInjection == FALSE
+
+(***************************************************************************)
+(* EPOCH REPAIR: inherited finding can be disposed only on new H2 in E2.   *)
+(***************************************************************************)
+
+EpochRepairEpochs == {"E1", "E2"}
+EpochRepairHeads == {"H1", "H2"}
+EpochRepairPRs == {"P1"}
+EpochRepairProposals == {"NO_H1_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
+EpochRepairRejections == {"R_NO_H1"}
+EpochRepairFindings == {"F1"}
+
+EpochRepairProposalActor ==
+  [p \in EpochRepairProposals |-> MCOwner]
+
+EpochRepairProposalKind ==
+  [p \in EpochRepairProposals |->
+    CASE p = "NO_H1_E1" -> "NO_GO"
       [] p = "DISP_F1_H2_E2" -> "DISPOSITION_RESOLVED"
       [] OTHER -> "GO"]
 
-EpochProposalHead ==
-  [p \in EpochProposals |->
-    IF p \in {"GO_H1_E1","NO_H1_E1"} THEN "H1" ELSE "H2"]
+EpochRepairProposalHead ==
+  [p \in EpochRepairProposals |->
+    IF p = "NO_H1_E1" THEN "H1" ELSE "H2"]
 
-EpochProposalFinding ==
-  [p \in EpochProposals |-> "F1"]
+EpochRepairProposalFinding ==
+  [p \in EpochRepairProposals |-> "F1"]
 
-EpochProposalEpoch ==
-  [p \in EpochProposals |->
-    IF p \in {"GO_H1_E1","NO_H1_E1"} THEN "E1" ELSE "E2"]
+EpochRepairProposalEpoch ==
+  [p \in EpochRepairProposals |->
+    IF p = "NO_H1_E1" THEN "E1" ELSE "E2"]
 
-EpochRejectionProposal ==
-  [r \in EpochRejections |-> "NO_H1_E1"]
+EpochRepairRejectionProposal ==
+  [r \in EpochRepairRejections |-> "NO_H1_E1"]
 
-EpochRejectionEpoch ==
-  [r \in EpochRejections |-> "E1"]
+EpochRepairRejectionEpoch ==
+  [r \in EpochRepairRejections |-> "E1"]
 
-EpochRejectionHead ==
-  [r \in EpochRejections |-> "H1"]
+EpochRepairRejectionHead ==
+  [r \in EpochRepairRejections |-> "H1"]
 
-EpochRejectionPR ==
-  [r \in EpochRejections |-> "P1"]
+EpochRepairRejectionPR ==
+  [r \in EpochRepairRejections |-> "P1"]
 
-EpochRejectionFindings ==
-  [r \in EpochRejections |-> {"F1"}]
+EpochRepairRejectionFindings ==
+  [r \in EpochRepairRejections |-> {"F1"}]
 
-EpochApplies ==
+EpochRepairApplies ==
   {<<"F1","H1">>, <<"F1","H2">>}
 
-EpochLegacyFindings == {}
-EpochLegacyRejectedHeads == {}
-EpochCheckpointHeads == {}
-EpochInitialPRs == {"P1"}
-EpochInitialPRHead == [p \in EpochPRs |-> "H1"]
-EpochInitialEpoch == "E1"
-EpochFaultInjection == FALSE
+EpochRepairLegacyFindings == {}
+EpochRepairLegacyRejectedHeads == {}
+EpochRepairCheckpointHeads == {}
+EpochRepairInitialPRs == {"P1"}
+EpochRepairInitialPRHead == [p \in EpochRepairPRs |-> "H1"]
+EpochRepairInitialEpoch == "E1"
+EpochRepairFaultInjection == FALSE
 
 (***************************************************************************)
 (* DUPLICATE: positive Gate plus injected second Protocol-App writer.      *)
