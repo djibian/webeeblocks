@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import html, http.server, os, pathlib, re, shutil, socketserver, subprocess, sys, threading, time
+import html, http.server, json, os, pathlib, re, shutil, socketserver, subprocess, sys, threading, time
 HERE=pathlib.Path(__file__).resolve().parent; REPO_ROOT=HERE.parents[1]; HARNESS=pathlib.Path('tools/ci/runtime_v2_core_harness.html')
 def browser_binary():
     for candidate in (os.environ.get('CHROME_BIN'),'google-chrome','google-chrome-stable','chromium','chromium-browser'):
@@ -10,6 +10,25 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
 def main():
     os.chdir(REPO_ROOT)
+    expected_starters = {
+        '01-sequence.wbb':'progression-sequence-v1',
+        '02-precise-movement.wbb':'progression-precise-movement-v1',
+        '03-repeat.wbb':'progression-repeat-v1',
+        '04-simple-decision.wbb':'progression-simple-decision-v1',
+        '05-reactive.wbb':'progression-reactive-v1',
+        '06-multi-perception.wbb':'progression-combined-decisions-v1',
+        '07-memory.wbb':'progression-memory-v1',
+        '08-autonomous-strategy.wbb':'progression-autonomous-strategy-v1',
+    }
+    starter_dir=pathlib.Path('activities/progression')
+    actual_starters=sorted(path.name for path in starter_dir.glob('*.wbb'))
+    if actual_starters != list(expected_starters):
+        print('FAIL progression starter order', actual_starters, file=sys.stderr); return 1
+    for filename, activity_id in expected_starters.items():
+        project=json.loads((starter_dir / filename).read_text(encoding='utf-8'))
+        if project.get('activity',{}).get('id') != activity_id:
+            print(f'FAIL progression starter mapping {filename}', file=sys.stderr); return 1
+    print('PASS ordered progression starter files map one-to-one to activity profiles')
     variable_test=subprocess.run(['node','tools/ci/test_runtime_v2_variables.js'],text=True,capture_output=True)
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
