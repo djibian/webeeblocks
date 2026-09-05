@@ -847,10 +847,14 @@ jobs:
                   m = re.search(r'TRACE MOVE (forward|back|left|right) distance=', line)
                   assert m and 'stop=1' in line, line
                   trace.append('MOVE_' + m.group(1).upper())
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE TURN ' in line:
+                  m = re.search(r'TRACE TURN angle_deg=([-0-9.]+)', line)
+                  assert m and 'stop=1' in line, line
+                  trace.append('TURN')
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
 
@@ -875,6 +879,31 @@ jobs:
           right_forward, right_left = body_projection('right')
           assert back_forward < -0.12 and abs(back_left) < 0.08, (back_forward, back_left)
           assert right_left < -0.12 and abs(right_forward) < 0.08, (right_forward, right_left)
+
+          turn_starts = []
+          turn_ends = []
+          for line in log.splitlines():
+              m = re.search(
+                  r'CI TURN_(START|END) angle_deg=([-0-9.]+) x=([-0-9.]+) y=([-0-9.]+) z=([-0-9.]+) yaw=([-0-9.]+) target_yaw=([-0-9.]+)',
+                  line)
+              if not m:
+                  continue
+              sample = tuple(map(float, m.groups()[1:]))
+              (turn_starts if m.group(1) == 'START' else turn_ends).append(sample)
+          assert len(turn_starts) == 2 and len(turn_ends) == 2, (turn_starts, turn_ends)
+          def wrap_angle(angle):
+              while angle > math.pi:
+                  angle -= 2 * math.pi
+              while angle <= -math.pi:
+                  angle += 2 * math.pi
+              return angle
+          for start, end, expected_angle in zip(turn_starts, turn_ends, (30.0, -30.0)):
+              angle, sx, sy, sz, syaw, target = start
+              end_angle, ex, ey, ez, eyaw, end_target = end
+              assert abs(angle - expected_angle) < 1e-6 and abs(end_angle - expected_angle) < 1e-6, (start, end)
+              assert abs(wrap_angle(target - syaw) - math.radians(expected_angle)) < 0.03, start
+              assert abs(wrap_angle(eyaw - end_target)) < math.radians(3.0), end
+              assert abs(ex - sx) < 0.08 and abs(ey - sy) < 0.08 and abs(ez - sz) < 0.08, (start, end)
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
           def first_index(predicate, label):
@@ -891,8 +920,10 @@ jobs:
           ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
           submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
           horizontal = first_index(lambda e: e.get('event') == 'HORIZONTAL_MOVES_OK', 'HORIZONTAL_MOVES_OK')
+          vertical = first_index(lambda e: e.get('event') == 'VERTICAL_MOVES_OK', 'VERTICAL_MOVES_OK')
+          yaw_turns = first_index(lambda e: e.get('event') == 'YAW_TURNS_OK', 'YAW_TURNS_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < horizontal < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < horizontal < vertical < yaw_turns < done, [(e.get('event'), e.get('detail')) for e in events]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']
