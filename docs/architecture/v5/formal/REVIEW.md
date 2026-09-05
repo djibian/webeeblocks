@@ -158,7 +158,9 @@ A deliberate root-human merge outside the protocol is a
 Epoch identity is abstracted as a stable opaque identifier.
 
 GO proposals are epoch-bound. V5 positive authority can only be published for
-the active, required epoch.
+the active, required epoch. Epoch succession is irreversible: leaving E1 adds
+it to `retiredEpochs`; a retired epoch can never become active or required
+again.
 
 A temporary observability outage may be restored only if the same manifest still
 matches.
@@ -284,27 +286,29 @@ accidentally.
    unacceptable merge race before Gate FAILURE?
 4. Can a rejected/poisoned head become positive in another epoch by any path?
 5. Can an old-epoch GO mint or revalidate authority after `AdvanceEpoch`?
-6. Can V5 publish any SUCCESS before V4 legacy findings/rejected-head memory is
+6. Can any trace realize `E1 -> E2 -> E1`, or re-require E1 after it enters
+   `retiredEpochs`?
+7. Can V5 publish any SUCCESS before V4 legacy findings/rejected-head memory is
    imported?
-7. Can temporary loss of observability plus `ConfigureEpoch` resurrect old
+8. Can temporary loss of observability plus `ConfigureEpoch` resurrect old
    authority after a real governance drift?
-8. Can a duplicate Gate appear before/during rollback and escape V4 terminal-head
+9. Can a duplicate Gate appear before/during rollback and escape V4 terminal-head
    projection?
-9. Can `HUMAN_FAIL` be overwritten by a same-head PASS or fail to revoke
-   positive authority through the negative path?
-10. Can a protected-base refresh become fresh again without creating a new head?
-11. Can two PRs sharing one head diverge in blocking-review semantics in a way
+10. Can `HUMAN_FAIL` be overwritten by a same-head PASS or fail to revoke
+    positive authority through the negative path?
+11. Can a protected-base refresh become fresh again without creating a new head?
+12. Can two PRs sharing one head diverge in blocking-review semantics in a way
     the abstraction misses?
-12. Can a finding that is irrelevant now but applicable to a future head be lost
+13. Can a finding that is irrelevant now but applicable to a future head be lost
     during V5 -> V4 downgrade?
-13. Can review/proposal mutation invalidate the reconstruction assumptions?
-14. Does aggregate `WF_vars(PublisherStep)` still allow starvation between
+14. Can review/proposal mutation invalidate the reconstruction assumptions?
+15. Does aggregate `WF_vars(PublisherStep)` still allow starvation between
     reconciliation classes even when individual actions make progress?
-15. Can a root-admin governance change occur while the model still claims
+16. Can a root-admin governance change occur while the model still claims
     `guaranteeActive = TRUE` but before the Publisher can observe it?
-16. Is the Authority Ledger permission model implementable without giving the
+17. Is the Authority Ledger permission model implementable without giving the
     Protocol App an unacceptable product-history rewrite capability?
-17. Do the six finite TLC scenarios omit a small domain that can expose a
+18. Do the six finite TLC scenarios omit a small domain that can expose a
     qualitatively different counterexample?
 
 ## Required reviewer procedure
