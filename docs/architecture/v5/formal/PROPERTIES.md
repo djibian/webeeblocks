@@ -133,3 +133,4 @@ Inv_EpochChangeDoesNotEraseFindings
 11. governance observability lost after SUCCESS but before merge
 12. human-root override during cut-over
 13. duplicate Gate -> poison once while unrelated publisher work remains pending; prove poisoning cannot stutter forever and mask reconciliation
+14. create blocking review projection -> resolve findings -> dismiss projection while unrelated publisher work remains pending; prove the resolved projection cannot be recreated until a later head makes the rejection blocking again
