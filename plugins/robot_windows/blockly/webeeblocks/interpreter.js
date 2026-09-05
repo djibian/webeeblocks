@@ -9,6 +9,7 @@
   var SENSOR_DIRECTIONS=['front','back','left','right','up'];
   var MOVE_DIRECTIONS=['forward','back','left','right'];
   var VERTICAL_DIRECTIONS=['up','down'];
+  var LIGHT_COLORS=['off','red','green','blue','yellow','white'];
   var COMPARE_OPS=['LT','LTE','GT','GTE','EQ','NEQ'];
   function fail(message){throw new Error('runtime v2: '+message);}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
@@ -48,6 +49,7 @@
         case 'turn':finite(statement.angle_deg,'angle_deg');break;
         case 'wait':finite(statement.seconds,'seconds');break;
         case 'set_speed':finite(statement.speed_m_s,'speed_m_s');break;
+        case 'set_light':if(LIGHT_COLORS.indexOf(String(statement.color))<0)fail('unsupported light color '+statement.color);break;
         case 'set_variable':{var ref=rememberVariable(variables,statement.variable);validateExpression(statement.value,depth+1,assigned,variables);assigned.add(ref.id);break;}
         case 'if':{
           validateExpression(statement.condition,depth+1,assigned,variables);
@@ -113,6 +115,7 @@
         case 'turn':await hook(options,'beforeStep',current);await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
         case 'wait':await hook(options,'beforeStep',current);await requireMethod(backend,'wait')(Number(statement.seconds));break;
         case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
+        case 'set_light':await hook(options,'beforeStep',current);await requireMethod(backend,'setLight')(String(statement.color));break;
         case 'set_variable':{
           var ref=variableRef(statement.variable),stored=await evaluate(statement.value,backend,budget,depth+1,options,path.concat('value'),env);
           await hook(options,'beforeStep',context(statement,path,'statement',env));env.values[ref.id]=stored;env.names[ref.id]=ref.name;

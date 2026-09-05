@@ -5,7 +5,7 @@
     root.WebeeBlocksActivityContract = factory();
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
-  var BACKEND_ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'land'];
+  var BACKEND_ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'];
   function fail(message) { throw new Error('activity contract: ' + message); }
   function studentFail(message, detail) { var error = new Error('activity contract: ' + message); error.code = 'PROGRAM_INVALID'; error.studentDetail = detail; throw error; }
   function workspaceTypes(workspace) { if (!workspace || typeof workspace.getAllBlocks !== 'function') fail('invalid Blockly workspace'); return workspace.getAllBlocks(false).map(function(block) { return block.type; }); }
