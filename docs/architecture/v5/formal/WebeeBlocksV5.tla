@@ -832,7 +832,7 @@ VerifyEpoch(e) ==
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, activeEpoch,
+                  requiredEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
