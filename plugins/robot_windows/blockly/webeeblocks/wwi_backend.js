@@ -29,7 +29,7 @@
     this.readyWaiters = [];
     this.simulationStopped = false;
     var capabilities = {
-      actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'land'],
+      actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right'],
       moveDirections: ['forward', 'back', 'left', 'right'],
       verticalDirections: ['up', 'down']
@@ -132,6 +132,7 @@
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.turn = function(angleDeg) { return this._guardSimulationStopped() || this._request(['TURN', Number(angleDeg).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.wait = function(seconds) { return this._guardSimulationStopped() || this._request(['WAIT', Number(seconds).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.setLight = function(color) { return this._guardSimulationStopped() || this._request(['LIGHT', String(color)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
   RuntimeV2WwiBackend.prototype.stopSimulation = function() {

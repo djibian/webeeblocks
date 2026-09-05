@@ -30,7 +30,7 @@ Status vocabulary:
 | Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **missing** as a student-facing capability; decide whether downward range has a real pedagogical use before adding vocabulary |
 | Flow Deck V2 optical flow / stabilization | Flow Deck V2 | No direct student primitive by design | Used as simulation/flight infrastructure, not as an algorithm block | Physical behavior belongs to backend/safety validation | Implicit hardware requirement | **infrastructure only**; do not expose estimator/flow internals without a pedagogical need |
 | Multi-ranger upward range | Multi-ranger deck | Generic AST already admits `up` | Current WWI backend does not advertise `up` | Physical student backend not proven | Broad reactive profile declares `up` | **partial** |
-| Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | No current block, AST statement, interpreter action or backend capability | No integrated controllable light surface found | Physical student backend not proven | None | **missing**: smallest coherent future slice is one generic color/light intent plus a simple visible bottom-deck Webots surface |
+| Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | `webeeblocks_v2_light` → `set_light(color)` with a bounded generic palette | Runtime v2 exposes the action through WWI and a simple bottom-mounted RGB LED surface on the reference Crazyflie model | Physical student backend not proven | Broad reactive profile only | **covered** in simulation for the generic light/color intent; **physical unproven** |
 | Estimator diagnostics / tuning | Crazyflie 2.1 firmware/estimator infrastructure, informed by attached deck sensors | No student vocabulary | Internal only | #70 Lab/research only | None | **infrastructure only** by product rule |
 
 ## Conclusions for #157
@@ -39,13 +39,14 @@ The generic AST still covers more motion and ranging intent than the current
 Webots WWI backend advertises. Capability work should therefore continue to prefer
 **closing existing generic simulation gaps before adding block families**.
 
-Two genuine vocabulary decisions remain visible:
+One genuine vocabulary decision remains visible: whether Flow Deck downward
+range is pedagogically useful enough to justify a generic student-facing `down`
+range direction.
 
-1. whether Flow Deck downward range is pedagogically useful enough to justify a
-   generic student-facing `down` range direction;
-2. the Color LED Deck, which currently has no student-facing semantics at all
-   and should be added later as a small generic light/color capability rather
-   than deck-specific electronics controls.
+Color LED simulation now uses one generic light/color action and a simple
+bottom-mounted controllable RGB surface. It deliberately models the observable
+student effect rather than deck electronics; physical execution remains
+unproven.
 
 Physical support remains explicitly unproven for student execution. Do not turn
 source availability, Lab firmware experiments, or simulation coverage into a

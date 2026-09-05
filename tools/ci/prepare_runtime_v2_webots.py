@@ -354,6 +354,39 @@ script = r'''
     await report('REAR_RANGE_OK', {back:rearRange});
 
     await runtimeBackend.resetSimulation();
+    const lightTxStart = wwiTx.length;
+    workspace.clear();
+    const lightTakeoff = workspace.newBlock('webeeblocks_v2_takeoff');
+    const lightBlue = workspace.newBlock('webeeblocks_v2_light');
+    const lightOff = workspace.newBlock('webeeblocks_v2_light');
+    const lightLand = workspace.newBlock('webeeblocks_v2_land');
+    lightTakeoff.setFieldValue('0.4', 'HEIGHT');
+    lightBlue.setFieldValue('blue', 'COLOR');
+    lightOff.setFieldValue('off', 'COLOR');
+    lightTakeoff.nextConnection.connect(lightBlue.previousConnection);
+    lightBlue.nextConnection.connect(lightOff.previousConnection);
+    lightOff.nextConnection.connect(lightLand.previousConnection);
+    const lightAst = WebeeBlocksSemanticAst.compileWorkspace(workspace);
+    const expectedLightAst = {version:1,semantics:'webeeblocks-ast-v1',program:[
+      {kind:'takeoff',height_m:0.4},{kind:'set_light',color:'blue'},{kind:'set_light',color:'off'},{kind:'land'}
+    ]};
+    if (JSON.stringify(lightAst) !== JSON.stringify(expectedLightAst))
+      throw new Error('unexpected Color LED AST: ' + JSON.stringify(lightAst));
+    await WebeeBlocksActivityContract.execute(
+      runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {maxSteps:20}
+    );
+    const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, ''));
+    const expectedLightRequests = [
+      'TAKEOFF ' + Number(0.4).toPrecision(17),
+      'LIGHT blue',
+      'LIGHT off',
+      'LAND'
+    ];
+    if (JSON.stringify(lightRequests) !== JSON.stringify(expectedLightRequests))
+      throw new Error('unexpected Color LED WWI sequence: ' + JSON.stringify(lightRequests));
+    await report('COLOR_LED_OK', {ast:lightAst, requests:lightRequests});
+
+    await runtimeBackend.resetSimulation();
     await runtimeBackend.takeoff(0.35);
     await runtimeBackend.move('back', 0.20);
     await runtimeBackend.move('right', 0.20);
