@@ -15,9 +15,19 @@ permissions:
 
 jobs:
   tlc:
-    name: V5 Formal TLC
+    name: V5 Formal TLC / ${{ matrix.config }}
     runs-on: ubuntu-22.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - WebeeBlocksV5_Ordering.cfg
+          - WebeeBlocksV5_Epoch.cfg
+          - WebeeBlocksV5_Duplicate.cfg
+          - WebeeBlocksV5_Checkpoint.cfg
+          - WebeeBlocksV5_Migration.cfg
+
     steps:
       - name: Checkout exact candidate HEAD
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -37,6 +47,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           echo "Formal candidate: $(git rev-parse HEAD)"
 
-      - name: Run pinned formal model checks
+      - name: Run pinned formal model check
         shell: bash
-        run: bash docs/architecture/v5/formal/run_tlc.sh
+        run: bash docs/architecture/v5/formal/run_tlc.sh "${{ matrix.config }}"
