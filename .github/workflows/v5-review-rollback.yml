@@ -1,4 +1,4 @@
-name: V5 Review Rollback H2
+name: V5 Review Rollback Cleanup
 
 on:
   pull_request:
@@ -6,11 +6,21 @@ on:
     types: [synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  gate-only:
-    name: CI Gate
+  cleanup:
+    name: Cleanup review rollback experiment
     runs-on: ubuntu-22.04
     steps:
-      - run: echo "H2 CI Gate success without new review."
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Delete experiment branch conditionally
+        env:
+          TARGET_REF: refs/heads/experiment/v5-review-rollback
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git push --force-with-lease="$TARGET_REF:$EXPECTED_SHA" origin ":$TARGET_REF"
