@@ -13,16 +13,17 @@ here.
 
 ## Product priority
 
-1. **#81 — Windows classroom deployment**
-2. **#157 — broader useful reference-capability coverage**
-3. **#66 — progressive pedagogical activity model**
+1. **#157 — broader useful reference-capability coverage**
 
+#81 (Windows classroom deployment), #66 (progressive pedagogical activity model),
 #80 (one-click unified classroom interface) and #79 (fully French student
-interface) are validated baseline, not active priority nodes. The narrow #157 →
-#66 prerequisite is also satisfied: the C1a simulation baseline is established.
-Broader #157 C1b coverage continues incrementally and may proceed in parallel
-with #66; it must not block the representative progression unless a concrete
-activity demonstrates that a missing simulation capability is indispensable.
+interface) are validated baseline, not active priority nodes.
+
+The #157 simulation-side C1b boundary is now established for every currently
+justified student-facing generic capability. Its substantive remaining product
+boundary is physical-backend continuity/proof; do not invent additional
+simulation vocabulary merely to keep #157 active. A new simulation slice needs a
+concrete pedagogical need or contradictory evidence.
 
 Research / later work:
 
@@ -59,7 +60,10 @@ responsiveness or connection degradation. Exact artifact/run provenance and
 machine/browser/Webots facts remain on issue #81.
 
 W1/W2 therefore establish the current Chrome low-end baseline; they do not
-implicitly prove final Firefox/Edge parity or every future artifact.
+implicitly prove final Firefox/Edge parity or every future artifact. Issue #81 is
+closed as completed on that explicit supported boundary; later materially changed
+releases may require bounded revalidation without reopening unsupported-browser
+claims.
 
 ### Product findings discovered during W2
 
@@ -109,20 +113,12 @@ stronger barometer weighting diverged.
 
 The next Lab candidate is therefore the pre-registered scalar `surfaceOffset`
 discontinuity classifier with mandatory true-vertical-motion negative controls,
-not more gate/barometer tuning. Bitcraze stable firmware 2026.08 retains the
-same relevant UKF ToF/Flow semantics, so the prototype must be reconstructed and
-revalidated on that current source before new physical evidence is requested.
+not more gate/barometer tuning. That isolated candidate has now been
+reconstructed against Bitcraze stable firmware 2026.08 with exact-source and
+build evidence. The next discriminating evidence is the already prepared
+props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
 
 ## Near-term graph
-
-### W3 — final Windows browser/deployment closure
-
-- parent: #81
-- depends: W1 PASS and W2 PASS (satisfied) plus the later browser boundary
-  selected by current product priorities
-- proof: #81 acceptance criteria can be closed without pretending unsupported
-  browser behavior is proven
-- note: do not expand this node while higher-value Chrome/product work remains.
 
 ### C1a — minimum functional pedagogical capability baseline established
 
@@ -133,10 +129,9 @@ revalidated on that current source before new physical evidence is requested.
   generic `range(direction)` path and fail-closed unsupported directions
 - exit consequence: #66 is no longer blocked by C1a and may commit the
   representative progression against this baseline
-- boundary: this is **not** exhaustive hardware coverage and does not claim a
-  proven physical backend; movement breadth, downward ranging, Color LED and
-  other useful capability gaps continue under C1b unless a concrete #66 activity
-  demonstrates that one is indispensable.
+- boundary: this does **not** claim a proven physical backend. Subsequent C1b
+  work has since closed every currently justified simulation-side generic
+  capability gap; physical continuity/proof remains separate.
 
 ### B1 — declarative activity model and compact progression established
 
@@ -164,36 +159,37 @@ revalidated on that current source before new physical evidence is requested.
 ### C1b — broaden reference Crazyflie/deck capability coverage
 
 - parent: #157
-- depends: C1a; thereafter may proceed incrementally alongside #66
 - target hardware: Crazyflie 2.1 + Flow Deck V2 + Multi-ranger +
   bottom-mounted Color LED Deck
-- action: continue closing useful capability gaps from the integrated matrix,
-  reusing existing generic semantics first and adding new student-facing
-  primitives only when a demonstrated pedagogical need requires them
-- proof: the capability matrix records Blockly/AST, Webots and physical-backend
-  support or an explicit justified exclusion for each relevant capability
-- simulation direction: where relevant, student-facing capabilities have an
-  observable Webots equivalent; Color LED coverage may use a simple,
-  reasonably recognizable bottom-deck model with a visible controllable light
-  surface rather than detailed electronics simulation
-- scheduling: broader coverage must not block #66 once C1a is satisfied.
+- established simulation result: integrated #183 and the capability matrix cover
+  every currently justified student-facing generic Runtime capability in Webots:
+  takeoff/land, four-way horizontal movement, vertical movement, yaw, wait,
+  bounded speed selection, Multi-ranger front/back/left/right/up and the generic
+  bottom Color LED intent
+- explicit exclusion: Flow Deck downward ToF remains infrastructure-only at
+  current evidence because no activity has a pupil-facing downward-clearance
+  objective; do not add `range(down)` merely for hardware completeness
+- remaining boundary: physical-backend continuity/proof for the reference
+  hardware remains unproven and belongs behind the physical capability/safety
+  gate
+- reopen simulation vocabulary only for a demonstrated pedagogical need or new
+  contradictory evidence.
 
-### X3 — reconstruct and validate the minimal surface-offset Lab prototype
+### X3 — validate the reconstructed minimal surface-offset Lab prototype
 
 - parent: #70
-- depends: preserved S1/S2 physical evidence and current Bitcraze stable source
-- action: reconstruct the isolated S3 `surfaceOffset` candidate against
-  `crazyflie-firmware` 2026.08, preserving the proven local-range Flow split
-  and the pre-registered terrain/true-vertical-motion controls
-- proof: fail-closed patch/applicator or equivalent isolated artifact against an
-  exact upstream SHA, with static/build evidence and logs exposing local range,
-  offset/classifier state, ToF/Flow diagnostics and the independent vertical
-  cues required by S3-A/S3-B/S3-C
+- established technical result: the isolated S3 `surfaceOffset` applicator and
+  deterministic build oracle are pinned to `crazyflie-firmware` 2026.08 and
+  preserve the proven local-range Flow split plus the pre-registered
+  terrain/true-vertical-motion controls
+- next proof: props-off S3-A terrain plus S3-B/S3-C true-vertical negative
+  controls through the prepared human checkpoint, with no threshold retuning
+  against the observed outcome
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer against
-  outcomes, or perform motorized real flight as an agent
-- real-world boundary: only after the reconstructed candidate is deterministically
-  executable can a supported human-checkpoint profile be added for a new
-  physical trace; until such preparation exists, the profile must fail closed.
+  outcomes, add `rangeUp` fusion/full `z/f/r`, or perform motorized real flight
+  as an agent
+- consequence: until that physical evidence resolves, no stronger world-altitude
+  capability claim is justified.
 
 ## Later gates kept intentionally coarse
 
