@@ -219,7 +219,7 @@ function proveProgressionProfilesAndFieldOptions() {
     'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
   assert.deepStrictEqual(p4.parameterBounds.math_number.NUM, p3.parameterBounds.math_number.NUM,
     'profile 4 must preserve the cumulative repeat-count numeric bound');
-  assert.deepStrictEqual(SemanticAst.LIMITS.speed_m_s, {min:0.1,max:0.35});
+  assert.deepStrictEqual(SemanticAst.LIMITS.speed_m_s, {min:0.1,max:0.6}, 'backend-neutral AST keeps the generic speed vocabulary');
   const currentWebotsCapabilities = new WwiBackend({send() {}}, {timeoutMs:50}).capabilities;
   assert(currentWebotsCapabilities.actions.includes('set_speed'), 'Webots backend must advertise proven set_speed support');
   const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);

@@ -973,7 +973,11 @@ jobs:
           assert abs(requested_limits[2] - 0.35) < 1e-6, ('RESET did not restore default move speed', requested_limits)
           durations = [e[-2] - s[-2] for s, e in zip(speed_starts, speed_ends)]
           assert all(duration > 0 for duration in durations), durations
-          assert durations[0] > durations[1] + 0.5, ('lower speed did not causally increase traversal time', durations)
+          assert speed_starts[0][0] == speed_starts[2][0] == 'forward', speed_starts
+          assert abs(speed_starts[0][1] - speed_starts[2][1]) < 0.03, speed_starts
+          assert abs(speed_starts[0][2] - speed_starts[2][2]) < 0.03, speed_starts
+          assert abs(wrap_angle(speed_starts[0][3] - speed_starts[2][3])) < math.radians(2.0), speed_starts
+          assert durations[0] > durations[2] + 0.5, ('lower speed did not causally increase otherwise-identical forward traversal time', durations)
           for start, end in zip(speed_starts, speed_ends):
               direction, sx, sy, yaw, _, _ = start
               _, ex, ey, _, _, _ = end
