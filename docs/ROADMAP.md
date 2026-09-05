@@ -138,18 +138,28 @@ revalidated on that current source before new physical evidence is requested.
   other useful capability gaps continue under C1b unless a concrete #66 activity
   demonstrates that one is indispensable.
 
-### B1 — formalize the declarative activity model and compact progression
+### B1 — declarative activity model and compact progression established
 
 - parent: #66
-- depends: PRODUCT_VISION.md and the satisfied C1a minimum functional capability
-  baseline
-- action: bounded design/research of the smallest versionable activity/profile
-  schema and representative 8–12 activity progression
-- proof: a coherent model preserving generic blocks and
-  `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`
-  without student progress state or a graphical activity studio
-- note: activity/profile architecture work and the representative progression may
-  now proceed on the settled C1a baseline; broader C1b coverage is parallel work.
+- evidence: integrated #181 on `main@8eab31ca448a966063e53f039f340238ecfec833`
+  plus the earlier field-option, variables/memory and open-strategy slices
+- established result: eight ordered substantial `progression-*` profiles/starter
+  files now form the representative simulation progression, with distinct precise
+  movement, repetition, first measure/compare/decide, repeated reaction, combined
+  decisions, memory and open-strategy objectives
+- proof: one shared declarative activity/profile model preserves generic blocks
+  and `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`;
+  starter filenames map one-to-one to activity IDs and cumulative constraints are
+  contract-tested without student progress state or a graphical activity studio
+- boundary: the product target is approximately 8–12 substantial activities, not
+  an obligation to manufacture filler micro-exercises; add or split activities
+  only for a demonstrated pedagogical need
+- finality: the teacher-authorized final real-flight activity remains separately
+  gated under #72 by physical backend/capability proof and any #70 result required
+  by the chosen mission; B1 establishment does not claim real-flight readiness
+- note: broader C1b capability work remains parallel and does not reopen B1 unless
+  concrete evidence shows the representative progression is distorted by a
+  missing capability
 
 ### C1b — broaden reference Crazyflie/deck capability coverage
 
