@@ -82,6 +82,32 @@ vertical_end_replacement = r'''          trace_vertical(active_direction, active
 if vertical_end_needle not in controller:
     raise SystemExit('Runtime v2 VERTICAL end instrumentation point not found')
 controller = controller.replace(vertical_end_needle, vertical_end_replacement, 1)
+turn_start_needle = '''        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = wrap_angle(yaw + request.value * PI / 180.0);
+        command = CMD_TURN;'''
+turn_start_replacement = r'''        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = wrap_angle(yaw + request.value * PI / 180.0);
+        printf(PREFIX " CI TURN_START angle_deg=%.9f x=%.9f y=%.9f z=%.9f yaw=%.9f target_yaw=%.9f\n",
+               request.value, x, y, z, yaw, target_yaw);
+        fflush(stdout);
+        command = CMD_TURN;'''
+if turn_start_needle not in controller:
+    raise SystemExit('Runtime v2 TURN start instrumentation point not found')
+controller = controller.replace(turn_start_needle, turn_start_replacement, 1)
+turn_end_needle = '''          trace_turn(active_value);
+          response_ok(active_id);'''
+turn_end_replacement = r'''          trace_turn(active_value);
+          printf(PREFIX " CI TURN_END angle_deg=%.9f x=%.9f y=%.9f z=%.9f yaw=%.9f target_yaw=%.9f\n",
+                 active_value, x, y, z, yaw, target_yaw);
+          fflush(stdout);
+          response_ok(active_id);'''
+if turn_end_needle not in controller:
+    raise SystemExit('Runtime v2 TURN end instrumentation point not found')
+controller = controller.replace(turn_end_needle, turn_end_replacement, 1)
 controller_path.write_text(controller, encoding='utf-8')
 
 script = r'''
@@ -302,9 +328,12 @@ script = r'''
     await runtimeBackend.move('right', 0.20);
     await runtimeBackend.vertical('up', 0.10);
     await runtimeBackend.vertical('down', 0.10);
+    await runtimeBackend.turn(30);
+    await runtimeBackend.turn(-30);
     await runtimeBackend.land();
     await report('HORIZONTAL_MOVES_OK', {directions:['back','right']});
     await report('VERTICAL_MOVES_OK', {directions:['up','down'], distance_m:0.10});
+    await report('YAW_TURNS_OK', {angles_deg:[30,-30]});
 
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;
