@@ -1,4 +1,4 @@
-name: V5 Substrate Review Mutation Experiment
+name: V5 Substrate Branch Delete CAS Experiment
 
 on:
   pull_request:
@@ -6,29 +6,42 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: write
 
 jobs:
   driver:
-    name: Review-mutation driver
+    name: Branch-delete CAS driver
     runs-on: ubuntu-22.04
     steps:
-      - name: Create, edit, then dismiss exact review
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Wrong lease must fail, exact lease must delete
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_REF: refs/heads/experiment/v5-delete-target
+          EXPECTED_SHA: 54a3cbd4b72d4f30243e8388c063e69268b4f2bb
+          WRONG_SHA: a7e76f5f8fb973973b914e99d7731fdfde8c58db
         run: |
           set -euo pipefail
-          reviews_api="https://api.github.com/repos/$REPO/pulls/$PR/reviews"
-          create_payload=$(jq -nc --arg sha "$HEAD_SHA"             '{commit_id:$sha, body:"V5 review mutation experiment: ORIGINAL BODY", event:"REQUEST_CHANGES"}')
-          response=$(curl --fail-with-body -sS -L             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api"             -d "$create_payload")
-          review_id=$(printf '%s' "$response" | jq -r '.id')
+          echo "Before:"
+          git ls-remote --heads origin "$TARGET_REF"
 
-          edit_payload=$(jq -nc '{body:"V5 review mutation experiment: EDITED BODY"}')
-          curl --fail-with-body -sS -L             -X PUT             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api/$review_id"             -d "$edit_payload"
+          set +e
+          git push --force-with-lease="$TARGET_REF:$WRONG_SHA" origin ":$TARGET_REF"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "Wrong lease unexpectedly succeeded" >&2
+            exit 1
+          fi
 
-          dismiss_payload=$(jq -nc '{message:"V5 substrate experiment: app self-dismiss exact review."}')
-          curl --fail-with-body -sS -L             -X PUT             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$reviews_api/$review_id/dismissals"             -d "$dismiss_payload"
+          actual=$(git ls-remote --heads origin "$TARGET_REF" | awk '{print $1}')
+          test "$actual" = "$EXPECTED_SHA"
+
+          git push --force-with-lease="$TARGET_REF:$EXPECTED_SHA" origin ":$TARGET_REF"
+
+          if git ls-remote --heads origin "$TARGET_REF" | grep -q .; then
+            echo "Target ref still exists after exact conditional delete" >&2
+            exit 1
+          fi
