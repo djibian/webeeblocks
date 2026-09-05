@@ -21,9 +21,12 @@ CHECKPOINT_REQUEST <40-char-sha> <test-profile> <checkpoint|release>
 
 human-checkpoint.yml performs deterministic preparation and may emit
 TEST_REQUIRED only after the exact target, full evidence, required artifact,
-provenance/digest and procedure are ready. At cut-over, `windows-low-end` is the
-only enabled profile; any unknown profile is rejected until its preparation is
-implemented explicitly.
+provenance/digest and procedure are ready. Enabled profiles are:
+
+- `windows-low-end` — checkpoint or release acceptance of the Windows classroom artifact;
+- `s3-props-off` — checkpoint-only, props-removed #70 S3 physical evidence using the exact deterministically built experimental `cf2.bin` artifact.
+
+Any unknown profile is rejected until its preparation is implemented explicitly.
 
 ## Human concurrency and idempotence
 
