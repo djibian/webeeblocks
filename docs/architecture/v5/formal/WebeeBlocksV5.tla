@@ -1030,7 +1030,8 @@ AuthorityDowngradeProjection ==
        v4ProjectedRejectedHeads \cup V5TerminalHeads
   /\ v4ProjectedCheckpoints' =
        v4ProjectedCheckpoints \cup LiveCheckpointHeads
-  /\ v4ProjectedTrunkBlocked' = v4ProjectedTrunkBlocked \/ trunkBlocked
+  /\ v4ProjectedTrunkBlocked' =
+       IF trunkBlocked THEN TRUE ELSE v4ProjectedTrunkBlocked
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
@@ -1108,6 +1109,7 @@ RefreshBase(pr,h) ==
   /\ ~baseFresh[pr]
   /\ h \in Heads
   /\ h # prHead[pr]
+  /\ h \notin MergedHeads
   /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ baseFresh' = [baseFresh EXCEPT ![pr] = TRUE]
   /\ UNCHANGED << guaranteeActive,
