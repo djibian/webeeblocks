@@ -124,7 +124,7 @@ vars ==
   << guaranteeActive,
      prOpen, prHead, baseFresh, merged, mergeHead,
      proposalPresent, proposalCorrupt,
-     prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
+     prepared, linearized, committed, dispositions, importedLegacy,
      importedLegacyRejectedHeads,
      checkpoint,
      gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
@@ -323,6 +323,7 @@ V4Unresolved(h) ==
 
 V4Allows(pr) ==
   /\ prHead[pr] \notin V4RejectedHeads
+  /\ UnpreparedTrustedNegatives(prHead[pr]) = {}
   /\ V4Unresolved(prHead[pr]) = {}
   /\ ~(prHead[pr] \in v4ProjectedCheckpoints /\
        checkpoint[prHead[pr]] \notin {"PASS","NA"})
