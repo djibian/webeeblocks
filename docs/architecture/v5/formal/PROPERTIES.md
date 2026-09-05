@@ -217,12 +217,17 @@ A transient observability loss can be restored only while `manifestMatches`
 remains true. Once `DriftGovernance(E)` makes the manifest mismatch explicit,
 the epoch cannot be reconfigured in place.
 
-## P20 — Safety model checking is bounded, explicit and exact-head
+## P20 — Safety model checking is bounded and reproducible
 
-The CI workflow checks out exactly
-`github.event.pull_request.head.sha`, verifies that SHA, parses the formal
-modules with SANY, then model-checks finite safety scenarios using pinned
-TLA+ 1.7.4 tooling.
+`run_tlc.sh` is the canonical reproducible harness. It verifies a pinned
+TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses the modules with SANY, then
+model-checks the focused finite safety scenarios.
+
+During authoring, a **temporary branch-only Actions workflow** may call this
+runner against the exact PR HEAD to obtain reproducible execution evidence.
+That workflow is not part of the V5 design and must not survive into the final
+V4-governed review candidate, because the active V4 workflow contract forbids
+additional workflows.
 
 The focused scenarios cover:
 
