@@ -38,7 +38,7 @@ function buildWorkspace(){
   set.getInput('VALUE').connection.connect(range.outputConnection);
   compare.setFieldValue('LT','OP');
   get.getField('VAR').setValue(variable.getId());
-  threshold.setFieldValue('0.5','NUM');
+  threshold.setFieldValue('1','NUM');
   compare.getInput('A').connection.connect(get.outputConnection);
   compare.getInput('B').connection.connect(threshold.outputConnection);
   decision.getInput('IF0').connection.connect(compare.outputConnection);
