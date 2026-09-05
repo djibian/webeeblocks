@@ -627,7 +627,7 @@ PublishSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints >>
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 ExpireSuccess(e,h) ==
   LET x == <<e,h>>
@@ -665,7 +665,7 @@ RevalidateSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, activeEpoch,
-                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints >>
+                      v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints >>
 
 InjectDuplicate(e,h) ==
   LET x == <<e,h>>
@@ -866,7 +866,7 @@ RemoveV4Guard ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Verified, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 RestoreV4Guard ==
@@ -882,7 +882,7 @@ RestoreV4Guard ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 VerifyV4 ==
@@ -898,7 +898,7 @@ VerifyV4 ==
                   activeReviews, corruptedReviews,
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, activeEpoch,
-                  v4Guard, v4ProjectedFindings, v4ProjectedCheckpoints,
+                  v4Guard, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit >>
 
 AuthorityDowngradeProjection ==
