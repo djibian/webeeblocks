@@ -68,10 +68,43 @@ class WindowsReleaseContractTests(unittest.TestCase):
         acceptance = (PACKAGING / "WINDOWS-ACCEPTANCE.md").read_text(
             encoding="utf-8"
         )
+        deployment = (ROOT / "docs" / "WINDOWS_DEPLOYMENT.md").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("Ni Git, ni Node.js, ni npm", readme)
-        self.assertIn("Statut : **NON VALIDÉ**", acceptance)
+        self.assertIn("**Google Chrome**", readme)
+        self.assertIn("preuves réelles W1/W2", readme)
+        self.assertIn("exclusivement sur Windows 11", readme)
+        self.assertIn(r"C:\Program Files\Webots", readme)
+        self.assertNotIn(r"C:\\Program Files\\Webots", readme)
+        self.assertIn("BASELINE CHROME VALIDÉE", acceptance)
+        self.assertIn("- Windows 11 64 bits ;", acceptance)
+        self.assertNotIn("- Windows 10/11 64 bits ;", acceptance)
+        self.assertIn("MODÈLE DE REVALIDATION", acceptance)
+        self.assertIn("| W1 | PASS", acceptance)
+        self.assertIn("| W2 | PASS", acceptance)
+        self.assertIn("Edge et Firefox ne sont pas couverts", acceptance)
+        self.assertIn("#87", acceptance)
         self.assertIn("réseau coupé", acceptance)
         self.assertIn("30 min", acceptance)
+        self.assertIn("rouvert sous Linux avec le même AST", acceptance)
+        self.assertIn("release compatibility target remains **Windows 10 or 11 64-bit", deployment)
+        self.assertIn("validated classroom baseline is **Windows 11", deployment)
+        self.assertIn("Google Chrome", deployment)
+        self.assertIn(
+            "Edge is not part of the currently validated classroom boundary",
+            deployment,
+        )
+        self.assertIn(
+            "Firefox project-file parity is not currently supported",
+            deployment,
+        )
+        self.assertNotIn("Statut : **NON VALIDÉ**", acceptance)
+        self.assertNotIn("Microsoft Edge ou Google Chrome recommandé", readme)
+        self.assertNotIn(
+            "Firefox utilise le parcours de sauvegarde de secours",
+            readme,
+        )
 
     def test_launcher_opens_only_packaged_world_with_r2025a(self) -> None:
         launcher = (PACKAGING / "Launch-WebeeBlocks.ps1").read_text(
