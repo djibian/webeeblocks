@@ -69,6 +69,174 @@ CoreInitialPRHead == [p \in CorePRs |-> "H1"]
 CoreInitialEpoch == "E1"
 CoreFaultInjection == TRUE
 
+
+(***************************************************************************)
+(* ORDERING: one epoch, GO/NO_GO race, repair requires a new head.         *)
+(***************************************************************************)
+
+OrderingEpochs == {"E1"}
+OrderingHeads == {"H1", "H2"}
+OrderingPRs == {"P1"}
+OrderingProposals == {"GO_H1", "NO_H1", "DISP_F1_H2", "GO_H2"}
+OrderingRejections == {"R_NO_H1"}
+OrderingFindings == {"F1"}
+
+OrderingProposalActor ==
+  [p \in OrderingProposals |-> MCOwner]
+
+OrderingProposalKind ==
+  [p \in OrderingProposals |->
+    CASE p = "GO_H1" -> "GO"
+      [] p = "NO_H1" -> "NO_GO"
+      [] p = "DISP_F1_H2" -> "DISPOSITION_RESOLVED"
+      [] OTHER -> "GO"]
+
+OrderingProposalHead ==
+  [p \in OrderingProposals |->
+    IF p \in {"GO_H1","NO_H1"} THEN "H1" ELSE "H2"]
+
+OrderingProposalFinding ==
+  [p \in OrderingProposals |-> "F1"]
+
+OrderingProposalEpoch ==
+  [p \in OrderingProposals |-> "E1"]
+
+OrderingRejectionProposal ==
+  [r \in OrderingRejections |-> "NO_H1"]
+
+OrderingRejectionEpoch ==
+  [r \in OrderingRejections |-> "E1"]
+
+OrderingRejectionHead ==
+  [r \in OrderingRejections |-> "H1"]
+
+OrderingRejectionPR ==
+  [r \in OrderingRejections |-> "P1"]
+
+OrderingRejectionFindings ==
+  [r \in OrderingRejections |-> {"F1"}]
+
+OrderingApplies ==
+  {<<"F1","H1">>, <<"F1","H2">>}
+
+OrderingLegacyFindings == {}
+OrderingLegacyRejectedHeads == {}
+OrderingCheckpointHeads == {}
+OrderingInitialPRs == {"P1"}
+OrderingInitialPRHead == [p \in OrderingPRs |-> "H1"]
+OrderingInitialEpoch == "E1"
+OrderingFaultInjection == FALSE
+
+(***************************************************************************)
+(* EPOCH: negative authority in E1, repair/GO in E2, no same-head revival. *)
+(***************************************************************************)
+
+EpochEpochs == {"E1", "E2"}
+EpochHeads == {"H1", "H2"}
+EpochPRs == {"P1"}
+EpochProposals == {"GO_H1_E1", "NO_H1_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
+EpochRejections == {"R_NO_H1"}
+EpochFindings == {"F1"}
+
+EpochProposalActor ==
+  [p \in EpochProposals |-> MCOwner]
+
+EpochProposalKind ==
+  [p \in EpochProposals |->
+    CASE p = "GO_H1_E1" -> "GO"
+      [] p = "NO_H1_E1" -> "NO_GO"
+      [] p = "DISP_F1_H2_E2" -> "DISPOSITION_RESOLVED"
+      [] OTHER -> "GO"]
+
+EpochProposalHead ==
+  [p \in EpochProposals |->
+    IF p \in {"GO_H1_E1","NO_H1_E1"} THEN "H1" ELSE "H2"]
+
+EpochProposalFinding ==
+  [p \in EpochProposals |-> "F1"]
+
+EpochProposalEpoch ==
+  [p \in EpochProposals |->
+    IF p \in {"GO_H1_E1","NO_H1_E1"} THEN "E1" ELSE "E2"]
+
+EpochRejectionProposal ==
+  [r \in EpochRejections |-> "NO_H1_E1"]
+
+EpochRejectionEpoch ==
+  [r \in EpochRejections |-> "E1"]
+
+EpochRejectionHead ==
+  [r \in EpochRejections |-> "H1"]
+
+EpochRejectionPR ==
+  [r \in EpochRejections |-> "P1"]
+
+EpochRejectionFindings ==
+  [r \in EpochRejections |-> {"F1"}]
+
+EpochApplies ==
+  {<<"F1","H1">>, <<"F1","H2">>}
+
+EpochLegacyFindings == {}
+EpochLegacyRejectedHeads == {}
+EpochCheckpointHeads == {}
+EpochInitialPRs == {"P1"}
+EpochInitialPRHead == [p \in EpochPRs |-> "H1"]
+EpochInitialEpoch == "E1"
+EpochFaultInjection == FALSE
+
+(***************************************************************************)
+(* DUPLICATE: positive Gate plus injected second Protocol-App writer.      *)
+(***************************************************************************)
+
+DuplicateEpochs == {"E1"}
+DuplicateHeads == {"H1"}
+DuplicatePRs == {"P1"}
+DuplicateProposals == {"GO_H1", "NO_EXTERNAL"}
+DuplicateRejections == {"R_EXTERNAL"}
+DuplicateFindings == {"F1"}
+
+DuplicateProposalActor ==
+  [p \in DuplicateProposals |->
+    IF p = "GO_H1" THEN MCOwner ELSE MCExternalActor]
+
+DuplicateProposalKind ==
+  [p \in DuplicateProposals |->
+    IF p = "GO_H1" THEN "GO" ELSE "NO_GO"]
+
+DuplicateProposalHead ==
+  [p \in DuplicateProposals |-> "H1"]
+
+DuplicateProposalFinding ==
+  [p \in DuplicateProposals |-> "F1"]
+
+DuplicateProposalEpoch ==
+  [p \in DuplicateProposals |-> "E1"]
+
+DuplicateRejectionProposal ==
+  [r \in DuplicateRejections |-> "NO_EXTERNAL"]
+
+DuplicateRejectionEpoch ==
+  [r \in DuplicateRejections |-> "E1"]
+
+DuplicateRejectionHead ==
+  [r \in DuplicateRejections |-> "H1"]
+
+DuplicateRejectionPR ==
+  [r \in DuplicateRejections |-> "P1"]
+
+DuplicateRejectionFindings ==
+  [r \in DuplicateRejections |-> {"F1"}]
+
+DuplicateApplies == {<<"F1","H1">>}
+DuplicateLegacyFindings == {}
+DuplicateLegacyRejectedHeads == {}
+DuplicateCheckpointHeads == {}
+DuplicateInitialPRs == {"P1"}
+DuplicateInitialPRHead == [p \in DuplicatePRs |-> "H1"]
+DuplicateInitialEpoch == "E1"
+DuplicateFaultInjection == TRUE
+
 (***************************************************************************)
 (* CHECKPOINT: PASS -> SUCCESS -> HUMAN_FAIL must revoke monotonically.     *)
 (***************************************************************************)
