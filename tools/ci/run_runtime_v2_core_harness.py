@@ -37,6 +37,10 @@ def main():
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
     print(variable_test.stdout.strip())
+    physical_capability_test=subprocess.run(['node','tools/ci/test_physical_capability_contract.js'],text=True,capture_output=True)
+    if physical_capability_test.returncode:
+        print('FAIL read-only physical capability contract',file=sys.stderr);print(physical_capability_test.stdout,file=sys.stderr);print(physical_capability_test.stderr,file=sys.stderr);return physical_capability_test.returncode
+    print(physical_capability_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
