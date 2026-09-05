@@ -15,11 +15,23 @@
   function field(block,name){if(!block||typeof block.getFieldValue!=='function')fail('invalid Blockly block');return block.getFieldValue(name);}
   function statementChildren(block,inputName){if(!block||typeof block.getInputTargetBlock!=='function')fail('block does not expose statement input '+inputName);return compileSequence(block.getInputTargetBlock(inputName));}
   function valueChild(block,inputName){if(!block||typeof block.getInputTargetBlock!=='function')fail('block does not expose value input '+inputName);var child=block.getInputTargetBlock(inputName);if(!child)fail('missing value input '+inputName);return compileExpression(child);}
+  function variableReference(block){
+    if(!block||typeof block.getField!=='function')fail('variable block does not expose VAR field');
+    var variableField=block.getField('VAR');
+    var model=variableField&&typeof variableField.getVariable==='function'?variableField.getVariable():null;
+    if(!model)fail('variable model unavailable');
+    var id=typeof model.getId==='function'?String(model.getId()):String(model.id_||'');
+    var name=String(model.name||'').trim();
+    if(!id)fail('variable id must be non-empty');
+    if(!name)fail('variable name must be non-empty');
+    return{id:id,name:name};
+  }
 
   function compileExpression(block){
     switch(block.type){
       case 'webeeblocks_v2_range':{var direction=String(field(block,'DIRECTION'));if(SENSOR_DIRECTIONS.indexOf(direction)<0)fail('unsupported range direction: '+direction);return{kind:'range',direction:direction,unit:'m'};}
       case 'math_number':return{kind:'number',value:finite(field(block,'NUM'),'number')};
+      case 'variables_get':return{kind:'variable_get',variable:variableReference(block)};
       case 'logic_compare':{var compare=String(field(block,'OP'));if(['LT','LTE','GT','GTE','EQ','NEQ'].indexOf(compare)<0)fail('unsupported comparison: '+compare);return{kind:'compare',op:compare,left:valueChild(block,'A'),right:valueChild(block,'B')};}
       case 'logic_operation':{var logic=String(field(block,'OP'));if(logic!=='AND'&&logic!=='OR')fail('unsupported logic operation: '+logic);return{kind:'logic',op:logic,left:valueChild(block,'A'),right:valueChild(block,'B')};}
       default:fail('unsupported expression block: '+block.type);
@@ -41,6 +53,7 @@
       case 'webeeblocks_v2_turn':{var turnDirection=String(field(block,'DIRECTION'));var degrees=bounded(field(block,'ANGLE'),'angle_deg',{min:1,max:179});if(turnDirection!=='left'&&turnDirection!=='right')fail('unsupported turn direction: '+turnDirection);return{kind:'turn',angle_deg:turnDirection==='left'?degrees:-degrees};}
       case 'webeeblocks_v2_wait':return{kind:'wait',seconds:bounded(field(block,'SECONDS'),'wait_s',LIMITS.wait_s)};
       case 'webeeblocks_v2_speed':return{kind:'set_speed',speed_m_s:bounded(field(block,'SPEED'),'speed_m_s',LIMITS.speed_m_s)};
+      case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
       case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
       default:fail('unsupported statement block: '+block.type);
