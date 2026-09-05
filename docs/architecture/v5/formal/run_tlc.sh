@@ -35,6 +35,10 @@ default_configs=(
   WebeeBlocksV5_LateRefutation.cfg
   WebeeBlocksV5_Checkpoint.cfg
   WebeeBlocksV5_Migration.cfg
+  WebeeBlocksV5_MergeInFlight.cfg
+  WebeeBlocksV5_Abandon.cfg
+  WebeeBlocksV5_CheckpointEpoch.cfg
+  WebeeBlocksV5_ExternalEvidence.cfg
 )
 
 if (( "$#" > 0 )); then

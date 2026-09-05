@@ -508,4 +508,216 @@ MigrationInitialPRHead == [p \in MigrationPRs |-> "H2"]
 MigrationInitialEpoch == "E1"
 MigrationFaultInjection == FALSE
 
+(***************************************************************************)
+(* MERGE IN FLIGHT: remote outcome must resolve before later authority.     *)
+(***************************************************************************)
+
+MergeFlightEpochs == {"E1"}
+MergeFlightHeads == {"H1", "H2"}
+MergeFlightPRs == {"P1", "P2"}
+MergeFlightProposals == {"GO_H1", "NO_H2"}
+MergeFlightRejections == {"R_NO_H2"}
+MergeFlightFindings == {"F1"}
+
+MergeFlightProposalActor ==
+  [p \in MergeFlightProposals |-> MCOwner]
+
+MergeFlightProposalKind ==
+  [p \in MergeFlightProposals |->
+    IF p = "NO_H2" THEN "NO_GO" ELSE "GO"]
+
+MergeFlightProposalHead ==
+  [p \in MergeFlightProposals |->
+    IF p = "NO_H2" THEN "H2" ELSE "H1"]
+
+MergeFlightProposalFinding ==
+  [p \in MergeFlightProposals |-> "F1"]
+
+MergeFlightProposalEpoch ==
+  [p \in MergeFlightProposals |-> "E1"]
+
+MergeFlightRejectionProposal ==
+  [r \in MergeFlightRejections |-> "NO_H2"]
+
+MergeFlightRejectionEpoch ==
+  [r \in MergeFlightRejections |-> "E1"]
+
+MergeFlightRejectionHead ==
+  [r \in MergeFlightRejections |-> "H2"]
+
+MergeFlightRejectionPR ==
+  [r \in MergeFlightRejections |-> "P2"]
+
+MergeFlightRejectionFindings ==
+  [r \in MergeFlightRejections |-> {"F1"}]
+
+MergeFlightApplies == {<<"F1","H2">>}
+MergeFlightLegacyFindings == {}
+MergeFlightLegacyRejectedHeads == {}
+MergeFlightCheckpointHeads == {}
+MergeFlightInitialPRs == {"P1", "P2"}
+MergeFlightInitialPRHead ==
+  [p \in MergeFlightPRs |-> IF p = "P1" THEN "H1" ELSE "H2"]
+MergeFlightInitialEpoch == "E1"
+MergeFlightFaultInjection == FALSE
+
+(***************************************************************************)
+(* ABANDON: rejected PR may close without semantically resolving findings. *)
+(***************************************************************************)
+
+AbandonEpochs == {"E1"}
+AbandonHeads == {"H1"}
+AbandonPRs == {"P1"}
+AbandonProposals == {"NO_H1"}
+AbandonRejections == {"R_NO_H1"}
+AbandonFindings == {"F1"}
+
+AbandonProposalActor ==
+  [p \in AbandonProposals |-> MCOwner]
+
+AbandonProposalKind ==
+  [p \in AbandonProposals |-> "NO_GO"]
+
+AbandonProposalHead ==
+  [p \in AbandonProposals |-> "H1"]
+
+AbandonProposalFinding ==
+  [p \in AbandonProposals |-> "F1"]
+
+AbandonProposalEpoch ==
+  [p \in AbandonProposals |-> "E1"]
+
+AbandonRejectionProposal ==
+  [r \in AbandonRejections |-> "NO_H1"]
+
+AbandonRejectionEpoch ==
+  [r \in AbandonRejections |-> "E1"]
+
+AbandonRejectionHead ==
+  [r \in AbandonRejections |-> "H1"]
+
+AbandonRejectionPR ==
+  [r \in AbandonRejections |-> "P1"]
+
+AbandonRejectionFindings ==
+  [r \in AbandonRejections |-> {"F1"}]
+
+AbandonApplies == {<<"F1","H1">>}
+AbandonLegacyFindings == {}
+AbandonLegacyRejectedHeads == {}
+AbandonCheckpointHeads == {}
+AbandonInitialPRs == {"P1"}
+AbandonInitialPRHead == [p \in AbandonPRs |-> "H1"]
+AbandonInitialEpoch == "E1"
+AbandonFaultInjection == FALSE
+
+(***************************************************************************)
+(* CHECKPOINT EPOCH: E1 human PASS must not authorize E2.                  *)
+(***************************************************************************)
+
+CheckpointEpochEpochs == {"E1", "E2"}
+CheckpointEpochHeads == {"H1"}
+CheckpointEpochPRs == {"P1"}
+CheckpointEpochProposals ==
+  {"PASS_E1", "GO_E1", "PASS_E2", "GO_E2", "NO_EXTERNAL"}
+CheckpointEpochRejections == {"R_EXTERNAL"}
+CheckpointEpochFindings == {"F1"}
+
+CheckpointEpochProposalActor ==
+  [p \in CheckpointEpochProposals |->
+    IF p = "NO_EXTERNAL" THEN MCExternalActor ELSE MCOwner]
+
+CheckpointEpochProposalKind ==
+  [p \in CheckpointEpochProposals |->
+    CASE p \in {"PASS_E1","PASS_E2"} -> "HUMAN_PASS"
+      [] p = "NO_EXTERNAL" -> "NO_GO"
+      [] OTHER -> "GO"]
+
+CheckpointEpochProposalHead ==
+  [p \in CheckpointEpochProposals |-> "H1"]
+
+CheckpointEpochProposalFinding ==
+  [p \in CheckpointEpochProposals |-> "F1"]
+
+CheckpointEpochProposalEpoch ==
+  [p \in CheckpointEpochProposals |->
+    IF p \in {"PASS_E2","GO_E2"} THEN "E2" ELSE "E1"]
+
+CheckpointEpochRejectionProposal ==
+  [r \in CheckpointEpochRejections |-> "NO_EXTERNAL"]
+
+CheckpointEpochRejectionEpoch ==
+  [r \in CheckpointEpochRejections |-> "E1"]
+
+CheckpointEpochRejectionHead ==
+  [r \in CheckpointEpochRejections |-> "H1"]
+
+CheckpointEpochRejectionPR ==
+  [r \in CheckpointEpochRejections |-> "P1"]
+
+CheckpointEpochRejectionFindings ==
+  [r \in CheckpointEpochRejections |-> {"F1"}]
+
+CheckpointEpochApplies == {}
+CheckpointEpochLegacyFindings == {}
+CheckpointEpochLegacyRejectedHeads == {}
+CheckpointEpochRequiredHeads == {"H1"}
+CheckpointEpochInitialPRs == {"P1"}
+CheckpointEpochInitialPRHead == [p \in CheckpointEpochPRs |-> "H1"]
+CheckpointEpochInitialEpoch == "E1"
+CheckpointEpochFaultInjection == FALSE
+
+(***************************************************************************)
+(* EXTERNAL EVIDENCE: external proposal must not reserve a future HEAD.    *)
+(***************************************************************************)
+
+ExternalEvidenceEpochs == {"E1"}
+ExternalEvidenceHeads == {"H1", "H2"}
+ExternalEvidencePRs == {"P1"}
+ExternalEvidenceProposals == {"GO_H1", "EXT_H2"}
+ExternalEvidenceRejections == {"R_EXT_H2"}
+ExternalEvidenceFindings == {"F1"}
+
+ExternalEvidenceProposalActor ==
+  [p \in ExternalEvidenceProposals |->
+    IF p = "EXT_H2" THEN MCExternalActor ELSE MCOwner]
+
+ExternalEvidenceProposalKind ==
+  [p \in ExternalEvidenceProposals |->
+    IF p = "EXT_H2" THEN "NO_GO" ELSE "GO"]
+
+ExternalEvidenceProposalHead ==
+  [p \in ExternalEvidenceProposals |->
+    IF p = "EXT_H2" THEN "H2" ELSE "H1"]
+
+ExternalEvidenceProposalFinding ==
+  [p \in ExternalEvidenceProposals |-> "F1"]
+
+ExternalEvidenceProposalEpoch ==
+  [p \in ExternalEvidenceProposals |-> "E1"]
+
+ExternalEvidenceRejectionProposal ==
+  [r \in ExternalEvidenceRejections |-> "EXT_H2"]
+
+ExternalEvidenceRejectionEpoch ==
+  [r \in ExternalEvidenceRejections |-> "E1"]
+
+ExternalEvidenceRejectionHead ==
+  [r \in ExternalEvidenceRejections |-> "H2"]
+
+ExternalEvidenceRejectionPR ==
+  [r \in ExternalEvidenceRejections |-> "P1"]
+
+ExternalEvidenceRejectionFindings ==
+  [r \in ExternalEvidenceRejections |-> {"F1"}]
+
+ExternalEvidenceApplies == {}
+ExternalEvidenceLegacyFindings == {}
+ExternalEvidenceLegacyRejectedHeads == {}
+ExternalEvidenceCheckpointHeads == {}
+ExternalEvidenceInitialPRs == {"P1"}
+ExternalEvidenceInitialPRHead == [p \in ExternalEvidencePRs |-> "H1"]
+ExternalEvidenceInitialEpoch == "E1"
+ExternalEvidenceFaultInjection == FALSE
+
 =============================================================================
