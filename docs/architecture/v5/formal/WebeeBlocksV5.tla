@@ -356,6 +356,14 @@ AuthoritySeenHeads ==
   TrustedAuthorityProposalHeads \cup PositiveAuditHeads \cup
   MergedHeads \cup V5TerminalHeads
 
+ExternalProposalHeads ==
+  {ProposalHead[p] : p \in proposalPresent /\ ProposalActor[p] = ExternalActor}
+
+ExternalOnlyProposalHeads ==
+  ExternalProposalHeads \
+  (TrustedAuthorityProposalHeads \cup PositiveAuditHeads \cup
+   MergedHeads \cup V5TerminalHeads)
+
 HeadTerminal(h) ==
   h \in (importedLegacyRejectedHeads \cup V5TerminalHeads)
 
@@ -1172,7 +1180,6 @@ RemoveV5Requirements ==
 
 ClosePR(pr) ==
   /\ pr \in prOpen
-  /\ pr \notin OutstandingMerges
   /\ prOpen' = prOpen \ {pr}
   /\ UNCHANGED << guaranteeActive,
                   prHead, baseFresh, merged, mergeHead, trunkBlocked,
@@ -1419,6 +1426,10 @@ HumanGovernanceOverride ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
 
+RemoteMergeResolutionStep ==
+  \/ \E pr \in PRs : RemoteMergeSuccess(pr)
+  \/ \E pr \in PRs : RemoteMergeFailure(pr)
+
 PublisherNormalStep ==
   \/ \E p \in Proposals : ApplyCheckpointResult(p)
   \/ \E r \in Rejections : PrepareRejection(r)
@@ -1450,8 +1461,7 @@ PublisherStep ==
 
 EnvironmentStep ==
   \/ \E p \in Proposals : PublishProposal(p)
-  \/ \E pr \in PRs : RemoteMergeSuccess(pr)
-  \/ \E pr \in PRs : RemoteMergeFailure(pr)
+  \/ RemoteMergeResolutionStep
   \/ \E pr \in PRs : ClosePR(pr)
   \/ \E p \in Proposals : EditProposal(p)
   \/ \E pr \in PRs, r \in Rejections : CorruptReview(pr,r)
@@ -1488,6 +1498,7 @@ SafetySpec ==
 Spec ==
   /\ SafetySpec
   /\ WF_vars(PublisherStep)
+  /\ WF_vars(RemoteMergeResolutionStep)
 
 (***************************************************************************)
 (* INVARIANTS TO MODEL-CHECK                                               *)
@@ -1620,6 +1631,25 @@ Inv_MergeCommitHasResolution ==
 
 Inv_NoV5RetirementWithOutstandingMerge ==
   v5Retired => OutstandingMerges = {}
+
+Inv_RemoteSuccessUsesPreparedIntent ==
+  \A pr \in mergeRemoteSucceeded :
+    /\ pr \in merged
+    /\ mergeHead[pr] = mergeIntentHead[pr]
+
+Inv_PositiveSuccessRequiresEpochCheckpoint ==
+  \A e \in Epochs, h \in Heads :
+    /\ UniqueFreshSuccess(e,h)
+    /\ h \in CheckpointHeads
+    => CheckpointAllows(e,h)
+
+Inv_ExternalEvidenceDoesNotReserveCandidate ==
+  ExternalOnlyProposalHeads \cap AuthoritySeenHeads = {}
+
+Inv_V5RetirementClearsReviewProjections ==
+  v5Retired =>
+    /\ activeReviews = {}
+    /\ corruptedReviews = {}
 
 Inv_ActiveEpochNeverRetired ==
   activeEpoch \notin retiredEpochs
