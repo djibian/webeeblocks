@@ -47,4 +47,40 @@ Crazyflie {
   window "blockly_v2"
   supervisor TRUE
   synchronization TRUE
+  extensionSlot [
+    Pose {
+      translation 0 0 -0.012
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.06 0.28 0.10
+            roughness 0.65
+            metalness 0
+          }
+          geometry Box {
+            size 0.040 0.040 0.0015
+          }
+        }
+        LED {
+          translation 0 0 -0.0013
+          name "color_led"
+          gradual TRUE
+          color [ ]
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.03 0.03 0.03
+                emissiveColor 0 0 0
+                roughness 0.4
+                metalness 0
+              }
+              geometry Box {
+                size 0.026 0.026 0.001
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
