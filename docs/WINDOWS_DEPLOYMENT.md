@@ -2,16 +2,19 @@
 
 ## Supported target
 
-The currently supported classroom path is **Windows 10 or 11 64-bit + Webots
-R2025a + Google Chrome**.
+The release compatibility target remains **Windows 10 or 11 64-bit + Webots
+R2025a**. The current real-machine validated classroom baseline is **Windows 11
+64-bit + Webots R2025a + Google Chrome**.
 
 Chrome is the reference browser because the product project-file path uses the
 native File System Access API for Open / Save As / Save on the selected file and
 that exact path has passed the real low-end classroom acceptance recorded on
 issue #81.
 
-Do not infer broader browser support from the Windows claim:
+Do not infer broader platform or browser support from the validated baseline:
 
+- Windows 10 remains a release compatibility target but is not covered by the
+  current W1/W2 real-machine evidence;
 - Edge is not part of the currently validated classroom boundary;
 - Firefox project-file parity is not currently supported and remains tracked
   separately by #87;

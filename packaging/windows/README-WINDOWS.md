@@ -4,14 +4,16 @@ Cette archive est prête à l’emploi après installation de Webots R2025a. Ell
 contient le contrôleur Windows compilé, Blockly 13.2.1, le pont Robot Window et
 les actifs Crazyflie nécessaires au fonctionnement hors ligne.
 
-## Périmètre actuellement supporté
+## Périmètre de la release
 
-- Windows 10 ou 11 64 bits ;
-- Webots R2025a installé dans `C:\\Program Files\\Webots` (ou
+- cible de compatibilité : Windows 10 ou 11 64 bits ;
+- Webots R2025a installé dans `C:\Program Files\Webots` (ou
   `WEBOTS_HOME` défini) ;
 - **Google Chrome**, navigateur de référence actuellement validé.
 
-Edge n’appartient pas au périmètre Windows actuellement validé. Firefox peut
+La cible de compatibilité inclut Windows 10 et 11, mais les preuves réelles W1/W2
+actuelles portent exclusivement sur Windows 11. Edge n’appartient pas au
+périmètre Windows actuellement validé. Firefox peut
 faire fonctionner une partie de l’interface, mais la parité des fichiers projet
 n’est pas supportée à ce stade et reste suivie séparément par #87. Cette archive
 ne revendique donc aucun faux parcours de secours équivalent à
@@ -36,7 +38,7 @@ doit pas empêcher le lancement, Blockly, l’exécution, le pas à pas, la remi
 zéro ou les fichiers `.wbb`.
 
 En cas d’échec, vérifier que
-`C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webotsw.exe` existe. Le fichier
+`C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe` existe. Le fichier
 `MANIFEST.sha256` permet de contrôler l’intégrité de chaque fichier livré.
 
 ## Validation réelle

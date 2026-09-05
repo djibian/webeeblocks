@@ -12,10 +12,13 @@ rend cette preuve à nouveau décision-relevante.
 
 Le périmètre actuellement validé est :
 
-- Windows 10/11 64 bits ;
+- Windows 11 64 bits ;
 - Webots R2025a ;
 - Google Chrome ;
 - fonctionnement normal hors ligne après préparation.
+
+Windows 10 reste une cible de compatibilité de la release, mais n’est pas couvert
+par les preuves réelles W1/W2 actuelles.
 
 **Edge et Firefox ne sont pas couverts par ce verdict.** Firefox same-file reste
 suivi par #87. Ne cocher aucun verdict Windows comme preuve implicite de ces
@@ -67,6 +70,7 @@ Les détails exacts d’artefact, versions et observations restent dans l’issu
 - [ ] réinitialisation et replay ;
 - [ ] `Ouvrir`, `Enregistrer sous`, puis `Enregistrer` avec Chrome ;
 - [ ] réouverture du fichier `.wbb` sauvegardé ;
+- [ ] fichier `.wbb` créé sous Windows rouvert sous Linux avec le même AST ;
 - [ ] réseau coupé pendant tout le parcours après installation.
 
 ### Mesures du poste le plus faible
