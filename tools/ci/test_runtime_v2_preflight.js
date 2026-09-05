@@ -127,13 +127,19 @@ function proveProgressionProfilesAndFieldOptions() {
   const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-repeat-v1', Activities.BLOCK_CATALOG);
   const p3 = Profiles.resolveById(Activities.DOCUMENT, 'progression-reactive-v1', Activities.BLOCK_CATALOG);
   const p4 = Profiles.resolveById(Activities.DOCUMENT, 'progression-combined-decisions-v1', Activities.BLOCK_CATALOG);
+  const p5 = Profiles.resolveById(Activities.DOCUMENT, 'progression-memory-v1', Activities.BLOCK_CATALOG);
+  const p6 = Profiles.resolveById(Activities.DOCUMENT, 'progression-autonomous-strategy-v1', Activities.BLOCK_CATALOG);
 
   assert.strictEqual(p1.world, p2.world);
   assert.strictEqual(p2.world, p3.world);
   assert.strictEqual(p3.world, p4.world);
+  assert.strictEqual(p4.world, p5.world);
+  assert.strictEqual(p5.world, p6.world);
   assert(p1.toolbox.every(type => p2.toolbox.includes(type)), 'profile 2 must be cumulative over profile 1');
   assert(p2.toolbox.every(type => p3.toolbox.includes(type)), 'profile 3 must be cumulative over profile 2');
   assert(p3.toolbox.every(type => p4.toolbox.includes(type)), 'profile 4 must be cumulative over profile 3');
+  assert(p4.toolbox.every(type => p5.toolbox.includes(type)), 'profile 5 must be cumulative over profile 4');
+  assert(p5.toolbox.every(type => p6.toolbox.includes(type)), 'profile 6 must be cumulative over profile 5');
   assert(!p1.toolbox.includes('controls_repeat_ext'));
   assert(p2.toolbox.includes('controls_repeat_ext'));
   assert(!p2.toolbox.includes('webeeblocks_v2_range'));
@@ -141,6 +147,12 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(p3.toolbox.includes('controls_if'));
   assert(!p3.toolbox.includes('logic_operation'));
   assert(p4.toolbox.includes('logic_operation'));
+  assert(p5.toolbox.includes('variables_set') && p5.toolbox.includes('variables_get'));
+  assert(p6.toolbox.includes('webeeblocks_v2_vertical'));
+  assert(p6.toolbox.includes('webeeblocks_v2_turn'));
+  assert(p6.toolbox.includes('webeeblocks_v2_wait'));
+  assert(p6.toolbox.includes('webeeblocks_v2_light'));
+  assert(!p6.toolbox.includes('webeeblocks_v2_speed'), 'open strategy must not expose unimplemented Webots speed selection');
   assert(!p1.hardware.includes('multi-ranger-deck'));
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
@@ -150,13 +162,20 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
   assert.deepStrictEqual(p4.runtime.rangeDirections, ['front','left','right']);
+  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
+  assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','left','right']);
+  assert.deepStrictEqual(p6.runtime.moveDirections, ['forward','back','left','right']);
+  assert.deepStrictEqual(p6.runtime.verticalDirections, ['up','down']);
+  assert(p6.runtime.allowedStatementKinds.includes('set_variable'));
+  assert(p6.runtime.allowedStatementKinds.includes('set_light'));
+  assert(!p6.runtime.allowedStatementKinds.includes('set_speed'));
   assert.deepStrictEqual(p2.parameterBounds.math_number.NUM, {min:1,max:10,step:1});
   assert.deepStrictEqual(p3.parameterBounds.math_number.NUM, p2.parameterBounds.math_number.NUM,
     'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
   assert.deepStrictEqual(p4.parameterBounds.math_number.NUM, p3.parameterBounds.math_number.NUM,
     'profile 4 must preserve the cumulative repeat-count numeric bound');
   const currentWebotsCapabilities = new WwiBackend({send() {}}, {timeoutMs:50}).capabilities;
-  const backendActionKinds = ['takeoff','move','vertical','turn','wait','set_speed','land'];
+  const backendActionKinds = ['takeoff','move','vertical','turn','wait','set_speed','set_light','land'];
   const requiredBackendActions = p4.runtime.allowedStatementKinds.filter(kind => backendActionKinds.includes(kind));
   assert(requiredBackendActions.every(kind => currentWebotsCapabilities.actions.includes(kind)),
     'profile 4 must not expose an unproven Webots backend action');
@@ -166,6 +185,15 @@ function proveProgressionProfilesAndFieldOptions() {
     'profile 4 must not expose an unproven Webots move direction');
   assert(p4.runtime.verticalDirections.every(direction => currentWebotsCapabilities.verticalDirections.includes(direction)),
     'profile 4 must not expose an unproven Webots vertical direction');
+  const requiredP6Actions = p6.runtime.allowedStatementKinds.filter(kind => backendActionKinds.includes(kind));
+  assert(requiredP6Actions.every(kind => currentWebotsCapabilities.actions.includes(kind)),
+    'profile 6 must not expose an unproven Webots backend action');
+  assert(p6.runtime.rangeDirections.every(direction => currentWebotsCapabilities.rangeDirections.includes(direction)),
+    'profile 6 must not expose an unproven Webots range direction');
+  assert(p6.runtime.moveDirections.every(direction => currentWebotsCapabilities.moveDirections.includes(direction)),
+    'profile 6 must not expose an unproven Webots move direction');
+  assert(p6.runtime.verticalDirections.every(direction => currentWebotsCapabilities.verticalDirections.includes(direction)),
+    'profile 6 must not expose an unproven Webots vertical direction');
 
   const duplicate = JSON.parse(JSON.stringify(p1));
   duplicate.fieldOptions.webeeblocks_v2_move.DIRECTION = ['forward','forward'];
