@@ -108,6 +108,32 @@ turn_end_replacement = r'''          trace_turn(active_value);
 if turn_end_needle not in controller:
     raise SystemExit('Runtime v2 TURN end instrumentation point not found')
 controller = controller.replace(turn_end_needle, turn_end_replacement, 1)
+wait_start_needle = '''        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        command = CMD_WAIT;'''
+wait_start_replacement = r'''        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        printf(PREFIX " CI WAIT_START seconds=%.9f sim_time=%.9f x=%.9f y=%.9f z=%.9f yaw=%.9f\n",
+               request.value, now, x, y, z, yaw);
+        fflush(stdout);
+        command = CMD_WAIT;'''
+if wait_start_needle not in controller:
+    raise SystemExit('Runtime v2 WAIT start instrumentation point not found')
+controller = controller.replace(wait_start_needle, wait_start_replacement, 1)
+wait_end_needle = '''        trace_wait(active_value, now - action_start);
+        response_ok(active_id);'''
+wait_end_replacement = r'''        trace_wait(active_value, now - action_start);
+        printf(PREFIX " CI WAIT_END seconds=%.9f sim_time=%.9f x=%.9f y=%.9f z=%.9f yaw=%.9f\n",
+               active_value, now, x, y, z, yaw);
+        fflush(stdout);
+        response_ok(active_id);'''
+if wait_end_needle not in controller:
+    raise SystemExit('Runtime v2 WAIT end instrumentation point not found')
+controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
 controller_path.write_text(controller, encoding='utf-8')
 
 script = r'''
@@ -363,10 +389,12 @@ script = r'''
     await runtimeBackend.vertical('down', 0.10);
     await runtimeBackend.turn(30);
     await runtimeBackend.turn(-30);
+    await runtimeBackend.wait(0.5);
     await runtimeBackend.land();
     await report('HORIZONTAL_MOVES_OK', {directions:['back','right']});
     await report('VERTICAL_MOVES_OK', {directions:['up','down'], distance_m:0.10});
     await report('YAW_TURNS_OK', {angles_deg:[30,-30]});
+    await report('WAIT_OK', {seconds:0.5});
 
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;

@@ -834,6 +834,7 @@ jobs:
           log = Path('ci-artifacts/runtime-v2-webots/webots.log').read_text(errors='replace')
           trace = []
           ranges = []
+          wait_traces = []
           for line in log.splitlines():
               if 'WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF' in line:
                   trace.append('TAKEOFF')
@@ -855,12 +856,21 @@ jobs:
                   m = re.search(r'TRACE LIGHT color=(off|red|green|blue|yellow|white) rgb=([0-9a-f]{6})', line)
                   assert m, line
                   trace.append('LIGHT_' + m.group(1).upper())
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE WAIT ' in line:
+                  m = re.search(r'TRACE WAIT seconds=([-0-9.]+) elapsed=([-0-9.]+)', line)
+                  assert m and 'stop=1' in line, line
+                  trace.append('WAIT')
+                  wait_traces.append((float(m.group(1)), float(m.group(2))))
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
+          assert len(wait_traces) == 1, wait_traces
+          requested_wait, traced_elapsed = wait_traces[0]
+          assert abs(requested_wait - 0.5) < 1e-6, wait_traces
+          assert traced_elapsed >= requested_wait and traced_elapsed <= requested_wait + 0.75, wait_traces
 
           starts = {}
           ends = {}
@@ -908,6 +918,27 @@ jobs:
               assert abs(wrap_angle(target - syaw) - math.radians(expected_angle)) < 0.03, start
               assert abs(wrap_angle(eyaw - end_target)) < math.radians(3.0), end
               assert abs(ex - sx) < 0.08 and abs(ey - sy) < 0.08 and abs(ez - sz) < 0.08, (start, end)
+
+          wait_starts = []
+          wait_ends = []
+          for line in log.splitlines():
+              m = re.search(
+                  r'CI WAIT_(START|END) seconds=([-0-9.]+) sim_time=([-0-9.]+) x=([-0-9.]+) y=([-0-9.]+) z=([-0-9.]+) yaw=([-0-9.]+)',
+                  line)
+              if not m:
+                  continue
+              sample = tuple(map(float, m.groups()[1:]))
+              (wait_starts if m.group(1) == 'START' else wait_ends).append(sample)
+          assert len(wait_starts) == 1 and len(wait_ends) == 1, (wait_starts, wait_ends)
+          wait_start = wait_starts[0]
+          wait_end = wait_ends[0]
+          requested, start_time, sx, sy, sz, syaw = wait_start
+          end_requested, end_time, ex, ey, ez, eyaw = wait_end
+          assert abs(requested - 0.5) < 1e-6 and abs(end_requested - requested) < 1e-6, (wait_start, wait_end)
+          elapsed = end_time - start_time
+          assert elapsed >= requested and elapsed <= requested + 0.75, (wait_start, wait_end)
+          assert abs(ex - sx) < 0.08 and abs(ey - sy) < 0.08 and abs(ez - sz) < 0.08, (wait_start, wait_end)
+          assert abs(wrap_angle(eyaw - syaw)) < math.radians(3.0), (wait_start, wait_end)
           assert ranges[0] < 0.5 and ranges[1] >= 0.5 and ranges[2] < 0.5, ranges
 
           def first_index(predicate, label):
@@ -927,8 +958,10 @@ jobs:
           horizontal = first_index(lambda e: e.get('event') == 'HORIZONTAL_MOVES_OK', 'HORIZONTAL_MOVES_OK')
           vertical = first_index(lambda e: e.get('event') == 'VERTICAL_MOVES_OK', 'VERTICAL_MOVES_OK')
           yaw_turns = first_index(lambda e: e.get('event') == 'YAW_TURNS_OK', 'YAW_TURNS_OK')
+          wait_ok = first_index(lambda e: e.get('event') == 'WAIT_OK', 'WAIT_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < color_led < horizontal < vertical < yaw_turns < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < color_led < horizontal < vertical < yaw_turns < wait_ok < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert abs(float(events[wait_ok]['detail']['seconds']) - 0.5) < 1e-6, events[wait_ok]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']
