@@ -127,7 +127,7 @@ EpochTerminalFaultInjection == FALSE
 EpochRepairEpochs == {"E1", "E2"}
 EpochRepairHeads == {"H1", "H2"}
 EpochRepairPRs == {"P1"}
-EpochRepairProposals == {"NO_H1_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
+EpochRepairProposals == {"NO_H1_E1", "DISP_F1_H2_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
 EpochRepairRejections == {"R_NO_H1"}
 EpochRepairFindings == {"F1"}
 
@@ -137,7 +137,7 @@ EpochRepairProposalActor ==
 EpochRepairProposalKind ==
   [p \in EpochRepairProposals |->
     CASE p = "NO_H1_E1" -> "NO_GO"
-      [] p = "DISP_F1_H2_E2" -> "DISPOSITION_RESOLVED"
+      [] p \in {"DISP_F1_H2_E1","DISP_F1_H2_E2"} -> "DISPOSITION_RESOLVED"
       [] OTHER -> "GO"]
 
 EpochRepairProposalHead ==
@@ -149,7 +149,7 @@ EpochRepairProposalFinding ==
 
 EpochRepairProposalEpoch ==
   [p \in EpochRepairProposals |->
-    IF p = "NO_H1_E1" THEN "E1" ELSE "E2"]
+    IF p \in {"NO_H1_E1","DISP_F1_H2_E1"} THEN "E1" ELSE "E2"]
 
 EpochRepairRejectionProposal ==
   [r \in EpochRepairRejections |-> "NO_H1_E1"]
@@ -184,13 +184,12 @@ EpochRepairFaultInjection == FALSE
 DuplicateEpochs == {"E1"}
 DuplicateHeads == {"H1"}
 DuplicatePRs == {"P1"}
-DuplicateProposals == {"GO_H1", "NO_EXTERNAL"}
+DuplicateProposals == {"GO_H1", "NO_H1"}
 DuplicateRejections == {"R_EXTERNAL"}
 DuplicateFindings == {"F1"}
 
 DuplicateProposalActor ==
-  [p \in DuplicateProposals |->
-    IF p = "GO_H1" THEN MCOwner ELSE MCExternalActor]
+  [p \in DuplicateProposals |-> MCOwner]
 
 DuplicateProposalKind ==
   [p \in DuplicateProposals |->
@@ -206,7 +205,7 @@ DuplicateProposalEpoch ==
   [p \in DuplicateProposals |-> "E1"]
 
 DuplicateRejectionProposal ==
-  [r \in DuplicateRejections |-> "NO_EXTERNAL"]
+  [r \in DuplicateRejections |-> "NO_H1"]
 
 DuplicateRejectionEpoch ==
   [r \in DuplicateRejections |-> "E1"]
@@ -228,6 +227,167 @@ DuplicateInitialPRs == {"P1"}
 DuplicateInitialPRHead == [p \in DuplicatePRs |-> "H1"]
 DuplicateInitialEpoch == "E1"
 DuplicateFaultInjection == TRUE
+
+
+(***************************************************************************)
+(* PENDING HEAD: PREPARE remains blocking even when Applies is empty.      *)
+(***************************************************************************)
+
+PendingHeadEpochs == {"E1"}
+PendingHeadHeads == {"H1"}
+PendingHeadPRs == {"P1"}
+PendingHeadProposals == {"GO_H1", "NO_H1"}
+PendingHeadRejections == {"R_NO_H1"}
+PendingHeadFindings == {"F1"}
+
+PendingHeadProposalActor ==
+  [p \in PendingHeadProposals |-> MCOwner]
+
+PendingHeadProposalKind ==
+  [p \in PendingHeadProposals |->
+    IF p = "NO_H1" THEN "NO_GO" ELSE "GO"]
+
+PendingHeadProposalHead ==
+  [p \in PendingHeadProposals |-> "H1"]
+
+PendingHeadProposalFinding ==
+  [p \in PendingHeadProposals |-> "F1"]
+
+PendingHeadProposalEpoch ==
+  [p \in PendingHeadProposals |-> "E1"]
+
+PendingHeadRejectionProposal ==
+  [r \in PendingHeadRejections |-> "NO_H1"]
+
+PendingHeadRejectionEpoch ==
+  [r \in PendingHeadRejections |-> "E1"]
+
+PendingHeadRejectionHead ==
+  [r \in PendingHeadRejections |-> "H1"]
+
+PendingHeadRejectionPR ==
+  [r \in PendingHeadRejections |-> "P1"]
+
+PendingHeadRejectionFindings ==
+  [r \in PendingHeadRejections |-> {"F1"}]
+
+PendingHeadApplies == {}
+PendingHeadLegacyFindings == {}
+PendingHeadLegacyRejectedHeads == {}
+PendingHeadCheckpointHeads == {}
+PendingHeadInitialPRs == {"P1"}
+PendingHeadInitialPRHead == [p \in PendingHeadPRs |-> "H1"]
+PendingHeadInitialEpoch == "E1"
+PendingHeadFaultInjection == FALSE
+
+(***************************************************************************)
+(* SHARED HEAD: one merge must stale every other PR sharing the base.      *)
+(***************************************************************************)
+
+SharedHeadEpochs == {"E1"}
+SharedHeadHeads == {"H1"}
+SharedHeadPRs == {"P1", "P2"}
+SharedHeadProposals == {"GO_H1", "NO_EXTERNAL"}
+SharedHeadRejections == {"R_EXTERNAL"}
+SharedHeadFindings == {"F1"}
+
+SharedHeadProposalActor ==
+  [p \in SharedHeadProposals |->
+    IF p = "GO_H1" THEN MCOwner ELSE MCExternalActor]
+
+SharedHeadProposalKind ==
+  [p \in SharedHeadProposals |->
+    IF p = "GO_H1" THEN "GO" ELSE "NO_GO"]
+
+SharedHeadProposalHead ==
+  [p \in SharedHeadProposals |-> "H1"]
+
+SharedHeadProposalFinding ==
+  [p \in SharedHeadProposals |-> "F1"]
+
+SharedHeadProposalEpoch ==
+  [p \in SharedHeadProposals |-> "E1"]
+
+SharedHeadRejectionProposal ==
+  [r \in SharedHeadRejections |-> "NO_EXTERNAL"]
+
+SharedHeadRejectionEpoch ==
+  [r \in SharedHeadRejections |-> "E1"]
+
+SharedHeadRejectionHead ==
+  [r \in SharedHeadRejections |-> "H1"]
+
+SharedHeadRejectionPR ==
+  [r \in SharedHeadRejections |-> "P1"]
+
+SharedHeadRejectionFindings ==
+  [r \in SharedHeadRejections |-> {"F1"}]
+
+SharedHeadApplies == {}
+SharedHeadLegacyFindings == {}
+SharedHeadLegacyRejectedHeads == {}
+SharedHeadCheckpointHeads == {}
+SharedHeadInitialPRs == {"P1", "P2"}
+SharedHeadInitialPRHead == [p \in SharedHeadPRs |-> "H1"]
+SharedHeadInitialEpoch == "E1"
+SharedHeadFaultInjection == FALSE
+
+(***************************************************************************)
+(* LATE REFUTATION: merge-wins race must block subsequent V5 integration.  *)
+(***************************************************************************)
+
+LateEpochs == {"E1"}
+LateHeads == {"H1", "H2", "H3"}
+LatePRs == {"P1", "P2"}
+LateProposals == {"GO_H1", "NO_H1", "GO_H3"}
+LateRejections == {"R_NO_H1"}
+LateFindings == {"F1"}
+
+LateProposalActor ==
+  [p \in LateProposals |-> MCOwner]
+
+LateProposalKind ==
+  [p \in LateProposals |->
+    IF p = "NO_H1" THEN "NO_GO" ELSE "GO"]
+
+LateProposalHead ==
+  [p \in LateProposals |->
+    CASE p = "GO_H1" -> "H1"
+      [] p = "NO_H1" -> "H1"
+      [] OTHER -> "H3"]
+
+LateProposalFinding ==
+  [p \in LateProposals |-> "F1"]
+
+LateProposalEpoch ==
+  [p \in LateProposals |-> "E1"]
+
+LateRejectionProposal ==
+  [r \in LateRejections |-> "NO_H1"]
+
+LateRejectionEpoch ==
+  [r \in LateRejections |-> "E1"]
+
+LateRejectionHead ==
+  [r \in LateRejections |-> "H1"]
+
+LateRejectionPR ==
+  [r \in LateRejections |-> "P1"]
+
+LateRejectionFindings ==
+  [r \in LateRejections |-> {"F1"}]
+
+LateApplies ==
+  {<<"F1","H1">>}
+
+LateLegacyFindings == {}
+LateLegacyRejectedHeads == {}
+LateCheckpointHeads == {}
+LateInitialPRs == {"P1", "P2"}
+LateInitialPRHead ==
+  [p \in LatePRs |-> IF p = "P1" THEN "H1" ELSE "H2"]
+LateInitialEpoch == "E1"
+LateFaultInjection == FALSE
 
 (***************************************************************************)
 (* CHECKPOINT: PASS -> SUCCESS -> HUMAN_FAIL must revoke monotonically.     *)
