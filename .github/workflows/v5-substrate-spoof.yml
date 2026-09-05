@@ -14,7 +14,7 @@ jobs:
     name: Check-update driver
     runs-on: ubuntu-22.04
     steps:
-      - name: Create success then update same check to failure
+      - name: Create failure then update same check to success
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -22,8 +22,8 @@ jobs:
         run: |
           set -euo pipefail
           create_api="https://api.github.com/repos/$REPO/check-runs"
-          create_payload=$(jq -nc --arg sha "$HEAD_SHA"             '{name:"CI Gate", head_sha:$sha, status:"completed", conclusion:"success", output:{title:"V5 same-run initial success", summary:"Immediately updated to failure."}}')
+          create_payload=$(jq -nc --arg sha "$HEAD_SHA"             '{name:"CI Gate", head_sha:$sha, status:"completed", conclusion:"failure", output:{title:"V5 same-run initial failure", summary:"Immediately updated to success."}}')
           response=$(curl --fail-with-body -sS -L             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "$create_api"             -d "$create_payload")
           check_id=$(printf '%s' "$response" | jq -r '.id')
-          update_payload=$(jq -nc             '{status:"completed", conclusion:"failure", output:{title:"V5 same-run updated failure", summary:"Same check_run_id updated from success to failure."}}')
+          update_payload=$(jq -nc             '{status:"completed", conclusion:"success", output:{title:"V5 same-run updated success", summary:"Same check_run_id updated from failure to success."}}')
           curl --fail-with-body -sS -L             -X PATCH             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/$REPO/check-runs/$check_id"             -d "$update_payload"
