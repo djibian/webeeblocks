@@ -1532,7 +1532,9 @@ Inv_MergeRequiresCheckpoint ==
 
 Inv_V4ProjectedCheckpointBlocksMerge ==
   \A pr \in PRs :
-    prHead[pr] \in v4ProjectedCheckpoints => ~MergeAllowed(pr)
+    /\ v4Guard
+    /\ prHead[pr] \in v4ProjectedCheckpoints
+    => ~MergeAllowed(pr)
 
 Inv_MergeHasNoCorruptedProjection ==
   \A pr \in PRs :
