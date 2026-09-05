@@ -97,20 +97,24 @@ denying deletion/non-fast-forward rewrite of protected authority history.
 Check Runs and reviews are mutable enforcement/projection surfaces, not the
 permanent authority store.
 
-### R2 — PREPARE boundary
+### R2 — PREPARE boundary and immutable negative observation
 
-A durable trusted negative proposal blocks new positive publication before
-PREPARE.
+A raw mutable GitHub proposal is evidence until the protocol observes and
+canonicalizes it. The abstract `proposalPresent` transition represents that
+protocol-visible capture boundary.
 
-After PREPARE the rejection blocks its exact `RejectionHead` independently of
-finding applicability. `Applies` only controls whether findings constrain
-other candidate Heads.
+After capture, a trusted blocking-negative is monotone authority input:
+`EditProposal` may corrupt the mutable projection but cannot silently withdraw
+the captured negative. Explicit resolution/withdrawal requires a separate
+authoritative operation.
 
-PREPARE does not revoke an already-linearized SUCCESS. Until Gate FAILURE
-linearizes, a merge may still win.
+PREPARE remains durable before Gate FAILURE. After PREPARE the exact rejection
+Head is blocked independently of `Applies`.
 
-That is a deliberate boundary. If merge wins, the subsequent authoritative
-refutation must trigger the trunk-health consequence in R7.
+PREPARE does not itself revoke an already-fresh SUCCESS. While V5 is required,
+however, the eventual merge effect is serialized by the same Publisher as the
+negative linearization, eliminating an independent Controller merge request
+that could linearize after a prior trunk block.
 
 ### R3 — Protocol Gate
 
@@ -120,35 +124,50 @@ dedicated Protocol App.
 The real ruleset must reject same-name checks from GitHub Actions or any other
 App.
 
-### R4 — Duplicate
+### R4 — Duplicate and retention recovery
 
-Physical duplicate Check Runs may remain forever. The model never requires
-their deletion or `gateCount` normalization.
+Physical duplicate Check Runs may remain forever.
 
-A duplicate is considered reconciled only after append-only poison COMMIT.
-A pending ordinary rejection on an already-poisoned pair may still linearize
-and COMMIT.
+A detected duplicate becomes protocol knowledge as soon as durable poison
+PREPARE exists. The affected Head remains fail-closed across epochs until
+poison COMMIT.
 
-Challenge whether this durable poison lifecycle can be implemented with the
-intended minimal App permissions and reconstructed after GitHub Check retention.
+Recovery is intentionally conservative:
 
-### R5 — Merge / base freshness
+```text
+duplicate observed
+-> poison PREPARE
+-> Checks may disappear
+-> Publisher may reassert FAILURE from PREPARE
+-> poison COMMIT
+```
 
-`MergePR` abstracts:
+The current physical `gateCount > 1` is required to create PREPARE, but is no
+longer required to complete the poison linearization after PREPARE. Challenge
+whether the Protocol App can always recreate/reassert the blocking Gate with
+the intended minimal permissions.
 
-- exact current `prHead`;
-- current protected base;
-- `expected_head_sha = current prHead`.
+### R5 — Merge serialization / base freshness
 
-Successful merge atomically makes every remaining open PR base-stale in the
-abstraction.
+While any V5 epoch is required, normal merges refine `PublisherMergePR`, not
+an independent Controller environment step.
 
-A stale PR becomes fresh only via `RefreshBase` with a distinct non-integrated
-Head. Ordinary `HeadChange` also cannot select an already integrated exact
-Head while preserving normal strict-base refinement.
+Concrete requirements:
 
-Attack this abstraction against actual GitHub merge/update semantics, including
-two PRs that initially share one Head.
+- only the normal V5 Publisher path may issue the automated merge effect;
+- it reconstructs current global authority/trunk state immediately before the
+  merge effect;
+- the merge request supplies the exact current PR SHA;
+- GitHub `expected_head_sha`/merge `sha` protects exact-head linearization;
+- successful merge stales every remaining PR in the abstraction;
+- concrete base refresh creates a distinct SHA incorporating the current base;
+- `HeadChange` / `RefreshBase` cannot replay a Head already present in
+  authority/proposal/merged history.
+
+When no V5 epoch is required, `V4MergePR` models the restored V4 path.
+
+Attack both the GitHub permission/isolation story and the claim that an old
+unmerged SHA cannot be relabeled as a fresh current-base candidate.
 
 ### R6 — GovernanceEpoch
 
@@ -168,21 +187,22 @@ Governance is human-rooted and protocol-verified, not protocol-admin-enforced.
 
 ### R7 — Late refutation / trunk health
 
-If Gate FAILURE or duplicate poison linearizes after its exact Head has already
-merged, `trunkBlocked` becomes TRUE.
+All normal V5 merge effects and negative Gate linearizations are ordered inside
+the Publisher Authority Plane.
 
-Normal V5 integration then stops.
+If negative linearization wins first, `trunkBlocked` is visible before any
+later Publisher merge and ordinary integration stops.
 
-V5 rollback must project the block into `v4ProjectedTrunkBlocked` before the
-last V5 guard is removed. V4 merge eligibility remains fail-closed at the
-modeled downgrade boundary.
+If merge wins first, the later refutation is a genuine late refutation and sets
+`trunkBlocked = TRUE`.
 
-V5-0 deliberately does not model autonomous clearing of this state.
-Revert/fix-forward/adjudication of a known-bad trunk remains a V4/human-rooted
-recovery obligation.
+The concrete refinement must therefore eliminate independent automated
+Controller merge requests while V5 is required. A root-owner manual merge is
+still possible but leaves the guarantee envelope as
+`HumanGovernanceOverride`.
 
-Try hard to show that this consequence is still insufficient or cannot refine
-the existing V4 Healthy Trunk contract.
+Rollback must project a live trunk block into V4 before the last V5 guard is
+removed.
 
 ### R8 — V4/V5 semantic boundary
 
@@ -196,7 +216,11 @@ Before V5 removal, V4-compatible durable state must contain:
 - every live checkpoint;
 - any trunk-health block.
 
-Finding downgrade is conservative: candidate-specific dispositions do not
+After `v5Retired = TRUE`, `PublisherStep` is closed and new V5 proposal
+publication is disabled. A late human PASS/FAIL that should affect V4 must be
+represented as V4 authority, not processed by the retired V5 Publisher.
+
+Finding downgrade remains conservative: candidate-specific dispositions do not
 globally retire findings that may apply to future Heads.
 
 ### R9 — Content identity
@@ -208,10 +232,17 @@ resistance are abstracted to identifiers and remain conformance obligations.
 
 - Protocol App credential isolation is real;
 - only the serialized Publisher can use it;
+- while V5 is required, Controllers have no independent normal merge-effect
+  credential/path; owner-root manual override is outside the guarantee envelope;
+- the Publisher can perform exact-head PR merge with its intended permissions;
 - required-check source is the exact Protocol App;
 - Authority Ledger history is append-only for the App;
 - poison events survive Check Run mutation/retention loss;
 - all GovernanceManifest dimensions are observable with minimal permissions;
+- trusted negative proposal observation/canonical ingestion is durable enough
+  that later GitHub edits cannot erase the captured payload;
+- poison PREPARE remains sufficient to reassert FAILURE after Check retention
+  loss;
 - events can be treated as wake-up hints because periodic reconciliation exists;
 - exact-head merge and conditional-ref substrate behavior remain as empirically
   established;
@@ -220,22 +251,25 @@ resistance are abstracted to identifiers and remain conformance obligations.
 
 ## Critical design choices intentionally attackable
 
-### A — Merge may beat PREPAREd refutation
+### A — PREPARE does not itself revoke an already-fresh SUCCESS
 
-PREPARE blocks **new** positive publication, but does not invalidate an already
-fresh SUCCESS.
+PREPARE blocks new positive publication but does not mutate an already-fresh
+SUCCESS.
 
-Until Gate FAILURE:
+The important change is that, while V5 is required, **merge and negative
+linearization are both Publisher effects**. There is no normal independent
+Controller merge request in flight.
+
+Thus the model still permits either Publisher ordering:
 
 ```text
-merge may linearize first
+merge first -> later refutation -> trunkBlocked
+
+negative FAILURE first -> trunkBlocked -> later merge disabled
 ```
 
-If it does, the later FAILURE must set `trunkBlocked`.
-
-Challenge whether a transient interval with merge eligibility is acceptable
-even with that recovery consequence. If not, PREPARE must become merge-blocking
-and the architecture changes.
+Challenge whether this serialized boundary is implementable with actual GitHub
+permissions/rulesets and whether the human-root exception is correctly scoped.
 
 ### B — Physical duplicates are not deleted
 
@@ -301,6 +335,18 @@ Re-run the prior NO_GO findings against the new exact SHA, including:
 12. can a future-applicability finding be lost at downgrade?
 13. can a root-admin governance mutation occur before the Publisher observes it
     while the model still claims normal guarantees?
+14. after a trusted NO_GO is protocol-visible, can EditProposal make SUCCESS
+    eligible again before PREPARE?
+15. can E1 advance/remove after a duplicate is observed but before poison
+    PREPARE?
+16. after poison PREPARE, can Check retention loss prevent FAILURE reassertion
+    and COMMIT?
+17. can an old authority-seen unmerged Head be reused by HeadChange/RefreshBase
+    after a base advance?
+18. after a late negative linearizes, is there any normal non-Publisher merge
+    path that can still reach GitHub?
+19. after v5Retired, can any V5 Publisher/checkpoint transition still change
+    restored V4 eligibility?
 
 Also search outside these known traces. A reviewer that only checks the listed
 fixes has not completed an adversarial review.
