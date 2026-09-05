@@ -720,4 +720,12 @@ ExternalEvidenceInitialPRHead == [p \in ExternalEvidencePRs |-> "H1"]
 ExternalEvidenceInitialEpoch == "E1"
 ExternalEvidenceFaultInjection == FALSE
 
+(***************************************************************************)
+(* FOCUS CONSTRAINT: non-merge scenarios exclude V5 merge preparation.     *)
+(***************************************************************************)
+
+NoV5MergeConstraint ==
+  mergePrepared = {}
+
+
 =============================================================================
