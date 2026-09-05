@@ -282,11 +282,12 @@ int main(void) {
   WbDeviceTag imu = wb_robot_get_device("inertial_unit");
   WbDeviceTag gyro = wb_robot_get_device("gyro");
   WbDeviceTag range_front = wb_robot_get_device("range_front");
+  WbDeviceTag range_back = wb_robot_get_device("range_back");
   WbDeviceTag range_left = wb_robot_get_device("range_left");
   WbDeviceTag range_right = wb_robot_get_device("range_right");
   WbDeviceTag color_led = wb_robot_get_device("color_led");
 
-  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_left || !range_right || !color_led) {
+  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_back || !range_left || !range_right || !color_led) {
     fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
     wb_robot_cleanup();
     return 1;
@@ -315,6 +316,7 @@ int main(void) {
   wb_inertial_unit_enable(imu, step);
   wb_gyro_enable(gyro, step);
   wb_distance_sensor_enable(range_front, step);
+  wb_distance_sensor_enable(range_back, step);
   wb_distance_sensor_enable(range_left, step);
   wb_distance_sensor_enable(range_right, step);
   wb_led_set(color_led, 0);
@@ -471,6 +473,8 @@ int main(void) {
         WbDeviceTag range_sensor = 0;
         if (strcmp(request.direction, "front") == 0)
           range_sensor = range_front;
+        else if (strcmp(request.direction, "back") == 0)
+          range_sensor = range_back;
         else if (strcmp(request.direction, "left") == 0)
           range_sensor = range_left;
         else if (strcmp(request.direction, "right") == 0)

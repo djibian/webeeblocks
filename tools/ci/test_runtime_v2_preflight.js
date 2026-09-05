@@ -162,8 +162,8 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
   assert.deepStrictEqual(p4.runtime.rangeDirections, ['front','left','right']);
-  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
-  assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','left','right']);
+  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','back','left','right']);
+  assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','back','left','right']);
   assert.deepStrictEqual(p6.runtime.moveDirections, ['forward','back','left','right']);
   assert.deepStrictEqual(p6.runtime.verticalDirections, ['up','down']);
   assert(p6.runtime.allowedStatementKinds.includes('set_variable'));

@@ -348,6 +348,11 @@ script = r'''
     }
     await report('LATERAL_RANGES_OK', lateralRanges);
 
+    const rearRange = await runtimeBackend.readRange('back');
+    if (!Number.isFinite(rearRange) || rearRange < 0 || rearRange > 2.001)
+      throw new Error('invalid back range sample: ' + String(rearRange));
+    await report('REAR_RANGE_OK', {back:rearRange});
+
     await runtimeBackend.resetSimulation();
     const lightTxStart = wwiTx.length;
     workspace.clear();
