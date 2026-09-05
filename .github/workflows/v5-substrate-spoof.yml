@@ -1,47 +1,29 @@
-name: V5 Substrate Branch Delete CAS Experiment
+name: V5 Substrate Cleanup
 
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [synchronize]
 
 permissions:
   contents: write
 
 jobs:
-  driver:
-    name: Branch-delete CAS driver
+  cleanup:
+    name: Cleanup V5 experiment refs
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
           fetch-depth: 0
-      - name: Wrong lease must fail, exact lease must delete
+      - name: Delete experiment refs conditionally
         env:
-          TARGET_REF: refs/heads/experiment/v5-delete-target
-          EXPECTED_SHA: 54a3cbd4b72d4f30243e8388c063e69268b4f2bb
-          WRONG_SHA: a7e76f5f8fb973973b914e99d7731fdfde8c58db
+          CAS_BASE_REF: refs/heads/experiment/v5-cas-base
+          CAS_BASE_SHA: 26efae96ba75daa1bc38d8724a6dbc8a3e7f9c3a
+          SELF_REF: refs/heads/experiment/v5-trust-substrate
+          SELF_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          echo "Before:"
-          git ls-remote --heads origin "$TARGET_REF"
-
-          set +e
-          git push --force-with-lease="$TARGET_REF:$WRONG_SHA" origin ":$TARGET_REF"
-          rc=$?
-          set -e
-          if [ "$rc" -eq 0 ]; then
-            echo "Wrong lease unexpectedly succeeded" >&2
-            exit 1
-          fi
-
-          actual=$(git ls-remote --heads origin "$TARGET_REF" | awk '{print $1}')
-          test "$actual" = "$EXPECTED_SHA"
-
-          git push --force-with-lease="$TARGET_REF:$EXPECTED_SHA" origin ":$TARGET_REF"
-
-          if git ls-remote --heads origin "$TARGET_REF" | grep -q .; then
-            echo "Target ref still exists after exact conditional delete" >&2
-            exit 1
-          fi
+          git push --force-with-lease="$CAS_BASE_REF:$CAS_BASE_SHA" origin ":$CAS_BASE_REF"
+          git push --force-with-lease="$SELF_REF:$SELF_SHA" origin ":$SELF_REF"
