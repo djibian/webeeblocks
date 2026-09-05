@@ -22,7 +22,7 @@ Blockly.defineBlocksWithJsonArray([
 function connectStatement(a,b){a.nextConnection.connect(b.previousConnection);}
 function buildWorkspace(){
   const workspace=new Blockly.Workspace();
-  const variable=workspace.createVariable('distance mémorisée','', 'memo-distance');
+  const variable=workspace.getVariableMap().createVariable('distance mémorisée','', 'memo-distance');
   const takeoff=workspace.newBlock('webeeblocks_v2_takeoff');
   const set=workspace.newBlock('variables_set');
   const range=workspace.newBlock('webeeblocks_v2_range');
