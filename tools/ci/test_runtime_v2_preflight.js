@@ -197,7 +197,11 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(pDecision.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
   assert.deepStrictEqual(pDecision.runtime.rangeDirections, ['front']);
   assert(!pDecision.runtime.allowedStatementKinds.includes('repeat'));
-  assert.deepStrictEqual(pDecision.parameterBounds.math_number.NUM, {min:0.1,max:2.0,step:0.1});
+  assert.deepStrictEqual(pDecision.parameterBounds.math_number.NUM, {min:1,max:2,step:1});
+  assert(pDecision.parameterBounds.math_number.NUM.min >= p3.parameterBounds.math_number.NUM.min &&
+    pDecision.parameterBounds.math_number.NUM.max <= p3.parameterBounds.math_number.NUM.max &&
+    pDecision.parameterBounds.math_number.NUM.step === p3.parameterBounds.math_number.NUM.step,
+    'reactive profile must preserve the simple-decision numeric domain');
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
