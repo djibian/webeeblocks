@@ -603,6 +603,7 @@ InjectDuplicate(e,h) ==
 PoisonDuplicate(e,h) ==
   LET x == <<e,h>>
   IN  /\ gateCount[x] > 1
+      /\ x \notin poisoned
       /\ poisoned' = poisoned \cup {x}
       /\ gateFailure' = gateFailure \cup {x}
       /\ gateSuccess' = gateSuccess \ {x}
