@@ -181,7 +181,7 @@ EpochRepairFaultInjection == FALSE
 (* DUPLICATE: positive Gate plus injected second Protocol-App writer.      *)
 (***************************************************************************)
 
-DuplicateEpochs == {"E1"}
+DuplicateEpochs == {"E1", "E2"}
 DuplicateHeads == {"H1"}
 DuplicatePRs == {"P1"}
 DuplicateProposals == {"GO_H1", "NO_H1"}
@@ -455,7 +455,7 @@ MigrationEpochs == {"E1"}
 MigrationHeads == {"H1", "H2"}
 MigrationPRs == {"P1"}
 MigrationProposals ==
-  {"DISP_LEGACY_H2", "GO_H2", "NO_H2", "DISP_V5_H1"}
+  {"DISP_LEGACY_H2", "GO_H2", "NO_H2", "DISP_V5_H1", "PASS_H1"}
 MigrationRejections == {"R_NO_H2"}
 MigrationFindings == {"F_LEGACY", "F_V5"}
 
@@ -467,6 +467,7 @@ MigrationProposalKind ==
     CASE p = "DISP_LEGACY_H2" -> "DISPOSITION_RESOLVED"
       [] p = "GO_H2" -> "GO"
       [] p = "NO_H2" -> "NO_GO"
+      [] p = "PASS_H1" -> "HUMAN_PASS"
       [] OTHER -> "DISPOSITION_RESOLVED"]
 
 MigrationProposalHead ==
@@ -501,7 +502,7 @@ MigrationApplies ==
 
 MigrationLegacyFindings == {"F_LEGACY"}
 MigrationLegacyRejectedHeads == {"H1"}
-MigrationCheckpointHeads == {}
+MigrationCheckpointHeads == {"H1"}
 MigrationInitialPRs == {"P1"}
 MigrationInitialPRHead == [p \in MigrationPRs |-> "H2"]
 MigrationInitialEpoch == "E1"
