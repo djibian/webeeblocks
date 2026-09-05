@@ -20,8 +20,13 @@ const facts = {
 const descriptor = {
   transport: 'crazyradio',
   connected: true,
-  device: 'crazyflie-2.1',
-  hardware: ['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],
+  executionAuthority: false,
+  identity: {
+    family: 'crazyflie',
+    model: 'crazyflie-2.1',
+    modelEvidence: 'verified'
+  },
+  hardware: ['flow-deck-v2','multi-ranger-deck'],
   capabilities: {
     actions: ['takeoff','move','land'],
     rangeDirections: ['front'],
@@ -42,8 +47,35 @@ const descriptor = {
   assert.deepStrictEqual(observed, descriptor);
   assert.strictEqual(PhysicalCapabilities.preflight(profile, facts, observed), true);
 
+  const unprovenModel = JSON.parse(JSON.stringify(descriptor));
+  unprovenModel.identity.model = null;
+  unprovenModel.identity.modelEvidence = 'unproven';
+  const observedUnproven = await PhysicalCapabilities.inspect({
+    async readCapabilities() { return unprovenModel; }
+  });
+  assert.strictEqual(observedUnproven.identity.model, null);
+  assert.strictEqual(observedUnproven.identity.modelEvidence, 'unproven');
+  assert.throws(
+    () => PhysicalCapabilities.preflight(profile, facts, observedUnproven),
+    /exact physical model evidence unavailable: crazyflie-2.1/
+  );
+
+  const claimedUnprovenModel = JSON.parse(JSON.stringify(unprovenModel));
+  claimedUnprovenModel.identity.model = 'crazyflie-2.1';
+  assert.throws(
+    () => PhysicalCapabilities.normalizeDescriptor(claimedUnprovenModel),
+    /unproven exact model must be null/
+  );
+
+  const encodedAirframe = JSON.parse(JSON.stringify(descriptor));
+  encodedAirframe.hardware.push('crazyflie-2.1');
+  assert.throws(
+    () => PhysicalCapabilities.normalizeDescriptor(encodedAirframe),
+    /exact airframe identity must not be encoded as generic hardware evidence/
+  );
+
   const missingDeck = JSON.parse(JSON.stringify(descriptor));
-  missingDeck.hardware = ['crazyflie-2.1','flow-deck-v2'];
+  missingDeck.hardware = ['flow-deck-v2'];
   assert.throws(
     () => PhysicalCapabilities.preflight(profile, facts, missingDeck),
     /required hardware unavailable: multi-ranger-deck/
@@ -64,6 +96,15 @@ const descriptor = {
     /forbidden authority method: takeoff/
   );
 
+  const unauthorized = JSON.parse(JSON.stringify(descriptor));
+  unauthorized.executionAuthority = true;
+  await assert.rejects(
+    () => PhysicalCapabilities.inspect({
+      async readCapabilities() { return unauthorized; }
+    }),
+    /executionAuthority=false/
+  );
+
   const disconnected = JSON.parse(JSON.stringify(descriptor));
   disconnected.connected = false;
   await assert.rejects(
@@ -82,7 +123,7 @@ const descriptor = {
     /unsupported transport/
   );
 
-  console.log('PASS read-only physical capability handshake fails closed without motor authority');
+  console.log('PASS read-only physical capability handshake separates evidence from execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);
