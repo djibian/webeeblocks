@@ -356,8 +356,11 @@ AuthoritySeenHeads ==
   TrustedAuthorityProposalHeads \cup PositiveAuditHeads \cup
   MergedHeads \cup V5TerminalHeads
 
+ExternalProposals ==
+  {p \in proposalPresent : ProposalActor[p] = ExternalActor}
+
 ExternalProposalHeads ==
-  {ProposalHead[p] : p \in proposalPresent /\ ProposalActor[p] = ExternalActor}
+  {ProposalHead[p] : p \in ExternalProposals}
 
 ExternalOnlyProposalHeads ==
   ExternalProposalHeads \
