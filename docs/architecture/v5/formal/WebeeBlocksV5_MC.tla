@@ -12,65 +12,6 @@ MCOwner == "OWNER"
 MCExternalActor == "EXTERNAL"
 
 (***************************************************************************)
-(* CORE: two epochs, two PRs sharing a head, one negative and one repair.  *)
-(***************************************************************************)
-
-CoreEpochs == {"E1", "E2"}
-CoreHeads == {"H1", "H2"}
-CorePRs == {"P1", "P2"}
-CoreProposals == {"GO_H1_E1", "NO_H1_E1", "DISP_F1_H2_E2", "GO_H2_E2"}
-CoreRejections == {"R_NO_H1"}
-CoreFindings == {"F1"}
-
-CoreProposalActor ==
-  [p \in CoreProposals |-> MCOwner]
-
-CoreProposalKind ==
-  [p \in CoreProposals |->
-    CASE p = "GO_H1_E1" -> "GO"
-      [] p = "NO_H1_E1" -> "NO_GO"
-      [] p = "DISP_F1_H2_E2" -> "DISPOSITION_RESOLVED"
-      [] OTHER -> "GO"]
-
-CoreProposalHead ==
-  [p \in CoreProposals |->
-    IF p \in {"GO_H1_E1", "NO_H1_E1"} THEN "H1" ELSE "H2"]
-
-CoreProposalFinding ==
-  [p \in CoreProposals |-> "F1"]
-
-CoreProposalEpoch ==
-  [p \in CoreProposals |->
-    IF p \in {"GO_H1_E1", "NO_H1_E1"} THEN "E1" ELSE "E2"]
-
-CoreRejectionProposal ==
-  [r \in CoreRejections |-> "NO_H1_E1"]
-
-CoreRejectionEpoch ==
-  [r \in CoreRejections |-> "E1"]
-
-CoreRejectionHead ==
-  [r \in CoreRejections |-> "H1"]
-
-CoreRejectionPR ==
-  [r \in CoreRejections |-> "P1"]
-
-CoreRejectionFindings ==
-  [r \in CoreRejections |-> {"F1"}]
-
-CoreApplies ==
-  {<<"F1","H1">>, <<"F1","H2">>}
-
-CoreLegacyFindings == {}
-CoreLegacyRejectedHeads == {}
-CoreCheckpointHeads == {}
-CoreInitialPRs == {"P1", "P2"}
-CoreInitialPRHead == [p \in CorePRs |-> "H1"]
-CoreInitialEpoch == "E1"
-CoreFaultInjection == TRUE
-
-
-(***************************************************************************)
 (* ORDERING: one epoch, GO/NO_GO race, repair requires a new head.         *)
 (***************************************************************************)
 
