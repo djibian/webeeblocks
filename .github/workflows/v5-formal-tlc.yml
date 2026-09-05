@@ -7,7 +7,7 @@ on:
       - ".github/workflows/v5-formal-tlc.yml"
 
 concurrency:
-  group: v5-formal-tlc-${{ github.event.pull_request.number }}
+  group: v5-formal-tlc-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 permissions:
