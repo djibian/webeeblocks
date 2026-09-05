@@ -834,6 +834,7 @@ jobs:
           log = Path('ci-artifacts/runtime-v2-webots/webots.log').read_text(errors='replace')
           trace = []
           ranges = []
+          rear_ranges = []
           wait_traces = []
           for line in log.splitlines():
               if 'WEBEEBLOCKS_RUNTIME_V2 TRACE TAKEOFF' in line:
@@ -844,6 +845,11 @@ jobs:
                   m = re.search(r'value=([0-9.]+)', line)
                   assert m, line
                   ranges.append(float(m.group(1)))
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE RANGE back' in line:
+                  trace.append('RANGE_BACK')
+                  m = re.search(r'value=([0-9.]+)', line)
+                  assert m, line
+                  rear_ranges.append(float(m.group(1)))
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE MOVE ' in line:
                   m = re.search(r'TRACE MOVE (forward|back|left|right) distance=', line)
                   assert m and 'stop=1' in line, line
@@ -860,9 +866,10 @@ jobs:
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','RANGE_BACK','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
+          assert len(rear_ranges) == 1 and 0.0 <= rear_ranges[0] <= 2.001, rear_ranges
           assert len(wait_traces) == 1, wait_traces
           requested_wait, traced_elapsed = wait_traces[0]
           assert abs(requested_wait - 0.5) < 1e-6, wait_traces
@@ -950,12 +957,13 @@ jobs:
           ready = first_index(lambda e: e.get('event') == 'READY', 'READY')
           ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
           submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
+          rear_range = first_index(lambda e: e.get('event') == 'REAR_RANGE_OK', 'REAR_RANGE_OK')
           horizontal = first_index(lambda e: e.get('event') == 'HORIZONTAL_MOVES_OK', 'HORIZONTAL_MOVES_OK')
           vertical = first_index(lambda e: e.get('event') == 'VERTICAL_MOVES_OK', 'VERTICAL_MOVES_OK')
           yaw_turns = first_index(lambda e: e.get('event') == 'YAW_TURNS_OK', 'YAW_TURNS_OK')
           wait_ok = first_index(lambda e: e.get('event') == 'WAIT_OK', 'WAIT_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < horizontal < vertical < yaw_turns < wait_ok < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < rear_range < horizontal < vertical < yaw_turns < wait_ok < done, [(e.get('event'), e.get('detail')) for e in events]
           assert abs(float(events[wait_ok]['detail']['seconds']) - 0.5) < 1e-6, events[wait_ok]
 
           pre_detail = events[pre]['detail']
