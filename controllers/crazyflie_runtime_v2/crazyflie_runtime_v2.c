@@ -7,6 +7,7 @@
 #include <webots/gps.h>
 #include <webots/gyro.h>
 #include <webots/inertial_unit.h>
+#include <webots/led.h>
 #include <webots/motor.h>
 #include <webots/plugins/robot_window/default.h>
 #include <webots/robot.h>
@@ -47,6 +48,7 @@ typedef enum {
   REQUEST_MOVE,
   REQUEST_VERTICAL,
   REQUEST_TURN,
+  REQUEST_LIGHT,
   REQUEST_LAND,
   REQUEST_RANGE,
   REQUEST_RESET,
@@ -169,6 +171,12 @@ static request_t parse_request(const char *message) {
     request.value = value;
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d LIGHT %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_LIGHT;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
   if (sscanf(message, PREFIX " REQUEST %d RANGE %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
     request.kind = REQUEST_RANGE;
@@ -215,6 +223,29 @@ static void trace_turn(double value) {
   fflush(stdout);
 }
 
+static int light_value(const char *color, int *value) {
+  if (strcmp(color, "off") == 0)
+    *value = 0x000000;
+  else if (strcmp(color, "red") == 0)
+    *value = 0xff0000;
+  else if (strcmp(color, "green") == 0)
+    *value = 0x00ff00;
+  else if (strcmp(color, "blue") == 0)
+    *value = 0x0000ff;
+  else if (strcmp(color, "yellow") == 0)
+    *value = 0xffff00;
+  else if (strcmp(color, "white") == 0)
+    *value = 0xffffff;
+  else
+    return 0;
+  return 1;
+}
+
+static void trace_light(const char *color, int value) {
+  printf(PREFIX " TRACE LIGHT color=%s rgb=%06x\n", color, value & 0xffffff);
+  fflush(stdout);
+}
+
 static void trace_land(void) {
   printf(PREFIX " TRACE LAND stop=1\n");
   fflush(stdout);
@@ -240,8 +271,9 @@ int main(void) {
   WbDeviceTag range_front = wb_robot_get_device("range_front");
   WbDeviceTag range_left = wb_robot_get_device("range_left");
   WbDeviceTag range_right = wb_robot_get_device("range_right");
+  WbDeviceTag color_led = wb_robot_get_device("color_led");
 
-  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_left || !range_right) {
+  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_left || !range_right || !color_led) {
     fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
     wb_robot_cleanup();
     return 1;
@@ -272,6 +304,7 @@ int main(void) {
   wb_distance_sensor_enable(range_front, step);
   wb_distance_sensor_enable(range_left, step);
   wb_distance_sensor_enable(range_right, step);
+  wb_led_set(color_led, 0);
 
   while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {
   }
@@ -401,6 +434,7 @@ int main(void) {
         wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
         wb_supervisor_field_set_sf_rotation(rotation_field, initial_rotation);
         wb_supervisor_node_reset_physics(self_node);
+        wb_led_set(color_led, 0);
         init_pid_attitude_fixed_height_controller();
         airborne = 0;
         failsafe_latched = 0;
@@ -439,6 +473,17 @@ int main(void) {
         }
         trace_range(request.direction, range_m);
         response_value(request.id, range_m);
+        continue;
+      }
+      if (request.kind == REQUEST_LIGHT) {
+        int rgb = 0;
+        if (!light_value(request.direction, &rgb)) {
+          response_error(request.id, "INVALID_LIGHT");
+          continue;
+        }
+        wb_led_set(color_led, rgb);
+        trace_light(request.direction, rgb);
+        response_ok(request.id);
         continue;
       }
       if (request.kind == REQUEST_TAKEOFF) {
@@ -741,6 +786,7 @@ int main(void) {
   }
 
   stop_motors(m1, m2, m3, m4);
+  wb_led_set(color_led, 0);
   wb_robot_cleanup();
   return 0;
 }

@@ -8,6 +8,7 @@
 
   var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
+  var LIGHT_COLORS = Object.freeze(['off','red','green','blue','yellow','white']);
   function fail(message){throw new Error('semantic AST: '+message);}
   function studentFail(message,detail){var error=new Error('semantic AST: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
@@ -53,6 +54,7 @@
       case 'webeeblocks_v2_turn':{var turnDirection=String(field(block,'DIRECTION'));var degrees=bounded(field(block,'ANGLE'),'angle_deg',{min:1,max:179});if(turnDirection!=='left'&&turnDirection!=='right')fail('unsupported turn direction: '+turnDirection);return{kind:'turn',angle_deg:turnDirection==='left'?degrees:-degrees};}
       case 'webeeblocks_v2_wait':return{kind:'wait',seconds:bounded(field(block,'SECONDS'),'wait_s',LIMITS.wait_s)};
       case 'webeeblocks_v2_speed':return{kind:'set_speed',speed_m_s:bounded(field(block,'SPEED'),'speed_m_s',LIMITS.speed_m_s)};
+      case 'webeeblocks_v2_light':{var color=String(field(block,'COLOR'));if(LIGHT_COLORS.indexOf(color)<0)fail('unsupported light color: '+color);return{kind:'set_light',color:color};}
       case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
       case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
@@ -82,5 +84,5 @@
     var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
   }
 
-  return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
+  return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,LIGHT_COLORS:LIGHT_COLORS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
 });

@@ -18,6 +18,7 @@
   <category name="Vol">
     <block type="webeeblocks_v2_takeoff"></block>
     <block type="webeeblocks_v2_move"></block>
+    <block type="webeeblocks_v2_light"></block>
     <block type="webeeblocks_v2_land"></block>
   </category>
   <category name="Capteurs"><block type="webeeblocks_v2_range"></block></category>
@@ -89,7 +90,7 @@
     var samples = [0.4, 0.8, 0.3];
     var trace = [];
     var rangeReadCount = 0;
-    var capabilities = {actions:['takeoff','move','vertical','turn','wait','set_speed','land'], rangeDirections:['front'], moveDirections:['forward','left'], verticalDirections:['up','down']};
+    var capabilities = {actions:['takeoff','move','vertical','turn','wait','set_speed','set_light','land'], rangeDirections:['front'], moveDirections:['forward','left'], verticalDirections:['up','down']};
     function backendFor(caps) {
       return {
         capabilities: caps,
@@ -100,6 +101,7 @@
         turn: async function(angle) { trace.push(['turn', angle]); },
         wait: async function(seconds) { trace.push(['wait', seconds]); },
         setSpeed: async function(speed) { trace.push(['set_speed', speed]); },
+        setLight: async function(color) { trace.push(['set_light', color]); },
         readRange: async function(direction) {
           rangeReadCount += 1;
           var value = samples.shift();
@@ -123,6 +125,54 @@
     assert(JSON.stringify(trace) === JSON.stringify(expectedTrace), 'reactive trace differs: ' + JSON.stringify(trace));
     assert(rangeReadCount === 3, 'range(front) must be re-read once per repeat iteration');
     assert(samples.length === 0, 'scripted range samples were not all consumed');
+
+    var lightWorkspace = new Blockly.Workspace();
+    var lightTakeoff = lightWorkspace.newBlock('webeeblocks_v2_takeoff');
+    var lightBlue = lightWorkspace.newBlock('webeeblocks_v2_light');
+    var lightOff = lightWorkspace.newBlock('webeeblocks_v2_light');
+    var lightLand = lightWorkspace.newBlock('webeeblocks_v2_land');
+    lightTakeoff.setFieldValue('0.5', 'HEIGHT');
+    lightBlue.setFieldValue('blue', 'COLOR');
+    lightOff.setFieldValue('off', 'COLOR');
+    lightTakeoff.nextConnection.connect(lightBlue.previousConnection);
+    lightBlue.nextConnection.connect(lightOff.previousConnection);
+    lightOff.nextConnection.connect(lightLand.previousConnection);
+    var expectedLight = {version:1, semantics:'webeeblocks-ast-v1', program:[
+      {kind:'takeoff', height_m:0.5},
+      {kind:'set_light', color:'blue'},
+      {kind:'set_light', color:'off'},
+      {kind:'land'}
+    ]};
+    assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(lightWorkspace)) === JSON.stringify(expectedLight), 'light AST differs');
+    trace = [];
+    await WebeeBlocksActivityContract.execute(profile, lightWorkspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(capabilities), {maxSteps: 20});
+    assert(JSON.stringify(trace) === JSON.stringify([['takeoff',0.5],['set_light','blue'],['set_light','off'],['land']]), 'light interpreter trace differs: ' + JSON.stringify(trace));
+
+    var missingLightAction = clone(capabilities);
+    missingLightAction.actions = capabilities.actions.filter(function(kind) { return kind !== 'set_light'; });
+    trace = [];
+    await expectReject(
+      WebeeBlocksActivityContract.execute(profile, lightWorkspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(missingLightAction)),
+      /backend action capability unavailable: set_light/,
+      'missing light backend capability'
+    );
+    assert(trace.length === 0, 'missing light capability executed backend action');
+
+    var invalidLightCompiler = {
+      compileWorkspace: function() {
+        return {version:1, semantics:'webeeblocks-ast-v1', program:[
+          {kind:'takeoff', height_m:0.5}, {kind:'set_light', color:'infrared'}, {kind:'land'}
+        ]};
+      }
+    };
+    trace = [];
+    await expectReject(
+      WebeeBlocksActivityContract.execute(profile, lightWorkspace, invalidLightCompiler, WebeeBlocksInterpreter, backendFor(capabilities)),
+      /unsupported light color infrared/,
+      'invalid light color'
+    );
+    assert(trace.length === 0, 'invalid light color executed backend action');
+    lightWorkspace.dispose();
 
     // Standard Blockly block deliberately outside the resolved Runtime v2 toolbox.
     var forbiddenWorkspace = new Blockly.Workspace();

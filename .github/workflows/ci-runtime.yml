@@ -851,10 +851,14 @@ jobs:
                   m = re.search(r'TRACE TURN angle_deg=([-0-9.]+)', line)
                   assert m and 'stop=1' in line, line
                   trace.append('TURN')
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LIGHT ' in line:
+                  m = re.search(r'TRACE LIGHT color=(off|red|green|blue|yellow|white) rgb=([0-9a-f]{6})', line)
+                  assert m, line
+                  trace.append('LIGHT_' + m.group(1).upper())
               elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
-          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','LAND']
+          expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','LAND']
           assert trace == expected, (trace, expected)
           assert len(ranges) == 3, ranges
 
@@ -919,11 +923,12 @@ jobs:
           ready = first_index(lambda e: e.get('event') == 'READY', 'READY')
           ast = first_index(lambda e: e.get('event') == 'AST', 'AST')
           submit = first_index(lambda e: e.get('event') == 'SUBMIT', 'SUBMIT')
+          color_led = first_index(lambda e: e.get('event') == 'COLOR_LED_OK', 'COLOR_LED_OK')
           horizontal = first_index(lambda e: e.get('event') == 'HORIZONTAL_MOVES_OK', 'HORIZONTAL_MOVES_OK')
           vertical = first_index(lambda e: e.get('event') == 'VERTICAL_MOVES_OK', 'VERTICAL_MOVES_OK')
           yaw_turns = first_index(lambda e: e.get('event') == 'YAW_TURNS_OK', 'YAW_TURNS_OK')
           done = first_index(lambda e: e.get('event') == 'DONE', 'DONE')
-          assert version < pre < guard < ready_rx < ready < ast < submit < horizontal < vertical < yaw_turns < done, [(e.get('event'), e.get('detail')) for e in events]
+          assert version < pre < guard < ready_rx < ready < ast < submit < color_led < horizontal < vertical < yaw_turns < done, [(e.get('event'), e.get('detail')) for e in events]
 
           pre_detail = events[pre]['detail']
           guard_detail = events[guard]['detail']
@@ -982,7 +987,7 @@ jobs:
           test -s plugins/robot_windows/blockly_v2/vendor/msg/fr.js
           grep -F "message0:'distance %1'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
-          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 6
+          test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 7
           test "$(grep -o "style:'control_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
           test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
           grep -F "webeeblocks_v2_wait:{category:'control'}" plugins/robot_windows/blockly/webeeblocks/activities.js
