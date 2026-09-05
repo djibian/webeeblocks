@@ -2,13 +2,25 @@
 
 ## Supported target
 
-The release target is Windows 10 or 11 64-bit with Webots R2025a and a supported
-system browser. Edge or Chrome is recommended for native Open/Save/Save As.
-Firefox keeps the explicit fallback download path; it must clearly produce a
-new copy rather than pretending to update the selected file.
+The currently supported classroom path is **Windows 10 or 11 64-bit + Webots
+R2025a + Google Chrome**.
 
-The student machine does not need Git, Node.js, npm, Bash, Python or a compiler.
-Those tools exist only on the release builder.
+Chrome is the reference browser because the product project-file path uses the
+native File System Access API for Open / Save As / Save on the selected file and
+that exact path has passed the real low-end classroom acceptance recorded on
+issue #81.
+
+Do not infer broader browser support from the Windows claim:
+
+- Edge is not part of the currently validated classroom boundary;
+- Firefox project-file parity is not currently supported and remains tracked
+  separately by #87;
+- no download-as-copy fallback is claimed as equivalent to native same-file
+  Open / Save / Save As semantics.
+
+A later browser can enter the supported boundary only through its own applicable
+product evidence. The student machine does not need Git, Node.js, npm, Bash,
+Python or a compiler; those tools exist only on the release builder.
 
 ## Build boundary
 
@@ -37,16 +49,31 @@ Runtime change.
 ## Teacher and student path
 
 The teacher installs Webots R2025a, extracts
-`WebeeBlocks-Windows-R2025a.zip` into a writable folder and may disconnect the
-network. The student then double-clicks `Launch-WebeeBlocks.cmd`. The launcher
-finds Webots through `WEBOTS_HOME`, the standard Program Files location or
-`PATH`, opens the packaged world paused and lets Webots open the Robot Window in
-the configured browser.
+`WebeeBlocks-Windows-R2025a.zip` into a writable folder and uses Google Chrome
+as the classroom browser. The network may then be disconnected.
 
-## Human acceptance boundary
+The student double-clicks `Launch-WebeeBlocks.cmd`. The launcher finds Webots
+through `WEBOTS_HOME`, the standard Program Files location or `PATH`, starts
+the packaged world in real-time mode, and Webots opens the Robot Window. The
+student waits for `PRÊT`, then uses the WebeeBlocks controls; no manual Webots
+play action is part of the validated path.
 
-Hosted CI proves build, contents, paths, core semantics and launch resolution.
-It does not prove a visible Windows/Webots/browser classroom session. Before a
-Windows-support claim, copy and complete `WINDOWS-ACCEPTANCE.md` from the
-archive on the least powerful target PC, including the 30-minute offline
-stability and Chrome/Edge plus Firefox file paths required by #81.
+## Current human acceptance boundary
+
+Issue #81 records two completed real-machine gates on the lowest-spec reference
+Dell OptiPlex 3050 with Windows 11, Webots R2025a and Chrome:
+
+- **W1 PASS** — offline one-action startup, `PRÊT`, normal and step execution,
+  coherent execution controls, student-correctable invalid-program handling,
+  and Open / Save As / Save / reopen;
+- **W2 PASS** — 30 minutes offline with repeated run, step, Continue, reset,
+  Open, Save As and Save cycles without progressive loss of responsiveness,
+  simulation usability or Robot Window/runtime connectivity.
+
+Those passes establish the current Chrome low-end baseline. They do not prove
+Edge, Firefox, or every future materially changed release artifact.
+
+`packaging/windows/WINDOWS-ACCEPTANCE.md` is therefore a **revalidation
+template** for a future release whose changes make renewed real-machine
+acceptance decision-relevant; it is not evidence that the already-proven Chrome
+baseline is still unvalidated.
