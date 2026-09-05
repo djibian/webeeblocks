@@ -2,23 +2,49 @@
 
 ## Objective
 
-This branch is intentionally a **falsification target**. Do not optimize the model, implement V5, or approve it by default. Try to break it.
+This Draft PR is intentionally a **falsification target**.
 
-The useful reviewer outcomes are:
+Do not optimize the model, implement V5, or approve it by default. Try to break
+it.
+
+Useful reviewer outcomes are:
 
 1. an abstract counterexample in the TLA+ state machine;
-2. a missing state/transition that invalidates a claimed invariant;
-3. a GitHub behavior that does not refine an abstract atomic action;
-4. a liveness assumption that cannot be implemented reliably;
-5. a migration/rollback trace that loses live decision authority.
+2. a false or insufficient invariant;
+3. a missing state/transition that invalidates a claimed property;
+4. a GitHub behavior that cannot refine an abstract atomic action;
+5. a liveness assumption that cannot be implemented reliably;
+6. a migration/rollback trace that loses live decision authority.
+
+Always reconstruct GitHub first and review the **exact current HEAD SHA of this
+Draft PR**. State that SHA in every finding and in the final verdict.
+
+A new HEAD is a new formal candidate. Do not reuse a GO from an older HEAD.
 
 ## Canonical inputs
 
-- `WebeeBlocksV5.tla` — abstract state machine;
+The canonical model is:
+
+- `WebeeBlocksV5.tla` — abstract authority state machine;
 - `PROPERTIES.md` — claims to prove or falsify;
 - this file — refinement boundary and review protocol.
 
-Always review the **exact current HEAD SHA of this Draft PR**. State that SHA in the verdict.
+The canonical finite TLC harness is:
+
+- `WebeeBlocksV5_MC.tla`;
+- `WebeeBlocksV5_Ordering.cfg`;
+- `WebeeBlocksV5_Epoch.cfg`;
+- `WebeeBlocksV5_Duplicate.cfg`;
+- `WebeeBlocksV5_Checkpoint.cfg`;
+- `WebeeBlocksV5_Migration.cfg`;
+- `.github/workflows/v5-formal-tlc.yml`.
+
+The CI harness checks out exactly
+`github.event.pull_request.head.sha`, verifies the checked-out SHA, uses
+TLA+ 1.7.4 with a pinned SHA-256, parses with SANY, and model-checks the focused
+finite safety configurations.
+
+A green CI run is evidence, not a proof of the whole protocol.
 
 ## Scope represented by the model
 
@@ -27,97 +53,273 @@ The model includes:
 - multiple PRs, including PRs sharing the same Git head;
 - trusted versus external cognitive proposals;
 - proposal mutation/corruption;
-- Authority Ledger PREPARE / negative Gate linearization / COMMIT;
+- proposal GovernanceEpoch provenance;
+- Authority Ledger PREPARE / Gate FAILURE linearization / COMMIT;
 - durable findings and candidate-specific dispositions;
+- globally terminal rejected/poisoned heads;
 - REQUEST_CHANGES projections and review corruption;
 - Protocol Gate SUCCESS / FAILURE / freshness / revalidation;
-- duplicate Protocol-App Gate fault injection;
+- duplicate Protocol-App Gate fault injection and poisoning;
 - human checkpoints;
-- dual epoch guards and epoch succession;
-- V4 authority import;
-- V5 authority downgrade projection;
+- governance observability, drift and epoch succession;
+- V4 findings and rejected-head authority import;
+- V5 findings, terminal-head and checkpoint downgrade projection;
+- explicit V5 retirement;
 - V4 known operational fallback;
-- strict-base state;
+- strict-base state and base-refresh-as-new-head;
 - exact-head merge;
 - HumanGovernanceOverride;
-- weakly-fair publisher reconciliation.
+- weakly-fair Publisher reconciliation.
+
+It deliberately does **not** model product-task scheduling.
+
+## Safety versus liveness
+
+`SafetySpec` contains only:
+
+```text
+Init
+/\ [][Next]_vars
+```
+
+The finite CI configurations model-check safety invariants over bounded domains.
+
+`Spec` adds:
+
+```text
+WF_vars(PublisherStep)
+```
+
+That fairness clause is an explicit liveness assumption. The finite CI models do
+not prove it. Review it independently.
 
 ## Deliberate abstraction / refinement boundaries
 
 ### R1 — Authority Ledger append
 
-Abstract monotone set growth represents an append to a protected Git branch. Concrete V5 must prove that the Protocol App may append but cannot bypass deletion/non-fast-forward protection of the ledger history.
+Abstract monotone set growth represents append-only durable authority history.
 
-### R2 — Protocol Gate
+Concrete V5 must establish that the authority writer can append the required
+Ledger event but cannot delete or non-fast-forward rewrite protected Ledger
+history.
 
-One abstract Gate mutation represents one GitHub Check Run create/update by the exact dedicated Protocol App. The real ruleset must bind the required check to that App source.
+The Ledger is the durable anchor; mutable Check Runs and reviews are not the sole
+history source.
 
-### R3 — Review projection
+### R2 — Negative linearization
 
-One abstract review action represents one `REQUEST_CHANGES` creation/dismissal. Review edits are modeled as projection corruption; they must never rewrite durable authority.
+`PREPARE` is durable write-ahead evidence.
 
-### R4 — Merge
+Authoritative negative revocation linearizes at the Protocol Gate transition to
+FAILURE. `COMMIT` records that the Gate linearization completed.
 
-`MergePR` abstracts strict current base plus `expected_head_sha = current prHead`. A deliberate root-human merge outside the protocol is outside the normal guarantee envelope.
+A crash after Gate FAILURE but before COMMIT must be reconstructible from
+PREPARE.
 
-### R5 — Governance
+### R3 — Protocol Gate
 
-Ruleset, environment and App changes remain human-rooted. V5 verifies observed normal transitions; it does not possess administration authority to force their ordering.
+One abstract Gate create/update represents one GitHub Check Run written by the
+exact dedicated Protocol App.
 
-### R6 — Content identity
+The real ruleset must bind the required check to that exact App source.
+Same-name checks from GitHub Actions or another App must not satisfy V5.
 
-Canonical serialization, hashes, Git commit identity and collision resistance are abstracted to stable identifiers. They require implementation/conformance tests.
+### R4 — Review projection
+
+A `REQUEST_CHANGES` review is a PR-level projection of already-durable negative
+authority.
+
+Review mutation/dismissal must never rewrite the Ledger or remove global
+terminal-head memory.
+
+The model treats a blocking review on one open PR as blocking other open PRs
+that point to the exact same head. Challenge whether this matches the concrete
+GitHub behavior closely enough.
+
+### R5 — Merge
+
+`MergePR` abstracts:
+
+- protected base is current;
+- the candidate is the current exact PR head;
+- merge is attempted with `expected_head_sha = current prHead`.
+
+A protected-base refresh creates a new `Head` identity.
+
+A deliberate root-human merge outside the protocol is a
+`HumanGovernanceOverride`, not a protocol transition.
+
+### R6 — GovernanceEpoch
+
+Epoch identity is abstracted as a stable opaque identifier.
+
+GO proposals are epoch-bound. V5 positive authority can only be published for
+the active, required epoch.
+
+A temporary observability outage may be restored only if the same manifest still
+matches.
+
+Once `DriftGovernance(E)` records a manifest mismatch, that epoch cannot be
+reconfigured in place; normal operation requires a successor epoch.
+
+Governance changes remain human-rooted. The Publisher verifies them but does not
+possess repository administration power to force their ordering.
+
+### R7 — Content identity
+
+Canonical serialization, hashes, Git commit identity and collision resistance
+are abstracted to stable identifiers. They remain implementation/conformance
+obligations.
+
+### R8 — V4/V5 boundary
+
+The state machine models the **semantic cut-over and downgrade boundary**, not
+the full future execution semantics of V4 after V5 has retired.
+
+The required property is preservation: every live V5 finding, terminal head and
+checkpoint that must survive downgrade is materialized in V4-compatible durable
+state before the last V5 guard is removed.
+
+After that boundary, ordinary new V4 decisions are governed by the existing V4
+contract, not by this V5 state machine.
 
 ## Strong trust assumptions to challenge
 
-- Protocol App credential is uncompromised.
-- Only the serialized Publisher can use that credential.
-- exact App source isolation is correctly configured.
-- the Protocol App cannot rewrite/delete Authority Ledger history.
-- every GovernanceManifest component claimed by V5 is observable with read-only/minimal permissions.
-- periodic reconciliation justifies the weak-fairness assumption.
-- GitHub exact-head merge/ref CAS behavior continues to match the experimentally established substrate contract.
+- the Protocol App credential is uncompromised;
+- only the serialized Publisher can use that credential;
+- exact App-source isolation is configured correctly;
+- the Protocol App cannot rewrite/delete Authority Ledger history;
+- every GovernanceManifest component claimed by V5 is observable with
+  read-only/minimal permissions;
+- a governance drift cannot be silently normalized back into the same epoch;
+- periodic reconciliation justifies the Publisher fairness assumption;
+- GitHub exact-head merge and conditional-ref behavior continue to match the
+  experimentally established substrate contract;
+- GitHub's required-check source selection distinguishes the dedicated Protocol
+  App as assumed;
+- V4 downgrade projections are actually interpretable by the restored V4
+  machinery.
 
 ## Critical design choices intentionally left attackable
 
-### A — PREPARE is not yet authoritative NO_GO
+### A — PREPARE is not the NO_GO linearization point
 
-`PREPARE` makes negative evidence durable and blocks **new positive publication**, but negative authority linearizes only at `Gate -> FAILURE`. Therefore a merge that linearizes before Gate failure is classified as a late refutation rather than a protocol violation.
+A trusted blocking-negative proposal prevents **new** positive publication even
+before PREPARE.
 
-Rollback has an additional fail-closed rule: V5 requirements cannot be removed while any PREPARE remains unlinearized, and a new PREPARE is not admitted after all V5 requirements have been removed. This is intended to preserve write-ahead evidence across V5 -> V4 without redefining PREPARE itself as the NO_GO linearization point.
+PREPARE then makes the negative evidence crash-durable.
 
-Try to decide whether this boundary is acceptable or whether PREPARE itself must close merge eligibility.
+But PREPARE does not retroactively erase an already-linearized fresh SUCCESS.
+Until Gate FAILURE linearizes the negative, a concurrent merge may win.
+
+That outcome is classified as:
+
+```text
+merge linearized first
+-> later NO_GO is a late refutation
+```
+
+not as a protocol safety violation.
+
+Try to refute this boundary. If PREPARE itself must atomically close merge
+eligibility, the architecture must change.
 
 ### B — Duplicate Protocol-App writer
 
-The model can inject a duplicate and poison it after detection. It does **not** claim GitHub atomically blocks a buggy/compromised second Protocol-App writer before detection. Normal safety depends on credential isolation + one serialized Publisher.
+The model can inject a duplicate and poison it after detection.
 
-If this assumption is too strong, reject the architecture or require a split trust root.
+It does **not** claim GitHub atomically prevents a buggy/compromised second
+Protocol-App writer before detection. Normal safety depends on isolated
+credentials and one serialized authority writer.
 
-### C — Positive authority is not write-ahead durable
+Before V5 retirement, all observed duplicate pairs must be drained.
 
-Negative authority has durable write-ahead memory. Positive authority is deliberately revalidatable/ephemeral. Challenge whether positive decisions also require a durable PREPARE/COMMIT trail.
+If that assumption is too strong, reject the trust model or require a stronger
+split trust root.
 
-### D — Applicability relation
+### C — Positive authority has no write-ahead Ledger PREPARE
 
-`Applies(finding, head)` is abstract. Challenge whether changes to applicability semantics across epochs must themselves be explicit authority events.
+Negative authority has write-ahead durability.
+
+Positive authority is deliberately ephemeral/revalidatable. Its linearization is
+the Gate SUCCESS itself.
+
+Challenge whether a durable positive PREPARE/COMMIT audit trail is required for
+reconstruction, governance succession or forensic correctness.
+
+### D — Applicability is abstract
+
+`Applies(finding, head)` is an abstract semantic relation.
+
+Downgrade avoids relying on enumeration of future applicability by projecting
+**every authoritative V5 finding**, not only currently unresolved/applicable
+ones.
+
+Challenge whether applicability changes themselves need authoritative events or
+versioned semantics.
+
+### E — Rejected HEAD is terminal globally
+
+Once rejected/poisoned, the exact Git commit cannot be made positive again by a
+new GovernanceEpoch.
+
+Repair requires `H2 != H`.
+
+Challenge whether there exists a legitimate governance transition that must be
+able to rehabilitate the identical commit SHA. If so, the terminal-head policy
+is too strong and must be redesigned explicitly rather than weakened
+accidentally.
 
 ## Reviewer questions
 
-1. Can an unresolved PREPARE coexist with an already fresh SUCCESS in a way that still permits merge?
-2. Can an epoch transition make a stale/old SUCCESS usable under a new manifest?
-3. Does review blocking across two PRs sharing the same head match GitHub closely enough?
-4. Can rollback project only currently visible blockers and accidentally lose a finding applicable to a future candidate?
-5. After requiring each publisher disjunct to make strict progress when enabled, does aggregate `WF_vars(PublisherStep)` still overstate real liveness or permit starvation among reconciliation classes?
-6. Can `LoseObservability` after SUCCESS leave a protocol-compliant merge path that should have been blocked?
-7. Is the V4 upgrade abstraction too strong because `LegacyFindings` are globally known before import?
-8. Does a second NO_GO on an already failed head need a different linearization rule?
-9. Should the Authority Ledger use a separate App to reduce Protocol App `contents:write` blast radius?
-10. Can a root-admin governance change occur without being detected quickly enough while the model still claims `guaranteeActive = TRUE`?
+1. Can durable GO and durable NO_GO both exist before Publisher processing and
+   still allow GO to be published first?
+2. Can an unprepared or pending trusted negative disappear across an epoch
+   transition or V5 rollback?
+3. Can an already-fresh SUCCESS plus later negative proposal create an
+   unacceptable merge race before Gate FAILURE?
+4. Can a rejected/poisoned head become positive in another epoch by any path?
+5. Can an old-epoch GO mint or revalidate authority after `AdvanceEpoch`?
+6. Can V5 publish any SUCCESS before V4 legacy findings/rejected-head memory is
+   imported?
+7. Can temporary loss of observability plus `ConfigureEpoch` resurrect old
+   authority after a real governance drift?
+8. Can a duplicate Gate appear before/during rollback and escape V4 terminal-head
+   projection?
+9. Can `HUMAN_FAIL` be overwritten by a same-head PASS or fail to revoke
+   positive authority through the negative path?
+10. Can a protected-base refresh become fresh again without creating a new head?
+11. Can two PRs sharing one head diverge in blocking-review semantics in a way
+    the abstraction misses?
+12. Can a finding that is irrelevant now but applicable to a future head be lost
+    during V5 -> V4 downgrade?
+13. Can review/proposal mutation invalidate the reconstruction assumptions?
+14. Does aggregate `WF_vars(PublisherStep)` still allow starvation between
+    reconciliation classes even when individual actions make progress?
+15. Can a root-admin governance change occur while the model still claims
+    `guaranteeActive = TRUE` but before the Publisher can observe it?
+16. Is the Authority Ledger permission model implementable without giving the
+    Protocol App an unacceptable product-history rewrite capability?
+17. Do the five finite TLC scenarios omit a small domain that can expose a
+    qualitatively different counterexample?
+
+## Required reviewer procedure
+
+1. Reconstruct Draft PR #191 and record its exact current HEAD.
+2. Read the three canonical design files completely.
+3. Inspect the finite MC module/configurations and the exact-head CI workflow.
+4. Inspect the latest `V5 Formal TLC` run for the exact reviewed HEAD.
+5. Do not infer proof from green CI.
+6. Try explicit state-machine traces, TLA+/TLC variants, and GitHub refinement
+   attacks.
+7. Re-evaluate earlier findings against the **new** candidate rather than merely
+   checking the diff that purported to fix them.
+8. Publish findings directly on PR #191.
+9. Do not modify the branch.
 
 ## Required reviewer output
 
-For every finding, use:
+For every finding:
 
 ```text
 Severity: BLOCKING | MAJOR | MINOR
@@ -139,8 +341,18 @@ FORMAL_REVIEW: NO_GO <sha>
 FORMAL_REVIEW: UNPROVEN <sha>
 ```
 
-`GO` means no blocking counterexample was found in the stated scope; it does **not** mean V5 is implemented or substrate-accepted.
+`GO` means only that no blocking counterexample was found in the stated formal
+and refinement scope. It does **not** mean V5 is implemented, substrate-accepted
+or ready to replace V4.
 
 ## Where to publish findings
 
-Publish the review directly on this Draft PR. Because the reviewer connection uses the same GitHub identity (`djibian`) as the PR author, GitHub cannot accept `REQUEST_CHANGES` on this PR. Use a PR comment or a `COMMENTED` review and encode authority in the exact textual verdict bound to the reviewed SHA. Do not modify the branch unless explicitly asked; the author/controller will produce the next candidate HEAD.
+Publish the review directly on Draft PR #191.
+
+The reviewer connection uses the same GitHub identity (`djibian`) as the PR
+author, so GitHub cannot accept `REQUEST_CHANGES` on this PR. Use a PR comment
+or a `COMMENTED` review and encode the verdict textually, bound to the exact
+reviewed SHA.
+
+Do not modify the branch. The author will create the next candidate HEAD if a
+finding requires correction.
