@@ -41,7 +41,8 @@ controller = controller.replace(needle, replacement, 1)
 move_start_needle = '''        target_yaw = yaw;
         if (strcmp(request.direction, "forward") == 0) {'''
 move_start_replacement = r'''        target_yaw = yaw;
-        printf(PREFIX " CI MOVE_START %s x=%.9f y=%.9f yaw=%.9f\n", request.direction, x, y, yaw);
+        printf(PREFIX " CI MOVE_START %s x=%.9f y=%.9f yaw=%.9f sim_time=%.9f speed_limit=%.9f\n",
+               request.direction, x, y, yaw, now, move_speed_limit);
         fflush(stdout);
         if (strcmp(request.direction, "forward") == 0) {'''
 if move_start_needle not in controller:
@@ -50,7 +51,8 @@ controller = controller.replace(move_start_needle, move_start_replacement, 1)
 move_end_needle = '''          trace_move(active_direction, active_value);
           response_ok(active_id);'''
 move_end_replacement = r'''          trace_move(active_direction, active_value);
-          printf(PREFIX " CI MOVE_END %s x=%.9f y=%.9f yaw=%.9f\n", active_direction, x, y, yaw);
+          printf(PREFIX " CI MOVE_END %s x=%.9f y=%.9f yaw=%.9f sim_time=%.9f speed_limit=%.9f\n",
+                 active_direction, x, y, yaw, now, move_speed_limit);
           fflush(stdout);
           response_ok(active_id);'''
 if move_end_needle not in controller:
@@ -405,6 +407,31 @@ script = r'''
     await report('VERTICAL_MOVES_OK', {directions:['up','down'], distance_m:0.10});
     await report('YAW_TURNS_OK', {angles_deg:[30,-30]});
     await report('WAIT_OK', {seconds:0.5});
+
+    await runtimeBackend.resetSimulation();
+    let invalidSpeedRejected = false;
+    try {
+      await runtimeBackend.setSpeed(0.36);
+    } catch (error) {
+      invalidSpeedRejected = error && error.code === 'INVALID_SPEED';
+    }
+    if (!invalidSpeedRejected)
+      throw new Error('out-of-envelope Webots speed was not rejected fail-closed');
+    await report('SPEED_REJECT_OK', {speed_m_s:0.36, code:'INVALID_SPEED'});
+
+    await runtimeBackend.takeoff(0.35);
+    await runtimeBackend.setSpeed(0.10);
+    await runtimeBackend.move('forward', 0.30);
+    await runtimeBackend.setSpeed(0.35);
+    await runtimeBackend.move('back', 0.30);
+    await runtimeBackend.land();
+    await report('SPEED_SELECTION_OK', {slow_m_s:0.10, fast_m_s:0.35, distance_m:0.30});
+
+    await runtimeBackend.resetSimulation();
+    await runtimeBackend.takeoff(0.35);
+    await runtimeBackend.move('forward', 0.30);
+    await runtimeBackend.land();
+    await report('SPEED_RESET_OK', {default_m_s:0.35, distance_m:0.30});
 
     await report('DONE', document.getElementById('runtimeDetail').textContent);
     await chain;

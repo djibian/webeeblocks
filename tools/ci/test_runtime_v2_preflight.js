@@ -185,7 +185,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(p6.toolbox.includes('webeeblocks_v2_turn'));
   assert(p6.toolbox.includes('webeeblocks_v2_wait'));
   assert(p6.toolbox.includes('webeeblocks_v2_light'));
-  assert(!p6.toolbox.includes('webeeblocks_v2_speed'), 'open strategy must not expose unimplemented Webots speed selection');
+  assert(!p6.toolbox.includes('webeeblocks_v2_speed'), 'compact progression does not need speed selection in its open-strategy profile');
   assert(!p1.hardware.includes('multi-ranger-deck'));
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
@@ -219,7 +219,12 @@ function proveProgressionProfilesAndFieldOptions() {
     'profile 3 must preserve the repeat-count numeric bound introduced by profile 2');
   assert.deepStrictEqual(p4.parameterBounds.math_number.NUM, p3.parameterBounds.math_number.NUM,
     'profile 4 must preserve the cumulative repeat-count numeric bound');
+  assert.deepStrictEqual(SemanticAst.LIMITS.speed_m_s, {min:0.1,max:0.35});
   const currentWebotsCapabilities = new WwiBackend({send() {}}, {timeoutMs:50}).capabilities;
+  assert(currentWebotsCapabilities.actions.includes('set_speed'), 'Webots backend must advertise proven set_speed support');
+  const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+  assert.deepStrictEqual(genericProfile.parameterBounds.webeeblocks_v2_speed.SPEED, {min:0.1,max:0.35,step:0.05});
+  assert.deepStrictEqual(genericProfile.runtime.astBounds['set_speed.speed_m_s'], {min:0.1,max:0.35});
   const backendActionKinds = ['takeoff','move','vertical','turn','wait','set_speed','set_light','land'];
   const requiredBackendActions = p4.runtime.allowedStatementKinds.filter(kind => backendActionKinds.includes(kind));
   assert(requiredBackendActions.every(kind => currentWebotsCapabilities.actions.includes(kind)),
@@ -296,8 +301,8 @@ function proveProgressionProfilesAndFieldOptions() {
   const flyoutRange = flyoutWorkspace.newBlock('webeeblocks_v2_range');
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
 
-  const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
-  controller.setProfile(genericProfile, flyoutWorkspace);
+  const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+  controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
 

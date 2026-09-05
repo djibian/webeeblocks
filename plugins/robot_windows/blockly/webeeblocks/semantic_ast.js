@@ -6,7 +6,7 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
-  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
+  var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.35},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
   var LIGHT_COLORS = Object.freeze(['off','red','green','blue','yellow','white']);
   function fail(message){throw new Error('semantic AST: '+message);}

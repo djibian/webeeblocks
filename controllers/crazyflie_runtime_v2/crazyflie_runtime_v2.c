@@ -50,6 +50,7 @@ typedef enum {
   REQUEST_VERTICAL,
   REQUEST_TURN,
   REQUEST_WAIT,
+  REQUEST_SPEED,
   REQUEST_LIGHT,
   REQUEST_LAND,
   REQUEST_RANGE,
@@ -179,6 +180,12 @@ static request_t parse_request(const char *message) {
     request.value = value;
     return request;
   }
+  if (sscanf(message, PREFIX " REQUEST %d SPEED %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_SPEED;
+    request.value = value;
+    return request;
+  }
   if (sscanf(message, PREFIX " REQUEST %d LIGHT %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
     request.kind = REQUEST_LIGHT;
@@ -233,6 +240,11 @@ static void trace_turn(double value) {
 
 static void trace_wait(double seconds, double elapsed) {
   printf(PREFIX " TRACE WAIT seconds=%.9f elapsed=%.9f stop=1\n", seconds, elapsed);
+  fflush(stdout);
+}
+
+static void trace_speed(double speed_m_s) {
+  printf(PREFIX " TRACE SPEED speed_m_s=%.9f\n", speed_m_s);
   fflush(stdout);
 }
 
@@ -349,6 +361,7 @@ int main(void) {
   command_t command = CMD_IDLE;
   int active_id = -1;
   double active_value = 0.0;
+  double move_speed_limit = VX_MAX;
   char active_direction[32] = {0};
   double stable_since = -1.0;
   double action_start = 0.0;
@@ -462,6 +475,7 @@ int main(void) {
         active_id = request.id;
         active_value = 0.0;
         active_direction[0] = '\0';
+        move_speed_limit = VX_MAX;
         command = CMD_RESET;
         stable_since = -1.0;
         action_start = now;
@@ -494,6 +508,16 @@ int main(void) {
         }
         trace_range(request.direction, range_m);
         response_value(request.id, range_m);
+        continue;
+      }
+      if (request.kind == REQUEST_SPEED) {
+        if (!isfinite(request.value) || request.value < 0.1 || request.value > VX_MAX) {
+          response_error(request.id, "INVALID_SPEED");
+          continue;
+        }
+        move_speed_limit = request.value;
+        trace_speed(move_speed_limit);
+        response_ok(request.id);
         continue;
       }
       if (request.kind == REQUEST_LIGHT) {
@@ -709,7 +733,7 @@ int main(void) {
       const double body_y = -error_x * sy + error_y * cy;
       desired.vx = POSITION_KP * body_x;
       desired.vy = POSITION_KP * body_y;
-      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      clip_vector(&desired.vx, &desired.vy, move_speed_limit);
       desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
       desired.altitude = target_z;
       if (hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
