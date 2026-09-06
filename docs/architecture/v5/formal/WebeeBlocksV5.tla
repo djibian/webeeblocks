@@ -38,6 +38,7 @@ ProposalKinds ==
 NegativeKinds == {"NO_GO", "UNPROVEN_BLOCKING", "HUMAN_FAIL"}
 DispositionKinds == {"DISPOSITION_RESOLVED", "DISPOSITION_NLA"}
 CheckpointStates == {"NONE", "PENDING", "PASS", "FAIL", "NA"}
+MergeOutcomes == {"SUCCESS", "FAILURE", "CANCEL"}
 
 ASSUME /\ Epochs # {}
        /\ Heads # {}
@@ -89,8 +90,14 @@ VARIABLES
   mergeSubmitted,
   mergeRemoteSucceeded,
   mergeRemoteFailed,
+  mergeObservedSucceeded,
+  mergeObservedFailed,
   mergeCancelled,
   mergeCommitted,
+  mergeHistory,
+  mergeRetryBlocked,
+  mergeExecutionRequiredEpochs,
+  mergeExecutionSatisfiedEpochs,
   mergeIntentHead,
   mergeIntentEpoch,
 
@@ -140,7 +147,10 @@ vars ==
   << guaranteeActive,
      prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
      mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed,
-     mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch,
+     mergeObservedSucceeded, mergeObservedFailed,
+     mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
+     mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs,
+     mergeIntentHead, mergeIntentEpoch,
      proposalPresent, proposalCorrupt,
      prepared, linearized, committed, authorityFindingHistory, dispositions, importedLegacy,
      importedLegacyRejectedHeads,
@@ -168,9 +178,16 @@ TypeOK ==
   /\ mergeRemoteSucceeded \subseteq mergeSubmitted
   /\ mergeRemoteFailed \subseteq mergeSubmitted
   /\ mergeRemoteSucceeded \cap mergeRemoteFailed = {}
+  /\ mergeObservedSucceeded \subseteq mergeRemoteSucceeded
+  /\ mergeObservedFailed \subseteq mergeRemoteFailed
   /\ mergeCancelled \subseteq (mergePrepared \ mergeSubmitted)
-  /\ mergeCommitted \subseteq
-       (mergeRemoteSucceeded \cup mergeRemoteFailed \cup mergeCancelled)
+  /\ mergeCommitted \subseteq PRs
+  /\ mergeHistory \subseteq {<<pr,h,e,o>> : pr \in PRs, h \in Heads, e \in Epochs, o \in MergeOutcomes}
+  /\ mergeCommitted = {x[1] : x \in mergeHistory}
+  /\ mergeRetryBlocked \subseteq PRs
+  /\ mergePrepared \cap mergeRetryBlocked = {}
+  /\ mergeExecutionRequiredEpochs \in [PRs -> SUBSET Epochs]
+  /\ mergeExecutionSatisfiedEpochs \in [PRs -> SUBSET Epochs]
   /\ mergeIntentHead \in [PRs -> Heads]
   /\ mergeIntentEpoch \in [PRs -> Epochs]
 
@@ -298,13 +315,16 @@ UnreconciledDuplicateHeads ==
   {h \in Heads : \E e \in Epochs : <<e,h>> \in UnreconciledDuplicatePairs}
 
 OutstandingMerges ==
-  mergePrepared \ mergeCommitted
+  mergePrepared
 
 MergeTransactionIdle ==
   OutstandingMerges = {}
 
 MergeOutcomeKnown(pr) ==
   pr \in (mergeRemoteSucceeded \cup mergeRemoteFailed)
+
+MergeOutcomeObserved(pr) ==
+  pr \in (mergeObservedSucceeded \cup mergeObservedFailed)
 
 EpochAuthorityQuiescent(e) ==
   /\ MergeTransactionIdle
@@ -476,8 +496,14 @@ Init ==
   /\ mergeSubmitted = {}
   /\ mergeRemoteSucceeded = {}
   /\ mergeRemoteFailed = {}
+  /\ mergeObservedSucceeded = {}
+  /\ mergeObservedFailed = {}
   /\ mergeCancelled = {}
   /\ mergeCommitted = {}
+  /\ mergeHistory = {}
+  /\ mergeRetryBlocked = {}
+  /\ mergeExecutionRequiredEpochs = [p \in PRs |-> {}]
+  /\ mergeExecutionSatisfiedEpochs = [p \in PRs |-> {}]
   /\ mergeIntentHead = [p \in PRs |-> AnyHead]
   /\ mergeIntentEpoch = [p \in PRs |-> InitialEpoch]
 
@@ -540,7 +566,7 @@ PublishProposal(p) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 EditProposal(p) ==
   /\ p \in proposalPresent \ proposalCorrupt
@@ -555,7 +581,7 @@ EditProposal(p) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 ApplyCheckpointResult(p) ==
   LET e == ProposalEpoch[p]
@@ -583,7 +609,7 @@ ApplyCheckpointResult(p) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 PrepareRejection(r) ==
   LET p == RejectionProposal[r]
@@ -604,7 +630,7 @@ PrepareRejection(r) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 LinearizeNegative(r) ==
   LET e == RejectionEpoch[r]
@@ -634,7 +660,7 @@ LinearizeNegative(r) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                      positiveAudit, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CommitRejection(r) ==
   /\ r \in linearized \ committed
@@ -649,7 +675,7 @@ CommitRejection(r) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CreateReviewProjection(r) ==
   /\ ~v5Retired
@@ -671,7 +697,7 @@ CreateReviewProjection(r) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CorruptReview(pr,r) ==
   /\ <<pr,r>> \in activeReviews
@@ -686,7 +712,7 @@ CorruptReview(pr,r) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 AddDisposition(p) ==
   LET f == ProposalFinding[p]
@@ -708,7 +734,7 @@ AddDisposition(p) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 ProjectionResolved(pr,r) ==
   /\ pr \in prOpen
@@ -731,7 +757,7 @@ DismissProjection(pr,r) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 PositiveEligible(e,h) ==
   /\ e = activeEpoch
@@ -769,7 +795,7 @@ PublishSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 ExpireSuccess(e,h) ==
   LET x == <<e,h>>
@@ -786,7 +812,7 @@ ExpireSuccess(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RevalidateSuccess(p,e,h) ==
   LET x == <<e,h>>
@@ -807,7 +833,7 @@ RevalidateSuccess(p,e,h) ==
                       activeReviews, corruptedReviews,
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 InjectDuplicate(e,h) ==
   LET x == <<e,h>>
@@ -826,7 +852,7 @@ InjectDuplicate(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 PreparePoison(e,h) ==
   LET x == <<e,h>>
@@ -843,7 +869,7 @@ PreparePoison(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, v4ProjectedTrunkBlocked,
-                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 LinearizePoison(e,h) ==
   LET x == <<e,h>>
@@ -864,7 +890,7 @@ LinearizePoison(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, v4ProjectedTrunkBlocked,
-                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CommitPoison(e,h) ==
   LET x == <<e,h>>
@@ -880,7 +906,7 @@ CommitPoison(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, v4ProjectedTrunkBlocked,
-                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 LoseCheckProjection(e,h) ==
   LET x == <<e,h>>
@@ -901,7 +927,7 @@ LoseCheckProjection(e,h) ==
                       manifestObservable, manifestMatches, bootstrapped,
                       requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                       v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, v4ProjectedTrunkBlocked,
-                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                      positiveAudit, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 ConfigureEpoch(e) ==
   /\ e \in Epochs \ bootstrapped
@@ -918,7 +944,7 @@ ConfigureEpoch(e) ==
                   activeReviews, corruptedReviews,
                   bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 LoseObservability(e) ==
   /\ e \in Epochs
@@ -934,7 +960,7 @@ LoseObservability(e) ==
                   activeReviews, corruptedReviews,
                   manifestMatches, bootstrapped, requiredEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RestoreObservability(e) ==
   /\ e \in bootstrapped
@@ -951,7 +977,7 @@ RestoreObservability(e) ==
                   manifestMatches, bootstrapped, requiredEpochs,
                   operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 DriftGovernance(e) ==
   /\ e \in bootstrapped
@@ -967,7 +993,7 @@ DriftGovernance(e) ==
                   activeReviews, corruptedReviews,
                   manifestObservable, bootstrapped, requiredEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 BootstrapEpoch(e) ==
   /\ e \in Epochs \ bootstrapped
@@ -984,7 +1010,7 @@ BootstrapEpoch(e) ==
                   manifestObservable, manifestMatches,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RequireEpoch(e) ==
   /\ ~v5Retired
@@ -1001,7 +1027,7 @@ RequireEpoch(e) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 VerifyEpoch(e) ==
   /\ e \in requiredEpochs
@@ -1019,7 +1045,7 @@ VerifyEpoch(e) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 AdvanceEpoch(e) ==
   /\ e \in requiredEpochs \cap operationalEpochs
@@ -1040,7 +1066,7 @@ AdvanceEpoch(e) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RemoveOldEpoch(old) ==
   /\ old \in requiredEpochs
@@ -1058,7 +1084,7 @@ RemoveOldEpoch(old) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 AuthorityUpgradeProjection ==
   /\ ~LegacyImportComplete
@@ -1074,7 +1100,7 @@ AuthorityUpgradeProjection ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RemoveV4Guard ==
   /\ MergeTransactionIdle
@@ -1096,7 +1122,7 @@ RemoveV4Guard ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RestoreV4Guard ==
   /\ ~v4Guard
@@ -1112,7 +1138,7 @@ RestoreV4Guard ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 VerifyV4 ==
   /\ v4Guard
@@ -1128,7 +1154,7 @@ VerifyV4 ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 AuthorityDowngradeProjection ==
   /\ v4Guard
@@ -1151,7 +1177,7 @@ AuthorityDowngradeProjection ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified,
-                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  v5Retired, positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RemoveV5Requirements ==
   /\ MergeTransactionIdle
@@ -1179,7 +1205,7 @@ RemoveV5Requirements ==
                   manifestObservable, manifestMatches, bootstrapped,
                   operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 ClosePR(pr) ==
   /\ pr \in prOpen
@@ -1194,7 +1220,7 @@ ClosePR(pr) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RetireClosedProjection(pr,r) ==
   /\ pr \notin prOpen
@@ -1212,7 +1238,7 @@ RetireClosedProjection(pr,r) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 HeadChange(pr,h) ==
   /\ pr \in prOpen
@@ -1230,7 +1256,7 @@ HeadChange(pr,h) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 BaseAdvance ==
   /\ \E pr \in prOpen : baseFresh[pr]
@@ -1246,7 +1272,7 @@ BaseAdvance ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 RefreshBase(pr,h) ==
   /\ pr \in prOpen
@@ -1266,7 +1292,7 @@ RefreshBase(pr,h) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 MergeEffect(pr) ==
   /\ MergeAllowed(pr)
@@ -1287,27 +1313,29 @@ MergeEffect(pr) ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 PreparePublisherMerge(pr) ==
   /\ ~v5Retired
   /\ requiredEpochs # {}
   /\ MergeTransactionIdle
+  /\ pr \notin mergeRetryBlocked
   /\ MergeAllowed(pr)
   /\ mergePrepared' = mergePrepared \cup {pr}
   /\ mergeIntentHead' = [mergeIntentHead EXCEPT ![pr] = prHead[pr]]
   /\ mergeIntentEpoch' = [mergeIntentEpoch EXCEPT ![pr] = activeEpoch]
-  /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted >>
+  /\ mergeExecutionRequiredEpochs' = [mergeExecutionRequiredEpochs EXCEPT ![pr] = {}]
+  /\ mergeExecutionSatisfiedEpochs' = [mergeExecutionSatisfiedEpochs EXCEPT ![pr] = {}]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked >>
 
 MergeIntentStillEligible(pr) ==
   /\ pr \in prOpen
@@ -1320,94 +1348,154 @@ SubmitPublisherMerge(pr) ==
   /\ pr \notin mergeCancelled
   /\ MergeIntentStillEligible(pr)
   /\ mergeSubmitted' = mergeSubmitted \cup {pr}
-  /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
+                  mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CancelPreparedMerge(pr) ==
   /\ pr \in mergePrepared \ mergeSubmitted
-  /\ pr \notin mergeCommitted
   /\ ~MergeIntentStillEligible(pr)
   /\ mergeCancelled' = mergeCancelled \cup {pr}
-  /\ mergeCommitted' = mergeCommitted \cup {pr}
-  /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeIntentHead, mergeIntentEpoch >>
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
-RemoteMergeSuccess(pr) ==
+RemoteMergeLinearizeSuccess(pr) ==
   /\ pr \in mergeSubmitted
   /\ ~MergeOutcomeKnown(pr)
-  /\ pr \in prOpen
-  /\ prHead[pr] = mergeIntentHead[pr]
-  /\ baseFresh[pr]
+  /\ MergeIntentStillEligible(pr)
   /\ LET h == mergeIntentHead[pr]
          remaining == prOpen \ {pr}
+         satisfied == {e \in requiredEpochs :
+           /\ manifestObservable[e]
+           /\ manifestMatches[e]
+           /\ UniqueFreshSuccess(e,h)}
      IN  /\ merged' = merged \cup {pr}
          /\ mergeHead' = [mergeHead EXCEPT ![pr] = h]
          /\ prOpen' = remaining
-         /\ baseFresh' =
-              [q \in PRs |-> IF q \in remaining THEN FALSE ELSE baseFresh[q]]
+         /\ baseFresh' = [q \in PRs |-> IF q \in remaining THEN FALSE ELSE baseFresh[q]]
+         /\ mergeExecutionRequiredEpochs' = [mergeExecutionRequiredEpochs EXCEPT ![pr] = requiredEpochs]
+         /\ mergeExecutionSatisfiedEpochs' = [mergeExecutionSatisfiedEpochs EXCEPT ![pr] = satisfied]
   /\ mergeRemoteSucceeded' = mergeRemoteSucceeded \cup {pr}
-  /\ UNCHANGED << guaranteeActive,
-                  prHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
+  /\ UNCHANGED << guaranteeActive, prHead, trunkBlocked, proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  checkpoint, gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews,
+                  corruptedReviews, manifestObservable, manifestMatches, bootstrapped, requiredEpochs,
+                  operationalEpochs, retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired,
+                  v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit,
+                  authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked,
+                  mergePrepared, mergeSubmitted, mergeRemoteFailed, mergeObservedSucceeded,
+                  mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
+                  mergeIntentHead, mergeIntentEpoch >>
 
-RemoteMergeFailure(pr) ==
+RemoteMergeLinearizeFailure(pr) ==
   /\ pr \in mergeSubmitted
   /\ ~MergeOutcomeKnown(pr)
   /\ mergeRemoteFailed' = mergeRemoteFailed \cup {pr}
-  /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled,
+                  mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+ObserveRemoteMergeSuccess(pr) ==
+  /\ pr \in mergeRemoteSucceeded \ mergeObservedSucceeded
+  /\ mergeObservedSucceeded' = mergeObservedSucceeded \cup {pr}
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedFailed, mergeCancelled,
+                  mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+ObserveRemoteMergeFailure(pr) ==
+  /\ pr \in mergeRemoteFailed \ mergeObservedFailed
+  /\ mergeObservedFailed' = mergeObservedFailed \cup {pr}
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeCancelled,
+                  mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CommitPublisherMerge(pr) ==
-  /\ pr \in mergePrepared \ mergeCommitted
-  /\ MergeOutcomeKnown(pr)
+  /\ pr \in mergePrepared
+  /\ \/ pr \in mergeCancelled
+     \/ pr \in mergeObservedSucceeded
+     \/ pr \in mergeObservedFailed
+  /\ LET outcome == IF pr \in mergeCancelled THEN "CANCEL"
+                    ELSE IF pr \in mergeObservedSucceeded THEN "SUCCESS"
+                    ELSE "FAILURE"
+         event == <<pr, mergeIntentHead[pr], mergeIntentEpoch[pr], outcome>>
+     IN  /\ mergeHistory' = mergeHistory \cup {event}
+         /\ mergeRetryBlocked' = IF outcome \in {"FAILURE","CANCEL"} THEN mergeRetryBlocked \cup {pr} ELSE mergeRetryBlocked
   /\ mergeCommitted' = mergeCommitted \cup {pr}
-  /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
-                  proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads,
-                  checkpoint,
-                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
-                  activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped,
-                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
-                  v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeIntentHead, mergeIntentEpoch >>
+  /\ mergePrepared' = mergePrepared \ {pr}
+  /\ mergeSubmitted' = mergeSubmitted \ {pr}
+  /\ mergeRemoteSucceeded' = mergeRemoteSucceeded \ {pr}
+  /\ mergeRemoteFailed' = mergeRemoteFailed \ {pr}
+  /\ mergeObservedSucceeded' = mergeObservedSucceeded \ {pr}
+  /\ mergeObservedFailed' = mergeObservedFailed \ {pr}
+  /\ mergeCancelled' = mergeCancelled \ {pr}
+  /\ mergeExecutionRequiredEpochs' = [mergeExecutionRequiredEpochs EXCEPT ![pr] = {}]
+  /\ mergeExecutionSatisfiedEpochs' = [mergeExecutionSatisfiedEpochs EXCEPT ![pr] = {}]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeIntentHead, mergeIntentEpoch >>
 
+AuthorizeMergeRetry(pr) ==
+  /\ pr \in mergeRetryBlocked
+  /\ pr \in prOpen
+  /\ MergeTransactionIdle
+  /\ mergeRetryBlocked' = mergeRetryBlocked \ {pr}
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, checkpoint, gateSuccess, gateFailure,
+                  gateFresh, gateCount, poisoned, activeReviews, corruptedReviews, manifestObservable,
+                  manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
+                  activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 V4MergePR(pr) ==
   /\ MergeTransactionIdle
@@ -1427,11 +1515,11 @@ HumanGovernanceOverride ==
                   manifestObservable, manifestMatches, bootstrapped,
                   requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch,
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
-                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeCancelled, mergeCommitted, mergeIntentHead, mergeIntentEpoch >>
+                  positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
-RemoteMergeResolutionStep ==
-  \/ \E pr \in PRs : RemoteMergeSuccess(pr)
-  \/ \E pr \in PRs : RemoteMergeFailure(pr)
+RemoteMergeExecutionStep ==
+  \/ \E pr \in PRs : RemoteMergeLinearizeSuccess(pr)
+  \/ \E pr \in PRs : RemoteMergeLinearizeFailure(pr)
 
 PublisherNormalStep ==
   \/ \E p \in Proposals : ApplyCheckpointResult(p)
@@ -1454,6 +1542,8 @@ PublisherNormalStep ==
 MergeReconciliationStep ==
   \/ \E pr \in PRs : SubmitPublisherMerge(pr)
   \/ \E pr \in PRs : CancelPreparedMerge(pr)
+  \/ \E pr \in PRs : ObserveRemoteMergeSuccess(pr)
+  \/ \E pr \in PRs : ObserveRemoteMergeFailure(pr)
   \/ \E pr \in PRs : CommitPublisherMerge(pr)
 
 PublisherStep ==
@@ -1464,7 +1554,8 @@ PublisherStep ==
 
 EnvironmentStep ==
   \/ \E p \in Proposals : PublishProposal(p)
-  \/ RemoteMergeResolutionStep
+  \/ RemoteMergeExecutionStep
+  \/ \E pr \in PRs : AuthorizeMergeRetry(pr)
   \/ \E pr \in PRs : ClosePR(pr)
   \/ \E p \in Proposals : EditProposal(p)
   \/ \E pr \in PRs, r \in Rejections : CorruptReview(pr,r)
@@ -1501,7 +1592,7 @@ SafetySpec ==
 Spec ==
   /\ SafetySpec
   /\ WF_vars(PublisherStep)
-  /\ WF_vars(RemoteMergeResolutionStep)
+  /\ WF_vars(RemoteMergeExecutionStep)
 
 (***************************************************************************)
 (* INVARIANTS TO MODEL-CHECK                                               *)
@@ -1628,9 +1719,12 @@ Inv_SubmittedMergeWasPrepared ==
 Inv_RemoteMergeOutcomeWasSubmitted ==
   (mergeRemoteSucceeded \cup mergeRemoteFailed) \subseteq mergeSubmitted
 
+Inv_ObservedMergeOutcomeWasRemote ==
+  /\ mergeObservedSucceeded \subseteq mergeRemoteSucceeded
+  /\ mergeObservedFailed \subseteq mergeRemoteFailed
+
 Inv_MergeCommitHasResolution ==
-  mergeCommitted \subseteq
-    (mergeRemoteSucceeded \cup mergeRemoteFailed \cup mergeCancelled)
+  mergeCommitted = {x[1] : x \in mergeHistory}
 
 Inv_NoV5RetirementWithOutstandingMerge ==
   v5Retired => OutstandingMerges = {}
@@ -1640,6 +1734,22 @@ Inv_RemoteSuccessUsesPreparedIntent ==
     /\ pr \in merged
     /\ mergeHead[pr] = mergeIntentHead[pr]
 
+Inv_RemoteSuccessSatisfiedExecutionGates ==
+  \A pr \in mergeRemoteSucceeded :
+    mergeExecutionRequiredEpochs[pr] = mergeExecutionSatisfiedEpochs[pr]
+
+Inv_IdleMergeLifecycleClean ==
+  MergeTransactionIdle =>
+    /\ mergeSubmitted = {}
+    /\ mergeRemoteSucceeded = {}
+    /\ mergeRemoteFailed = {}
+    /\ mergeObservedSucceeded = {}
+    /\ mergeObservedFailed = {}
+    /\ mergeCancelled = {}
+
+Inv_RetryBlockPreventsAutomaticPrepare ==
+  \A pr \in mergeRetryBlocked : ~ENABLED PreparePublisherMerge(pr)
+
 Inv_PositiveSuccessRequiresEpochCheckpoint ==
   \A e \in Epochs, h \in Heads :
     /\ UniqueFreshSuccess(e,h)
@@ -1648,6 +1758,12 @@ Inv_PositiveSuccessRequiresEpochCheckpoint ==
 
 Inv_ExternalEvidenceDoesNotReserveCandidate ==
   ExternalOnlyProposalHeads \cap AuthoritySeenHeads = {}
+
+Inv_ExternalEvidencePreservesCandidateActions ==
+  \A h \in ExternalOnlyProposalHeads, pr \in prOpen :
+    h # prHead[pr] =>
+      /\ ENABLED HeadChange(pr,h)
+      /\ (~baseFresh[pr] => ENABLED RefreshBase(pr,h))
 
 Inv_V5RetirementClearsReviewProjections ==
   v5Retired =>
