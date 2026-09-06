@@ -1808,6 +1808,9 @@ Inv_ConsumedRetryIsTrusted ==
     /\ RetryTokenActor[t] = Owner
     /\ t \in retryTokenPresent
 
+Inv_V5PrepareExcludesStacks ==
+  mergePrepared \cap StackedPRs = {}
+
 Inv_V5MergeExcludesStacks ==
   \A pr \in mergeRemoteSucceeded :
     pr \notin StackedPRs
