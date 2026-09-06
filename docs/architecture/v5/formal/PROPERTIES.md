@@ -22,6 +22,14 @@ While at least one V5 epoch is required, normal integration is a recoverable
 Publisher transaction around GitHub's asynchronous `direct_merge` primitive.
 Controllers may propose integration, but they do not issue the merge effect.
 
+V5-0 deliberately keeps that transaction **single-PR**. Pull requests that
+belong to a GitHub stack are outside the normal V5 merge envelope and cannot
+enter `mergePrepared`. Future V5 governance must prohibit normal Controller
+stack creation/restructuring while V5 merge authority is active; owner-root
+manual mutation remains outside the normal guarantee envelope. This is a
+deliberate compression choice: V5-0 does not model multi-PR atomic stack
+authority.
+
 The lifecycle is:
 
 ```text
@@ -43,9 +51,11 @@ The outstanding barrier remains until observation and COMMIT, so later
 Publisher negative authority cannot overtake an unresolved operation.
 
 FAILURE/CANCEL writes immutable semantic history, clears current lifecycle
-state and sets `mergeRetryBlocked`. Automatic retry is disabled; a fresh
-`AuthorizeMergeRetry` environment input permits another attempt on the same
-still-open PR.
+state and leaves the PR in durable `mergeRetryBlocked` history. Automatic
+retry is disabled. A later retry requires a fresh owner-authored durable retry
+token bound to the exact PR, current Head and active Epoch. That unique token
+is consumed atomically by the next PREPARE and cannot authorize another
+attempt.
 
 Strict-base freshness and exact-head replay prevention remain unchanged.
 
@@ -234,10 +244,17 @@ V4 guard cannot be removed until:
 
 - all legacy findings are imported;
 - all legacy rejected-head memory is imported;
+- reconstruction establishes **no unresolved decision-relevant V4
+  TEST_REQUIRED** remains;
 - at least one V5 epoch is required and currently operational;
 - every required epoch is currently observable and manifest-matching.
 
-No V5 positive authority may be published before legacy import is complete.
+V5-0 intentionally does not translate an already-open V4 TEST_REQUIRED into a
+new V5 checkpoint identity. Instead, cut-over is fail-closed until that durable
+V4 request reaches PASS, FAIL or NOT_NEEDED under V4. `LegacyCheckpointHeads`
+models the reconstructed unresolved set and `LegacyImportComplete` requires it
+to be empty. No V5 positive authority may be published and `RemoveV4Guard`
+cannot execute while the set is non-empty.
 
 ## P15 — V5 -> V4 semantic downgrade
 
@@ -262,6 +279,9 @@ After retirement:
 - `PublisherStep` is disabled;
 - no new V5 proposal can be published into the modeled authority protocol;
 - V5 checkpoint evidence cannot mutate restored V4 eligibility;
+- V5-only `AuthoritySeenHeads` replay memory no longer blocks ordinary
+  `HeadChange` / `RefreshBase`; V4's own rejected-head/checkpoint rules own
+  eligibility after retirement;
 - ordinary future human/checkpoint decisions belong to V4 or to a later
   governance epoch outside this retired V5 instance.
 
@@ -282,16 +302,19 @@ A submitted asynchronous merge has two distinct stages:
 `WF_vars(PublisherStep)` covers observation/commit once the result exists.
 
 Concrete V5-0 mandates async `direct_merge` with exact SHA. The returned UUID
-must be durably recorded; after a lost response, retry/409 recovery obtains the
-existing UUID rather than interpreting "unknown" as FAILURE. GitHub retains an
-async result for 24 hours after its most recent update. If authoritative UUID
-observability is lost before terminal reconciliation, V5 remains fail-closed
-for explicit human-root recovery; that outage is outside the normal liveness
-guarantee rather than being silently converted to FAILURE.
+must be durably recorded. If the 202/UUID response is lost, automatic
+resubmission for 409/UUID recovery is allowed only inside a durably recorded
+recovery window that is strictly shorter than GitHub's 24-hour result-retention
+horizon (with implementation safety margin). Once that bounded window may have
+expired, the Publisher must never issue another automatic PUT for the unknown
+transaction; it stays fail-closed for explicit human-root recovery. A 404 or
+unknown result is never interpreted as FAILURE.
 
-A completed FAILURE/CANCEL becomes quiescent behind `mergeRetryBlocked`.
-A fresh explicit retry authorization is new environment input, preventing an
-automatic failure/retry loop.
+A completed FAILURE/CANCEL becomes quiescent behind durable failure history.
+A fresh retry is represented by a unique owner-authored token carrying retry
+identity plus exact PR/Head/Epoch provenance. One token is consumed by at most
+one PREPARE. Repeated same-head failures therefore require distinct fresh
+tokens rather than replaying a mutable authorization bit.
 
 Finite safety TLC domains do not prove either fairness assumption.
 
@@ -337,7 +360,7 @@ matches. Observed drift cannot be repaired in place.
 ## P20 — Bounded safety model checking is reproducible
 
 `run_tlc.sh` verifies a pinned TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses the
-modules with SANY, and model-checks fourteen focused finite safety domains:
+modules with SANY, and model-checks seventeen focused finite safety domains:
 
 - `Ordering` — trusted GO/NO_GO ordering and new-head repair;
 - `EpochTerminal` — no same-head resurrection across epochs;
@@ -364,8 +387,15 @@ modules with SANY, and model-checks fourteen focused finite safety domains:
   checkpoint/arbitrary-PR transitions covered elsewhere and does not constrain
   `MergeAllowed`, required epochs, Gate state, manifest health or remote
   outcome;
-- `MergeRetry` — FAILURE/CANCEL -> clean COMMIT -> explicit retry
-  authorization -> fresh attempt on the same PR;
+- `MergeRetry` — FAILURE/CANCEL -> clean COMMIT -> durable unique retry token
+  -> one consumed PREPARE -> fresh attempt on the same PR;
+- `StackExclusion` — even a fully authorized stacked PR cannot enter the
+  normal V5 Publisher merge transaction;
+- `LegacyCheckpointCutover` — an unresolved V4 TEST_REQUIRED keeps
+  `LegacyImportComplete` false, blocks V5 positive authority and blocks V4
+  guard removal;
+- `RetiredReplay` — after `v5Retired`, a non-terminal Head seen only by V5
+  positive/proposal history can again be selected under restored V4 semantics;
 - `Abandon` — rejected work may close while durable finding authority remains;
 - `CheckpointEpoch` — E1 human evidence cannot authorize E2;
 - `ExternalEvidence` — external evidence cannot reserve a future candidate
@@ -478,7 +508,13 @@ Inv_ObservedMergeOutcomeWasRemote
 Inv_MergeCommitHasResolution
 Inv_RemoteSuccessSatisfiedExecutionGates
 Inv_IdleMergeLifecycleClean
-Inv_RetryBlockPreventsAutomaticPrepare
+Inv_RetryBlockDerivedFromHistory
+Inv_BlockedRetryNeedsFreshToken
+Inv_ConsumedRetryIsTrusted
+Inv_V5PrepareExcludesStacks
+Inv_V5MergeExcludesStacks
+Inv_LegacyCheckpointBlocksCutover
+Inv_RetiredV5DoesNotReserveCandidateMove
 Inv_NoV5RetirementWithOutstandingMerge
 Inv_RemoteSuccessUsesPreparedIntent
 Inv_PositiveSuccessRequiresEpochCheckpoint
