@@ -2147,10 +2147,11 @@ Inv_LegacyCheckpointBlocksCutover ==
     /\ ~ENABLED RemoveV4Guard
 
 Inv_V4CutoverImportIsQuiescent ==
-  LegacyDataImported =>
+  ~v4Guard =>
     /\ v4AuthorityFrozen
     /\ V4AuthorityDrained
     /\ v4CheckpointHeads = {}
+    /\ LegacyDataImported
 
 Inv_RetiredV5DoesNotReserveCandidateMove ==
   v5Retired =>
