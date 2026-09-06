@@ -415,8 +415,10 @@ LateRefutationNext ==
   \/ \E pr \in LatePRs : PreparePublisherMerge(pr)
   \/ \E pr \in LatePRs : SubmitPublisherMerge(pr)
   \/ \E pr \in LatePRs : CancelPreparedMerge(pr)
-  \/ \E pr \in LatePRs : RemoteMergeSuccess(pr)
-  \/ \E pr \in LatePRs : RemoteMergeFailure(pr)
+  \/ \E pr \in LatePRs : RemoteMergeLinearizeSuccess(pr)
+  \/ \E pr \in LatePRs : RemoteMergeLinearizeFailure(pr)
+  \/ \E pr \in LatePRs : ObserveRemoteMergeSuccess(pr)
+  \/ \E pr \in LatePRs : ObserveRemoteMergeFailure(pr)
   \/ \E pr \in LatePRs : CommitPublisherMerge(pr)
   \/ RefreshBase("P2", "H3")
   \/ PublishSuccess("GO_H3", "E1", "H3")
@@ -544,7 +546,7 @@ MigrationFaultInjection == FALSE
 (* MERGE IN FLIGHT: remote outcome must resolve before later authority.     *)
 (***************************************************************************)
 
-MergeFlightEpochs == {"E1"}
+MergeFlightEpochs == {"E1", "E2"}
 MergeFlightHeads == {"H1", "H2"}
 MergeFlightPRs == {"P1", "P2"}
 MergeFlightProposals == {"GO_H1", "NO_H2"}
@@ -592,6 +594,54 @@ MergeFlightInitialPRHead ==
   [p \in MergeFlightPRs |-> IF p = "P1" THEN "H1" ELSE "H2"]
 MergeFlightInitialEpoch == "E1"
 MergeFlightFaultInjection == FALSE
+
+(***************************************************************************)
+(* MERGE RETRY: failed/cancelled attempt may be explicitly retried.        *)
+(***************************************************************************)
+
+MergeRetryEpochs == {"E1"}
+MergeRetryHeads == {"H1", "H2"}
+MergeRetryPRs == {"P1"}
+MergeRetryProposals == {"GO_H1", "GO_H2", "EXT_NO"}
+MergeRetryRejections == {"R_EXT"}
+MergeRetryFindings == {"F1"}
+MergeRetryProposalActor == [p \in MergeRetryProposals |-> IF p = "EXT_NO" THEN MCExternalActor ELSE MCOwner]
+MergeRetryProposalKind == [p \in MergeRetryProposals |-> IF p = "EXT_NO" THEN "NO_GO" ELSE "GO"]
+MergeRetryProposalHead == [p \in MergeRetryProposals |-> IF p = "GO_H2" THEN "H2" ELSE "H1"]
+MergeRetryProposalFinding == [p \in MergeRetryProposals |-> "F1"]
+MergeRetryProposalEpoch == [p \in MergeRetryProposals |-> "E1"]
+MergeRetryRejectionProposal == [r \in MergeRetryRejections |-> "EXT_NO"]
+MergeRetryRejectionEpoch == [r \in MergeRetryRejections |-> "E1"]
+MergeRetryRejectionHead == [r \in MergeRetryRejections |-> "H1"]
+MergeRetryRejectionPR == [r \in MergeRetryRejections |-> "P1"]
+MergeRetryRejectionFindings == [r \in MergeRetryRejections |-> {"F1"}]
+MergeRetryApplies == {}
+MergeRetryLegacyFindings == {}
+MergeRetryLegacyRejectedHeads == {}
+MergeRetryCheckpointHeads == {}
+MergeRetryInitialPRs == {"P1"}
+MergeRetryInitialPRHead == [p \in MergeRetryPRs |-> "H1"]
+MergeRetryInitialEpoch == "E1"
+MergeRetryFaultInjection == FALSE
+
+MergeRetryNext ==
+  \/ \E p \in MergeRetryProposals : PublishProposal(p)
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ PublishSuccess("GO_H1", "E1", "H1")
+  \/ PublishSuccess("GO_H2", "E1", "H2")
+  \/ PreparePublisherMerge("P1")
+  \/ SubmitPublisherMerge("P1")
+  \/ CancelPreparedMerge("P1")
+  \/ RemoteMergeLinearizeSuccess("P1")
+  \/ RemoteMergeLinearizeFailure("P1")
+  \/ ObserveRemoteMergeSuccess("P1")
+  \/ ObserveRemoteMergeFailure("P1")
+  \/ CommitPublisherMerge("P1")
+  \/ AuthorizeMergeRetry("P1")
+  \/ HeadChange("P1", "H2")
 
 (***************************************************************************)
 (* ABANDON: rejected PR may close without semantically resolving findings. *)
