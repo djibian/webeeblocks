@@ -39,10 +39,14 @@ Inspect the full finite harness:
 - `WebeeBlocksV5_LateRefutation.cfg`;
 - `WebeeBlocksV5_Checkpoint.cfg`;
 - `WebeeBlocksV5_Migration.cfg`;
+- `WebeeBlocksV5_MergeInFlight.cfg`;
+- `WebeeBlocksV5_Abandon.cfg`;
+- `WebeeBlocksV5_CheckpointEpoch.cfg`;
+- `WebeeBlocksV5_ExternalEvidence.cfg`;
 - `run_tlc.sh`.
 
-The runner pins TLA+ 1.7.4 by SHA-256, parses with SANY and executes all nine
-finite safety domains.
+The runner pins TLA+ 1.7.4 by SHA-256, parses with SANY and executes all
+thirteen focused finite safety domains.
 
 A green bounded run is evidence only, never proof of liveness or GitHub
 refinement.
@@ -61,12 +65,16 @@ is what the finite configs model-check.
 
 ```text
 WF_vars(PublisherStep)
+/\ WF_vars(RemoteMergeResolutionStep)
 ```
 
-Review this fairness assumption independently. In a stable finite environment,
+Review both fairness assumptions independently. In a stable finite environment,
 all Publisher reconciliation classes are intended to be finite/progress-making;
 look for any transition that can self-reenable, oscillate or starve unrelated
-work.
+work. Once a merge request has crossed the GitHub trust boundary,
+`RemoteMergeResolutionStep` represents eventual authoritative observation of
+either success or failure; the Publisher must not resume unrelated authority
+work while that merge transaction is unresolved.
 
 ## Refinement boundaries
 
@@ -147,33 +155,54 @@ longer required to complete the poison linearization after PREPARE. Challenge
 whether the Protocol App can always recreate/reassert the blocking Gate with
 the intended minimal permissions.
 
-### R5 — Merge serialization / base freshness
+### R5 — Recoverable merge transaction / base freshness
 
-While any V5 epoch is required, normal merges refine `PublisherMergePR`, not
-an independent Controller environment step.
+While any V5 epoch is required, normal merges refine a recoverable Publisher
+transaction, not an independent Controller environment step:
+
+```text
+PREPARE merge intent
+-> submit exact-head GitHub merge request
+-> reconcile authoritative remote outcome
+-> COMMIT/CANCEL merge intent
+```
 
 Concrete requirements:
 
-- only the normal V5 Publisher path may issue the automated merge effect;
-- it reconstructs current global authority/trunk state immediately before the
-  merge effect;
-- the merge request supplies the exact current PR SHA;
-- GitHub `expected_head_sha`/merge `sha` protects exact-head linearization;
-- successful merge stales every remaining PR in the abstraction;
-- concrete base refresh creates a distinct SHA incorporating the current base;
+- only the normal V5 Publisher path may issue the automated merge request;
+- PREPARE is durable before the request crosses the GitHub trust boundary;
+- only one merge transaction may be outstanding;
+- while a submitted outcome is unresolved, unrelated Publisher authority
+  effects, epoch succession and V5 retirement remain blocked;
+- after a crash or lost HTTP response, reconciliation establishes the remote
+  outcome before any later negative/trunk transition is processed;
+- the merge request supplies GitHub's exact current PR `sha`;
+- a merge may be submitted only while the prepared head/epoch remains current
+  and `MergeAllowed` still holds;
+- successful remote resolution atomically stales every remaining PR in the
+  abstraction;
+- concrete base refresh creates a distinct SHA incorporating the current
+  protected base;
 - `HeadChange` / `RefreshBase` cannot replay a Head already present in
-  authority/proposal/merged history.
+  trusted authority/proposal/positive-audit/merged history.
+
+V5-0 does not rely on auto-merge or a merge queue as an unmodeled normal path.
+If an asynchronous GitHub merge mechanism is ever enabled, its full pending
+lifecycle must refine the same outstanding-transaction barrier.
 
 When no V5 epoch is required, `V4MergePR` models the restored V4 path.
 
-Attack both the GitHub permission/isolation story and the claim that an old
-unmerged SHA cannot be relabeled as a fresh current-base candidate.
+Attack the GitHub permission/isolation story, ambiguous-response recovery and
+the claim that an old unmerged SHA cannot be relabeled as a fresh current-base
+candidate.
 
 ### R6 — GovernanceEpoch
 
 Epoch identity is stable and opaque.
 
 - GO is epoch-bound.
+- Human checkpoint authority is keyed by `(GovernanceEpoch, Head)`; an E1 PASS
+  does not silently authorize E2.
 - Unapplied disposition proposals are epoch-bound.
 - Applied dispositions remain durable decision history.
 - leaving E1 retires it permanently;
@@ -187,19 +216,24 @@ Governance is human-rooted and protocol-verified, not protocol-admin-enforced.
 
 ### R7 — Late refutation / trunk health
 
-All normal V5 merge effects and negative Gate linearizations are ordered inside
-the Publisher Authority Plane.
+Negative Gate linearizations and merge preparation/reconciliation share the
+Publisher Authority Plane. The remote GitHub merge linearization is explicitly
+allowed to occur after submission, so the outstanding merge transaction is the
+serialization barrier.
 
-If negative linearization wins first, `trunkBlocked` is visible before any
-later Publisher merge and ordinary integration stops.
+If a merge request has been submitted, the Publisher first resolves that
+specific remote outcome:
 
-If merge wins first, the later refutation is a genuine late refutation and sets
-`trunkBlocked = TRUE`.
+- remote success first -> that merge is authoritative; a later refutation is a
+  genuine late refutation and sets `trunkBlocked = TRUE`;
+- authoritative remote failure/cancellation first -> the transaction closes,
+  then a later negative may linearize and block subsequent integration.
 
-The concrete refinement must therefore eliminate independent automated
-Controller merge requests while V5 is required. A root-owner manual merge is
-still possible but leaves the guarantee envelope as
-`HumanGovernanceOverride`.
+There is no normal trace in which a negative/trunk block linearizes while an
+older unresolved V5 merge request is still free to succeed behind it.
+
+A root-owner manual merge is still possible but leaves the guarantee envelope
+as `HumanGovernanceOverride`.
 
 Rollback must project a live trunk block into V4 before the last V5 guard is
 removed.
@@ -213,8 +247,13 @@ Before V5 removal, V4-compatible durable state must contain:
 
 - every authoritative V5 finding;
 - every terminal Head;
-- every live checkpoint;
+- every live epoch-scoped checkpoint obligation;
 - any trunk-health block.
+
+A rejected PR may be deliberately closed/abandoned without semantically
+resolving its findings. Once closed, its V5 review projection may be retired
+while the finding and terminal Head remain durable and are still projected to
+V4 before retirement.
 
 After `v5Retired = TRUE`, `PublisherStep` is closed and new V5 proposal
 publication is disabled. A late human PASS/FAIL that should affect V4 must be
@@ -235,6 +274,12 @@ resistance are abstracted to identifiers and remain conformance obligations.
 - while V5 is required, Controllers have no independent normal merge-effect
   credential/path; owner-root manual override is outside the guarantee envelope;
 - the Publisher can perform exact-head PR merge with its intended permissions;
+- a dedicated main-update exclusivity rule/ruleset grants the Protocol App only
+  the bypass needed to update `main`, while required Gate/review/base-safety
+  rules remain non-bypassable by that App;
+- Controllers cannot use a normal merge credential/path while V5 is required;
+- auto-merge and merge queue are disabled for the V5-0 normal path unless their
+  pending lifecycle is explicitly modeled;
 - required-check source is the exact Protocol App;
 - Authority Ledger history is append-only for the App;
 - poison events survive Check Run mutation/retention loss;
@@ -253,23 +298,32 @@ resistance are abstracted to identifiers and remain conformance obligations.
 
 ### A — PREPARE does not itself revoke an already-fresh SUCCESS
 
-PREPARE blocks new positive publication but does not mutate an already-fresh
-SUCCESS.
+Negative PREPARE blocks new positive publication but does not mutate an
+already-fresh SUCCESS.
 
-The important change is that, while V5 is required, **merge and negative
-linearization are both Publisher effects**. There is no normal independent
-Controller merge request in flight.
+V5-0 therefore makes the merge race explicit rather than pretending the Check
+surface is transactional. A merge first acquires a durable Publisher
+`mergePrepared` intent. After submission, the Publisher is barred from
+unrelated authority work until the remote outcome is authoritatively resolved.
 
-Thus the model still permits either Publisher ordering:
+Thus the meaningful order is:
 
 ```text
-merge first -> later refutation -> trunkBlocked
+merge transaction resolves success
+-> later refutation
+-> trunkBlocked
 
-negative FAILURE first -> trunkBlocked -> later merge disabled
+or
+
+merge transaction closes without success
+-> negative FAILURE linearizes
+-> trunkBlocked
+-> later normal merge disabled
 ```
 
-Challenge whether this serialized boundary is implementable with actual GitHub
-permissions/rulesets and whether the human-root exception is correctly scoped.
+Challenge crash recovery after request submission, authoritative distinction
+between remote failure and an unknown response, and whether every concrete
+merge path is forced through this barrier.
 
 ### B — Physical duplicates are not deleted
 
@@ -347,6 +401,17 @@ Re-run the prior NO_GO findings against the new exact SHA, including:
     path that can still reach GitHub?
 19. after v5Retired, can any V5 Publisher/checkpoint transition still change
     restored V4 eligibility?
+20. after merge PREPARE/submission and a lost response, can a later negative
+    linearize before the exact remote merge outcome is reconciled?
+21. can a rejected PR be closed/abandoned, its review projection retired, and
+    rollback finish without falsely resolving its durable finding?
+22. can an E1 checkpoint PASS satisfy E2 without explicit E2 evidence?
+23. can an external valid-looking proposal reserve a future Head or otherwise
+    alter HeadChange/RefreshBase eligibility?
+24. can the Protocol App bypass the main-update exclusivity rule without also
+    bypassing Gate/review/base-safety rules?
+25. is there any auto-merge, merge-queue or alternate credential path that can
+    issue a normal V5 merge outside the outstanding-transaction barrier?
 
 Also search outside these known traces. A reviewer that only checks the listed
 fixes has not completed an adversarial review.
@@ -356,7 +421,7 @@ fixes has not completed an adversarial review.
 1. Reconstruct Draft PR #191 and record exact current HEAD.
 2. If HEAD differs from the supplied candidate SHA, stop: it is a new candidate.
 3. Read all three canonical design files completely.
-4. Inspect all nine finite configs, MC module and `run_tlc.sh`.
+4. Inspect all thirteen finite configs, MC module and `run_tlc.sh`.
 5. If possible execute:
    `bash docs/architecture/v5/formal/run_tlc.sh`
    on the exact reviewed SHA.

@@ -17,24 +17,35 @@ assumption, semantic adequacy of `Applies`, or the GitHub refinement.
 
 ## P1 — Exact-head, current-base integration
 
-A protocol merge linearizes against the exact current PR head. Concrete
-refinement target: GitHub `expected_head_sha`.
+While at least one V5 epoch is required, the merge effect belongs to a
+recoverable serialized Publisher Authority Plane transaction. Controllers may
+make cognitive integration proposals, but they do not independently issue the
+GitHub merge request.
 
-While at least one V5 epoch is required, the **merge effect itself belongs to
-the serialized Publisher Authority Plane**. Controllers may make cognitive
-integration proposals, but they do not independently issue the GitHub merge
-effect. Consequently a Gate FAILURE/trunk block that linearizes first is
-observed before any later normal V5 merge effect.
+The lifecycle is:
 
-Strict-base freshness is part of candidate admissibility:
+```text
+PREPARE exact (PR, Head, Epoch) intent
+-> submit GitHub merge with exact PR sha
+-> reconcile authoritative remote success/failure
+-> COMMIT or CANCEL the intent
+```
+
+Only one merge transaction may be outstanding. Once submitted, unrelated
+Publisher authority effects remain blocked until the remote outcome is known.
+This models the crash/lost-response interval in which GitHub may have accepted
+a request but the client does not yet know whether it linearized.
+
+Strict-base freshness remains part of candidate admissibility:
 
 - a successful merge makes every remaining open PR base-stale atomically in the
   abstraction;
 - a concrete base refresh must create a distinct SHA incorporating the current
   protected base;
 - ordinary `HeadChange` / `RefreshBase` cannot select an exact Head already
-  present in proposal/terminal/merged authority history
-  (`AuthoritySeenHeads`);
+  present in trusted proposal, positive-audit, terminal or merged authority
+  history (`AuthoritySeenHeads`);
+- external evidence alone cannot reserve a candidate Head;
 - the concrete implementation must verify that the refreshed SHA is the newly
   current-base candidate, not merely an old unmerged SHA.
 
@@ -139,6 +150,8 @@ Governance succession does not erase authority history:
 - terminal Heads survive epoch changes;
 - authoritative findings survive epoch changes;
 - GO proposals are bound to their proposal epoch;
+- human checkpoint authority is bound to `(GovernanceEpoch, Head)`; successor
+  epochs require their own PASS/NA evidence when that Head requires a checkpoint;
 - an unapplied disposition proposal may be applied only while its
   `ProposalEpoch` is the active, required epoch;
 - a disposition already authoritatively applied in its epoch remains durable
@@ -156,7 +169,8 @@ Governance succession does not erase authority history:
 
 Only the configured trusted cognitive principal (`djibian` initially) may feed
 V5 authority transitions. External valid-looking comments/reviews remain
-evidence only.
+evidence only: they cannot mint authority and cannot reserve a candidate Head
+through `AuthoritySeenHeads`.
 
 ## P9 — Exact Protocol App Gate source
 
@@ -236,7 +250,8 @@ V5 requirements cannot be removed until:
 - every rejection PREPARE is linearized and COMMITted;
 - every poison PREPARE is linearized and COMMITted;
 - every known duplicate is reconciled by committed poison authority;
-- V5 active/corrupted review projections are cleared;
+- V5 active/corrupted review projections are cleared; a rejected PR may first
+  be closed/abandoned and its projection retired without resolving the finding;
 - every authoritative V5 finding is projected into V4-compatible durable state;
 - every V5 terminal Head is projected into V4-compatible durable state;
 - every live checkpoint is projected into V4-compatible durable state;
@@ -261,18 +276,24 @@ Under a stable environment and finite protocol work, Publisher transitions are
 intended to be finite and progress-making. Reconciliation reconstructs durable
 state after each effect until quiescence.
 
-While V5 is required, the Publisher also owns the normal **merge effect**.
+While V5 is required, the Publisher also owns the normal merge transaction.
 Merge is not task scheduling: Controllers still discover and perform product
-work; the Publisher only serializes the irreversible authority/integration
-effect together with Gate publication, negative linearization and poison.
+work; the Publisher only serializes irreversible authority/integration effects.
+
+A submitted merge is special: GitHub owns the remote linearization point.
+`WF_vars(RemoteMergeResolutionStep)` therefore states the additional liveness
+assumption that a submitted request is eventually observed as authoritative
+success or failure. Until that happens, `PublisherStep` permits only merge
+reconciliation, preventing unrelated negative/trunk effects from overtaking an
+older in-flight request.
 
 When no V5 epoch is required, merge belongs to the V4 environment again.
 
 Duplicate poison does not wait for physical duplicate deletion; its finite
 progress target is durable poison COMMIT.
 
-`WF_vars(PublisherStep)` remains an explicit abstract liveness assumption.
-Finite safety TLC domains do not prove it.
+Both fairness assumptions remain explicit abstractions. Finite safety TLC
+domains do not prove them.
 
 ## P17 — Human root boundary
 
@@ -282,11 +303,14 @@ repository owner from overriding their order.
 
 ## P18 — Human checkpoint negative monotonicity
 
+Checkpoint state is keyed by `(GovernanceEpoch, Head)`.
+
 `HUMAN_FAIL` follows rejection PREPARE -> Gate FAILURE -> COMMIT.
 
-Same-head positive checkpoint application cannot overwrite an authoritative
-FAIL. Positive HUMAN_PASS / HUMAN_NA application is allowed only while the
-checkpoint is pending.
+Same-epoch, same-head positive checkpoint application cannot overwrite an
+authoritative FAIL. Positive HUMAN_PASS / HUMAN_NA application is allowed only
+while that epoch/head checkpoint is pending. A PASS from E1 does not authorize
+E2.
 
 After downgrade V4 enforces only checkpoint Heads explicitly projected into
 V4-compatible state.
@@ -313,7 +337,7 @@ matches. Observed drift cannot be repaired in place.
 ## P20 — Bounded safety model checking is reproducible
 
 `run_tlc.sh` verifies a pinned TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses the
-modules with SANY, and model-checks nine focused finite safety domains:
+modules with SANY, and model-checks thirteen focused finite safety domains:
 
 - `Ordering` — trusted GO/NO_GO ordering and new-head repair;
 - `EpochTerminal` — no same-head resurrection across epochs;
@@ -325,8 +349,13 @@ modules with SANY, and model-checks nine focused finite safety domains:
 - `SharedHead` — two PRs sharing one Head cannot both merge on one base;
 - `LateRefutation` — merge-wins race produces trunk-health block;
 - `Checkpoint` — human PASS/FAIL negative monotonicity;
-- `Migration` — V4/V5 authority projection and rollback, including a live
-  projected checkpoint and attempted post-retirement V5 evidence.
+- `Migration` — V4/V5 authority projection and rollback;
+- `MergeInFlight` — submitted remote merge ambiguity cannot be overtaken by
+  unrelated Authority Plane effects or V5 retirement;
+- `Abandon` — rejected work may close while durable finding authority remains;
+- `CheckpointEpoch` — E1 human evidence cannot authorize E2;
+- `ExternalEvidence` — external evidence cannot reserve a future candidate
+  Head.
 
 Passing them means only that no invariant counterexample exists in those finite
 domains.
@@ -350,25 +379,33 @@ Unlike the previous tautological invariant, the two sides are maintained by
 different state representation: one is derived from linearized rejections and
 one is cumulative authority history.
 
-## P22 — Late refutation has a formal trunk consequence and ordered merge boundary
+## P22 — Late refutation has a formal trunk consequence and recoverable merge boundary
 
-The merge/failure boundary is now an Authority Plane ordering boundary.
+The merge/failure boundary is an Authority Plane ordering boundary even though
+the remote GitHub merge effect is not locally atomic.
 
 While V5 is required:
 
 ```text
-Publisher negative linearization first
--> trunkBlocked visible
--> no later normal Publisher merge
+merge PREPARE
+-> submit exact-head request
+-> resolve remote outcome before unrelated Publisher work
 
-Publisher merge first
+remote success
+-> merge is authoritative
 -> later negative linearization is a late refutation
 -> trunkBlocked := TRUE
+
+remote failure/cancel
+-> merge transaction closes
+-> later negative FAILURE may linearize
+-> trunkBlocked visible
+-> no later normal V5 merge
 ```
 
-The old refinement hole in which a Controller could already have an unrelated
-GitHub merge request in flight after the negative linearized is outside the
-normal V5 path: Controllers do not own that merge effect.
+The older refinement hole in which a request could remain remotely in flight
+while a later trunk block linearized is excluded by the outstanding-transaction
+barrier, not by pretending the HTTP call is atomic.
 
 A deliberate human-root merge outside the serialized path remains
 `HumanGovernanceOverride`.
@@ -420,6 +457,15 @@ Inv_UnreconciledDuplicateBlocksPositiveEligibility
 Inv_LateRefutationBlocksV5Merge
 Inv_V4ProjectedTrunkBlockBlocksMerge
 Inv_NoTwoMergedPRsShareExactHead
+Inv_SingleOutstandingMerge
+Inv_SubmittedMergeWasPrepared
+Inv_RemoteMergeOutcomeWasSubmitted
+Inv_MergeCommitHasResolution
+Inv_NoV5RetirementWithOutstandingMerge
+Inv_RemoteSuccessUsesPreparedIntent
+Inv_PositiveSuccessRequiresEpochCheckpoint
+Inv_ExternalEvidenceDoesNotReserveCandidate
+Inv_V5RetirementClearsReviewProjections
 Inv_ActiveEpochNeverRetired
 Inv_V5RetiredClosesPublisher
 Inv_V5RetiredClosesProposalPublication
@@ -455,4 +501,12 @@ Inv_V5RetiredClosesProposalPublication
 24. pre-authorize H2, advance base, then attempt RefreshBase back to H2;
 25. linearize a late NO_GO(H1) before an unrelated H2 Publisher merge;
 26. retire V5 with a projected pending checkpoint, then attempt late V5 PASS;
-27. root-human governance override during cut-over.
+27. root-human governance override during cut-over;
+28. merge PREPARE -> submit -> lost response, then attempt unrelated negative
+    linearization before authoritative remote resolution;
+29. reject -> review projection -> close PR -> retire projection -> rollback
+    without resolving the finding;
+30. HUMAN_PASS(E1,H) -> E2 -> attempt GO/SUCCESS(E2,H) without E2 checkpoint;
+31. external proposal for future H2 -> attempt legitimate RefreshBase to H2;
+32. verify that no auto-merge/merge-queue/alternate credential path escapes the
+    single outstanding merge transaction.
