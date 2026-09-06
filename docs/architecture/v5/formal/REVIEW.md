@@ -69,6 +69,17 @@ governance drift/observability loss and an unrelated trusted NO_GO arriving on
 P2. The focus must not constrain `MergeAllowed`, required epochs, Gate state,
 manifest health, remote outcome, or the invariants under test.
 
+Six historical non-merge-focused domains — `Ordering`, `EpochRepair`,
+`Duplicate`, `Checkpoint`, `Migration`, and `CheckpointEpoch` — use
+`LegacyFocusConstraint` to avoid crossing their established attacks with the
+new V4-live-migration and mutable-PR-topology dimensions. It fixes only those
+orthogonal dimensions to the historical projection (target = `main`, initial
+stack state, legacy V4 authority sets, no V4 workflow in flight, no V5 merge
+PREPARE). The dedicated `StackExclusion`, `LegacyCheckpointCutover` and
+`MergeRetry` domains carry the new races. Reviewers must inspect the
+decomposition itself: a green result is invalid evidence if an attack falls
+through the gap between focused domains.
+
 ## Safety versus liveness
 
 `SafetySpec`:
@@ -188,26 +199,39 @@ PREPARE exact single-PR intent
 -> COMMIT
 ```
 
-V5-0 deliberately excludes GitHub stacked pull requests from this normal path.
-GitHub's async endpoint can atomically merge every lower PR in a stack, while
-the V5 abstract transaction is intentionally single-PR. Therefore a PR with a
-non-null stack membership must not enter `mergePrepared`. Normal future V5
-Controller governance must also forbid creating/restructuring stacks while V5
-merge authority is active; owner-root manual stack mutation is outside the
-normal guarantee envelope. The future substrate suite must verify the concrete
-stack-observation and path-isolation assumptions. If this cannot be enforced
-reliably, stack support requires a later explicit multi-PR authority model.
+V5-0 deliberately excludes GitHub stacked pull requests from this normal path
+and requires the candidate to target `main`. Target-base and stack membership
+are **mutable modeled state**. A PR may PREPARE only while it targets `main`
+and is not stacked, but a retarget or stack mutation is explicitly allowed to
+occur after PREPARE or SUBMIT. `RemoteMergeLinearizeSuccess` then rechecks
+`MergeIntentStillEligible`; mutated topology disables SUCCESS and leaves only
+fail-closed cancellation/failure/reconciliation paths.
+
+This matters because GitHub's async endpoint can atomically merge every lower PR
+in a stack, while the V5 abstract transaction is intentionally single-PR.
+Normal future V5 Controller governance must therefore forbid stack
+creation/restructuring while V5 merge authority is active, and the concrete
+substrate must reliably observe target/stack state at the execution boundary.
+Owner-root manual mutation is outside the normal guarantee envelope. If normal
+path isolation or execution-time observation cannot be made reliable, the
+single-PR refinement fails and stack support requires a later explicit multi-PR
+authority model.
 
 SUBMIT is not linearization. GitHub rules are applied during background
 execution, so `RemoteMergeLinearizeSuccess` rechecks current merge eligibility.
-A newly-required unsatisfied epoch, governance drift, stale Gate/base or other
-current blocker cannot be bypassed solely because SUBMIT happened earlier.
+A newly-required unsatisfied epoch, governance drift, stale Gate/base, retarget,
+stack mutation or other current blocker cannot be bypassed solely because
+SUBMIT happened earlier.
 
 Only one current transaction exists. Current lifecycle state is cleared only
 after terminal observation/COMMIT; durable semantic history is separate.
-FAILURE/CANCEL adds durable failure history. A new attempt requires a distinct
-owner-authored retry token bound to exact PR, Head and Epoch. The token is
-consumed atomically by PREPARE; repeated failures require new token identities.
+FAILURE/CANCEL appends a terminal event carrying a monotonically increasing
+failure generation for that PR. A new attempt requires a distinct owner-authored
+retry token bound to exact PR, Head, Epoch **and the current failure
+generation**. The token is consumed atomically by PREPARE. If another
+FAILURE/CANCEL occurs, any unconsumed token from an earlier generation becomes
+stale and cannot authorize the newer attempt. Retry-token publication is
+disabled after `v5Retired`.
 
 The concrete async UUID is the transaction identity. If the initial 202/UUID
 response is lost, automatic PUT retry for 409/UUID recovery is permitted only
@@ -217,9 +241,10 @@ After that recovery window may have expired, an automatic PUT is forbidden:
 the Publisher remains fail-closed for human-root recovery. Unknown/404 is never
 coerced into FAILURE and never silently becomes a new merge attempt.
 
-Attack stack membership, stack mutation, UUID recovery, execution-time rules,
-exact-head semantics, retention, retry-token consumption and alternate merge
-paths.
+Attack target/stack mutation at every PREPARE -> SUBMIT -> remote-execution
+boundary, UUID recovery, execution-time rules, exact-head semantics, retention,
+retry-generation freshness, one-time token consumption, retirement closure and
+alternate merge paths.
 
 ### R6 — GovernanceEpoch
 
@@ -257,12 +282,36 @@ server-enforcement state is checked at the execution point.
 
 ### R8 — V4/V5 semantic boundary
 
-V4 -> V5 cut-over preserves legacy findings and rejected-head memory, but V5-0
-does not invent a translation for an already-open V4 TEST_REQUIRED request.
-Instead reconstruction exposes `LegacyCheckpointHeads`, and cut-over remains
-fail-closed until that set is empty. An unresolved V4 TEST_REQUIRED must resolve
-under V4 as PASS, FAIL or NOT_NEEDED before V5 positive authority or V4 guard
-removal can proceed.
+V4 -> V5 cut-over does **not** treat V4 authority as a static startup snapshot.
+The model keeps live V4 findings, rejected-head memory, unresolved checkpoint
+Heads, checkpoint workflows in flight and negative-authority workflows in
+flight.
+
+The intended cut-over sequence is:
+
+```text
+V4 producers active
+-> freeze creation of new decision-relevant V4 work
+-> drain already-started checkpoint/negative workflows
+-> resolve every outstanding TEST_REQUIRED under V4
+-> import final frozen V4 findings + rejected-head memory
+-> require/verify healthy V5 epoch(s)
+-> remove V4 guard
+```
+
+The freeze closes new V4 producer work but does not erase work already in
+flight. Such work may still publish durable authority and must drain before the
+final import. A V4 TEST_REQUIRED that exists or becomes visible before freeze
+must reach PASS, FAIL or NOT_NEEDED under V4; V5-0 deliberately does not invent
+a translated V5 checkpoint identity for it. `LegacyDataImported` compares
+against the **final frozen live V4 state**, and `RemoveV4Guard` requires
+producer freeze, drained in-flight work, no unresolved checkpoint and healthy
+required V5 governance.
+
+Attack both directions of the race: authority absent from an early observation
+but published by already-started V4 work before final import; and a pending
+checkpoint that blocks cut-over, later resolves, and allows migration to
+continue. Also attack premature re-opening of V4 producers before guard removal.
 
 Before V5 removal, V4-compatible durable state must contain:
 
@@ -276,12 +325,13 @@ resolving its findings. Once closed, its V5 review projection may be retired
 while the finding and terminal Head remain durable and are still projected to
 V4 before retirement.
 
-After `v5Retired = TRUE`, `PublisherStep` is closed and new V5 proposal
-publication is disabled. V5-only `AuthoritySeenHeads` positive/proposal replay
-memory no longer controls generic `HeadChange` or `RefreshBase`; restored V4
-rejected-head/checkpoint/trunk-health authority owns candidate eligibility. A
-late human PASS/FAIL that should affect V4 must be represented as V4 authority,
-not processed by the retired V5 Publisher.
+After `v5Retired = TRUE`, `PublisherStep` is closed, new V5 proposal
+publication is disabled, and retry-token publication is also disabled.
+V5-only `AuthoritySeenHeads` positive/proposal replay memory no longer
+controls generic `HeadChange` or `RefreshBase`; restored V4
+rejected-head/checkpoint/trunk-health authority owns candidate eligibility.
+A late human PASS/FAIL that should affect V4 must be represented as V4
+authority, not processed by the retired V5 Publisher.
 
 Finding downgrade remains conservative: candidate-specific dispositions do not
 globally retire findings that may apply to future Heads.
@@ -298,7 +348,10 @@ resistance are abstracted to identifiers and remain conformance obligations.
 - while V5 is required, Controllers have no independent normal merge-effect
   credential/path; owner-root manual override is outside the guarantee envelope;
 - the Publisher uses GitHub asynchronous `direct_merge` with exact SHA only
-  for a non-stacked PR in the normal V5 path;
+  for a PR that currently targets `main` and is non-stacked in the normal V5
+  path;
+- target-base and stack membership are observable again at remote execution,
+  and any change after PREPARE/SUBMIT prevents normal-path SUCCESS;
 - normal V5 Controller governance forbids stack creation/restructuring while
   V5 merge authority is active; owner-root stack mutation leaves the guarantee
   envelope;
@@ -309,7 +362,8 @@ resistance are abstracted to identifiers and remain conformance obligations.
   PUT is issued; unknown/expired UUID state is never converted into FAILURE or
   a new attempt and instead causes fail-closed human-root recovery;
 - each merge retry authorization is a durable unique owner-authored token bound
-  to PR/Head/Epoch and consumed by at most one PREPARE;
+  to PR/Head/Epoch/current-failure-generation and consumed by at most one
+  PREPARE; publication is closed after V5 retirement;
 - the Publisher can perform exact-head PR merge with its intended permissions;
 - a dedicated main-update exclusivity rule/ruleset grants the Protocol App only
   the bypass needed to update `main`, while required Gate/review/base-safety
@@ -329,6 +383,9 @@ resistance are abstracted to identifiers and remain conformance obligations.
 - exact-head merge and conditional-ref substrate behavior remain as empirically
   established;
 - V4 really interprets the downgrade projections used here;
+- V4 producer freeze can prevent new decision-relevant checkpoint/negative work
+  while allowing already-started work to drain to durable completion;
+- final V4 authority can be reconstructed after that drain without a TOCTOU gap;
 - the strict-base abstraction matches actual GitHub semantics for shared Heads.
 
 ## Critical design choices intentionally attackable
@@ -457,14 +514,21 @@ Re-run the prior NO_GO findings against the new exact SHA, including:
     occur without mis-ordering actual linearization?
 29. can lost async response/UUID-retention expiry ever be mistaken for
     authoritative FAILURE or trigger an unauthorized second PUT?
-30. can a stacked PR enter the V5 merge transaction, or can stack membership be
-    created/restructured inside the normal guarantee envelope?
-31. can an unresolved V4 TEST_REQUIRED disappear at V4 -> V5 cut-over?
+30. can a PR retarget away from `main` or acquire/change stack membership
+    after PREPARE or SUBMIT and still reach remote SUCCESS, including a
+    multi-PR stacked `direct_merge` effect?
+31. can V4 checkpoint/negative work start before producer freeze but publish
+    after an earlier observation, then disappear from the final V4 -> V5
+    import; and can unresolved TEST_REQUIRED block then later resolve without
+    deadlocking cut-over?
 32. after FAILURE/CANCEL, can a retry occur without a fresh durable token, can
-    one token authorize two PREPAREs, or can crash reconstruction forget whether
-    the token was consumed?
+    one token authorize two PREPAREs, can an unused sibling token from failure
+    generation N authorize after generation N+1, or can crash reconstruction
+    forget token consumption/generation?
 33. after `v5Retired`, can V5-only seen-head history still block ordinary V4
     HeadChange/RefreshBase?
+34. after `v5Retired`, can any V5 retry token still be published or otherwise
+    re-open V5 merge authority?
 
 Also search outside these known traces. A reviewer that only checks the listed
 fixes has not completed an adversarial review.
