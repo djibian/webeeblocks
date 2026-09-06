@@ -1320,6 +1320,8 @@ AuthorityUpgradeProjection ==
                   prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions,
+                  v4AuthorityFrozen, v4Findings, v4RejectedHeads,
+                  v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
