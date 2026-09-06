@@ -503,9 +503,12 @@ NoGuardGap ==
   \/ v4Guard
   \/ requiredEpochs # {}
 
-LegacyImportComplete ==
+LegacyDataImported ==
   /\ importedLegacy = LegacyFindings
   /\ importedLegacyRejectedHeads = LegacyRejectedHeads
+
+LegacyImportComplete ==
+  /\ LegacyDataImported
   /\ LegacyCheckpointHeads = {}
 
 DowngradeProjectionComplete ==
@@ -1120,7 +1123,7 @@ RemoveOldEpoch(old) ==
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 AuthorityUpgradeProjection ==
-  /\ ~LegacyImportComplete
+  /\ ~LegacyDataImported
   /\ importedLegacy' = LegacyFindings
   /\ importedLegacyRejectedHeads' = LegacyRejectedHeads
   /\ UNCHANGED << guaranteeActive,
