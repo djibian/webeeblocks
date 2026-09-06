@@ -59,6 +59,13 @@ verify that this focus still contains the full merge-wins -> late-negative ->
 trunk-block -> refreshed-next-candidate attack and does not encode any target
 invariant as a constraint.
 
+`MergeInFlight` likewise uses `MergeFlightNext`. It must preserve the exact
+reviewer attack E1 authorized -> SUBMIT -> E2 becomes required without E2
+SUCCESS -> attempted remote outcome, as well as post-SUBMIT E1 Gate expiry,
+governance drift/observability loss and an unrelated trusted NO_GO arriving on
+P2. The focus must not constrain `MergeAllowed`, required epochs, Gate state,
+manifest health, remote outcome, or the invariants under test.
+
 ## Safety versus liveness
 
 `SafetySpec`:
@@ -68,9 +75,9 @@ Init /\ [][Next]_vars
 ```
 
 is the default safety specification for the finite configs. `LateRefutation`
-uses the same `Init` and invariant set with `LateRefutationNext`, an explicit
-subset of `Next` containing only transitions relevant to its dedicated
-merge-wins late-refutation attack.
+and `MergeInFlight` use the same `Init` and invariant sets with respectively
+`LateRefutationNext` and `MergeFlightNext`, explicit subsets of `Next`
+containing only transitions relevant to their dedicated adversarial attacks.
 
 `Spec` additionally assumes:
 
