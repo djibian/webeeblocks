@@ -389,6 +389,38 @@ LateInitialPRHead ==
 LateInitialEpoch == "E1"
 LateFaultInjection == FALSE
 
+(*
+Focused transition relation for the late-refutation safety domain.
+
+This deliberately preserves the complete merge-wins attack:
+V5 bootstrap -> GO(H1) -> SUCCESS(H1) -> recoverable Publisher merge(P1) ->
+late NO_GO(H1) -> rejection linearization/trunk block -> refresh P2 to H3 ->
+GO(H3) -> attempted later Publisher merge.
+
+It excludes orthogonal governance drift, rollback, review mutation, duplicate,
+checkpoint and arbitrary HeadChange transitions that are exercised by their
+own finite domains.  It does not constrain trunkBlocked, MergeAllowed, merged,
+negative authority, or any invariant under test.
+*)
+LateRefutationNext ==
+  \/ \E p \in LateProposals : PublishProposal(p)
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ PublishSuccess("GO_H1", "E1", "H1")
+  \/ PrepareRejection("R_NO_H1")
+  \/ LinearizeNegative("R_NO_H1")
+  \/ CommitRejection("R_NO_H1")
+  \/ \E pr \in LatePRs : PreparePublisherMerge(pr)
+  \/ \E pr \in LatePRs : SubmitPublisherMerge(pr)
+  \/ \E pr \in LatePRs : CancelPreparedMerge(pr)
+  \/ \E pr \in LatePRs : RemoteMergeSuccess(pr)
+  \/ \E pr \in LatePRs : RemoteMergeFailure(pr)
+  \/ \E pr \in LatePRs : CommitPublisherMerge(pr)
+  \/ RefreshBase("P2", "H3")
+  \/ PublishSuccess("GO_H3", "E1", "H3")
+
 (***************************************************************************)
 (* CHECKPOINT: PASS -> SUCCESS -> HUMAN_FAIL must revoke monotonically.     *)
 (***************************************************************************)

@@ -347,7 +347,13 @@ modules with SANY, and model-checks thirteen focused finite safety domains:
   projection loss;
 - `PendingHead` — PREPARE remains head-blocking with `Applies = {}`;
 - `SharedHead` — two PRs sharing one Head cannot both merge on one base;
-- `LateRefutation` — merge-wins race produces trunk-health block;
+- `LateRefutation` — focused merge-wins race: bootstrap V5, authorize and
+  remotely merge H1 through the recoverable Publisher transaction, linearize a
+  late NO_GO(H1), refresh the second PR to H3, authorize H3 and challenge the
+  subsequent merge barrier. Its scenario-specific `LateRefutationNext`
+  excludes orthogonal governance/rollback/review/duplicate/checkpoint actions
+  already covered by other domains; it does not constrain `trunkBlocked`,
+  `MergeAllowed`, merged state or negative authority;
 - `Checkpoint` — human PASS/FAIL negative monotonicity;
 - `Migration` — V4/V5 authority projection and rollback;
 - `MergeInFlight` — submitted remote merge ambiguity cannot be overtaken by

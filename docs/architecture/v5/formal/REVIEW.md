@@ -51,6 +51,13 @@ thirteen focused finite safety domains.
 A green bounded run is evidence only, never proof of liveness or GitHub
 refinement.
 
+`LateRefutation` uses a scenario-specific `LateRefutationNext` transition
+relation to avoid cross-product explosion from governance, rollback, review,
+duplicate and checkpoint actions that are covered independently. Reviewers must
+verify that this focus still contains the full merge-wins -> late-negative ->
+trunk-block -> refreshed-next-candidate attack and does not encode any target
+invariant as a constraint.
+
 ## Safety versus liveness
 
 `SafetySpec`:
@@ -59,7 +66,10 @@ refinement.
 Init /\ [][Next]_vars
 ```
 
-is what the finite configs model-check.
+is the default safety specification for the finite configs. `LateRefutation`
+uses the same `Init` and invariant set with `LateRefutationNext`, an explicit
+subset of `Next` containing only transitions relevant to its dedicated
+merge-wins late-refutation attack.
 
 `Spec` additionally assumes:
 
