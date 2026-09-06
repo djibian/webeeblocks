@@ -1199,7 +1199,7 @@ ResumeV4AuthorityProducers ==
                   importedLegacy, importedLegacyRejectedHeads, v4Findings, v4RejectedHeads,
                   v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
-                  manifestObservable, manifestMatches, bootstrapped, operationalEpochs,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
                   retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
                   v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
                   poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
@@ -1491,7 +1491,7 @@ BaseAdvance ==
   /\ baseFresh' =
        [pr \in PRs |-> IF pr \in prOpen THEN FALSE ELSE baseFresh[pr]]
   /\ UNCHANGED << guaranteeActive,
-                  prOpen, prHead, merged, mergeHead,
+                  prOpen, prHead, prTargetsMain, prStacked, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint,
@@ -1512,7 +1512,7 @@ RefreshBase(pr,h) ==
   /\ prHead' = [prHead EXCEPT ![pr] = h]
   /\ baseFresh' = [baseFresh EXCEPT ![pr] = TRUE]
   /\ UNCHANGED << guaranteeActive,
-                  prOpen, merged, mergeHead,
+                  prOpen, prTargetsMain, prStacked, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint,
@@ -1605,7 +1605,7 @@ MergeEffect(pr) ==
          /\ baseFresh' =
               [q \in PRs |-> IF q \in remaining THEN FALSE ELSE baseFresh[q]]
   /\ UNCHANGED << guaranteeActive,
-                  prHead,
+                  prHead, prTargetsMain, prStacked,
                   proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint,
@@ -1701,7 +1701,7 @@ RemoteMergeLinearizeSuccess(pr) ==
          /\ mergeExecutionRequiredEpochs' = [mergeExecutionRequiredEpochs EXCEPT ![pr] = requiredEpochs]
          /\ mergeExecutionSatisfiedEpochs' = [mergeExecutionSatisfiedEpochs EXCEPT ![pr] = satisfied]
   /\ mergeRemoteSucceeded' = mergeRemoteSucceeded \cup {pr}
-  /\ UNCHANGED << guaranteeActive, prHead, trunkBlocked, proposalPresent, proposalCorrupt,
+  /\ UNCHANGED << guaranteeActive, prHead, prTargetsMain, prStacked, trunkBlocked, proposalPresent, proposalCorrupt,
                   prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint, gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews,
                   corruptedReviews, manifestObservable, manifestMatches, bootstrapped, requiredEpochs,
