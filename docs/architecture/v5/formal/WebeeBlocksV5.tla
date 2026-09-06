@@ -167,7 +167,7 @@ VARIABLES
 
 vars ==
   << guaranteeActive,
-     prOpen, prHead, baseFresh, prTargetsMain, prStacked, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+     prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
      mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed,
      mergeObservedSucceeded, mergeObservedFailed,
      mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
@@ -1168,10 +1168,154 @@ RemoveOldEpoch(old) ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
+FreezeV4AuthorityProducers ==
+  /\ v4Guard
+  /\ ~v4AuthorityFrozen
+  /\ v4AuthorityFrozen' = TRUE
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4Findings, v4RejectedHeads,
+                  v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+ResumeV4AuthorityProducers ==
+  /\ v4Guard
+  /\ v4AuthorityFrozen
+  /\ requiredEpochs = {}
+  /\ MergeTransactionIdle
+  /\ v4AuthorityFrozen' = FALSE
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4Findings, v4RejectedHeads,
+                  v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+StartV4Checkpoint(h) ==
+  /\ v4Guard
+  /\ ~v4AuthorityFrozen
+  /\ h \in Heads
+  /\ h \notin (v4CheckpointHeads \cup v4CheckpointInFlight)
+  /\ v4CheckpointInFlight' = v4CheckpointInFlight \cup {h}
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+PublishV4Checkpoint(h) ==
+  /\ v4Guard
+  /\ h \in v4CheckpointInFlight
+  /\ v4CheckpointInFlight' = v4CheckpointInFlight \ {h}
+  /\ v4CheckpointHeads' = v4CheckpointHeads \cup {h}
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+ResolveV4Checkpoint(h) ==
+  /\ v4Guard
+  /\ h \in v4CheckpointHeads
+  /\ v4CheckpointHeads' = v4CheckpointHeads \ {h}
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+StartV4Negative(r) ==
+  /\ v4Guard
+  /\ ~v4AuthorityFrozen
+  /\ r \in Rejections \ v4NegativeInFlight
+  /\ v4NegativeInFlight' = v4NegativeInFlight \cup {r}
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+PublishV4Negative(r) ==
+  /\ v4Guard
+  /\ r \in v4NegativeInFlight
+  /\ v4NegativeInFlight' = v4NegativeInFlight \ {r}
+  /\ v4Findings' = v4Findings \cup RejectionFindings[r]
+  /\ v4RejectedHeads' = v4RejectedHeads \cup {RejectionHead[r]}
+  /\ UNCHANGED << guaranteeActive,
+                  prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4CheckpointHeads,
+                  v4CheckpointInFlight, checkpoint, gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
+                  activeReviews, corruptedReviews, manifestObservable, manifestMatches, bootstrapped,
+                  requiredEpochs, operationalEpochs, retiredEpochs, activeEpoch, v4Verified, v5Retired,
+                  v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit,
+                  authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked,
+                  mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed,
+                  mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted,
+                  mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed,
+                  mergeFailureGeneration, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs,
+                  mergeIntentHead, mergeIntentEpoch >>
+
 AuthorityUpgradeProjection ==
+  /\ v4AuthorityFrozen
+  /\ V4AuthorityDrained
+  /\ v4CheckpointHeads = {}
   /\ ~LegacyDataImported
-  /\ importedLegacy' = LegacyFindings
-  /\ importedLegacyRejectedHeads' = LegacyRejectedHeads
+  /\ importedLegacy' = v4Findings
+  /\ importedLegacyRejectedHeads' = v4RejectedHeads
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
@@ -1277,10 +1421,11 @@ RemoveV5Requirements ==
   /\ DowngradeProjectionComplete
   /\ requiredEpochs' = {}
   /\ v5Retired' = TRUE
+  /\ v4AuthorityFrozen' = FALSE
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead,
                   proposalPresent, proposalCorrupt,
-                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
+                  prepared, linearized, committed, dispositions, importedLegacy, importedLegacyRejectedHeads, v4Findings, v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight,
                   checkpoint,
                   gateSuccess, gateFailure, gateFresh, gateCount, poisoned,
                   activeReviews, corruptedReviews,
@@ -1378,6 +1523,78 @@ RefreshBase(pr,h) ==
                   v4Guard, v4Verified, v5Retired, v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints,
                   positiveAudit, authorityFindingHistory, poisonPrepared, poisonCommitted, trunkBlocked, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
+RetargetAwayFromMain(pr) ==
+  /\ pr \in prOpen \cap prTargetsMain
+  /\ prTargetsMain' = prTargetsMain \ {pr}
+  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+RetargetToMain(pr) ==
+  /\ pr \in prOpen \ (PRs \ prTargetsMain)
+  /\ prTargetsMain' = prTargetsMain \cup {pr}
+  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prStacked, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+StackPR(pr) ==
+  /\ pr \in prOpen \ (PRs \ prStacked)
+  /\ prStacked' = prStacked \cup {pr}
+  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prTargetsMain, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
+UnstackPR(pr) ==
+  /\ pr \in prOpen \cap prStacked
+  /\ prStacked' = prStacked \ {pr}
+  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prTargetsMain, merged, mergeHead, trunkBlocked,
+                  proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
+                  importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
+                  v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
+                  gateSuccess, gateFailure, gateFresh, gateCount, poisoned, activeReviews, corruptedReviews,
+                  manifestObservable, manifestMatches, bootstrapped, requiredEpochs, operationalEpochs,
+                  retiredEpochs, activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
+                  v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared, mergeSubmitted,
+                  mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent,
+                  retryTokenConsumed, mergeFailureGeneration, mergeExecutionRequiredEpochs,
+                  mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
+
 MergeEffect(pr) ==
   /\ MergeAllowed(pr)
   /\ LET h == prHead[pr]
@@ -1403,7 +1620,8 @@ PreparePublisherMerge(pr) ==
   /\ ~v5Retired
   /\ requiredEpochs # {}
   /\ MergeTransactionIdle
-  /\ pr \notin StackedPRs
+  /\ pr \notin prStacked
+  /\ pr \in prTargetsMain
   /\ MergeAllowed(pr)
   /\ IF pr \in mergeRetryBlocked
         THEN \E t \in AvailableRetryTokens(pr) :
@@ -1427,7 +1645,8 @@ PreparePublisherMerge(pr) ==
 
 MergeIntentStillEligible(pr) ==
   /\ pr \in prOpen
-  /\ pr \notin StackedPRs
+  /\ pr \notin prStacked
+  /\ pr \in prTargetsMain
   /\ prHead[pr] = mergeIntentHead[pr]
   /\ activeEpoch = mergeIntentEpoch[pr]
   /\ MergeAllowed(pr)
@@ -1547,9 +1766,18 @@ CommitPublisherMerge(pr) ==
   /\ LET outcome == IF pr \in mergeCancelled THEN "CANCEL"
                     ELSE IF pr \in mergeObservedSucceeded THEN "SUCCESS"
                     ELSE "FAILURE"
-         event == <<pr, mergeIntentHead[pr], mergeIntentEpoch[pr], outcome>>
+         nextGeneration ==
+           IF outcome \in {"FAILURE","CANCEL"}
+           THEN mergeFailureGeneration[pr] + 1
+           ELSE mergeFailureGeneration[pr]
+         event == <<pr, mergeIntentHead[pr], mergeIntentEpoch[pr], nextGeneration, outcome>>
      IN  /\ mergeHistory' = mergeHistory \cup {event}
-         /\ mergeRetryBlocked' = IF outcome \in {"FAILURE","CANCEL"} THEN mergeRetryBlocked \cup {pr} ELSE mergeRetryBlocked
+         /\ mergeRetryBlocked' =
+              IF outcome \in {"FAILURE","CANCEL"}
+              THEN mergeRetryBlocked \cup {pr}
+              ELSE mergeRetryBlocked
+         /\ mergeFailureGeneration' =
+              [mergeFailureGeneration EXCEPT ![pr] = nextGeneration]
   /\ mergeCommitted' = mergeCommitted \cup {pr}
   /\ mergePrepared' = mergePrepared \ {pr}
   /\ mergeSubmitted' = mergeSubmitted \ {pr}
@@ -1572,12 +1800,16 @@ CommitPublisherMerge(pr) ==
                   mergeIntentHead, mergeIntentEpoch >>
 
 PublishRetryAuthorization(t) ==
+  /\ ~v5Retired
+  /\ requiredEpochs # {}
+  /\ MergeTransactionIdle
   /\ t \in RetryTokens \ retryTokenPresent
   /\ RetryTokenActor[t] = Owner
   /\ RetryTokenPR[t] \in prOpen
   /\ RetryTokenPR[t] \in mergeRetryBlocked
   /\ RetryTokenHead[t] = prHead[RetryTokenPR[t]]
   /\ RetryTokenEpoch[t] = activeEpoch
+  /\ RetryTokenGeneration[t] = mergeFailureGeneration[RetryTokenPR[t]]
   /\ retryTokenPresent' = retryTokenPresent \cup {t}
   /\ UNCHANGED << guaranteeActive,
                   prOpen, prHead, baseFresh, prTargetsMain, prStacked, merged, mergeHead, trunkBlocked,
@@ -1670,11 +1902,22 @@ EnvironmentStep ==
   \/ \E e \in Epochs : VerifyEpoch(e)
   \/ \E e \in Epochs : AdvanceEpoch(e)
   \/ \E e \in Epochs : RemoveOldEpoch(e)
+  \/ FreezeV4AuthorityProducers
+  \/ ResumeV4AuthorityProducers
+  \/ \E h \in Heads : StartV4Checkpoint(h)
+  \/ \E h \in Heads : PublishV4Checkpoint(h)
+  \/ \E h \in Heads : ResolveV4Checkpoint(h)
+  \/ \E r \in Rejections : StartV4Negative(r)
+  \/ \E r \in Rejections : PublishV4Negative(r)
   \/ RemoveV4Guard
   \/ RestoreV4Guard
   \/ VerifyV4
   \/ RemoveV5Requirements
   \/ \E pr \in PRs, h \in Heads : HeadChange(pr,h)
+  \/ \E pr \in PRs : RetargetAwayFromMain(pr)
+  \/ \E pr \in PRs : RetargetToMain(pr)
+  \/ \E pr \in PRs : StackPR(pr)
+  \/ \E pr \in PRs : UnstackPR(pr)
   \/ BaseAdvance
   \/ \E pr \in PRs, h \in Heads : RefreshBase(pr,h)
   \/ \E pr \in PRs : V4MergePR(pr)
@@ -1859,12 +2102,35 @@ Inv_ConsumedRetryIsTrusted ==
     /\ RetryTokenActor[t] = Owner
     /\ t \in retryTokenPresent
 
+Inv_RetryGenerationIsRecorded ==
+  \A pr \in PRs :
+    \/ mergeFailureGeneration[pr] = 0
+    \/ \E x \in mergeHistory :
+         /\ x[1] = pr
+         /\ x[4] = mergeFailureGeneration[pr]
+         /\ x[5] \in {"FAILURE","CANCEL"}
+
+Inv_StaleRetryTokenCannotAuthorize ==
+  \A t \in retryTokenPresent \ retryTokenConsumed :
+    RetryTokenGeneration[t] # mergeFailureGeneration[RetryTokenPR[t]] =>
+      t \notin AvailableRetryTokens(RetryTokenPR[t])
+
+Inv_V5RetiredClosesRetryAuthorization ==
+  v5Retired =>
+    \A t \in RetryTokens : ~ENABLED PublishRetryAuthorization(t)
+
 Inv_V5PrepareExcludesStacks ==
-  mergePrepared \cap StackedPRs = {}
+  mergePrepared \cap prStacked = {}
+
+Inv_V5PreparedTargetsMain ==
+  mergePrepared \subseteq prTargetsMain
 
 Inv_V5MergeExcludesStacks ==
   \A pr \in mergeRemoteSucceeded :
-    pr \notin StackedPRs
+    pr \notin prStacked
+
+Inv_V5RemoteSuccessTargetsMain ==
+  mergeRemoteSucceeded \subseteq prTargetsMain
 
 Inv_PositiveSuccessRequiresEpochCheckpoint ==
   \A e \in Epochs, h \in Heads :
@@ -1876,9 +2142,15 @@ Inv_ExternalEvidenceDoesNotReserveCandidate ==
   ExternalOnlyProposalHeads \cap AuthoritySeenHeads = {}
 
 Inv_LegacyCheckpointBlocksCutover ==
-  LegacyCheckpointHeads # {} =>
+  (v4CheckpointHeads # {} \/ ~V4AuthorityDrained \/ ~v4AuthorityFrozen) =>
     /\ ~LegacyImportComplete
     /\ ~ENABLED RemoveV4Guard
+
+Inv_V4CutoverImportIsQuiescent ==
+  LegacyDataImported =>
+    /\ v4AuthorityFrozen
+    /\ V4AuthorityDrained
+    /\ v4CheckpointHeads = {}
 
 Inv_RetiredV5DoesNotReserveCandidateMove ==
   v5Retired =>
