@@ -1528,8 +1528,7 @@ RefreshBase(pr,h) ==
 RetargetAwayFromMain(pr) ==
   /\ pr \in prOpen \cap prTargetsMain
   /\ prTargetsMain' = prTargetsMain \ {pr}
-  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
-  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prStacked, merged, mergeHead, trunkBlocked,
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, prStacked, merged, mergeHead, trunkBlocked,
                   proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
                   importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
                   v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
@@ -1546,8 +1545,7 @@ RetargetAwayFromMain(pr) ==
 RetargetToMain(pr) ==
   /\ pr \in prOpen \ (PRs \ prTargetsMain)
   /\ prTargetsMain' = prTargetsMain \cup {pr}
-  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
-  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prStacked, merged, mergeHead, trunkBlocked,
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, prStacked, merged, mergeHead, trunkBlocked,
                   proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
                   importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
                   v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
@@ -1564,8 +1562,7 @@ RetargetToMain(pr) ==
 StackPR(pr) ==
   /\ pr \in prOpen \ (PRs \ prStacked)
   /\ prStacked' = prStacked \cup {pr}
-  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
-  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prTargetsMain, merged, mergeHead, trunkBlocked,
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, prTargetsMain, merged, mergeHead, trunkBlocked,
                   proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
                   importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
                   v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
@@ -1582,8 +1579,7 @@ StackPR(pr) ==
 UnstackPR(pr) ==
   /\ pr \in prOpen \cap prStacked
   /\ prStacked' = prStacked \ {pr}
-  /\ baseFresh' = [baseFresh EXCEPT ![pr] = FALSE]
-  /\ UNCHANGED << guaranteeActive, prOpen, prHead, prTargetsMain, merged, mergeHead, trunkBlocked,
+  /\ UNCHANGED << guaranteeActive, prOpen, prHead, baseFresh, prTargetsMain, merged, mergeHead, trunkBlocked,
                   proposalPresent, proposalCorrupt, prepared, linearized, committed, dispositions,
                   importedLegacy, importedLegacyRejectedHeads, v4AuthorityFrozen, v4Findings,
                   v4RejectedHeads, v4CheckpointHeads, v4CheckpointInFlight, v4NegativeInFlight, checkpoint,
@@ -1826,7 +1822,7 @@ PublishRetryAuthorization(t) ==
                   poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked,
                   mergePrepared, mergeSubmitted, mergeRemoteSucceeded, mergeRemoteFailed,
                   mergeObservedSucceeded, mergeObservedFailed, mergeCancelled, mergeCommitted,
-                  mergeHistory, mergeRetryBlocked, retryTokenConsumed,
+                  mergeHistory, mergeRetryBlocked, retryTokenConsumed, mergeFailureGeneration,
                   mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs,
                   mergeIntentHead, mergeIntentEpoch >>
 
@@ -2122,10 +2118,12 @@ Inv_V5RetiredClosesRetryAuthorization ==
     \A t \in RetryTokens : ~ENABLED PublishRetryAuthorization(t)
 
 Inv_V5PrepareExcludesStacks ==
-  mergePrepared \cap prStacked = {}
+  \A pr \in mergePrepared \cap prStacked :
+    ~MergeIntentStillEligible(pr)
 
 Inv_V5PreparedTargetsMain ==
-  mergePrepared \subseteq prTargetsMain
+  \A pr \in mergePrepared \ (prTargetsMain) :
+    ~MergeIntentStillEligible(pr)
 
 Inv_V5MergeExcludesStacks ==
   \A pr \in mergeRemoteSucceeded :
