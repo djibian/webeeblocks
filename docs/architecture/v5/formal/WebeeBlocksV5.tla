@@ -1377,7 +1377,7 @@ PreparePublisherMerge(pr) ==
                   v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
                   poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeSubmitted,
                   mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
-                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked >>
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent >>
 
 MergeIntentStillEligible(pr) ==
   /\ pr \in prOpen
@@ -1400,7 +1400,7 @@ SubmitPublisherMerge(pr) ==
                   v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
                   poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergePrepared,
                   mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
-                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed,
                   mergeExecutionRequiredEpochs, mergeExecutionSatisfiedEpochs, mergeIntentHead, mergeIntentEpoch >>
 
 CancelPreparedMerge(pr) ==
@@ -1444,7 +1444,7 @@ RemoteMergeLinearizeSuccess(pr) ==
                   v4ProjectedFindings, v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit,
                   authorityFindingHistory, poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked,
                   mergePrepared, mergeSubmitted, mergeRemoteFailed, mergeObservedSucceeded,
-                  mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked,
+                  mergeObservedFailed, mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, retryTokenConsumed,
                   mergeIntentHead, mergeIntentEpoch >>
 
 RemoteMergeLinearizeFailure(pr) ==
