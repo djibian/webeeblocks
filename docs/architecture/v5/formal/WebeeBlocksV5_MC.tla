@@ -11,6 +11,14 @@ Strings are used deliberately to keep counterexample traces readable.
 MCOwner == "OWNER"
 MCExternalActor == "EXTERNAL"
 
+MCNoLegacyCheckpointHeads == {}
+MCNoStackedPRs == {}
+MCNoRetryTokens == {}
+MCNoRetryTokenActor == [t \in MCNoRetryTokens |-> MCOwner]
+MCNoRetryTokenPR == [t \in MCNoRetryTokens |-> "P1"]
+MCNoRetryTokenHead == [t \in MCNoRetryTokens |-> "H1"]
+MCNoRetryTokenEpoch == [t \in MCNoRetryTokens |-> "E1"]
+
 (***************************************************************************)
 (* ORDERING: one epoch, GO/NO_GO race, repair requires a new head.         *)
 (***************************************************************************)
@@ -668,6 +676,11 @@ MergeRetryRejectionFindings == [r \in MergeRetryRejections |-> {"F1"}]
 MergeRetryApplies == {}
 MergeRetryLegacyFindings == {}
 MergeRetryLegacyRejectedHeads == {}
+MergeRetryRetryTokens == {"T1", "T2"}
+MergeRetryRetryTokenActor == [t \in MergeRetryRetryTokens |-> MCOwner]
+MergeRetryRetryTokenPR == [t \in MergeRetryRetryTokens |-> "P1"]
+MergeRetryRetryTokenHead == [t \in MergeRetryRetryTokens |-> "H2"]
+MergeRetryRetryTokenEpoch == [t \in MergeRetryRetryTokens |-> "E1"]
 MergeRetryCheckpointHeads == {}
 MergeRetryInitialPRs == {"P1"}
 MergeRetryInitialPRHead == [p \in MergeRetryPRs |-> "H1"]
@@ -690,7 +703,129 @@ MergeRetryNext ==
   \/ ObserveRemoteMergeSuccess("P1")
   \/ ObserveRemoteMergeFailure("P1")
   \/ CommitPublisherMerge("P1")
-  \/ AuthorizeMergeRetry("P1")
+  \/ PublishRetryAuthorization("T1")
+  \/ PublishRetryAuthorization("T2")
+  \/ HeadChange("P1", "H2")
+
+(***************************************************************************)
+(* STACK EXCLUSION: normal V5 async merge is single-PR only.                *)
+(***************************************************************************)
+
+StackExclusionEpochs == {"E1"}
+StackExclusionHeads == {"H1"}
+StackExclusionPRs == {"P1"}
+StackExclusionProposals == {"GO_H1", "NO_H1"}
+StackExclusionRejections == {"R_NO_H1"}
+StackExclusionFindings == {"F1"}
+StackExclusionProposalActor == [p \in StackExclusionProposals |-> MCOwner]
+StackExclusionProposalKind == [p \in StackExclusionProposals |-> IF p = "GO_H1" THEN "GO" ELSE "NO_GO"]
+StackExclusionProposalHead == [p \in StackExclusionProposals |-> "H1"]
+StackExclusionProposalFinding == [p \in StackExclusionProposals |-> "F1"]
+StackExclusionProposalEpoch == [p \in StackExclusionProposals |-> "E1"]
+StackExclusionRejectionProposal == [r \in StackExclusionRejections |-> "NO_H1"]
+StackExclusionRejectionEpoch == [r \in StackExclusionRejections |-> "E1"]
+StackExclusionRejectionHead == [r \in StackExclusionRejections |-> "H1"]
+StackExclusionRejectionPR == [r \in StackExclusionRejections |-> "P1"]
+StackExclusionRejectionFindings == [r \in StackExclusionRejections |-> {"F1"}]
+StackExclusionApplies == {}
+StackExclusionLegacyFindings == {}
+StackExclusionLegacyRejectedHeads == {}
+StackExclusionLegacyCheckpointHeads == {}
+StackExclusionStackedPRs == {"P1"}
+StackExclusionCheckpointHeads == {}
+StackExclusionInitialPRs == {"P1"}
+StackExclusionInitialPRHead == [p \in StackExclusionPRs |-> "H1"]
+StackExclusionInitialEpoch == "E1"
+StackExclusionFaultInjection == FALSE
+
+StackExclusionNext ==
+  \/ AuthorityUpgradeProjection
+  \/ PublishProposal("GO_H1")
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ PublishSuccess("GO_H1", "E1", "H1")
+  \/ PreparePublisherMerge("P1")
+
+(***************************************************************************)
+(* LEGACY CHECKPOINT CUTOVER: unresolved V4 TEST_REQUIRED blocks V5.       *)
+(***************************************************************************)
+
+LegacyCheckpointEpochs == {"E1"}
+LegacyCheckpointHeadsSet == {"H1"}
+LegacyCheckpointPRs == {"P1"}
+LegacyCheckpointProposals == {"GO_H1", "NO_H1"}
+LegacyCheckpointRejections == {"R_NO_H1"}
+LegacyCheckpointFindings == {"F1"}
+LegacyCheckpointProposalActor == [p \in LegacyCheckpointProposals |-> MCOwner]
+LegacyCheckpointProposalKind == [p \in LegacyCheckpointProposals |-> IF p = "GO_H1" THEN "GO" ELSE "NO_GO"]
+LegacyCheckpointProposalHead == [p \in LegacyCheckpointProposals |-> "H1"]
+LegacyCheckpointProposalFinding == [p \in LegacyCheckpointProposals |-> "F1"]
+LegacyCheckpointProposalEpoch == [p \in LegacyCheckpointProposals |-> "E1"]
+LegacyCheckpointRejectionProposal == [r \in LegacyCheckpointRejections |-> "NO_H1"]
+LegacyCheckpointRejectionEpoch == [r \in LegacyCheckpointRejections |-> "E1"]
+LegacyCheckpointRejectionHead == [r \in LegacyCheckpointRejections |-> "H1"]
+LegacyCheckpointRejectionPR == [r \in LegacyCheckpointRejections |-> "P1"]
+LegacyCheckpointRejectionFindings == [r \in LegacyCheckpointRejections |-> {"F1"}]
+LegacyCheckpointApplies == {}
+LegacyCheckpointLegacyFindings == {}
+LegacyCheckpointLegacyRejectedHeads == {}
+LegacyCheckpointLegacyCheckpointHeads == {"H1"}
+LegacyCheckpointCheckpointHeads == {"H1"}
+LegacyCheckpointInitialPRs == {"P1"}
+LegacyCheckpointInitialPRHead == [p \in LegacyCheckpointPRs |-> "H1"]
+LegacyCheckpointInitialEpoch == "E1"
+LegacyCheckpointFaultInjection == FALSE
+
+LegacyCheckpointNext ==
+  \/ AuthorityUpgradeProjection
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ PublishProposal("GO_H1")
+  \/ PublishSuccess("GO_H1", "E1", "H1")
+  \/ RemoveV4Guard
+
+(***************************************************************************)
+(* RETIRED REPLAY: V5-only seen-head memory cannot govern restored V4.      *)
+(***************************************************************************)
+
+RetiredReplayEpochs == {"E1"}
+RetiredReplayHeads == {"H1", "H2"}
+RetiredReplayPRs == {"P1"}
+RetiredReplayProposals == {"GO_H2", "NO_H1"}
+RetiredReplayRejections == {"R_NO_H1"}
+RetiredReplayFindings == {"F1"}
+RetiredReplayProposalActor == [p \in RetiredReplayProposals |-> MCOwner]
+RetiredReplayProposalKind == [p \in RetiredReplayProposals |-> IF p = "GO_H2" THEN "GO" ELSE "NO_GO"]
+RetiredReplayProposalHead == [p \in RetiredReplayProposals |-> IF p = "GO_H2" THEN "H2" ELSE "H1"]
+RetiredReplayProposalFinding == [p \in RetiredReplayProposals |-> "F1"]
+RetiredReplayProposalEpoch == [p \in RetiredReplayProposals |-> "E1"]
+RetiredReplayRejectionProposal == [r \in RetiredReplayRejections |-> "NO_H1"]
+RetiredReplayRejectionEpoch == [r \in RetiredReplayRejections |-> "E1"]
+RetiredReplayRejectionHead == [r \in RetiredReplayRejections |-> "H1"]
+RetiredReplayRejectionPR == [r \in RetiredReplayRejections |-> "P1"]
+RetiredReplayRejectionFindings == [r \in RetiredReplayRejections |-> {"F1"}]
+RetiredReplayApplies == {}
+RetiredReplayLegacyFindings == {}
+RetiredReplayLegacyRejectedHeads == {}
+RetiredReplayLegacyCheckpointHeads == {}
+RetiredReplayCheckpointHeads == {}
+RetiredReplayInitialPRs == {"P1"}
+RetiredReplayInitialPRHead == [p \in RetiredReplayPRs |-> "H1"]
+RetiredReplayInitialEpoch == "E1"
+RetiredReplayFaultInjection == FALSE
+
+RetiredReplayNext ==
+  \/ AuthorityUpgradeProjection
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ PublishProposal("GO_H2")
+  \/ RemoveV5Requirements
   \/ HeadChange("P1", "H2")
 
 (***************************************************************************)
