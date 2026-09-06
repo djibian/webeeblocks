@@ -676,10 +676,10 @@ MergeRetryRejectionFindings == [r \in MergeRetryRejections |-> {"F1"}]
 MergeRetryApplies == {}
 MergeRetryLegacyFindings == {}
 MergeRetryLegacyRejectedHeads == {}
-MergeRetryRetryTokens == {"T1", "T2"}
+MergeRetryRetryTokens == {"T1", "T2", "T3"}
 MergeRetryRetryTokenActor == [t \in MergeRetryRetryTokens |-> MCOwner]
 MergeRetryRetryTokenPR == [t \in MergeRetryRetryTokens |-> "P1"]
-MergeRetryRetryTokenHead == [t \in MergeRetryRetryTokens |-> "H2"]
+MergeRetryRetryTokenHead == [t \in MergeRetryRetryTokens |-> IF t = "T3" THEN "H2" ELSE "H1"]
 MergeRetryRetryTokenEpoch == [t \in MergeRetryRetryTokens |-> "E1"]
 MergeRetryCheckpointHeads == {}
 MergeRetryInitialPRs == {"P1"}
@@ -705,6 +705,7 @@ MergeRetryNext ==
   \/ CommitPublisherMerge("P1")
   \/ PublishRetryAuthorization("T1")
   \/ PublishRetryAuthorization("T2")
+  \/ PublishRetryAuthorization("T3")
   \/ HeadChange("P1", "H2")
 
 (***************************************************************************)
