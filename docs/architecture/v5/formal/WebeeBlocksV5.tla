@@ -1521,7 +1521,9 @@ CommitPublisherMerge(pr) ==
                   manifestMatches, bootstrapped, requiredEpochs, operationalEpochs, retiredEpochs,
                   activeEpoch, v4Guard, v4Verified, v5Retired, v4ProjectedFindings,
                   v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
-                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeIntentHead, mergeIntentEpoch >>
+                  poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked,
+                  retryTokenPresent, retryTokenConsumed,
+                  mergeIntentHead, mergeIntentEpoch >>
 
 PublishRetryAuthorization(t) ==
   /\ t \in RetryTokens \ retryTokenPresent
