@@ -22,13 +22,17 @@ While at least one V5 epoch is required, normal integration is a recoverable
 Publisher transaction around GitHub's asynchronous `direct_merge` primitive.
 Controllers may propose integration, but they do not issue the merge effect.
 
-V5-0 deliberately keeps that transaction **single-PR**. Pull requests that
-belong to a GitHub stack are outside the normal V5 merge envelope and cannot
-enter `mergePrepared`. Future V5 governance must prohibit normal Controller
-stack creation/restructuring while V5 merge authority is active; owner-root
-manual mutation remains outside the normal guarantee envelope. This is a
-deliberate compression choice: V5-0 does not model multi-PR atomic stack
-authority.
+V5-0 deliberately keeps that transaction **single-PR**. A candidate may
+enter `mergePrepared` only while it targets `main` and is not a member of a
+GitHub stack. Target-base and stack membership are modeled as mutable repository
+state, not frozen constants. A retarget or stack mutation after PREPARE/SUBMIT
+therefore remains an admissible environment race; it invalidates
+`MergeIntentStillEligible` and prevents modeled remote SUCCESS. Future V5
+governance must prohibit normal Controller stack creation/restructuring while
+V5 merge authority is active, and the concrete substrate must detect target/
+stack mutation at the execution boundary. Owner-root manual mutation remains
+outside the normal guarantee envelope. This is a deliberate compression choice:
+V5-0 does not model multi-PR atomic stack authority.
 
 The lifecycle is:
 
@@ -50,12 +54,15 @@ The world state may contain the remote result before Publisher observation.
 The outstanding barrier remains until observation and COMMIT, so later
 Publisher negative authority cannot overtake an unresolved operation.
 
-FAILURE/CANCEL writes immutable semantic history, clears current lifecycle
-state and leaves the PR in durable `mergeRetryBlocked` history. Automatic
-retry is disabled. A later retry requires a fresh owner-authored durable retry
-token bound to the exact PR, current Head and active Epoch. That unique token
-is consumed atomically by the next PREPARE and cannot authorize another
-attempt.
+FAILURE/CANCEL writes immutable semantic history, increments the durable
+terminal-attempt generation for that PR, clears current lifecycle state and
+leaves the PR in durable `mergeRetryBlocked` history. Automatic retry is
+disabled. A later retry requires a fresh owner-authored durable retry token
+bound to the exact PR, current Head, active Epoch **and current failure
+generation**. That unique token is consumed atomically by the next PREPARE and
+cannot authorize another attempt. If another FAILURE/CANCEL occurs, every
+unconsumed token from an earlier generation is stale and cannot authorize the
+new attempt.
 
 Strict-base freshness and exact-head replay prevention remain unchanged.
 
@@ -240,21 +247,43 @@ the exact same Head; this remains a GitHub refinement obligation.
 
 ## P14 — V4 -> V5 semantic upgrade
 
-V4 guard cannot be removed until:
+V4 authority is modeled as **live state during migration**, not as a single
+startup snapshot. The cut-over protocol is:
 
-- all legacy findings are imported;
-- all legacy rejected-head memory is imported;
-- reconstruction establishes **no unresolved decision-relevant V4
-  TEST_REQUIRED** remains;
+```text
+V4 producers active
+-> freeze creation of new decision-relevant V4 authority work
+-> drain already-started V4 checkpoint/negative workflows
+-> resolve every outstanding V4 TEST_REQUIRED
+-> import the final frozen V4 findings + rejected-head memory
+-> require/verify healthy V5 epoch(s)
+-> remove the V4 guard
+```
+
+Accordingly, V4 guard removal requires all of the following:
+
+- V4 authority producers are frozen;
+- no V4 checkpoint workflow or negative-authority workflow remains in flight;
+- no unresolved decision-relevant V4 TEST_REQUIRED remains;
+- the imported findings equal the final frozen V4 findings;
+- the imported rejected-head memory equals the final frozen V4 rejected-head
+  memory;
 - at least one V5 epoch is required and currently operational;
 - every required epoch is currently observable and manifest-matching.
 
 V5-0 intentionally does not translate an already-open V4 TEST_REQUIRED into a
-new V5 checkpoint identity. Instead, cut-over is fail-closed until that durable
-V4 request reaches PASS, FAIL or NOT_NEEDED under V4. `LegacyCheckpointHeads`
-models the reconstructed unresolved set and `LegacyImportComplete` requires it
-to be empty. No V5 positive authority may be published and `RemoveV4Guard`
-cannot execute while the set is non-empty.
+new V5 checkpoint identity. It must finish under V4 as PASS, FAIL or
+NOT_NEEDED before the final import can complete. The model explicitly permits
+the race "not present before freeze -> V4 workflow starts -> producer freeze ->
+workflow publishes/drains -> final import" and the race "checkpoint blocks
+cut-over -> checkpoint resolves -> cut-over resumes".
+
+`LegacyFindings`, `LegacyRejectedHeads` and `LegacyCheckpointHeads` are
+initial reconstructed V4 inputs only. `v4Findings`, `v4RejectedHeads`,
+`v4CheckpointHeads`, `v4CheckpointInFlight` and
+`v4NegativeInFlight` carry the live migration state. `LegacyDataImported`
+compares the imported V5 projection against the **final frozen live V4
+authority**, not merely against startup constants.
 
 ## P15 — V5 -> V4 semantic downgrade
 
@@ -310,11 +339,15 @@ expired, the Publisher must never issue another automatic PUT for the unknown
 transaction; it stays fail-closed for explicit human-root recovery. A 404 or
 unknown result is never interpreted as FAILURE.
 
-A completed FAILURE/CANCEL becomes quiescent behind durable failure history.
-A fresh retry is represented by a unique owner-authored token carrying retry
-identity plus exact PR/Head/Epoch provenance. One token is consumed by at most
-one PREPARE. Repeated same-head failures therefore require distinct fresh
-tokens rather than replaying a mutable authorization bit.
+A completed FAILURE/CANCEL becomes quiescent behind durable failure history
+and advances the PR's durable failure generation. A fresh retry is represented
+by a unique owner-authored token carrying retry identity plus exact
+PR/Head/Epoch/**failure-generation** provenance. One token is consumed by at
+most one PREPARE. A second failure advances the generation, so an unused sibling
+token issued for the prior failure is causally stale. Repeated same-head
+failures therefore require distinct fresh tokens bound to the latest terminal
+attempt rather than replaying a mutable authorization bit. Retry-token
+publication is closed once V5 is retired.
 
 Finite safety TLC domains do not prove either fairness assumption.
 
@@ -402,6 +435,21 @@ modules with SANY, and model-checks seventeen focused finite safety domains:
   Head.
 
 Passing them means only that no invariant counterexample exists in those finite
+domains.
+
+To prevent irrelevant cross-product explosion after the V4/topology/retry state
+dimensions were made explicit, six historical domains (`Ordering`,
+`EpochRepair`, `Duplicate`, `Checkpoint`, `Migration`,
+`CheckpointEpoch`) use `LegacyFocusConstraint`. The constraint fixes only
+the new orthogonal dimensions to their reconstructed historical projection:
+target = `main`, initial stack membership, frozen legacy authority sets and no
+V4 workflow in flight; it also keeps V5 merge PREPARE absent in these
+non-merge-focused domains. It does **not** remove their invariants or constrain
+their own epoch/checkpoint/duplicate/migration transitions. The new races are
+instead exercised in dedicated domains: `StackExclusion` for mutable
+target/stack topology, `LegacyCheckpointCutover` for live V4 freeze/drain
+migration, and `MergeRetry` for causal retry generations. Reviewers must
+inspect this decomposition and reject it if any relevant attack is lost between
 domains.
 
 During authoring a temporary branch-only Actions workflow may invoke the runner.
