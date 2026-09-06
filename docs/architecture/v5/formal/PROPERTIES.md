@@ -356,8 +356,14 @@ modules with SANY, and model-checks fourteen focused finite safety domains:
   `MergeAllowed`, merged state or negative authority;
 - `Checkpoint` — human PASS/FAIL negative monotonicity;
 - `Migration` — V4/V5 authority projection and rollback;
-- `MergeInFlight` — two-epoch submitted-merge execution, including the
-  E1 SUBMIT -> require unsatisfied E2 -> remote-success attack;
+- `MergeInFlight` — focused two-epoch submitted-merge execution. Its
+  scenario-specific `MergeFlightNext` preserves E1 authorization -> SUBMIT ->
+  require unsatisfied E2 -> attempted remote SUCCESS/FAILURE, plus post-SUBMIT
+  E1 Gate expiry, governance drift/observability loss and arrival of an
+  unrelated trusted NO_GO for P2. It excludes rollback/review/duplicate/
+  checkpoint/arbitrary-PR transitions covered elsewhere and does not constrain
+  `MergeAllowed`, required epochs, Gate state, manifest health or remote
+  outcome;
 - `MergeRetry` — FAILURE/CANCEL -> clean COMMIT -> explicit retry
   authorization -> fresh attempt on the same PR;
 - `Abandon` — rejected work may close while durable finding authority remains;
