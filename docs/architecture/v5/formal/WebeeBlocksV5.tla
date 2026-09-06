@@ -1643,7 +1643,7 @@ PreparePublisherMerge(pr) ==
                   v4ProjectedRejectedHeads, v4ProjectedCheckpoints, positiveAudit, authorityFindingHistory,
                   poisonPrepared, poisonCommitted, v4ProjectedTrunkBlocked, mergeSubmitted,
                   mergeRemoteSucceeded, mergeRemoteFailed, mergeObservedSucceeded, mergeObservedFailed,
-                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent >>
+                  mergeCancelled, mergeCommitted, mergeHistory, mergeRetryBlocked, retryTokenPresent, mergeFailureGeneration >>
 
 MergeIntentStillEligible(pr) ==
   /\ pr \in prOpen
