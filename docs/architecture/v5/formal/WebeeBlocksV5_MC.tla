@@ -1025,5 +1025,15 @@ ExternalEvidenceFaultInjection == FALSE
 NoV5MergeConstraint ==
   mergePrepared = {}
 
+LegacyFocusConstraint ==
+  /\ mergePrepared = {}
+  /\ prTargetsMain = PRs
+  /\ prStacked = StackedPRs
+  /\ v4Findings = LegacyFindings
+  /\ v4RejectedHeads = LegacyRejectedHeads
+  /\ v4CheckpointHeads = LegacyCheckpointHeads
+  /\ v4CheckpointInFlight = {}
+  /\ v4NegativeInFlight = {}
+
 
 =============================================================================
