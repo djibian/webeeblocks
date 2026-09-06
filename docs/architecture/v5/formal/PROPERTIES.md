@@ -9,47 +9,45 @@ listed in `REVIEW.md`.
 The TLA+ module exposes:
 
 - `SafetySpec = Init /\ [][Next]_vars` for invariant model checking;
-- `Spec = SafetySpec /\ WF_vars(PublisherStep)` for the additional liveness
-  assumption.
+- `Spec = SafetySpec /\ WF_vars(PublisherStep) /\
+  WF_vars(RemoteMergeExecutionStep)` for the explicit Publisher and remote
+  execution liveness assumptions.
 
 The finite TLC domains check safety only. They do **not** prove the liveness
 assumption, semantic adequacy of `Applies`, or the GitHub refinement.
 
 ## P1 — Exact-head, current-base integration
 
-While at least one V5 epoch is required, the merge effect belongs to a
-recoverable serialized Publisher Authority Plane transaction. Controllers may
-make cognitive integration proposals, but they do not independently issue the
-GitHub merge request.
+While at least one V5 epoch is required, normal integration is a recoverable
+Publisher transaction around GitHub's asynchronous `direct_merge` primitive.
+Controllers may propose integration, but they do not issue the merge effect.
 
 The lifecycle is:
 
 ```text
 PREPARE exact (PR, Head, Epoch) intent
--> submit GitHub merge with exact PR sha
--> reconcile authoritative remote success/failure
--> COMMIT or CANCEL the intent
+-> submit async direct_merge with exact sha
+-> durably bind/recover GitHub operation UUID
+-> GitHub remotely linearizes SUCCESS or FAILURE under current rules
+-> Publisher observes the terminal UUID result
+-> COMMIT semantic outcome
 ```
 
-Only one merge transaction may be outstanding. Once submitted, unrelated
-Publisher authority effects remain blocked until the remote outcome is known.
-This models the crash/lost-response interval in which GitHub may have accepted
-a request but the client does not yet know whether it linearized.
+Submission is not merge linearization. `RemoteMergeLinearizeSuccess`
+re-derives `MergeIntentStillEligible` at the modeled remote execution point.
+A governance/Gate/base change after SUBMIT can therefore force remote FAILURE
+rather than being silently bypassed.
 
-Strict-base freshness remains part of candidate admissibility:
+The world state may contain the remote result before Publisher observation.
+The outstanding barrier remains until observation and COMMIT, so later
+Publisher negative authority cannot overtake an unresolved operation.
 
-- a successful merge makes every remaining open PR base-stale atomically in the
-  abstraction;
-- a concrete base refresh must create a distinct SHA incorporating the current
-  protected base;
-- ordinary `HeadChange` / `RefreshBase` cannot select an exact Head already
-  present in trusted proposal, positive-audit, terminal or merged authority
-  history (`AuthoritySeenHeads`);
-- external evidence alone cannot reserve a candidate Head;
-- the concrete implementation must verify that the refreshed SHA is the newly
-  current-base candidate, not merely an old unmerged SHA.
+FAILURE/CANCEL writes immutable semantic history, clears current lifecycle
+state and sets `mergeRetryBlocked`. Automatic retry is disabled; a fresh
+`AuthorizeMergeRetry` environment input permits another attempt on the same
+still-open PR.
 
-Thus previously authorized evidence cannot be recycled after the base advances.
+Strict-base freshness and exact-head replay prevention remain unchanged.
 
 ## P2 — No guard gap
 
@@ -270,30 +268,32 @@ After retirement:
 This is an intentional assurance downgrade to the known V4 operational
 baseline.
 
-## P16 — Publisher reconstruction to quiescence
+## P16 — Publisher / remote transaction reconstruction to quiescence
 
-Under a stable environment and finite protocol work, Publisher transitions are
-intended to be finite and progress-making. Reconciliation reconstructs durable
-state after each effect until quiescence.
+Under a stable finite environment and finite requested protocol work,
+reconciliation is intended to be finite and progress-making.
 
-While V5 is required, the Publisher also owns the normal merge transaction.
-Merge is not task scheduling: Controllers still discover and perform product
-work; the Publisher only serializes irreversible authority/integration effects.
+A submitted asynchronous merge has two distinct stages:
 
-A submitted merge is special: GitHub owns the remote linearization point.
-`WF_vars(RemoteMergeResolutionStep)` therefore states the additional liveness
-assumption that a submitted request is eventually observed as authoritative
-success or failure. Until that happens, `PublisherStep` permits only merge
-reconciliation, preventing unrelated negative/trunk effects from overtaking an
-older in-flight request.
+1. GitHub reaches terminal remote SUCCESS/FAILURE;
+2. Publisher observes the UUID result and commits it.
 
-When no V5 epoch is required, merge belongs to the V4 environment again.
+`WF_vars(RemoteMergeExecutionStep)` abstracts eventual terminal execution.
+`WF_vars(PublisherStep)` covers observation/commit once the result exists.
 
-Duplicate poison does not wait for physical duplicate deletion; its finite
-progress target is durable poison COMMIT.
+Concrete V5-0 mandates async `direct_merge` with exact SHA. The returned UUID
+must be durably recorded; after a lost response, retry/409 recovery obtains the
+existing UUID rather than interpreting "unknown" as FAILURE. GitHub retains an
+async result for 24 hours after its most recent update. If authoritative UUID
+observability is lost before terminal reconciliation, V5 remains fail-closed
+for explicit human-root recovery; that outage is outside the normal liveness
+guarantee rather than being silently converted to FAILURE.
 
-Both fairness assumptions remain explicit abstractions. Finite safety TLC
-domains do not prove them.
+A completed FAILURE/CANCEL becomes quiescent behind `mergeRetryBlocked`.
+A fresh explicit retry authorization is new environment input, preventing an
+automatic failure/retry loop.
+
+Finite safety TLC domains do not prove either fairness assumption.
 
 ## P17 — Human root boundary
 
@@ -337,7 +337,7 @@ matches. Observed drift cannot be repaired in place.
 ## P20 — Bounded safety model checking is reproducible
 
 `run_tlc.sh` verifies a pinned TLA+ 1.7.4 `tla2tools.jar` SHA-256, parses the
-modules with SANY, and model-checks thirteen focused finite safety domains:
+modules with SANY, and model-checks fourteen focused finite safety domains:
 
 - `Ordering` — trusted GO/NO_GO ordering and new-head repair;
 - `EpochTerminal` — no same-head resurrection across epochs;
@@ -356,8 +356,10 @@ modules with SANY, and model-checks thirteen focused finite safety domains:
   `MergeAllowed`, merged state or negative authority;
 - `Checkpoint` — human PASS/FAIL negative monotonicity;
 - `Migration` — V4/V5 authority projection and rollback;
-- `MergeInFlight` — submitted remote merge ambiguity cannot be overtaken by
-  unrelated Authority Plane effects or V5 retirement;
+- `MergeInFlight` — two-epoch submitted-merge execution, including the
+  E1 SUBMIT -> require unsatisfied E2 -> remote-success attack;
+- `MergeRetry` — FAILURE/CANCEL -> clean COMMIT -> explicit retry
+  authorization -> fresh attempt on the same PR;
 - `Abandon` — rejected work may close while durable finding authority remains;
 - `CheckpointEpoch` — E1 human evidence cannot authorize E2;
 - `ExternalEvidence` — external evidence cannot reserve a future candidate
@@ -466,11 +468,16 @@ Inv_NoTwoMergedPRsShareExactHead
 Inv_SingleOutstandingMerge
 Inv_SubmittedMergeWasPrepared
 Inv_RemoteMergeOutcomeWasSubmitted
+Inv_ObservedMergeOutcomeWasRemote
 Inv_MergeCommitHasResolution
+Inv_RemoteSuccessSatisfiedExecutionGates
+Inv_IdleMergeLifecycleClean
+Inv_RetryBlockPreventsAutomaticPrepare
 Inv_NoV5RetirementWithOutstandingMerge
 Inv_RemoteSuccessUsesPreparedIntent
 Inv_PositiveSuccessRequiresEpochCheckpoint
 Inv_ExternalEvidenceDoesNotReserveCandidate
+Inv_ExternalEvidencePreservesCandidateActions   // ExternalEvidence domain
 Inv_V5RetirementClearsReviewProjections
 Inv_ActiveEpochNeverRetired
 Inv_V5RetiredClosesPublisher
@@ -515,4 +522,12 @@ Inv_V5RetiredClosesProposalPublication
 30. HUMAN_PASS(E1,H) -> E2 -> attempt GO/SUCCESS(E2,H) without E2 checkpoint;
 31. external proposal for future H2 -> attempt legitimate RefreshBase to H2;
 32. verify that no auto-merge/merge-queue/alternate credential path escapes the
-    single outstanding merge transaction.
+    single outstanding merge transaction;
+33. E1 submit -> configure/bootstrap/require E2 without E2 SUCCESS -> attempt
+    remote merge linearization;
+34. remote FAILURE -> observe -> COMMIT -> explicit retry authorization ->
+    prepare/submit a fresh attempt on the same PR;
+35. remote SUCCESS linearizes, governance changes before Publisher observation:
+    preserve actual execution ordering;
+36. async UUID response loss -> retry/409 recovery; never turn unknown into
+    FAILURE; retention loss remains fail-closed.
