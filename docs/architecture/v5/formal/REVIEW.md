@@ -40,13 +40,14 @@ Inspect the full finite harness:
 - `WebeeBlocksV5_Checkpoint.cfg`;
 - `WebeeBlocksV5_Migration.cfg`;
 - `WebeeBlocksV5_MergeInFlight.cfg`;
+- `WebeeBlocksV5_MergeRetry.cfg`;
 - `WebeeBlocksV5_Abandon.cfg`;
 - `WebeeBlocksV5_CheckpointEpoch.cfg`;
 - `WebeeBlocksV5_ExternalEvidence.cfg`;
 - `run_tlc.sh`.
 
 The runner pins TLA+ 1.7.4 by SHA-256, parses with SANY and executes all
-thirteen focused finite safety domains.
+fourteen focused finite safety domains.
 
 A green bounded run is evidence only, never proof of liveness or GitHub
 refinement.
@@ -75,16 +76,14 @@ merge-wins late-refutation attack.
 
 ```text
 WF_vars(PublisherStep)
-/\ WF_vars(RemoteMergeResolutionStep)
+/\ WF_vars(RemoteMergeExecutionStep)
 ```
 
 Review both fairness assumptions independently. In a stable finite environment,
 all Publisher reconciliation classes are intended to be finite/progress-making;
 look for any transition that can self-reenable, oscillate or starve unrelated
 work. Once a merge request has crossed the GitHub trust boundary,
-`RemoteMergeResolutionStep` represents eventual authoritative observation of
-either success or failure; the Publisher must not resume unrelated authority
-work while that merge transaction is unresolved.
+`RemoteMergeExecutionStep` represents eventual terminal GitHub execution/linearization. Publisher observation of that terminal result is modeled separately and the transaction remains outstanding until observation and COMMIT.
 
 ## Refinement boundaries
 
@@ -165,46 +164,42 @@ longer required to complete the poison linearization after PREPARE. Challenge
 whether the Protocol App can always recreate/reassert the blocking Gate with
 the intended minimal permissions.
 
-### R5 — Recoverable merge transaction / base freshness
+### R5 — Recoverable asynchronous merge transaction / base freshness
 
-While any V5 epoch is required, normal merges refine a recoverable Publisher
-transaction, not an independent Controller environment step:
+Normal V5 merges refine GitHub async `direct_merge`, not the synchronous
+endpoint and not an independent Controller effect:
 
 ```text
-PREPARE merge intent
--> submit exact-head GitHub merge request
--> reconcile authoritative remote outcome
--> COMMIT/CANCEL merge intent
+PREPARE
+-> merge-async exact sha + direct_merge
+-> durably bind/recover UUID
+-> GitHub terminal execution SUCCESS|FAILURE
+-> poll/observe terminal UUID result
+-> COMMIT
 ```
 
-Concrete requirements:
+SUBMIT is not linearization. GitHub rules are applied during background
+execution, so `RemoteMergeLinearizeSuccess` rechecks current merge eligibility.
+A newly-required unsatisfied epoch, governance drift, stale Gate/base or other
+current blocker cannot be bypassed solely because SUBMIT happened earlier.
 
-- only the normal V5 Publisher path may issue the automated merge request;
-- PREPARE is durable before the request crosses the GitHub trust boundary;
-- only one merge transaction may be outstanding;
-- while a submitted outcome is unresolved, unrelated Publisher authority
-  effects, epoch succession and V5 retirement remain blocked;
-- after a crash or lost HTTP response, reconciliation establishes the remote
-  outcome before any later negative/trunk transition is processed;
-- the merge request supplies GitHub's exact current PR `sha`;
-- a merge may be submitted only while the prepared head/epoch remains current
-  and `MergeAllowed` still holds;
-- successful remote resolution atomically stales every remaining PR in the
-  abstraction;
-- concrete base refresh creates a distinct SHA incorporating the current
-  protected base;
-- `HeadChange` / `RefreshBase` cannot replay a Head already present in
-  trusted authority/proposal/positive-audit/merged history.
+Only one current transaction exists. Current lifecycle state is cleared only
+after terminal observation/COMMIT; durable semantic history is separate.
+FAILURE/CANCEL blocks automatic retry. A fresh `AuthorizeMergeRetry` input
+allows another attempt on the same PR without stale submitted/cancelled state.
 
-V5-0 does not rely on auto-merge or a merge queue as an unmodeled normal path.
-If an asynchronous GitHub merge mechanism is ever enabled, its full pending
-lifecycle must refine the same outstanding-transaction barrier.
+The concrete async UUID is the transaction identity. The abstraction may
+collapse repeated semantically identical completed outcomes in `mergeHistory`;
+current intent metadata is never overwritten while an older transaction is
+outstanding.
 
-When no V5 epoch is required, `V4MergePR` models the restored V4 path.
+The async result retention window is 24 hours after its most recent update.
+Unknown/404 is never coerced into FAILURE. Loss of authoritative result
+observability remains fail-closed for human-root recovery and lies outside the
+normal liveness envelope.
 
-Attack the GitHub permission/isolation story, ambiguous-response recovery and
-the claim that an old unmerged SHA cannot be relabeled as a fresh current-base
-candidate.
+Attack UUID recovery, execution-time rules, exact-head semantics, retention,
+retry cleanliness and alternate merge paths.
 
 ### R6 — GovernanceEpoch
 
@@ -226,27 +221,19 @@ Governance is human-rooted and protocol-verified, not protocol-admin-enforced.
 
 ### R7 — Late refutation / trunk health
 
-Negative Gate linearizations and merge preparation/reconciliation share the
-Publisher Authority Plane. The remote GitHub merge linearization is explicitly
-allowed to occur after submission, so the outstanding merge transaction is the
-serialization barrier.
+The model distinguishes Publisher SUBMIT, GitHub remote execution/linearization,
+and later Publisher observation/COMMIT. Only remote execution determines
+whether merge or negative Gate linearization wins.
 
-If a merge request has been submitted, the Publisher first resolves that
-specific remote outcome:
+An outstanding transaction blocks unrelated Publisher authority work. If
+remote SUCCESS linearized first, a later negative is a genuine late refutation
+and sets `trunkBlocked = TRUE`. If current governance becomes unsatisfied
+before remote execution, SUCCESS is disabled and the remote operation may
+terminate FAILURE.
 
-- remote success first -> that merge is authoritative; a later refutation is a
-  genuine late refutation and sets `trunkBlocked = TRUE`;
-- authoritative remote failure/cancellation first -> the transaction closes,
-  then a later negative may linearize and block subsequent integration.
-
-There is no normal trace in which a negative/trunk block linearizes while an
-older unresolved V5 merge request is still free to succeed behind it.
-
-A root-owner manual merge is still possible but leaves the guarantee envelope
-as `HumanGovernanceOverride`.
-
-Rollback must project a live trunk block into V4 before the last V5 guard is
-removed.
+Raw new evidence/governance observations may arrive while a transaction is
+outstanding; they do not rewrite an already-real remote SUCCESS, but current
+server-enforcement state is checked at the execution point.
 
 ### R8 — V4/V5 semantic boundary
 
@@ -283,6 +270,12 @@ resistance are abstracted to identifiers and remain conformance obligations.
 - only the serialized Publisher can use it;
 - while V5 is required, Controllers have no independent normal merge-effect
   credential/path; owner-root manual override is outside the guarantee envelope;
+- the Publisher uses GitHub asynchronous `direct_merge` with exact SHA for
+  the normal V5 path;
+- the async UUID is durably bound to PREPARE/SUBMIT and recovered via the
+  documented existing-request 409 path after a lost response;
+- unknown/expired UUID state is never converted into FAILURE; retention loss
+  causes fail-closed human-root recovery outside normal liveness;
 - the Publisher can perform exact-head PR merge with its intended permissions;
 - a dedicated main-update exclusivity rule/ruleset grants the Protocol App only
   the bypass needed to update `main`, while required Gate/review/base-safety
@@ -422,6 +415,14 @@ Re-run the prior NO_GO findings against the new exact SHA, including:
     bypassing Gate/review/base-safety rules?
 25. is there any auto-merge, merge-queue or alternate credential path that can
     issue a normal V5 merge outside the outstanding-transaction barrier?
+26. after E1 SUBMIT, can unsatisfied E2 become required and remote SUCCESS still
+    linearize?
+27. after remote FAILURE or pre-submit CANCEL, can the same still-open PR,
+    after explicit retry authorization, complete a fresh attempt?
+28. can Publisher observation lag remote SUCCESS while later governance changes
+    occur without mis-ordering actual linearization?
+29. can lost async response/UUID-retention expiry ever be mistaken for
+    authoritative FAILURE?
 
 Also search outside these known traces. A reviewer that only checks the listed
 fixes has not completed an adversarial review.
@@ -431,7 +432,7 @@ fixes has not completed an adversarial review.
 1. Reconstruct Draft PR #191 and record exact current HEAD.
 2. If HEAD differs from the supplied candidate SHA, stop: it is a new candidate.
 3. Read all three canonical design files completely.
-4. Inspect all thirteen finite configs, MC module and `run_tlc.sh`.
+4. Inspect all fourteen finite configs, MC module and `run_tlc.sh`.
 5. If possible execute:
    `bash docs/architecture/v5/formal/run_tlc.sh`
    on the exact reviewed SHA.
