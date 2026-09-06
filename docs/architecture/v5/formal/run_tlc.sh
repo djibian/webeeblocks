@@ -37,6 +37,9 @@ default_configs=(
   WebeeBlocksV5_Migration.cfg
   WebeeBlocksV5_MergeInFlight.cfg
   WebeeBlocksV5_MergeRetry.cfg
+  WebeeBlocksV5_StackExclusion.cfg
+  WebeeBlocksV5_LegacyCheckpointCutover.cfg
+  WebeeBlocksV5_RetiredReplay.cfg
   WebeeBlocksV5_Abandon.cfg
   WebeeBlocksV5_CheckpointEpoch.cfg
   WebeeBlocksV5_ExternalEvidence.cfg
