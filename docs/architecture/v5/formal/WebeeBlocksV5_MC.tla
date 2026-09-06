@@ -18,6 +18,7 @@ MCNoRetryTokenActor == [t \in MCNoRetryTokens |-> MCOwner]
 MCNoRetryTokenPR == [t \in MCNoRetryTokens |-> "P1"]
 MCNoRetryTokenHead == [t \in MCNoRetryTokens |-> "H1"]
 MCNoRetryTokenEpoch == [t \in MCNoRetryTokens |-> "E1"]
+MCNoRetryTokenGeneration == [t \in MCNoRetryTokens |-> 0]
 
 (***************************************************************************)
 (* ORDERING: one epoch, GO/NO_GO race, repair requires a new head.         *)
@@ -411,6 +412,7 @@ own finite domains.  It does not constrain trunkBlocked, MergeAllowed, merged,
 negative authority, or any invariant under test.
 *)
 LateRefutationNext ==
+  \/ FreezeV4AuthorityProducers
   \/ \E p \in LateProposals : PublishProposal(p)
   \/ ConfigureEpoch("E1")
   \/ BootstrapEpoch("E1")
@@ -634,6 +636,7 @@ MergeFlightPublisherStep ==
              \/ CommitPublisherMerge("P1")
 
 MergeFlightNext ==
+  \/ FreezeV4AuthorityProducers
   \/ MergeFlightPublisherStep
   \/ PublishProposal("GO_H1")
   \/ PublishProposal("NO_H2")
@@ -676,11 +679,16 @@ MergeRetryRejectionFindings == [r \in MergeRetryRejections |-> {"F1"}]
 MergeRetryApplies == {}
 MergeRetryLegacyFindings == {}
 MergeRetryLegacyRejectedHeads == {}
-MergeRetryRetryTokens == {"T1", "T2", "T3"}
+MergeRetryRetryTokens == {"T1", "T2", "T3", "T4"}
 MergeRetryRetryTokenActor == [t \in MergeRetryRetryTokens |-> MCOwner]
 MergeRetryRetryTokenPR == [t \in MergeRetryRetryTokens |-> "P1"]
-MergeRetryRetryTokenHead == [t \in MergeRetryRetryTokens |-> IF t = "T3" THEN "H2" ELSE "H1"]
+MergeRetryRetryTokenHead ==
+  [t \in MergeRetryRetryTokens |-> IF t = "T4" THEN "H2" ELSE "H1"]
 MergeRetryRetryTokenEpoch == [t \in MergeRetryRetryTokens |-> "E1"]
+MergeRetryRetryTokenGeneration ==
+  [t \in MergeRetryRetryTokens |->
+    CASE t \in {"T1","T2","T4"} -> 1
+      [] OTHER -> 2]
 MergeRetryCheckpointHeads == {}
 MergeRetryInitialPRs == {"P1"}
 MergeRetryInitialPRHead == [p \in MergeRetryPRs |-> "H1"]
@@ -688,6 +696,7 @@ MergeRetryInitialEpoch == "E1"
 MergeRetryFaultInjection == FALSE
 
 MergeRetryNext ==
+  \/ FreezeV4AuthorityProducers
   \/ \E p \in MergeRetryProposals : PublishProposal(p)
   \/ ConfigureEpoch("E1")
   \/ BootstrapEpoch("E1")
@@ -706,6 +715,7 @@ MergeRetryNext ==
   \/ PublishRetryAuthorization("T1")
   \/ PublishRetryAuthorization("T2")
   \/ PublishRetryAuthorization("T3")
+  \/ PublishRetryAuthorization("T4")
   \/ HeadChange("P1", "H2")
 
 (***************************************************************************)
@@ -732,7 +742,7 @@ StackExclusionApplies == {}
 StackExclusionLegacyFindings == {}
 StackExclusionLegacyRejectedHeads == {}
 StackExclusionLegacyCheckpointHeads == {}
-StackExclusionStackedPRs == {"P1"}
+StackExclusionStackedPRs == {}
 StackExclusionCheckpointHeads == {}
 StackExclusionInitialPRs == {"P1"}
 StackExclusionInitialPRHead == [p \in StackExclusionPRs |-> "H1"]
@@ -740,6 +750,7 @@ StackExclusionInitialEpoch == "E1"
 StackExclusionFaultInjection == FALSE
 
 StackExclusionNext ==
+  \/ FreezeV4AuthorityProducers
   \/ AuthorityUpgradeProjection
   \/ PublishProposal("GO_H1")
   \/ ConfigureEpoch("E1")
@@ -748,6 +759,17 @@ StackExclusionNext ==
   \/ VerifyEpoch("E1")
   \/ PublishSuccess("GO_H1", "E1", "H1")
   \/ PreparePublisherMerge("P1")
+  \/ SubmitPublisherMerge("P1")
+  \/ CancelPreparedMerge("P1")
+  \/ RemoteMergeLinearizeSuccess("P1")
+  \/ RemoteMergeLinearizeFailure("P1")
+  \/ ObserveRemoteMergeSuccess("P1")
+  \/ ObserveRemoteMergeFailure("P1")
+  \/ CommitPublisherMerge("P1")
+  \/ StackPR("P1")
+  \/ UnstackPR("P1")
+  \/ RetargetAwayFromMain("P1")
+  \/ RetargetToMain("P1")
 
 (***************************************************************************)
 (* LEGACY CHECKPOINT CUTOVER: unresolved V4 TEST_REQUIRED blocks V5.       *)
@@ -772,14 +794,21 @@ LegacyCheckpointRejectionFindings == [r \in LegacyCheckpointRejections |-> {"F1"
 LegacyCheckpointApplies == {}
 LegacyCheckpointLegacyFindings == {}
 LegacyCheckpointLegacyRejectedHeads == {}
-LegacyCheckpointLegacyCheckpointHeads == {"H1"}
-LegacyCheckpointCheckpointHeads == {"H1"}
+LegacyCheckpointLegacyCheckpointHeads == {}
+LegacyCheckpointCheckpointHeads == {}
 LegacyCheckpointInitialPRs == {"P1"}
 LegacyCheckpointInitialPRHead == [p \in LegacyCheckpointPRs |-> "H1"]
 LegacyCheckpointInitialEpoch == "E1"
 LegacyCheckpointFaultInjection == FALSE
 
 LegacyCheckpointNext ==
+  \/ StartV4Checkpoint("H1")
+  \/ PublishV4Checkpoint("H1")
+  \/ ResolveV4Checkpoint("H1")
+  \/ StartV4Negative("R_NO_H1")
+  \/ PublishV4Negative("R_NO_H1")
+  \/ FreezeV4AuthorityProducers
+  \/ ResumeV4AuthorityProducers
   \/ AuthorityUpgradeProjection
   \/ ConfigureEpoch("E1")
   \/ BootstrapEpoch("E1")
@@ -820,6 +849,7 @@ RetiredReplayInitialEpoch == "E1"
 RetiredReplayFaultInjection == FALSE
 
 RetiredReplayNext ==
+  \/ FreezeV4AuthorityProducers
   \/ AuthorityUpgradeProjection
   \/ ConfigureEpoch("E1")
   \/ BootstrapEpoch("E1")
