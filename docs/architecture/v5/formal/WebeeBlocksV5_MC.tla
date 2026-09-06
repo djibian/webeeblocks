@@ -595,6 +595,56 @@ MergeFlightInitialPRHead ==
 MergeFlightInitialEpoch == "E1"
 MergeFlightFaultInjection == FALSE
 
+(*
+Focused transition relation for the submitted-merge governance attack.
+
+It preserves both high-value races:
+1. P1 is authorized under E1, submitted, E2 becomes required without any E2
+   SUCCESS, then GitHub attempts remote SUCCESS/FAILURE.
+2. A trusted NO_GO for unrelated P2 may arrive while P1 is outstanding; the
+   Publisher barrier must prevent its rejection authority from overtaking P1
+   until the merge transaction is terminally observed and committed.
+
+It also permits E1 Gate expiry, governance drift and observability loss after
+SUBMIT.  It excludes rollback, review, duplicate, checkpoint and arbitrary PR
+mutations covered by other domains.  It does not constrain MergeAllowed,
+requiredEpochs, Gate state, manifest health, remote outcome or any invariant
+under test.
+*)
+MergeFlightPublisherStep ==
+  /\ ~v5Retired
+  /\ IF MergeTransactionIdle
+        THEN \/ PublishSuccess("GO_H1", "E1", "H1")
+             \/ PrepareRejection("R_NO_H2")
+             \/ LinearizeNegative("R_NO_H2")
+             \/ CommitRejection("R_NO_H2")
+             \/ PreparePublisherMerge("P1")
+        ELSE \/ SubmitPublisherMerge("P1")
+             \/ CancelPreparedMerge("P1")
+             \/ ObserveRemoteMergeSuccess("P1")
+             \/ ObserveRemoteMergeFailure("P1")
+             \/ CommitPublisherMerge("P1")
+
+MergeFlightNext ==
+  \/ MergeFlightPublisherStep
+  \/ PublishProposal("GO_H1")
+  \/ PublishProposal("NO_H2")
+  \/ ConfigureEpoch("E1")
+  \/ BootstrapEpoch("E1")
+  \/ RequireEpoch("E1")
+  \/ VerifyEpoch("E1")
+  \/ ConfigureEpoch("E2")
+  \/ BootstrapEpoch("E2")
+  \/ RequireEpoch("E2")
+  \/ VerifyEpoch("E2")
+  \/ ExpireSuccess("E1", "H1")
+  \/ LoseObservability("E1")
+  \/ DriftGovernance("E1")
+  \/ LoseObservability("E2")
+  \/ DriftGovernance("E2")
+  \/ RemoteMergeLinearizeSuccess("P1")
+  \/ RemoteMergeLinearizeFailure("P1")
+
 (***************************************************************************)
 (* MERGE RETRY: failed/cancelled attempt may be explicitly retried.        *)
 (***************************************************************************)
