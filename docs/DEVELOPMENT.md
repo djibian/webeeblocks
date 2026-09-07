@@ -189,8 +189,13 @@ provenance/digest, serializes the publication step, refuses a second open human
 test, then creates one durable [TEST_REQUIRED] issue and sends ntfy.
 
 The enabled profiles are `windows-low-end`, backed by the
-`WebeeBlocks-Windows-R2025a` artifact, and `s3-props-off`, backed by
-`experimental-s3-surface-offset-2026-08` and restricted to purpose `checkpoint`.
+`WebeeBlocks-Windows-R2025a` artifact; `s3-props-off`, backed by
+`experimental-s3-surface-offset-2026-08` and restricted to purpose `checkpoint`;
+and `physical-capabilities-readonly`, backed by the exact
+`WebeeBlocks-Physical-Capability-Probe` bundle and restricted to purpose
+`checkpoint`. The physical-capability profile validates only the WebeeBlocks
+non-authority capability/API surface; cflib's normal close path may still emit its
+safety-zero commander setpoint, so it does not authorize motorized flight.
 Unknown profiles fail closed until their deterministic preparation is explicitly
 implemented. A props-off checkpoint never authorizes motorized flight.
 
