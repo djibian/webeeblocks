@@ -1055,6 +1055,19 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
+      - name: Run C14 standalone Qt causal control
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c14-standalone-qt-control' }}
+        shell: bash
+        run: bash tools/ci/firefox_c14_standalone_qt_control.sh
+
+      - name: Upload C14 standalone Qt causal control
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c14-standalone-qt-control' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-c14-standalone-qt-control-r2025a
+          path: ci-artifacts/firefox-c14-standalone-qt-control/
+          if-no-files-found: error
+
       - name: Upload runtime WWI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
