@@ -24,7 +24,8 @@ TEST_REQUIRED only after the exact target, full evidence, required artifact,
 provenance/digest and procedure are ready. Enabled profiles are:
 
 - `windows-low-end` — checkpoint or release acceptance of the Windows classroom artifact;
-- `s3-props-off` — checkpoint-only, props-removed #70 S3 physical evidence using the exact deterministically built experimental `cf2.bin` artifact.
+- `s3-props-off` — checkpoint-only, props-removed #70 S3 physical evidence using the exact deterministically built experimental `cf2.bin` artifact;
+- `physical-capabilities-readonly` — checkpoint-only reference Crazyflie capability observation. Its bundle contains the exact cflib source tree plus four exact Python 3.10/Linux x86-64 runtime wheels bound by filename and SHA-256, installs them only offline, and grants `executionAuthority:false`. cflib's normal close path may still emit its safety-zero commander setpoint, so this is non-authority capability evidence rather than transport-level read-only or flight authorization.
 
 Any unknown profile is rejected until its preparation is implemented explicitly.
 

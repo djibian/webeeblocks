@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
-    "human-checkpoint.yml": {"validate", "runtime", "webots", "publish"},
+    "human-checkpoint.yml": {"validate", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -116,6 +116,16 @@ class WorkflowTests(unittest.TestCase):
             "'windows-low-end': 'WebeeBlocks-Windows-R2025a',",
             "'s3-props-off': 'experimental-s3-surface-offset-2026-08',",
             "'s3-props-off': {'checkpoint'},",
+            "'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',",
+            "'physical-capabilities-readonly': {'checkpoint'},",
+            "needs.validate.outputs.test_profile == 'physical-capabilities-readonly'",
+            "repository: bitcraze/crazyflie-lib-python",
+            "ref: 45fdb784c9d13074c42835f3b5ac1d12133bf873",
+            "git -C .ci-cflib rev-parse 'HEAD:cflib'",
+            "--no-deps --only-binary=:all:",
+            "sha256sum -c",
+            'PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment',
+            "name: WebeeBlocks-Physical-Capability-Probe",
             "Purpose {purpose} is not allowed for profile {profile}",
             "Unknown test profile; add deterministic preparation before enabling it",
             "Required artifact is missing a valid sha256 digest",
@@ -291,6 +301,43 @@ class WorkflowTests(unittest.TestCase):
             'WORLD = ROOT / "worlds" / ".ci-empty-local.wbt"',
             restart,
         )
+
+    def test_physical_checkpoint_support_is_fully_locked(self) -> None:
+        lock = (ROOT / "tools" / "physical" / "reference_probe_lock.txt").read_text(encoding="utf-8")
+        expected = {
+            "pyusb==1.2.1|pyusb-1.2.1-py3-none-any.whl|2b4c7cb86dbadf044dfb9d3a4ff69fd217013dbe78a792177a3feb172449ea36",
+            "libusb-package==1.0.26.3|libusb_package-1.0.26.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|433e89dd1f9f9a4149b975247cf1d493170454945fec54b4db9fe61c9e6b861f",
+            "importlib-resources==6.5.2|importlib_resources-6.5.2-py3-none-any.whl|789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec",
+            "numpy==2.2.6|numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|fc7b73d02efb0e18c000e9ad8b83480dfcd5dfd11065997ed4c6747470ae8915",
+        }
+        actual = {line for line in lock.splitlines() if line and not line.startswith("#")}
+        self.assertEqual(actual, expected)
+
+        workflow = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        for required in (
+            "45fdb784c9d13074c42835f3b5ac1d12133bf873",
+            "a78cf78d2b4aba51a0fa2b03de0260664b523401",
+            "750e850390753de14019f0e1f55d4fbc44317699",
+            "--no-deps --only-binary=:all:",
+            "--platform manylinux2014_x86_64",
+            "--implementation cp --python-version 310 --abi cp310",
+            "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 4",
+            "sha256sum -c \"$expected\"",
+        ):
+            self.assertIn(required, workflow)
+        self.assertNotIn("pip wheel", workflow)
+
+        runner = (ROOT / "tools" / "physical" / "run_reference_probe.sh").read_text(encoding="utf-8")
+        for required in (
+            "sha256sum -c SHA256SUMS",
+            "--no-index --no-deps --ignore-installed",
+            'PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE"',
+            "PYTHONNOUSERSITE=1",
+            "python3 -S",
+            "exact four-wheel runtime closure required",
+            "executionAuthority must remain false",
+        ):
+            self.assertIn(required, runner)
 
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
