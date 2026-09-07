@@ -54,6 +54,38 @@ def main() -> int:
         == {"family": "crazyflie", "model": None, "modelEvidence": "unproven"},
         "exact airframe must remain unproven",
     )
+
+    verified_descriptor = probe.build_descriptor("11", BASE_VALUES, "CF2.1")
+    require(
+        verified_descriptor["identity"]
+        == {
+            "family": "crazyflie",
+            "model": "crazyflie-2.1",
+            "modelEvidence": "verified",
+        },
+        "CF2.1 device-type evidence must verify the exact airframe",
+    )
+    require(
+        verified_descriptor["evidence"]["deviceTypeName"] == "CF2.1"
+        and verified_descriptor["evidence"]["exactAirframeModel"] == "crazyflie-2.1",
+        "exact device-type evidence must be preserved",
+    )
+
+    other_descriptor = probe.build_descriptor("11", BASE_VALUES, "C21B")
+    require(
+        other_descriptor["identity"]
+        == {"family": "crazyflie", "model": None, "modelEvidence": "unproven"},
+        "non-CF2.1 device type must not satisfy the exact-airframe claim",
+    )
+    require(
+        other_descriptor["evidence"]["deviceTypeName"] == "C21B",
+        "incompatible observed device type must remain visible as evidence",
+    )
+
+    expect_probe_error(
+        lambda: probe.build_descriptor("11", BASE_VALUES, ""),
+        "device type name is empty",
+    )
     require(
         descriptor["hardware"]
         == ["flow-deck-v2", "multi-ranger-deck", "color-led-deck"],
@@ -183,6 +215,29 @@ def main() -> int:
     require(normalized_descriptor["identity"]["modelEvidence"] == "unproven", "JS keeps identity boundary")
     require("evidence" not in normalized_descriptor, "P0a normalizer exposes only decision fields")
 
+    verified_normalized = subprocess.run(
+        ["node", "-e", node_script],
+        input=json.dumps(verified_descriptor),
+        text=True,
+        capture_output=True,
+        cwd=ROOT,
+        check=False,
+    )
+    require(
+        verified_normalized.returncode == 0,
+        f"JS verified descriptor normalization failed: {verified_normalized.stderr}",
+    )
+    verified_normalized_descriptor = json.loads(verified_normalized.stdout)
+    require(
+        verified_normalized_descriptor["identity"]
+        == {
+            "family": "crazyflie",
+            "model": "crazyflie-2.1",
+            "modelEvidence": "verified",
+        },
+        "JS exact-airframe contract must retain verified CF2.1 evidence",
+    )
+
     source = PROBE_PATH.read_text(encoding="utf-8")
     for forbidden in (
         ".set_value(",
@@ -196,7 +251,7 @@ def main() -> int:
     ):
         require(forbidden not in source, f"read-only probe contains forbidden authority surface: {forbidden}")
 
-    print("PASS cflib probe maps read-only platform/deck evidence without execution authority")
+    print("PASS cflib probe maps read-only platform/deck and exact-airframe evidence without execution authority")
     return 0
 
 
