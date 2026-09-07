@@ -63,6 +63,57 @@ health is restored. Other independent machine work may continue. A late
 refutation of an already merged SHA is diagnosed against current main before a
 fix-forward or narrow revert.
 
+### Normal merge and result
+
+Use the existing synchronous merge API for an independent PR targeting main:
+
+1. Reconstruct exact main B and PR N: open, Ready, validated HEAD H, base repository
+   `djibian/webeeblocks`, `base.ref=main`, `base.sha=B`. Check the canonical CI,
+   independent GO, applicable findings/checkpoints and trunk health. Observe the
+   applicable protections below; an inaccessible ruleset is not an absent rule.
+   `base.sha=B` checks two observations agree, not that H contains B. Strict-base
+   protection remains necessary; Git ancestry may help diagnose a stale branch.
+2. Without intervening work, call `PUT /repos/djibian/webeeblocks/pulls/N/merge`
+   with `sha=H` (the tool's `expected_head_sha`) and `merge_method=squash`.
+   Never retry this write automatically on a transport error. A 409 requires
+   reconstruction, not substitution of a newer H under the old GO. Do not switch
+   implicitly to an async API, auto-merge, stacked PRs or a queue.
+3. After success or error, read PR N and current main M. To claim H integrated,
+   establish that N is merged, its source HEAD is H in the available evidence,
+   and `merge_commit_sha=S` is an ancestor of M. Use exact Git objects with
+   `git merge-base --is-ancestor S M`, or a GitHub compare result establishing S
+   as the merge-base of `S...M`; S=M also passes. An equality of trees or a live
+   branch pointer alone does not establish the historical source HEAD.
+
+| Observation | Permitted conclusion |
+|---|---|
+| Merged N, source H established, S in main history | H's integration is confirmed; reconstruct cleanup eligibility separately |
+| Merged N and S in main, but source H not established | PR integration observed; this attempt's exact-subject claim is UNKNOWN |
+| PR not merged after timeout | UNKNOWN; the earlier request may still take effect |
+| Merged PR, but S not established in main | No confirmed normal integration; diagnose target and observation consistency |
+| Documented rejection, with no earlier ambiguous send for the known attempt | That request was refused; diagnose before a new request |
+| Missing or inconsistent required evidence | UNKNOWN; no success claim, blind retry or dependent cleanup |
+
+GitHub's merge condition binds HEAD, not base, reviews, checks and rulesets
+atomically. Main membership proves integration history, not current product health
+or absence of an earlier retarget race. An unseen old process is not fenced by a
+rule to reconstruct after interruption. Concurrent Controllers can recognize the
+same existing merge without owning the PR or promising exactly one request.
+
+Preserve consequential uncertainty in the existing PR: operation, exact HEAD/ref,
+observed response/timeout and missing confirmation. A factual comment suffices;
+no intent log or special state format is introduced. A crash before that comment
+can lose the fact that a request may have been sent: **UNRESOLVED**. A delayed
+request is not proven absent by waiting. UNKNOWN blocks the dependent effect,
+not all independent machine work or all other merges; the existing main-health
+rule still applies. No machine-lifecycle notification is added.
+
+For branch cleanup, retain the existing exact-tip conditional deletion rule.
+After response loss, an absent ref proves only its observed absence; a different
+tip must not be deleted; the same tip still requires reconstructing usefulness
+and dependencies before another attempt. Tip CAS does not fence a concurrently
+created dependent PR. A GET followed by unconditional REST DELETE is not CAS.
+
 ## CI topology
 
 .github/workflows/ci.yml is the sole PR CI entry point and targets main. It
@@ -154,8 +205,50 @@ merges, Controller startup/termination/blocking and relaunch are silent.
 
 ## Repository protections
 
-V4 requires main protected by PR + required CI Gate + up-to-date candidate, with
-destructive force-push/deletion disabled. These administration settings are
-outside Git and must be restored explicitly in a rollback.
+For this installation, observe active protections applying to main: PR required,
+squash only, `CI Gate` required from GitHub Actions, strict up-to-date checking,
+force-push/deletion blocked, no bypass actor. Native approving-review count is
+zero: the exact-HEAD independent GO is a Controller obligation, not a GitHub
+approval from another account. Read all applicable rulesets/branch protections;
+a rule's display name alone is not proof of enforcement. Administrative changes
+can still race those reads.
+
+These settings live outside Git. A code/docs revert does not change them, and
+this hardening adds no administrative setting to restore. If a separate change
+alters protections, its rollback must restore those settings explicitly.
 
 A future merge queue is optional only if integration contention becomes real.
+
+## Install or restore this V4 on another repository
+
+1. Adapt AGENTS.md, PRODUCT_VISION.md and ROADMAP.md to the product and explicitly
+   name its trusted decision principal. Preserve stateless executions, independent
+   review, exact HEADs, small PRs and the human boundary. Do not copy live issues,
+   workflow IDs or another repository's owner as authority.
+2. Supply product-appropriate deterministic suites behind one canonical PR CI
+   entry point and a Ready-only `CI Gate`; Draft has a distinct check name.
+   Adapt the existing selector/gate interface and workflow-inventory tests
+   together if suite names change. This repository's Runtime/Webots suites are
+   product-specific, not generic V4 infrastructure.
+3. Configure and read back the main protections above, with the installation's
+   actual App identity. Verify that the Controller's authorized tools can read
+   PRs, reviews, full relevant runs/attempts/jobs and protections, and can perform
+   exact-HEAD merges and exact-tip ref deletion. Do not add a service or credential
+   merely to conceal missing observations. Explicit owner override is outside
+   the normal guarantee.
+4. Enable a human-checkpoint profile only once its deterministic preparation,
+   artifact digest, single unresolved TEST_REQUIRED and notification provenance
+   are implemented. Preserve product-specific physical/publication authority.
+5. Qualify the installation with disposable branches/PRs: Draft cannot emit the
+   required context; new HEAD invalidates old CI/GO; wrong merge SHA and wrong
+   deletion tip are refused; stale base is blocked; a homonymous workflow is not
+   decision evidence; missing CI inputs fail while legitimate skips pass.
+   Examine timeout, retarget and late-refutation scenarios as limits, not claimed
+   atomic guarantees. Run the contract tests, then obtain independent review.
+
+On this repository, the minimal upgrade changes six existing files and adds no
+workflow, stored state, service or permission. Revert the relevant code/text/test
+change through the existing PR process to roll it back; preserve useful evidence
+already recorded. Prefer repairing a legitimate incompatibility over restoring
+the CI oracle's implicit exemptions. Contract-string tests guard wording only;
+they cannot prove that a Controller follows these operational rules.

@@ -32,6 +32,11 @@ a Controller execution is never project state.
   else is running.
 - Before every durable effect, reconstruct shared GitHub state. If the useful
   equivalent effect already exists, do nothing.
+- An unknown critical precondition forbids the effect. An unknown outcome never
+  proves failure or non-occurrence and permits neither a blind retry nor
+  dependent cleanup. Preserve consequential uncertainty in the relevant existing
+  GitHub artifact when possible; do not turn it into a global lock. Independent
+  work may continue under the existing trunk-health rule.
 
 After every push, Draft/Ready transition, settled CI, review, merge, Git race or
 human result, reconstruct GitHub before deciding again.
@@ -106,6 +111,21 @@ make it unsuitable as the base for subsequent development.
 - Integration must be conditional on the exact validated PR HEAD and must use
   that SHA as `expected_head_sha`. If the PR HEAD moves before the merge effect,
   the merge must fail/no-op and the Controller reconstructs current GitHub state.
+- Immediately before a normal merge, reconstruct current main, PR HEAD/Ready
+  state, target repository/branch, CI/review/findings/checkpoints and applicable
+  main protections. The PR must target this repository's main, with observed
+  base SHA equal to observed main; this equality does not prove strict-base
+  freshness. Use the native conditional squash merge without intervening work;
+  do not switch implicitly to async, stack or queue integration. After a known
+  interruption, reconstruct again before acting.
+- After every merge attempt, including an ambiguous transport failure,
+  reconstruct PR and main. Before claiming the exact candidate integrated,
+  establish the merged PR's association with that source HEAD and the merge
+  commit's presence in current main history. `merged=true` alone is insufficient.
+  A non-merged observation after timeout does not prove the request failed.
+  These observations are not a multi-object CAS: concurrent retarget, late
+  refutation or a suspended old process can still race. A crash before durable
+  observation can lose the fact that a request may have been sent.
 - Integration is serialized. If another merge moves the base and updating a PR
   creates a new HEAD, obtain fresh CI and fresh independent review.
 - A late NO_GO on an already merged candidate becomes durable trunk-health

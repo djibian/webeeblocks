@@ -73,6 +73,32 @@ class ContractTests(unittest.TestCase):
         ):
             self.assertIn(required, self.contract)
 
+    def test_critical_effect_unknown_is_not_failure(self):
+        for required in (
+            "An unknown critical precondition forbids the effect",
+            "An unknown outcome never proves failure or non-occurrence",
+            "neither a blind retry nor dependent cleanup",
+            "Preserve consequential uncertainty in the relevant existing GitHub artifact",
+            "do not turn it into a global lock",
+            "A non-merged observation after timeout does not prove the request failed",
+            "A crash before durable observation can lose the fact that a request may have been sent",
+        ):
+            self.assertIn(required, self.contract)
+
+    def test_merge_confirmation_requires_exact_subject_and_main_presence(self):
+        for required in (
+            "target this repository's main",
+            "this equality does not prove strict-base freshness",
+            "native conditional squash merge without intervening work",
+            "do not switch implicitly to async, stack or queue integration",
+            "After every merge attempt, including an ambiguous transport failure",
+            "merged PR's association with that source HEAD",
+            "merge commit's presence in current main history",
+            "`merged=true` alone is insufficient",
+            "These observations are not a multi-object CAS",
+        ):
+            self.assertIn(required, self.contract)
+
     def test_transient_branch_cleanup_requires_durable_authority_and_atomic_ref_safety(self):
         self.assertIn("Short-lived branches are transient project references", self.contract)
         self.assertIn("durable applicable project evidence under the existing provenance and authority rules", self.contract)
