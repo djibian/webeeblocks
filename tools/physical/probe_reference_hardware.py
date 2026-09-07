@@ -81,9 +81,13 @@ def _read_required_parameters(get_value: Callable[[str], object]) -> dict[str, o
 def _normalize_device_type_name(value: object) -> str:
     if not isinstance(value, str):
         raise ProbeError("device type name is not text")
-    name = value.strip()
+    # Accept an optional trailing C-string terminator defensively, while
+    # rejecting embedded NUL bytes instead of normalizing ambiguous evidence.
+    name = value.rstrip("\x00").strip()
     if not name:
         raise ProbeError("device type name is empty")
+    if "\x00" in name:
+        raise ProbeError("device type name contains embedded NUL")
     return name
 
 
