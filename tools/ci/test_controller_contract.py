@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed static contract for V4 multi-Controller governance."""
+"""Guard V4 contract wording; these tests do not prove Controller behavior."""
 
 from pathlib import Path
 import unittest
@@ -37,6 +37,41 @@ class ContractTests(unittest.TestCase):
         self.assertIn("External comments or reviews remain evidence to inspect", self.contract)
         self.assertIn("Durability does not imply trust", self.development)
         self.assertIn("github-actions[bot]", self.notifications)
+
+    def test_current_main_governs_authority_changes(self):
+        for required in (
+            "contract currently integrated on main",
+            "Proposed authority changes do not authorize themselves",
+            "`.github/workflows/**`", "both `.yml`/`.yaml`", "`.github/actions/**`",
+            "`tools/ci/select_ci.py`", "`tools/ci/check_ci_gate.py`",
+            "`tools/ci/test_controller_contract.py`", "`tools/ci/test_workflow_contract.py`",
+            "this list is not an exhaustive trust boundary",
+            "Technical changes preserving the authorized obligations",
+            "independent review without a new human approval",
+            "require applicable governance authorization",
+        ):
+            self.assertIn(required, self.contract)
+
+    def test_canonical_ci_identity_and_latest_attempt(self):
+        for required in (
+            "canonical `.github/workflows/ci.yml`", "association with the PR",
+            "exact candidate HEAD", "effective current attempt",
+            "Select the newest relevant run before examining its conclusion",
+            "an older success cannot replace a newer pending, failed, cancelled or ambiguous run",
+            "a homonymous check or `CI Gate (Draft)` is not sufficient evidence",
+            "Missing or malformed CI selection never exempts a suite",
+        ):
+            self.assertIn(required, self.contract)
+
+    def test_immutable_context_reuse_keeps_live_reconstruction(self):
+        for required in (
+            "load the complete current-main contract, product vision and roadmap",
+            "Within the same execution, already loaded complete Git content",
+            "exact blob identity is revalidated against newly resolved main",
+            "Missing content, lost context or uncertain identity requires a fresh read",
+            "Relevant mutable GitHub facts must still be reconstructed",
+        ):
+            self.assertIn(required, self.contract)
 
     def test_transient_branch_cleanup_requires_durable_authority_and_atomic_ref_safety(self):
         self.assertIn("Short-lived branches are transient project references", self.contract)

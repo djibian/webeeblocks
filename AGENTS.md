@@ -176,9 +176,17 @@ affect a later decision.
 
 ## Controller loop
 
+At launch, load the complete current-main contract, product vision and roadmap.
+Within the same execution, already loaded complete Git content may be reused
+only after its exact blob identity is revalidated against newly resolved main.
+Missing content, lost context or uncertain identity requires a fresh read.
+Relevant mutable GitHub facts must still be reconstructed; conversation memory
+does not establish current project state.
+
 At launch and after every durable transition:
-1. resolve exact main, reread this contract/product vision/roadmap and rebuild
-   relevant PRs, exact HEADs, CI, reviews, issues and evidence;
+1. resolve exact main, load or revalidate this contract/product vision/roadmap
+   under the rule above and rebuild relevant PRs, exact HEADs, CI, reviews,
+   issues and evidence;
 2. if main is known unhealthy, contribute to restoration first unless a credible
    repair path is durably engaged and another independent action is more useful;
 3. prefer a useful action that reduces remaining engaged work when it is a strong
@@ -213,10 +221,34 @@ independent useful work when available.
 
 ## CI and evidence
 
+- Evaluate candidates under the contract currently integrated on main. Proposed
+  authority changes do not authorize themselves. The existing independent review
+  examines changes to `AGENTS.md`, `.github/workflows/**` (including additions,
+  deletions, renames and both `.yml`/`.yaml`), `.github/actions/**`,
+  `tools/ci/select_ci.py`, `tools/ci/check_ci_gate.py`,
+  `tools/ci/test_controller_contract.py` and `tools/ci/test_workflow_contract.py`
+  against the existing obligations. Changes to other scripts, tests,
+  configuration or dependencies producing the evidence require the same scrutiny
+  of their affected obligations; this list is not an exhaustive trust boundary.
+- Technical changes preserving the authorized obligations may use the existing
+  independent review without a new human approval. Changes to obligations,
+  permissions, trust or human boundaries require applicable governance
+  authorization; an explicit owner instruction may already provide it.
+- Required CI evidence identifies the canonical `.github/workflows/ci.yml`
+  pull_request workflow in the expected repository, its association with the PR,
+  exact candidate HEAD, newest relevant run and effective current attempt.
+  Select the newest relevant run before examining its conclusion: an older
+  success cannot replace a newer pending, failed, cancelled or ambiguous run.
+  Require a completed successful run and its successful final `CI Gate` job;
+  a homonymous check or `CI Gate (Draft)` is not sufficient evidence. If identity,
+  completeness or rerun provenance is unknown, do not infer a positive result.
+  See docs/DEVELOPMENT.md for the native GitHub observations.
 - CI proves only the automated properties its oracles exercise.
 - A red result should strongly refute an automated property; a green result
   should strongly establish that scoped property, not full product acceptance.
 - Unsupported required evidence is never fabricated into a pass.
+- Missing or malformed CI selection never exempts a suite. An unselected suite
+  requires explicit `"false"` selection and an observed `skipped` result.
 - Network availability is not an acceptance oracle.
 - There is no Candidate Evidence pipeline. Automated evidence required for PR
   integration belongs in CI Gate; real-world evidence belongs at the human
