@@ -29,6 +29,58 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Discover exact physical-probe wheel closure
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/physical-probe-lock-discovery' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/physical-probe-lock-discovery"
+          wheels="$root/wheels"
+          site="$root/site"
+          source="$root/cflib-source"
+          rm -rf "$root"
+          mkdir -p "$wheels" "$site"
+
+          python3 -m pip download --disable-pip-version-check --only-binary=:all: --no-deps \
+            --dest "$wheels" \
+            pyusb==1.2.1 \
+            libusb-package==1.0.26.3 \
+            numpy==2.2.6
+
+          echo "WEBEEBLOCKS_PHYSICAL_LOCK_FILES_BEGIN"
+          (
+            cd "$wheels"
+            sha256sum *
+          )
+          echo "WEBEEBLOCKS_PHYSICAL_LOCK_FILES_END"
+
+          python3 -m pip install --disable-pip-version-check --no-index \
+            --find-links "$wheels" --no-deps --target "$site" \
+            pyusb==1.2.1 libusb-package==1.0.26.3 numpy==2.2.6
+
+          git init -q "$source"
+          git -C "$source" remote add origin https://github.com/bitcraze/crazyflie-lib-python.git
+          git -C "$source" fetch --depth=1 origin 45fdb784c9d13074c42835f3b5ac1d12133bf873
+          git -C "$source" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$source" rev-parse HEAD)" = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
+          test "$(git -C "$source" rev-parse HEAD^{tree})" = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
+
+          PYTHONPATH="$source:$site" PYTHONNOUSERSITE=1 python3 -S - <<'PY'
+          import pathlib
+          import cflib
+          import cflib.crtp
+          import libusb_package
+          import numpy
+          import usb
+          from cflib.crazyflie import Crazyflie
+          from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+
+          root = pathlib.Path(cflib.__file__).resolve()
+          print(f"WEBEEBLOCKS_PHYSICAL_LOCK_CFLIB={root}")
+          print(f"WEBEEBLOCKS_PHYSICAL_LOCK_NUMPY={numpy.__version__}")
+          print("WEBEEBLOCKS_PHYSICAL_LOCK_IMPORT_PASS")
+          PY
+
       - name: Verify selector and repository contracts
         run: |
           python3 tools/ci/test_select_ci.py
