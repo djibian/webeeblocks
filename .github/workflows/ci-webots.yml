@@ -1144,8 +1144,8 @@ jobs:
             sigemptyset(&action.sa_mask);
             action.sa_flags = SA_RESETHAND;
 
-            const int signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
-            for (const int signal_number : signals) {
+            const int fatal_signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
+            for (const int signal_number : fatal_signals) {
               if (sigaction(signal_number, &action, nullptr) != 0)
                 return false;
             }
