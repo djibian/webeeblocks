@@ -2161,9 +2161,34 @@ jobs:
           if missing:
               raise SystemExit('Pinned Webots R2025a checkout is missing required PROTOs: ' + ', '.join(missing))
 
+          # RotationalMotor's default sound is a webots:// resource that Webots
+          # may resolve through raw.githubusercontent.com even when the pinned
+          # projects tree is mounted locally. The historical light-sensor
+          # behavior does not depend on audio, so override only the two Pioneer
+          # wheel motor sounds in the pinned CI copy before running --network none.
+          pioneer = projects / 'robots/adept/pioneer3/protos/Pioneer3dx.proto'
+          pioneer_original = pioneer.read_text(encoding='utf-8')
+          seams = (
+              'RotationalMotor {\n            name "left wheel"\n            maxVelocity 12.3',
+              'RotationalMotor {\n            name "right wheel"\n            maxVelocity 12.3',
+          )
+          pioneer_offline = pioneer_original
+          for seam in seams:
+              if pioneer_offline.count(seam) != 1:
+                  raise SystemExit(f'Pinned Pioneer3dx motor seam changed: {seam!r}')
+              pioneer_offline = pioneer_offline.replace(
+                  seam,
+                  seam + '\n            sound ""',
+                  1,
+              )
+          if pioneer_offline.count('sound ""') != pioneer_original.count('sound ""') + 2:
+              raise SystemExit('Expected exactly two Pioneer motor sound overrides.')
+          pioneer.write_text(pioneer_offline, encoding='utf-8')
+
           target.write_text(localized, encoding='utf-8')
           print(f'PASS: localized exactly {replacements} Webots R2025a EXTERNPROTO references without changing world semantics.')
           print('PASS: all seven required PROTOs exist in the pinned Cyberbotics R2025a checkout.')
+          print('PASS: disabled only the two non-semantic Pioneer wheel sounds for deterministic offline execution.')
           PY
 
       - name: Execute historical light sensor program offline
