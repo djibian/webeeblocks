@@ -1055,6 +1055,105 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
+      - name: Run bounded Firefox Qt signal diagnostic
+        if: ${{ hashFiles('controllers/crazyflie_runtime_v2/qt_init_probe.cpp') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-qt-crash-frame
+          mkdir -p "$artifact_dir"
+
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          recipe_url="https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh"
+          recipe_blob="4593476be2c985580a0e1738671f4b5bae81f669"
+          curl --fail --location --retry 3 --output "$recipe" "$recipe_url"
+          test "$(git hash-object "$recipe")" = "$recipe_blob"
+          sudo env CI=true bash "$recipe"
+
+          archive="$RUNNER_TEMP/webots-R2025a-x86-64.tar.bz2"
+          archive_url="https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2"
+          archive_sha="c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38"
+          curl --fail --location --retry 3 --output "$archive" "$archive_url"
+          echo "$archive_sha  $archive" | sha256sum --check
+          tar -xjf "$archive" -C "$RUNNER_TEMP"
+          diagnostic_webots="$RUNNER_TEMP/webots"
+          test -x "$diagnostic_webots/webots"
+
+          (
+            cd plugins/robot_windows/blockly_v2
+            npm install --ignore-scripts --no-audit --no-fund
+            npm run prepare:blockly
+            test "$(cat vendor/VERSION)" = "13.2.1"
+          )
+
+          make -C controllers/crazyflie_runtime_v2 clean
+          WEBOTS_HOME="$diagnostic_webots" \
+            make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_QT_INIT_DIAGNOSTIC=1 VERBOSE=1 \
+            2>&1 | tee "$artifact_dir/build.log"
+
+          controller=controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          test -x "$controller"
+          LD_LIBRARY_PATH="$diagnostic_webots/lib/webots" ldd "$controller" |
+            tee "$artifact_dir/ldd.log"
+          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
+          test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
+          if printf '%s\n' "$qt_lines" | grep -vF "$diagnostic_webots/lib/webots/"; then
+            echo "Qt resolved outside the official Webots desktop SDK" >&2
+            exit 1
+          fi
+
+          printf '%s\n' \
+            '[environment variables for Linux]' \
+            'WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots' \
+            > controllers/crazyflie_runtime_v2/runtime.ini
+
+          log="$artifact_dir/webots.log"
+          set +e
+          env \
+            QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins" \
+            QT_DEBUG_PLUGINS=1 \
+            LIBGL_ALWAYS_SOFTWARE=true \
+            WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            timeout -k 5s 45s xvfb-run -a "$diagnostic_webots/webots" \
+              --stdout --stderr --batch --mode=realtime \
+              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" \
+              > "$log" 2>&1
+          webots_code=$?
+          set -e
+          printf 'webots_exit=%s\n' "$webots_code" | tee "$artifact_dir/webots-exit.txt"
+          cat "$log"
+
+          if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC QFILEDIALOG_CONSTRUCTED' "$log"; then
+            printf '%s\n' 'DIAGNOSTIC_RESULT=NO_CRASH_THROUGH_QFILEDIALOG' |
+              tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+
+          if grep -Eq 'WEBEEBLOCKS_QT_FATAL signal=SIG(SEGV|ABRT|BUS|ILL|FPE)' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_FATAL_BACKTRACE_BEGIN' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_FATAL_BACKTRACE_END' "$log"; then
+            printf '%s\n' 'DIAGNOSTIC_RESULT=FATAL_SIGNAL_BACKTRACE_CAPTURED' |
+              tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+
+          if ! grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC PRE_QAPPLICATION' "$log"; then
+            printf '%s\n' 'DIAGNOSTIC_RESULT=PRE_QAPPLICATION_NOT_REACHED' |
+              tee "$artifact_dir/result.txt"
+          else
+            printf '%s\n' 'DIAGNOSTIC_RESULT=QT_OUTCOME_UNPROVEN' |
+              tee "$artifact_dir/result.txt"
+          fi
+          exit 1
+
+      - name: Upload Firefox Qt signal diagnostic
+        if: ${{ always() && hashFiles('controllers/crazyflie_runtime_v2/qt_init_probe.cpp') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-qt-signal-diagnostic-r2025a
+          path: ci-artifacts/firefox-qt-crash-frame/
+          if-no-files-found: error
+
       - name: Upload runtime WWI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
