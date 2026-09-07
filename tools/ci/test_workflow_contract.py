@@ -3,7 +3,9 @@
 
 from pathlib import Path
 import re
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -33,10 +35,46 @@ def job_ids(text: str) -> set[str]:
     jobs = text.split("\njobs:\n", 1)[1]
     return set(re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", jobs, re.MULTILINE))
 
+def workflow_files() -> list[Path]:
+    return sorted(
+        path for path in WORKFLOWS.iterdir()
+        if path.is_file() and path.suffix in {".yml", ".yaml"}
+    )
+
 class WorkflowTests(unittest.TestCase):
     def test_only_v4_workflows_exist(self):
-        names = {path.name for path in WORKFLOWS.glob("*.yml")}
+        names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
+
+    def test_inventory_rejects_extra_or_missing_workflows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            for name in EXPECTED:
+                (directory / name).touch()
+            with patch(f"{__name__}.WORKFLOWS", directory):
+                self.test_only_v4_workflows_exist()
+                for suffix in (".yml", ".yaml"):
+                    with self.subTest(suffix=suffix):
+                        extra = directory / f"unexpected{suffix}"
+                        extra.touch()
+                        with self.assertRaises(AssertionError):
+                            self.test_only_v4_workflows_exist()
+                        extra.unlink()
+                (directory / "ci.yml").unlink()
+                with self.assertRaises(AssertionError):
+                    self.test_only_v4_workflows_exist()
+
+    def test_push_trigger_check_covers_both_yaml_extensions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            with patch(f"{__name__}.WORKFLOWS", directory):
+                for suffix in (".yml", ".yaml"):
+                    with self.subTest(suffix=suffix):
+                        workflow = directory / f"unexpected{suffix}"
+                        workflow.write_text("on:\n  push:\n", encoding="utf-8")
+                        with self.assertRaises(AssertionError):
+                            self.test_no_post_merge_push_trigger()
+                        workflow.unlink()
 
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
@@ -242,7 +280,7 @@ class WorkflowTests(unittest.TestCase):
         )
 
     def test_no_post_merge_push_trigger(self):
-        for path in WORKFLOWS.glob("*.yml"):
+        for path in workflow_files():
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
 
 if __name__ == "__main__":
