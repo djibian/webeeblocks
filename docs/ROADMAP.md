@@ -181,10 +181,16 @@ props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
   `executionAuthority:false` and exposing no WebeeBlocks motor/arming command
   API; the normal cflib close path still emits its safety-zero commander
   setpoint, so transport-level packet emission is not claimed read-only
-- this is a mechanism proof, not evidence that a particular classroom device
-  has already been observed
-- remaining boundary: real-hardware observation and physical execution
-  continuity/safety remain unproven and belong behind the physical
+- deterministic checkpoint preparation: integrated #207 restores the
+  checkpoint-only `physical-capabilities-readonly` profile using the exact
+  cflib source boundary and the four-wheel Ubuntu 22.04 / CPython 3.10
+  capability-probe runtime closure proven on #157; this preserves
+  `executionAuthority:false` and the cflib safety-zero close-path qualification
+- this is checkpoint support, not evidence that a particular classroom device
+  has already been observed; TEST_REQUIRED #180 currently occupies the single
+  human-test slot, so no second #157 checkpoint is published while it remains open
+- remaining boundary: real-hardware observation, then physical execution
+  continuity/safety, remain unproven and belong behind the physical
   capability/safety gate
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
