@@ -1056,7 +1056,7 @@ jobs:
           PY
 
       - name: Run C17 C14 standalone with forced libController load
-        if: \${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1229,7 +1229,7 @@ jobs:
           exit 1
 
       - name: Upload C17 C14-plus-libController discriminator
-        if: \${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
         uses: actions/upload-artifact@v4
         with:
           name: firefox-c17-libcontroller-load-r2025a
