@@ -85,14 +85,23 @@ jobs:
           set -euo pipefail
           artifact_dir=ci-artifacts/firefox-qt-crash-frame
           log="$artifact_dir/webots.log"
-          backtrace="$artifact_dir/gdb-backtrace.txt"
+          early_backtrace="$artifact_dir/gdb-early-backtrace.txt"
+          causal_backtrace="$artifact_dir/gdb-causal-backtrace.txt"
           result="$artifact_dir/result.txt"
           controller="$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
           controller_real="$(realpath "$controller")"
           : > "$log"
           : > "$result"
 
-          setsid env             QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins"             QT_DEBUG_PLUGINS=1             LIBGL_ALWAYS_SOFTWARE=true             WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true             timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots"               --stdout --stderr --batch --mode=realtime               "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt"               > "$log" 2>&1 &
+          setsid env \
+            QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins" \
+            QT_DEBUG_PLUGINS=1 \
+            LIBGL_ALWAYS_SOFTWARE=true \
+            WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots" \
+              --stdout --stderr --batch --mode=realtime \
+              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" \
+              > "$log" 2>&1 &
           launcher=$!
 
           cleanup() {
@@ -101,38 +110,17 @@ jobs:
           }
           trap cleanup EXIT
 
-          deadline=$((SECONDS + 35))
+          pid=''
+          deadline=$((SECONDS + 15))
           while [ "$SECONDS" -lt "$deadline" ]; do
-            if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC RENDEZVOUS' "$log"; then
-              pid="$(sed -n 's/.*RENDEZVOUS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
-              test -n "$pid"
-              test -r "/proc/$pid/exe"
-              test "$(readlink -f "/proc/$pid/exe")" = "$controller_real"
-              grep -Eq '^State:[[:space:]]+T' "/proc/$pid/status"
-
-              set +e
-              sudo -n timeout 25s gdb --batch --quiet -p "$pid"                 -ex 'set pagination off'                 -ex 'set confirm off'                 -ex 'set print thread-events off'                 -ex 'handle SIGTRAP stop print nopass'                 -ex 'handle SIGSEGV stop print nopass'                 -ex 'handle SIGABRT stop print nopass'                 -ex 'handle SIGBUS stop print nopass'                 -ex 'handle SIGILL stop print nopass'                 -ex 'handle SIGFPE stop print nopass'                 -ex 'signal 0'                 -ex 'printf "\nWEBEEBLOCKS_GDB_CAUSAL_STOP\n"'                 -ex 'info program'                 -ex 'thread apply all bt full'                 -ex 'detach'                 > "$backtrace" 2>&1
-              gdb_code=$?
-              set -e
-
-              cat "$log"
-              cat "$backtrace"
-
-              if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC QFILEDIALOG_CONSTRUCTED' "$log" &&
-                 grep -Fq 'Program received signal SIGTRAP' "$backtrace"; then
-                printf '%s\n' 'DIAGNOSTIC_RESULT=NO_CRASH_THROUGH_QFILEDIALOG' | tee "$result"
-                exit 0
-              fi
-
-              if grep -Eq 'Program received signal SIG(SEGV|ABRT|BUS|ILL|FPE)' "$backtrace" &&
-                 grep -Eq '^#0[[:space:]]' "$backtrace"; then
-                printf '%s\n' 'DIAGNOSTIC_RESULT=CAUSAL_CRASH_FRAME_CAPTURED' | tee "$result"
-                exit 0
-              fi
-
-              printf 'DIAGNOSTIC_RESULT=UNPROVEN gdb_exit=%s\n' "$gdb_code" | tee "$result"
-              exit 1
-            fi
+            while read -r candidate; do
+              [ -n "$candidate" ] || continue
+              [ -r "/proc/$candidate/exe" ] || continue
+              [ "$(readlink -f "/proc/$candidate/exe" 2>/dev/null || true)" = "$controller_real" ] || continue
+              pid="$candidate"
+              break
+            done < <(pgrep -f 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2' || true)
+            [ -n "$pid" ] && break
 
             if ! kill -0 "$launcher" 2>/dev/null; then
               set +e
@@ -146,9 +134,92 @@ jobs:
             sleep 0.1
           done
 
+          if [ -z "$pid" ]; then
+            cat "$log"
+            printf '%s\n' 'DIAGNOSTIC_RESULT=CONTROLLER_PROCESS_NOT_FOUND' | tee "$result"
+            exit 1
+          fi
+
+          {
+            printf 'controller_pid=%s\n' "$pid"
+            printf 'controller_exe=%s\n' "$(readlink -f "/proc/$pid/exe")"
+            awk '/^State:/ {print "controller_state=" $0}' "/proc/$pid/status"
+          } | tee "$artifact_dir/controller-process.txt"
+          awk '/libQt6(Core|Gui|Widgets)\.so\.6/ {print $NF}' "/proc/$pid/maps" |
+            sort -u | tee "$artifact_dir/controller-qt-maps.txt"
+
+          set +e
+          sudo -n timeout 15s gdb --batch --quiet -p "$pid" \
+            -ex 'set pagination off' \
+            -ex 'set confirm off' \
+            -ex 'set print thread-events off' \
+            -ex 'printf "\nWEBEEBLOCKS_GDB_EARLY_STACK\n"' \
+            -ex 'info program' \
+            -ex 'thread apply all bt full' \
+            -ex 'detach' \
+            > "$early_backtrace" 2>&1
+          early_gdb_code=$?
+          set -e
+          cat "$early_backtrace"
+          if [ "$early_gdb_code" -ne 0 ] || ! grep -Eq '^#0[[:space:]]' "$early_backtrace"; then
+            printf 'DIAGNOSTIC_RESULT=EARLY_GDB_UNPROVEN gdb_exit=%s\n' "$early_gdb_code" | tee "$result"
+            exit 1
+          fi
+
+          rendezvous_deadline=$((SECONDS + 15))
+          while [ "$SECONDS" -lt "$rendezvous_deadline" ]; do
+            if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC RENDEZVOUS' "$log"; then
+              grep -Eq '^State:[[:space:]]+T' "/proc/$pid/status"
+
+              set +e
+              sudo -n timeout 25s gdb --batch --quiet -p "$pid" \
+                -ex 'set pagination off' \
+                -ex 'set confirm off' \
+                -ex 'set print thread-events off' \
+                -ex 'handle SIGTRAP stop print nopass' \
+                -ex 'handle SIGSEGV stop print nopass' \
+                -ex 'handle SIGABRT stop print nopass' \
+                -ex 'handle SIGBUS stop print nopass' \
+                -ex 'handle SIGILL stop print nopass' \
+                -ex 'handle SIGFPE stop print nopass' \
+                -ex 'signal 0' \
+                -ex 'printf "\nWEBEEBLOCKS_GDB_CAUSAL_STOP\n"' \
+                -ex 'info program' \
+                -ex 'thread apply all bt full' \
+                -ex 'detach' \
+                > "$causal_backtrace" 2>&1
+              causal_gdb_code=$?
+              set -e
+
+              cat "$log"
+              cat "$causal_backtrace"
+
+              if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC QFILEDIALOG_CONSTRUCTED' "$log" &&
+                 grep -Fq 'Program received signal SIGTRAP' "$causal_backtrace"; then
+                printf '%s\n' 'DIAGNOSTIC_RESULT=NO_CRASH_THROUGH_QFILEDIALOG' | tee "$result"
+                exit 0
+              fi
+
+              if grep -Eq 'Program received signal SIG(SEGV|ABRT|BUS|ILL|FPE)' "$causal_backtrace" &&
+                 grep -Eq '^#0[[:space:]]' "$causal_backtrace"; then
+                printf '%s\n' 'DIAGNOSTIC_RESULT=CAUSAL_CRASH_FRAME_CAPTURED' | tee "$result"
+                exit 0
+              fi
+
+              printf 'DIAGNOSTIC_RESULT=CAUSAL_GDB_UNPROVEN gdb_exit=%s\n' "$causal_gdb_code" | tee "$result"
+              exit 1
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat "$log"
+              printf '%s\n' 'DIAGNOSTIC_RESULT=CONTROLLER_EXITED_AFTER_EARLY_STACK' | tee "$result"
+              exit 1
+            fi
+            sleep 0.1
+          done
+
           cat "$log"
-          printf '%s\n' 'DIAGNOSTIC_RESULT=RENDEZVOUS_TIMEOUT' | tee "$result"
-          exit 1
+          printf '%s\n' 'DIAGNOSTIC_RESULT=PRE_RENDEZVOUS_STACK_CAPTURED' | tee "$result"
+          exit 0
 
       - name: Upload diagnostic evidence
         if: always()
