@@ -91,12 +91,19 @@ def _normalize_device_type_name(value: object) -> str:
     return name
 
 
-def _read_device_type_name(cf: object, timeout_seconds: float = 2.0) -> str:
+def _read_device_type_name(
+    cf: object,
+    timeout_seconds: float = 2.0,
+    crtp_types: tuple[object, object] | None = None,
+) -> str:
     """Issue the documented read-only CRTP Platform device-type query."""
-    try:
-        from cflib.crtp.crtpstack import CRTPPacket, CRTPPort
-    except ImportError as exc:
-        raise ProbeError("cflib CRTP packet support is unavailable") from exc
+    if crtp_types is None:
+        try:
+            from cflib.crtp.crtpstack import CRTPPacket, CRTPPort
+        except ImportError as exc:
+            raise ProbeError("cflib CRTP packet support is unavailable") from exc
+    else:
+        CRTPPacket, CRTPPort = crtp_types
 
     done = Event()
     result: dict[str, object] = {}
