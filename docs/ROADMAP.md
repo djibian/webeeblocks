@@ -20,14 +20,16 @@ here.
 interface) are validated baseline, not active priority nodes.
 
 The #157 simulation-side C1b boundary is now established for every currently
-justified student-facing generic capability. The integrated read-only
-Crazyradio/Crazyflie capability probe and exact Crazyflie 2.1 identity query
-(#193, #196) now establish the machine-readable physical capability/preflight
-evidence path without execution authority. The substantive remaining product
-boundary is real-hardware observation plus safe physical execution continuity;
-do not invent additional simulation vocabulary merely to keep #157 active. A
-new simulation slice needs a concrete pedagogical need or contradictory
-evidence.
+justified student-facing generic capability. Integrated #193/#196 now establish
+the machine-readable physical capability/preflight evidence path and exact
+Crazyflie 2.1 identity without granting WebeeBlocks execution authority. The
+capability/API surface is read-only; the underlying cflib SyncCrazyflie close
+path still emits its documented safety-zero commander setpoint, so this is not a
+claim that the transport emits no command packet. The substantive remaining
+product boundary is real-hardware observation plus safe physical execution
+continuity; do not invent additional simulation vocabulary merely to keep #157
+active. A new simulation slice needs a concrete pedagogical need or
+contradictory evidence.
 
 Research / later work:
 
@@ -173,11 +175,14 @@ props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
 - explicit exclusion: Flow Deck downward ToF remains infrastructure-only at
   current evidence because no activity has a pupil-facing downward-clearance
   objective; do not add `range(down)` merely for hardware completeness
-- established physical-read boundary: integrated #193 and #196 provide a
-  fail-closed, read-only Crazyradio/Crazyflie capability probe that can verify
-  exact Crazyflie 2.1 identity plus reference-deck capability evidence while
-  keeping `executionAuthority:false`; this is a mechanism proof, not evidence
-  that a particular classroom device has already been observed
+- established physical capability/API boundary: integrated #193 and #196
+  provide a fail-closed capability probe that can verify exact Crazyflie 2.1
+  identity plus reference-deck capability evidence while keeping
+  `executionAuthority:false` and exposing no WebeeBlocks motor/arming command
+  API; the normal cflib close path still emits its safety-zero commander
+  setpoint, so transport-level packet emission is not claimed read-only
+- this is a mechanism proof, not evidence that a particular classroom device
+  has already been observed
 - remaining boundary: real-hardware observation and physical execution
   continuity/safety remain unproven and belong behind the physical
   capability/safety gate
@@ -205,9 +210,11 @@ props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
 ### P — physical backend capability and safety
 
 - parents: physical-backend product work and #70 evidence
-- established prerequisite: #193/#196 provide the read-only Crazyradio/deck
-  capability and exact-airframe evidence path, still with no execution authority
-  and no claim of a completed real-device observation
+- established prerequisite: #193/#196 provide the non-authority
+  Crazyradio/deck capability/API and exact-airframe evidence path; the
+  WebeeBlocks surface remains read-only and `executionAuthority:false`, while
+  the cflib close path retains its safety-zero transport setpoint and no
+  completed real-device observation is claimed
 - depends: backend-neutral AST continuity plus demonstrated real-hardware
   capability evidence before any execution authority is introduced
 - proof direction: preflight, arming/abort/failsafe and simulation/physical AST
