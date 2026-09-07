@@ -1,0 +1,77 @@
+// Vendored from Webots R2025a commit c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b.
+// Source: resources/web/wwi/RobotWindow.js (Apache-2.0).
+// Local hardening: malformed robot payloads are logged and ignored instead of throwing.
+import {getGETQueryValue} from './request_methods.js';
+
+export default class RobotWindow {
+  constructor() {
+    this.name = decodeURI(getGETQueryValue('name', 'undefined'));
+    if (window.location.href.includes('/~WEBOTS_HOME/'))
+      this.wsServer = window.location.href.substring(0, window.location.href.indexOf('/~WEBOTS_HOME/') + 1);
+    else
+      this.wsServer = window.location.href.substring(0, window.location.href.indexOf('/robot_windows/') + 1);
+    this.wsServer = this.wsServer.replace('https://', 'wss://').replace('http://', 'ws://');
+    this.socket = new WebSocket(this.wsServer);
+    this.pendingMsgs = [];
+    this.connect();
+  };
+
+  send(message) {
+    if (this.socket.readyState !== 1)
+      this.pendingMsgs.push(message);
+    else
+      this.socket.send('robot:' + this.name + ':' + message);
+  }
+
+  receive(message, robot) { // to be overridden
+    console.log("Robot window received message from Robot '" + robot + "': " + message);
+  }
+
+  setTitle(title) {
+    document.title = title;
+  }
+
+  connect() {
+    this.socket.onopen = (event) => { this.#onSocketOpen(event); };
+    this.socket.onmessage = (event) => { this.#onSocketMessage(event); };
+    this.socket.onclose = (event) => { this.#onSocketClose(event); };
+    this.socket.onerror = (event) => { };
+    this.send('init robot window');
+  }
+
+  #onSocketOpen(event) {
+    while (this.pendingMsgs.length > 0)
+      this.send(this.pendingMsgs.shift());
+  }
+
+  #onSocketMessage(event) {
+    const socketData = event.data.split(/\r?\n/);
+    for (let i = 0, len = socketData.length; i < len; i++) {
+      const data = socketData[i];
+      const ignoreData = ['application/json:', 'stdout:', 'stderr:'].some(sw => data.startsWith(sw));
+      if (data.startsWith('robot:')) {
+        const messageMatch = data.match('"message":"(.*)","name"');
+        const robotMatch = data.match(',"name":"(.*)"}');
+        if (!messageMatch || !robotMatch) {
+          console.log('WebSocket error: Malformed robot message ignored: "' + data + '"');
+          continue;
+        }
+        let message = messageMatch[1];
+        const robot = robotMatch[1];
+        message = message.replace(/\\/g, '');
+        if (this.name === robot) // receive only the messages of our robot.
+          this.receive(message, robot);
+      } else if (!ignoreData)
+        console.log('WebSocket error: Unknown message received: "' + data + '"');
+    }
+  }
+
+  #onSocketClose(event) {
+    // https://tools.ietf.org/html/rfc6455#section-7.4.1
+    if ((event.code > 1001 && event.code < 1016) || (event.code === 1001)) {
+      if (this.socket)
+        this.socket.close();
+      window.close();
+    }
+  }
+};

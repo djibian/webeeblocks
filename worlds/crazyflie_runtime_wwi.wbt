@@ -1,0 +1,32 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  title "WebeeBlocks Crazyflie runtime WWI mission gate"
+}
+Viewpoint {
+  orientation -0.45 0.47 0.76 1.05
+  position -3 -3 3
+  follow "Crazyflie Runtime"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Floor {
+  size 6 6
+}
+Crazyflie {
+  name "Crazyflie Runtime"
+  controller "crazyflie_l_course"
+  controllerArgs [
+    "runtime"
+  ]
+  window "blockly"
+  supervisor TRUE
+}

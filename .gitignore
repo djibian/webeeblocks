@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Node and browser tooling
+node_modules/
+npm-debug.log*
+
+# Webots and native build output
+build/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+*.swp
+

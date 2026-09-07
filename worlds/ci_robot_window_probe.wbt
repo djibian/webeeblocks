@@ -1,0 +1,13 @@
+#VRML_SIM R2025a utf8
+
+WorldInfo {
+  basicTimeStep 32
+}
+Viewpoint {
+  position 0 0 2
+}
+Robot {
+  name "ci-probe"
+  controller "ci_robot_window_probe"
+  window "blockly"
+}

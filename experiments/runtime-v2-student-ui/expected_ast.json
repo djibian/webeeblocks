@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "semantics": "webeeblocks-ast-v1",
+  "program": [
+    {
+      "kind": "takeoff",
+      "height_m": 0.5
+    },
+    {
+      "kind": "repeat",
+      "count": 3,
+      "body": [
+        {
+          "kind": "if",
+          "condition": {
+            "kind": "compare",
+            "op": "LT",
+            "left": {
+              "kind": "range",
+              "direction": "front",
+              "unit": "m"
+            },
+            "right": {
+              "kind": "number",
+              "value": 0.5
+            }
+          },
+          "then": [
+            {
+              "kind": "move",
+              "direction": "left",
+              "distance_m": 0.3
+            }
+          ],
+          "else": [
+            {
+              "kind": "move",
+              "direction": "forward",
+              "distance_m": 0.3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "land"
+    }
+  ]
+}

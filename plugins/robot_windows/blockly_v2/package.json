@@ -1,0 +1,15 @@
+{
+  "name": "webeeblocks-runtime-v2-blockly",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pinned Blockly browser assets for the WebeeBlocks Runtime v2 Robot Window.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare:blockly": "node prepare_blockly_vendor.js"
+  },
+  "dependencies": {
+    "blockly": "13.2.1"
+  }
+}

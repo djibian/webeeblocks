@@ -1,0 +1,29 @@
+body[data-runtime-state="ARRÊTÉ"] #runtimeState {
+  background: #fff0d6;
+  color: #805100;
+}
+
+#debugPanel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 43px;
+  padding: 6px 18px;
+  background: #f5f8fb;
+  border-bottom: 1px solid var(--wb-line);
+  color: var(--wb-muted);
+  font-size: 13px;
+  z-index: 4;
+}
+
+#debugPanel[hidden] { display: none; }
+#stepModeLabel { display: inline-flex; align-items: center; gap: 6px; color: var(--wb-ink); font-weight: 650; }
+#stepMode { width: 16px; height: 16px; }
+#stepNext, #stepContinue { min-height: 31px; padding: 4px 10px; font-size: 13px; }
+#debugState { color: var(--wb-ink); font-weight: 650; }
+#debugSensorsRow, #debugVariablesRow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 850px) {
+  #debugPanel { padding: 6px 12px; flex-wrap: wrap; }
+  #debugSensorsRow, #debugVariablesRow { flex-basis: 100%; }
+}

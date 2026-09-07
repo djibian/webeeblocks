@@ -1,0 +1,199 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  randomSeed 1
+  optimalThreadCount 1
+  title "WebeeBlocks runtime Blockly obstacle challenge"
+}
+Viewpoint {
+  orientation -0.45 0.47 0.76 1.05
+  position -3 -3 3
+  follow "Crazyflie Runtime"
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Floor {
+  size 6 6
+}
+
+# Visual-only course markers. They deliberately have no boundingObject and do not
+# participate in the physical oracle: the controller still evaluates the same
+# mathematical G1/G2 planes and the same collision observer as before.
+DEF GATE_1 Group {
+  children [
+    Pose {
+      translation 0.9 -0.3175 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.035 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 0.9 0.3175 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.035 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 0.9 0 1.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.025 0.67 0.035 }
+        }
+      ]
+    }
+  ]
+}
+
+DEF GATE_2 Group {
+  children [
+    Pose {
+      translation 0.6825 0.9 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.035 0.025 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 1.3175 0.9 1.0
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.035 0.025 0.8 }
+        }
+      ]
+    }
+    Pose {
+      translation 1.0 0.9 1.4
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.1 0.75 0.25
+            emissiveColor 0.02 0.12 0.04
+            roughness 0.5
+          }
+          geometry Box { size 0.67 0.025 0.035 }
+        }
+      ]
+    }
+  ]
+}
+
+DEF OBSTACLE Solid {
+  translation 1.25 0 0.70
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.1 0.1
+        roughness 0.6
+        metalness 0
+      }
+      geometry Box {
+        size 0.05 0.30 1.40
+      }
+    }
+  ]
+  boundingObject Box {
+    size 0.05 0.30 1.40
+  }
+}
+DEF CRAZYFLIE Crazyflie {
+  name "Crazyflie Runtime"
+  synchronization TRUE
+  controller "crazyflie_l_course"
+  controllerArgs [
+    "runtime"
+  ]
+  window "blockly"
+  supervisor TRUE
+  extensionSlot [
+    Pose {
+      translation 0 0 -0.012
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.06 0.28 0.10
+            roughness 0.65
+            metalness 0
+          }
+          geometry Box {
+            size 0.040 0.040 0.0015
+          }
+        }
+        LED {
+          translation 0 0 -0.0013
+          name "color_led"
+          gradual TRUE
+          color [ ]
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.03 0.03 0.03
+                emissiveColor 0 0 0
+                roughness 0.4
+                metalness 0
+              }
+              geometry Box {
+                size 0.026 0.026 0.001
+              }
+            }
+          ]
+        }
+      ]
+    }
+    Pose {
+      translation 0 0 0.02
+      rotation 0 1 0 -1.57079632679
+      children [
+        DistanceSensor {
+          name "range_up"
+          lookupTable [
+            0 0 0
+            2 2000 0
+          ]
+        }
+      ]
+    }
+  ]
+}
+Robot {
+  name "Collision observer"
+  controller "crazyflie_collision_observer"
+  supervisor TRUE
+}
