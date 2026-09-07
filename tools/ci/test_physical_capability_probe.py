@@ -55,7 +55,7 @@ def main() -> int:
         "exact airframe must remain unproven",
     )
 
-    verified_descriptor = probe.build_descriptor("11", BASE_VALUES, "CF2.1")
+    verified_descriptor = probe.build_descriptor("11", BASE_VALUES, "Crazyflie 2.1")
     require(
         verified_descriptor["identity"]
         == {
@@ -63,22 +63,22 @@ def main() -> int:
             "model": "crazyflie-2.1",
             "modelEvidence": "verified",
         },
-        "CF2.1 device-type evidence must verify the exact airframe",
+        "Crazyflie 2.1 device-type-name evidence must verify the exact airframe",
     )
     require(
-        verified_descriptor["evidence"]["deviceTypeName"] == "CF2.1"
+        verified_descriptor["evidence"]["deviceTypeName"] == "Crazyflie 2.1"
         and verified_descriptor["evidence"]["exactAirframeModel"] == "crazyflie-2.1",
         "exact device-type evidence must be preserved",
     )
 
-    other_descriptor = probe.build_descriptor("11", BASE_VALUES, "C21B")
+    other_descriptor = probe.build_descriptor("11", BASE_VALUES, "Crazyflie 2.1 Brushless")
     require(
         other_descriptor["identity"]
         == {"family": "crazyflie", "model": None, "modelEvidence": "unproven"},
-        "non-CF2.1 device type must not satisfy the exact-airframe claim",
+        "non-reference device type name must not satisfy the exact-airframe claim",
     )
     require(
-        other_descriptor["evidence"]["deviceTypeName"] == "C21B",
+        other_descriptor["evidence"]["deviceTypeName"] == "Crazyflie 2.1 Brushless",
         "incompatible observed device type must remain visible as evidence",
     )
 
@@ -235,7 +235,7 @@ def main() -> int:
             "model": "crazyflie-2.1",
             "modelEvidence": "verified",
         },
-        "JS exact-airframe contract must retain verified CF2.1 evidence",
+        "JS exact-airframe contract must retain verified Crazyflie 2.1 evidence",
     )
 
     source = PROBE_PATH.read_text(encoding="utf-8")
