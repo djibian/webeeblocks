@@ -1208,7 +1208,11 @@ jobs:
             exit 1
           fi
 
-          run_control "$linked" linked
+          # Keep argv[0] and the executable path byte-for-byte aligned with the C14 baseline.
+          # The staged treatment differs only in its forced libController DT_NEEDED entry.
+          cp "$linked" "$baseline"
+          cmp -s "$baseline" "$linked"
+          run_control "$baseline" linked
           linked_log="$artifact_dir/linked.log"
           linked_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_PROCESS pid=\([0-9][0-9]*\).*/\1/p' "$linked_log" | tail -n 1)"
           linked_exit_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_PROCESS_EXIT pid=\([0-9][0-9]*\) code=.*/\1/p' "$linked_log" | tail -n 1)"
