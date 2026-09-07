@@ -1194,7 +1194,22 @@ jobs:
 
           controller="$historical/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
           test -x "$controller"
-          LD_LIBRARY_PATH="$diagnostic_webots/lib/webots" ldd "$controller" |
+          real_controller="$controller.real"
+          mv "$controller" "$real_controller"
+          cat > "$controller" <<'SH'
+          #!/usr/bin/env bash
+          set +e
+          real="${BASH_SOURCE[0]}.real"
+          "$real" "$@" &
+          pid=$!
+          printf 'WEBEEBLOCKS_C10_PROCESS pid=%s\n' "$pid" >&2
+          wait "$pid"
+          code=$?
+          printf 'WEBEEBLOCKS_C10_PROCESS_EXIT pid=%s code=%s\n' "$pid" "$code" >&2
+          exit "$code"
+          SH
+          chmod +x "$controller"
+          LD_LIBRARY_PATH="$diagnostic_webots/lib/webots" ldd "$real_controller" |
             tee "$artifact_dir/ldd.log"
           qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
           test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
@@ -1230,8 +1245,29 @@ jobs:
               capture {print}
             ' "$log" > "$artifact_dir/causal-backtrace.txt"
             test -s "$artifact_dir/causal-backtrace.txt"
-            grep -Eq 'libQt6(Core|Gui|Widgets)|libqxcb|QApplication|QtFileDialogProvider'               "$artifact_dir/causal-backtrace.txt"
-            printf '%s\n' 'DIAGNOSTIC_RESULT=C10_FATAL_SIGNAL_WITH_USABLE_QT_FRAME' |
+            grep -Eq 'libQt6(Core|Gui|Widgets)|libqxcb|QApplication|QtFileDialogProvider' \
+              "$artifact_dir/causal-backtrace.txt"
+
+            signal="$(sed -n 's/.*WEBEEBLOCKS_C10_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$log" | tail -n 1)"
+            process_pid="$(sed -n 's/.*WEBEEBLOCKS_C10_PROCESS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+            exit_pid="$(sed -n 's/.*WEBEEBLOCKS_C10_PROCESS_EXIT pid=\([0-9][0-9]*\) code=.*/\1/p' "$log" | tail -n 1)"
+            exit_code="$(sed -n 's/.*WEBEEBLOCKS_C10_PROCESS_EXIT pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+            test -n "$process_pid"
+            test "$exit_pid" = "$process_pid"
+            case "$signal" in
+              SIGSEGV) expected_exit=139 ;;
+              SIGABRT) expected_exit=134 ;;
+              SIGBUS) expected_exit=135 ;;
+              SIGILL) expected_exit=132 ;;
+              SIGFPE) expected_exit=136 ;;
+              *) echo "Unsupported captured signal: $signal" >&2; exit 1 ;;
+            esac
+            test "$exit_code" = "$expected_exit"
+            printf 'controller_pid=%s\nsignal=%s\ncontroller_exit=%s\n' \
+              "$process_pid" "$signal" "$exit_code" |
+              tee "$artifact_dir/controller-exit.txt"
+
+            printf '%s\n' 'DIAGNOSTIC_RESULT=C10_FATAL_SIGNAL_EXIT_WITH_USABLE_QT_FRAME' |
               tee "$artifact_dir/result.txt"
             exit 0
           fi
