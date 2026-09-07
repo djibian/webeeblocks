@@ -246,6 +246,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("--network none", gyro)
         self.assertIn("/usr/local/webots/projects:ro", gyro)
 
+    def test_light_sensor_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        light = suite.split("\n  light-sensor-historical:\n", 1)[1].split(
+            "\n  sensor-probing-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical world", light)
+        self.assertIn("/workspace/worlds/.ci-lightSensorBoxChallenge-local.wbt", light)
+        self.assertIn("--network none", light)
+        self.assertIn("/usr/local/webots/projects:ro", light)
+        self.assertIn("Pinned Pioneer3dx motor seam changed", light)
+        self.assertIn("seam + '\\n            sound \"\"'", light)
+        self.assertIn("Expected exactly two Pioneer motor sound overrides.", light)
+
     def test_sensor_probing_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         sensor = suite.split("\n  sensor-probing-historical:\n", 1)[1].split(
