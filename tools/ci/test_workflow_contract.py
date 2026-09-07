@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
-    "human-checkpoint.yml": {"validate", "runtime", "webots", "physical", "publish"},
+    "human-checkpoint.yml": {"validate", "runtime", "webots", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -116,12 +116,6 @@ class WorkflowTests(unittest.TestCase):
             "'windows-low-end': 'WebeeBlocks-Windows-R2025a',",
             "'s3-props-off': 'experimental-s3-surface-offset-2026-08',",
             "'s3-props-off': {'checkpoint'},",
-            "'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',",
-            "'physical-capabilities-readonly': {'checkpoint'},",
-            "needs.validate.outputs.test_profile == 'physical-capabilities-readonly'",
-            "python3 tools/ci/test_physical_capability_probe.py",
-            "node tools/ci/test_physical_capability_contract.js",
-            "name: WebeeBlocks-Physical-Capability-Probe",
             "Purpose {purpose} is not allowed for profile {profile}",
             "Unknown test profile; add deterministic preparation before enabling it",
             "Required artifact is missing a valid sha256 digest",
@@ -252,6 +246,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("--network none", gyro)
         self.assertIn("/usr/local/webots/projects:ro", gyro)
 
+    def test_light_sensor_historical_runtime_is_offline(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        light = suite.split("\n  light-sensor-historical:\n", 1)[1].split(
+            "\n  sensor-probing-historical:\n", 1
+        )[0]
+        self.assertIn("Prepare offline historical world", light)
+        self.assertIn("/workspace/worlds/.ci-lightSensorBoxChallenge-local.wbt", light)
+        self.assertIn("--network none", light)
+        self.assertIn("/usr/local/webots/projects:ro", light)
+        self.assertIn("Pinned Pioneer3dx motor seam changed", light)
+        self.assertIn("seam + '\\n            sound \"\"'", light)
+        self.assertIn("Expected exactly two Pioneer motor sound overrides.", light)
+
     def test_sensor_probing_historical_runtime_is_offline(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
         sensor = suite.split("\n  sensor-probing-historical:\n", 1)[1].split(
@@ -283,47 +290,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(
             'WORLD = ROOT / "worlds" / ".ci-empty-local.wbt"',
             restart,
-        )
-
-    def test_physical_checkpoint_cflib_is_exact_commit(self):
-        requirements = (
-            ROOT / "tools" / "physical" / "reference_probe_requirements.txt"
-        ).read_text(encoding="utf-8").strip()
-        self.assertEqual(
-            requirements,
-            "cflib @ git+https://github.com/bitcraze/crazyflie-lib-python.git@"
-            "45fdb784c9d13074c42835f3b5ac1d12133bf873",
-        )
-
-        workflow = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
-        for required in (
-            "python3 -m pip wheel --disable-pip-version-check",
-            "-r tools/physical/reference_probe_requirements.txt",
-            "cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873",
-            "find . -type f ! -name SHA256SUMS -print0",
-            'PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment',
-        ):
-            self.assertIn(required, workflow)
-
-        runner = (
-            ROOT / "tools" / "physical" / "run_reference_probe.sh"
-        ).read_text(encoding="utf-8")
-        for required in (
-            'sha256sum -c SHA256SUMS',
-            "--no-index",
-            '--find-links "$HERE/wheels"',
-            "--ignore-installed",
-            '--target "$ISOLATED_SITE"',
-            "PYTHONNOUSERSITE=1",
-            'python3 -S "$HERE/probe_reference_hardware.py"',
-            "FAIL: exact packaged cflib wheel is missing or ambiguous",
-            "--verify-environment",
-            "PASS: packaged cflib isolation verified without hardware",
-        ):
-            self.assertIn(required, runner)
-        self.assertNotIn(
-            'python3 "$HERE/probe_reference_hardware.py"',
-            runner,
         )
 
     def test_no_post_merge_push_trigger(self):

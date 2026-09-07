@@ -1,1 +1,0 @@
-cflib @ git+https://github.com/bitcraze/crazyflie-lib-python.git@45fdb784c9d13074c42835f3b5ac1d12133bf873
