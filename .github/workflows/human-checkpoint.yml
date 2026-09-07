@@ -194,7 +194,7 @@ jobs:
             test -f "$wheelhouse/$filename"
             printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
           done < tools/physical/reference_probe_lock.txt
-          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 4
           sha256sum -c "$expected"
 
           printf '%s\n' \
