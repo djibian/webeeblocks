@@ -21,6 +21,7 @@ BASE_VALUES = {
     "firmware.revision0": "305419896",
     "firmware.revision1": "2596069104",
     "firmware.modified": "0",
+    "system.selftestPassed": "1",
     "deck.bcFlow2": "1",
     "deck.bcMultiranger": "1",
     "deck.bcColorLedBot": "1",
@@ -87,6 +88,50 @@ def main() -> int:
     require(
         failed_descriptor["evidence"]["decks"]["colorLedBottom"]["selfTestMask"] == 4,
         "failed LED self-test mask preserved",
+    )
+
+    selftest_failed = dict(BASE_VALUES)
+    selftest_failed["system.selftestPassed"] = "0"
+    selftest_failed_descriptor = probe.build_descriptor(11, selftest_failed)
+    require(
+        "flow-deck-v2" not in selftest_failed_descriptor["hardware"],
+        "Flow deck must not be advertised when boot self-test failed",
+    )
+    require(
+        "multi-ranger-deck" not in selftest_failed_descriptor["hardware"],
+        "Multi-ranger must not be advertised when boot self-test failed",
+    )
+    require(
+        selftest_failed_descriptor["capabilities"]["moveDirections"] == [],
+        "movement must fail closed when boot self-test failed",
+    )
+    require(
+        selftest_failed_descriptor["capabilities"]["verticalDirections"] == [],
+        "vertical movement must fail closed when boot self-test failed",
+    )
+    require(
+        selftest_failed_descriptor["capabilities"]["rangeDirections"] == [],
+        "range must fail closed when boot self-test failed",
+    )
+    require(
+        "set_light" in selftest_failed_descriptor["capabilities"]["actions"],
+        "Color LED keeps its own explicit deck self-test evidence",
+    )
+    require(
+        selftest_failed_descriptor["evidence"]["systemSelfTestPassed"] is False,
+        "failed boot self-test evidence must be preserved",
+    )
+    require(
+        selftest_failed_descriptor["evidence"]["decks"]["flowDeckV2"] is True
+        and selftest_failed_descriptor["evidence"]["decks"]["multiRanger"] is True,
+        "deck presence evidence must remain distinct from health",
+    )
+
+    malformed_selftest = dict(BASE_VALUES)
+    malformed_selftest["system.selftestPassed"] = "not-an-int"
+    expect_probe_error(
+        lambda: probe.build_descriptor(11, malformed_selftest),
+        "system.selftestPassed is not an integer",
     )
 
     no_flow = dict(BASE_VALUES)
