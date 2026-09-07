@@ -62,10 +62,12 @@ jobs:
           PROFILES = {
               'windows-low-end': 'WebeeBlocks-Windows-R2025a',
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
+              'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
           }
           PURPOSES = {
               'windows-low-end': {'checkpoint', 'release'},
               's3-props-off': {'checkpoint'},
+              'physical-capabilities-readonly': {'checkpoint'},
           }
 
           def get_commit(sha):
@@ -142,13 +144,53 @@ jobs:
     with:
       target_sha: ${{ needs.validate.outputs.target_sha }}
 
+  physical:
+    name: Prepare physical capability probe
+    needs: validate
+    if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.target_sha }}
+
+      - name: Validate physical capability probe
+        run: |
+          set -euo pipefail
+          python3 tools/ci/test_physical_capability_probe.py
+          node tools/ci/test_physical_capability_contract.js
+
+      - name: Package exact non-authority probe
+        run: |
+          set -euo pipefail
+          bundle=ci-artifacts/physical-capability-probe
+          mkdir -p "$bundle"
+          cp tools/physical/probe_reference_hardware.py "$bundle/"
+          cp tools/physical/reference_probe_requirements.txt "$bundle/"
+          cp tools/physical/run_reference_probe.sh "$bundle/"
+          chmod +x "$bundle/run_reference_probe.sh"
+          (
+            cd "$bundle"
+            sha256sum probe_reference_hardware.py reference_probe_requirements.txt run_reference_probe.sh > SHA256SUMS
+          )
+
+      - name: Upload physical capability probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Physical-Capability-Probe
+          path: ci-artifacts/physical-capability-probe/
+          if-no-files-found: error
+
   publish:
     name: Publish one TEST_REQUIRED
-    needs: [validate, runtime, webots]
+    needs: [validate, runtime, webots, physical]
     if: >-
+      always() &&
       needs.validate.outputs.target_sha != '' &&
       needs.runtime.result == 'success' &&
-      needs.webots.result == 'success'
+      needs.webots.result == 'success' &&
+      (needs.validate.outputs.test_profile != 'physical-capabilities-readonly' ||
+       needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
       group: webeeblocks-human-test-open

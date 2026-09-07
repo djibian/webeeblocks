@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
-    "human-checkpoint.yml": {"validate", "runtime", "webots", "publish"},
+    "human-checkpoint.yml": {"validate", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -116,6 +116,12 @@ class WorkflowTests(unittest.TestCase):
             "'windows-low-end': 'WebeeBlocks-Windows-R2025a',",
             "'s3-props-off': 'experimental-s3-surface-offset-2026-08',",
             "'s3-props-off': {'checkpoint'},",
+            "'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',",
+            "'physical-capabilities-readonly': {'checkpoint'},",
+            "needs.validate.outputs.test_profile == 'physical-capabilities-readonly'",
+            "python3 tools/ci/test_physical_capability_probe.py",
+            "node tools/ci/test_physical_capability_contract.js",
+            "name: WebeeBlocks-Physical-Capability-Probe",
             "Purpose {purpose} is not allowed for profile {profile}",
             "Unknown test profile; add deterministic preparation before enabling it",
             "Required artifact is missing a valid sha256 digest",
