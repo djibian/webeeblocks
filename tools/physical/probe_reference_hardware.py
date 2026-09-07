@@ -81,7 +81,7 @@ def _read_required_parameters(get_value: Callable[[str], object]) -> dict[str, o
 def _normalize_device_type_name(value: object) -> str:
     if not isinstance(value, str):
         raise ProbeError("device type name is not text")
-    name = value.strip().rstrip("\\x00")
+    name = value.strip()
     if not name:
         raise ProbeError("device type name is empty")
     return name
