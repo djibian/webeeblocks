@@ -187,8 +187,8 @@ props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
   capability-probe runtime closure proven on #157; this preserves
   `executionAuthority:false` and the cflib safety-zero close-path qualification
 - this is checkpoint support, not evidence that a particular classroom device
-  has already been observed; TEST_REQUIRED #180 currently occupies the single
-  human-test slot, so no second #157 checkpoint is published while it remains open
+  has already been observed; human checkpoint publication remains serialized by
+  the governance contract
 - remaining boundary: real-hardware observation, then physical execution
   continuity/safety, remain unproven and belong behind the physical
   capability/safety gate
