@@ -1,0 +1,159 @@
+name: Firefox Qt crash-frame diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/runtime-v2-qt-crash-diagnostic.yml'
+      - 'controllers/crazyflie_runtime_v2/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WEBOTS_ARCHIVE: webots-R2025a-x86-64.tar.bz2
+  WEBOTS_URL: https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2
+  WEBOTS_SHA256: c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38
+  WEBOTS_RUNTIME_RECIPE_URL: https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh
+  WEBOTS_RUNTIME_RECIPE_BLOB_SHA: 4593476be2c985580a0e1738671f4b5bae81f669
+
+jobs:
+  firefox-qt-crash-frame:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare pinned Blockly assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+
+      - name: Install official R2025a runtime and bounded debugger
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-qt-crash-frame
+          mkdir -p "$artifact_dir"
+
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          curl --fail --location --retry 3 --output "$recipe" "$WEBOTS_RUNTIME_RECIPE_URL"
+          actual_blob_sha="$(git hash-object "$recipe")"
+          test "$actual_blob_sha" = "$WEBOTS_RUNTIME_RECIPE_BLOB_SHA"
+          printf 'recipe_blob_sha=%s\n' "$actual_blob_sha" > "$artifact_dir/runtime-provenance.txt"
+          sudo env CI=true bash "$recipe"
+
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gdb
+          gdb --version | head -n 1 | tee "$artifact_dir/gdb-version.txt"
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' gdb |
+            tee "$artifact_dir/gdb-package.txt"
+
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/$WEBOTS_ARCHIVE" "$WEBOTS_URL"
+          echo "$WEBOTS_SHA256  $RUNNER_TEMP/$WEBOTS_ARCHIVE" | sha256sum --check
+          tar -xjf "$RUNNER_TEMP/$WEBOTS_ARCHIVE" -C "$RUNNER_TEMP"
+          test -x "$RUNNER_TEMP/webots/webots"
+          echo "WEBOTS_HOME=$RUNNER_TEMP/webots" >> "$GITHUB_ENV"
+          sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > "$artifact_dir/webots-archive.sha256"
+
+      - name: Build diagnostic controller against bundled Webots Qt
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-qt-crash-frame
+          make -C controllers/crazyflie_runtime_v2 clean
+          make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_QT_INIT_DIAGNOSTIC=1 VERBOSE=1 2>&1 |
+            tee "$artifact_dir/build.log"
+
+          controller=controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          test -x "$controller"
+          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" ldd "$controller" |
+            tee "$artifact_dir/ldd.log"
+          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
+          test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
+          if printf '%s\n' "$qt_lines" | grep -vF "$WEBOTS_HOME/lib/webots/"; then
+            echo "Qt resolved outside the official Webots desktop SDK" >&2
+            exit 1
+          fi
+
+          printf '%s\n'             '[environment variables for Linux]'             'WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots'             > controllers/crazyflie_runtime_v2/runtime.ini
+          cat controllers/crazyflie_runtime_v2/runtime.ini |
+            tee "$artifact_dir/runtime.ini"
+
+      - name: Capture first causal Qt stop in the real Webots controller
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-qt-crash-frame
+          log="$artifact_dir/webots.log"
+          backtrace="$artifact_dir/gdb-backtrace.txt"
+          result="$artifact_dir/result.txt"
+          controller="$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
+          controller_real="$(realpath "$controller")"
+          : > "$log"
+          : > "$result"
+
+          setsid env             QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins"             QT_DEBUG_PLUGINS=1             LIBGL_ALWAYS_SOFTWARE=true             WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true             timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots"               --stdout --stderr --batch --mode=realtime               "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt"               > "$log" 2>&1 &
+          launcher=$!
+
+          cleanup() {
+            kill -TERM -- "-$launcher" 2>/dev/null || true
+            wait "$launcher" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          deadline=$((SECONDS + 35))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC RENDEZVOUS' "$log"; then
+              pid="$(sed -n 's/.*RENDEZVOUS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+              test -n "$pid"
+              test -r "/proc/$pid/exe"
+              test "$(readlink -f "/proc/$pid/exe")" = "$controller_real"
+              grep -Eq '^State:[[:space:]]+T' "/proc/$pid/status"
+
+              set +e
+              sudo -n timeout 25s gdb --batch --quiet -p "$pid"                 -ex 'set pagination off'                 -ex 'set confirm off'                 -ex 'set print thread-events off'                 -ex 'handle SIGTRAP stop print nopass'                 -ex 'handle SIGSEGV stop print nopass'                 -ex 'handle SIGABRT stop print nopass'                 -ex 'handle SIGBUS stop print nopass'                 -ex 'handle SIGILL stop print nopass'                 -ex 'handle SIGFPE stop print nopass'                 -ex 'signal 0'                 -ex 'printf "\nWEBEEBLOCKS_GDB_CAUSAL_STOP\n"'                 -ex 'info program'                 -ex 'thread apply all bt full'                 -ex 'detach'                 > "$backtrace" 2>&1
+              gdb_code=$?
+              set -e
+
+              cat "$log"
+              cat "$backtrace"
+
+              if grep -Fq 'WEBEEBLOCKS_QT_INIT_DIAGNOSTIC QFILEDIALOG_CONSTRUCTED' "$log" &&
+                 grep -Fq 'Program received signal SIGTRAP' "$backtrace"; then
+                printf '%s\n' 'DIAGNOSTIC_RESULT=NO_CRASH_THROUGH_QFILEDIALOG' | tee "$result"
+                exit 0
+              fi
+
+              if grep -Eq 'Program received signal SIG(SEGV|ABRT|BUS|ILL|FPE)' "$backtrace" &&
+                 grep -Eq '^#0[[:space:]]' "$backtrace"; then
+                printf '%s\n' 'DIAGNOSTIC_RESULT=CAUSAL_CRASH_FRAME_CAPTURED' | tee "$result"
+                exit 0
+              fi
+
+              printf 'DIAGNOSTIC_RESULT=UNPROVEN gdb_exit=%s\n' "$gdb_code" | tee "$result"
+              exit 1
+            fi
+
+            if ! kill -0 "$launcher" 2>/dev/null; then
+              set +e
+              wait "$launcher"
+              code=$?
+              set -e
+              cat "$log"
+              printf 'DIAGNOSTIC_RESULT=EARLY_EXIT code=%s\n' "$code" | tee "$result"
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          cat "$log"
+          printf '%s\n' 'DIAGNOSTIC_RESULT=RENDEZVOUS_TIMEOUT' | tee "$result"
+          exit 1
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-qt-crash-frame-r2025a
+          path: ci-artifacts/firefox-qt-crash-frame
+          if-no-files-found: error

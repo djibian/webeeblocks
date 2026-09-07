@@ -14,6 +14,9 @@
 #include <webots/supervisor.h>
 
 #include "pid_controller.h"
+#ifdef WEBEEBLOCKS_QT_INIT_DIAGNOSTIC
+#include "qt_init_probe_c.h"
+#endif
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -284,6 +287,12 @@ static void trace_reset(double x, double y, double z, double origin_x, double or
 
 int main(void) {
   wb_robot_init();
+#ifdef WEBEEBLOCKS_QT_INIT_DIAGNOSTIC
+  if (wb_qt_init_probe() != 0) {
+    wb_robot_cleanup();
+    return 1;
+  }
+#endif
   const int step = (int)wb_robot_get_basic_time_step();
 
   WbDeviceTag m1 = wb_robot_get_device("m1_motor");
