@@ -43,7 +43,87 @@ def expect_probe_error(callable_, pattern: str) -> None:
     raise AssertionError(f"expected ProbeError containing {pattern!r}")
 
 
+
+
+def test_device_type_query() -> None:
+    class FakeCRTPPort:
+        PLATFORM = 13
+
+    class FakeCRTPPacket:
+        def __init__(self) -> None:
+            self.port = None
+            self.channel = None
+            self.data = bytearray()
+
+        def set_header(self, port: int, channel: int) -> None:
+            self.port = port
+            self.channel = channel
+
+    class FakeCf:
+        def __init__(self, response: bytes | None) -> None:
+            self.response = response
+            self.callback = None
+            self.removed = False
+            self.sent = None
+
+        def add_port_callback(self, port: int, callback) -> None:
+            require(port == FakeCRTPPort.PLATFORM, "device-type callback port")
+            self.callback = callback
+
+        def remove_port_callback(self, port: int, callback) -> None:
+            require(port == FakeCRTPPort.PLATFORM, "device-type callback cleanup port")
+            require(callback is self.callback, "device-type callback cleanup identity")
+            self.removed = True
+
+        def send_packet(self, packet) -> None:
+            self.sent = (packet.port, packet.channel, bytes(packet.data))
+            if self.response is not None:
+                self.callback(type("Packet", (), {
+                    "channel": probe.VERSION_CHANNEL,
+                    "data": bytearray(self.response),
+                })())
+
+    crtp_types = (FakeCRTPPacket, FakeCRTPPort)
+
+    cf = FakeCf(bytes((probe.VERSION_GET_DEVICE_TYPE_NAME,)) + b"Crazyflie 2.1" + bytes((0,)))
+    name = probe._read_device_type_name(cf, timeout_seconds=0.01, crtp_types=crtp_types)
+    require(name == "Crazyflie 2.1", "trailing C-string NUL normalization")
+    require(
+        cf.sent
+        == (
+            FakeCRTPPort.PLATFORM,
+            probe.VERSION_CHANNEL,
+            bytes((probe.VERSION_GET_DEVICE_TYPE_NAME,)),
+        ),
+        "device-type request packet",
+    )
+    require(cf.removed, "device-type callback cleanup after success")
+
+    malformed = FakeCf(bytes((probe.VERSION_GET_DEVICE_TYPE_NAME, 255)))
+    expect_probe_error(
+        lambda: probe._read_device_type_name(
+            malformed,
+            timeout_seconds=0.01,
+            crtp_types=crtp_types,
+        ),
+        "malformed device type response",
+    )
+    require(malformed.removed, "device-type callback cleanup after malformed response")
+
+    timeout = FakeCf(None)
+    expect_probe_error(
+        lambda: probe._read_device_type_name(
+            timeout,
+            timeout_seconds=0.001,
+            crtp_types=crtp_types,
+        ),
+        "device type query timed out",
+    )
+    require(timeout.removed, "device-type callback cleanup after timeout")
+
+
 def main() -> int:
+    test_device_type_query()
     descriptor = probe.build_descriptor("11", BASE_VALUES)
 
     require(descriptor["transport"] == "crazyradio", "transport")
@@ -53,6 +133,46 @@ def main() -> int:
         descriptor["identity"]
         == {"family": "crazyflie", "model": None, "modelEvidence": "unproven"},
         "exact airframe must remain unproven",
+    )
+
+    verified_descriptor = probe.build_descriptor("11", BASE_VALUES, "Crazyflie 2.1")
+    require(
+        verified_descriptor["identity"]
+        == {
+            "family": "crazyflie",
+            "model": "crazyflie-2.1",
+            "modelEvidence": "verified",
+        },
+        "Crazyflie 2.1 device-type-name evidence must verify the exact airframe",
+    )
+    require(
+        verified_descriptor["evidence"]["deviceTypeName"] == "Crazyflie 2.1"
+        and verified_descriptor["evidence"]["exactAirframeModel"] == "crazyflie-2.1",
+        "exact device-type evidence must be preserved",
+    )
+
+    other_descriptor = probe.build_descriptor("11", BASE_VALUES, "Crazyflie 2.1 Brushless")
+    require(
+        other_descriptor["identity"]
+        == {"family": "crazyflie", "model": None, "modelEvidence": "unproven"},
+        "non-reference device type name must not satisfy the exact-airframe claim",
+    )
+    require(
+        other_descriptor["evidence"]["deviceTypeName"] == "Crazyflie 2.1 Brushless",
+        "incompatible observed device type must remain visible as evidence",
+    )
+
+    expect_probe_error(
+        lambda: probe.build_descriptor("11", BASE_VALUES, ""),
+        "device type name is empty",
+    )
+    expect_probe_error(
+        lambda: probe.build_descriptor(
+            "11",
+            BASE_VALUES,
+            "Crazyflie" + chr(0) + " 2.1",
+        ),
+        "device type name contains embedded NUL",
     )
     require(
         descriptor["hardware"]
@@ -183,6 +303,29 @@ def main() -> int:
     require(normalized_descriptor["identity"]["modelEvidence"] == "unproven", "JS keeps identity boundary")
     require("evidence" not in normalized_descriptor, "P0a normalizer exposes only decision fields")
 
+    verified_normalized = subprocess.run(
+        ["node", "-e", node_script],
+        input=json.dumps(verified_descriptor),
+        text=True,
+        capture_output=True,
+        cwd=ROOT,
+        check=False,
+    )
+    require(
+        verified_normalized.returncode == 0,
+        f"JS verified descriptor normalization failed: {verified_normalized.stderr}",
+    )
+    verified_normalized_descriptor = json.loads(verified_normalized.stdout)
+    require(
+        verified_normalized_descriptor["identity"]
+        == {
+            "family": "crazyflie",
+            "model": "crazyflie-2.1",
+            "modelEvidence": "verified",
+        },
+        "JS exact-airframe contract must retain verified Crazyflie 2.1 evidence",
+    )
+
     source = PROBE_PATH.read_text(encoding="utf-8")
     for forbidden in (
         ".set_value(",
@@ -196,7 +339,7 @@ def main() -> int:
     ):
         require(forbidden not in source, f"read-only probe contains forbidden authority surface: {forbidden}")
 
-    print("PASS cflib probe maps read-only platform/deck evidence without execution authority")
+    print("PASS cflib probe maps read-only platform/deck and exact-airframe evidence without execution authority")
     return 0
 
 
