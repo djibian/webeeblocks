@@ -194,7 +194,7 @@ The enabled profiles are `windows-low-end`, backed by the
 and `physical-capabilities-readonly`, backed by `WebeeBlocks-Physical-Capability-Probe`
 and restricted to purpose `checkpoint`. The physical bundle copies cflib from one
 exact Git commit/tree without building it and locks the complete declared runtime
-closure to six exact Python 3.10/Linux x86-64 wheel filenames and SHA-256 digests.
+closure to seven exact Python 3.10/Linux x86-64 wheel filenames and SHA-256 digests.
 Its runner installs only that local closure with `--no-index --no-deps`, rejects
 ambient package leakage, and preserves `executionAuthority:false`. cflib's normal
 close path may emit its safety-zero commander setpoint, so this profile is not a

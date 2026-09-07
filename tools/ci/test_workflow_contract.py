@@ -307,6 +307,7 @@ class WorkflowTests(unittest.TestCase):
         expected = {
             "pyusb==1.3.1|pyusb-1.3.1-py3-none-any.whl|bf9b754557af4717fe80c2b07cc2b923a9151f5c08d17bdb5345dac09d6a0430",
             "libusb-package==1.0.30.0|libusb_package-1.0.30.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl|f502ad5a0527b8c0431de817662325c88a1bba2cc334173665b04ad168d7b6d3",
+            "importlib-resources==6.5.2|importlib_resources-6.5.2-py3-none-any.whl|789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec",
             "scipy==1.15.3|scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|9e2abc762b0811e09a0d3258abee2d98e0c703eee49464ce0069590846f31d40",
             "numpy==2.2.6|numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|fc7b73d02efb0e18c000e9ad8b83480dfcd5dfd11065997ed4c6747470ae8915",
             "packaging==25.0|packaging-25.0-py3-none-any.whl|29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
@@ -323,7 +324,7 @@ class WorkflowTests(unittest.TestCase):
             "--no-deps --only-binary=:all:",
             "--platform manylinux2014_x86_64",
             "--implementation cp --python-version 310 --abi cp310",
-            "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 6",
+            "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 7",
             "sha256sum -c \"$expected\"",
         ):
             self.assertIn(required, workflow)
@@ -336,7 +337,7 @@ class WorkflowTests(unittest.TestCase):
             'PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE"',
             "PYTHONNOUSERSITE=1",
             "python3 -S",
-            "exact six-wheel runtime closure required",
+            "exact seven-wheel runtime closure required",
             "executionAuthority must remain false",
         ):
             self.assertIn(required, runner)

@@ -194,7 +194,7 @@ jobs:
             test -f "$wheelhouse/$filename"
             printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
           done < tools/physical/reference_probe_lock.txt
-          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 6
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
           sha256sum -c "$expected"
 
           printf '%s\n' \
@@ -214,7 +214,7 @@ jobs:
           )
 
           ambient="$RUNNER_TEMP/hostile-ambient"
-          for module in cflib usb libusb_package numpy scipy packaging yaml; do
+          for module in cflib usb libusb_package importlib_resources numpy scipy packaging yaml; do
             mkdir -p "$ambient/$module"
             printf '%s\n' 'raise RuntimeError("ambient package must never be imported")' > "$ambient/$module/__init__.py"
           done

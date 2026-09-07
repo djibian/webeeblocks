@@ -55,8 +55,8 @@ mkdir -p "$ISOLATED_SITE"
 shopt -s nullglob
 WHEELS=("$HERE"/wheels/*.whl)
 shopt -u nullglob
-if [ "${#WHEELS[@]}" -ne 6 ]; then
-  echo "FAIL: exact six-wheel runtime closure required" >&2
+if [ "${#WHEELS[@]}" -ne 7 ]; then
+  echo "FAIL: exact seven-wheel runtime closure required" >&2
   exit 2
 fi
 
@@ -78,6 +78,7 @@ import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 import libusb_package
+import importlib_resources
 import numpy
 import packaging
 import scipy
@@ -87,7 +88,7 @@ import yaml
 if source not in pathlib.Path(cflib.__file__).resolve().parents:
     raise SystemExit(f"FAIL: cflib escaped exact bundled source: {cflib.__file__}")
 
-for module in (libusb_package, numpy, packaging, scipy, usb, yaml):
+for module in (libusb_package, importlib_resources, numpy, packaging, scipy, usb, yaml):
     module_path = pathlib.Path(module.__file__).resolve()
     if site not in module_path.parents:
         raise SystemExit(f"FAIL: dependency escaped isolated wheelhouse: {module.__name__} -> {module_path}")
@@ -97,7 +98,7 @@ print("PASS: exact offline cflib runtime closure is isolated")
 PY
 
 if [ "$MODE" = "--verify-environment" ]; then
-  echo "PASS: packaged cflib source and six-wheel closure verified without hardware"
+  echo "PASS: packaged cflib source and seven-wheel closure verified without hardware"
   exit 0
 fi
 
