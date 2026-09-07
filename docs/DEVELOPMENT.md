@@ -193,7 +193,7 @@ The enabled profiles are `windows-low-end`, backed by the
 `experimental-s3-surface-offset-2026-08` and restricted to purpose `checkpoint`;
 and `physical-capabilities-readonly`, backed by `WebeeBlocks-Physical-Capability-Probe`
 and restricted to purpose `checkpoint`. The physical bundle copies cflib from one
-exact Git commit/tree without building it and locks the complete declared runtime
+exact Git commit/tree without building it and locks the proven probe runtime
 closure to four exact Python 3.10/Linux x86-64 wheel filenames and SHA-256 digests.
 Its runner installs only that local closure with `--no-index --no-deps`, rejects
 ambient package leakage, and preserves `executionAuthority:false`. cflib's normal
