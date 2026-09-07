@@ -301,6 +301,7 @@ class WorkflowTests(unittest.TestCase):
             "-r tools/physical/reference_probe_requirements.txt",
             "cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873",
             "find . -type f ! -name SHA256SUMS -print0",
+            'PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment',
         ):
             self.assertIn(required, workflow)
 
@@ -316,6 +317,8 @@ class WorkflowTests(unittest.TestCase):
             "PYTHONNOUSERSITE=1",
             'python3 -S "$HERE/probe_reference_hardware.py"',
             "FAIL: exact packaged cflib wheel is missing or ambiguous",
+            "--verify-environment",
+            "PASS: packaged cflib isolation verified without hardware",
         ):
             self.assertIn(required, runner)
         self.assertNotIn(

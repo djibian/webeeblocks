@@ -197,6 +197,11 @@ jobs:
           )
           grep -Fq 'cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873' "$bundle/PROVENANCE.txt"
 
+          ambient="$RUNNER_TEMP/ambient-cflib"
+          mkdir -p "$ambient/cflib"
+          printf '%s\n' 'raise RuntimeError("ambient cflib must never be imported")' > "$ambient/cflib/__init__.py"
+          PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment
+
       - name: Upload physical capability probe
         uses: actions/upload-artifact@v4
         with:

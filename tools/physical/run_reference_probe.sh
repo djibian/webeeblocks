@@ -2,15 +2,16 @@
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 radio://<dongle>/<channel>/<rate>/<address>" >&2
+  echo "Usage: $0 --verify-environment | radio://<dongle>/<channel>/<rate>/<address>" >&2
   exit 2
 fi
 
-URI="$1"
-case "$URI" in
+MODE="$1"
+case "$MODE" in
+  --verify-environment) ;;
   radio://*) ;;
   *)
-    echo "Exact Crazyradio radio:// URI required" >&2
+    echo "Exact Crazyradio radio:// URI or --verify-environment required" >&2
     exit 2
     ;;
 esac
@@ -63,8 +64,13 @@ if site not in module.parents:
 print(f"Using packaged cflib: {module}")
 PY
 
+if [ "$MODE" = "--verify-environment" ]; then
+  echo "PASS: packaged cflib isolation verified without hardware"
+  exit 0
+fi
+
 PYTHONPATH="$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
-  python3 -S "$HERE/probe_reference_hardware.py" --uri "$URI" --pretty |
+  python3 -S "$HERE/probe_reference_hardware.py" --uri "$MODE" --pretty |
   tee "$OUT"
 
 PYTHONPATH="$ISOLATED_SITE" PYTHONNOUSERSITE=1 python3 -S - "$OUT" <<'PY'
