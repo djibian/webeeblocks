@@ -17,10 +17,57 @@ esac
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="$HERE/physical-capability-descriptor.json"
+ISOLATED_SITE=''
+cleanup() {
+  if [ -n "$ISOLATED_SITE" ]; then
+    rm -rf "$(dirname "$ISOLATED_SITE")"
+  fi
+}
+trap cleanup EXIT
 
-python3 "$HERE/probe_reference_hardware.py" --uri "$URI" --pretty | tee "$OUT"
+cd "$HERE"
+test -s SHA256SUMS
+sha256sum -c SHA256SUMS
+test -s PROVENANCE.txt
+grep -Fxq 'cflib_source=https://github.com/bitcraze/crazyflie-lib-python.git' PROVENANCE.txt
+grep -Fxq 'cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873' PROVENANCE.txt
 
-python3 - "$OUT" <<'PY'
+shopt -s nullglob
+CFLIB_WHEELS=("$HERE"/wheels/cflib-*.whl)
+shopt -u nullglob
+if [ "${#CFLIB_WHEELS[@]}" -ne 1 ] || [ ! -f "${CFLIB_WHEELS[0]}" ]; then
+  echo "FAIL: exact packaged cflib wheel is missing or ambiguous" >&2
+  exit 2
+fi
+
+ISOLATED_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/webeeblocks-physical-probe.XXXXXX")"
+ISOLATED_SITE="$ISOLATED_ROOT/site"
+mkdir -p "$ISOLATED_SITE"
+
+python3 -m pip install --disable-pip-version-check \
+  --no-index \
+  --find-links "$HERE/wheels" \
+  --ignore-installed \
+  --target "$ISOLATED_SITE" \
+  "${CFLIB_WHEELS[0]}"
+
+PYTHONPATH="$ISOLATED_SITE" PYTHONNOUSERSITE=1 python3 -S - "$ISOLATED_SITE" <<'PY'
+import pathlib
+import sys
+import cflib
+
+site = pathlib.Path(sys.argv[1]).resolve()
+module = pathlib.Path(cflib.__file__).resolve()
+if site not in module.parents:
+    raise SystemExit(f"FAIL: cflib escaped isolated bundle: {module}")
+print(f"Using packaged cflib: {module}")
+PY
+
+PYTHONPATH="$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
+  python3 -S "$HERE/probe_reference_hardware.py" --uri "$URI" --pretty |
+  tee "$OUT"
+
+PYTHONPATH="$ISOLATED_SITE" PYTHONNOUSERSITE=1 python3 -S - "$OUT" <<'PY'
 import json
 import sys
 from pathlib import Path

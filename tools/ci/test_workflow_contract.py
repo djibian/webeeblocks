@@ -295,6 +295,34 @@ class WorkflowTests(unittest.TestCase):
             "45fdb784c9d13074c42835f3b5ac1d12133bf873",
         )
 
+        workflow = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        for required in (
+            "python3 -m pip wheel --disable-pip-version-check",
+            "-r tools/physical/reference_probe_requirements.txt",
+            "cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873",
+            "find . -type f ! -name SHA256SUMS -print0",
+        ):
+            self.assertIn(required, workflow)
+
+        runner = (
+            ROOT / "tools" / "physical" / "run_reference_probe.sh"
+        ).read_text(encoding="utf-8")
+        for required in (
+            'sha256sum -c SHA256SUMS',
+            "--no-index",
+            '--find-links "$HERE/wheels"',
+            "--ignore-installed",
+            '--target "$ISOLATED_SITE"',
+            "PYTHONNOUSERSITE=1",
+            'python3 -S "$HERE/probe_reference_hardware.py"',
+            "FAIL: exact packaged cflib wheel is missing or ambiguous",
+        ):
+            self.assertIn(required, runner)
+        self.assertNotIn(
+            'python3 "$HERE/probe_reference_hardware.py"',
+            runner,
+        )
+
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)

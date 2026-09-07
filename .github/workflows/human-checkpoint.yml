@@ -164,15 +164,38 @@ jobs:
         run: |
           set -euo pipefail
           bundle=ci-artifacts/physical-capability-probe
-          mkdir -p "$bundle"
+          wheelhouse="$bundle/wheels"
+          mkdir -p "$wheelhouse"
           cp tools/physical/probe_reference_hardware.py "$bundle/"
           cp tools/physical/reference_probe_requirements.txt "$bundle/"
           cp tools/physical/run_reference_probe.sh "$bundle/"
           chmod +x "$bundle/run_reference_probe.sh"
+
+          python3 -m pip wheel --disable-pip-version-check \
+            --wheel-dir "$wheelhouse" \
+            -r tools/physical/reference_probe_requirements.txt
+
+          shopt -s nullglob
+          cflib_wheels=("$wheelhouse"/cflib-*.whl)
+          shopt -u nullglob
+          if [ "${#cflib_wheels[@]}" -ne 1 ] || [ ! -f "${cflib_wheels[0]}" ]; then
+            echo "Expected exactly one cflib wheel from the pinned source commit" >&2
+            exit 1
+          fi
+
+          printf '%s\n' \
+            'cflib_source=https://github.com/bitcraze/crazyflie-lib-python.git' \
+            'cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873' \
+            "cflib_wheel=$(basename "${cflib_wheels[0]}")" \
+            > "$bundle/PROVENANCE.txt"
+
           (
             cd "$bundle"
-            sha256sum probe_reference_hardware.py reference_probe_requirements.txt run_reference_probe.sh > SHA256SUMS
+            find . -type f ! -name SHA256SUMS -print0 |
+              sort -z |
+              xargs -0 sha256sum > SHA256SUMS
           )
+          grep -Fq 'cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873' "$bundle/PROVENANCE.txt"
 
       - name: Upload physical capability probe
         uses: actions/upload-artifact@v4
