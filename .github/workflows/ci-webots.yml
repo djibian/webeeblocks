@@ -1173,7 +1173,7 @@ jobs:
             }
             c15_marker("WEBEEBLOCKS_C15 PRE_WB_ROBOT_INIT\n");
             int argc = 1;
-            char program_name[] = "webeeblocks-c15-pre-wb-init";
+            char program_name[] = "webeeblocks-file-broker";
             char *argv[] = {program_name, nullptr};
             c15_marker("WEBEEBLOCKS_C15 BEFORE_QAPPLICATION\n");
             {
@@ -1257,6 +1257,7 @@ jobs:
           set +e
           env \
             QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins" \
+            QT_DEBUG_PLUGINS=1 \
             LIBGL_ALWAYS_SOFTWARE=true \
             WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             timeout -k 3s 25s xvfb-run -a "$diagnostic_webots/webots" \
