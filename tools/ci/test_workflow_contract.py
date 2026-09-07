@@ -285,6 +285,16 @@ class WorkflowTests(unittest.TestCase):
             restart,
         )
 
+    def test_physical_checkpoint_cflib_is_exact_commit(self):
+        requirements = (
+            ROOT / "tools" / "physical" / "reference_probe_requirements.txt"
+        ).read_text(encoding="utf-8").strip()
+        self.assertEqual(
+            requirements,
+            "cflib @ git+https://github.com/bitcraze/crazyflie-lib-python.git@"
+            "45fdb784c9d13074c42835f3b5ac1d12133bf873",
+        )
+
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
