@@ -1212,7 +1212,7 @@ jobs:
           test -n "$treatment_pid"
           test "$treatment_exit_pid" = "$treatment_pid"
           grep -Eq 'WEBEEBLOCKS_C18_PROCESS tag=baseline .* argc=1 .* debug=0 display=:[0-9]+' "$baseline_log"
-          grep -Eq 'WEBEEBLOCKS_C18_PROCESS tag=treatment .* argc=1 argv0=webeeblocks-file-broker debug=1 display=:[0-9]+' "$treatment_log"
+          grep -Eq 'WEBEEBLOCKS_C18_PROCESS tag=treatment .* argc=1 argv0=webeeblocks-file-broker debug=0 display=:[0-9]+' "$treatment_log"
           baseline_display="$(sed -n 's/.*WEBEEBLOCKS_C18_PROCESS tag=baseline .* display=\([^ ]*\).*/\1/p' "$baseline_log" | tail -n 1)"
           treatment_display="$(sed -n 's/.*WEBEEBLOCKS_C18_PROCESS tag=treatment .* display=\([^ ]*\).*/\1/p' "$treatment_log" | tail -n 1)"
           test -n "$baseline_display"
