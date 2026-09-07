@@ -189,8 +189,16 @@ provenance/digest, serializes the publication step, refuses a second open human
 test, then creates one durable [TEST_REQUIRED] issue and sends ntfy.
 
 The enabled profiles are `windows-low-end`, backed by the
-`WebeeBlocks-Windows-R2025a` artifact, and `s3-props-off`, backed by
-`experimental-s3-surface-offset-2026-08` and restricted to purpose `checkpoint`.
+`WebeeBlocks-Windows-R2025a` artifact; `s3-props-off`, backed by
+`experimental-s3-surface-offset-2026-08` and restricted to purpose `checkpoint`;
+and `physical-capabilities-readonly`, backed by `WebeeBlocks-Physical-Capability-Probe`
+and restricted to purpose `checkpoint`. The physical bundle copies cflib from one
+exact Git commit/tree without building it and locks the complete declared runtime
+closure to six exact Python 3.10/Linux x86-64 wheel filenames and SHA-256 digests.
+Its runner installs only that local closure with `--no-index --no-deps`, rejects
+ambient package leakage, and preserves `executionAuthority:false`. cflib's normal
+close path may emit its safety-zero commander setpoint, so this profile is not a
+claim of transport-level read-only behavior and never authorizes motorized flight.
 Unknown profiles fail closed until their deterministic preparation is explicitly
 implemented. A props-off checkpoint never authorizes motorized flight.
 

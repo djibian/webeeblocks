@@ -62,10 +62,12 @@ jobs:
           PROFILES = {
               'windows-low-end': 'WebeeBlocks-Windows-R2025a',
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
+              'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
           }
           PURPOSES = {
               'windows-low-end': {'checkpoint', 'release'},
               's3-props-off': {'checkpoint'},
+              'physical-capabilities-readonly': {'checkpoint'},
           }
 
           def get_commit(sha):
@@ -142,13 +144,99 @@ jobs:
     with:
       target_sha: ${{ needs.validate.outputs.target_sha }}
 
+  physical:
+    name: Prepare deterministic physical capability probe
+    needs: validate
+    if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.target_sha }}
+
+      - name: Checkout exact cflib source
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-lib-python
+          ref: 45fdb784c9d13074c42835f3b5ac1d12133bf873
+          path: .ci-cflib
+          fetch-depth: 1
+
+      - name: Validate probe and package exact offline support closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/test_physical_capability_probe.py
+          node tools/ci/test_physical_capability_contract.js
+
+          test "$(git -C .ci-cflib rev-parse HEAD)" = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
+          test "$(git -C .ci-cflib rev-parse 'HEAD^{tree}')" = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
+          test "$(git -C .ci-cflib rev-parse 'HEAD:cflib')" = "750e850390753de14019f0e1f55d4fbc44317699"
+
+          bundle=ci-artifacts/physical-capability-probe
+          wheelhouse="$bundle/wheels"
+          mkdir -p "$wheelhouse" "$bundle/cflib-source"
+          cp tools/physical/probe_reference_hardware.py "$bundle/"
+          cp tools/physical/run_reference_probe.sh "$bundle/"
+          cp tools/physical/reference_probe_lock.txt "$bundle/"
+          cp -R .ci-cflib/cflib "$bundle/cflib-source/"
+          chmod +x "$bundle/run_reference_probe.sh"
+
+          expected="$RUNNER_TEMP/reference-probe-wheel-sha256.txt"
+          : > "$expected"
+          while IFS='|' read -r spec filename digest; do
+            case "$spec" in ''|'#'*) continue ;; esac
+            python3 -m pip download --disable-pip-version-check \
+              --no-deps --only-binary=:all: \
+              --platform manylinux2014_x86_64 \
+              --implementation cp --python-version 310 --abi cp310 \
+              --dest "$wheelhouse" "$spec"
+            test -f "$wheelhouse/$filename"
+            printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
+          done < tools/physical/reference_probe_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 6
+          sha256sum -c "$expected"
+
+          printf '%s\n' \
+            'cflib_source=https://github.com/bitcraze/crazyflie-lib-python.git' \
+            'cflib_commit=45fdb784c9d13074c42835f3b5ac1d12133bf873' \
+            'cflib_tree=a78cf78d2b4aba51a0fa2b03de0260664b523401' \
+            'cflib_subtree=750e850390753de14019f0e1f55d4fbc44317699' \
+            'runtime=ubuntu-22.04-python-3.10-x86_64' \
+            'dependency_resolution=exact-wheel-filename-and-sha256-no-deps' \
+            > "$bundle/PROVENANCE.txt"
+
+          (
+            cd "$bundle"
+            find . -type f ! -name SHA256SUMS -print0 |
+              sort -z |
+              xargs -0 sha256sum > SHA256SUMS
+          )
+
+          ambient="$RUNNER_TEMP/hostile-ambient"
+          for module in cflib usb libusb_package numpy scipy packaging yaml; do
+            mkdir -p "$ambient/$module"
+            printf '%s\n' 'raise RuntimeError("ambient package must never be imported")' > "$ambient/$module/__init__.py"
+          done
+          PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment
+
+      - name: Upload deterministic physical capability probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Physical-Capability-Probe
+          path: ci-artifacts/physical-capability-probe/
+          if-no-files-found: error
+
   publish:
     name: Publish one TEST_REQUIRED
-    needs: [validate, runtime, webots]
+    needs: [validate, runtime, webots, physical]
     if: >-
+      always() &&
       needs.validate.outputs.target_sha != '' &&
       needs.runtime.result == 'success' &&
-      needs.webots.result == 'success'
+      needs.webots.result == 'success' &&
+      (needs.validate.outputs.test_profile != 'physical-capabilities-readonly' ||
+       needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
       group: webeeblocks-human-test-open
