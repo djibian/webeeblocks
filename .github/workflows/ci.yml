@@ -45,6 +45,7 @@ jobs:
             --dest "$wheels" \
             pyusb==1.2.1 \
             libusb-package==1.0.26.3 \
+            importlib-resources==6.5.2 \
             numpy==2.2.6
 
           echo "WEBEEBLOCKS_PHYSICAL_LOCK_FILES_BEGIN"
@@ -56,7 +57,7 @@ jobs:
 
           python3 -m pip install --disable-pip-version-check --no-index \
             --find-links "$wheels" --no-deps --target "$site" \
-            pyusb==1.2.1 libusb-package==1.0.26.3 numpy==2.2.6
+            pyusb==1.2.1 libusb-package==1.0.26.3 importlib-resources==6.5.2 numpy==2.2.6
 
           git init -q "$source"
           git -C "$source" remote add origin https://github.com/bitcraze/crazyflie-lib-python.git
@@ -69,6 +70,7 @@ jobs:
           import pathlib
           import cflib
           import cflib.crtp
+          import importlib_resources
           import libusb_package
           import numpy
           import usb
