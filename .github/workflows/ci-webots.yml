@@ -1055,6 +1055,187 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
+      - name: Run C17 C14 standalone with forced libController load
+        if: \${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-c17-libcontroller-load
+          mkdir -p "$artifact_dir"
+
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          recipe_url="https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh"
+          recipe_blob=4593476be2c985580a0e1738671f4b5bae81f669
+          curl --fail --location --retry 3 --output "$recipe" "$recipe_url"
+          test "$(git hash-object "$recipe")" = "$recipe_blob"
+          sudo env CI=true bash "$recipe"
+
+          archive="$RUNNER_TEMP/webots-R2025a-x86-64.tar.bz2"
+          archive_url="https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2"
+          archive_sha=c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38
+          curl --fail --location --retry 3 --output "$archive" "$archive_url"
+          echo "$archive_sha  $archive" | sha256sum --check
+          tar -xjf "$archive" -C "$RUNNER_TEMP"
+          diagnostic_webots="$RUNNER_TEMP/webots"
+          test -x "$diagnostic_webots/webots"
+          test -f "$diagnostic_webots/lib/controller/libController.so"
+
+          source="$RUNNER_TEMP/webeeblocks-c17-c14-control.cpp"
+          control="$RUNNER_TEMP/webeeblocks-c17-c14-control"
+          cat > "$source" <<'CPP'
+          #include <QtWidgets/QApplication>
+          #include <csignal>
+          #include <cstdio>
+          #include <cstring>
+          #include <execinfo.h>
+          #include <unistd.h>
+
+          static void marker(const char *message) {
+            ::write(STDERR_FILENO, message, std::strlen(message));
+          }
+
+          static void fatal_handler(int signal_number) {
+            switch (signal_number) {
+              case SIGSEGV: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV\n"); break;
+              case SIGABRT: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGABRT\n"); break;
+              case SIGBUS: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGBUS\n"); break;
+              case SIGILL: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGILL\n"); break;
+              case SIGFPE: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGFPE\n"); break;
+              default: marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=UNKNOWN\n"); break;
+            }
+            void *frames[64];
+            const int count = ::backtrace(frames, 64);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN\n");
+            ::backtrace_symbols_fd(frames, count, STDERR_FILENO);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END\n");
+            _exit(128 + signal_number);
+          }
+
+          int main(int argc, char **argv) {
+            void *warmup[1];
+            (void)::backtrace(warmup, 1);
+            struct sigaction action {};
+            action.sa_handler = fatal_handler;
+            sigemptyset(&action.sa_mask);
+            action.sa_flags = SA_RESETHAND;
+            const int fatal_signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
+            for (const int signal_number : fatal_signals)
+              if (sigaction(signal_number, &action, nullptr) != 0)
+                return 120;
+            marker("WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION\n");
+            QApplication app(argc, argv);
+            marker("WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK\n");
+            return 0;
+          }
+          CPP
+
+          g++ -std=c++17 -g -O0 \
+            -isystem "$diagnostic_webots/include/qt/QtCore" \
+            -isystem "$diagnostic_webots/include/qt/QtGui" \
+            -isystem "$diagnostic_webots/include/qt/QtWidgets" \
+            "$source" -o "$control" \
+            -L"$diagnostic_webots/lib/controller" \
+            -Wl,--no-as-needed -lController -Wl,--as-needed \
+            -L"$diagnostic_webots/lib/webots" \
+            -Wl,-rpath-link,"$diagnostic_webots/lib/webots" \
+            -lQt6Widgets -lQt6Gui -lQt6Core
+
+          readelf -d "$control" | tee "$artifact_dir/dynamic.txt"
+          grep -Eq 'NEEDED.*\[libController\.so\]' "$artifact_dir/dynamic.txt"
+
+          LD_LIBRARY_PATH="$diagnostic_webots/lib/controller:$diagnostic_webots/lib/webots" \
+            ldd "$control" | tee "$artifact_dir/ldd.log"
+          grep -Fq "$diagnostic_webots/lib/controller/libController.so" "$artifact_dir/ldd.log"
+          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
+          test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
+          if printf '%s\n' "$qt_lines" | grep -vF "$diagnostic_webots/lib/webots/"; then
+            echo "C17 Qt resolved outside the official Webots desktop SDK" >&2
+            exit 1
+          fi
+
+          wrapper="$RUNNER_TEMP/webeeblocks-c17-c14-wrapper.sh"
+          cat > "$wrapper" <<SH
+          #!/usr/bin/env bash
+          set +e
+          "$control" &
+          pid=\$!
+          printf 'WEBEEBLOCKS_QT_CONTROL_PROCESS pid=%s\n' "\$pid" >&2
+          wait "\$pid"
+          code=\$?
+          printf 'WEBEEBLOCKS_QT_CONTROL_PROCESS_EXIT pid=%s code=%s\n' "\$pid" "\$code" >&2
+          exit "\$code"
+          SH
+          chmod +x "$wrapper"
+
+          log="$artifact_dir/control.log"
+          set +e
+          env \
+            QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins" \
+            LD_LIBRARY_PATH="$diagnostic_webots/lib/controller:$diagnostic_webots/lib/webots" \
+            LIBGL_ALWAYS_SOFTWARE=true \
+            timeout -k 2s 20s xvfb-run -a "$wrapper" > "$log" 2>&1
+          outer_code=$?
+          set -e
+          printf 'outer_exit=%s\n' "$outer_code" | tee "$artifact_dir/run.txt"
+          cat "$log"
+
+          process_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_PROCESS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+          exit_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_PROCESS_EXIT pid=\([0-9][0-9]*\) code=.*/\1/p' "$log" | tail -n 1)"
+          exit_code="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_PROCESS_EXIT pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+          test -n "$process_pid"
+          test "$exit_pid" = "$process_pid"
+          grep -Fq 'WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION' "$log"
+
+          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$log"; then
+            test "$exit_code" = 0
+            printf 'controller_pid=%s\ncontroller_exit=%s\n' "$process_pid" "$exit_code" |
+              tee "$artifact_dir/process-exit.txt"
+            printf '%s\n' 'DIAGNOSTIC_RESULT=C17_C14_PLUS_LIBCONTROLLER_QAPPLICATION_OK' |
+              tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+
+          if grep -Eq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIG(SEGV|ABRT|BUS|ILL|FPE)' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END' "$log"; then
+            awk '
+              /WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN/ {capture=1; next}
+              /WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END/ {capture=0}
+              capture {print}
+            ' "$log" > "$artifact_dir/causal-backtrace.txt"
+            test -s "$artifact_dir/causal-backtrace.txt"
+            grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' \
+              "$artifact_dir/causal-backtrace.txt"
+            signal="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$log" | tail -n 1)"
+            case "$signal" in
+              SIGSEGV) expected_exit=139 ;;
+              SIGABRT) expected_exit=134 ;;
+              SIGBUS) expected_exit=135 ;;
+              SIGILL) expected_exit=132 ;;
+              SIGFPE) expected_exit=136 ;;
+              *) exit 1 ;;
+            esac
+            test "$exit_code" = "$expected_exit"
+            printf 'controller_pid=%s\nsignal=%s\ncontroller_exit=%s\n' \
+              "$process_pid" "$signal" "$exit_code" |
+              tee "$artifact_dir/process-exit.txt"
+            printf '%s\n' 'DIAGNOSTIC_RESULT=C17_C14_PLUS_LIBCONTROLLER_FATAL_SIGNAL_EXIT_WITH_USABLE_QT_FRAME' |
+              tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+
+          printf '%s\n' 'DIAGNOSTIC_RESULT=C17_C14_PLUS_LIBCONTROLLER_QT_OUTCOME_UNPROVEN' |
+            tee "$artifact_dir/result.txt"
+          exit 1
+
+      - name: Upload C17 C14-plus-libController discriminator
+        if: \${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c17-libcontroller-load' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-c17-libcontroller-load-r2025a
+          path: ci-artifacts/firefox-c17-libcontroller-load/
+          if-no-files-found: error
+
       - name: Upload runtime WWI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
