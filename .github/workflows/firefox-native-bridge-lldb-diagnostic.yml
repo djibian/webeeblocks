@@ -1,0 +1,405 @@
+name: Firefox native bridge LLDB causal diagnostic
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HISTORICAL_C10_SHA: fa78eb7dc8fd423abfd7e656a3bbf8c3e7e26c1c
+  WEBOTS_ARCHIVE: webots-R2025a-x86-64.tar.bz2
+  WEBOTS_URL: https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2
+  WEBOTS_SHA256: c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38
+  WEBOTS_RUNTIME_RECIPE_URL: https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh
+  WEBOTS_RUNTIME_RECIPE_BLOB_SHA: 4593476be2c985580a0e1738671f4b5bae81f669
+
+jobs:
+  desktop-sdk-file-broker:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HISTORICAL_C10_SHA }}
+
+      - name: Verify frozen C10 source
+        run: test "$(git rev-parse HEAD)" = "$HISTORICAL_C10_SHA"
+
+      - name: Validate bounded protocol sources
+        run: |
+          set -euo pipefail
+          node --check plugins/robot_windows/blockly/webeeblocks/native_file_broker.js
+          node tools/ci/test_native_file_broker.js
+          python3 -m py_compile tools/ci/prepare_runtime_v2_native_file_broker.py
+          grep -Fq 'native_file_broker.js' plugins/robot_windows/blockly_v2/blockly_v2.html
+          ! grep -Rq 'wb_robot_wwi_receive_text' controllers/crazyflie_runtime_v2/file_broker.cpp
+          ! grep -RqE 'QSaveFile|getOpenFileName|getSaveFileName|\.exec\(' controllers/crazyflie_runtime_v2/file_broker.cpp
+          ! grep -RqE 'Blob|showOpenFilePicker|showSaveFilePicker|OPFS|IndexedDB' plugins/robot_windows/blockly/webeeblocks/native_file_broker.js
+          test -f controllers/crazyflie_runtime_v2/runtime.ini
+          grep -Fxq '[environment variables for Linux]' controllers/crazyflie_runtime_v2/runtime.ini
+          grep -Fxq 'WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots' controllers/crazyflie_runtime_v2/runtime.ini
+          ! grep -Eq 'LD_LIBRARY_PATH|/home/runner|/usr/lib/.*/libQt6' controllers/crazyflie_runtime_v2/runtime.ini
+
+      - name: Prepare pinned Blockly 13.2.1 browser assets
+        working-directory: plugins/robot_windows/blockly_v2
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run prepare:blockly
+          test "$(cat vendor/VERSION)" = "13.2.1"
+
+      - name: Download pinned official Webots R2025a desktop SDK
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/$WEBOTS_ARCHIVE" "$WEBOTS_URL"
+          echo "$WEBOTS_SHA256  $RUNNER_TEMP/$WEBOTS_ARCHIVE" | sha256sum --check
+          tar -xjf "$RUNNER_TEMP/$WEBOTS_ARCHIVE" -C "$RUNNER_TEMP"
+          test -x "$RUNNER_TEMP/webots/webots"
+          echo "WEBOTS_HOME=$RUNNER_TEMP/webots" >> "$GITHUB_ENV"
+          mkdir -p ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          sha256sum "$RUNNER_TEMP/$WEBOTS_ARCHIVE" > ci-artifacts/runtime-v2-desktop-sdk-file-broker/archive.sha256
+
+      - name: Install complete official Webots R2025a Linux runtime closure
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          mkdir -p "$artifact_dir"
+
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          curl --fail --location --retry 3 --output "$recipe" "$WEBOTS_RUNTIME_RECIPE_URL"
+          actual_blob_sha="$(git hash-object "$recipe")"
+          test "$actual_blob_sha" = "$WEBOTS_RUNTIME_RECIPE_BLOB_SHA"
+          cp "$recipe" "$artifact_dir/linux_runtime_dependencies-R2025a.sh"
+          printf '%s\n' \
+            "tag=R2025a" \
+            "url=$WEBOTS_RUNTIME_RECIPE_URL" \
+            "git_blob_sha=$actual_blob_sha" \
+            > "$artifact_dir/runtime-recipe-provenance.txt"
+
+          direct_packages=(
+            lsb-release g++ make libavcodec-extra libglu1-mesa libegl1
+            libxkbcommon-x11-dev libxcb-keysyms1 libxcb-image0 libxcb-icccm4
+            libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcomposite-dev
+            libxtst6 libnss3 libxcb-cursor0 xvfb ffmpeg
+          )
+          printf '%s\n' "${direct_packages[@]}" > "$artifact_dir/runtime-direct-packages.txt"
+
+          sudo env CI=true bash "$recipe"
+
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' \
+            "${direct_packages[@]}" |
+            tee "$artifact_dir/runtime-packages.txt"
+          dpkg-query -W -f='${binary:Package}\t${Version}\t${Status}\n' \
+            libsndio7.0 |
+            tee "$artifact_dir/runtime-transitive-packages.txt"
+          ! grep -Fxq 'libsndio7.0' "$artifact_dir/runtime-direct-packages.txt"
+
+          ldconfig -p | grep 'libEGL.so.1' |
+            tee "$artifact_dir/egl-ldconfig.txt"
+          ldconfig -p | grep 'libGLU.so.1' |
+            tee "$artifact_dir/glu-ldconfig.txt"
+          ldconfig -p | grep 'libsndio.so.7' |
+            tee "$artifact_dir/sndio-ldconfig.txt"
+          readelf -d "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" |
+            tee "$artifact_dir/qt6gui-dynamic.txt"
+
+          egl_path="$(ldconfig -p | awk '$1 == "libEGL.so.1" {print $NF; exit}')"
+          test -n "$egl_path"
+          dpkg-query -S "$(realpath "$egl_path")" |
+            tee "$artifact_dir/egl-package-owner.txt"
+          grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-package-owner.txt"
+
+          glu_path="$(ldconfig -p | awk '$1 == "libGLU.so.1" {print $NF; exit}')"
+          test -n "$glu_path"
+          dpkg-query -S "$(realpath "$glu_path")" |
+            tee "$artifact_dir/glu-package-owner.txt"
+          grep -Eq '^libglu1-mesa(:[^: ]+)?: ' "$artifact_dir/glu-package-owner.txt"
+
+          sndio_path="$(ldconfig -p | awk '$1 == "libsndio.so.7" {print $NF; exit}')"
+          test -n "$sndio_path"
+          dpkg-query -S "$(realpath "$sndio_path")" |
+            tee "$artifact_dir/sndio-package-owner.txt"
+          grep -Eq '^libsndio7\.0(:[^: ]+)?: ' "$artifact_dir/sndio-package-owner.txt"
+
+          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
+            ldd "$WEBOTS_HOME/bin/webots-bin" |
+            tee "$artifact_dir/webots-bin-ldd.txt"
+          if grep -F 'not found' "$artifact_dir/webots-bin-ldd.txt"; then
+            echo "Official R2025a runtime closure is incomplete" >&2
+            exit 1
+          fi
+
+      - name: Prove bundled Qt substrate before compilation
+        run: |
+          set -euo pipefail
+          test -f "$WEBOTS_HOME/include/qt/QtCore/QtCore/QByteArray"
+          test -f "$WEBOTS_HOME/include/qt/QtWidgets/QtWidgets/QFileDialog"
+          test -f "$WEBOTS_HOME/lib/webots/libQt6Core.so.6"
+          test -f "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6"
+          test -f "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6"
+          test -x "$WEBOTS_HOME/bin/qt/moc"
+          test -f "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so"
+          "$WEBOTS_HOME/bin/qt/moc" --version
+          printf '%s\n' \
+            "$WEBOTS_HOME/include/qt/QtCore/QtCore/QByteArray" \
+            "$WEBOTS_HOME/include/qt/QtWidgets/QtWidgets/QFileDialog" \
+            "$WEBOTS_HOME/lib/webots/libQt6Core.so.6" \
+            "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" \
+            "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6" \
+            "$WEBOTS_HOME/bin/qt/moc" \
+            "$WEBOTS_HOME/lib/webots/qt/plugins/platforms/libqxcb.so" \
+            > ci-artifacts/runtime-v2-desktop-sdk-file-broker/bundled-qt-paths.txt
+
+      - name: Build broker-enabled controller against Webots Qt and official Ubuntu runtime
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          mkdir -p "$artifact_dir"
+          make -C controllers/crazyflie_runtime_v2 clean
+          make -C controllers/crazyflie_runtime_v2 WEBEEBLOCKS_NATIVE_FILE_BROKER=1 WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC=1 VERBOSE=1 2>&1 |
+            tee "$artifact_dir/build.log"
+          controller=controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          test -x "$controller"
+          LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" ldd "$controller" |
+            tee "$artifact_dir/ldd.log"
+
+          qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
+          test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
+          if printf '%s\n' "$qt_lines" | grep -vF "$WEBOTS_HOME/lib/webots/"; then
+            echo "Qt resolved outside the official Webots desktop SDK" >&2
+            exit 1
+          fi
+
+          egl_line="$(grep 'libEGL.so.1' "$artifact_dir/ldd.log")"
+          test -n "$egl_line"
+          egl_resolved="$(printf '%s\n' "$egl_line" | awk '{print $3; exit}')"
+          test -f "$egl_resolved"
+          dpkg-query -S "$(realpath "$egl_resolved")" |
+            tee "$artifact_dir/egl-ldd-package-owner.txt"
+          grep -Eq '^libegl1(:[^: ]+)?: ' "$artifact_dir/egl-ldd-package-owner.txt"
+
+      - name: Prepare actual Robot Window handshake harness
+        run: python3 tools/ci/prepare_runtime_v2_native_file_broker.py
+
+      - name: Run Qt initialization and actual Robot Window handshake
+        run: |
+          set -euo pipefail
+          chmod +x tools/ci/webots_native_file_broker_browser.sh
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          log="$artifact_dir/webots.log"
+          events="$artifact_dir/browser-events.jsonl"
+          maps="$artifact_dir/controller-qt-maps.txt"
+          backtrace="$artifact_dir/controller-lldb-backtrace.txt"
+          diagnostic="$artifact_dir/controller-diagnostic.txt"
+          controller="$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
+          controller_real="$(realpath "$controller")"
+          mkdir -p "$HOME/.config/Cyberbotics" "$artifact_dir"
+          : > "$log"
+          browser_script="$GITHUB_WORKSPACE/tools/ci/webots_native_file_broker_browser.sh"
+          printf '%s\n' \
+            '[RobotWindow]' \
+            "browser=$browser_script" \
+            'newBrowserWindow=false' \
+            > "$HOME/.config/Cyberbotics/Webots-R2025a.conf"
+          python3 tools/ci/runtime_wwi_event_server.py --output "$events" &
+          server=$!
+          launcher=''
+          cleanup() {
+            if [ -n "$launcher" ]; then
+              kill -TERM -- "-$launcher" 2>/dev/null || true
+              wait "$launcher" 2>/dev/null || true
+            fi
+            kill "$server" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          lldb_path="$(command -v lldb || command -v lldb-15 || command -v lldb-14 || command -v lldb-13 || true)"
+          test -x "$lldb_path"
+          {
+            printf 'lldb_path=%s\\n' "$lldb_path"
+            "$lldb_path" --version | head -n 1
+          } > "$artifact_dir/lldb-provenance.txt"
+
+          setsid env \
+            LD_LIBRARY_PATH="$WEBOTS_HOME/lib/webots" \
+            QT_PLUGIN_PATH="$WEBOTS_HOME/lib/webots/qt/plugins" \
+            QT_DEBUG_PLUGINS=1 \
+            LIBGL_ALWAYS_SOFTWARE=true \
+            WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            timeout -k 5s 45s xvfb-run -a "$WEBOTS_HOME/webots" \
+              --stdout --stderr --batch --mode=realtime \
+              "$GITHUB_WORKSPACE/worlds/crazyflie_runtime_v2.wbt" \
+              > "$log" 2>&1 &
+          launcher=$!
+
+          deadline=$((SECONDS + 45))
+          controller_maps_proven=0
+          diagnostic_complete=0
+          handshake_complete=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$diagnostic_complete" -eq 0 ] &&
+               grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS' "$log"; then
+              pid="$(sed -n 's/.*DIAGNOSTIC_RENDEZVOUS pid=\\([0-9][0-9]*\\).*/\\1/p' "$log" | tail -n 1)"
+              test -n "$pid"
+              test -r "/proc/$pid/exe"
+              actual_exe="$(readlink -f "/proc/$pid/exe")"
+              test "$actual_exe" = "$controller_real"
+              test -r "/proc/$pid/status"
+              grep -Eq '^State:[[:space:]]+T' "/proc/$pid/status"
+
+              awk '/libQt6(Core|Gui|Widgets)\\.so\\.6/ {print $NF}' "/proc/$pid/maps" | sort -u > "$maps"
+              test "$(wc -l < "$maps")" -eq 3
+              test "$(grep -cF "$WEBOTS_HOME/lib/webots/" "$maps")" -eq 3
+
+              {
+                printf 'controller_pid=%s\\n' "$pid"
+                printf 'controller_exe=%s\\n' "$actual_exe"
+                printf 'controller_state_before_attach=%s\\n' "$(awk '/^State:/ {$1=""; sub(/^ /, ""); print}' "/proc/$pid/status")"
+                printf 'diagnostic_boundary=before-QApplication\\n'
+                printf 'environment_contract=unchanged-R2025a-Xvfb-runtime.ini-Webots-Qt\\n'
+              } | tee "$diagnostic"
+              cp "$diagnostic" "$artifact_dir/controller-process.txt"
+
+              set +e
+              sudo -n "$lldb_path" --batch -p "$pid" \
+                -o 'settings set term-width 200' \
+                -o 'process status' \
+                -o 'process continue' \
+                -o 'process status' \
+                -o 'thread backtrace all' \
+                > "$backtrace" 2>&1
+              lldb_code=$?
+              set -e
+              printf 'lldb_exit=%s\\n' "$lldb_code" | tee -a "$diagnostic"
+              cat "$backtrace"
+              test "$lldb_code" -eq 0
+              grep -Eq 'stop reason = signal SIG[A-Z0-9]+' "$backtrace"
+              grep -Eq 'frame #0:' "$backtrace"
+              grep -Eq 'QtFileDialogProvider|QApplication|QGuiApplication|QCoreApplication|libQt6' "$backtrace"
+              diagnostic_complete=1
+
+              echo "C10 diagnostic captured; original product handshake remains intentionally unproven" >&2
+              exit 1
+            fi
+
+            if grep -Eq "controller (exited with status: [1-9][0-9]*|crashed)|error while loading shared libraries:" "$log"; then
+              cat "$log"
+              echo "Controller failed before the file-broker handshake completed" >&2
+              exit 1
+            fi
+
+            if [ "$controller_maps_proven" -eq 0 ]; then
+              while read -r pid; do
+                [ -n "$pid" ] || continue
+                [ -r "/proc/$pid/exe" ] || continue
+                [ "$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)" = "$controller_real" ] || continue
+                [ -r "/proc/$pid/maps" ] || continue
+                awk '/libQt6(Core|Gui|Widgets)\.so\.6/ {print $NF}' "/proc/$pid/maps" | sort -u > "$maps"
+                if [ "$(wc -l < "$maps")" -eq 3 ]; then
+                  test "$(grep -cF "$WEBOTS_HOME/lib/webots/" "$maps")" -eq 3
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Core.so.6" "$maps"
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Gui.so.6" "$maps"
+                  grep -Fq "$WEBOTS_HOME/lib/webots/libQt6Widgets.so.6" "$maps"
+                  printf 'controller_pid=%s\n' "$pid" > "$artifact_dir/controller-process.txt"
+                  controller_maps_proven=1
+                  break
+                fi
+              done < <(pgrep -f 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2' || true)
+            fi
+
+            if [ "$controller_maps_proven" -eq 1 ] && \
+               grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$log" && \
+               [ -s "$events" ] && grep -Fq 'FILE_BROKER_TEST_COMPLETE' "$events"; then
+              handshake_complete=1
+              break
+            fi
+
+            if ! kill -0 "$launcher" 2>/dev/null; then
+              set +e
+              wait "$launcher"
+              code=$?
+              set -e
+              launcher=''
+              cat "$log"
+              echo "Webots exited before the causal handshake completed (code=$code)" >&2
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          if [ "$handshake_complete" -ne 1 ]; then
+            cat "$log"
+            echo "Timed out before real-controller Qt provenance and handshake completion" >&2
+            exit 1
+          fi
+
+          cleanup
+          launcher=''
+          trap - EXIT
+          cat "$log"
+
+      - name: Validate causal handshake evidence
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('ci-artifacts/runtime-v2-desktop-sdk-file-broker')
+          events = [json.loads(line) for line in (root / 'browser-events.jsonl').read_text().splitlines() if line.strip()]
+          errors = [event for event in events if event.get('event') in ('WINDOW_ERROR', 'UNHANDLED_REJECTION', 'ERROR')]
+          assert not errors, errors
+          caps = [event['detail'] for event in events if event.get('event') == 'FILE_BROKER_CAPABILITIES']
+          assert len(caps) == 1, events
+          assert caps[0] == {
+              'protocol': 1,
+              'provider': 'qt6-qfiledialog-constructed',
+              'providerInjectable': True,
+              'operationsReady': False,
+              'canonicalExtension': '.wbb',
+          }, caps[0]
+          assert any(event.get('event') == 'FILE_BROKER_TEST_COMPLETE' for event in events), events
+          maps = (root / 'controller-qt-maps.txt').read_text().splitlines()
+          assert len(maps) == 3, maps
+          assert all('/webots/lib/webots/libQt6' in path for path in maps), maps
+          log = (root / 'webots.log').read_text(errors='replace')
+          assert 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' in log, log[-4000:]
+          assert 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' in log, log[-4000:]
+          assert 'WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 1 CAPABILITIES' in log, log[-4000:]
+          assert 'WEBEEBLOCKS_RUNTIME_V2 READY' in log, log[-4000:]
+          assert 'WEBEEBLOCKS_FILE_BROKER_V1 FATAL' not in log, log[-4000:]
+          assert 'controller crashed' not in log, log[-4000:]
+          print('PASS: runtime.ini -> real controller Webots Qt maps -> QFileDialog construction -> sole WWI dispatcher -> real Robot Window')
+          PY
+
+      - name: Validate LLDB C11 real-controller crash evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/runtime-v2-desktop-sdk-file-broker
+          diagnostic="$artifact_dir/controller-diagnostic.txt"
+          backtrace="$artifact_dir/controller-lldb-backtrace.txt"
+          log="$artifact_dir/webots.log"
+          test -s "$diagnostic"
+          test -s "$backtrace"
+          grep -Fq 'diagnostic_boundary=before-QApplication' "$diagnostic"
+          grep -Fq 'environment_contract=unchanged-R2025a-Xvfb-runtime.ini-Webots-Qt' "$diagnostic"
+          grep -Eq '^controller_pid=[0-9]+$' "$diagnostic"
+          grep -Fq "controller_exe=$GITHUB_WORKSPACE/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2" "$diagnostic"
+          grep -Fq 'lldb_exit=0' "$diagnostic"
+          grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 DIAGNOSTIC_RENDEZVOUS' "$log"
+          grep -Eq 'stop reason = signal SIG[A-Z0-9]+' "$backtrace"
+          grep -Eq 'frame #0:' "$backtrace"
+          grep -Eq 'QtFileDialogProvider|QApplication|QGuiApplication|QCoreApplication|libQt6' "$backtrace"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$log"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$log"
+          printf '%s\\n' \
+            'PROVEN_DIAGNOSTIC: frozen C10 source + true Webots controller + unchanged R2025a/Xvfb/runtime.ini environment + exact LLDB signal + causal backtrace' \
+            'PRODUCT_GATE: intentionally still FAILURE / QApplication, QFileDialog and handshake UNPROVEN'
+
+      - name: Upload desktop SDK proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-desktop-sdk-file-broker-r2025a
+          path: ci-artifacts/runtime-v2-desktop-sdk-file-broker/
+          if-no-files-found: error
