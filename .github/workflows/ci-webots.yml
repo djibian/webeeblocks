@@ -1163,22 +1163,60 @@ jobs:
             fi
           done
 
+          wrapper="$RUNNER_TEMP/webeeblocks-c17-wrapper.sh"
+          cat > "$wrapper" <<'SH'
+          #!/usr/bin/env bash
+          set +e
+          tag="$1"
+          exe="$2"
+          "$exe" &
+          pid=$!
+          printf 'WEBEEBLOCKS_C17_PROCESS tag=%s pid=%s\n' "$tag" "$pid" >&2
+          wait "$pid"
+          code=$?
+          printf 'WEBEEBLOCKS_C17_PROCESS_EXIT tag=%s pid=%s code=%s\n' "$tag" "$pid" "$code" >&2
+          exit "$code"
+          SH
+          chmod +x "$wrapper"
+
           run_one() {
             local exe="$1"
             local log="$2"
             local tag="$3"
             set +e
-            env               QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins"               QT_DEBUG_PLUGINS=1               LD_LIBRARY_PATH="$diagnostic_webots/lib/controller:$diagnostic_webots/lib/webots"               LIBGL_ALWAYS_SOFTWARE=true               WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true               timeout -k 2s 20s xvfb-run -a "$exe" > "$log" 2>&1
+            env \
+              QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins" \
+              QT_DEBUG_PLUGINS=1 \
+              LD_LIBRARY_PATH="$diagnostic_webots/lib/controller:$diagnostic_webots/lib/webots" \
+              LIBGL_ALWAYS_SOFTWARE=true \
+              WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+              timeout -k 2s 20s xvfb-run -a "$wrapper" "$tag" "$exe" > "$log" 2>&1
             local code=$?
             set -e
             printf '%s_outer_exit=%s\n' "$tag" "$code" >> "$artifact_dir/run.txt"
             cat "$log"
           }
 
+          process_fields() {
+            local log="$1"
+            local tag="$2"
+            local pid exit_pid exit_code
+            pid="$(sed -n "s/.*WEBEEBLOCKS_C17_PROCESS tag=$tag pid=\\([0-9][0-9]*\\).*/\\1/p" "$log" | tail -n 1)"
+            exit_pid="$(sed -n "s/.*WEBEEBLOCKS_C17_PROCESS_EXIT tag=$tag pid=\\([0-9][0-9]*\\) code=.*/\\1/p" "$log" | tail -n 1)"
+            exit_code="$(sed -n "s/.*WEBEEBLOCKS_C17_PROCESS_EXIT tag=$tag pid=[0-9][0-9]* code=\\([0-9][0-9]*\\).*/\\1/p" "$log" | tail -n 1)"
+            test -n "$pid"
+            test "$exit_pid" = "$pid"
+            test -n "$exit_code"
+            printf '%s %s\n' "$pid" "$exit_code"
+          }
+
           baseline_log="$artifact_dir/baseline.log"
           linked_log="$artifact_dir/linked.log"
           run_one "$baseline" "$baseline_log" baseline
           grep -Fq 'WEBEEBLOCKS_C17 BEFORE_QAPPLICATION' "$baseline_log"
+          read -r baseline_pid baseline_exit < <(process_fields "$baseline_log" baseline)
+          printf 'baseline_pid=%s\nbaseline_exit=%s\n' "$baseline_pid" "$baseline_exit" >> "$artifact_dir/run.txt"
+          test "$baseline_exit" = 0
           grep -Fq 'WEBEEBLOCKS_C17 QAPPLICATION_OK' "$baseline_log"
           if grep -Fq 'WEBEEBLOCKS_C17_FATAL signal=' "$baseline_log"; then
             printf '%s\n' 'DIAGNOSTIC_RESULT=C17_BASELINE_UNPROVEN' | tee "$artifact_dir/result.txt"
@@ -1187,8 +1225,11 @@ jobs:
 
           run_one "$linked" "$linked_log" linked
           grep -Fq 'WEBEEBLOCKS_C17 BEFORE_QAPPLICATION' "$linked_log"
+          read -r linked_pid linked_exit < <(process_fields "$linked_log" linked)
+          printf 'linked_pid=%s\nlinked_exit=%s\n' "$linked_pid" "$linked_exit" >> "$artifact_dir/run.txt"
 
           if grep -Fq 'WEBEEBLOCKS_C17 QAPPLICATION_OK' "$linked_log"; then
+            test "$linked_exit" = 0
             if grep -Fq 'WEBEEBLOCKS_C17_FATAL signal=' "$linked_log"; then
               printf '%s\n' 'DIAGNOSTIC_RESULT=C17_LIBCONTROLLER_OUTCOME_UNPROVEN' | tee "$artifact_dir/result.txt"
               exit 1
@@ -1206,7 +1247,19 @@ jobs:
               capture {print}
             ' "$linked_log" > "$artifact_dir/causal-backtrace.txt"
             test -s "$artifact_dir/causal-backtrace.txt"
-            grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication'               "$artifact_dir/causal-backtrace.txt"
+            grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' \
+              "$artifact_dir/causal-backtrace.txt"
+            signal="$(sed -n 's/.*WEBEEBLOCKS_C17_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$linked_log" | tail -n 1)"
+            case "$signal" in
+              SIGSEGV) expected_exit=139 ;;
+              SIGABRT) expected_exit=134 ;;
+              SIGBUS) expected_exit=135 ;;
+              SIGILL) expected_exit=132 ;;
+              SIGFPE) expected_exit=136 ;;
+              *) exit 1 ;;
+            esac
+            test "$linked_exit" = "$expected_exit"
+            printf 'signal=%s\n' "$signal" >> "$artifact_dir/run.txt"
             printf '%s\n' 'DIAGNOSTIC_RESULT=C17_LIBCONTROLLER_LOAD_SUFFICIENT' | tee "$artifact_dir/result.txt"
             exit 0
           fi

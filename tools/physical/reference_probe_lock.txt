@@ -1,5 +1,0 @@
-# package-spec|wheel-filename|sha256
-pyusb==1.2.1|pyusb-1.2.1-py3-none-any.whl|2b4c7cb86dbadf044dfb9d3a4ff69fd217013dbe78a792177a3feb172449ea36
-libusb-package==1.0.26.3|libusb_package-1.0.26.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|433e89dd1f9f9a4149b975247cf1d493170454945fec54b4db9fe61c9e6b861f
-importlib-resources==6.5.2|importlib_resources-6.5.2-py3-none-any.whl|789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec
-numpy==2.2.6|numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|fc7b73d02efb0e18c000e9ad8b83480dfcd5dfd11065997ed4c6747470ae8915
