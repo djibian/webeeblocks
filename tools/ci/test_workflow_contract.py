@@ -305,13 +305,10 @@ class WorkflowTests(unittest.TestCase):
     def test_physical_checkpoint_support_is_fully_locked(self) -> None:
         lock = (ROOT / "tools" / "physical" / "reference_probe_lock.txt").read_text(encoding="utf-8")
         expected = {
-            "pyusb==1.3.1|pyusb-1.3.1-py3-none-any.whl|bf9b754557af4717fe80c2b07cc2b923a9151f5c08d17bdb5345dac09d6a0430",
-            "libusb-package==1.0.30.0|libusb_package-1.0.30.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl|f502ad5a0527b8c0431de817662325c88a1bba2cc334173665b04ad168d7b6d3",
+            "pyusb==1.2.1|pyusb-1.2.1-py3-none-any.whl|2b4c7cb86dbadf044dfb9d3a4ff69fd217013dbe78a792177a3feb172449ea36",
+            "libusb-package==1.0.26.3|libusb_package-1.0.26.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|433e89dd1f9f9a4149b975247cf1d493170454945fec54b4db9fe61c9e6b861f",
             "importlib-resources==6.5.2|importlib_resources-6.5.2-py3-none-any.whl|789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec",
-            "scipy==1.15.3|scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|9e2abc762b0811e09a0d3258abee2d98e0c703eee49464ce0069590846f31d40",
             "numpy==2.2.6|numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl|fc7b73d02efb0e18c000e9ad8b83480dfcd5dfd11065997ed4c6747470ae8915",
-            "packaging==25.0|packaging-25.0-py3-none-any.whl|29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
-            "PyYAML==6.0.3|pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl|9c7708761fccb9397fe64bbc0395abcae8c4bf7b0eac081e12b809bf47700d0b",
         }
         actual = {line for line in lock.splitlines() if line and not line.startswith("#")}
         self.assertEqual(actual, expected)
@@ -337,7 +334,7 @@ class WorkflowTests(unittest.TestCase):
             'PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE"',
             "PYTHONNOUSERSITE=1",
             "python3 -S",
-            "exact seven-wheel runtime closure required",
+            "exact four-wheel runtime closure required",
             "executionAuthority must remain false",
         ):
             self.assertIn(required, runner)
