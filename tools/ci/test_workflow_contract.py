@@ -321,7 +321,7 @@ class WorkflowTests(unittest.TestCase):
             "--no-deps --only-binary=:all:",
             "--platform manylinux2014_x86_64",
             "--implementation cp --python-version 310 --abi cp310",
-            "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 7",
+            "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 4",
             "sha256sum -c \"$expected\"",
         ):
             self.assertIn(required, workflow)
