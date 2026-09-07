@@ -22,6 +22,7 @@ PARAMETERS = (
     "firmware.revision0",
     "firmware.revision1",
     "firmware.modified",
+    "system.selftestPassed",
     "deck.bcFlow2",
     "deck.bcMultiranger",
     "deck.bcColorLedBot",
@@ -75,8 +76,11 @@ def build_descriptor(protocol_version: object, values: Mapping[str, object]) -> 
     protocol = _parse_uint(protocol_version, "protocolVersion")
     parsed = {name: _parse_uint(values[name], name) for name in PARAMETERS}
 
+    system_selftest_passed = parsed["system.selftestPassed"] == 1
     flow_present = parsed["deck.bcFlow2"] != 0
     multiranger_present = parsed["deck.bcMultiranger"] != 0
+    flow_healthy = flow_present and system_selftest_passed
+    multiranger_healthy = multiranger_present and system_selftest_passed
     color_present = parsed["deck.bcColorLedBot"] != 0
     color_test_mask = parsed["deckTest.bcColorLedBot"]
     color_healthy = color_present and color_test_mask == 0
@@ -89,13 +93,13 @@ def build_descriptor(protocol_version: object, values: Mapping[str, object]) -> 
 
     # WebeeBlocks physical movement semantics require the Flow Deck path.
     # This is hardware compatibility evidence only; executionAuthority stays false.
-    if flow_present:
+    if flow_healthy:
         hardware.append("flow-deck-v2")
         actions.extend(FLOW_ACTIONS)
         move_directions.extend(MOVE_DIRECTIONS)
         vertical_directions.extend(VERTICAL_DIRECTIONS)
 
-    if multiranger_present:
+    if multiranger_healthy:
         hardware.append("multi-ranger-deck")
         range_directions.extend(MULTIRANGER_DIRECTIONS)
 
@@ -122,6 +126,7 @@ def build_descriptor(protocol_version: object, values: Mapping[str, object]) -> 
         "evidence": {
             "source": "cflib-platform-and-read-only-parameters",
             "protocolVersion": protocol,
+            "systemSelfTestPassed": system_selftest_passed,
             "firmware": {
                 "revision0": parsed["firmware.revision0"],
                 "revision1": parsed["firmware.revision1"],
