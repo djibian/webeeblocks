@@ -1055,13 +1055,152 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
-      - name: Run minimal Webots-controller Qt lifecycle control
+      - name: Run frozen C10 pre-wb-init QApplication discriminator
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-qt-controller-lifecycle' }}
         shell: bash
         run: |
           set -euo pipefail
-          artifact_dir=ci-artifacts/firefox-qt-controller-lifecycle
+          artifact_dir=ci-artifacts/firefox-c15-pre-wb-init
           mkdir -p "$artifact_dir"
+
+          c10_sha=fa78eb7dc8fd423abfd7e656a3bbf8c3e7e26c1c
+          historical="$RUNNER_TEMP/webeeblocks-c15-c10"
+          git init -q "$historical"
+          git -C "$historical" remote add origin https://github.com/djibian/webeeblocks.git
+          git -C "$historical" fetch --depth=1 origin "$c10_sha"
+          git -C "$historical" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$historical" rev-parse HEAD)" = "$c10_sha"
+          test "$(git -C "$historical" hash-object controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c)" = "ab88eb98247e79f322b960bf0791f0ebf4fc4db6"
+          test "$(git -C "$historical" hash-object controllers/crazyflie_runtime_v2/file_broker.cpp)" = "241e6e6aaec32ceaeaa2693fad337a774757b895"
+          test "$(git -C "$historical" hash-object controllers/crazyflie_runtime_v2/Makefile)" = "ef44dd5caf4ed3c0e77875cec26da511071649f5"
+          test "$(git -C "$historical" hash-object controllers/crazyflie_runtime_v2/runtime.ini)" = "27cbdb180b6f1aa4ed6a871bd9cb3ed147b29b6a"
+
+          python3 - "$historical/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c" "$historical/controllers/crazyflie_runtime_v2/file_broker.cpp" <<'PY'
+          from pathlib import Path
+          import sys
+
+          main_path = Path(sys.argv[1])
+          broker_path = Path(sys.argv[2])
+          main = main_path.read_text(encoding="utf-8")
+          broker = broker_path.read_text(encoding="utf-8")
+
+          include_seam = """#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+          #include "file_broker_c.h"
+          #endif"""
+          include_replacement = """#ifdef WEBEEBLOCKS_NATIVE_FILE_BROKER
+          #include "file_broker_c.h"
+          #ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+          int wb_file_broker_c15_pre_wb_init(void);
+          #endif
+          #endif"""
+          if main.count(include_seam) != 1:
+              raise SystemExit("frozen C10 main include seam changed")
+          main = main.replace(include_seam, include_replacement, 1)
+
+          main_seam = """int main(void) {
+            wb_robot_init();"""
+          main_replacement = """int main(void) {
+          #ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+            return wb_file_broker_c15_pre_wb_init();
+          #endif
+            wb_robot_init();"""
+          if main.count(main_seam) != 1:
+              raise SystemExit("frozen C10 main entry seam changed")
+          main = main.replace(main_seam, main_replacement, 1)
+
+          include_old = """#ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+          #include <csignal>
+          #include <unistd.h>
+          #endif"""
+          include_new = """#ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+          #include <csignal>
+          #include <execinfo.h>
+          #include <unistd.h>
+          #endif"""
+          if broker.count(include_old) != 1:
+              raise SystemExit("frozen C10 broker include seam changed")
+          broker = broker.replace(include_old, include_new, 1)
+
+          anchor = 'constexpr const char *kPrefix = "WEBEEBLOCKS_FILE_BROKER_V1";\n'
+          instrumentation = r'''
+          #ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+          void c15_marker(const char *message) {
+            ::write(STDERR_FILENO, message, std::strlen(message));
+          }
+
+          void c15_fatal_handler(int signal_number) {
+            switch (signal_number) {
+              case SIGSEGV: c15_marker("WEBEEBLOCKS_C15_FATAL signal=SIGSEGV\n"); break;
+              case SIGABRT: c15_marker("WEBEEBLOCKS_C15_FATAL signal=SIGABRT\n"); break;
+              case SIGBUS: c15_marker("WEBEEBLOCKS_C15_FATAL signal=SIGBUS\n"); break;
+              case SIGILL: c15_marker("WEBEEBLOCKS_C15_FATAL signal=SIGILL\n"); break;
+              case SIGFPE: c15_marker("WEBEEBLOCKS_C15_FATAL signal=SIGFPE\n"); break;
+              default: c15_marker("WEBEEBLOCKS_C15_FATAL signal=UNKNOWN\n"); break;
+            }
+            void *frames[64];
+            const int count = ::backtrace(frames, 64);
+            c15_marker("WEBEEBLOCKS_C15_BACKTRACE_BEGIN\n");
+            ::backtrace_symbols_fd(frames, count, STDERR_FILENO);
+            c15_marker("WEBEEBLOCKS_C15_BACKTRACE_END\n");
+            _exit(128 + signal_number);
+          }
+
+          bool c15_install_handlers() {
+            void *warmup[1];
+            (void)::backtrace(warmup, 1);
+            struct sigaction action {};
+            action.sa_handler = c15_fatal_handler;
+            sigemptyset(&action.sa_mask);
+            action.sa_flags = SA_RESETHAND;
+            const int fatal_signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
+            for (const int signal_number : fatal_signals)
+              if (sigaction(signal_number, &action, nullptr) != 0)
+                return false;
+            return true;
+          }
+          #endif
+          '''
+          if broker.count(anchor) != 1:
+              raise SystemExit("frozen C10 broker namespace seam changed")
+          broker = broker.replace(anchor, anchor + instrumentation, 1)
+
+          helper = r'''
+          #ifdef WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC
+          extern "C" int wb_file_broker_c15_pre_wb_init(void) {
+            if (!c15_install_handlers()) {
+              c15_marker("WEBEEBLOCKS_C15 HANDLER_INSTALL_FAILED\n");
+              return 120;
+            }
+            c15_marker("WEBEEBLOCKS_C15 PRE_WB_ROBOT_INIT\n");
+            int argc = 1;
+            char program_name[] = "webeeblocks-c15-pre-wb-init";
+            char *argv[] = {program_name, nullptr};
+            c15_marker("WEBEEBLOCKS_C15 BEFORE_QAPPLICATION\n");
+            {
+              QApplication application(argc, argv);
+              c15_marker("WEBEEBLOCKS_C15 QAPPLICATION_OK\n");
+            }
+            c15_marker("WEBEEBLOCKS_C15 QAPPLICATION_DESTROYED\n");
+            return 0;
+          }
+          #endif
+
+          '''
+          export_seam = 'extern "C" WbFileBroker *wb_file_broker_create_qt(void) {\n'
+          if broker.count(export_seam) != 1:
+              raise SystemExit("frozen C10 broker export seam changed")
+          broker = broker.replace(export_seam, helper + export_seam, 1)
+
+          main_path.write_text(main, encoding="utf-8")
+          broker_path.write_text(broker, encoding="utf-8")
+          PY
+
+          git -C "$historical" diff -- controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c controllers/crazyflie_runtime_v2/file_broker.cpp |
+            tee "$artifact_dir/c15-instrumentation.patch"
+          test -s "$artifact_dir/c15-instrumentation.patch"
+          grep -Fq 'return wb_file_broker_c15_pre_wb_init();' "$historical/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
+          grep -Fq 'WEBEEBLOCKS_C15 PRE_WB_ROBOT_INIT' "$historical/controllers/crazyflie_runtime_v2/file_broker.cpp"
+          grep -Fq 'WEBEEBLOCKS_C15 QAPPLICATION_DESTROYED' "$historical/controllers/crazyflie_runtime_v2/file_broker.cpp"
 
           recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
           recipe_url="https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh"
@@ -1079,112 +1218,14 @@ jobs:
           diagnostic_webots="$RUNNER_TEMP/webots"
           test -x "$diagnostic_webots/webots"
 
-          project="$RUNNER_TEMP/webeeblocks-qt-controller-lifecycle"
-          controller_dir="$project/controllers/qt_controller_lifecycle"
-          world_dir="$project/worlds"
-          mkdir -p "$controller_dir" "$world_dir"
+          WEBOTS_HOME="$diagnostic_webots" make -C "$historical/controllers/crazyflie_runtime_v2" clean
+          WEBOTS_HOME="$diagnostic_webots" \
+            make -C "$historical/controllers/crazyflie_runtime_v2" \
+              WEBEEBLOCKS_NATIVE_FILE_BROKER=1 \
+              WEBEEBLOCKS_QT_CRASH_DIAGNOSTIC=1 \
+              VERBOSE=1 2>&1 | tee "$artifact_dir/build.log"
 
-          cat > "$controller_dir/qt_controller_lifecycle.cpp" <<'CPP'
-          #include <QtWidgets/QApplication>
-          #include <webots/robot.h>
-
-          #include <csignal>
-          #include <cstdio>
-          #include <cstring>
-          #include <execinfo.h>
-          #include <unistd.h>
-
-          static void marker(const char *message) {
-            ::write(STDERR_FILENO, message, std::strlen(message));
-          }
-
-          static void fatal_handler(int signal_number) {
-            switch (signal_number) {
-              case SIGSEGV: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIGSEGV\n"); break;
-              case SIGABRT: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIGABRT\n"); break;
-              case SIGBUS: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIGBUS\n"); break;
-              case SIGILL: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIGILL\n"); break;
-              case SIGFPE: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIGFPE\n"); break;
-              default: marker("WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=UNKNOWN\n"); break;
-            }
-            void *frames[64];
-            const int count = ::backtrace(frames, 64);
-            marker("WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_BEGIN\n");
-            ::backtrace_symbols_fd(frames, count, STDERR_FILENO);
-            marker("WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_END\n");
-            _exit(128 + signal_number);
-          }
-
-          static bool install_handlers() {
-            void *warmup[1];
-            (void)::backtrace(warmup, 1);
-            struct sigaction action {};
-            action.sa_handler = fatal_handler;
-            sigemptyset(&action.sa_mask);
-            action.sa_flags = SA_RESETHAND;
-            const int fatal_signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
-            for (const int signal_number : fatal_signals)
-              if (sigaction(signal_number, &action, nullptr) != 0)
-                return false;
-            return true;
-          }
-
-          int main() {
-            wb_robot_init();
-            marker("WEBEEBLOCKS_QT_CONTROLLER AFTER_WB_ROBOT_INIT\n");
-            if (!install_handlers()) {
-              marker("WEBEEBLOCKS_QT_CONTROLLER HANDLER_INSTALL_FAILED\n");
-              wb_robot_cleanup();
-              return 120;
-            }
-            marker("WEBEEBLOCKS_QT_CONTROLLER SIGNAL_HANDLERS_ACTIVE\n");
-
-            int argc = 1;
-            char program_name[] = "webeeblocks-qt-controller-control";
-            char *argv[] = {program_name, nullptr};
-            marker("WEBEEBLOCKS_QT_CONTROLLER BEFORE_QAPPLICATION\n");
-            QApplication application(argc, argv);
-            marker("WEBEEBLOCKS_QT_CONTROLLER QAPPLICATION_OK\n");
-            wb_robot_cleanup();
-            return 0;
-          }
-          CPP
-
-          cat > "$controller_dir/Makefile" <<'MK'
-          CXX_SOURCES = qt_controller_lifecycle.cpp
-          CXXFLAGS += -std=c++17 -g -O0
-          LFLAGS += -rdynamic
-          USE_C_API = true
-          INCLUDE += -isystem "$(WEBOTS_HOME)/include/qt/QtCore"
-          INCLUDE += -isystem "$(WEBOTS_HOME)/include/qt/QtGui"
-          INCLUDE += -isystem "$(WEBOTS_HOME)/include/qt/QtWidgets"
-          LIBRARIES += -L"$(WEBOTS_HOME)/lib/webots" -lQt6Widgets -lQt6Gui -lQt6Core
-          include $(WEBOTS_HOME)/resources/Makefile.include
-          MK
-
-          cat > "$controller_dir/runtime.ini" <<'INI'
-          [environment variables for Linux]
-          WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots
-          INI
-
-          cat > "$world_dir/qt_controller_lifecycle.wbt" <<'WBT'
-          #VRML_SIM R2025a utf8
-          WorldInfo {
-            basicTimeStep 32
-          }
-          Viewpoint {
-            position 0 0 2
-          }
-          Robot {
-            controller "qt_controller_lifecycle"
-          }
-          WBT
-
-          WEBOTS_HOME="$diagnostic_webots" make -C "$controller_dir" clean
-          WEBOTS_HOME="$diagnostic_webots" make -C "$controller_dir" VERBOSE=1 \
-            2>&1 | tee "$artifact_dir/build.log"
-
-          controller="$controller_dir/qt_controller_lifecycle"
+          controller="$historical/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
           test -x "$controller"
           real_controller="$controller.real"
           mv "$controller" "$real_controller"
@@ -1194,10 +1235,10 @@ jobs:
           real="${BASH_SOURCE[0]}.real"
           "$real" "$@" &
           pid=$!
-          printf 'WEBEEBLOCKS_QT_CONTROLLER_PROCESS pid=%s\n' "$pid" >&2
+          printf 'WEBEEBLOCKS_C15_PROCESS pid=%s\n' "$pid" >&2
           wait "$pid"
           code=$?
-          printf 'WEBEEBLOCKS_QT_CONTROLLER_PROCESS_EXIT pid=%s code=%s\n' "$pid" "$code" >&2
+          printf 'WEBEEBLOCKS_C15_PROCESS_EXIT pid=%s code=%s\n' "$pid" "$code" >&2
           exit "$code"
           SH
           chmod +x "$controller"
@@ -1207,7 +1248,7 @@ jobs:
           qt_lines="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/ldd.log")"
           test "$(printf '%s\n' "$qt_lines" | wc -l)" -eq 3
           if printf '%s\n' "$qt_lines" | grep -vF "$diagnostic_webots/lib/webots/"; then
-            echo "Qt controller control resolved outside the official Webots desktop SDK" >&2
+            echo "C15 Qt resolved outside the official Webots desktop SDK" >&2
             exit 1
           fi
           grep -Fq "$diagnostic_webots/lib/controller/libController.so" "$artifact_dir/ldd.log"
@@ -1219,45 +1260,48 @@ jobs:
             LIBGL_ALWAYS_SOFTWARE=true \
             WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             timeout -k 3s 25s xvfb-run -a "$diagnostic_webots/webots" \
-              --stdout --stderr --batch --mode=fast \
-              "$world_dir/qt_controller_lifecycle.wbt" > "$log" 2>&1
+              --stdout --stderr --batch --mode=realtime \
+              "$historical/worlds/crazyflie_runtime_v2.wbt" > "$log" 2>&1
           outer_code=$?
           set -e
-          printf 'outer_exit=%s\n' "$outer_code" | tee "$artifact_dir/run.txt"
+          printf 'c10_sha=%s\nouter_exit=%s\n' "$c10_sha" "$outer_code" |
+            tee "$artifact_dir/run.txt"
           cat "$log"
+          if [ "$outer_code" -ne 0 ] && [ "$outer_code" -ne 124 ]; then
+            echo "Unexpected outer Webots exit: $outer_code" >&2
+            exit 1
+          fi
 
-          grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER AFTER_WB_ROBOT_INIT' "$log"
-          grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER SIGNAL_HANDLERS_ACTIVE' "$log"
-          grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER BEFORE_QAPPLICATION' "$log"
-
-          process_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROLLER_PROCESS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
-          exit_pid="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROLLER_PROCESS_EXIT pid=\([0-9][0-9]*\) code=.*/\1/p' "$log" | tail -n 1)"
-          exit_code="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROLLER_PROCESS_EXIT pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+          grep -Fq 'WEBEEBLOCKS_C15 PRE_WB_ROBOT_INIT' "$log"
+          grep -Fq 'WEBEEBLOCKS_C15 BEFORE_QAPPLICATION' "$log"
+          process_pid="$(sed -n 's/.*WEBEEBLOCKS_C15_PROCESS pid=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
+          exit_pid="$(sed -n 's/.*WEBEEBLOCKS_C15_PROCESS_EXIT pid=\([0-9][0-9]*\) code=.*/\1/p' "$log" | tail -n 1)"
+          exit_code="$(sed -n 's/.*WEBEEBLOCKS_C15_PROCESS_EXIT pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$log" | tail -n 1)"
           test -n "$process_pid"
           test "$exit_pid" = "$process_pid"
 
-          if grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER QAPPLICATION_OK' "$log"; then
+          if grep -Fq 'WEBEEBLOCKS_C15 QAPPLICATION_OK' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_C15 QAPPLICATION_DESTROYED' "$log"; then
             test "$exit_code" = 0
             printf 'controller_pid=%s\ncontroller_exit=%s\n' "$process_pid" "$exit_code" |
               tee "$artifact_dir/controller-exit.txt"
-            printf '%s\n' 'DIAGNOSTIC_RESULT=MINIMAL_WEBOTS_CONTROLLER_QAPPLICATION_OK' |
+            printf '%s\n' 'DIAGNOSTIC_RESULT=C15_PRE_WB_INIT_QAPPLICATION_OK' |
               tee "$artifact_dir/result.txt"
             exit 0
           fi
 
-          if grep -Eq 'WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=SIG(SEGV|ABRT|BUS|ILL|FPE)' "$log" && \
-             grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_BEGIN' "$log" && \
-             grep -Fq 'WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_END' "$log"; then
+          if grep -Eq 'WEBEEBLOCKS_C15_FATAL signal=SIG(SEGV|ABRT|BUS|ILL|FPE)' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_C15_BACKTRACE_BEGIN' "$log" &&
+             grep -Fq 'WEBEEBLOCKS_C15_BACKTRACE_END' "$log"; then
             awk '
-              /WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_BEGIN/ {capture=1; next}
-              /WEBEEBLOCKS_QT_CONTROLLER_BACKTRACE_END/ {capture=0}
+              /WEBEEBLOCKS_C15_BACKTRACE_BEGIN/ {capture=1; next}
+              /WEBEEBLOCKS_C15_BACKTRACE_END/ {capture=0}
               capture {print}
             ' "$log" > "$artifact_dir/causal-backtrace.txt"
             test -s "$artifact_dir/causal-backtrace.txt"
             grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' \
               "$artifact_dir/causal-backtrace.txt"
-
-            signal="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROLLER_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$log" | tail -n 1)"
+            signal="$(sed -n 's/.*WEBEEBLOCKS_C15_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$log" | tail -n 1)"
             case "$signal" in
               SIGSEGV) expected_exit=139 ;;
               SIGABRT) expected_exit=134 ;;
@@ -1270,23 +1314,22 @@ jobs:
             printf 'controller_pid=%s\nsignal=%s\ncontroller_exit=%s\n' \
               "$process_pid" "$signal" "$exit_code" |
               tee "$artifact_dir/controller-exit.txt"
-            printf '%s\n' 'DIAGNOSTIC_RESULT=MINIMAL_WEBOTS_CONTROLLER_FATAL_SIGNAL_EXIT_WITH_USABLE_QT_FRAME' |
+            printf '%s\n' 'DIAGNOSTIC_RESULT=C15_PRE_WB_INIT_FATAL_SIGNAL_EXIT_WITH_USABLE_QT_FRAME' |
               tee "$artifact_dir/result.txt"
             exit 0
           fi
 
-          printf '%s\n' 'DIAGNOSTIC_RESULT=MINIMAL_WEBOTS_CONTROLLER_QT_OUTCOME_UNPROVEN' |
+          printf '%s\n' 'DIAGNOSTIC_RESULT=C15_PRE_WB_INIT_QT_OUTCOME_UNPROVEN' |
             tee "$artifact_dir/result.txt"
           exit 1
 
-      - name: Upload minimal Webots-controller Qt lifecycle control
+      - name: Upload frozen C10 pre-wb-init QApplication discriminator
         if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-qt-controller-lifecycle' }}
         uses: actions/upload-artifact@v4
         with:
-          name: firefox-qt-controller-lifecycle-r2025a
-          path: ci-artifacts/firefox-qt-controller-lifecycle/
+          name: firefox-c15-pre-wb-init-r2025a
+          path: ci-artifacts/firefox-c15-pre-wb-init/
           if-no-files-found: error
-
 
       - name: Upload runtime WWI diagnostics
         if: always()
