@@ -24,8 +24,7 @@ TEST_REQUIRED only after the exact target, full evidence, required artifact,
 provenance/digest and procedure are ready. Enabled profiles are:
 
 - `windows-low-end` — checkpoint or release acceptance of the Windows classroom artifact;
-- `s3-props-off` — checkpoint-only, props-removed #70 S3 physical evidence using the exact deterministically built experimental `cf2.bin` artifact;
-- `physical-capabilities-readonly` — checkpoint-only observation of the reference Crazyflie 2.1 + Flow Deck V2 + Multi-ranger + bottom Color LED capability descriptor using the exact packaged non-authority probe. This profile grants no WebeeBlocks execution authority and does not claim transport-level read-only behavior because cflib's normal close path may emit its safety-zero commander setpoint.
+- `s3-props-off` — checkpoint-only, props-removed #70 S3 physical evidence using the exact deterministically built experimental `cf2.bin` artifact.
 
 Any unknown profile is rejected until its preparation is implemented explicitly.
 
