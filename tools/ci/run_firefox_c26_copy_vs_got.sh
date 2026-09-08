@@ -114,6 +114,11 @@ done
 has_qcore_root() { grep -Fq 'QCoreApplication::instance()' "$artifact_dir/arm-$1-nm.txt"; }
 has_meta_root() { grep -Fq 'qobject_cast<QApplication*>' "$artifact_dir/arm-$1-nm.txt"; }
 has_qcore_copy() { grep -Eq 'R_X86_64_COPY.*QCoreApplication::self' "$artifact_dir/arm-$1-relocations-demangled.txt"; }
+has_static_meta() {
+  arm="$1"
+  grep -Fq 'QApplication::staticMetaObject' "$artifact_dir/arm-$arm-nm.txt" ||
+    grep -Fq 'QApplication::staticMetaObject' "$artifact_dir/arm-$arm-relocations-demangled.txt"
+}
 no_provider_roots() {
   arm="$1"
   ! grep -Fq 'wb_file_broker_create_qt' "$artifact_dir/arm-$arm-nm.txt" &&
@@ -125,6 +130,7 @@ no_provider_roots() {
 no_provider_roots a
 ! has_qcore_root a
 ! has_meta_root a
+! has_static_meta a
 ! has_qcore_copy a
 ! grep -Fq 'QCoreApplication::self' "$artifact_dir/arm-a-relocations-demangled.txt"
 ! grep -Fq 'webeeblocks_c25_direct_self' "$artifact_dir/arm-a-nm.txt"
@@ -133,6 +139,7 @@ no_provider_roots a
 no_provider_roots i
 ! has_qcore_root i
 ! has_meta_root i
+! has_static_meta i
 has_qcore_copy i
 grep -Fq 'webeeblocks_c25_direct_self' "$artifact_dir/arm-i-nm.txt"
 ! grep -Fq 'webeeblocks_c26_got_self' "$artifact_dir/arm-i-nm.txt"
@@ -141,6 +148,7 @@ test "$(grep -Ec 'R_X86_64_COPY.*QCoreApplication::self' "$artifact_dir/arm-i-re
 no_provider_roots f
 has_qcore_root f
 ! has_meta_root f
+! has_static_meta f
 has_qcore_copy f
 ! grep -Fq 'webeeblocks_c25_direct_self' "$artifact_dir/arm-f-nm.txt"
 ! grep -Fq 'webeeblocks_c26_got_self' "$artifact_dir/arm-f-nm.txt"
@@ -150,6 +158,7 @@ has_qcore_copy f
 no_provider_roots k
 ! has_qcore_root k
 ! has_meta_root k
+! has_static_meta k
 ! has_qcore_copy k
 ! grep -Fq 'webeeblocks_c25_direct_self' "$artifact_dir/arm-k-nm.txt"
 grep -Fq 'webeeblocks_c26_got_self' "$artifact_dir/arm-k-nm.txt"
