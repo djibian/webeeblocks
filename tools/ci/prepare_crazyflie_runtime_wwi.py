@@ -143,9 +143,9 @@ script = r'''
 html_path.write_text(html + '\n' + script, encoding='utf-8')
 print('Prepared Blockly Robot Window runtime WWI harness.')
 
-if os.environ.get('GITHUB_HEAD_REF') == 'research/firefox-c25-direct-self':
+if os.environ.get('GITHUB_HEAD_REF') == 'research/firefox-c26-copy-vs-got':
     subprocess.run(
-        ['bash', str(ROOT / 'tools/ci/run_firefox_c25_qcore_self_copy.sh')],
+        ['bash', str(ROOT / 'tools/ci/run_firefox_c26_copy_vs_got.sh')],
         cwd=ROOT,
         check=True,
     )
