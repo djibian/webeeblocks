@@ -226,6 +226,42 @@ const descriptor = {
     'authorization/submission code must not accept an unbound or fabricated preflight shape'
   );
 
+  let freshReads = 0;
+  let currentLiveDescriptor = JSON.parse(JSON.stringify(flowOnly));
+  currentLiveDescriptor.hardware = ['flow-deck-v2','color-led-deck'];
+  currentLiveDescriptor.capabilities.actions = ['takeoff','move','set_light','land'];
+  const connectedLightIntent = ast([
+    {kind: 'takeoff', height_m: 0.8},
+    {kind: 'set_light', color: 'red'},
+    {kind: 'land'}
+  ]);
+  const connectedAdapter = {
+    async readCapabilities() {
+      freshReads += 1;
+      return JSON.parse(JSON.stringify(currentLiveDescriptor));
+    }
+  };
+  const freshCompatible = await PhysicalCapabilities.preflightConnected(
+    reactiveProfile, connectedLightIntent, connectedAdapter
+  );
+  assert.strictEqual(freshReads, 1, 'connected preflight must read the live descriptor');
+  assert.strictEqual(freshCompatible.compatible, true);
+  assert.strictEqual(freshCompatible.executionAuthority, false);
+  assert.strictEqual(
+    PhysicalCapabilities.assertPreflightAst(freshCompatible, connectedLightIntent),
+    true,
+    'fresh connected preflight must preserve the exact checked AST binding'
+  );
+
+  currentLiveDescriptor = JSON.parse(JSON.stringify(flowOnly));
+  await assert.rejects(
+    () => PhysicalCapabilities.preflightConnected(reactiveProfile, connectedLightIntent, connectedAdapter),
+    error => error && error.code === 'PHYSICAL_CAPABILITY_MISMATCH' &&
+      /physical action capability unavailable: set_light/.test(error.message),
+    'a later connected preflight must re-read hardware instead of reusing a cached descriptor'
+  );
+  assert.strictEqual(freshReads, 2, 'every connected preflight invocation must acquire a fresh descriptor');
+
   const lightIntent = ast([
     {kind: 'takeoff', height_m: 0.8},
     {kind: 'set_light', color: 'red'},
@@ -282,7 +318,7 @@ const descriptor = {
     'unknown AST capabilities must fail closed rather than be ignored'
   );
 
-  console.log('PASS live physical capability preflight derives exact AST needs and binds the checked AST without granting execution authority');
+  console.log('PASS live physical capability preflight derives exact AST needs, re-reads connected hardware and binds the checked AST without granting execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);
