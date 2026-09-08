@@ -9,6 +9,7 @@
   var LIMITS = Object.freeze({height_m:{min:0.2,max:1.5},distance_m:{min:0.1,max:2.0},vertical_m:{min:0.1,max:0.8},wait_s:{min:0.1,max:5.0},speed_m_s:{min:0.1,max:0.6},repeat:{min:1,max:20}});
   var SENSOR_DIRECTIONS = Object.freeze(['front','back','left','right','up']);
   var LIGHT_COLORS = Object.freeze(['off','red','green','blue','yellow','white']);
+  var ARITHMETIC_OPS = Object.freeze(['ADD','MINUS','MULTIPLY','DIVIDE']);
   function fail(message){throw new Error('semantic AST: '+message);}
   function studentFail(message,detail){var error=new Error('semantic AST: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
@@ -32,6 +33,7 @@
     switch(block.type){
       case 'webeeblocks_v2_range':{var direction=String(field(block,'DIRECTION'));if(SENSOR_DIRECTIONS.indexOf(direction)<0)fail('unsupported range direction: '+direction);return{kind:'range',direction:direction,unit:'m'};}
       case 'math_number':return{kind:'number',value:finite(field(block,'NUM'),'number')};
+      case 'math_arithmetic':{var arithmetic=String(field(block,'OP'));if(ARITHMETIC_OPS.indexOf(arithmetic)<0)fail('unsupported arithmetic operation: '+arithmetic);return{kind:'arithmetic',op:arithmetic,left:valueChild(block,'A'),right:valueChild(block,'B')};}
       case 'variables_get':return{kind:'variable_get',variable:variableReference(block)};
       case 'logic_compare':{var compare=String(field(block,'OP'));if(['LT','LTE','GT','GTE','EQ','NEQ'].indexOf(compare)<0)fail('unsupported comparison: '+compare);return{kind:'compare',op:compare,left:valueChild(block,'A'),right:valueChild(block,'B')};}
       case 'logic_operation':{var logic=String(field(block,'OP'));if(logic!=='AND'&&logic!=='OR')fail('unsupported logic operation: '+logic);return{kind:'logic',op:logic,left:valueChild(block,'A'),right:valueChild(block,'B')};}
@@ -84,5 +86,5 @@
     var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
   }
 
-  return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,LIGHT_COLORS:LIGHT_COLORS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
+  return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,LIGHT_COLORS:LIGHT_COLORS,ARITHMETIC_OPS:ARITHMETIC_OPS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
 });
