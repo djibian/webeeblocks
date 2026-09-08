@@ -117,12 +117,20 @@ A minimal local-surface-range Flow split then kept fresh local range available
 through rejection, but stock barometer authority did not hold world Z and a
 stronger barometer weighting diverged.
 
-The next Lab candidate is therefore the pre-registered scalar `surfaceOffset`
-discontinuity classifier with mandatory true-vertical-motion negative controls,
-not more gate/barometer tuning. That isolated candidate has now been
-reconstructed against Bitcraze stable firmware 2026.08 with exact-source and
-build evidence. The next discriminating evidence is the already prepared
-props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
+The reconstructed scalar `surfaceOffset` S3 classifier has now also been
+physically refuted under its pre-registered props-off checkpoint. S3-A exposed a
+clear ~0.23 m floor/platform range step and formed a coherent ~+0.212 m terrain
+candidate, but the candidate never committed because the detector predominantly
+raised its vertical-motion veto; `surfaceOffset` stayed zero and estimated Z
+remained surface-relative. The S3-B/S3-C true-vertical controls did not create a
+false terrain commit.
+
+Do not retune ToF/barometer or S3 thresholds/persistence against this result and
+do not proceed to motorized testing. The next causal boundary is narrower: explain
+why the existing independent vertical-veto evidence rejects the true terrain
+transition despite a coherent range-step candidate. The slow-vertical controls
+did not expose the pre-registered observability failure that would justify adding
+`rangeUp` yet.
 
 ## Near-term graph
 
@@ -195,21 +203,25 @@ props-off S3-A/S3-B/S3-C checkpoint; no motorized flight follows automatically.
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — validate the reconstructed minimal surface-offset Lab prototype
+### X3 — isolate the false terrain vertical-veto boundary
 
 - parent: #70
 - established technical result: the isolated S3 `surfaceOffset` applicator and
-  deterministic build oracle are pinned to `crazyflie-firmware` 2026.08 and
-  preserve the proven local-range Flow split plus the pre-registered
-  terrain/true-vertical-motion controls
-- next proof: props-off S3-A terrain plus S3-B/S3-C true-vertical negative
-  controls through the prepared human checkpoint, with no threshold retuning
-  against the observed outcome
-- safety boundary: do not modify product Runtime v2, tune ToF/barometer against
-  outcomes, add `rangeUp` fusion/full `z/f/r`, or perform motorized real flight
-  as an agent
-- consequence: until that physical evidence resolves, no stronger world-altitude
-  capability claim is justified.
+  deterministic build oracle remain pinned to `crazyflie-firmware` 2026.08 and
+  preserve the proven local-range Flow split plus pre-registered terrain and
+  true-vertical controls
+- established physical result: exact checkpoint #180 is FAIL; S3-A forms the
+  expected terrain magnitude but the vertical veto prevents commit, while S3-B
+  and S3-C do not falsely commit terrain
+- next proof: use the retained traces, or if indispensable one smaller
+  pre-registered props-off discriminator, to isolate which existing veto/commit
+  signal rejects the true terrain transition before changing estimator structure
+  or adding a new independent cue
+- safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
+  thresholds/persistence against the outcome, add `rangeUp` fusion/full `z/f/r`,
+  or perform motorized real flight as an agent
+- consequence: no stronger world-altitude capability claim is justified until
+  the refuted S3 terrain boundary is replaced by a separately proven mechanism.
 
 ## Later gates kept intentionally coarse
 
