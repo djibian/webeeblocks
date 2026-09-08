@@ -53,6 +53,14 @@ function backend(log){return{capabilities:{actions:['takeoff','move','land'],ran
 async function execute(ast,hooks){const log=[];const result=await Interpreter.run(ast,backend(log),{hooks:hooks||{}});return{log,result};}
 function memoryTransport(){const state={text:null,writes:0};const handle={name:'memoire.wbb'};return{state,nativeFileSystemAccess:true,async open(){return{handle,name:handle.name,text:state.text,mode:'test'};},async saveAs(name,text){state.text=text;state.writes++;return{handle,name,mode:'test'};},async save(target,name,text){assert.strictEqual(target,handle);state.text=text;state.writes++;return{handle,name,mode:'test'};}};}
 async function roundTrip(workspace, expectedAst){const p={value:profile()},transport=memoryTransport();const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract,workspace,getProfile:()=>p.value,setProfile:value=>{p.value=value;},transport});await manager.saveAs('memoire');const bytes=transport.state.text;assert(bytes.includes('distance mémorisée'),'serialized project lost variable name');workspace.clear();transport.state.text=bytes;await manager.open();assert.deepStrictEqual(compile(workspace),expectedAst,'project Save/Open changed variable AST identity or semantics');}
+function arithmeticBlock(workspace,op,leftValue,rightValue){
+  const arithmetic=workspace.newBlock('math_arithmetic');
+  const left=workspace.newBlock('math_number');
+  const right=workspace.newBlock('math_number');
+  arithmetic.setFieldValue(op,'OP');left.setFieldValue(String(leftValue),'NUM');right.setFieldValue(String(rightValue),'NUM');
+  arithmetic.getInput('A').connection.connect(left.outputConnection);arithmetic.getInput('B').connection.connect(right.outputConnection);
+  return arithmetic;
+}
 
 (async function(){
   const p4=Profiles.resolveById(Activities.DOCUMENT,'progression-combined-decisions-v1',Activities.BLOCK_CATALOG),p5=profile();
@@ -80,5 +88,26 @@ async function roundTrip(workspace, expectedAst){const p={value:profile()},trans
   let backendActions=0;await assert.rejects(Interpreter.run({version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'if',condition:{kind:'variable_get',variable:{id:'x',name:'x'}},then:[],else:[]},{kind:'land'}]},{async takeoff(){backendActions++;},async land(){backendActions++;}}),/read before assignment/);assert.strictEqual(backendActions,0,'uninitialized variable was not rejected before backend action');
   await assert.rejects(Interpreter.run(ast,backend([]),{maxSteps:1}),/execution budget exceeded/);
   await roundTrip(workspace,ast);
-  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip');
+
+  const arithmeticWorkspace=new Blockly.Workspace();
+  const compiledArithmetic=SemanticAst.compileExpression(arithmeticBlock(arithmeticWorkspace,'MULTIPLY',3,4));
+  assert.deepStrictEqual(compiledArithmetic,{kind:'arithmetic',op:'MULTIPLY',left:{kind:'number',value:3},right:{kind:'number',value:4}},'standard Blockly arithmetic did not compile to backend-neutral AST');
+  assert.deepStrictEqual(SemanticAst.ARITHMETIC_OPS,['ADD','MINUS','MULTIPLY','DIVIDE']);
+  const arithmeticCases=[['ADD',7,5,12],['MINUS',7,5,2],['MULTIPLY',7,5,35],['DIVIDE',10,4,2.5]];
+  for(const [op,left,right,expected] of arithmeticCases){
+    const value=await Interpreter.evaluate({kind:'arithmetic',op,left:{kind:'number',value:left},right:{kind:'number',value:right}},{},{remaining:20},0,{},['arithmetic']);
+    assert.strictEqual(value,expected,op+' arithmetic result mismatch');
+  }
+  const nestedValue=await Interpreter.evaluate({kind:'arithmetic',op:'MULTIPLY',left:{kind:'arithmetic',op:'ADD',left:{kind:'range',direction:'front',unit:'m'},right:{kind:'number',value:0.1}},right:{kind:'number',value:2}},{async readRange(){return 0.4;}},{remaining:30},0,{},['nested']);
+  assert.strictEqual(nestedValue,1,'nested sensor arithmetic did not compose');
+  const arithmeticProgram={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'set_variable',variable:{id:'x',name:'x'},value:{kind:'arithmetic',op:'ADD',left:{kind:'number',value:2},right:{kind:'number',value:3}}},{kind:'set_variable',variable:{id:'y',name:'y'},value:{kind:'arithmetic',op:'MULTIPLY',left:{kind:'variable_get',variable:{id:'x',name:'x'}},right:{kind:'number',value:4}}},{kind:'land'}]};
+  const arithmeticRun=await Interpreter.run(arithmeticProgram,{async takeoff(){},async land(){}},{maxSteps:50});
+  assert.deepStrictEqual(arithmeticRun.variables,{x:5,y:20},'arithmetic did not compose with variable assignment/read');
+  await assert.rejects(
+    Interpreter.evaluate({kind:'arithmetic',op:'DIVIDE',left:{kind:'number',value:1},right:{kind:'number',value:0}},{},{remaining:20},0,{},['divide']),
+    error=>error&&error.code==='PROGRAM_INVALID'&&/division by zero/.test(error.message)&&/division par zéro/.test(error.studentDetail),
+    'division by zero must fail with a correctable student outcome'
+  );
+  arithmeticWorkspace.dispose();
+  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
