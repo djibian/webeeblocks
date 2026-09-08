@@ -132,7 +132,7 @@
         case 'turn':await hook(options,'beforeStep',current);await requireMethod(backend,'turn')(Number(statement.angle_deg));break;
         case 'wait':await hook(options,'beforeStep',current);await requireMethod(backend,'wait')(Number(statement.seconds));break;
         case 'set_speed':await hook(options,'beforeStep',current);await requireMethod(backend,'setSpeed')(Number(statement.speed_m_s));break;
-        case 'set_light':await hook(options,'beforeStep',current);await requireMethod(backend,'setLight')(String(statement.color));break;
+        case 'set_light':{var lightColor=String(statement.color);await hook(options,'beforeStep',current);await requireMethod(backend,'setLight')(lightColor);await hook(options,'onLight',{node:statement,path:path.slice(),role:'statement',variables:snapshot(env),color:lightColor});break;}
         case 'set_variable':{
           var ref=variableRef(statement.variable),stored=await evaluate(statement.value,backend,budget,depth+1,options,path.concat('value'),env);
           await hook(options,'beforeStep',context(statement,path,'statement',env));env.values[ref.id]=stored;env.names[ref.id]=ref.name;
