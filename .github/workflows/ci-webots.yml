@@ -1138,7 +1138,7 @@ jobs:
           g++ "${common[@]}" -ffunction-sections -fdata-sections -I"$frozen" -c "$frozen/file_broker.cpp" -o "$broker_obj"
           g++ "${common[@]}" "$control_obj" -o "$baseline" "${libs[@]}"
           g++ "${common[@]}" "$control_obj" "$broker_obj" -o "$full" "${libs[@]}"
-          g++ "${common[@]}" "$control_obj" "$broker_obj" -Wl,--gc-sections -Wl,-Map,"$artifact_dir/gc-link.map" -o "$gc" "${libs[@]}"
+          g++ "${common[@]}" "$control_obj" "$broker_obj" -Wl,--gc-sections -o "$gc" "${libs[@]}"
           sha256sum "$control_obj" "$broker_obj" "$baseline" "$full" "$gc" | tee "$artifact_dir/binary-sha256.txt"
           ! cmp -s "$baseline" "$full"
           ! cmp -s "$full" "$gc"
