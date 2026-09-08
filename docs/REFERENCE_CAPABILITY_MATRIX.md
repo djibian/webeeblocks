@@ -58,12 +58,15 @@ The integrated physical preflight core now derives required actions, range
 sensors and movement/vertical capabilities from the exact submitted
 backend-neutral AST, keeps optional deck requirements intent-dependent, and
 produces a canonical non-authority AST binding that later code can verify before
-authorization/submission. This still is not execution authority: fresh
-connected-hardware acquisition, reconnect invalidation/session freshness, the
-future authorization consumer, and the real-Crazyflie student execution path
-remain unproven. Do not turn source availability, Lab firmware experiments,
-preflight compatibility, or simulation coverage into a real-hardware support
-claim.
+authorization/submission. A connected-preflight entry point now acquires and
+normalizes the live descriptor from the read-only adapter on every invocation
+before performing those exact-AST checks, so an earlier cached capability
+descriptor is not reused across later submissions. This still is not execution
+authority: reconnect invalidation/session freshness between a completed
+preflight and a future authorization consumer, that authorization consumer
+itself, and the real-Crazyflie student execution path remain unproven. Do not
+turn source availability, Lab firmware experiments, preflight compatibility, or
+simulation coverage into a real-hardware support claim.
 
 This inventory should be updated only when integrated product evidence changes a
 row; live PR/CI/review state remains on GitHub rather than in this document.
