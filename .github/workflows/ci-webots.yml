@@ -1055,6 +1055,200 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
+
+      - name: Run C20 file-broker object reproduction discriminator
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c20-broker-object-repro' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-c20-broker-object-repro
+          mkdir -p "$artifact_dir"
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          curl --fail --location --retry 3 --output "$recipe" \
+            https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh
+          test "$(git hash-object "$recipe")" = 4593476be2c985580a0e1738671f4b5bae81f669
+          sudo env CI=true bash "$recipe"
+          archive="$RUNNER_TEMP/webots-R2025a-x86-64.tar.bz2"
+          curl --fail --location --retry 3 --output "$archive" \
+            https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2
+          echo "c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38  $archive" | sha256sum --check
+          tar -xjf "$archive" -C "$RUNNER_TEMP"
+          webots="$RUNNER_TEMP/webots"
+
+          frozen_sha=fa78eb7dc8fd423abfd7e656a3bbf8c3e7e26c1c
+          frozen="$RUNNER_TEMP/c20-frozen-broker"
+          mkdir -p "$frozen"
+          for file in file_broker.cpp file_broker.hpp file_broker_c.h; do
+            curl --fail --location --retry 3 --output "$frozen/$file" \
+              "https://raw.githubusercontent.com/djibian/webeeblocks/$frozen_sha/controllers/crazyflie_runtime_v2/$file"
+          done
+          test "$(git hash-object "$frozen/file_broker.cpp")" = 241e6e6aaec32ceaeaa2693fad337a774757b895
+          test "$(git hash-object "$frozen/file_broker.hpp")" = 9e50d286344f680cb0cc254f4d68f4434a9e409a
+          test "$(git hash-object "$frozen/file_broker_c.h")" = d51074ba660b131f3c9df67d0ceef404c204f079
+          git hash-object "$frozen"/file_broker.* | tee "$artifact_dir/frozen-source-blobs.txt"
+
+          source="$RUNNER_TEMP/c20-control.cpp"
+          baseline="$RUNNER_TEMP/c20-baseline"
+          treatment="$RUNNER_TEMP/c20-treatment"
+          staged="$RUNNER_TEMP/c20-control"
+          cat > "$source" <<'CPP'
+          #include <QtWidgets/QApplication>
+          #include <csignal>
+          #include <cstring>
+          #include <execinfo.h>
+          #include <unistd.h>
+          static void marker(const char *m) { ::write(STDERR_FILENO, m, std::strlen(m)); }
+          static void fatal_handler(int s) {
+            if (s == SIGSEGV) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV\n");
+            else if (s == SIGABRT) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGABRT\n");
+            else if (s == SIGBUS) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGBUS\n");
+            else if (s == SIGILL) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGILL\n");
+            else if (s == SIGFPE) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGFPE\n");
+            else marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=UNKNOWN\n");
+            void *frames[64];
+            int count = ::backtrace(frames, 64);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN\n");
+            ::backtrace_symbols_fd(frames, count, STDERR_FILENO);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END\n");
+            _exit(128 + s);
+          }
+          int main(int argc, char **argv) {
+            void *warmup[1]; (void)::backtrace(warmup, 1);
+            struct sigaction action {};
+            action.sa_handler = fatal_handler; sigemptyset(&action.sa_mask);
+            action.sa_flags = SA_RESETHAND;
+            for (int s : {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE})
+              if (sigaction(s, &action, nullptr) != 0) return 120;
+            marker("WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION\n");
+            QApplication app(argc, argv);
+            marker("WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK\n");
+            return 0;
+          }
+          CPP
+          common=(-std=c++17 -g -O0
+            -isystem "$webots/include/qt/QtCore"
+            -isystem "$webots/include/qt/QtGui"
+            -isystem "$webots/include/qt/QtWidgets"
+            -L"$webots/lib/webots" -L"$webots/lib/controller"
+            -Wl,-rpath-link,"$webots/lib/webots" -Wl,-rpath-link,"$webots/lib/controller")
+          libs=(-lQt6Widgets -lQt6Gui -lQt6Core -Wl,--no-as-needed -lController -Wl,--as-needed)
+          g++ "${common[@]}" "$source" -o "$baseline" "${libs[@]}"
+          g++ "${common[@]}" -I"$frozen" "$source" "$frozen/file_broker.cpp" -o "$treatment" "${libs[@]}"
+          sha256sum "$baseline" "$treatment" | tee "$artifact_dir/binary-sha256.txt"
+          ! cmp -s "$baseline" "$treatment"
+          ! nm -C "$baseline" | grep -Fq 'webeeblocks::createQtFileDialogProvider()'
+          nm -C "$treatment" | grep -F 'webeeblocks::createQtFileDialogProvider()' | tee "$artifact_dir/broker-symbol.txt"
+          strings "$treatment" | grep -F 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' | tee "$artifact_dir/broker-marker.txt"
+          for arm in baseline treatment; do
+            binary="$baseline"; [ "$arm" = treatment ] && binary="$treatment"
+            readelf -d "$binary" > "$artifact_dir/$arm-readelf.txt"
+            sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p' "$artifact_dir/$arm-readelf.txt" > "$artifact_dir/$arm-needed.txt"
+            LD_LIBRARY_PATH="$webots/lib/webots:$webots/lib/controller" ldd "$binary" > "$artifact_dir/$arm-ldd.txt"
+            grep -F "libController.so => $webots/lib/controller/libController.so" "$artifact_dir/$arm-ldd.txt"
+            qt="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/$arm-ldd.txt")"
+            test "$(printf '%s\n' "$qt" | wc -l)" -eq 3
+            ! printf '%s\n' "$qt" | grep -vF "$webots/lib/webots/"
+          done
+          diff -u "$artifact_dir/baseline-needed.txt" "$artifact_dir/treatment-needed.txt" > "$artifact_dir/needed-diff.txt" || true
+          cat "$artifact_dir/needed-diff.txt"
+
+          session="$RUNNER_TEMP/c20-session.sh"
+          cat > "$session" <<'SH'
+          #!/usr/bin/env bash
+          set +e
+          run_one() {
+            arm="$1"
+            binary="$baseline"; [ "$arm" = treatment ] && binary="$treatment"
+            cp "$binary" "$staged"
+            log="$artifact_dir/$session_tag-$arm.log"
+            env -u QT_DEBUG_PLUGINS "$staged" > "$log" 2>&1 &
+            pid=$!
+            wait "$pid"
+            code=$?
+            printf 'WEBEEBLOCKS_C20_PROCESS session=%s tag=%s pid=%s argc=1 argv0=%s debug=0 display=%s\n' \
+              "$session_tag" "$arm" "$pid" "$staged" "${DISPLAY:-}" >> "$log"
+            printf 'WEBEEBLOCKS_C20_PROCESS_EXIT session=%s tag=%s pid=%s code=%s\n' \
+              "$session_tag" "$arm" "$pid" "$code" >> "$log"
+          }
+          IFS=',' read -r -a arms <<< "$order"
+          for arm in "${arms[@]}"; do
+            run_one "$arm"
+          done
+          SH
+          chmod +x "$session"
+
+          run_session() {
+            session_tag="$1"
+            order="$2"
+            env artifact_dir="$artifact_dir" staged="$staged" baseline="$baseline" treatment="$treatment" \
+              session_tag="$session_tag" order="$order" \
+              QT_PLUGIN_PATH="$webots/lib/webots/qt/plugins" \
+              LD_LIBRARY_PATH="$webots/lib/webots:$webots/lib/controller" \
+              LIBGL_ALWAYS_SOFTWARE=true timeout -k 2s 45s xvfb-run -a "$session"
+          }
+
+          set +e
+          run_session ab baseline,treatment
+          ab_outer=$?
+          run_session ba treatment,baseline
+          ba_outer=$?
+          set -e
+
+          check_common() {
+            log="$1"; session_tag="$2"; arm="$3"
+            cat "$log"
+            pid="$(sed -n "s/.*WEBEEBLOCKS_C20_PROCESS session=$session_tag tag=$arm pid=\([0-9][0-9]*\).*/\1/p" "$log" | tail -1)"
+            exit_pid="$(sed -n "s/.*WEBEEBLOCKS_C20_PROCESS_EXIT session=$session_tag tag=$arm pid=\([0-9][0-9]*\) code=.*/\1/p" "$log" | tail -1)"
+            test -n "$pid" && test "$pid" = "$exit_pid" &&
+              grep -Eq "WEBEEBLOCKS_C20_PROCESS session=$session_tag tag=$arm .* argc=1 .* debug=0 display=:[0-9]+" "$log" &&
+              grep -Fq 'WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION' "$log"
+          }
+
+          check_baseline() {
+            log="$1"; session_tag="$2"
+            check_common "$log" "$session_tag" baseline &&
+              grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$log" &&
+              grep -Eq "WEBEEBLOCKS_C20_PROCESS_EXIT session=$session_tag tag=baseline pid=[0-9]+ code=0" "$log" &&
+              ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=' "$log"
+          }
+
+          check_treatment() {
+            log="$1"; session_tag="$2"
+            check_common "$log" "$session_tag" treatment &&
+              ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$log" &&
+              grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$log" &&
+              grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN' "$log" &&
+              grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END' "$log" &&
+              grep -Eq "WEBEEBLOCKS_C20_PROCESS_EXIT session=$session_tag tag=treatment pid=[0-9]+ code=139" "$log" &&
+              ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$log" &&
+              ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$log" &&
+              sed -n '/BACKTRACE_BEGIN/,/BACKTRACE_END/p' "$log" |
+                grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication'
+          }
+
+          ok=1
+          [ "$ab_outer" -eq 0 ] || ok=0
+          [ "$ba_outer" -eq 0 ] || ok=0
+          check_baseline "$artifact_dir/ab-baseline.log" ab || ok=0
+          check_treatment "$artifact_dir/ab-treatment.log" ab || ok=0
+          check_treatment "$artifact_dir/ba-treatment.log" ba || ok=0
+          check_baseline "$artifact_dir/ba-baseline.log" ba || ok=0
+
+          if [ "$ok" -eq 1 ]; then
+            echo DIAGNOSTIC_RESULT=C20_BROKER_OBJECT_REPRODUCED | tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+          echo DIAGNOSTIC_RESULT=C20_BROKER_OBJECT_REPRO_OUTCOME_UNPROVEN | tee "$artifact_dir/result.txt"
+          exit 1
+
+      - name: Upload C20 file-broker object reproduction discriminator
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c20-broker-object-repro' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-c20-broker-object-repro-r2025a
+          path: ci-artifacts/firefox-c20-broker-object-repro/
+          if-no-files-found: error
+
       - name: Upload runtime WWI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
