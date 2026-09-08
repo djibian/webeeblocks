@@ -23,6 +23,36 @@
     return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
+  function canonicalJson(value, path, depth) {
+    path = path || 'value';
+    depth = depth || 0;
+    if (depth > 100)
+      fail(path + ' nesting is too deep');
+    if (value === null || typeof value === 'string' || typeof value === 'boolean')
+      return JSON.stringify(value);
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value))
+        fail(path + ' contains a non-finite number');
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value))
+      return '[' + value.map(function(item, index) {
+        return canonicalJson(item, path + '[' + index + ']', depth + 1);
+      }).join(',') + ']';
+    if (isObject(value)) {
+      return '{' + Object.keys(value).sort().map(function(key) {
+        return JSON.stringify(key) + ':' + canonicalJson(value[key], path + '.' + key, depth + 1);
+      }).join(',') + '}';
+    }
+    fail(path + ' contains a non-JSON value');
+  }
+
+  function bindAst(ast) {
+    if (!isObject(ast) || ast.version !== 1 || ast.semantics !== 'webeeblocks-ast-v1')
+      fail('unsupported or malformed backend-neutral AST');
+    return canonicalJson(ast, 'AST', 0);
+  }
+
   function requireString(value, path) {
     if (typeof value !== 'string' || value.trim() === '')
       fail(path + ' must be a non-empty string');
@@ -256,6 +286,7 @@
       fail('profile hardware requirements unavailable');
     var descriptor = normalizeDescriptor(descriptorValue);
     var facts = deriveFacts(ast);
+    var astBinding = bindAst(ast);
     try {
       requireExactAirframe(profile, descriptor);
       requireUnconditionalHardware(profile, descriptor);
@@ -276,9 +307,19 @@
     return {
       compatible: true,
       executionAuthority: false,
+      astBinding: astBinding,
       facts: facts,
       descriptor: descriptor
     };
+  }
+
+  function assertPreflightAst(preflightResult, ast) {
+    if (!isObject(preflightResult) || preflightResult.compatible !== true ||
+        preflightResult.executionAuthority !== false || typeof preflightResult.astBinding !== 'string')
+      fail('valid non-authority physical preflight result required');
+    if (bindAst(ast) !== preflightResult.astBinding)
+      fail('submitted AST differs from preflighted AST');
+    return true;
   }
 
   return {
@@ -286,7 +327,9 @@
     inspect: inspect,
     preflight: preflight,
     deriveFacts: deriveFacts,
+    bindAst: bindAst,
     preflightAst: preflightAst,
+    assertPreflightAst: assertPreflightAst,
     FORBIDDEN_AUTHORITY_METHODS: FORBIDDEN_AUTHORITY_METHODS.slice()
   };
 });

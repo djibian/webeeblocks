@@ -197,6 +197,34 @@ const descriptor = {
   const compatible = PhysicalCapabilities.preflightAst(reactiveProfile, noOptionalDeckIntent, flowOnly);
   assert.strictEqual(compatible.compatible, true, 'unused optional decks must not reject physical compatibility');
   assert.strictEqual(compatible.executionAuthority, false, 'capability preflight must never grant execution authority');
+  assert.strictEqual(typeof compatible.astBinding, 'string', 'successful preflight must bind the exact AST');
+  assert.strictEqual(
+    PhysicalCapabilities.assertPreflightAst(compatible, JSON.parse(JSON.stringify(noOptionalDeckIntent))),
+    true,
+    'an unchanged preflighted AST must remain eligible for later authorization/submission binding'
+  );
+  const reorderedEnvelope = {
+    semantics: noOptionalDeckIntent.semantics,
+    program: JSON.parse(JSON.stringify(noOptionalDeckIntent.program)),
+    version: noOptionalDeckIntent.version
+  };
+  assert.strictEqual(
+    PhysicalCapabilities.assertPreflightAst(compatible, reorderedEnvelope),
+    true,
+    'AST binding must be canonical rather than object-key-order dependent'
+  );
+  const changedAfterPreflight = JSON.parse(JSON.stringify(noOptionalDeckIntent));
+  changedAfterPreflight.program[1].distance_m = 0.3;
+  assert.throws(
+    () => PhysicalCapabilities.assertPreflightAst(compatible, changedAfterPreflight),
+    /submitted AST differs from preflighted AST/,
+    'a later workspace/program change must invalidate the prior preflight binding'
+  );
+  assert.throws(
+    () => PhysicalCapabilities.assertPreflightAst({compatible: true, executionAuthority: false}, noOptionalDeckIntent),
+    /valid non-authority physical preflight result required/,
+    'authorization/submission code must not accept an unbound or fabricated preflight shape'
+  );
 
   const lightIntent = ast([
     {kind: 'takeoff', height_m: 0.8},
@@ -254,7 +282,7 @@ const descriptor = {
     'unknown AST capabilities must fail closed rather than be ignored'
   );
 
-  console.log('PASS live physical capability preflight derives exact AST needs without granting execution authority');
+  console.log('PASS live physical capability preflight derives exact AST needs and binds the checked AST without granting execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);
