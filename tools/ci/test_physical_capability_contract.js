@@ -9,6 +9,16 @@ const profile = Profiles.resolveById(
   'progression-simple-decision-v1',
   Activities.BLOCK_CATALOG
 );
+const broadProfile = Profiles.resolveById(
+  Activities.DOCUMENT,
+  'progression-autonomous-strategy-v1',
+  Activities.BLOCK_CATALOG
+);
+const reactiveProfile = Profiles.resolveById(
+  Activities.DOCUMENT,
+  'reactive-obstacle-v2',
+  Activities.BLOCK_CATALOG
+);
 
 const facts = {
   statements: new Set(['takeoff','move','if','land']),
@@ -16,6 +26,10 @@ const facts = {
   moveDirections: new Set(['forward','left']),
   verticalDirections: new Set()
 };
+
+function ast(program) {
+  return {version: 1, semantics: 'webeeblocks-ast-v1', program};
+}
 
 const descriptor = {
   transport: 'crazyradio',
@@ -34,10 +48,6 @@ const descriptor = {
     verticalDirections: []
   }
 };
-
-function ast(program) {
-  return {version: 1, semantics: 'webeeblocks-ast-v1', program};
-}
 
 (async function() {
   let reads = 0;
@@ -78,11 +88,41 @@ function ast(program) {
     /exact airframe identity must not be encoded as generic hardware evidence/
   );
 
-  const missingDeck = JSON.parse(JSON.stringify(descriptor));
-  missingDeck.hardware = ['flow-deck-v2'];
+  const missingUnusedDeck = JSON.parse(JSON.stringify(descriptor));
+  missingUnusedDeck.hardware = ['flow-deck-v2'];
+  assert.strictEqual(
+    PhysicalCapabilities.preflight(profile, facts, missingUnusedDeck),
+    true,
+    'an unused optional deck must not block when the exact required capabilities are available'
+  );
+
+  const minimalFacts = {
+    statements: new Set(['takeoff','land']),
+    ranges: new Set(),
+    moveDirections: new Set(),
+    verticalDirections: new Set()
+  };
+  const minimalDescriptor = JSON.parse(JSON.stringify(descriptor));
+  minimalDescriptor.hardware = ['flow-deck-v2'];
+  minimalDescriptor.capabilities.actions = ['takeoff','land'];
+  minimalDescriptor.capabilities.rangeDirections = [];
+  minimalDescriptor.capabilities.moveDirections = [];
+  assert.strictEqual(
+    PhysicalCapabilities.preflight(broadProfile, minimalFacts, minimalDescriptor),
+    true,
+    'broad profile optional decks must not become global prerequisites for a smaller AST'
+  );
+
+  const requiredLightFacts = {
+    statements: new Set(['takeoff','set_light','land']),
+    ranges: new Set(),
+    moveDirections: new Set(),
+    verticalDirections: new Set()
+  };
   assert.throws(
-    () => PhysicalCapabilities.preflight(profile, facts, missingDeck),
-    /required hardware unavailable: multi-ranger-deck/
+    () => PhysicalCapabilities.preflight(broadProfile, requiredLightFacts, minimalDescriptor),
+    /physical action capability unavailable: set_light/,
+    'a capability actually required by the AST must still fail closed'
   );
 
   const missingRange = JSON.parse(JSON.stringify(descriptor));
@@ -127,6 +167,7 @@ function ast(program) {
     /unsupported transport/
   );
 
+
   const nested = ast([
     {kind: 'takeoff', height_m: 0.8},
     {kind: 'move', direction: 'back', distance_m: 0.2},
@@ -145,7 +186,6 @@ function ast(program) {
   assert.deepStrictEqual([...derived.moveDirections], ['back']);
   assert.deepStrictEqual([...derived.verticalDirections], ['up']);
 
-  const broad = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   const flowOnly = JSON.parse(JSON.stringify(descriptor));
   flowOnly.hardware = ['flow-deck-v2'];
   flowOnly.capabilities.rangeDirections = [];
@@ -154,7 +194,7 @@ function ast(program) {
     {kind: 'move', direction: 'forward', distance_m: 0.2},
     {kind: 'land'}
   ]);
-  const compatible = PhysicalCapabilities.preflightAst(broad, noOptionalDeckIntent, flowOnly);
+  const compatible = PhysicalCapabilities.preflightAst(reactiveProfile, noOptionalDeckIntent, flowOnly);
   assert.strictEqual(compatible.compatible, true, 'unused optional decks must not reject physical compatibility');
   assert.strictEqual(compatible.executionAuthority, false, 'capability preflight must never grant execution authority');
 
@@ -164,7 +204,7 @@ function ast(program) {
     {kind: 'land'}
   ]);
   assert.throws(
-    () => PhysicalCapabilities.preflightAst(broad, lightIntent, flowOnly),
+    () => PhysicalCapabilities.preflightAst(reactiveProfile, lightIntent, flowOnly),
     error => error && error.code === 'PHYSICAL_CAPABILITY_MISMATCH' &&
       /programme n’a pas été envoyé/.test(error.studentDetail) &&
       /set_light/.test(error.studentDetail) && /flow-deck-v2/.test(error.studentDetail),
@@ -177,7 +217,7 @@ function ast(program) {
     {kind: 'land'}
   ]);
   assert.throws(
-    () => PhysicalCapabilities.preflightAst(broad, rangeIntent, flowOnly),
+    () => PhysicalCapabilities.preflightAst(reactiveProfile, rangeIntent, flowOnly),
     error => error && error.code === 'PHYSICAL_CAPABILITY_MISMATCH' && /range capability unavailable: front/.test(error.message),
     'used Multi-ranger capability must fail closed when freshly observed descriptor lacks it'
   );
@@ -190,11 +230,11 @@ function ast(program) {
     {kind: 'land'}
   ]);
   assert.throws(
-    () => PhysicalCapabilities.preflightAst(broad, backIntent, forwardOnly),
+    () => PhysicalCapabilities.preflightAst(reactiveProfile, backIntent, forwardOnly),
     error => error && error.code === 'PHYSICAL_CAPABILITY_MISMATCH' && /move direction unavailable: back/.test(error.message)
   );
 
-  const explicitHardware = JSON.parse(JSON.stringify(broad));
+  const explicitHardware = JSON.parse(JSON.stringify(reactiveProfile));
   explicitHardware.physicalHardwareRequired = ['multi-ranger-deck'];
   assert.throws(
     () => PhysicalCapabilities.preflightAst(explicitHardware, noOptionalDeckIntent, flowOnly),
@@ -203,12 +243,18 @@ function ast(program) {
   );
 
   assert.throws(
+    () => PhysicalCapabilities.preflightAst(reactiveProfile, noOptionalDeckIntent, unprovenModel),
+    error => error && error.code === 'PHYSICAL_CAPABILITY_MISMATCH' && /exact physical model evidence unavailable: crazyflie-2.1/.test(error.message),
+    'exact Crazyflie 2.1 identity remains mandatory on the new AST-derived path'
+  );
+
+  assert.throws(
     () => PhysicalCapabilities.deriveFacts(ast([{kind: 'future_command'}])),
     /unsupported AST statement kind/,
     'unknown AST capabilities must fail closed rather than be ignored'
   );
 
-  console.log('PASS read-only physical capability handshake and exact-AST preflight stay fail-closed without execution authority');
+  console.log('PASS live physical capability preflight derives exact AST needs without granting execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);

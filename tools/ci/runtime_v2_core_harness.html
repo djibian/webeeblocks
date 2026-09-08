@@ -11,6 +11,7 @@
 <script src="../../plugins/robot_windows/blockly/webeeblocks/activities.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/semantic_ast.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/interpreter.js"></script>
+<script src="../../plugins/robot_windows/blockly/webeeblocks/execution_observer.js"></script>
 <script src="../../plugins/robot_windows/blockly/webeeblocks/activity_contract.js"></script>
 </head>
 <body>
@@ -145,8 +146,43 @@
     ]};
     assert(JSON.stringify(WebeeBlocksSemanticAst.compileWorkspace(lightWorkspace)) === JSON.stringify(expectedLight), 'light AST differs');
     trace = [];
-    await WebeeBlocksActivityContract.execute(profile, lightWorkspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(capabilities), {maxSteps: 20});
-    assert(JSON.stringify(trace) === JSON.stringify([['takeoff',0.5],['set_light','blue'],['set_light','off'],['land']]), 'light interpreter trace differs: ' + JSON.stringify(trace));
+    var observedLight = [];
+    var lightObserver = WebeeBlocksExecutionObserver.create(lightWorkspace, {
+      onLight: function(detail) {
+        observedLight.push({color: detail.color, blockId: detail.blockId});
+        trace.push(['observed_light', detail.color]);
+      }
+    });
+    var lightHooks = lightObserver.begin(true);
+    lightObserver.continueRun();
+    await WebeeBlocksActivityContract.execute(profile, lightWorkspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, backendFor(capabilities), {maxSteps: 20, hooks: lightHooks});
+    lightObserver.finish();
+    assert(JSON.stringify(trace) === JSON.stringify([['takeoff',0.5],['set_light','blue'],['observed_light','blue'],['set_light','off'],['observed_light','off'],['land']]), 'light interpreter/observer trace differs: ' + JSON.stringify(trace));
+    assert(JSON.stringify(observedLight) === JSON.stringify([
+      {color:'blue', blockId:lightBlue.id},
+      {color:'off', blockId:lightOff.id}
+    ]), 'applied light state did not map to the exact Blockly actions: ' + JSON.stringify(observedLight));
+
+    trace = [];
+    observedLight = [];
+    var failedLightObserver = WebeeBlocksExecutionObserver.create(lightWorkspace, {
+      onLight: function(detail) { observedLight.push(detail.color); }
+    });
+    var failedLightHooks = failedLightObserver.begin(true);
+    failedLightObserver.continueRun();
+    var failedLightBackend = backendFor(capabilities);
+    failedLightBackend.setLight = async function(color) {
+      trace.push(['set_light_failed', color]);
+      throw new Error('synthetic light backend failure');
+    };
+    await expectReject(
+      WebeeBlocksActivityContract.execute(profile, lightWorkspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, failedLightBackend, {maxSteps:20, hooks:failedLightHooks}),
+      /synthetic light backend failure/,
+      'failed light backend'
+    );
+    failedLightObserver.finish();
+    assert(JSON.stringify(trace) === JSON.stringify([['takeoff',0.5],['set_light_failed','blue']]), 'failed light backend trace differs: ' + JSON.stringify(trace));
+    assert(observedLight.length === 0, 'failed light backend was incorrectly reported as an applied LED state');
 
     var missingLightAction = clone(capabilities);
     missingLightAction.actions = capabilities.actions.filter(function(kind) { return kind !== 'set_light'; });

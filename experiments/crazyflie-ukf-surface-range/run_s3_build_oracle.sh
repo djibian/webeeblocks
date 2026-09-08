@@ -6,6 +6,7 @@ UPSTREAM="${1:-$ROOT/.ci-crazyflie-firmware}"
 EXPECTED_COMMIT=54f31e243a0b28b67efef5ba20dbb6d9890a5478
 EXPECTED_BLOB=57c0e8405c07b63a29538019895ed17d0a379440
 APPLICATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py"
+DISCRIMINATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py"
 
 test -d "$UPSTREAM/.git"
 test "$(git -C "$UPSTREAM" rev-parse HEAD)" = "$EXPECTED_COMMIT"
@@ -16,6 +17,8 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   cd "$UPSTREAM"
   python3 "$APPLICATOR" --check
   python3 "$APPLICATOR"
+  python3 "$DISCRIMINATOR" --check
+  python3 "$DISCRIMINATOR"
   git diff --check
   grep -Fq 'static uint8_t surfaceOffsetS3 = 0;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, surfOffset, &surfaceOffset)' src/modules/src/estimator/estimator_ukf.c
@@ -24,6 +27,12 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   grep -Fq 'sameSignPersistent' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, surfBefore, &surfaceBaselineClearance)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, surfAfter, &surfaceAfterClearance)' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'S3_REASON_VZ_VETO = 6' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'S3_REASON_BARO_VETO = 7' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'S3_REASON_BOTH_VETO = 8' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'const bool vzVerticalVeto = fabsf(stateNav[5]) >= S3_VZ_VERTICAL_VETO_MPS;' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'const bool baroVerticalVeto = fabsf(surfaceBaroDelta) >= S3_BARO_VERTICAL_VETO_M;' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'const bool verticalVeto = vzVerticalVeto || baroVerticalVeto;' src/modules/src/estimator/estimator_ukf.c
 
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
@@ -66,4 +75,4 @@ EOF
   find build -type f -name 'estimator_ukf.o' -size +0c -print -quit | grep -q .
 )
 
-printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source applied and UKF-enabled cf2 firmware built."
+printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH veto discriminator applied and UKF-enabled cf2 firmware built."

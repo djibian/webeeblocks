@@ -115,17 +115,12 @@
     });
   }
 
-  function requireHardware(profile, descriptor) {
-    profile.hardware.forEach(function(requirement) {
-      if (requirement === EXACT_AIRFRAME) {
-        if (descriptor.identity.modelEvidence !== 'verified' ||
-            descriptor.identity.model !== EXACT_AIRFRAME)
-          fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
-        return;
-      }
-      if (descriptor.hardware.indexOf(requirement) < 0)
-        fail('required hardware unavailable: ' + requirement);
-    });
+  function requireExactAirframe(profile, descriptor) {
+    if (profile.hardware.indexOf(EXACT_AIRFRAME) < 0)
+      fail('profile exact physical model requirement unavailable: ' + EXACT_AIRFRAME);
+    if (descriptor.identity.modelEvidence !== 'verified' ||
+        descriptor.identity.model !== EXACT_AIRFRAME)
+      fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
   }
 
   function preflight(profile, facts, descriptorValue) {
@@ -136,7 +131,7 @@
       fail('AST capability facts unavailable');
 
     var descriptor = normalizeDescriptor(descriptorValue);
-    requireHardware(profile, descriptor);
+    requireExactAirframe(profile, descriptor);
 
     var actions = descriptor.capabilities.actions;
     facts.statements.forEach(function(kind) {
@@ -225,13 +220,6 @@
     return facts;
   }
 
-  function requireExactAirframeIfProfileDeclaresIt(profile, descriptor) {
-    if (profile.hardware.indexOf(EXACT_AIRFRAME) < 0)
-      return;
-    if (descriptor.identity.modelEvidence !== 'verified' || descriptor.identity.model !== EXACT_AIRFRAME)
-      fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
-  }
-
   function requireUnconditionalHardware(profile, descriptor) {
     var explicit = profile.physicalHardwareRequired;
     if (explicit !== undefined)
@@ -242,8 +230,7 @@
       });
     explicit.forEach(function(requirement) {
       if (requirement === EXACT_AIRFRAME) {
-        if (descriptor.identity.modelEvidence !== 'verified' || descriptor.identity.model !== EXACT_AIRFRAME)
-          fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
+        requireExactAirframe(profile, descriptor);
       } else if (descriptor.hardware.indexOf(requirement) < 0) {
         fail('required hardware unavailable: ' + requirement);
       }
@@ -270,7 +257,7 @@
     var descriptor = normalizeDescriptor(descriptorValue);
     var facts = deriveFacts(ast);
     try {
-      requireExactAirframeIfProfileDeclaresIt(profile, descriptor);
+      requireExactAirframe(profile, descriptor);
       requireUnconditionalHardware(profile, descriptor);
       var actions = descriptor.capabilities.actions;
       facts.statements.forEach(function(kind) {
