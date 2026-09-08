@@ -42,7 +42,12 @@ git hash-object "$got_source" | tee "$artifact_dir/got-source-blob.txt"
 gcc -fPIC -c "$got_source" -o "$got_obj"
 nm -u "$got_obj" | tee "$artifact_dir/got-object-undefined.txt"
 objdump -dr "$got_obj" | tee "$artifact_dir/got-object-objdump.txt"
-test "$(awk '{print $2}' "$artifact_dir/got-object-undefined.txt" | sed '/^$/d')" = _ZN16QCoreApplication4selfE
+awk '{print $2}' "$artifact_dir/got-object-undefined.txt" | sed '/^$/d' | sort \
+  > "$artifact_dir/got-object-undefined-symbols.txt"
+printf '%s\n' _GLOBAL_OFFSET_TABLE_ _ZN16QCoreApplication4selfE | sort \
+  > "$artifact_dir/got-object-expected-undefined-symbols.txt"
+diff -u "$artifact_dir/got-object-expected-undefined-symbols.txt" \
+  "$artifact_dir/got-object-undefined-symbols.txt"
 grep -Fq '<webeeblocks_c26_got_self>:' "$artifact_dir/got-object-objdump.txt"
 grep -Fq '_ZN16QCoreApplication4selfE' "$artifact_dir/got-object-objdump.txt"
 grep -Eq 'R_X86_64_(REX_)?GOTPCRELX?.*_ZN16QCoreApplication4selfE|R_X86_64_GOTPCREL.*_ZN16QCoreApplication4selfE' \
@@ -121,6 +126,7 @@ no_provider_roots a
 ! has_qcore_root a
 ! has_meta_root a
 ! has_qcore_copy a
+! grep -Fq 'QCoreApplication::self' "$artifact_dir/arm-a-relocations-demangled.txt"
 ! grep -Fq 'webeeblocks_c25_direct_self' "$artifact_dir/arm-a-nm.txt"
 ! grep -Fq 'webeeblocks_c26_got_self' "$artifact_dir/arm-a-nm.txt"
 
