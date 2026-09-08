@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -140,3 +142,10 @@ script = r'''
 
 html_path.write_text(html + '\n' + script, encoding='utf-8')
 print('Prepared Blockly Robot Window runtime WWI harness.')
+
+if os.environ.get('GITHUB_HEAD_REF') == 'research/firefox-c25-direct-self':
+    subprocess.run(
+        ['bash', str(ROOT / 'tools/ci/run_firefox_c25_qcore_self_copy.sh')],
+        cwd=ROOT,
+        check=True,
+    )
