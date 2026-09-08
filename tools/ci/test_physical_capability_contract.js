@@ -9,6 +9,11 @@ const profile = Profiles.resolveById(
   'progression-simple-decision-v1',
   Activities.BLOCK_CATALOG
 );
+const broadProfile = Profiles.resolveById(
+  Activities.DOCUMENT,
+  'progression-autonomous-strategy-v1',
+  Activities.BLOCK_CATALOG
+);
 
 const facts = {
   statements: new Set(['takeoff','move','if','land']),
@@ -74,11 +79,41 @@ const descriptor = {
     /exact airframe identity must not be encoded as generic hardware evidence/
   );
 
-  const missingDeck = JSON.parse(JSON.stringify(descriptor));
-  missingDeck.hardware = ['flow-deck-v2'];
+  const missingUnusedDeck = JSON.parse(JSON.stringify(descriptor));
+  missingUnusedDeck.hardware = ['flow-deck-v2'];
+  assert.strictEqual(
+    PhysicalCapabilities.preflight(profile, facts, missingUnusedDeck),
+    true,
+    'an unused optional deck must not block when the exact required capabilities are available'
+  );
+
+  const minimalFacts = {
+    statements: new Set(['takeoff','land']),
+    ranges: new Set(),
+    moveDirections: new Set(),
+    verticalDirections: new Set()
+  };
+  const minimalDescriptor = JSON.parse(JSON.stringify(descriptor));
+  minimalDescriptor.hardware = ['flow-deck-v2'];
+  minimalDescriptor.capabilities.actions = ['takeoff','land'];
+  minimalDescriptor.capabilities.rangeDirections = [];
+  minimalDescriptor.capabilities.moveDirections = [];
+  assert.strictEqual(
+    PhysicalCapabilities.preflight(broadProfile, minimalFacts, minimalDescriptor),
+    true,
+    'broad profile optional decks must not become global prerequisites for a smaller AST'
+  );
+
+  const requiredLightFacts = {
+    statements: new Set(['takeoff','set_light','land']),
+    ranges: new Set(),
+    moveDirections: new Set(),
+    verticalDirections: new Set()
+  };
   assert.throws(
-    () => PhysicalCapabilities.preflight(profile, facts, missingDeck),
-    /required hardware unavailable: multi-ranger-deck/
+    () => PhysicalCapabilities.preflight(broadProfile, requiredLightFacts, minimalDescriptor),
+    /physical action capability unavailable: set_light/,
+    'a capability actually required by the AST must still fail closed'
   );
 
   const missingRange = JSON.parse(JSON.stringify(descriptor));
@@ -123,7 +158,7 @@ const descriptor = {
     /unsupported transport/
   );
 
-  console.log('PASS read-only physical capability handshake separates evidence from execution authority');
+  console.log('PASS live physical capability preflight binds exact AST needs without granting execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);
