@@ -1055,6 +1055,168 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
+      - name: Run C19 frozen file-broker object discriminator
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c19-file-broker-object' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir=ci-artifacts/firefox-c19-file-broker-object
+          mkdir -p "$artifact_dir"
+          recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
+          curl --fail --location --retry 3 --output "$recipe" \
+            https://raw.githubusercontent.com/cyberbotics/webots/R2025a/scripts/install/linux_runtime_dependencies.sh
+          test "$(git hash-object "$recipe")" = 4593476be2c985580a0e1738671f4b5bae81f669
+          sudo env CI=true bash "$recipe"
+          archive="$RUNNER_TEMP/webots-R2025a-x86-64.tar.bz2"
+          curl --fail --location --retry 3 --output "$archive" \
+            https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a-x86-64.tar.bz2
+          echo "c5127fb4206c57a5ae5523f1b7f3da8b670bc8926d9ae08595e139f226f38c38  $archive" | sha256sum --check
+          tar -xjf "$archive" -C "$RUNNER_TEMP"
+          webots="$RUNNER_TEMP/webots"
+
+          frozen_sha=fa78eb7dc8fd423abfd7e656a3bbf8c3e7e26c1c
+          frozen="$RUNNER_TEMP/c19-frozen-broker"
+          mkdir -p "$frozen"
+          for file in file_broker.cpp file_broker.hpp file_broker_c.h; do
+            curl --fail --location --retry 3 --output "$frozen/$file" \
+              "https://raw.githubusercontent.com/djibian/webeeblocks/$frozen_sha/controllers/crazyflie_runtime_v2/$file"
+          done
+          test "$(git hash-object "$frozen/file_broker.cpp")" = 241e6e6aaec32ceaeaa2693fad337a774757b895
+          test "$(git hash-object "$frozen/file_broker.hpp")" = 9e50d286344f680cb0cc254f4d68f4434a9e409a
+          test "$(git hash-object "$frozen/file_broker_c.h")" = d51074ba660b131f3c9df67d0ceef404c204f079
+          git hash-object "$frozen"/file_broker.* | tee "$artifact_dir/frozen-source-blobs.txt"
+
+          source="$RUNNER_TEMP/c19-control.cpp"
+          baseline="$RUNNER_TEMP/c19-baseline"
+          treatment="$RUNNER_TEMP/c19-treatment"
+          staged="$RUNNER_TEMP/c19-control"
+          cat > "$source" <<'CPP'
+          #include <QtWidgets/QApplication>
+          #include <csignal>
+          #include <cstring>
+          #include <execinfo.h>
+          #include <unistd.h>
+          static void marker(const char *m) { ::write(STDERR_FILENO, m, std::strlen(m)); }
+          static void fatal_handler(int s) {
+            if (s == SIGSEGV) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV\n");
+            else if (s == SIGABRT) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGABRT\n");
+            else if (s == SIGBUS) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGBUS\n");
+            else if (s == SIGILL) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGILL\n");
+            else if (s == SIGFPE) marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGFPE\n");
+            else marker("WEBEEBLOCKS_QT_CONTROL_FATAL signal=UNKNOWN\n");
+            void *frames[64];
+            int count = ::backtrace(frames, 64);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN\n");
+            ::backtrace_symbols_fd(frames, count, STDERR_FILENO);
+            marker("WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END\n");
+            _exit(128 + s);
+          }
+          int main(int argc, char **argv) {
+            void *warmup[1]; (void)::backtrace(warmup, 1);
+            struct sigaction action {};
+            action.sa_handler = fatal_handler; sigemptyset(&action.sa_mask);
+            action.sa_flags = SA_RESETHAND;
+            for (int s : {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE})
+              if (sigaction(s, &action, nullptr) != 0) return 120;
+            marker("WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION\n");
+            QApplication app(argc, argv);
+            marker("WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK\n");
+            return 0;
+          }
+          CPP
+          common=(-std=c++17 -g -O0
+            -isystem "$webots/include/qt/QtCore"
+            -isystem "$webots/include/qt/QtGui"
+            -isystem "$webots/include/qt/QtWidgets"
+            -L"$webots/lib/webots" -L"$webots/lib/controller"
+            -Wl,-rpath-link,"$webots/lib/webots" -Wl,-rpath-link,"$webots/lib/controller")
+          libs=(-lQt6Widgets -lQt6Gui -lQt6Core -Wl,--no-as-needed -lController -Wl,--as-needed)
+          g++ "${common[@]}" "$source" -o "$baseline" "${libs[@]}"
+          g++ "${common[@]}" -I"$frozen" "$source" "$frozen/file_broker.cpp" -o "$treatment" "${libs[@]}"
+          sha256sum "$baseline" "$treatment" | tee "$artifact_dir/binary-sha256.txt"
+          ! cmp -s "$baseline" "$treatment"
+          ! nm -C "$baseline" | grep -Fq 'webeeblocks::createQtFileDialogProvider()'
+          nm -C "$treatment" | grep -F 'webeeblocks::createQtFileDialogProvider()' | tee "$artifact_dir/broker-symbol.txt"
+          strings "$treatment" | grep -F 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' | tee "$artifact_dir/broker-marker.txt"
+          for arm in baseline treatment; do
+            binary="$baseline"; [ "$arm" = treatment ] && binary="$treatment"
+            readelf -d "$binary" > "$artifact_dir/$arm-readelf.txt"
+            LD_LIBRARY_PATH="$webots/lib/webots:$webots/lib/controller" ldd "$binary" > "$artifact_dir/$arm-ldd.txt"
+            grep -F "libController.so => $webots/lib/controller/libController.so" "$artifact_dir/$arm-ldd.txt"
+            qt="$(grep 'libQt6\(Core\|Gui\|Widgets\)' "$artifact_dir/$arm-ldd.txt")"
+            test "$(printf '%s\n' "$qt" | wc -l)" -eq 3
+            ! printf '%s\n' "$qt" | grep -vF "$webots/lib/webots/"
+          done
+
+          session="$RUNNER_TEMP/c19-session.sh"
+          cat > "$session" <<'SH'
+          #!/usr/bin/env bash
+          set +e
+          run_one() {
+            tag="$1"; log="$artifact_dir/$tag.log"
+            env -u QT_DEBUG_PLUGINS "$staged" > "$log" 2>&1 &
+            pid=$!; wait "$pid"; code=$?
+            printf 'WEBEEBLOCKS_C19_PROCESS tag=%s pid=%s argc=1 argv0=%s debug=0 display=%s\n' \
+              "$tag" "$pid" "$staged" "${DISPLAY:-}" >> "$log"
+            printf 'WEBEEBLOCKS_C19_PROCESS_EXIT tag=%s pid=%s code=%s\n' "$tag" "$pid" "$code" >> "$log"
+          }
+          run_one baseline
+          cp "$treatment" "$staged"
+          run_one treatment
+          SH
+          chmod +x "$session"
+          cp "$baseline" "$staged"
+          set +e
+          env artifact_dir="$artifact_dir" staged="$staged" treatment="$treatment" \
+            QT_PLUGIN_PATH="$webots/lib/webots/qt/plugins" \
+            LD_LIBRARY_PATH="$webots/lib/webots:$webots/lib/controller" \
+            LIBGL_ALWAYS_SOFTWARE=true timeout -k 2s 30s xvfb-run -a "$session"
+          outer=$?
+          set -e
+          test "$outer" = 0
+          for tag in baseline treatment; do
+            log="$artifact_dir/$tag.log"; cat "$log"
+            pid="$(sed -n "s/.*WEBEEBLOCKS_C19_PROCESS tag=$tag pid=\([0-9][0-9]*\).*/\1/p" "$log" | tail -1)"
+            exit_pid="$(sed -n "s/.*WEBEEBLOCKS_C19_PROCESS_EXIT tag=$tag pid=\([0-9][0-9]*\) code=.*/\1/p" "$log" | tail -1)"
+            test -n "$pid"; test "$pid" = "$exit_pid"
+            grep -Eq "WEBEEBLOCKS_C19_PROCESS tag=$tag .* argc=1 .* debug=0 display=:[0-9]+" "$log"
+            grep -Fq 'WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION' "$log"
+          done
+          baseline_log="$artifact_dir/baseline.log"
+          treatment_log="$artifact_dir/treatment.log"
+          baseline_exit="$(sed -n 's/.*tag=baseline pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$baseline_log" | tail -1)"
+          treatment_exit="$(sed -n 's/.*tag=treatment pid=[0-9][0-9]* code=\([0-9][0-9]*\).*/\1/p' "$treatment_log" | tail -1)"
+          grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$baseline_log"
+          test "$baseline_exit" = 0
+          ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=' "$baseline_log"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$treatment_log"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$treatment_log"
+          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$treatment_log"; then
+            test "$treatment_exit" = 0
+            ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=' "$treatment_log"
+            echo DIAGNOSTIC_RESULT=C19_BROKER_OBJECT_INSUFFICIENT | tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$treatment_log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN' "$treatment_log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END' "$treatment_log"; then
+            test "$treatment_exit" = 139
+            sed -n '/BACKTRACE_BEGIN/,/BACKTRACE_END/p' "$treatment_log" > "$artifact_dir/causal-backtrace.txt"
+            grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' "$artifact_dir/causal-backtrace.txt"
+            echo DIAGNOSTIC_RESULT=C19_BROKER_OBJECT_SUFFICIENT | tee "$artifact_dir/result.txt"
+            exit 0
+          fi
+          echo DIAGNOSTIC_RESULT=C19_BROKER_OBJECT_OUTCOME_UNPROVEN | tee "$artifact_dir/result.txt"
+          exit 1
+
+      - name: Upload C19 frozen file-broker object discriminator
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c19-file-broker-object' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-c19-file-broker-object-r2025a
+          path: ci-artifacts/firefox-c19-file-broker-object/
+          if-no-files-found: error
+
       - name: Upload runtime WWI diagnostics
         if: always()
         uses: actions/upload-artifact@v4
