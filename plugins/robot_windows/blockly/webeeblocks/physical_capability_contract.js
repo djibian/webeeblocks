@@ -12,6 +12,7 @@
     'sendSetpoint', 'thrust'
   ];
   var ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'];
+  var CAPABILITY_DEPENDENT_HARDWARE = ['flow-deck-v2', 'multi-ranger-deck', 'color-led-deck'];
   var EXACT_AIRFRAME = 'crazyflie-2.1';
 
   function fail(message) {
@@ -152,10 +153,153 @@
     return true;
   }
 
+  function newFacts() {
+    return {
+      statements: new Set(),
+      ranges: new Set(),
+      moveDirections: new Set(),
+      verticalDirections: new Set()
+    };
+  }
+
+  function visitExpression(expression, facts) {
+    if (!isObject(expression) || typeof expression.kind !== 'string')
+      fail('malformed AST expression');
+    if (expression.kind === 'number' || expression.kind === 'variable_get')
+      return;
+    if (expression.kind === 'range') {
+      requireString(expression.direction, 'AST range direction');
+      facts.ranges.add(expression.direction);
+      return;
+    }
+    if (expression.kind === 'arithmetic' || expression.kind === 'compare' || expression.kind === 'logic') {
+      visitExpression(expression.left, facts);
+      visitExpression(expression.right, facts);
+      return;
+    }
+    fail('unsupported AST expression kind: ' + expression.kind);
+  }
+
+  function visitSequence(sequence, facts) {
+    if (!Array.isArray(sequence))
+      fail('AST statement sequence must be an array');
+    sequence.forEach(function(statement) {
+      if (!isObject(statement) || typeof statement.kind !== 'string')
+        fail('malformed AST statement');
+      var kind = statement.kind;
+      facts.statements.add(kind);
+      if (ACTION_KINDS.indexOf(kind) >= 0) {
+        if (kind === 'move') {
+          requireString(statement.direction, 'AST move direction');
+          facts.moveDirections.add(statement.direction);
+        } else if (kind === 'vertical') {
+          requireString(statement.direction, 'AST vertical direction');
+          facts.verticalDirections.add(statement.direction);
+        }
+        return;
+      }
+      if (kind === 'set_variable') {
+        visitExpression(statement.value, facts);
+        return;
+      }
+      if (kind === 'repeat') {
+        visitSequence(statement.body, facts);
+        return;
+      }
+      if (kind === 'if') {
+        visitExpression(statement.condition, facts);
+        visitSequence(statement.then, facts);
+        if (statement.else !== undefined)
+          visitSequence(statement.else, facts);
+        return;
+      }
+      fail('unsupported AST statement kind: ' + kind);
+    });
+  }
+
+  function deriveFacts(ast) {
+    if (!isObject(ast) || ast.version !== 1 || ast.semantics !== 'webeeblocks-ast-v1')
+      fail('unsupported or malformed backend-neutral AST');
+    var facts = newFacts();
+    visitSequence(ast.program, facts);
+    return facts;
+  }
+
+  function requireExactAirframeIfProfileDeclaresIt(profile, descriptor) {
+    if (profile.hardware.indexOf(EXACT_AIRFRAME) < 0)
+      return;
+    if (descriptor.identity.modelEvidence !== 'verified' || descriptor.identity.model !== EXACT_AIRFRAME)
+      fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
+  }
+
+  function requireUnconditionalHardware(profile, descriptor) {
+    var explicit = profile.physicalHardwareRequired;
+    if (explicit !== undefined)
+      explicit = normalizeStringArray(explicit, 'physicalHardwareRequired');
+    else
+      explicit = profile.hardware.filter(function(requirement) {
+        return requirement !== EXACT_AIRFRAME && CAPABILITY_DEPENDENT_HARDWARE.indexOf(requirement) < 0;
+      });
+    explicit.forEach(function(requirement) {
+      if (requirement === EXACT_AIRFRAME) {
+        if (descriptor.identity.modelEvidence !== 'verified' || descriptor.identity.model !== EXACT_AIRFRAME)
+          fail('exact physical model evidence unavailable: ' + EXACT_AIRFRAME);
+      } else if (descriptor.hardware.indexOf(requirement) < 0) {
+        fail('required hardware unavailable: ' + requirement);
+      }
+    });
+  }
+
+  function detectedSummary(descriptor) {
+    return 'matériel détecté: ' + (descriptor.hardware.length ? descriptor.hardware.join(', ') : 'aucun deck compatible') +
+      '; actions: ' + (descriptor.capabilities.actions.length ? descriptor.capabilities.actions.join(', ') : 'aucune') +
+      '; distances: ' + (descriptor.capabilities.rangeDirections.length ? descriptor.capabilities.rangeDirections.join(', ') : 'aucune');
+  }
+
+  function compatibilityError(error, descriptor) {
+    var wrapped = new Error('physical capability preflight: ' + error.message);
+    wrapped.code = 'PHYSICAL_CAPABILITY_MISMATCH';
+    wrapped.studentDetail = 'Le programme n’a pas été envoyé au Crazyflie : ' +
+      error.message.replace(/^physical capability contract: /, '') + '. ' + detectedSummary(descriptor) + '.';
+    return wrapped;
+  }
+
+  function preflightAst(profile, ast, descriptorValue) {
+    if (!profile || !Array.isArray(profile.hardware))
+      fail('profile hardware requirements unavailable');
+    var descriptor = normalizeDescriptor(descriptorValue);
+    var facts = deriveFacts(ast);
+    try {
+      requireExactAirframeIfProfileDeclaresIt(profile, descriptor);
+      requireUnconditionalHardware(profile, descriptor);
+      var actions = descriptor.capabilities.actions;
+      facts.statements.forEach(function(kind) {
+        if (ACTION_KINDS.indexOf(kind) >= 0 && actions.indexOf(kind) < 0)
+          fail('physical action capability unavailable: ' + kind);
+      });
+      requireSubset(Array.from(facts.ranges), descriptor.capabilities.rangeDirections,
+        'physical range capability unavailable: ');
+      requireSubset(Array.from(facts.moveDirections), descriptor.capabilities.moveDirections,
+        'physical move direction unavailable: ');
+      requireSubset(Array.from(facts.verticalDirections), descriptor.capabilities.verticalDirections,
+        'physical vertical direction unavailable: ');
+    } catch (error) {
+      throw compatibilityError(error, descriptor);
+    }
+    return {
+      compatible: true,
+      executionAuthority: false,
+      facts: facts,
+      descriptor: descriptor
+    };
+  }
+
   return {
     normalizeDescriptor: normalizeDescriptor,
     inspect: inspect,
     preflight: preflight,
+    deriveFacts: deriveFacts,
+    preflightAst: preflightAst,
     FORBIDDEN_AUTHORITY_METHODS: FORBIDDEN_AUTHORITY_METHODS.slice()
   };
 });
