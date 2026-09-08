@@ -344,8 +344,23 @@ def main():
         if expected not in menu_text:
             raise RuntimeError('real direction dropdown lacks '+expected+': '+menu_text)
     c.screenshot(screenshot.with_name('direction-menu-1366x768.png'))
-    c.key('Escape'); time.sleep(.2)
-    c.hover(rendered['repeatRect'])
+    c.key('Escape')
+    blocking_overlay=[]
+    overlay_end=time.time()+2.0
+    while time.time()<overlay_end:
+        blocking_overlay=[
+            entry for entry in c.eval(VISIBLE_OVERLAY)
+            if 'tooltip' not in entry['className'].lower() and entry['text'].strip()
+        ]
+        if not blocking_overlay: break
+        time.sleep(.05)
+    if blocking_overlay:
+        raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
+    # Re-hit-test after the dropdown has actually closed. A stale pre-menu
+    # coordinate can remain under the transient widget overlay, causing the
+    # synthetic mouse move to be consumed without ever entering the real block.
+    repeat_after_close=c.eval(RENDER_LOCALE)
+    c.hover(repeat_after_close['repeatRect'])
     tooltip=[]
     end=time.time()+5.0
     while time.time()<end:
