@@ -49,7 +49,7 @@ function updateRuntimeActions() {
   var primaryIsStop = runtimeRunning === true;
   var primaryLabel = primaryIsStop ? 'Arrêter le vol' : 'Lancer le vol';
   submit.textContent = primaryLabel;
-  submit.setAttribute('aria-label', primaryLabel);
+  if (typeof submit.setAttribute === 'function') submit.setAttribute('aria-label', primaryLabel);
   submit.disabled = primaryIsStop
     ? (!stopSupported || !ready || runtimeStopPending || runtimeStopRequested)
     : (!ready || runtimeTerminal || runtimeResetPending || runtimeStopPending);
