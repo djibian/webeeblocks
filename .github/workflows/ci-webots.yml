@@ -1345,8 +1345,10 @@ jobs:
 
           outcome() {
             log="$1"; tag="$2"
-            if check_success "$log" "$tag"; then printf success
-            elif check_crash "$log" "$tag"; then printf crash
+            # Classification runs inside command substitution. Keep diagnostic
+            # log replay on stderr so the captured value is exactly one token.
+            if check_success "$log" "$tag" >&2; then printf success
+            elif check_crash "$log" "$tag" >&2; then printf crash
             else printf unproven
             fi
           }
