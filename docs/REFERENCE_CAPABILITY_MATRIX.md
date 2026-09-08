@@ -59,14 +59,17 @@ sensors and movement/vertical capabilities from the exact submitted
 backend-neutral AST, keeps optional deck requirements intent-dependent, and
 produces a canonical non-authority AST binding that later code can verify before
 authorization/submission. A connected-preflight entry point now acquires and
-normalizes the live descriptor from the read-only adapter on every invocation
-before performing those exact-AST checks, so an earlier cached capability
-descriptor is not reused across later submissions. This still is not execution
-authority: reconnect invalidation/session freshness between a completed
-preflight and a future authorization consumer, that authorization consumer
-itself, and the real-Crazyflie student execution path remain unproven. Do not
-turn source availability, Lab firmware experiments, preflight compatibility, or
-simulation coverage into a real-hardware support claim.
+normalizes the live descriptor from the read-only adapter on every invocation,
+brackets that acquisition with an opaque adapter-provided connection epoch, and
+binds the successful result to that epoch. The connected assertion fails closed
+if the epoch changes before a later consumer checks the preflight, and a
+connection change during descriptor acquisition invalidates the attempt. This
+still is not execution authority: a real physical adapter must provide a
+trustworthy epoch that changes on reconnect, the future authorization/submission
+consumer must perform the check immediately before its effect, and the
+real-Crazyflie student execution path remains unproven. Do not turn source
+availability, Lab firmware experiments, preflight compatibility, or simulation
+coverage into a real-hardware support claim.
 
 This inventory should be updated only when integrated product evidence changes a
 row; live PR/CI/review state remains on GitHub rather than in this document.
