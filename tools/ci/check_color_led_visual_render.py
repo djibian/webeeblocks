@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import re
+import math
 import subprocess
 from pathlib import Path
 
@@ -43,14 +43,18 @@ for view in VIEWS:
         [
             "convert", str(off_crop), str(blue_crop),
             "-compose", "difference", "-composite",
-            "-colorspace", "Gray", "-threshold", "10%",
+            "-separate", "-evaluate-sequence", "max",
+            "-threshold", "10%",
             "-format", "%[fx:mean]", "info:",
         ],
         check=True, text=True, capture_output=True
     ).stdout.strip()
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", fraction_text):
+    try:
+        fraction = float(fraction_text)
+    except ValueError as error:
+        raise AssertionError(f"unexpected ImageMagick fraction for {view}: {fraction_text!r}") from error
+    if not math.isfinite(fraction) or fraction < 0.0 or fraction > 1.0:
         raise AssertionError(f"unexpected ImageMagick fraction for {view}: {fraction_text!r}")
-    fraction = float(fraction_text)
     if fraction < MIN_CHANGED_FRACTION:
         raise AssertionError(
             f"{view}: active Color LED changed only {fraction:.6f} of central rendered pixels; "
