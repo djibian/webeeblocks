@@ -11,8 +11,11 @@
   var VERTICAL_DIRECTIONS=['up','down'];
   var LIGHT_COLORS=['off','red','green','blue','yellow','white'];
   var COMPARE_OPS=['LT','LTE','GT','GTE','EQ','NEQ'];
+  var ARITHMETIC_OPS=['ADD','MINUS','MULTIPLY','DIVIDE'];
   function fail(message){throw new Error('runtime v2: '+message);}
+  function studentFail(message,detail){var error=new Error('runtime v2: '+message);error.code='PROGRAM_INVALID';error.studentDetail=detail;throw error;}
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
+  function numeric(value,name){if(typeof value!=='number'||!Number.isFinite(value))studentFail(name+' must be a finite number','Vérifiez les valeurs utilisées dans le calcul.');return value;}
   function requireMethod(backend,name){if(!backend||typeof backend[name]!=='function')fail('backend is missing '+name+'()');return backend[name].bind(backend);}
   async function hook(options,name,payload){var hooks=options&&options.hooks;if(hooks&&typeof hooks[name]==='function')await hooks[name](payload);}
   function variableRef(variable){if(!variable||typeof variable.id!=='string'||!variable.id||typeof variable.name!=='string'||!variable.name.trim())fail('invalid variable reference');return{id:variable.id,name:variable.name};}
@@ -29,6 +32,7 @@
       case 'number':finite(expression.value,'number');return;
       case 'range':if(SENSOR_DIRECTIONS.indexOf(String(expression.direction))<0||expression.unit!=='m')fail('unsupported range expression');return;
       case 'variable_get':{var ref=rememberVariable(variables,expression.variable);if(!assigned.has(ref.id))fail('variable read before assignment: '+ref.name);return;}
+      case 'arithmetic':if(ARITHMETIC_OPS.indexOf(String(expression.op))<0)fail('unsupported arithmetic operation '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
       case 'compare':if(COMPARE_OPS.indexOf(String(expression.op))<0)fail('unsupported comparison '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
       case 'logic':if(expression.op!=='AND'&&expression.op!=='OR')fail('unsupported logic operation '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
       default:fail('unsupported expression kind '+expression.kind);
@@ -87,6 +91,19 @@
         var value=finite(await requireMethod(backend,'readRange')(String(expression.direction)),'range('+expression.direction+')');
         await hook(options,'onSensor',{node:expression,path:(path||[]).slice(),role:'expression',variables:snapshot(env),direction:String(expression.direction),value:value});
         return value;
+      }
+      case 'arithmetic':{
+        var arithmeticLeft=numeric(await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'),env),'left arithmetic operand');
+        var arithmeticRight=numeric(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'),env),'right arithmetic operand');
+        await hook(options,'beforeStep',context(expression,path,'expression',env));
+        if(expression.op==='DIVIDE'&&arithmeticRight===0)studentFail('division by zero','Une division par zéro est impossible. Modifiez le diviseur.');
+        var arithmeticResult;
+        if(expression.op==='ADD')arithmeticResult=arithmeticLeft+arithmeticRight;
+        else if(expression.op==='MINUS')arithmeticResult=arithmeticLeft-arithmeticRight;
+        else if(expression.op==='MULTIPLY')arithmeticResult=arithmeticLeft*arithmeticRight;
+        else arithmeticResult=arithmeticLeft/arithmeticRight;
+        if(!Number.isFinite(arithmeticResult))studentFail('arithmetic result must be finite','Le calcul produit une valeur invalide. Vérifiez les nombres utilisés.');
+        return arithmeticResult;
       }
       case 'compare':{
         var left=await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'),env);
