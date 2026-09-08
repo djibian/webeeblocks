@@ -27,7 +27,10 @@ required = [
     'name "color_led"',
     "gradual TRUE",
     "translation 0 0 -0.0058",
-    "size 0.0347 0.0347 0.0101",
+    "geometry Cylinder {",
+    "height 0.0101",
+    "radius 0.01735",
+    "subdivision 48",
     "transparency 0.12",
 ]
 for token in required:
@@ -39,8 +42,8 @@ if section.count("size 0.0022 0.0022 0.0065") != 4:
 if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
     raise AssertionError("detached legacy square Color LED representation survived")
 
-# 1.5 mm PCB + 10.1 mm diffuser = the 11.6 mm bottom-deck envelope.
+# 1.5 mm PCB + 10.1 mm circular diffuser = the 11.6 mm bottom-deck envelope.
 if abs((0.0015 + 0.0101) - 0.0116) > 1e-9:
     raise AssertionError("Color LED deck envelope arithmetic changed")
 
-print("PASS attached 34.7 mm bottom Color LED deck uses a side-visible 11.6 mm diffusing body in both Runtime worlds")
+print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible 11.6 mm diffusing body in both Runtime worlds")
