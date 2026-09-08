@@ -1152,7 +1152,7 @@ jobs:
           fi
 
           session="$RUNNER_TEMP/webeeblocks-c18-session.sh"
-          cat > "$session" <<SH
+          cat > "$session" <<'SH'
           #!/usr/bin/env bash
           set +e
           control="$control"
@@ -1184,6 +1184,8 @@ jobs:
 
           set +e
           env \
+            control="$control" \
+            artifact_dir="$artifact_dir" \
             QT_PLUGIN_PATH="$diagnostic_webots/lib/webots/qt/plugins" \
             LD_LIBRARY_PATH="$diagnostic_webots/lib/webots" \
             LIBGL_ALWAYS_SOFTWARE=true \
