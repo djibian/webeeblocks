@@ -310,7 +310,7 @@ def main():
     if not initial['rendererMatchesRegistry']: raise RuntimeError('Zelos not actually instantiated')
     if initial['version']!='13.2.1': raise RuntimeError('wrong Blockly version')
     if not all(initial['controls'].values()): raise RuntimeError('workspace controls missing')
-    expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
+    expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857','Variables':'#B45309'}
     toolbox={item['name']:normalise_colour(item.get('colour')) for item in initial['toolboxItems']}
     if list(toolbox) != list(expected_colours):
         raise RuntimeError('toolbox semantic groups/order mismatch: '+json.dumps(initial['toolboxItems'],ensure_ascii=False))
