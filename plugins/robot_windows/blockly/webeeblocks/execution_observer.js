@@ -69,11 +69,13 @@
     this.waiter = null;
     this.credit = 0;
     this.sensorValues = Object.create(null);
+    this.lightColor = 'off';
     var self = this;
     this.hooks = {
       onNode: function(context) { return self._onNode(context); },
       beforeStep: function(context) { return self._beforeStep(context); },
       onSensor: function(context) { return self._onSensor(context); },
+      onLight: function(context) { return self._onLight(context); },
       onVariables: function(context) { return self._onVariables(context); }
     };
   }
@@ -97,6 +99,7 @@
     this.continuous = !this.enabled;
     this.credit = 0;
     this.sensorValues = Object.create(null);
+    this.lightColor = 'off';
     if (typeof this.callbacks.onBegin === 'function')
       this.callbacks.onBegin({enabled: this.enabled});
     return this.hooks;
@@ -144,6 +147,17 @@
     });
     if (typeof this.callbacks.onSensor === 'function')
       this.callbacks.onSensor(detail);
+  };
+
+  Controller.prototype._onLight = async function(context) {
+    if (!this.enabled || !context || typeof context.color !== 'string') return;
+    this.lightColor = String(context.color);
+    var detail = Object.assign({}, context, {
+      blockId: this._blockId(context.path),
+      color: this.lightColor
+    });
+    if (typeof this.callbacks.onLight === 'function')
+      this.callbacks.onLight(detail);
   };
 
   Controller.prototype._onVariables = async function(context) {
