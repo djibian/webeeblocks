@@ -120,17 +120,25 @@ stronger barometer weighting diverged.
 The reconstructed scalar `surfaceOffset` S3 classifier has now also been
 physically refuted under its pre-registered props-off checkpoint. S3-A exposed a
 clear ~0.23 m floor/platform range step and formed a coherent ~+0.212 m terrain
-candidate, but the candidate never committed because the detector predominantly
-raised its vertical-motion veto; `surfaceOffset` stayed zero and estimated Z
-remained surface-relative. The S3-B/S3-C true-vertical controls did not create a
-false terrain commit.
+candidate, but the candidate never committed and estimated Z remained
+surface-relative. The S3-B/S3-C true-vertical controls did not create a false
+terrain commit.
+
+The subsequent exact props-off discriminator checkpoint #236 has now isolated
+that failure further. Three valid S3-A terrain repetitions emitted the split
+reasons 6=VZ_VETO, 7=BARO_VETO and 8=BOTH_VETO without any terrain commit. VZ was
+not reproducibly dominant, while the barometric veto participated across all
+three valid terrain repetitions. Valid S3-B/S3-C true-vertical controls remained
+below the ToF rejection gate and never entered SUSPECT. The useful causal result
+is therefore that the current VZ/barometer vertical-motion evidence is not
+sufficiently independent/discriminating at a terrain discontinuity.
 
 Do not retune ToF/barometer or S3 thresholds/persistence against this result and
-do not proceed to motorized testing. The next causal boundary is narrower: explain
-why the existing independent vertical-veto evidence rejects the true terrain
-transition despite a coherent range-step candidate. The slow-vertical controls
-did not expose the pre-registered observability failure that would justify adding
-`rangeUp` yet.
+do not proceed to motorized testing. The next #70 mechanism should redesign the
+classifier evidence and/or temporal alignment so terrain-induced estimator
+response cannot masquerade as independent true-vertical-motion evidence. This
+PASS alone still does not justify `rangeUp`, a full z/f/r state extension,
+product Runtime changes or motorized flight.
 
 ## Near-term graph
 
@@ -203,20 +211,25 @@ did not expose the pre-registered observability failure that would justify addin
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — isolate the false terrain vertical-veto boundary
+### X3 — redesign terrain/vertical evidence after discriminator PASS
 
 - parent: #70
 - established technical result: the isolated S3 `surfaceOffset` applicator and
   deterministic build oracle remain pinned to `crazyflie-firmware` 2026.08 and
   preserve the proven local-range Flow split plus pre-registered terrain and
   true-vertical controls
-- established physical result: exact checkpoint #180 is FAIL; S3-A forms the
-  expected terrain magnitude but the vertical veto prevents commit, while S3-B
-  and S3-C do not falsely commit terrain
-- next proof: use the retained traces, or if indispensable one smaller
-  pre-registered props-off discriminator, to isolate which existing veto/commit
-  signal rejects the true terrain transition before changing estimator structure
-  or adding a new independent cue
+- established physical result: exact checkpoint #180 refuted the original S3
+  terrain commit; exact discriminator checkpoint #236 then PASSed its diagnostic
+  purpose by separating VZ/BARO/BOTH veto causes on three valid terrain
+  repetitions while valid fast/slow true-vertical controls did not enter SUSPECT
+- causal conclusion: the current estimated-VZ and relative-barometer evidence is
+  not sufficiently independent/discriminating at a terrain discontinuity; VZ is
+  not reproducibly dominant and the barometric veto participates across all
+  valid terrain repetitions
+- next proof: design the smallest causal evidence/temporal-alignment replacement
+  that cannot treat terrain-induced estimator response as independent proof of
+  true vertical motion, then pre-register its acceptance/refutation boundary
+  before implementation or any new physical checkpoint
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
   thresholds/persistence against the outcome, add `rangeUp` fusion/full `z/f/r`,
   or perform motorized real flight as an agent
