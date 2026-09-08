@@ -11,6 +11,7 @@ var runtimeStopRequested = false;
 var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
+var WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK = 'WEBEEBLOCKS_CREATE_VARIABLE';
 
 var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   base: Blockly.Themes.Classic,
@@ -19,6 +20,7 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
     control_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
     sensor_blocks: { colourPrimary: '#0E7490', colourSecondary: '#0F5F73', colourTertiary: '#164E63' },
     operator_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' },
+    variable_blocks: { colourPrimary: '#B45309', colourSecondary: '#92400E', colourTertiary: '#78350F' },
     logic_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
     loop_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
     math_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' }
@@ -27,7 +29,8 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
     flight_category: {colour: '#2563EB'},
     control_category: {colour: '#7C3AED'},
     sensor_category: {colour: '#0E7490'},
-    operator_category: {colour: '#047857'}
+    operator_category: {colour: '#047857'},
+    variable_category: {colour: '#B45309'}
   },
   componentStyles: {
     workspaceBackgroundColour: '#f7f9fc', toolboxBackgroundColour: '#ffffff', toolboxForegroundColour: '#263342',
@@ -84,6 +87,7 @@ function categoryLabel(category) {
   if (category === 'control') return 'Contrôle';
   if (category === 'sensor') return 'Capteurs';
   if (category === 'operator') return 'Opérateurs';
+  if (category === 'variable') return 'Variables';
   throw new Error('unknown toolbox category: ' + category);
 }
 function categoryStyle(category) {
@@ -91,6 +95,7 @@ function categoryStyle(category) {
   if (category === 'control') return 'control_category';
   if (category === 'sensor') return 'sensor_category';
   if (category === 'operator') return 'operator_category';
+  if (category === 'variable') return 'variable_category';
   throw new Error('unknown toolbox category: ' + category);
 }
 function overrideBuiltinBlockStyle(type, style) {
@@ -103,22 +108,31 @@ function applySemanticBuiltinStyles() {
   overrideBuiltinBlockStyle('logic_compare', 'operator_blocks');
   overrideBuiltinBlockStyle('logic_operation', 'operator_blocks');
   overrideBuiltinBlockStyle('math_number', 'operator_blocks');
+  overrideBuiltinBlockStyle('math_arithmetic', 'operator_blocks');
+  overrideBuiltinBlockStyle('variables_set', 'variable_blocks');
+  overrideBuiltinBlockStyle('variables_get', 'variable_blocks');
 }
 
 function buildToolbox(profile) {
   var toolbox = document.createElement('xml');
-  var groups = {flight: [], control: [], sensor: [], operator: []};
+  var groups = {flight: [], control: [], sensor: [], operator: [], variable: []};
   profile.toolbox.forEach(function(type) {
     var definition = WebeeBlocksActivities.BLOCK_CATALOG[type];
     var category = (definition && definition.category) || 'control';
     if (!Object.prototype.hasOwnProperty.call(groups, category)) throw new Error('unsupported toolbox category for ' + type + ': ' + category);
     groups[category].push(type);
   });
-  ['flight', 'control', 'sensor', 'operator'].forEach(function(category) {
+  ['flight', 'control', 'sensor', 'operator', 'variable'].forEach(function(category) {
     if (!groups[category].length) return;
     var categoryNode = document.createElement('category');
     categoryNode.setAttribute('name', categoryLabel(category));
     categoryNode.setAttribute('categorystyle', categoryStyle(category));
+    if (category === 'variable') {
+      var createButton = document.createElement('button');
+      createButton.setAttribute('text', 'Créer une variable…');
+      createButton.setAttribute('callbackKey', WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK);
+      categoryNode.appendChild(createButton);
+    }
     groups[category].forEach(function(type) {
       var block = document.createElement('block'); block.setAttribute('type', type);
       if (type === 'controls_repeat_ext') {
@@ -343,6 +357,11 @@ window.onload = async function() {
     move: {scrollbars: true, drag: true, wheel: true},
     zoom: {controls: false, wheel: true, startScale: WEBEEBLOCKS_WORKSPACE_SCALE, maxScale: 1.40, minScale: 0.55, scaleSpeed: 1.10, pinch: true},
     trashcan: true, media: 'vendor/media/', sounds: false
+  });
+  if (typeof workspace.registerButtonCallback !== 'function' || !Blockly.Variables || typeof Blockly.Variables.createVariableButtonHandler !== 'function')
+    throw new Error('Blockly variable creation callback unavailable');
+  workspace.registerButtonCallback(WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK, function() {
+    Blockly.Variables.createVariableButtonHandler(workspace);
   });
   profileFieldOptions.applyWorkspace(workspace);
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
