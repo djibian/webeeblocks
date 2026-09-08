@@ -737,6 +737,38 @@ jobs:
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
+      - name: Prepare fixed Color LED render proof
+        run: |
+          python3 -m py_compile controllers/color_led_visual_probe/color_led_visual_probe.py
+          python3 -m py_compile tools/ci/prepare_color_led_visual_render.py
+          python3 -m py_compile tools/ci/check_color_led_visual_render.py
+          python3 tools/ci/prepare_color_led_visual_render.py
+
+      - name: Render fixed Color LED evidence in official Webots R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/runtime-v2-webots/color-led-render
+          docker run --rm \
+            -e LIBGL_ALWAYS_SOFTWARE=true \
+            -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+            -e WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-webots \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            cyberbotics/webots:R2025a-ubuntu22.04 \
+            bash -lc 'timeout -k 5s 45s xvfb-run -a -s "-screen 0 1280x900x24" webots --stdout --stderr --batch --mode=fast /workspace/worlds/.ci_color_led_visual_render.wbt' \
+            2>&1 | tee ci-artifacts/runtime-v2-webots/color-led-render/webots-render.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            echo "::error::fixed Color LED render probe exited with $code"
+            exit "$code"
+          fi
+
+      - name: Prove Color LED is perceptible from fixed normal views
+        run: |
+          python3 tools/ci/test_color_led_deck_visual.py
+          python3 tools/ci/check_color_led_visual_render.py
+
       - name: Build dynamic Runtime v2 controller
         shell: bash
         run: |
