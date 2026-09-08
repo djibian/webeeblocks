@@ -56,12 +56,14 @@ modeling deck electronics or photometric fidelity.
 The substantive remaining #157 boundary is physical-backend continuity/proof.
 The integrated physical preflight core now derives required actions, range
 sensors and movement/vertical capabilities from the exact submitted
-backend-neutral AST and keeps optional deck requirements intent-dependent. This
-is not execution authority: fresh connected-hardware acquisition, binding the
-preflighted AST to any later authorization/submission, and the real-Crazyflie
-student execution path remain unproven. Do not turn source availability, Lab
-firmware experiments, preflight compatibility, or simulation coverage into a
-real-hardware support claim.
+backend-neutral AST, keeps optional deck requirements intent-dependent, and
+produces a canonical non-authority AST binding that later code can verify before
+authorization/submission. This still is not execution authority: fresh
+connected-hardware acquisition, reconnect invalidation/session freshness, the
+future authorization consumer, and the real-Crazyflie student execution path
+remain unproven. Do not turn source availability, Lab firmware experiments,
+preflight compatibility, or simulation coverage into a real-hardware support
+claim.
 
 This inventory should be updated only when integrated product evidence changes a
 row; live PR/CI/review state remains on GitHub rather than in this document.
