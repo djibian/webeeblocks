@@ -1055,12 +1055,12 @@ jobs:
           print('PASS: Blockly Submit -> one WWI mission -> validation -> shared STOP executor -> L course; persistent runtime rearmed afterwards.')
           PY
 
-      - name: Run C20 broker dead-section discriminator
+      - name: Run C21 broker dead-section discriminator
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c20-broker-gc' }}
         shell: bash
         run: |
           set -euo pipefail
-          artifact_dir=ci-artifacts/firefox-c20-broker-gc
+          artifact_dir=ci-artifacts/firefox-c21-broker-gc
           mkdir -p "$artifact_dir"
           recipe="$RUNNER_TEMP/linux_runtime_dependencies-R2025a.sh"
           curl --fail --location --retry 3 --output "$recipe" \
@@ -1075,7 +1075,7 @@ jobs:
           webots="$RUNNER_TEMP/webots"
 
           frozen_sha=fa78eb7dc8fd423abfd7e656a3bbf8c3e7e26c1c
-          frozen="$RUNNER_TEMP/c20-frozen-broker"
+          frozen="$RUNNER_TEMP/c21-frozen-broker"
           mkdir -p "$frozen"
           for file in file_broker.cpp file_broker.hpp file_broker_c.h; do
             curl --fail --location --retry 3 --output "$frozen/$file" \
@@ -1086,11 +1086,13 @@ jobs:
           test "$(git hash-object "$frozen/file_broker_c.h")" = d51074ba660b131f3c9df67d0ceef404c204f079
           git hash-object "$frozen"/file_broker.* | tee "$artifact_dir/frozen-source-blobs.txt"
 
-          source="$RUNNER_TEMP/c20-control.cpp"
-          baseline="$RUNNER_TEMP/c20-baseline"
-          full="$RUNNER_TEMP/c20-full"
-          gc="$RUNNER_TEMP/c20-gc"
-          staged="$RUNNER_TEMP/c20-control"
+          source="$RUNNER_TEMP/c21-control.cpp"
+          control_obj="$RUNNER_TEMP/c21-control.o"
+          broker_obj="$RUNNER_TEMP/c21-broker.o"
+          baseline="$RUNNER_TEMP/c21-baseline"
+          full="$RUNNER_TEMP/c21-full"
+          gc="$RUNNER_TEMP/c21-gc"
+          staged="$RUNNER_TEMP/c21-control"
           cat > "$source" <<'CPP'
           #include <QtWidgets/QApplication>
           #include <csignal>
@@ -1132,20 +1134,25 @@ jobs:
             -L"$webots/lib/webots" -L"$webots/lib/controller"
             -Wl,-rpath-link,"$webots/lib/webots" -Wl,-rpath-link,"$webots/lib/controller")
           libs=(-lQt6Widgets -lQt6Gui -lQt6Core -Wl,--no-as-needed -lController -Wl,--as-needed)
-          g++ "${common[@]}" "$source" -o "$baseline" "${libs[@]}"
-          g++ "${common[@]}" -I"$frozen" "$source" "$frozen/file_broker.cpp" -o "$full" "${libs[@]}"
-          g++ "${common[@]}" -Wl,--gc-sections -I"$frozen" "$source" "$frozen/file_broker.cpp" -o "$gc" "${libs[@]}"
-          sha256sum "$baseline" "$full" "$gc" | tee "$artifact_dir/binary-sha256.txt"
+          g++ "${common[@]}" -ffunction-sections -fdata-sections -c "$source" -o "$control_obj"
+          g++ "${common[@]}" -ffunction-sections -fdata-sections -I"$frozen" -c "$frozen/file_broker.cpp" -o "$broker_obj"
+          g++ "${common[@]}" "$control_obj" -o "$baseline" "${libs[@]}"
+          g++ "${common[@]}" "$control_obj" "$broker_obj" -o "$full" "${libs[@]}"
+          g++ "${common[@]}" "$control_obj" "$broker_obj" -Wl,--gc-sections -Wl,-Map,"$artifact_dir/gc-link.map" -o "$gc" "${libs[@]}"
+          sha256sum "$control_obj" "$broker_obj" "$baseline" "$full" "$gc" | tee "$artifact_dir/binary-sha256.txt"
           ! cmp -s "$baseline" "$full"
           ! cmp -s "$full" "$gc"
 
           ! nm -C "$baseline" | grep -Fq 'webeeblocks::createQtFileDialogProvider()'
+          ! strings "$baseline" | grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED'
           nm -C "$full" > "$artifact_dir/full-nm.txt"
           grep -F 'webeeblocks::createQtFileDialogProvider()' "$artifact_dir/full-nm.txt" | tee "$artifact_dir/full-broker-symbol.txt"
           strings "$full" | grep -F 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' | tee "$artifact_dir/full-broker-marker.txt"
           nm -C "$gc" > "$artifact_dir/gc-nm.txt"
           ! grep -Fq 'webeeblocks::createQtFileDialogProvider()' "$artifact_dir/gc-nm.txt"
           ! strings "$gc" | grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED'
+          echo 'BROKER_PROVIDER_SYMBOL_REMOVED=1' | tee "$artifact_dir/gc-removal-proof.txt"
+          echo 'BROKER_RUNTIME_MARKER_REMOVED=1' | tee -a "$artifact_dir/gc-removal-proof.txt"
 
           for arm in baseline full gc; do
             binary="$baseline"; [ "$arm" = full ] && binary="$full"; [ "$arm" = gc ] && binary="$gc"
@@ -1159,7 +1166,7 @@ jobs:
             ! printf '%s\n' "$qt" | grep -vF "$webots/lib/webots/"
           done
 
-          session="$RUNNER_TEMP/c20-session.sh"
+          session="$RUNNER_TEMP/c21-session.sh"
           cat > "$session" <<'SH'
           #!/usr/bin/env bash
           set +e
@@ -1168,9 +1175,9 @@ jobs:
             cp "$binary" "$staged"
             env -u QT_DEBUG_PLUGINS "$staged" > "$log" 2>&1 &
             pid=$!; wait "$pid"; code=$?
-            printf 'WEBEEBLOCKS_C20_PROCESS tag=%s pid=%s argc=1 argv0=%s debug=0 display=%s\n' \
+            printf 'WEBEEBLOCKS_C21_PROCESS tag=%s pid=%s argc=1 argv0=%s debug=0 display=%s\n' \
               "$tag" "$pid" "$staged" "${DISPLAY:-}" >> "$log"
-            printf 'WEBEEBLOCKS_C20_PROCESS_EXIT tag=%s pid=%s code=%s\n' "$tag" "$pid" "$code" >> "$log"
+            printf 'WEBEEBLOCKS_C21_PROCESS_EXIT tag=%s pid=%s code=%s\n' "$tag" "$pid" "$code" >> "$log"
           }
           run_one baseline "$baseline"
           run_one full "$full"
@@ -1187,10 +1194,10 @@ jobs:
           test "$outer" = 0
           for tag in baseline full gc; do
             log="$artifact_dir/$tag.log"; cat "$log"
-            pid="$(sed -n "s/.*WEBEEBLOCKS_C20_PROCESS tag=$tag pid=\([0-9][0-9]*\).*/\1/p" "$log" | tail -1)"
-            exit_pid="$(sed -n "s/.*WEBEEBLOCKS_C20_PROCESS_EXIT tag=$tag pid=\([0-9][0-9]*\) code=.*/\1/p" "$log" | tail -1)"
+            pid="$(sed -n "s/.*WEBEEBLOCKS_C21_PROCESS tag=$tag pid=\([0-9][0-9]*\).*/\1/p" "$log" | tail -1)"
+            exit_pid="$(sed -n "s/.*WEBEEBLOCKS_C21_PROCESS_EXIT tag=$tag pid=\([0-9][0-9]*\) code=.*/\1/p" "$log" | tail -1)"
             test -n "$pid"; test "$pid" = "$exit_pid"
-            grep -Eq "WEBEEBLOCKS_C20_PROCESS tag=$tag .* argc=1 .* debug=0 display=:[0-9]+" "$log"
+            grep -Eq "WEBEEBLOCKS_C21_PROCESS tag=$tag .* argc=1 .* debug=0 display=:[0-9]+" "$log"
             grep -Fq 'WEBEEBLOCKS_QT_CONTROL BEFORE_QAPPLICATION' "$log"
           done
 
@@ -1206,8 +1213,10 @@ jobs:
           test "$baseline_exit" = 0
           ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=' "$baseline_log"
 
-          if ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$full_log" || [ "$full_exit" != 139 ]; then
-            echo DIAGNOSTIC_RESULT=C20_C19_WITNESS_NOT_REPRODUCED_UNPROVEN | tee "$artifact_dir/result.txt"
+          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$full_log" ||
+             ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$full_log" ||
+             [ "$full_exit" != 139 ]; then
+            echo DIAGNOSTIC_RESULT=C21_C20_WITNESS_NOT_REPRODUCED_UNPROVEN | tee "$artifact_dir/result.txt"
             exit 1
           fi
           sed -n '/BACKTRACE_BEGIN/,/BACKTRACE_END/p' "$full_log" > "$artifact_dir/full-causal-backtrace.txt"
@@ -1215,27 +1224,32 @@ jobs:
           ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$full_log"
           ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$full_log"
 
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QT_APP_INITIALIZED' "$gc_log"
+          ! grep -Fq 'WEBEEBLOCKS_FILE_BROKER_V1 QFILEDIALOG_CONSTRUCTED' "$gc_log"
+
           if grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$gc_log"; then
             test "$gc_exit" = 0
             ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=' "$gc_log"
-            echo DIAGNOSTIC_RESULT=C20_RETAINED_BROKER_SECTIONS_NECESSARY | tee "$artifact_dir/result.txt"
+            echo DIAGNOSTIC_RESULT=C21_RETAINED_BROKER_SECTIONS_NECESSARY | tee "$artifact_dir/result.txt"
             exit 0
           fi
-          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$gc_log" && [ "$gc_exit" = 139 ]; then
+          if ! grep -Fq 'WEBEEBLOCKS_QT_CONTROL QAPPLICATION_OK' "$gc_log" &&
+             grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$gc_log" &&
+             [ "$gc_exit" = 139 ]; then
             sed -n '/BACKTRACE_BEGIN/,/BACKTRACE_END/p' "$gc_log" > "$artifact_dir/gc-causal-backtrace.txt"
             grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' "$artifact_dir/gc-causal-backtrace.txt"
-            echo DIAGNOSTIC_RESULT=C20_GC_ELISION_INSUFFICIENT | tee "$artifact_dir/result.txt"
+            echo DIAGNOSTIC_RESULT=C21_GC_ELISION_INSUFFICIENT | tee "$artifact_dir/result.txt"
             exit 0
           fi
-          echo DIAGNOSTIC_RESULT=C20_OUTCOME_UNPROVEN | tee "$artifact_dir/result.txt"
+          echo DIAGNOSTIC_RESULT=C21_OUTCOME_UNPROVEN | tee "$artifact_dir/result.txt"
           exit 1
 
-      - name: Upload C20 broker dead-section discriminator
+      - name: Upload C21 broker dead-section discriminator
         if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'research/firefox-c20-broker-gc' }}
         uses: actions/upload-artifact@v4
         with:
-          name: firefox-c20-broker-gc-r2025a
-          path: ci-artifacts/firefox-c20-broker-gc/
+          name: firefox-c21-broker-gc-r2025a
+          path: ci-artifacts/firefox-c21-broker-gc/
           if-no-files-found: error
 
       - name: Upload runtime WWI diagnostics
