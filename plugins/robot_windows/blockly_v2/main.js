@@ -45,11 +45,17 @@ function updateRuntimeActions() {
   var submit = document.getElementById('submit');
   var reset = document.getElementById('resetSimulation');
   var stop = document.getElementById('stopSimulation');
-  submit.disabled = !ready || runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending;
+  var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
+  var primaryIsStop = runtimeRunning === true;
+  var primaryLabel = primaryIsStop ? 'Arrêter le vol' : 'Lancer le vol';
+  submit.textContent = primaryLabel;
+  submit.setAttribute('aria-label', primaryLabel);
+  submit.disabled = primaryIsStop
+    ? (!stopSupported || !ready || runtimeStopPending || runtimeStopRequested)
+    : (!ready || runtimeTerminal || runtimeResetPending || runtimeStopPending);
   if (stop) {
-    var stopSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationStop === true);
-    stop.hidden = !stopSupported || !runtimeRunning || runtimeStopRequested;
-    stop.disabled = !stopSupported || !ready || !runtimeRunning || runtimeStopPending || runtimeStopRequested;
+    stop.hidden = true;
+    stop.disabled = true;
   }
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
@@ -306,6 +312,10 @@ async function runProgram() {
   }
 }
 
+function activatePrimaryExecution() {
+  return runtimeRunning ? stopSimulation() : runProgram();
+}
+
 function isPureVisualWorkspaceMove(event) {
   return !!(event && event.type === Blockly.Events.BLOCK_MOVE &&
     event.oldParentId == null && event.newParentId == null);
@@ -328,7 +338,8 @@ function wireWorkspaceControls() {
     workspace.setScale(WEBEEBLOCKS_WORKSPACE_SCALE); if (typeof workspace.scrollCenter === 'function') workspace.scrollCenter();
   });
   document.getElementById('resetSimulation').addEventListener('click', resetSimulation);
-  document.getElementById('stopSimulation').addEventListener('click', stopSimulation);
+  var legacyStop = document.getElementById('stopSimulation');
+  if (legacyStop) legacyStop.addEventListener('click', stopSimulation);
 }
 
 window.onload = async function() {
@@ -361,4 +372,4 @@ window.onload = async function() {
   } catch (error) { setRuntimeFailure(error); }
 };
 
-document.getElementById('submit').onclick = runProgram;
+document.getElementById('submit').onclick = activatePrimaryExecution;
