@@ -134,6 +134,12 @@ Crazyflie {
                     subdivision 48
                   }
                 }
+                PointLight {
+                  attenuation 1 0 300
+                  intensity 0.7
+                  radius 0.18
+                  castShadows FALSE
+                }
               ]
             }
           ]

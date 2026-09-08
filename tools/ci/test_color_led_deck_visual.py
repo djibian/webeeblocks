@@ -35,6 +35,11 @@ required = [
     "radius 0.022",
     "height 0.012",
     "transparency 0.78",
+    "PointLight {",
+    "attenuation 1 0 300",
+    "intensity 0.7",
+    "radius 0.18",
+    "castShadows FALSE",
 ]
 for token in required:
     if token not in section:
@@ -42,6 +47,8 @@ for token in required:
 
 if section.count("geometry Cylinder {") != 2:
     raise AssertionError("expected one diffuser body plus one translucent side halo")
+if section.count("PointLight {") != 1:
+    raise AssertionError("expected one LED-driven nearby PointLight halo")
 if section.count("size 0.0022 0.0022 0.0065") != 4:
     raise AssertionError("the bottom deck must be visibly attached by four mounting posts")
 if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
@@ -51,4 +58,4 @@ if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
 if abs((0.0015 + 0.0101) - 0.0116) > 1e-9:
     raise AssertionError("Color LED deck envelope arithmetic changed")
 
-print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible diffuser and controlled emissive halo in both Runtime worlds")
+print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible diffuser and controlled emissive plus nearby light halo in both Runtime worlds")
