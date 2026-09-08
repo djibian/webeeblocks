@@ -1157,7 +1157,7 @@ jobs:
           assert i['geometry']['trash'] and i['geometry']['trash']['width']>0, i['geometry']
           assert narrow['viewport']=={'width':800,'height':768}, narrow
           assert narrow['resetLabel']=='100 %' and narrow['resetLabelVisible'] is True, narrow
-          expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857'}
+          expected_colours={'Vol':'#2563EB','Contrôle':'#7C3AED','Capteurs':'#0E7490','Opérateurs':'#047857','Variables':'#B45309'}
           toolbox={item['name']:colour(item.get('colour')) for item in i['toolboxItems']}
           assert list(toolbox)==list(expected_colours), toolbox
           assert toolbox==expected_colours, toolbox

@@ -181,6 +181,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(!p3.toolbox.includes('logic_operation'));
   assert(p4.toolbox.includes('logic_operation'));
   assert(p5.toolbox.includes('variables_set') && p5.toolbox.includes('variables_get'));
+  assert.deepStrictEqual(p5.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert(p6.toolbox.includes('webeeblocks_v2_vertical'));
   assert(p6.toolbox.includes('webeeblocks_v2_turn'));
   assert(p6.toolbox.includes('webeeblocks_v2_wait'));
@@ -208,6 +209,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
   assert.deepStrictEqual(p4.runtime.rangeDirections, ['front','left','right']);
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','back','left','right']);
+  assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','back','left','right']);
   assert.deepStrictEqual(p6.runtime.moveDirections, ['forward','back','left','right']);
   assert.deepStrictEqual(p6.runtime.verticalDirections, ['up','down']);
@@ -224,6 +226,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(currentWebotsCapabilities.actions.includes('set_speed'), 'Webots backend must advertise proven set_speed support');
   const genericProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   assert.deepStrictEqual(genericProfile.parameterBounds.webeeblocks_v2_speed.SPEED, {min:0.1,max:0.35,step:0.05});
+  assert.deepStrictEqual(genericProfile.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert.deepStrictEqual(genericProfile.runtime.astBounds['set_speed.speed_m_s'], {min:0.1,max:0.35});
   const backendActionKinds = ['takeoff','move','vertical','turn','wait','set_speed','set_light','land'];
   const requiredBackendActions = p4.runtime.allowedStatementKinds.filter(kind => backendActionKinds.includes(kind));
@@ -270,7 +273,8 @@ function proveProgressionProfilesAndFieldOptions() {
 
   const definitions = {
     webeeblocks_v2_move: {init() { this.fields = {DIRECTION:dropdown([['avancer','forward'],['reculer','back'],['aller à gauche','left'],['aller à droite','right']])}; }},
-    webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }}
+    webeeblocks_v2_range: {init() { this.fields = {DIRECTION:dropdown([['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']])}; }},
+    math_arithmetic: {init() { this.fields = {OP:dropdown([['+','ADD'],['−','MINUS'],['×','MULTIPLY'],['÷','DIVIDE'],['^','POWER']])}; }}
   };
   class FakeWorkspace {
     constructor(isFlyout) { this.blocks = []; this.isFlyout = !!isFlyout; }
@@ -301,10 +305,16 @@ function proveProgressionProfilesAndFieldOptions() {
   const flyoutRange = flyoutWorkspace.newBlock('webeeblocks_v2_range');
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
 
+  controller.setProfile(p5, flyoutWorkspace);
+  const flyoutArithmetic = flyoutWorkspace.newBlock('math_arithmetic');
+  assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
+  assert(!flyoutArithmetic.getField('OP').getOptions(false).some(option => option[1] === 'POWER'), 'student arithmetic flyout must not expose POWER');
+
   const genericFlyoutProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
   controller.setProfile(genericFlyoutProfile, flyoutWorkspace);
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','back','left','right']);
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','back','left','right','up']);
+  assert.deepStrictEqual(flyoutArithmetic.getField('OP').getOptions(false).map(option => option[1]), ['ADD','MINUS','MULTIPLY','DIVIDE']);
 
   controller.setProfile(genericProfile, null);
   const workspace = new FakeWorkspace(false);
