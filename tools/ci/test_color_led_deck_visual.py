@@ -35,11 +35,6 @@ required = [
     "radius 0.022",
     "height 0.012",
     "transparency 0.78",
-    "PointLight {",
-    "attenuation 0 0 80",
-    "intensity 0.18",
-    "radius 0.16",
-    "castShadows FALSE",
 ]
 for token in required:
     if token not in section:
@@ -56,4 +51,4 @@ if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
 if abs((0.0015 + 0.0101) - 0.0116) > 1e-9:
     raise AssertionError("Color LED deck envelope arithmetic changed")
 
-print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible diffuser, controlled halo and PointLight in both Runtime worlds")
+print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible diffuser and controlled emissive halo in both Runtime worlds")
