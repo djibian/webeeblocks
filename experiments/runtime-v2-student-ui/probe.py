@@ -150,6 +150,23 @@ RENDER_LOCALE=r'''(() => {
  };
 })()'''
 
+REPEAT_HOVER_RECT=r'''(() => {
+ const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+ if(!repeat)throw new Error('rendered repeat block missing for hover');
+ const repeatRoot=repeat.getSvgRoot();
+ if(!repeatRoot)throw new Error('rendered repeat SVG root missing for hover');
+ const rb=repeatRoot.getBoundingClientRect();
+ for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
+   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
+     const hit=document.elementFromPoint(x,y);
+     if(hit&&repeatRoot.contains(hit)){
+       return {x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
+     }
+   }
+ }
+ throw new Error('no real hit-tested hover point on existing repeat block');
+})()'''
+
 VISIBLE_OVERLAY=r'''(() => {
  const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect(),s=getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;};
  const nodes=[...document.querySelectorAll('.blocklyDropDownDiv,.blocklyWidgetDiv,[role="menu"],[role="listbox"],.blocklyTooltipDiv')].filter(visible);
@@ -344,8 +361,23 @@ def main():
         if expected not in menu_text:
             raise RuntimeError('real direction dropdown lacks '+expected+': '+menu_text)
     c.screenshot(screenshot.with_name('direction-menu-1366x768.png'))
-    c.key('Escape'); time.sleep(.2)
-    c.hover(rendered['repeatRect'])
+    c.key('Escape')
+    blocking_overlay=[]
+    overlay_end=time.time()+2.0
+    while time.time()<overlay_end:
+        blocking_overlay=[
+            entry for entry in c.eval(VISIBLE_OVERLAY)
+            if 'tooltip' not in entry['className'].lower() and entry['text'].strip()
+        ]
+        if not blocking_overlay: break
+        time.sleep(.05)
+    if blocking_overlay:
+        raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
+    # Re-hit-test after the dropdown has actually closed. A stale pre-menu
+    # coordinate can remain under the transient widget overlay, causing the
+    # synthetic mouse move to be consumed without ever entering the real block.
+    repeat_after_close=c.eval(REPEAT_HOVER_RECT)
+    c.hover(repeat_after_close)
     tooltip=[]
     end=time.time()+5.0
     while time.time()<end:
