@@ -1093,7 +1093,7 @@ jobs:
           control_obj="$RUNNER_TEMP/c24-control.o"
           broker_obj="$RUNNER_TEMP/c24-broker.o"
           arm_a="$RUNNER_TEMP/c24-arm-a-gc"
-          arm_b="$RUNNER_TEMP/c24-arm-b-provider-root"
+          arm_b="$RUNNER_TEMP/c24-arm-b-internal-factory"
           arm_f="$RUNNER_TEMP/c24-arm-f-qcore-self"
           arm_g="$RUNNER_TEMP/c24-arm-g-qapp-metaobject"
           arm_h="$RUNNER_TEMP/c24-arm-h-both-copy-subroots"
@@ -1150,8 +1150,8 @@ jobs:
             -Wl,--gc-sections -Wl,-Map,"$artifact_dir/arm-a-link.map" \
             -o "$arm_a" "${libs[@]}"
           g++ "${common[@]}" "$control_obj" "$broker_obj" \
-            -Wl,--gc-sections -Wl,--undefined=wb_file_broker_create_qt \
-            -Wl,-Map,"$artifact_dir/arm-b-provider-root-link.map" \
+            -Wl,--gc-sections -Wl,--undefined=_ZN11webeeblocks26createQtFileDialogProviderEv \
+            -Wl,-Map,"$artifact_dir/arm-b-internal-factory-link.map" \
             -o "$arm_b" "${libs[@]}"
           g++ "${common[@]}" "$control_obj" "$broker_obj" \
             -Wl,--gc-sections -Wl,--undefined=_ZN16QCoreApplication8instanceEv \
@@ -1222,8 +1222,9 @@ jobs:
           ! has_qcore_copy a
           ! has_meta_copy a
 
-          # B: settled C22 provider-root positive control; both subroots and COPY relocations survive.
-          grep -Fq 'wb_file_broker_create_qt' "$artifact_dir/arm-b-nm.txt"
+          # B: settled C23 internal-factory positive control; the outer C wrapper stays absent.
+          ! grep -Fq 'wb_file_broker_create_qt' "$artifact_dir/arm-b-nm.txt"
+          ! grep -Fq 'wb_file_broker_handle_message' "$artifact_dir/arm-b-nm.txt"
           grep -Fq 'webeeblocks::createQtFileDialogProvider()' "$artifact_dir/arm-b-nm.txt"
           has_qcore_root b
           has_meta_root b
@@ -1338,7 +1339,7 @@ jobs:
           h_log="$artifact_dir/arm-h.log"
 
           if ! check_success "$a_log" arm-a || ! check_crash "$b_log" arm-b; then
-            echo DIAGNOSTIC_RESULT=C24_C22_CONTROLS_UNPROVEN | tee "$artifact_dir/result.txt"
+            echo DIAGNOSTIC_RESULT=C24_C23_CONTROLS_UNPROVEN | tee "$artifact_dir/result.txt"
             exit 1
           fi
 
