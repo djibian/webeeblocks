@@ -117,20 +117,31 @@ A minimal local-surface-range Flow split then kept fresh local range available
 through rejection, but stock barometer authority did not hold world Z and a
 stronger barometer weighting diverged.
 
-The reconstructed scalar `surfaceOffset` S3 classifier has now also been
-physically refuted under its pre-registered props-off checkpoint. S3-A exposed a
-clear ~0.23 m floor/platform range step and formed a coherent ~+0.212 m terrain
-candidate, but the candidate never committed because the detector predominantly
-raised its vertical-motion veto; `surfaceOffset` stayed zero and estimated Z
-remained surface-relative. The S3-B/S3-C true-vertical controls did not create a
-false terrain commit.
+The reconstructed scalar `surfaceOffset` S3 classifier remains physically
+refuted as a terrain solution, but the causal boundary is now narrower. Exact
+props-off discriminator checkpoint #236 passed its diagnostic purpose: three
+valid S3-A terrain repetitions emitted the split VZ, BARO and BOTH veto reasons
+without any terrain commit. VZ was not reproducibly dominant (one terrain run
+reached BARO veto without VZ/BOTH), while the barometer branch participated in
+all three terrain repetitions. In contrast, the pre-registered S3-B fast and
+S3-C slow true-vertical controls stayed below the stock ToF rejection gate, never
+entered SUSPECT and never committed a false terrain offset.
 
-Do not retune ToF/barometer or S3 thresholds/persistence against this result and
-do not proceed to motorized testing. The next causal boundary is narrower: explain
-why the existing independent vertical-veto evidence rejects the true terrain
-transition despite a coherent range-step candidate. The slow-vertical controls
-did not expose the pre-registered observability failure that would justify adding
-`rangeUp` yet.
+That evidence means the late VZ/barometer veto has no demonstrated discriminating
+benefit for the tested true-vertical controls: those controls are separated
+earlier by the existing UKF ToF gate, while the same late cues block the observed
+terrain transition after rejection. Do not retune ToF/barometer or S3
+thresholds/persistence against this result and do not proceed to motorized
+testing.
+
+The smallest next causal candidate is therefore a bounded **gate-first S3
+redesign**: preserve the existing ToF gate, local-range Flow split, step bounds,
+persistence/settling rules and candidate-corrected innovation check, but remove
+the estimator-VZ/barometer veto only from the experimental commit predicate.
+Re-run the same pre-registered props-off S3-A/B/C controls before any stronger
+claim. S3-A must commit/recover the terrain offset coherently; any S3-B/S3-C false
+terrain commit refutes the candidate. No `rangeUp`, z/f/r extension, threshold
+sweep or Runtime/controller change is justified by #236.
 
 ## Near-term graph
 
@@ -203,25 +214,34 @@ did not expose the pre-registered observability failure that would justify addin
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — isolate the false terrain vertical-veto boundary
+### X3 — redesign S3 after the terrain-veto discriminator
 
 - parent: #70
 - established technical result: the isolated S3 `surfaceOffset` applicator and
   deterministic build oracle remain pinned to `crazyflie-firmware` 2026.08 and
   preserve the proven local-range Flow split plus pre-registered terrain and
   true-vertical controls
-- established physical result: exact checkpoint #180 is FAIL; S3-A forms the
-  expected terrain magnitude but the vertical veto prevents commit, while S3-B
-  and S3-C do not falsely commit terrain
-- next proof: use the retained traces, or if indispensable one smaller
-  pre-registered props-off discriminator, to isolate which existing veto/commit
-  signal rejects the true terrain transition before changing estimator structure
-  or adding a new independent cue
+- established physical result: #180 refuted the original terrain candidate; the
+  exact follow-up discriminator checkpoint #236 then PASSed its causal purpose.
+  Terrain S3-A can trigger VZ, BARO or BOTH vetoes, whereas the valid S3-B/S3-C
+  true-vertical controls remain below the ToF rejection gate, never enter
+  SUSPECT and never falsely commit terrain
+- causal consequence: the tested true-vertical controls do not demonstrate a
+  need for the late VZ/barometer veto, while those cues are contaminated by the
+  terrain-transition response and block terrain commit
+- next proof: prepare one bounded gate-first experimental candidate that removes
+  only that late VZ/barometer veto from commit eligibility while preserving the
+  existing ToF gate, local-range Flow split, step bounds, persistence/settling
+  constants and candidate-corrected innovation check; then repeat the same
+  props-off S3-A/B/C oracle without retuning
+- acceptance boundary: S3-A must produce coherent terrain commit/recovery and
+  S3-B/S3-C must still produce no false terrain offset; otherwise the candidate
+  is refuted before any estimator expansion or motorized test
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
   thresholds/persistence against the outcome, add `rangeUp` fusion/full `z/f/r`,
   or perform motorized real flight as an agent
 - consequence: no stronger world-altitude capability claim is justified until
-  the refuted S3 terrain boundary is replaced by a separately proven mechanism.
+  this or another separately proven mechanism replaces the refuted S3 boundary.
 
 ## Later gates kept intentionally coarse
 
