@@ -137,6 +137,11 @@
     return normalizeDescriptor(await adapter.readCapabilities());
   }
 
+  async function preflightConnected(profile, ast, adapter) {
+    var descriptor = await inspect(adapter);
+    return preflightAst(profile, ast, descriptor);
+  }
+
   function requireSubset(requiredValues, availableValues, messagePrefix) {
     var available = new Set(availableValues || []);
     (requiredValues || []).forEach(function(value) {
@@ -329,6 +334,7 @@
     deriveFacts: deriveFacts,
     bindAst: bindAst,
     preflightAst: preflightAst,
+    preflightConnected: preflightConnected,
     assertPreflightAst: assertPreflightAst,
     FORBIDDEN_AUTHORITY_METHODS: FORBIDDEN_AUTHORITY_METHODS.slice()
   };
