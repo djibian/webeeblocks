@@ -27,16 +27,26 @@ required = [
     'name "color_led"',
     "gradual TRUE",
     "translation 0 0 -0.0058",
-    "geometry Cylinder {",
+    "Group {",
     "height 0.0101",
     "radius 0.01735",
     "subdivision 48",
     "transparency 0.12",
+    "radius 0.022",
+    "height 0.012",
+    "transparency 0.78",
+    "PointLight {",
+    "attenuation 0 0 80",
+    "intensity 0.18",
+    "radius 0.16",
+    "castShadows FALSE",
 ]
 for token in required:
     if token not in section:
         raise AssertionError(f"missing Color LED visual contract token: {token}")
 
+if section.count("geometry Cylinder {") != 2:
+    raise AssertionError("expected one diffuser body plus one translucent side halo")
 if section.count("size 0.0022 0.0022 0.0065") != 4:
     raise AssertionError("the bottom deck must be visibly attached by four mounting posts")
 if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
@@ -46,4 +56,4 @@ if "size 0.040 0.040 0.0015" in section or "size 0.026 0.026 0.001" in section:
 if abs((0.0015 + 0.0101) - 0.0116) > 1e-9:
     raise AssertionError("Color LED deck envelope arithmetic changed")
 
-print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible 11.6 mm diffusing body in both Runtime worlds")
+print("PASS attached 34.7 mm bottom Color LED deck uses a circular side-visible diffuser, controlled halo and PointLight in both Runtime worlds")
