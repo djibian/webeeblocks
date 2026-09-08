@@ -28,14 +28,14 @@
 
   window.addEventListener('load', function() {
     var submit = document.getElementById('submit');
-    if (!submit || typeof window.runProgram !== 'function') return;
+    if (!submit || typeof window.activatePrimaryExecution !== 'function') return;
 
     submit.onclick = function() {
-      if (window.workspace && typeof workspace.getTopBlocks === 'function' && workspace.getTopBlocks(false).length === 0) {
+      if (!window.runtimeRunning && window.workspace && typeof workspace.getTopBlocks === 'function' && workspace.getTopBlocks(false).length === 0) {
         setRuntimeStatus('À COMPLÉTER', 'Ajoutez au moins une instruction avant de lancer le vol');
         return;
       }
-      return runProgram();
+      return activatePrimaryExecution();
     };
   });
 })();
