@@ -1239,9 +1239,10 @@ jobs:
             exit 0
           fi
 
-          if grep -Eq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIG(SEGV|ABRT|BUS|ILL|FPE)' "$treatment_log" &&
+          if grep -Fq 'WEBEEBLOCKS_QT_CONTROL_FATAL signal=SIGSEGV' "$treatment_log" &&
              grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN' "$treatment_log" &&
              grep -Fq 'WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END' "$treatment_log"; then
+            test "$treatment_exit" = 139
             awk '
               /WEBEEBLOCKS_QT_CONTROL_BACKTRACE_BEGIN/ {capture=1; next}
               /WEBEEBLOCKS_QT_CONTROL_BACKTRACE_END/ {capture=0}
@@ -1250,18 +1251,8 @@ jobs:
             test -s "$artifact_dir/causal-backtrace.txt"
             grep -Eq 'libQt6(Core|Gui|Widgets)|libQt6XcbQpa|libqxcb|QApplication|QGuiApplication' \
               "$artifact_dir/causal-backtrace.txt"
-            signal="$(sed -n 's/.*WEBEEBLOCKS_QT_CONTROL_FATAL signal=\(SIG[A-Z0-9]*\).*/\1/p' "$treatment_log" | tail -n 1)"
-            case "$signal" in
-              SIGSEGV) expected_exit=139 ;;
-              SIGABRT) expected_exit=134 ;;
-              SIGBUS) expected_exit=135 ;;
-              SIGILL) expected_exit=132 ;;
-              SIGFPE) expected_exit=136 ;;
-              *) exit 1 ;;
-            esac
-            test "$treatment_exit" = "$expected_exit"
-            printf 'baseline_pid=%s\nbaseline_exit=%s\ntreatment_pid=%s\nsignal=%s\ntreatment_exit=%s\ndisplay=%s\n' \
-              "$baseline_pid" "$baseline_exit" "$treatment_pid" "$signal" "$treatment_exit" "$baseline_display" |
+            printf 'baseline_pid=%s\nbaseline_exit=%s\ntreatment_pid=%s\nsignal=SIGSEGV\ntreatment_exit=%s\ndisplay=%s\n' \
+              "$baseline_pid" "$baseline_exit" "$treatment_pid" "$treatment_exit" "$baseline_display" |
               tee "$artifact_dir/process-exit.txt"
             printf '%s\n' 'DIAGNOSTIC_RESULT=C18_FROZEN_ARGV0_SUFFICIENT' | tee "$artifact_dir/result.txt"
             exit 0
