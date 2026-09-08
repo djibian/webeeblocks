@@ -1169,10 +1169,10 @@ jobs:
               env -u QT_DEBUG_PLUGINS bash -c 'exec -a "$1" "$2"' _ "$argv0" "$control" > "$log" 2>&1 &
             fi
             pid=$!
-            printf 'WEBEEBLOCKS_C18_PROCESS tag=%s pid=%s argc=1 argv0=%s debug=%s display=%s\n' \
-              "$tag" "$pid" "$argv0" "$debug" "${DISPLAY:-}" >> "$log"
             wait "$pid"
             code=$?
+            printf 'WEBEEBLOCKS_C18_PROCESS tag=%s pid=%s argc=1 argv0=%s debug=%s display=%s\n' \
+              "$tag" "$pid" "$argv0" "$debug" "${DISPLAY:-}" >> "$log"
             printf 'WEBEEBLOCKS_C18_PROCESS_EXIT tag=%s pid=%s code=%s\n' "$tag" "$pid" "$code" >> "$log"
             return 0
           }
