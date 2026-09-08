@@ -21,9 +21,20 @@ body[data-runtime-state="ARRÊTÉ"] #runtimeState {
 #stepMode { width: 16px; height: 16px; }
 #stepNext, #stepContinue { min-height: 31px; padding: 4px 10px; font-size: 13px; }
 #debugState { color: var(--wb-ink); font-weight: 650; }
-#debugSensorsRow, #debugVariablesRow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#debugSensorsRow, #debugVariablesRow, #debugLightRow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#debugLightSwatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+  vertical-align: -1px;
+  border: 1px solid #64748b;
+  border-radius: 3px;
+  background: transparent;
+}
+#debugLightSwatch[data-color="off"] { background: transparent !important; }
 
 @media (max-width: 850px) {
   #debugPanel { padding: 6px 12px; flex-wrap: wrap; }
-  #debugSensorsRow, #debugVariablesRow { flex-basis: 100%; }
+  #debugSensorsRow, #debugVariablesRow, #debugLightRow { flex-basis: 100%; }
 }
