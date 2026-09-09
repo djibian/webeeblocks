@@ -57,6 +57,10 @@ def main():
     if physical_submission_test.returncode:
         print('FAIL session-bound physical submission bridge',file=sys.stderr);print(physical_submission_test.stdout,file=sys.stderr);print(physical_submission_test.stderr,file=sys.stderr);return physical_submission_test.returncode
     print(physical_submission_test.stdout.strip())
+    physical_high_level_semantics_test=subprocess.run([sys.executable,'tools/ci/test_physical_high_level_semantics.py'],text=True,capture_output=True)
+    if physical_high_level_semantics_test.returncode:
+        print('FAIL physical HighLevelCommander semantic adapter',file=sys.stderr);print(physical_high_level_semantics_test.stdout,file=sys.stderr);print(physical_high_level_semantics_test.stderr,file=sys.stderr);return physical_high_level_semantics_test.returncode
+    print(physical_high_level_semantics_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
