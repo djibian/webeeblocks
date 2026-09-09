@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from math import isclose, pi
 from pathlib import Path
+from threading import Event, Thread
 from types import SimpleNamespace
 import struct
 import sys
@@ -18,6 +19,7 @@ import high_level_timing as timing  # noqa: E402
 import physical_execution_domain as execution  # noqa: E402
 import powered_session_authority as powered  # noqa: E402
 import safelink_precondition as safelink  # noqa: E402
+import serve_reference_capabilities as capability_bridge  # noqa: E402
 import setpoint_hl_transport as transport  # noqa: E402
 import supervisor_state  # noqa: E402
 import teacher_run_authorization as teacher  # noqa: E402
@@ -47,6 +49,38 @@ class Epoch:
         return self.value
 
 
+class FakeCapabilitySession:
+    def __init__(self, epoch) -> None:
+        self._epoch = epoch
+
+    def read_connection_epoch(self) -> str:
+        return self._epoch()
+
+
+def state(
+    *,
+    blocking_fault=False,
+    is_flying=True,
+    hl_control_active=True,
+    hl_traj_finished=True,
+):
+    return SimpleNamespace(
+        bitfield=0,
+        blocking_fault=blocking_fault,
+        is_flying=is_flying,
+        hl_control_active=hl_control_active,
+        hl_traj_finished=hl_traj_finished,
+    )
+
+
+class ManualClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def __call__(self) -> float:
+        return self.value
+
+
 class Link:
     def __init__(self, needs_resending=False) -> None:
         self.needs_resending = needs_resending
@@ -61,6 +95,7 @@ class Packet:
 # Deterministic test-only replacement of the private internal cflib constructor.
 # Production callers have no constructor parameter capable of supplying a packet.
 transport._default_packet_factory = lambda request: Packet(request)
+transport._COMPLETION_POLL_SECONDS = 0.001
 
 
 class Platform:
@@ -146,14 +181,18 @@ def unique(label: str) -> str:
 def ensure_flying() -> execution.PhysicalExecutionDomain:
     domain = execution.PhysicalExecutionDomain()
     if domain.phase == execution.AWAITING_COMPLETION:
-        domain.complete_accepted_effect(execution.FLYING, lambda: True)
+        raise AssertionError("fixture must not inherit an unowned accepted effect")
     if domain.phase == execution.RECOVERY_REQUIRED:
         domain.run_reset_establishment(lambda: object())
     if domain.phase == execution.INACTIVE:
         with domain.effect_transaction(lambda: None) as effect:
             effect.mark_emitted()
-            effect.mark_accepted()
-        domain.complete_accepted_effect(execution.FLYING, lambda: True)
+            permit = effect.mark_accepted()
+        domain.complete_accepted_effect(
+            permit,
+            execution.FLYING,
+            lambda: True,
+        )
     require(domain.phase == execution.FLYING, "fixture must establish flying phase")
     return domain
 
@@ -166,16 +205,12 @@ def recover_after_ambiguity(domain: execution.PhysicalExecutionDomain) -> None:
     domain.run_reset_establishment(lambda: object())
     with domain.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
-    domain.complete_accepted_effect(execution.FLYING, lambda: True)
-
-
-def complete_motion(domain: execution.PhysicalExecutionDomain) -> None:
-    require(
-        domain.phase == execution.AWAITING_COMPLETION,
-        "positive acknowledgement must await fresh completion",
+        permit = effect.mark_accepted()
+    domain.complete_accepted_effect(
+        permit,
+        execution.FLYING,
+        lambda: True,
     )
-    domain.complete_accepted_effect(execution.FLYING, lambda: True)
 
 
 def make_supervisor_reader(cf: FakeCrazyflie, epoch: Epoch):
@@ -184,9 +219,17 @@ def make_supervisor_reader(cf: FakeCrazyflie, epoch: Epoch):
         epoch,
         crtp_types=(Packet, SimpleNamespace(SUPERVISOR=0x0E)),
     )
-    state = SimpleNamespace(blocking_fault=False, is_flying=True)
-    reader.read = lambda *, timeout_seconds=0.2: state
-    return reader, state
+    default_state = state()
+    queued: list[object] = []
+    observed: list[object] = []
+
+    def read(*, timeout_seconds=0.2):
+        current = queued.pop(0) if queued else default_state
+        observed.append(current)
+        return current
+
+    reader.read = read
+    return reader, default_state, queued, observed
 
 
 def mint_powered_session(cf: FakeCrazyflie, epoch: Epoch):
@@ -228,10 +271,12 @@ class Fixture:
         self.epoch = Epoch(unique(label))
         self.domain = ensure_flying()
         self.powered = mint_powered_session(cf, self.epoch)
-        self.supervisor_reader, self.supervisor_state = make_supervisor_reader(
-            cf,
-            self.epoch,
-        )
+        (
+            self.supervisor_reader,
+            self.supervisor_state,
+            self.supervisor_reads,
+            self.supervisor_observed,
+        ) = make_supervisor_reader(cf, self.epoch)
         self.watchdog = watchdog.EmergencyWatchdogLivenessGuard(
             cf,
             self.epoch,
@@ -241,6 +286,16 @@ class Fixture:
             max_host_gap_seconds=0.7,
         )
         self.watchdog.activate(supervisor_timeout_seconds=0.05)
+        # One final pre-effect finished sample, then stale-true -> in-progress
+        # -> finished proves the newly accepted trajectory causally.
+        self.supervisor_reads.extend(
+            [
+                state(hl_traj_finished=True),
+                state(hl_traj_finished=True),
+                state(hl_traj_finished=False),
+                state(hl_traj_finished=True),
+            ]
+        )
         self.binding = teacher.PhysicalRunBinding(
             profile_id="activity-1",
             ast_binding=unique("ast"),
@@ -252,8 +307,51 @@ class Fixture:
             lambda _binding: True,
         )
         self.current_binding = self.binding
+        self.capability_session = FakeCapabilitySession(self.epoch)
+        self.preflight_bridge = capability_bridge.ReadOnlyCapabilityHttpBridge(
+            self.capability_session,
+            token=unique("capability-token"),
+            preflight_responder_token=unique("preflight-responder-token"),
+        )
+        self.preflight_server_thread = Thread(
+            target=self.preflight_bridge.serve_forever,
+            daemon=True,
+        )
+        self.preflight_server_thread.start()
+        self.preflight_stop = Event()
+
+        def answer_current_program() -> None:
+            while not self.preflight_stop.is_set():
+                try:
+                    challenge_id = self.preflight_bridge._claim_current_program_challenge(
+                        timeout_seconds=0.05
+                    )
+                except capability_bridge.CapabilityBridgeError:
+                    return
+                if challenge_id is None:
+                    continue
+                current = self.current_binding
+                try:
+                    self.preflight_bridge._submit_current_program_assertion(
+                        {
+                            "challengeId": challenge_id,
+                            "ok": True,
+                            "profileId": current.profile_id,
+                            "astBinding": current.ast_binding,
+                            "connectionEpoch": current.connection_epoch,
+                            "executionAuthority": False,
+                        }
+                    )
+                except capability_bridge.CapabilityBridgeError:
+                    pass
+
+        self.preflight_responder_thread = Thread(
+            target=answer_current_program,
+            daemon=True,
+        )
+        self.preflight_responder_thread.start()
         self.current_preflight_factory = current_preflight.TrustedCurrentProgramPreflightFactory(
-            lambda: self.current_binding
+            self.preflight_bridge
         )
         self.current_preflight_guard = self.current_preflight_factory.bind(self.binding)
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
@@ -275,6 +373,10 @@ class Fixture:
             self.watchdog.stop_for_terminal_reboot(join_timeout_seconds=0.2)
         except watchdog.WatchdogLivenessError:
             pass
+        self.preflight_stop.set()
+        self.preflight_bridge.shutdown()
+        self.preflight_responder_thread.join(timeout=1.0)
+        self.preflight_server_thread.join(timeout=1.0)
 
 
 def unpack_go_to(cf: FakeCrazyflie):
@@ -299,10 +401,16 @@ def test_turn_acceptance_uses_semantics_timing_and_requires_completion() -> None
             "turn duration uses #268 policy",
         )
         require(
-            fixture.domain.phase == execution.AWAITING_COMPLETION,
-            "acknowledgement is not trajectory completion",
+            fixture.domain.phase == execution.FLYING,
+            "transport returns only after fresh trajectory completion",
         )
-        complete_motion(fixture.domain)
+        require(
+            any(
+                getattr(observation, "hl_traj_finished", None) is False
+                for observation in fixture.supervisor_observed
+            ),
+            "completion must observe the new trajectory in progress before later finished",
+        )
     finally:
         fixture.close()
 
@@ -336,7 +444,10 @@ def test_horizontal_move_uses_fresh_yaw_and_horizontal_speed_policy() -> None:
             isclose(duration, policy.horizontal_move_duration(0.2), rel_tol=1e-6),
             "horizontal duration uses current #268 speed state",
         )
-        complete_motion(fixture.domain)
+        require(
+            fixture.domain.phase == execution.FLYING,
+            "horizontal transport returns only after fresh trajectory completion",
+        )
     finally:
         fixture.close()
 
@@ -377,8 +488,8 @@ def test_last_moment_safelink_failure_is_pre_effect() -> None:
 
 def test_fresh_supervisor_fault_or_not_flying_blocks_send() -> None:
     for label, state, pattern in (
-        ("fault", SimpleNamespace(blocking_fault=True, is_flying=True), "blocking"),
-        ("not-flying", SimpleNamespace(blocking_fault=False, is_flying=False), "flight"),
+        ("fault", state(blocking_fault=True), "blocking"),
+        ("not-flying", state(is_flying=False), "flight"),
     ):
         cf = FakeCrazyflie(reply_status=0)
         fixture = Fixture(label, cf)
@@ -396,6 +507,89 @@ def test_fresh_supervisor_fault_or_not_flying_blocks_send() -> None:
             require(fixture.domain.phase == execution.FLYING, "fresh supervisor failure is pre-effect")
         finally:
             fixture.close()
+
+
+def test_changed_current_program_blocks_effect_via_integrated_handoff() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("current-program", cf)
+    try:
+        fixture.current_binding = teacher.PhysicalRunBinding(
+            profile_id=fixture.binding.profile_id,
+            ast_binding=unique("changed-ast"),
+            connection_epoch=fixture.binding.connection_epoch,
+        )
+        expect_error(
+            lambda: fixture.transport.send_turn(
+                angle_deg=20,
+                timing_policy=timing.HighLevelTimingPolicy(),
+            ),
+            transport.SetpointHlTransportError,
+            "trusted #249",
+        )
+        require(not cf.send_calls, "changed current-program binding must prevent emission")
+        require(
+            fixture.domain.phase == execution.FLYING,
+            "failed #249 round trip remains pre-effect",
+        )
+    finally:
+        fixture.close()
+
+
+def test_stale_finished_bit_is_not_immediate_new_motion_completion() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("completion-causal", cf)
+    try:
+        fixture.supervisor_reads[:] = [
+            state(hl_traj_finished=True),
+            state(hl_traj_finished=True),
+            state(hl_traj_finished=False),
+            state(hl_traj_finished=True),
+        ]
+        result = fixture.transport.send_turn(
+            angle_deg=20,
+            timing_policy=timing.HighLevelTimingPolicy(),
+        )
+        require(result.accepted, "causally fenced motion accepted")
+        completion_states = fixture.supervisor_observed[-4:]
+        require(
+            [s.hl_traj_finished for s in completion_states] == [True, True, False, True],
+            "stale true must be followed by fresh false then later true",
+        )
+        require(fixture.domain.phase == execution.FLYING, "causal completion restores flying")
+    finally:
+        fixture.close()
+
+
+def test_stale_true_fallback_waits_planned_duration() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("completion-duration", cf)
+    clock = ManualClock()
+    fixture.transport._clock = clock
+    policy = timing.HighLevelTimingPolicy()
+    planned = policy.turn_duration(20)
+    reads = 0
+
+    def read(*, timeout_seconds=0.2):
+        nonlocal reads
+        reads += 1
+        current = state(hl_traj_finished=True)
+        fixture.supervisor_observed.append(current)
+        # First read is the pre-effect finished fence. First completion read at
+        # t=0 remains stale; only a later fresh read after the exact planned
+        # duration may use the conservative duration fallback.
+        if reads == 3:
+            clock.value = planned
+        return current
+
+    fixture.supervisor_reader.read = read
+    try:
+        result = fixture.transport.send_turn(angle_deg=20, timing_policy=policy)
+        require(result.accepted, "duration-fenced completion accepted")
+        require(reads >= 3, "stale first post-ack true must not complete immediately")
+        require(clock.value >= planned, "fallback cannot precede planned duration")
+        require(fixture.domain.phase == execution.FLYING, "duration-fenced completion restores flying")
+    finally:
+        fixture.close()
 
 
 def test_teacher_invalidation_during_request_construction_blocks_send() -> None:
@@ -487,6 +681,14 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             supervisor_reader=fixture.supervisor_reader,
             current_preflight_guard=fixture.current_preflight_guard,
         )
+        expect_error(
+            lambda: current_preflight.TrustedCurrentProgramPreflightFactory(
+                lambda: fixture.binding
+            ),
+            current_preflight.CurrentProgramPreflightError,
+            "ReadOnlyCapabilityHttpBridge",
+        )
+
         for key, value, pattern in (
             ("teacher_authorization", object(), "TeacherRunAuthorization"),
             ("watchdog_guard", object(), "watchdog guard"),
@@ -604,6 +806,9 @@ def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> No
         "turn_duration",
         "packet factory substituted",
         "fresh supervisor",
+        "hl_traj_finished",
+        "hl_control_active",
+        "complete_accepted_effect",
     ):
         require(required in source, "missing concrete transport contract: " + required)
 
@@ -614,6 +819,9 @@ def main() -> int:
     test_definitive_rejection_restores_flying_without_retry()
     test_last_moment_safelink_failure_is_pre_effect()
     test_fresh_supervisor_fault_or_not_flying_blocks_send()
+    test_changed_current_program_blocks_effect_via_integrated_handoff()
+    test_stale_finished_bit_is_not_immediate_new_motion_completion()
+    test_stale_true_fallback_waits_planned_duration()
     test_teacher_invalidation_during_request_construction_blocks_send()
     test_watchdog_terminal_during_request_construction_blocks_send()
     test_public_packet_factory_seam_is_absent()
