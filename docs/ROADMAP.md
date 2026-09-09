@@ -24,18 +24,21 @@ justified student-facing generic capability. Integrated #193/#196 establish the
 machine-readable read-only capability evidence path and exact Crazyflie 2.1
 identity; #238/#241/#243/#244 establish intent-dependent exact-AST preflight,
 canonical AST binding, fresh connected-descriptor acquisition on each preflight
-and reconnect invalidation through an opaque connection epoch; #246 now provides
-the concrete host-side non-authority live Crazyradio session that owns that epoch,
+and reconnect invalidation through an opaque connection epoch; #246 provides the
+concrete host-side non-authority live Crazyradio session that owns that epoch,
 invalidates it on disconnect and rebuilds capability descriptors from the current
-connection. All of this remains non-authority with `executionAuthority:false`.
-The underlying cflib SyncCrazyflie close path still emits its documented
-safety-zero commander setpoint, so this is not a claim that the transport emits no
-command packet. The substantive remaining product boundary is wiring the actual
-physical submission path to this live session, consuming the bound AST/session
-preflight immediately before any separately authorized effect, and then proving
-safe physical execution continuity; do not invent additional simulation
-vocabulary merely to keep #157 active. A new simulation slice needs a concrete
-pedagogical need or contradictory evidence.
+connection; and #249 wires the production physical submission path to that live
+session, binding the exact current activity profile and semantic workspace AST and
+re-asserting both together with the connection epoch immediately before any later
+separately authorized effect. All of this remains non-authority with
+`executionAuthority:false`. The underlying cflib SyncCrazyflie close path still
+emits its documented safety-zero commander setpoint, so this is not a claim that
+the transport emits no command packet. The substantive remaining product boundary
+now starts after that validated pre-effect assertion: a separately authorized
+physical effect consumer plus explicit arming/abort/failsafe semantics and proof
+of safe real execution continuity. Do not invent additional simulation vocabulary
+merely to keep #157 active. A new simulation slice needs a concrete pedagogical
+need or contradictory evidence.
 
 Research / later work:
 
@@ -208,12 +211,15 @@ Runtime/controller change is justified by #236 alone.
   deck capabilities intent-dependent; #241 binds a successful preflight to that
   canonical AST; #243 re-reads the connected descriptor on every invocation;
   #244 binds the result to an adapter-provided connection epoch so a reconnect
-  during or after preflight invalidates it; and #246 provides the concrete
-  host-side `ReadOnlyCapabilitySession` that opens one explicit Crazyradio link,
-  creates/rotates that epoch around live connections, invalidates it on cflib
-  disconnect and reconstructs descriptors from current connected evidence.
-  These slices preserve `executionAuthority:false` and expose no WebeeBlocks
-  motor/arming command API
+  during or after preflight invalidates it; #246 provides the concrete host-side
+  `ReadOnlyCapabilitySession` that opens one explicit Crazyradio link, creates/
+  rotates that epoch around live connections, invalidates it on cflib disconnect
+  and reconstructs descriptors from current connected evidence; and #249 binds
+  the production physical submission path to that live session, preserving the
+  exact current activity profile and semantic workspace AST across preflight and
+  re-asserting them with the same connection epoch immediately before any later
+  separately authorized effect. These slices preserve `executionAuthority:false`
+  and expose no WebeeBlocks motor/arming command API
 - real-device checkpoint #226 was authoritatively closed `NOT_NEEDED` after the
   live-preflight product decision superseded the fixed all-reference-decks gate.
   Its bounded partial observation still established exact Crazyflie 2.1
@@ -222,12 +228,9 @@ Runtime/controller change is justified by #236 alone.
   this is historical capability evidence, not a reusable execution preflight
 - the normal cflib close path still emits its safety-zero commander setpoint, so
   transport-level packet emission is not claimed read-only
-- remaining boundary: the product submission path must connect the exact
-  backend-neutral AST to the integrated #246 live session and the existing
-  connected-preflight contract, then re-assert the bound AST and connection epoch
-  immediately before any separately authorized physical effect.
-  Arming/abort/failsafe and real student execution continuity remain separately
-  unproven
+- remaining boundary: the validated pre-effect assertion is integrated; a
+  separately authorized physical effect consumer, explicit arming/abort/failsafe
+  semantics and real student execution continuity remain unproven
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -270,16 +273,17 @@ Runtime/controller change is justified by #236 alone.
   non-authority Crazyradio/deck evidence path, exact-airframe proof, exact-AST
   capability derivation/binding, fresh descriptor acquisition and reconnect
   invalidation; #246 supplies the concrete host-side live session that owns the
-  reconnect-sensitive epoch and current descriptor reads. The surface remains
-  read-only with `executionAuthority:false`; the cflib close path retains its
+  reconnect-sensitive epoch and current descriptor reads; and #249 integrates
+  the production physical submission bridge that binds and immediately re-asserts
+  the current profile/semantic AST with that live epoch. The surface remains
+  non-authority with `executionAuthority:false`; the cflib close path retains its
   safety-zero transport setpoint
 - bounded real-device evidence from superseded checkpoint #226 confirms the
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: wiring the actual physical submission flow to #246 plus immediate
-  pre-effect verification of the bound AST/session, then separately authorized
-  arming/abort/failsafe and physical execution continuity
+- depends: separately authorized physical effect consumption plus explicit
+  arming/abort/failsafe semantics and proof of physical execution continuity
 - proof direction: preserve backend-neutral AST continuity while adding only the
   minimum teacher-authorized physical execution authority after the live
   capability and safety gates are independently established
