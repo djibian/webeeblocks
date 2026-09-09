@@ -77,13 +77,36 @@
     requireProductState();
     if (!bridge || boundProfile === null)
       fail('physical preflight is required before re-assertion');
-    if (profileBinding(root.runtimeProfile) !== boundProfile) {
-      bridge.clear();
+    var activeBridge = bridge;
+    var expectedProfileBinding = boundProfile;
+    if (profileBinding(root.runtimeProfile) !== expectedProfileBinding) {
+      activeBridge.clear();
       bridge = null;
       boundProfile = null;
       fail('activity profile changed since physical preflight');
     }
-    return bridge.assertCurrentWorkspace(root.workspace);
+    var result;
+    try {
+      result = await activeBridge.assertCurrentWorkspace(root.workspace);
+    } catch (error) {
+      if (bridge === activeBridge &&
+          profileBinding(root.runtimeProfile) !== expectedProfileBinding) {
+        activeBridge.clear();
+        bridge = null;
+        boundProfile = null;
+      }
+      throw error;
+    }
+    if (bridge !== activeBridge || boundProfile !== expectedProfileBinding ||
+        profileBinding(root.runtimeProfile) !== expectedProfileBinding) {
+      activeBridge.clear();
+      if (bridge === activeBridge) {
+        bridge = null;
+        boundProfile = null;
+      }
+      fail('activity profile changed during physical re-assertion');
+    }
+    return result;
   }
 
   function clear() {
