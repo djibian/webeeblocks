@@ -3,17 +3,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import math
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "high_level_semantics.py"
-SPEC = importlib.util.spec_from_file_location("webeeblocks_high_level_semantics", MODULE_PATH)
-assert SPEC is not None and SPEC.loader is not None
-semantics = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(semantics)
+sys.path.insert(0, str(MODULE_PATH.parent))
+import high_level_semantics as semantics  # noqa: E402
 
 
 def close(actual: float, expected: float, tolerance: float = 1e-12) -> None:
