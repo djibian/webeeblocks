@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import threading
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "supervisor_state.py"
@@ -97,6 +98,8 @@ class FakeCf:
         self.callback_port = None
         self.removed = False
         self.sent = []
+        self.request_sent = threading.Event()
+        self.second_request_sent = threading.Event()
         self.disconnect_on_send = False
         self.fail_on_send = False
         self.send_unrelated_first = False
@@ -127,6 +130,10 @@ class FakeCf:
 
     def send_packet(self, packet) -> None:
         self.sent.append((packet.port, packet.channel, bytes(packet.data)))
+        if len(self.sent) == 1:
+            self.request_sent.set()
+        elif len(self.sent) >= 2:
+            self.second_request_sent.set()
         if self.disconnect_on_send:
             self.disconnected.call("radio://test")
             return
@@ -249,6 +256,52 @@ def test_timeout_poison_blocks_delayed_reply_until_epoch_rotates() -> None:
     )
 
 
+def test_two_readers_share_epoch_guard_and_waiter_fails_after_poison() -> None:
+    cf = FakeCf(None)
+    epoch = EpochSource("epoch-two-readers")
+    first = make_reader(cf, epoch)
+    second = make_reader(cf, epoch)
+    require(
+        first._read_lock is second._read_lock,
+        "readers on one connection epoch must share one serialization guard",
+    )
+
+    errors = []
+
+    def run(reader) -> None:
+        try:
+            reader.read(timeout_seconds=1.0)
+        except supervisor_state.SupervisorReadError as exc:
+            errors.append(str(exc))
+
+    first_thread = threading.Thread(target=run, args=(first,), daemon=True)
+    first_thread.start()
+    require(cf.request_sent.wait(1.0), "first reader must emit one supervisor request")
+
+    second_thread = threading.Thread(target=run, args=(second,), daemon=True)
+    second_thread.start()
+    require(
+        not cf.second_request_sent.wait(0.05),
+        "second reader must not emit a concurrent untagged supervisor request",
+    )
+
+    cf.disconnected.call("radio://test")
+    first_thread.join(1.0)
+    second_thread.join(1.0)
+    require(not first_thread.is_alive(), "first reader must terminate after poison")
+    require(not second_thread.is_alive(), "waiting reader must terminate after poison")
+    require(len(cf.sent) == 1, "waiting reader must fail closed without sending")
+    require(len(errors) == 2, "both readers must fail closed")
+    require(
+        any("disconnected during supervisor state read" in error for error in errors),
+        "first read must establish the poison reason",
+    )
+    require(
+        any("poisoned until reconnect" in error for error in errors),
+        "waiting reader must re-check epoch poison after acquiring the shared guard",
+    )
+
+
 def test_malformed_framing_poison() -> None:
     short_cf = FakeCf(
         bytes((supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE, 0x01))
@@ -365,6 +418,7 @@ def main() -> int:
     test_success_and_decode()
     test_deck_fault_is_preserved_and_blocks()
     test_timeout_poison_blocks_delayed_reply_until_epoch_rotates()
+    test_two_readers_share_epoch_guard_and_waiter_fails_after_poison()
     test_malformed_framing_poison()
     test_unknown_state_bits_poison()
     test_disconnect_poison()
