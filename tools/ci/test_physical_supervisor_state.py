@@ -76,6 +76,7 @@ class FakeCf:
         self.removed = False
         self.sent = []
         self.disconnect_on_send = False
+        self.fail_on_send = False
         self.send_unrelated_first = False
 
     def add_port_callback(self, port: int, callback) -> None:
@@ -92,6 +93,8 @@ class FakeCf:
         if self.disconnect_on_send:
             self.disconnected.call("radio://test")
             return
+        if self.fail_on_send:
+            raise RuntimeError("radio send failed")
         if self.send_unrelated_first:
             self.callback(
                 type(
@@ -203,6 +206,14 @@ def test_disconnect_fails_closed() -> None:
     require(cf.removed, "disconnect callback cleanup")
 
 
+def test_request_transport_failure_is_typed_and_cleaned_up() -> None:
+    cf = FakeCf(None)
+    cf.fail_on_send = True
+    expect_error(lambda: read(cf), "fresh supervisor state request failed")
+    require(cf.removed, "send-failure callback cleanup")
+    require(cf.disconnected.callbacks == [], "send-failure disconnect cleanup")
+
+
 def test_protocol_boundary() -> None:
     legacy = FakeCf(None, protocol_version=11)
     expect_error(lambda: read(legacy), "protocol version 12 or later")
@@ -221,6 +232,7 @@ def main() -> int:
     test_timeout_never_reuses_previous_state()
     test_malformed_response_fails_closed()
     test_disconnect_fails_closed()
+    test_request_transport_failure_is_typed_and_cleaned_up()
     test_protocol_boundary()
     test_timeout_argument()
 

@@ -175,10 +175,15 @@ def read_fresh_supervisor_state(
             disconnect_callbacks.add_callback(disconnected)
             disconnect_registered = True
 
-        packet = CRTPPacket()
-        packet.set_header(CRTPPort.SUPERVISOR, SUPERVISOR_CH_INFO)
-        packet.data = (CMD_GET_STATE_BITFIELD,)
-        cf.send_packet(packet)
+        try:
+            packet = CRTPPacket()
+            packet.set_header(CRTPPort.SUPERVISOR, SUPERVISOR_CH_INFO)
+            packet.data = (CMD_GET_STATE_BITFIELD,)
+            cf.send_packet(packet)
+        except Exception as exc:
+            raise SupervisorReadError(
+                f"fresh supervisor state request failed: {exc}"
+            ) from exc
 
         if not done.wait(timeout_seconds):
             raise SupervisorReadError("fresh supervisor state request timed out")
