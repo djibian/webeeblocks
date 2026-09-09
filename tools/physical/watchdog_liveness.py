@@ -12,11 +12,13 @@ successful later response evidence that the earlier watchdog command reached
 the firmware path first.
 
 Watchdog state belongs to the powered STM session, not the Crazyradio
-connection epoch. A reconnect must therefore never clear an ambiguous or
-terminal watchdog lifecycle. The caller supplies a trusted powered-session
-identity that must remain stable across reconnects and may change only after a
-separately proven STM+deck reset/power-cycle. This module does not perform or
-infer that reset.
+connection epoch or this Python process. A reconnect or host-process restart
+must therefore never manufacture fresh watchdog certainty. This module neither
+creates nor resets powered-session lifecycle state: a distinct trusted host
+reset/session layer must supply that lifecycle and attest its fresh reset proof.
+If that external proof is unavailable after reconstruction, this guard fails
+closed before emitting a watchdog command. This module does not perform or infer
+the STM+deck reset/power-cycle.
 
 This module is safety infrastructure, not flight authority. It exposes no
 arming, high-level commander, setpoint, landing, reset/power-cycle or
@@ -104,14 +106,29 @@ def _require_powered_session_contract(lifecycle: object) -> None:
     _read_powered_session_identity(lifecycle)
     _read_powered_session_state(lifecycle)
     _read_powered_session_terminal_reason(lifecycle)
-    for method_name in ("begin_activation", "mark_active", "mark_terminal"):
+    for method_name in (
+        "require_fresh_reset_proof",
+        "begin_activation",
+        "mark_active",
+        "mark_terminal",
+    ):
         if not callable(getattr(lifecycle, method_name, None)):
             raise WatchdogLivenessError(
                 "external trusted powered-session watchdog lifecycle contract is incomplete"
             )
 
 
+def _require_powered_session_reset_proof(lifecycle: object) -> None:
+    try:
+        lifecycle.require_fresh_reset_proof()
+    except Exception as exc:
+        raise WatchdogLivenessError(
+            "external trusted powered-session fresh reset proof is unavailable"
+        ) from exc
+
+
 def _require_powered_session_new(lifecycle: object) -> None:
+    _require_powered_session_reset_proof(lifecycle)
     state = _read_powered_session_state(lifecycle)
     if state == _STATE_NEW:
         return
@@ -393,6 +410,9 @@ class EmergencyWatchdogLivenessGuard:
         self._read_protocol_version()
         self._require_reader_ready()
         sender = self._watchdog_sender()
+        # Re-check externally owned reset proof at the last lifecycle transition
+        # before a watchdog command can be emitted.
+        _require_powered_session_reset_proof(self._powered_session)
         _begin_powered_session_activation(self._powered_session)
 
         try:

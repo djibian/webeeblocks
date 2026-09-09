@@ -118,11 +118,18 @@ class FakePoweredSessionLifecycle:
         *,
         state: str = "new",
         terminal_reason: str | None = None,
+        reset_proven: bool = True,
     ) -> None:
         self.identity = identity
         self.state = state
         self.terminal_reason = terminal_reason
+        self.reset_proven = reset_proven
         self.lock = threading.Lock()
+
+    def require_fresh_reset_proof(self) -> None:
+        with self.lock:
+            if not self.reset_proven:
+                raise RuntimeError("no externally proven STM+deck reset")
 
     def begin_activation(self) -> None:
         with self.lock:
@@ -512,6 +519,25 @@ def test_external_powered_session_freshness_is_required() -> None:
     epoch = Epoch("epoch-reconstructed")
     cf = FakeCf(events)
     reader = FakeReader(cf, "epoch-reconstructed", events)
+
+    # Host/process reconstruction or choosing a new identity does not establish
+    # the separately proven STM+deck reset. Even state="new" must fail closed.
+    unproven_new = FakePoweredSessionLifecycle(
+        "arbitrary-new-identity-after-host-restart",
+        state="new",
+        reset_proven=False,
+    )
+    expect_error(
+        lambda: watchdog.EmergencyWatchdogLivenessGuard(
+            cf,
+            epoch,
+            reader,
+            unproven_new,
+            keepalive_interval_seconds=0.01,
+            max_host_gap_seconds=0.2,
+        ),
+        "fresh reset proof is unavailable",
+    )
 
     for index, state in enumerate(("activating", "active", "terminal", "unknown")):
         powered = FakePoweredSessionLifecycle(
