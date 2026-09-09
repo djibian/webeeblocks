@@ -53,6 +53,10 @@ def main():
     if physical_supervisor_test.returncode:
         print('FAIL connection-epoch physical supervisor freshness',file=sys.stderr);print(physical_supervisor_test.stdout,file=sys.stderr);print(physical_supervisor_test.stderr,file=sys.stderr);return physical_supervisor_test.returncode
     print(physical_supervisor_test.stdout.strip())
+    physical_yaw_test=subprocess.run([sys.executable,'tools/ci/test_physical_yaw_observer.py'],text=True,capture_output=True)
+    if physical_yaw_test.returncode:
+        print('FAIL fresh physical yaw observation',file=sys.stderr);print(physical_yaw_test.stdout,file=sys.stderr);print(physical_yaw_test.stderr,file=sys.stderr);return physical_yaw_test.returncode
+    print(physical_yaw_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
