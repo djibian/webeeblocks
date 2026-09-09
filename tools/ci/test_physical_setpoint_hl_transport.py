@@ -487,14 +487,17 @@ def test_last_moment_safelink_failure_is_pre_effect() -> None:
 
 
 def test_fresh_supervisor_fault_or_not_flying_blocks_send() -> None:
-    for label, state, pattern in (
+    for label, observed_state, pattern in (
         ("fault", state(blocking_fault=True), "blocking"),
         ("not-flying", state(is_flying=False), "flight"),
     ):
         cf = FakeCrazyflie(reply_status=0)
         fixture = Fixture(label, cf)
         try:
-            fixture.supervisor_reader.read = lambda *, timeout_seconds=0.2, state=state: state
+            fixture.supervisor_reader.read = (
+                lambda *, timeout_seconds=0.2, observed_state=observed_state:
+                    observed_state
+            )
             expect_error(
                 lambda: fixture.transport.send_turn(
                     angle_deg=20,
