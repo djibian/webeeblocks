@@ -181,6 +181,10 @@ class ControlledLandingCompletionObserver:
             timeout_seconds,
             "pre-land supervisor read timeout",
         )
+        # Starting any new baseline attempt invalidates an older unused baseline,
+        # even if the new fresh observation later fails closed.
+        with self._state_lock:
+            self._pending_baseline = None
         state = self._read_fresh(timeout)
         self._raise_on_fault(state)
         if not state.is_flying:
