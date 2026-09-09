@@ -65,6 +65,10 @@ def main():
     if physical_watchdog_test.returncode:
         print('FAIL physical watchdog activation/liveness guard',file=sys.stderr);print(physical_watchdog_test.stdout,file=sys.stderr);print(physical_watchdog_test.stderr,file=sys.stderr);return physical_watchdog_test.returncode
     print(physical_watchdog_test.stdout.strip())
+    powered_session_test=subprocess.run([sys.executable,'tools/ci/test_physical_powered_session_authority.py'],text=True,capture_output=True)
+    if powered_session_test.returncode:
+        print('FAIL trusted physical powered-session/reset authority',file=sys.stderr);print(powered_session_test.stdout,file=sys.stderr);print(powered_session_test.stderr,file=sys.stderr);return powered_session_test.returncode
+    print(powered_session_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
