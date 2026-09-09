@@ -68,13 +68,31 @@ a disconnect makes both epoch and capability reads fail closed. The session
 exposes no WebeeBlocks movement, light, arming or setpoint method and retains the
 documented cflib safety-zero close-path qualification.
 
-This still is not execution authority or a complete physical backend. The
-Blockly/runtime submission path does not yet consume this host session, and no
-authorization/execution consumer performs the bound AST/session assertion
-immediately before a physical effect. Arming, abort/failsafe behavior and
-real-Crazyflie student execution remain unproven. Do not turn source
-availability, Lab firmware experiments, preflight compatibility, or simulation
-coverage into a real-hardware support claim.
+This still is not execution authority or a complete physical backend. Integrated
+#249 connects the production physical-submission path to that live host session:
+the exact current activity profile and backend-neutral workspace AST are
+preflighted against fresh live capability evidence, then both semantic
+requirements and the reconnect-sensitive connection epoch are re-asserted
+immediately before any later separately authorized physical effect. Workspace,
+profile or connection changes invalidate the prior binding. The bridge remains
+non-authority and exposes no WebeeBlocks flight command API.
+
+The remaining #157 boundary therefore begins after that validated pre-effect
+assertion: a separately authorized physical effect consumer with explicit teacher
+authorization before any flight-capable command/effect, firmware-independent
+arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
+pass), an independent emergency-stop watchdog/liveness guard, controlled normal
+land/disarm behavior and proof of real execution continuity. Current source
+evidence selects direct cflib HighLevelCommander semantics as the closest
+physical primitive substrate; body-relative horizontal movement must be rotated
+into world-frame displacement from the accepted yaw, and normal command
+completion must be bounded by observed supervisor state rather than host-side
+sleep alone. Immediate emergency stop and high-level commander stop remain
+exceptional motor-cut paths, not normal Stop/Land semantics.
+
+Do not turn source availability, Lab firmware experiments, preflight
+compatibility, simulation coverage or this implementation direction into a
+real-hardware support claim.
 
 This inventory should be updated only when integrated product evidence changes a
 row; live PR/CI/review state remains on GitHub rather than in this document.
