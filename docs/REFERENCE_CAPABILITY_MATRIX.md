@@ -82,11 +82,13 @@ assertion: a separately authorized physical effect consumer with explicit teache
 authorization before any flight-capable command/effect, firmware-independent
 arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
 pass), an independent emergency-stop watchdog/liveness guard, controlled normal
-land/disarm behavior and proof of real execution continuity. Current source
-evidence selects direct cflib HighLevelCommander semantics as the closest
-physical primitive substrate; body-relative horizontal movement must be rotated
-into world-frame displacement from the accepted yaw, and normal command
-completion must be bounded by observed supervisor state rather than host-side
+land/disarm behavior and proof of real execution continuity. Integrated #256 now codifies the non-authority semantic transform for the
+future direct cflib HighLevelCommander path: body-relative horizontal movement is
+rotated into world-frame displacement from an accepted yaw, vertical intent stays
+relative world-Z and turns stay relative yaw. That adapter imports no cflib API
+and emits no command, so physical execution authority remains unproven. A later
+effect consumer still must supply the accepted live yaw and bound normal command
+completion by fresh supervisor/high-level trajectory state rather than host-side
 sleep alone. Immediate emergency stop and high-level commander stop remain
 exceptional motor-cut paths, not normal Stop/Land semantics.
 

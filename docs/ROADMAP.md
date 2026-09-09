@@ -30,8 +30,12 @@ invalidates it on disconnect and rebuilds capability descriptors from the curren
 connection; and #249 wires the production physical submission path to that live
 session, binding the exact current activity profile and semantic workspace AST and
 re-asserting both together with the connection epoch immediately before any later
-separately authorized effect. All of this remains non-authority with
-`executionAuthority:false`. The underlying cflib SyncCrazyflie close path still
+separately authorized effect. Integrated #256 additionally establishes the pure
+non-authority physical HighLevelCommander semantic adapter for the already-proven
+Runtime v2 horizontal/body-to-world geometry, relative world-Z and signed relative
+yaw; it imports no cflib command surface and emits no physical effect. All of this
+remains non-authority with `executionAuthority:false`. The underlying cflib
+SyncCrazyflie close path still
 emits its documented safety-zero commander setpoint, so this is not a claim that
 the transport emits no command packet. The substantive remaining product boundary
 now starts after that validated pre-effect assertion: a separately authorized
@@ -223,8 +227,11 @@ Runtime/controller change is justified by #236 alone.
   the production physical submission path to that live session, preserving the
   exact current activity profile and semantic workspace AST across preflight and
   re-asserting them with the same connection epoch immediately before any later
-  separately authorized effect. These slices preserve `executionAuthority:false`
-  and expose no WebeeBlocks motor/arming command API
+  separately authorized effect. Integrated #256 then codifies the physical
+  body-relative horizontal -> world-frame transform plus relative world-Z/yaw as
+  a pure semantic adapter, without importing cflib or emitting any command. These
+  slices preserve `executionAuthority:false` and expose no WebeeBlocks
+  motor/arming command API
 - real-device checkpoint #226 was authoritatively closed `NOT_NEEDED` after the
   live-preflight product decision superseded the fixed all-reference-decks gate.
   Its bounded partial observation still established exact Crazyflie 2.1
@@ -284,7 +291,9 @@ Runtime/controller change is justified by #236 alone.
   invalidation; #246 supplies the concrete host-side live session that owns the
   reconnect-sensitive epoch and current descriptor reads; and #249 integrates
   the production physical submission bridge that binds and immediately re-asserts
-  the current profile/semantic AST with that live epoch. The surface remains
+  the current profile/semantic AST with that live epoch; #256 establishes the
+  pure no-effect body/world, world-Z and relative-yaw semantic adapter intended
+  for later direct HighLevelCommander consumption. The surface remains
   non-authority with `executionAuthority:false`; the cflib close path retains its
   safety-zero transport setpoint
 - bounded real-device evidence from superseded checkpoint #226 confirms the
@@ -294,16 +303,20 @@ Runtime/controller change is justified by #236 alone.
 - depends: separately authorized physical effect consumption gated by explicit
   teacher authorization before any flight-capable command/effect, plus an
   independent emergency-stop watchdog/liveness guard, controlled normal
-  land/disarm behavior and proof of physical execution continuity. Do not assume
-  a host arming packet is the teacher gate: stock brushed Crazyflie 2.1
-  auto-arms when pre-flight checks pass
-- proof direction: preserve backend-neutral AST continuity and use direct cflib
-  `HighLevelCommander` as the primitive effect substrate rather than the
-  `MotionCommander` / `PositionHlCommander` helpers: rotate body-relative
-  horizontal intent into world-frame deltas from an accepted current yaw, use
-  relative world-Z/yaw as appropriate, and bound command completion by observed
-  supervisor/high-level trajectory state plus timeout/locked/crashed checks.
-  Add only the minimum teacher-authorized physical execution authority after the
+  land/disarm behavior and proof of physical execution continuity. The pinned
+  watchdog has no disable/reset command after first activation, so its trusted
+  keepalive lifecycle must span the reusable physical session; simply stopping
+  keepalives after a normal land would eventually enter the latching emergency
+  stop/locked state and require reboot. Do not assume a host arming packet is the
+  teacher gate: stock brushed Crazyflie 2.1 auto-arms when pre-flight checks pass
+- proof direction: preserve backend-neutral AST continuity and consume the
+  integrated #256 pure semantic adapter from a later direct cflib
+  `HighLevelCommander` effect substrate rather than the `MotionCommander` /
+  `PositionHlCommander` helpers. The authority layer still must supply an
+  accepted current yaw, preserve the exact preflight/session binding and bound
+  command completion by fresh supervisor/high-level trajectory state plus
+  timeout/locked/crashed/deck-fault checks. Add only the minimum
+  teacher-authorized physical execution authority after the
   live capability and safety gates are independently established. Keep immediate
   emergency stop and high-level commander stop exceptional because both can cut
   motors in flight; normal completion/voluntary abort needs a controlled
