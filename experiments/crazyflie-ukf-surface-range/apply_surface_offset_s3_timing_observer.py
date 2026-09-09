@@ -178,12 +178,12 @@ LOG_ADD(LOG_FLOAT, baroDDec, &surfaceBaroDeltaAtDecision)
 LOG_GROUP_STOP(sensorFilter)
 """
 
-BIAS_RESET_OLD = """      surfaceDetectorState = S3_STATE_NORMAL;
+BIAS_RESET_OLD = """        surfaceDetectorState = S3_STATE_NORMAL;
         surfaceDetectorReason = S3_REASON_NONE;
 
         // set initial parameters"""
 
-BIAS_RESET_NEW = """      surfaceDetectorState = S3_STATE_NORMAL;
+BIAS_RESET_NEW = """        surfaceDetectorState = S3_STATE_NORMAL;
         surfaceDetectorReason = S3_REASON_NONE;
         surfaceQueueSequence = 0;
         surfaceLatestBaroSequence = 0;
