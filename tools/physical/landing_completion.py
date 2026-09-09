@@ -26,6 +26,7 @@ must remain a separate gate for every later flight-capable effect.
 from __future__ import annotations
 
 from math import isfinite
+from threading import Lock
 from time import monotonic, sleep
 from typing import Callable, NamedTuple
 
@@ -69,6 +70,8 @@ class ControlledLandingCompletionObserver:
         self._connection_epoch_reader = connection_epoch_reader
         self._clock = clock
         self._sleeper = sleeper
+        self._state_lock = Lock()
+        self._pending_baseline: PreLandingFlightEvidence | None = None
 
         bound_epoch = getattr(supervisor_reader, "bound_connection_epoch", None)
         if not isinstance(bound_epoch, str) or not bound_epoch.strip():
@@ -188,10 +191,14 @@ class ControlledLandingCompletionObserver:
             raise LandingCompletionError(
                 "pre-land baseline did not observe active high-level control"
             )
-        return PreLandingFlightEvidence(
+        evidence = PreLandingFlightEvidence(
             connection_epoch=self._bound_connection_epoch,
             bitfield=state.bitfield,
         )
+        with self._state_lock:
+            # A newer fresh baseline supersedes any earlier unused baseline.
+            self._pending_baseline = evidence
+        return evidence
 
     def await_completion(
         self,
@@ -222,6 +229,15 @@ class ControlledLandingCompletionObserver:
             raise LandingCompletionError(
                 "pre-land evidence belongs to a different connection epoch"
             )
+        with self._state_lock:
+            if baseline is not self._pending_baseline:
+                raise LandingCompletionError(
+                    "pre-land evidence was not freshly issued by this observer "
+                    "for the current completion attempt"
+                )
+            # Completion observation is one-shot. Any timeout/fault/reader failure
+            # remains fail-closed and cannot be retried using the same baseline.
+            self._pending_baseline = None
 
         started_at = self._clock_now()
         deadline = started_at + total_timeout
@@ -238,6 +254,11 @@ class ControlledLandingCompletionObserver:
 
             state = self._read_fresh(min(per_read_timeout, remaining))
             observations += 1
+            now = self._clock_now()
+            if deadline - now <= 0:
+                raise LandingCompletionError(
+                    "controlled landing completion timed out"
+                )
             self._raise_on_fault(state)
 
             if (

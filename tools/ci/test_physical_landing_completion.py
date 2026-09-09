@@ -79,6 +79,7 @@ class FakeReader:
         self.read_count = 0
         self.timeouts: list[float] = []
         self.error: Exception | None = None
+        self.on_read = None
 
     def read(self, *, timeout_seconds: float):
         require(timeout_seconds > 0, "fresh read timeout positive")
@@ -86,6 +87,8 @@ class FakeReader:
         self.timeouts.append(timeout_seconds)
         if self.error is not None:
             raise self.error
+        if self.on_read is not None:
+            self.on_read()
         if len(self.states) > 1:
             return self.states.pop(0)
         if self.states:
@@ -281,6 +284,75 @@ def test_finished_but_still_active_is_not_completion() -> None:
     require(result.observations == 3, "active trajectory states are not completion")
 
 
+
+def test_pre_land_evidence_is_observer_issued_one_shot() -> None:
+    observer, reader, _epoch, _clock = make_observer(
+        [
+            state(0x110, is_flying=True, hl_control_active=True),
+            state(0x200, is_flying=False, hl_control_active=False, hl_traj_finished=True),
+        ],
+        epoch_value="epoch-issued",
+    )
+    forged = landing.PreLandingFlightEvidence("epoch-issued", 0x110)
+    expect_error(
+        lambda: observer.await_completion(forged, total_timeout_seconds=0.5),
+        "not freshly issued by this observer",
+    )
+    require(reader.read_count == 0, "forged same-epoch evidence triggers no completion read")
+
+    baseline = observer.capture_pre_land_flight()
+    result = observer.await_completion(baseline, total_timeout_seconds=0.5)
+    require(result.supervisor_state.hl_traj_finished, "issued baseline can complete once")
+    reads_after_completion = reader.read_count
+    expect_error(
+        lambda: observer.await_completion(baseline, total_timeout_seconds=0.5),
+        "not freshly issued by this observer",
+    )
+    require(reader.read_count == reads_after_completion, "consumed baseline cannot be reused")
+
+
+def test_new_baseline_supersedes_old_same_epoch_evidence() -> None:
+    observer, reader, _epoch, _clock = make_observer(
+        [
+            state(0x110, is_flying=True, hl_control_active=True),
+            state(0x112, is_flying=True, hl_control_active=True),
+            state(0x200, is_flying=False, hl_control_active=False, hl_traj_finished=True),
+        ],
+        epoch_value="epoch-supersede",
+    )
+    old = observer.capture_pre_land_flight()
+    current = observer.capture_pre_land_flight()
+    expect_error(
+        lambda: observer.await_completion(old, total_timeout_seconds=0.5),
+        "not freshly issued by this observer",
+    )
+    result = observer.await_completion(current, total_timeout_seconds=0.5)
+    require(result.supervisor_state.hl_traj_finished, "latest baseline remains usable")
+    require(reader.read_count == 3, "superseded evidence adds no read")
+
+
+def test_completion_returned_after_total_deadline_is_rejected() -> None:
+    observer, reader, _epoch, clock = make_observer(
+        [
+            state(0x110, is_flying=True, hl_control_active=True),
+            state(0x200, is_flying=False, hl_control_active=False, hl_traj_finished=True),
+        ],
+        epoch_value="epoch-late-read",
+    )
+    baseline = observer.capture_pre_land_flight()
+    reader.on_read = lambda: clock.sleep(0.25)
+    expect_error(
+        lambda: observer.await_completion(
+            baseline,
+            total_timeout_seconds=0.2,
+            per_read_timeout_seconds=0.2,
+            poll_interval_seconds=0.05,
+        ),
+        "completion timed out",
+    )
+    require(reader.read_count == 2, "late valid state is observed but never promoted")
+
+
 def test_malformed_state_and_arguments_have_no_false_pass() -> None:
     observer, reader, _epoch, _clock = make_observer(
         [SimpleNamespace(
@@ -333,6 +405,9 @@ def main() -> int:
         test_fresh_reader_failure_fails_closed,
         test_timeout_never_promotes_incomplete_landing,
         test_finished_but_still_active_is_not_completion,
+        test_pre_land_evidence_is_observer_issued_one_shot,
+        test_new_baseline_supersedes_old_same_epoch_evidence,
+        test_completion_returned_after_total_deadline_is_rejected,
         test_malformed_state_and_arguments_have_no_false_pass,
         test_source_is_observation_only,
     ]
