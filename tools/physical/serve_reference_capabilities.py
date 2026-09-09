@@ -433,11 +433,11 @@ class ReadOnlyCapabilityHttpBridge:
 class CurrentProgramEffectPreflightHandle:
     """Opaque non-authority handle onto one integrated #278 production bridge.
 
-    Public ReadOnlyCapabilityHttpBridge construction and responder credentials
-    are deliberately insufficient to create an effect-eligible current-program
-    source. Trusted host composition mints this handle through the private
-    _bind_effect_current_program_bridge() seam and gives only the handle to the
-    physical effect consumer.
+    Public ReadOnlyCapabilityHttpBridge construction, injected/fake capability
+    sessions and responder credentials are deliberately insufficient to create
+    an effect-eligible current-program source. Binding additionally requires the
+    exact uninjected live ReadOnlyCapabilitySession construction path; the
+    physical effect consumer receives only this handle.
     """
 
     __slots__ = ("__bridge",)
@@ -481,11 +481,25 @@ class CurrentProgramEffectPreflightHandle:
 def _bind_effect_current_program_bridge(
     bridge: ReadOnlyCapabilityHttpBridge,
 ) -> CurrentProgramEffectPreflightHandle:
-    """Trusted host composition seam; intentionally not a public factory API."""
+    """Bind only the actual uninjected live capability-session composition."""
     if type(bridge) is not ReadOnlyCapabilityHttpBridge:
         raise CapabilityBridgeError(
             "exact integrated current-program bridge is required"
         )
+    session = bridge.session
+    if (
+        type(session) is not ReadOnlyCapabilitySession
+        or session.effect_preflight_production_backed is not True
+    ):
+        raise CapabilityBridgeError(
+            "effect current-program binding requires the production-backed live session"
+        )
+    try:
+        session.read_connection_epoch()
+    except Exception as exc:
+        raise CapabilityBridgeError(
+            "effect current-program binding requires an active production session"
+        ) from exc
     return CurrentProgramEffectPreflightHandle(
         bridge,
         _mint_key=_EFFECT_PREFLIGHT_MINT_KEY,

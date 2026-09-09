@@ -48,6 +48,14 @@ class Epoch:
         return self.value
 
 
+class OpenSyncSession:
+    def __init__(self, cf) -> None:
+        self.cf = cf
+
+    def is_link_open(self) -> bool:
+        return True
+
+
 class FakeCapabilitySession:
     def __init__(self, epoch) -> None:
         self._epoch = epoch
@@ -306,7 +314,13 @@ class Fixture:
             lambda _binding: True,
         )
         self.current_binding = self.binding
-        self.capability_session = FakeCapabilitySession(self.epoch)
+        self.capability_session = capability_bridge.ReadOnlyCapabilitySession(
+            "radio://0/80/2M/E7E7E7E7E7"
+        )
+        # Deterministic test-only state injection after uninjected construction:
+        # production code reaches the same state only through session.open().
+        self.capability_session._scf = OpenSyncSession(cf)
+        self.capability_session._connection_epoch = self.epoch()
         self.preflight_bridge = capability_bridge.ReadOnlyCapabilityHttpBridge(
             self.capability_session,
             token=unique("capability-token"),
@@ -739,6 +753,13 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             and type(forged_evidence)
             is capability_bridge.CurrentProgramPreflightEvidence,
             "public bridge counterexample must actually mint self-answered evidence",
+        )
+        expect_error(
+            lambda: capability_bridge._bind_effect_current_program_bridge(
+                forged_bridge
+            ),
+            capability_bridge.CapabilityBridgeError,
+            "production-backed live session",
         )
         expect_error(
             lambda: capability_bridge.CurrentProgramEffectPreflightHandle(
