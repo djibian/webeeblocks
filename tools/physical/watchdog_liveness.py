@@ -295,6 +295,11 @@ class EmergencyWatchdogLivenessGuard:
         return self._bound_connection_epoch
 
     @property
+    def bound_crazyflie(self) -> object:
+        """Exact live Crazyflie object guarded by this watchdog lifecycle."""
+        return self._cf
+
+    @property
     def powered_session_identity(self) -> str:
         return self._powered_session_identity
 
