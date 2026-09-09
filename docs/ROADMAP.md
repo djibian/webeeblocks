@@ -175,15 +175,17 @@ prove that simply deleting the late veto is safe for every true-vertical case.
 Do not retune ToF/barometer or S3 thresholds/persistence against this result and
 do not proceed to motorized testing.
 
-The next causal step is therefore a bounded **classifier-evidence/temporal
-redesign**. Preserve the proven local-range Flow split and existing safety
-boundaries, and change only the evidence or timing used to distinguish a terrain
-step from true vertical motion after ToF rejection. Any experimental candidate
-must state its discriminating hypothesis before testing and include a control
-that actually exercises the revised late-decision path; repeating S3-B/S3-C
-alone is insufficient if they remain below the ToF rejection gate and never
-enter SUSPECT. No `rangeUp`, z/f/r extension, threshold sweep or
-Runtime/controller change is justified by #236 alone.
+The later #70 architecture review supersedes the earlier plan to repair this
+scalar S3 decision by changing its late evidence or timing. Preserve the proven
+local-range Flow split and existing safety boundaries, but first test whether
+vehicle vertical displacement can be estimated independently from IMU/barometer
+evidence that excludes suspect ToF, so surface-height change can be separated
+from true or mixed vertical motion. Reanalyse the existing #180/#236/#251
+archives before collecting new physical data; missing indispensable raw inputs
+or an independent metric reference makes that question UNPROVEN rather than a
+reason to tune S3 around the observations. No `rangeUp`, full z/f/r extension,
+threshold/persistence sweep, Runtime/controller change or motorized test is
+justified by the current evidence.
 
 ## Near-term graph
 
