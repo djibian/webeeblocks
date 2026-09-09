@@ -270,13 +270,16 @@ def marker_state(text: str) -> str:
     for label, old, new, count in MARKERS:
         old_count = text.count(old)
         new_count = text.count(new)
+        embedded_old_per_new = new.count(old)
         if old_count == count and new_count == 0:
             states.append("old")
-        elif old_count == 0 and new_count == count:
+        elif new_count == count and old_count == embedded_old_per_new * count:
             states.append("new")
         else:
+            expected_embedded_old = embedded_old_per_new * count
             raise SystemExit(
-                f"{label}: expected old={count}/new=0 or old=0/new={count}, "
+                f"{label}: expected old={count}/new=0 or "
+                f"old={expected_embedded_old}/new={count}, "
                 f"found old={old_count}, new={new_count}; no file written"
             )
     if all(state == "old" for state in states):
