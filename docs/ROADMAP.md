@@ -53,15 +53,16 @@ The browser-facing capability surface remains non-authority with
 `executionAuthority:false`; #262 is host safety infrastructure and exposes no
 student/browser flight authority. The underlying cflib SyncCrazyflie close path
 still emits its documented safety-zero commander setpoint, so this is not a claim
-that the transport emits no command packet. The substantive remaining product
-boundary now starts after those validated semantics, observations and safety
-primitives: a concrete trusted powered-session/reset implementation for #262, a
-separately authorized physical effect consumer, explicit teacher authorization
-before every flight-capable command/effect, and proof of safe real execution
-continuity. The existing browser-held capability/preflight bearer remains
-non-authority: teacher authorization must use a distinct trusted host-side control
-path that the student/browser runtime cannot mint or invoke, and effect methods
-must not be added under that read-only bearer merely for reuse. Stock brushed
+that the transport emits no command packet. Integrated #266 now supplies the concrete trusted powered-session/reset
+implementation consumed by #262, and integrated #267 supplies the host-only
+exact-run teacher-authorization binding. The substantive remaining product
+boundary therefore starts after those validated semantics, observations and
+safety/authority prerequisites: the separately authorized physical effect
+consumer and proof of safe real execution continuity. The existing browser-held
+capability/preflight bearer remains non-authority: the #267 teacher decision
+belongs to a distinct trusted host-side control path that the student/browser
+runtime cannot mint or invoke, and effect methods must not be added under that
+read-only bearer merely for reuse. Stock brushed
 Crazyflie 2.1 auto-arms when pre-flight checks pass and
 can return to ReadyToFly after a normal landing/reset cycle, so post-landing
 disarm is not a persistent safety gate and teacher authorization must not be
@@ -277,22 +278,23 @@ Runtime/controller change is justified by #236 alone.
 - the normal cflib close path still emits its safety-zero commander setpoint, so
   transport-level packet emission is not claimed read-only
 - remaining boundary: the validated pre-effect assertion, fresh supervisor/yaw
-  observations, watchdog safety primitive and controlled-completion observer are
-  integrated; the separately authorized physical effect consumer and concrete
-  trusted powered-session/reset authority remain unproven. On stock brushed
-  Crazyflie 2.1, auto-arming is enabled, so explicit teacher authorization must
-  gate every flight-capable command/effect rather than merely a host arming
-  request. The future authority/session layer must compose the exact-bound
-  preflight with #257/#260/#256, keep #262 live across the reusable powered
-  session, and use #264 around controlled landing/completion. The #262
-  powered-session identity remains distinct from the Crazyradio connection
-  epoch: ambiguous activation/maintenance, a missed keepalive deadline, epoch
-  loss or otherwise lost lifecycle certainty is terminal across ordinary
-  reconnect. Reuse requires a separately established STM+deck power-cycle/reboot
-  boundary, then a new connection epoch and complete capability/preflight/safety
-  re-observation before a fresh external #262 authority can exist. On stock
-  auto-arming firmware, post-landing disarm is not a persistent lockout; later
-  flight-capable effects still require a new teacher authorization
+  observations, watchdog safety primitive, controlled-completion observer,
+  concrete trusted powered-session/reset authority (#266) and exact-run
+  host-only teacher authorization (#267) are integrated; the separately
+  authorized physical effect consumer and safe real-execution proof remain
+  unproven. The future effect layer must compose the exact-bound preflight with
+  #257/#260/#256, consume #266 to establish the powered session, keep #262 live
+  across that reusable session, require the exact #267 run binding before every
+  flight-capable effect, and use #264 around controlled landing/completion. The
+  #262/#266 powered-session identity remains distinct from the Crazyradio
+  connection epoch: ambiguous activation/maintenance, a missed keepalive
+  deadline, epoch loss or otherwise lost lifecycle certainty is terminal across
+  ordinary reconnect. Reuse requires the #266 trusted STM+deck reset/
+  postcondition establishment, then a new connection epoch and complete
+  capability/preflight/safety re-observation before a fresh external #262
+  authority can exist. On stock auto-arming firmware, post-landing disarm is not
+  a persistent lockout; a later physical run still requires a new #267 teacher
+  authorization
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -354,16 +356,16 @@ Runtime/controller change is justified by #236 alone.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: separately authorized physical effect consumption gated by explicit
-  teacher authorization before any flight-capable command/effect, a concrete
-  trusted powered-session/reset implementation satisfying #262's external
-  authority contract, and proof of physical execution continuity. The existing
-  browser-held capability/preflight bearer must remain non-authority; teacher
-  authorization belongs to a distinct trusted host-side control path unavailable
-  to the student/browser runtime, and the read-only capability bridge must not
-  gain effect methods merely to reuse that bearer. #262 and #264 establish the
-  watchdog safety and controlled-completion primitives themselves; they do not
-  establish the trusted reset/session implementation or flight authority. Stock
+- depends: separately authorized physical effect consumption and proof of
+  physical execution continuity. Integrated #266 now satisfies #262's concrete
+  trusted powered-session/reset authority boundary, and integrated #267 now
+  supplies the exact-run host-only teacher-authorization binding that every
+  flight-capable effect must re-check. The existing browser-held capability/
+  preflight bearer remains non-authority; the #267 teacher path is distinct and
+  unavailable to the student/browser runtime, and the read-only capability
+  bridge must not gain effect methods merely to reuse that bearer. #262, #264,
+  #266 and #267 are safety/authority prerequisites; none alone establishes the
+  physical effect consumer or real-flight proof. Stock
   auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
   so a host disarm request is not a durable post-mission lockout. The pinned
   watchdog has no disable/reset command after first activation, so its trusted
