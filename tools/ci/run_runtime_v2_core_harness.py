@@ -53,6 +53,10 @@ def main():
     if physical_supervisor_test.returncode:
         print('FAIL connection-epoch physical supervisor freshness',file=sys.stderr);print(physical_supervisor_test.stdout,file=sys.stderr);print(physical_supervisor_test.stderr,file=sys.stderr);return physical_supervisor_test.returncode
     print(physical_supervisor_test.stdout.strip())
+    physical_landing_completion_test=subprocess.run([sys.executable,'tools/ci/test_physical_landing_completion.py'],text=True,capture_output=True)
+    if physical_landing_completion_test.returncode:
+        print('FAIL controlled physical landing completion evidence',file=sys.stderr);print(physical_landing_completion_test.stdout,file=sys.stderr);print(physical_landing_completion_test.stderr,file=sys.stderr);return physical_landing_completion_test.returncode
+    print(physical_landing_completion_test.stdout.strip())
     physical_yaw_test=subprocess.run([sys.executable,'tools/ci/test_physical_yaw_observer.py'],text=True,capture_output=True)
     if physical_yaw_test.returncode:
         print('FAIL fresh physical yaw observation',file=sys.stderr);print(physical_yaw_test.stdout,file=sys.stderr);print(physical_yaw_test.stderr,file=sys.stderr);return physical_yaw_test.returncode

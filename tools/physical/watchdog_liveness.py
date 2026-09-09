@@ -468,6 +468,11 @@ class EmergencyWatchdogLivenessGuard:
                 raise WatchdogLivenessError(
                     "watchdog activation fence observed a blocking supervisor fault"
                 )
+
+            # The fenced keepalive may already be old after the blocking fresh
+            # GET_STATE reply. Re-anchor the maintenance deadline immediately
+            # before ACTIVE is published or the periodic thread can wait.
+            self._send_keepalive(sender)
             _mark_powered_session_active(self._powered_session)
         except Exception as exc:
             error = (

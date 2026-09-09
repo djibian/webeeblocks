@@ -210,9 +210,12 @@ def test_activation_order_and_periodic_service() -> None:
     )
     state = guard.activate(supervisor_timeout_seconds=0.05)
     require(not state.blocking_fault, "activation state healthy")
-    require(events[:2] == ["watchdog", "get_state"], "watchdog must precede fresh GET_STATE")
-    require(powered.state == "active", "powered session becomes active only after fence")
-    require(wait_until(lambda: cf.supervisor.send_count >= 2), "periodic keepalive starts")
+    require(
+        events[:3] == ["watchdog", "get_state", "watchdog"],
+        "activation fence must be followed by immediate maintenance re-anchor",
+    )
+    require(powered.state == "active", "powered session becomes active only after re-anchor")
+    require(wait_until(lambda: cf.supervisor.send_count >= 3), "periodic keepalive starts")
     guard.assert_live()
     guard.stop_for_terminal_reboot(join_timeout_seconds=0.2)
     require(powered.state == "terminal", "terminal stop poisons powered session")
@@ -396,7 +399,7 @@ def test_periodic_send_failure_is_terminal() -> None:
         epoch_value="epoch-send-fail",
         powered_session_id="powered-send-fail",
     )
-    cf.supervisor.fail_after = 1
+    cf.supervisor.fail_after = 2
     guard.activate()
     require(wait_until(lambda: guard.terminal_reason is not None), "periodic enqueue failure becomes terminal")
     require(powered.state == "terminal", "maintenance ambiguity poisons powered session")
@@ -461,14 +464,35 @@ def test_fence_and_enqueue_duration_are_bounded_by_host_gap() -> None:
     )
     guard2.activate()
 
-    def slow_after_first(send_count: int) -> None:
-        if send_count >= 2:
+    def slow_periodic_enqueue(send_count: int) -> None:
+        if send_count >= 3:
             clock2.advance(0.25)
 
-    cf2.supervisor.on_send = slow_after_first
+    cf2.supervisor.on_send = slow_periodic_enqueue
     require(wait_until(lambda: guard2.terminal_reason is not None), "slow periodic enqueue becomes terminal")
     require(powered2.state == "terminal", "slow enqueue poisons powered session")
     expect_error(guard2.assert_live, "terminal")
+
+
+def test_post_fence_keepalive_reanchors_before_long_periodic_wait() -> None:
+    clock = FakeClock()
+    guard, cf, reader, _epoch, powered, events = make_guard(
+        epoch_value="epoch-post-fence-reanchor",
+        powered_session_id="powered-post-fence-reanchor",
+        interval=0.8,
+        max_gap=0.9,
+        clock=clock,
+    )
+    reader.on_read = lambda: clock.advance(0.85)
+    guard.activate(supervisor_timeout_seconds=0.9)
+    require(
+        events[:3] == ["watchdog", "get_state", "watchdog"],
+        "post-fence keepalive is immediate before periodic wait",
+    )
+    require(cf.supervisor.send_count == 2, "exactly two immediate activation keepalives")
+    require(powered.state == "active", "ACTIVE follows post-fence re-anchor")
+    guard.assert_live()
+    guard.stop_for_terminal_reboot(join_timeout_seconds=0.2)
 
 
 def test_terminal_stop_is_explicit_and_idempotent() -> None:
@@ -630,6 +654,7 @@ def main() -> int:
     test_periodic_send_failure_is_terminal()
     test_host_gap_never_silently_recovers()
     test_fence_and_enqueue_duration_are_bounded_by_host_gap()
+    test_post_fence_keepalive_reanchors_before_long_periodic_wait()
     test_terminal_stop_is_explicit_and_idempotent()
     test_local_arguments_have_no_command_effect()
     test_external_powered_session_freshness_is_required()
