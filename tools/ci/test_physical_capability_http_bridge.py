@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import FrozenInstanceError
 import json
 from pathlib import Path
 import sys
@@ -17,6 +18,9 @@ spec = importlib.util.spec_from_file_location("serve_reference_capabilities", BR
 if spec is None or spec.loader is None:
     raise RuntimeError("cannot load capability HTTP bridge")
 bridge_module = importlib.util.module_from_spec(spec)
+# exec_module does not register manually created modules; dataclasses resolves
+# postponed annotations through sys.modules while the module is executing.
+sys.modules[spec.name] = bridge_module
 spec.loader.exec_module(bridge_module)
 
 
@@ -51,9 +55,18 @@ class FakeSession:
         }
 
 
-def request(url: str, token: str | None = None, method: str = "GET") -> tuple[int, object | None, object]:
+def request(
+    url: str,
+    token: str | None = None,
+    method: str = "GET",
+    payload: object | None = None,
+) -> tuple[int, object | None, object]:
     headers = {} if token is None else {"Authorization": f"Bearer {token}"}
-    req = Request(url, method=method, headers=headers)
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = Request(url, method=method, headers=headers, data=data)
     try:
         with urlopen(req, timeout=2) as response:
             raw = response.read()
@@ -65,10 +78,71 @@ def request(url: str, token: str | None = None, method: str = "GET") -> tuple[in
         return exc.code, payload, exc.headers
 
 
+
+def start_host_assertion(
+    bridge,
+    *,
+    profile_id: str = "activity-1",
+    ast_binding: str = "ast-1",
+    connection_epoch: str = "connection-one",
+    timeout_seconds: float = 0.5,
+):
+    outcome: dict[str, object] = {}
+
+    def run() -> None:
+        try:
+            outcome["evidence"] = bridge.assert_current_program(
+                profile_id=profile_id,
+                ast_binding=ast_binding,
+                connection_epoch=connection_epoch,
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception as exc:
+            outcome["error"] = exc
+
+    thread = Thread(target=run, daemon=True)
+    thread.start()
+    return thread, outcome
+
+
+def complete_host_assertion(
+    base: str,
+    responder_token: str,
+    *,
+    profile_id: str = "activity-1",
+    ast_binding: str = "ast-1",
+    connection_epoch: str = "connection-one",
+):
+    status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
+    assert status == 200
+    assert challenge["executionAuthority"] is False
+    challenge_id = challenge["challengeId"]
+    assert isinstance(challenge_id, str) and challenge_id
+    status, response, _ = request(
+        base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+        payload={
+            "challengeId": challenge_id,
+            "ok": True,
+            "profileId": profile_id,
+            "astBinding": ast_binding,
+            "connectionEpoch": connection_epoch,
+            "executionAuthority": False,
+        },
+    )
+    return status, response, challenge_id
+
+
 def main() -> int:
     fake = FakeSession()
     token = "test-bridge-token"
-    bridge = bridge_module.ReadOnlyCapabilityHttpBridge(fake, token=token)
+    responder_token = "test-preflight-responder-token"
+    bridge = bridge_module.ReadOnlyCapabilityHttpBridge(
+        fake,
+        token=token,
+        preflight_responder_token=responder_token,
+    )
     host, port = bridge.address
     thread = Thread(target=bridge.serve_forever, daemon=True)
     thread.start()
@@ -88,8 +162,9 @@ def main() -> int:
         status, payload, cors = request(base + "/v1/capabilities", method="OPTIONS")
         assert status == 204 and payload is None
         assert cors["Access-Control-Allow-Origin"] == "*"
-        assert cors["Access-Control-Allow-Methods"] == "GET, OPTIONS"
+        assert cors["Access-Control-Allow-Methods"] == "GET, POST, OPTIONS"
         assert "Authorization" in cors["Access-Control-Allow-Headers"]
+        assert "Content-Type" in cors["Access-Control-Allow-Headers"]
         assert fake.epoch_reads == 1 and fake.capability_reads == 1, "CORS preflight must not touch live session"
 
         status, payload, _ = request(base + "/v1/capabilities")
@@ -99,6 +174,173 @@ def main() -> int:
         status, payload, _ = request(base + "/v1/connection-epoch", token, method="POST")
         assert status == 405 and payload == {"error": "read-only bridge"}
         assert fake.epoch_reads == 1, "effect-shaped methods must never reach the live session"
+
+        # The ordinary capability bearer cannot claim or answer trusted #249
+        # challenges, even if it knows plausible binding values.
+        status, payload, _ = request(base + "/v1/preflight-challenge", token)
+        assert status == 401 and payload == {"error": "unauthorized"}
+        status, payload, _ = request(
+            base + "/v1/preflight-assertion",
+            token,
+            method="POST",
+            payload={
+                "challengeId": "guessed",
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 401 and payload == {"error": "unauthorized"}
+
+        # Only the separately authenticated production responder can complete a
+        # fresh host-created current-program challenge.
+        thread, outcome = start_host_assertion(bridge)
+        status, response, challenge_id = complete_host_assertion(
+            base,
+            responder_token,
+        )
+        assert status == 200 and response["accepted"] is True
+        assert response["executionAuthority"] is False
+        thread.join(timeout=2)
+        assert not thread.is_alive() and "error" not in outcome
+        evidence = outcome["evidence"]
+        assert evidence.profile_id == "activity-1"
+        assert evidence.ast_binding == "ast-1"
+        assert evidence.connection_epoch == "connection-one"
+        assert evidence.challenge_id == challenge_id
+        assert evidence.execution_authority is False
+        for field, replacement in (
+            ("profile_id", "other-activity"),
+            ("ast_binding", "other-ast"),
+            ("connection_epoch", "other-epoch"),
+            ("challenge_id", "other-challenge"),
+            ("execution_authority", True),
+        ):
+            try:
+                setattr(evidence, field, replacement)
+            except (FrozenInstanceError, AttributeError):
+                pass
+            else:
+                raise AssertionError(
+                    "minted current-program evidence must be immutable: " + field
+                )
+
+        # The exact challenge is one-shot; replay/late responses are rejected.
+        status, replay, _ = request(
+            base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+            payload={
+                "challengeId": challenge_id,
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 409 and "stale" in replay["error"]
+
+        # A same-challenge profile/AST mismatch settles the host request fail-closed.
+        thread, outcome = start_host_assertion(bridge)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
+        mismatch_id = challenge["challengeId"]
+        status, mismatch, _ = request(
+            base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+            payload={
+                "challengeId": mismatch_id,
+                "ok": True,
+                "profileId": "wrong-activity",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 409 and "does not match" in mismatch["error"]
+        thread.join(timeout=2)
+        assert isinstance(outcome.get("error"), bridge_module.CapabilityBridgeError)
+        assert "does not match" in str(outcome["error"])
+
+        # Reconnect after challenge creation but before host acceptance is stale.
+        fake.epoch = "connection-one"
+        thread, outcome = start_host_assertion(bridge)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
+        epoch_id = challenge["challengeId"]
+        fake.epoch = "connection-two"
+        status, response, _ = request(
+            base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+            payload={
+                "challengeId": epoch_id,
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 200
+        thread.join(timeout=2)
+        assert isinstance(outcome.get("error"), bridge_module.CapabilityBridgeError)
+        assert "changed during" in str(outcome["error"])
+
+        # A host timeout invalidates the challenge; a later response cannot revive it.
+        fake.epoch = "connection-one"
+        thread, outcome = start_host_assertion(bridge, timeout_seconds=0.03)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
+        timeout_id = challenge["challengeId"]
+        thread.join(timeout=2)
+        assert isinstance(outcome.get("error"), bridge_module.CapabilityBridgeError)
+        assert "timed out" in str(outcome["error"])
+        status, late, _ = request(
+            base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+            payload={
+                "challengeId": timeout_id,
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 409 and "stale" in late["error"]
+
+        # Browser responses cannot create a challenge on their own.
+        status, unsolicited, _ = request(
+            base + "/v1/preflight-assertion",
+            responder_token,
+            method="POST",
+            payload={
+                "challengeId": "fabricated-challenge",
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 409 and "unknown" in unsolicited["error"]
+
+        # Exact evidence cannot be constructed by an arbitrary binding source.
+        try:
+            bridge_module.CurrentProgramPreflightEvidence(
+                profile_id="activity-1",
+                ast_binding="ast-1",
+                connection_epoch="connection-one",
+                challenge_id="fabricated",
+                _mint_key=object(),
+            )
+        except bridge_module.CapabilityBridgeError as exc:
+            assert "trusted host bridge" in str(exc)
+        else:
+            raise AssertionError("fabricated current-program evidence must fail closed")
 
         fake.epoch = "connection-two"
         status, payload, _ = request(base + "/v1/connection-epoch", token)
@@ -122,7 +364,7 @@ def main() -> int:
     for name in forbidden:
         assert not hasattr(bridge, name), f"HTTP bridge exposes authority method: {name}"
 
-    print("PASS loopback capability bridge supports browser reads with authentication and no physical authority")
+    print("PASS loopback capability bridge provides fresh host-initiated #249 handoff with no physical authority")
     return 0
 
 
