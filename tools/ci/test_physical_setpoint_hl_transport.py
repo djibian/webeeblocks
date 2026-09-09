@@ -349,6 +349,11 @@ class Fixture:
             daemon=True,
         )
         self.preflight_responder_thread.start()
+        self.current_program_preflight = (
+            capability_bridge._bind_effect_current_program_bridge(
+                self.preflight_bridge
+            )
+        )
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
         self.transport = transport.TrustedSetpointHlTransport(
@@ -360,7 +365,7 @@ class Fixture:
             powered_session=self.powered,
             watchdog_guard=self.watchdog,
             supervisor_reader=self.supervisor_reader,
-            current_program_bridge=self.preflight_bridge,
+            current_program_preflight=self.current_program_preflight,
         )
 
     def close(self) -> None:
@@ -519,7 +524,7 @@ def test_changed_current_program_blocks_effect_via_integrated_handoff() -> None:
                 timing_policy=timing.HighLevelTimingPolicy(),
             ),
             transport.SetpointHlTransportError,
-            "trusted #249",
+            "#249 current-program re-assertion",
         )
         require(not cf.send_calls, "changed current-program binding must prevent emission")
         require(
@@ -647,7 +652,7 @@ def test_public_packet_factory_seam_is_absent() -> None:
                 powered_session=fixture.powered,
                 watchdog_guard=fixture.watchdog,
                 supervisor_reader=fixture.supervisor_reader,
-                current_program_bridge=fixture.preflight_bridge,
+                current_program_preflight=fixture.current_program_preflight,
                 packet_factory=lambda request: Packet(request),
             ),
             TypeError,
@@ -674,7 +679,7 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             powered_session=fixture.powered,
             watchdog_guard=fixture.watchdog,
             supervisor_reader=fixture.supervisor_reader,
-            current_program_bridge=fixture.preflight_bridge,
+            current_program_preflight=fixture.current_program_preflight,
         )
         expect_error(
             lambda: capability_bridge.CurrentProgramPreflightEvidence(
@@ -688,11 +693,72 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             "only be minted",
         )
 
+        # Exact authority counterexample from the durable refutation: a caller
+        # can construct and self-answer a public #278 bridge. That bridge may
+        # mint non-authority #278 evidence, but it is not the private handle
+        # accepted by the physical effect transport.
+        forged_bridge = capability_bridge.ReadOnlyCapabilityHttpBridge(
+            FakeCapabilitySession(fixture.epoch),
+            token=unique("forged-capability-token"),
+            preflight_responder_token=unique("forged-responder-token"),
+        )
+        forged_done = Event()
+
+        def self_answer_forged_bridge() -> None:
+            challenge_id = forged_bridge._claim_current_program_challenge(
+                timeout_seconds=0.2
+            )
+            if challenge_id is None:
+                return
+            forged_bridge._submit_current_program_assertion(
+                {
+                    "challengeId": challenge_id,
+                    "ok": True,
+                    "profileId": fixture.binding.profile_id,
+                    "astBinding": fixture.binding.ast_binding,
+                    "connectionEpoch": fixture.binding.connection_epoch,
+                    "executionAuthority": False,
+                }
+            )
+            forged_done.set()
+
+        forged_thread = Thread(target=self_answer_forged_bridge, daemon=True)
+        forged_thread.start()
+        forged_evidence = forged_bridge.assert_current_program(
+            profile_id=fixture.binding.profile_id,
+            ast_binding=fixture.binding.ast_binding,
+            connection_epoch=fixture.binding.connection_epoch,
+            timeout_seconds=0.2,
+        )
+        forged_thread.join(timeout=1.0)
+        require(
+            forged_done.is_set()
+            and type(forged_evidence)
+            is capability_bridge.CurrentProgramPreflightEvidence,
+            "public bridge counterexample must actually mint self-answered evidence",
+        )
+        expect_error(
+            lambda: capability_bridge.CurrentProgramEffectPreflightHandle(
+                forged_bridge,
+                _mint_key=object(),
+            ),
+            capability_bridge.CapabilityBridgeError,
+            "trusted host integration",
+        )
+        forged_candidate = dict(kwargs)
+        forged_candidate["current_program_preflight"] = forged_bridge
+        expect_error(
+            lambda: transport.TrustedSetpointHlTransport(**forged_candidate),
+            transport.SetpointHlTransportError,
+            "current-program preflight handle",
+        )
+        forged_bridge._server.server_close()
+
         for key, value, pattern in (
             ("teacher_authorization", object(), "TeacherRunAuthorization"),
             ("watchdog_guard", object(), "watchdog guard"),
             ("supervisor_reader", object(), "FreshSupervisorStateReader"),
-            ("current_program_bridge", object(), "current-program host bridge"),
+            ("current_program_preflight", object(), "current-program preflight handle"),
         ):
             candidate = dict(kwargs)
             candidate[key] = value
@@ -792,7 +858,7 @@ def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> No
     ):
         require(forbidden not in source, "forbidden raw/retry/effect surface: " + forbidden)
     for required in (
-        "ReadOnlyCapabilityHttpBridge",
+        "CurrentProgramEffectPreflightHandle",
         "CurrentProgramPreflightEvidence",
         "TeacherRunAuthorization",
         "EstablishedPoweredSession",

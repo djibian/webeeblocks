@@ -21,11 +21,12 @@ method. Horizontal geometry is derived through integrated #256 from one fresh
 #260 yaw observation and duration through integrated #268. Turns use #256/#268
 directly. Takeoff/landing/vertical timing policy remains a separate prerequisite.
 
-The transport consumes the integrated #278 host-side current-program bridge
-directly. Before every effect it asks that concrete bridge to perform one fresh
-host-initiated #249 profile/AST/epoch assertion for the exact #267 run binding.
-The private-minted immutable #278 evidence is validated locally; no candidate-
-local preflight factory/guard or assertion-shaped callback is accepted.
+The transport consumes only a private-minted non-authority current-program
+handle produced by trusted host composition from the integrated #278 bridge.
+A raw/public ReadOnlyCapabilityHttpBridge or responder credential is not an
+effect-eligible input. Before every effect the handle performs one fresh
+host-initiated #249 profile/AST/epoch assertion for the exact #267 run binding,
+and the private-minted immutable #278 evidence is validated locally.
 
 Live SafeLink is re-checked immediately before entering #271. The SETPOINT_HL
 reply callback is installed before the pessimistic effect boundary is crossed.
@@ -187,7 +188,7 @@ class TrustedSetpointHlTransport:
         powered_session: powered_session_authority.EstablishedPoweredSession,
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
         supervisor_reader: supervisor_state.FreshSupervisorStateReader,
-        current_program_bridge: capability_bridge.ReadOnlyCapabilityHttpBridge,
+        current_program_preflight: capability_bridge.CurrentProgramEffectPreflightHandle,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if crazyflie is None:
@@ -227,9 +228,12 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "exact #257 FreshSupervisorStateReader is required"
             )
-        if type(current_program_bridge) is not capability_bridge.ReadOnlyCapabilityHttpBridge:
+        if (
+            type(current_program_preflight)
+            is not capability_bridge.CurrentProgramEffectPreflightHandle
+        ):
             raise SetpointHlTransportError(
-                "exact integrated #278 current-program host bridge is required"
+                "exact trusted-host current-program preflight handle is required"
             )
 
         self._cf = crazyflie
@@ -240,7 +244,7 @@ class TrustedSetpointHlTransport:
         self._powered_session = powered_session
         self._watchdog = watchdog_guard
         self._supervisor = supervisor_reader
-        self._current_program_bridge = current_program_bridge
+        self._current_program_preflight = current_program_preflight
         self._clock = _require_callable(clock, "monotonic clock")
 
         epoch = _nonempty_text(
@@ -260,14 +264,14 @@ class TrustedSetpointHlTransport:
                 "teacher run receipt belongs to a different connection epoch"
             )
         try:
-            bridge_epoch = current_program_bridge.session.read_connection_epoch()
+            preflight_epoch = current_program_preflight.bound_connection_epoch
         except Exception as exc:
             raise SetpointHlTransportError(
-                "integrated #278 current-program bridge has no live connection epoch"
+                "trusted-host current-program preflight handle has no live connection epoch"
             ) from exc
-        if bridge_epoch != epoch:
+        if preflight_epoch != epoch:
             raise SetpointHlTransportError(
-                "integrated #278 current-program bridge belongs to a different connection epoch"
+                "current-program preflight handle belongs to a different connection epoch"
             )
         if powered_session.connection_epoch != epoch:
             raise SetpointHlTransportError(
@@ -319,7 +323,7 @@ class TrustedSetpointHlTransport:
     ) -> teacher_run_authorization.PhysicalRunBinding:
         binding = self._teacher.binding
         try:
-            evidence = self._current_program_bridge.assert_current_program(
+            evidence = self._current_program_preflight.assert_current_program(
                 profile_id=binding.profile_id,
                 ast_binding=binding.ast_binding,
                 connection_epoch=binding.connection_epoch,

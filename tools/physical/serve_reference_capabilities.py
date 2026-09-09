@@ -27,6 +27,7 @@ class CapabilityBridgeError(RuntimeError):
 
 
 _EVIDENCE_MINT_KEY = object()
+_EFFECT_PREFLIGHT_MINT_KEY = object()
 
 
 def _require_text(value: object, name: str) -> str:
@@ -427,6 +428,68 @@ class ReadOnlyCapabilityHttpBridge:
             self._preflight_condition.notify_all()
         self._server.shutdown()
         self._server.server_close()
+
+
+class CurrentProgramEffectPreflightHandle:
+    """Opaque non-authority handle onto one integrated #278 production bridge.
+
+    Public ReadOnlyCapabilityHttpBridge construction and responder credentials
+    are deliberately insufficient to create an effect-eligible current-program
+    source. Trusted host composition mints this handle through the private
+    _bind_effect_current_program_bridge() seam and gives only the handle to the
+    physical effect consumer.
+    """
+
+    __slots__ = ("__bridge",)
+
+    def __init__(
+        self,
+        bridge: ReadOnlyCapabilityHttpBridge,
+        *,
+        _mint_key: object,
+    ) -> None:
+        if _mint_key is not _EFFECT_PREFLIGHT_MINT_KEY:
+            raise CapabilityBridgeError(
+                "effect current-program handle may only be minted by trusted host integration"
+            )
+        if type(bridge) is not ReadOnlyCapabilityHttpBridge:
+            raise CapabilityBridgeError(
+                "exact integrated current-program bridge is required"
+            )
+        self.__bridge = bridge
+
+    @property
+    def bound_connection_epoch(self) -> str:
+        return self.__bridge.session.read_connection_epoch()
+
+    def assert_current_program(
+        self,
+        *,
+        profile_id: str,
+        ast_binding: str,
+        connection_epoch: str,
+        timeout_seconds: float = 1.0,
+    ) -> CurrentProgramPreflightEvidence:
+        return self.__bridge.assert_current_program(
+            profile_id=profile_id,
+            ast_binding=ast_binding,
+            connection_epoch=connection_epoch,
+            timeout_seconds=timeout_seconds,
+        )
+
+
+def _bind_effect_current_program_bridge(
+    bridge: ReadOnlyCapabilityHttpBridge,
+) -> CurrentProgramEffectPreflightHandle:
+    """Trusted host composition seam; intentionally not a public factory API."""
+    if type(bridge) is not ReadOnlyCapabilityHttpBridge:
+        raise CapabilityBridgeError(
+            "exact integrated current-program bridge is required"
+        )
+    return CurrentProgramEffectPreflightHandle(
+        bridge,
+        _mint_key=_EFFECT_PREFLIGHT_MINT_KEY,
+    )
 
 
 def main() -> int:
