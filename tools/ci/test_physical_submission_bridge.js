@@ -46,7 +46,47 @@ function program(distance) {
   let capabilityReads = 0;
   let epochReads = 0;
   let epochReadHook = null;
+  let challengeWaiter = null;
+  const challengeQueue = [];
+  let assertionWaiter = null;
+  const assertionQueue = [];
   const token = 'unit-test-secret';
+  const responderToken = 'unit-test-preflight-responder-secret';
+
+  function response(payload, ok, status) {
+    return {
+      ok: ok === undefined ? true : ok,
+      status: status === undefined ? 200 : status,
+      async json() { return JSON.parse(JSON.stringify(payload)); }
+    };
+  }
+
+  function enqueueChallenge(challengeId) {
+    const payload = {challengeId: challengeId, executionAuthority: false};
+    if (challengeWaiter) {
+      const resolve = challengeWaiter;
+      challengeWaiter = null;
+      resolve(response(payload));
+    } else {
+      challengeQueue.push(payload);
+    }
+  }
+
+  function waitForAssertion() {
+    if (assertionQueue.length)
+      return Promise.resolve(assertionQueue.shift());
+    return new Promise(resolve => { assertionWaiter = resolve; });
+  }
+
+  function recordAssertion(payload) {
+    if (assertionWaiter) {
+      const resolve = assertionWaiter;
+      assertionWaiter = null;
+      resolve(payload);
+    } else {
+      assertionQueue.push(payload);
+    }
+  }
 
   function delayNextEpochRead() {
     let startedResolve;
@@ -61,11 +101,26 @@ function program(distance) {
   }
 
   async function fakeFetch(url, options) {
-    assert.strictEqual(options.method, 'GET');
+    if (url.endsWith('/v1/preflight-challenge')) {
+      assert.strictEqual(options.headers.Authorization, 'Bearer ' + responderToken);
+      assert.strictEqual(options.method, 'GET');
+      if (challengeQueue.length)
+        return response(challengeQueue.shift());
+      return new Promise(resolve => { challengeWaiter = resolve; });
+    }
+    if (url.endsWith('/v1/preflight-assertion')) {
+      assert.strictEqual(options.headers.Authorization, 'Bearer ' + responderToken);
+      assert.strictEqual(options.method, 'POST');
+      assert.strictEqual(options.headers['Content-Type'], 'application/json');
+      const payload = JSON.parse(options.body);
+      recordAssertion(payload);
+      return response({accepted: true, executionAuthority: false});
+    }
     assert.strictEqual(options.headers.Authorization, 'Bearer ' + token);
+    assert.strictEqual(options.method, 'GET');
     if (url.endsWith('/v1/capabilities')) {
       capabilityReads += 1;
-      return {ok: true, status: 200, async json() { return JSON.parse(JSON.stringify(descriptor)); }};
+      return response(descriptor);
     }
     if (url.endsWith('/v1/connection-epoch')) {
       epochReads += 1;
@@ -74,9 +129,9 @@ function program(distance) {
         epochReadHook = null;
         await hook();
       }
-      return {ok: true, status: 200, async json() { return {connectionEpoch: epoch}; }};
+      return response({connectionEpoch: epoch});
     }
-    return {ok: false, status: 404, async json() { return {error: 'not-found'}; }};
+    return response({error: 'not-found'}, false, 404);
   }
 
   const adapter = HttpAdapter.create({
@@ -84,7 +139,20 @@ function program(distance) {
     token: token,
     fetchImpl: fakeFetch
   });
-  assert.deepStrictEqual(Object.keys(adapter).sort(), ['readCapabilities', 'readConnectionEpoch']);
+  assert.deepStrictEqual(
+    Object.keys(adapter).sort(),
+    ['readCapabilities', 'readConnectionEpoch']
+  );
+  assert.strictEqual(
+    typeof adapter.readCurrentProgramChallenge,
+    'undefined',
+    'ordinary capability bearer must not expose challenge claim'
+  );
+  assert.strictEqual(
+    typeof adapter.submitCurrentProgramAssertion,
+    'undefined',
+    'ordinary capability bearer must not expose assertion submit'
+  );
   assert.strictEqual(Object.isFrozen(adapter), true);
 
   const bridge = SubmissionBridge.create(profile, adapter, () => JSON.parse(JSON.stringify(currentAst)));
@@ -171,12 +239,76 @@ function program(distance) {
 
   epoch = 'connection-product';
   currentAst = program(0.2);
-  productBridge.configure({baseUrl: 'http://127.0.0.1:8765', token: token, fetchImpl: fakeFetch});
+  productBridge.configure({
+    baseUrl: 'http://127.0.0.1:8765',
+    token: token,
+    preflightResponderToken: responderToken,
+    fetchImpl: fakeFetch
+  });
   const productPreflight = await productBridge.preflightCurrentProgram();
   assert.strictEqual(productPreflight.connectionEpoch, 'connection-product');
   const productAssertion = await productBridge.assertCurrentProgram();
   assert.strictEqual(productAssertion.executionAuthority, false);
   assert.strictEqual(productAssertion.preflight.connectionEpoch, 'connection-product');
+
+
+  // Production handoff answers a host-created challenge only by running the real
+  // exact-current #249 re-assertion; the challenge does not carry expected data.
+  const exactAssertionPromise = waitForAssertion();
+  enqueueChallenge('challenge-exact');
+  const exactAssertion = await exactAssertionPromise;
+  assert.strictEqual(exactAssertion.challengeId, 'challenge-exact');
+  assert.strictEqual(exactAssertion.ok, true);
+  assert.strictEqual(exactAssertion.executionAuthority, false);
+  assert.strictEqual(exactAssertion.profileId, global.runtimeProfile.id);
+  assert.strictEqual(exactAssertion.astBinding, productPreflight.astBinding);
+  assert.strictEqual(exactAssertion.connectionEpoch, 'connection-product');
+
+  // A changed AST cannot be turned into a positive host assertion.
+  currentAst = program(0.3);
+  const astFailurePromise = waitForAssertion();
+  enqueueChallenge('challenge-ast-change');
+  const astFailure = await astFailurePromise;
+  assert.strictEqual(astFailure.challengeId, 'challenge-ast-change');
+  assert.strictEqual(astFailure.ok, false);
+  assert.strictEqual(astFailure.executionAuthority, false);
+  currentAst = program(0.2);
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /physical preflight is required/,
+    'challenge-time AST mismatch must invalidate the old #249 binding'
+  );
+  await productBridge.preflightCurrentProgram();
+
+  // A changed activity profile likewise fails at the real #249 runtime boundary.
+  const handoffProfile = global.runtimeProfile;
+  global.runtimeProfile = Profiles.resolveById(
+    Activities.DOCUMENT,
+    'progression-precise-movement-v1',
+    Activities.BLOCK_CATALOG
+  );
+  const profileFailurePromise = waitForAssertion();
+  enqueueChallenge('challenge-profile-change');
+  const profileFailure = await profileFailurePromise;
+  assert.strictEqual(profileFailure.ok, false);
+  assert.strictEqual(profileFailure.executionAuthority, false);
+  global.runtimeProfile = handoffProfile;
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /physical preflight is required/,
+    'challenge-time profile mismatch must invalidate the old #249 binding'
+  );
+  await productBridge.preflightCurrentProgram();
+
+  // Reconnect/epoch drift cannot produce a positive assertion for the old session.
+  epoch = 'connection-product-changed';
+  const epochFailurePromise = waitForAssertion();
+  enqueueChallenge('challenge-epoch-change');
+  const epochFailure = await epochFailurePromise;
+  assert.strictEqual(epochFailure.ok, false);
+  assert.strictEqual(epochFailure.executionAuthority, false);
+  epoch = 'connection-product';
+  await productBridge.preflightCurrentProgram();
 
   const workspaceDelay = delayNextEpochRead();
   const pendingWorkspaceAssertion = productBridge.assertCurrentProgram();
@@ -227,7 +359,7 @@ function program(distance) {
   );
   productBridge.clear();
 
-  console.log('PASS non-authority physical submission bridge binds the live student AST to one Crazyradio connection epoch');
+  console.log('PASS non-authority physical submission bridge provides fresh host-initiated exact-current #249 evidence');
 })().catch(error => {
   console.error(error);
   process.exit(1);
