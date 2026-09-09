@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const HttpAdapter = require('../../plugins/robot_windows/blockly/webeeblocks/physical_capability_http_adapter.js');
 const SubmissionBridge = require('../../plugins/robot_windows/blockly/webeeblocks/physical_submission_bridge.js');
 const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
@@ -79,10 +81,13 @@ function program(distance) {
   assert.strictEqual(capabilityReads, 1);
   assert.strictEqual(epochReads, 2, 'preflight must bracket the descriptor with one stable epoch');
 
+  result.connectionEpoch = 'caller-tampered-epoch';
   const asserted = await bridge.assertCurrentWorkspace({});
   assert.strictEqual(asserted.compatible, true);
   assert.strictEqual(asserted.executionAuthority, false);
-  assert.strictEqual(asserted.preflight.astBinding, result.astBinding);
+  assert.notStrictEqual(asserted.preflight, result, 'internal exact-session ticket must not alias caller-owned result');
+  assert.strictEqual(asserted.preflight.connectionEpoch, 'connection-1');
+  assert.strictEqual(Object.isFrozen(asserted.preflight), true);
   assert.strictEqual(epochReads, 3, 'pre-effect reassertion must re-read the current epoch');
 
   currentAst = program(0.3);
@@ -117,7 +122,47 @@ function program(distance) {
     /bridge read failed \(401\): unauthorized/
   );
 
-  console.log('PASS non-authority physical submission bridge preserves exact AST and live connection epoch');
+  const productHtml = fs.readFileSync(path.join(__dirname, '../../plugins/robot_windows/blockly_v2/blockly_v2.html'), 'utf8');
+  for (const script of [
+    'physical_capability_contract.js',
+    'physical_capability_http_adapter.js',
+    'physical_submission_bridge.js',
+    'physical_preflight_runtime.js'
+  ])
+    assert(productHtml.includes(script), 'student runtime must load ' + script);
+  assert(productHtml.indexOf('main.js') < productHtml.indexOf('physical_preflight_runtime.js'),
+    'physical runtime bridge must bind after main student runtime globals exist');
+
+  global.WebeeBlocksPhysicalCapabilityHttpAdapter = HttpAdapter;
+  global.WebeeBlocksPhysicalSubmissionBridge = SubmissionBridge;
+  global.WebeeBlocksSemanticAst = {compileWorkspace: () => JSON.parse(JSON.stringify(currentAst))};
+  global.runtimeProfile = profile;
+  global.workspace = {};
+  delete require.cache[require.resolve('../../plugins/robot_windows/blockly_v2/physical_preflight_runtime.js')];
+  require('../../plugins/robot_windows/blockly_v2/physical_preflight_runtime.js');
+  const productBridge = global.WebeeBlocksPhysicalPreflight;
+  assert.strictEqual(productBridge.executionAuthority, false);
+  for (const forbidden of ['takeoff','land','move','vertical','turn','setLight','arm','setpoint','sendSetpoint','thrust'])
+    assert.strictEqual(typeof productBridge[forbidden], 'undefined', 'product bridge exposes authority method: ' + forbidden);
+
+  epoch = 'connection-product';
+  currentAst = program(0.2);
+  productBridge.configure({baseUrl: 'http://127.0.0.1:8765', token: token, fetchImpl: fakeFetch});
+  const productPreflight = await productBridge.preflightCurrentProgram();
+  assert.strictEqual(productPreflight.connectionEpoch, 'connection-product');
+  const productAssertion = await productBridge.assertCurrentProgram();
+  assert.strictEqual(productAssertion.executionAuthority, false);
+  assert.strictEqual(productAssertion.preflight.connectionEpoch, 'connection-product');
+
+  currentAst = program(0.4);
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /workspace changed since physical preflight/,
+    'live student workspace mutation must invalidate production physical binding'
+  );
+  productBridge.clear();
+
+  console.log('PASS non-authority physical submission bridge binds the live student AST to one Crazyradio connection epoch');
 })().catch(error => {
   console.error(error);
   process.exit(1);
