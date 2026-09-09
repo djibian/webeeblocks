@@ -327,9 +327,11 @@ class TrustedSetpointHlTransport:
             )
         return binding
 
-    def _assert_current_authority(self) -> None:
-        """Re-establish mutable run authority/evidence at one effect boundary."""
-        binding = self._read_current_binding()
+    def _assert_binding_authority(
+        self,
+        binding: teacher_run_authorization.PhysicalRunBinding,
+    ) -> None:
+        """Re-check mutable authority without performing the slower #249 round trip."""
         self._teacher.assert_effect_binding(
             profile_id=binding.profile_id,
             ast_binding=binding.ast_binding,
@@ -351,6 +353,11 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "ordinary GO_TO_2 motion requires fresh established flying state"
             )
+
+    def _assert_current_authority(self) -> None:
+        """Fresh #249 assertion followed by the exact mutable run authority."""
+        binding = self._read_current_binding()
+        self._assert_binding_authority(binding)
 
     def _read_fresh_finished_flying(self) -> object:
         """Require final fresh #257 no-fault flight with no active trajectory."""
@@ -558,10 +565,13 @@ class TrustedSetpointHlTransport:
             self._validate_packet(packet, request)
 
             # The fresh host-initiated #249 round trip may block. Keep it before
-            # the final #257 observation so supervisor evidence is adjacent to
-            # SafeLink/#271/emission instead of ageing during preflight.
-            self._assert_current_authority()
+            # the final #257 observation so supervisor evidence is not aged by
+            # preflight. Then re-check the mutable teacher/watchdog authority
+            # once more after that supervisor read, immediately before SafeLink.
+            final_binding = self._read_current_binding()
+            self._assert_binding_authority(final_binding)
             self._read_fresh_finished_flying()
+            self._assert_binding_authority(final_binding)
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
