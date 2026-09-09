@@ -45,9 +45,11 @@ now starts after those validated pre-effect/safety observations: a separately
 authorized physical effect consumer plus explicit teacher authorization before any
 flight-capable command/effect, firmware-independent arming semantics, a causally
 activated and continuously maintained emergency-stop watchdog/liveness guard,
-controlled normal land/disarm behavior and proof of safe real execution continuity. Stock brushed
-Crazyflie 2.1 auto-arms when pre-flight checks pass, so teacher authorization
-must not be modeled as merely approving a host arming packet. Do not invent
+controlled normal landing/completion behavior and proof of safe real execution
+continuity. Stock brushed Crazyflie 2.1 auto-arms when pre-flight checks pass and
+can return to ReadyToFly after a normal landing/reset cycle, so post-landing
+disarm is not a persistent safety gate and teacher authorization must not be
+modeled as merely approving a host arming packet. Do not invent
 additional simulation vocabulary
 merely to keep #157 active. A new simulation slice needs a concrete pedagogical
 need or contradictory evidence.
@@ -254,9 +256,10 @@ Runtime/controller change is justified by #236 alone.
   a host arming request. Fresh supervisor observation itself is now established by
   #257; the remaining physical path must consume it from the future authority
   layer, establish an independent emergency-stop watchdog/liveness guard with a
-  proven activation fence and explicit powered-session lifecycle, plus controlled
-  normal land/disarm behavior before real student execution continuity can be
-  claimed
+  proven activation fence and explicit powered-session lifecycle, plus a
+  controlled high-level landing/completion proof from fresh #257 evidence. On
+  stock auto-arming firmware, post-landing disarm is not a persistent lockout;
+  later flight-capable effects still require a new teacher authorization
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -315,7 +318,9 @@ Runtime/controller change is justified by #236 alone.
 - depends: separately authorized physical effect consumption gated by explicit
   teacher authorization before any flight-capable command/effect, plus an
   independent emergency-stop watchdog/liveness guard, controlled normal
-  land/disarm behavior and proof of physical execution continuity. The pinned
+  landing/completion behavior and proof of physical execution continuity. Stock
+  auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
+  so a host disarm request is not a durable post-mission lockout. The pinned
   watchdog has no disable/reset command after first activation, so its trusted
   keepalive lifecycle must span the reusable powered physical session; simply
   stopping keepalives after a normal land would eventually enter the latching
@@ -342,7 +347,10 @@ Runtime/controller change is justified by #236 alone.
   live capability and safety gates are independently established. Keep immediate
   emergency stop and high-level commander stop exceptional because both can cut
   motors in flight; normal completion/voluntary abort needs a controlled
-  high-level land then disarm path
+  high-level land, fresh #257 evidence that flight ended without a blocking
+  fault, and continued watchdog/session handling. A later flight-capable effect
+  still requires fresh teacher authorization even if stock auto-arming returns
+  the vehicle to ReadyToFly
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
