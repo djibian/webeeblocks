@@ -35,9 +35,8 @@ completion evidence must establish flying again before another motion effect.
 Timeout, disconnect, malformed reply, send failure or epoch change is ambiguous
 and remains fail-closed.
 
-packet_factory exists only as a deterministic test seam. The returned packet is
-revalidated byte-for-byte and for exact SETPOINT_HL port before the effect
-boundary, so it cannot substitute another physical command.
+The physical packet is constructed internally from the already-validated local
+request bytes. No caller-supplied packet object crosses the effect boundary.
 """
 
 from __future__ import annotations
@@ -180,7 +179,6 @@ class TrustedSetpointHlTransport:
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
         supervisor_reader: supervisor_state.FreshSupervisorStateReader,
         current_preflight_guard: current_program_preflight.LiveCurrentProgramPreflightGuard,
-        packet_factory: Callable[[bytes], object] | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if crazyflie is None:
@@ -234,10 +232,6 @@ class TrustedSetpointHlTransport:
         self._watchdog = watchdog_guard
         self._supervisor = supervisor_reader
         self._current_preflight = current_preflight_guard
-        self._packet_factory = _require_callable(
-            packet_factory or _default_packet_factory,
-            "SETPOINT_HL packet factory",
-        )
         self._clock = _require_callable(clock, "monotonic clock")
 
         epoch = _nonempty_text(
@@ -444,7 +438,7 @@ class TrustedSetpointHlTransport:
             request = _validate_request(builder())
             # Test seam / cflib packet construction is completed and verified
             # before the final fresh safety/authority observations.
-            packet = self._packet_factory(request)
+            packet = _default_packet_factory(request)
             self._validate_packet(packet, request)
 
             # Request construction may block for fresh yaw. Re-establish fresh

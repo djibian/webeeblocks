@@ -58,6 +58,11 @@ class Packet:
         self.data = bytearray(data)
 
 
+# Deterministic test-only replacement of the private internal cflib constructor.
+# Production callers have no constructor parameter capable of supplying a packet.
+transport._default_packet_factory = lambda request: Packet(request)
+
+
 class Platform:
     def get_protocol_version(self):
         return 12
@@ -218,8 +223,6 @@ class Fixture:
         self,
         label: str,
         cf: FakeCrazyflie,
-        *,
-        packet_factory=None,
     ) -> None:
         self.cf = cf
         self.epoch = Epoch(unique(label))
@@ -255,7 +258,6 @@ class Fixture:
         self.current_preflight_guard = self.current_preflight_factory.bind(self.binding)
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
-        factory = packet_factory or (lambda request: Packet(request))
         self.transport = transport.TrustedSetpointHlTransport(
             crazyflie=cf,
             execution_domain=self.domain,
@@ -266,7 +268,6 @@ class Fixture:
             watchdog_guard=self.watchdog,
             supervisor_reader=self.supervisor_reader,
             current_preflight_guard=self.current_preflight_guard,
-            packet_factory=factory,
         )
 
     def close(self) -> None:
@@ -443,27 +444,32 @@ def test_watchdog_terminal_during_request_construction_blocks_send() -> None:
         fixture.close()
 
 
-def test_packet_factory_cannot_substitute_port_or_data() -> None:
-    cases = (
-        ("port", lambda request: Packet(request, port=0x07), "non-SETPOINT_HL"),
-        ("data", lambda request: Packet(request[:-1] + b"\x00"), "substituted"),
-    )
-    for label, factory, pattern in cases:
-        cf = FakeCrazyflie(reply_status=0)
-        fixture = Fixture("packet-" + label, cf, packet_factory=factory)
-        try:
-            expect_error(
-                lambda: fixture.transport.send_turn(
-                    angle_deg=20,
-                    timing_policy=timing.HighLevelTimingPolicy(),
-                ),
-                transport.SetpointHlTransportError,
-                pattern,
-            )
-            require(not cf.send_calls, "packet-factory substitution must never reach send_packet")
-            require(fixture.domain.phase == execution.FLYING, "invalid packet is pre-effect")
-        finally:
-            fixture.close()
+def test_public_packet_factory_seam_is_absent() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("packet-seam", cf)
+    try:
+        expect_error(
+            lambda: transport.TrustedSetpointHlTransport(
+                crazyflie=cf,
+                execution_domain=fixture.domain,
+                acknowledgement_domain=fixture.ack,
+                safelink_guard=fixture.safelink,
+                teacher_authorization=fixture.authorization,
+                powered_session=fixture.powered,
+                watchdog_guard=fixture.watchdog,
+                supervisor_reader=fixture.supervisor_reader,
+                current_preflight_guard=fixture.current_preflight_guard,
+                packet_factory=lambda request: Packet(request),
+            ),
+            TypeError,
+            "packet_factory",
+        )
+        require(
+            not cf.send_calls,
+            "caller-supplied packet objects must not be accepted by the effect surface",
+        )
+    finally:
+        fixture.close()
 
 
 def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
@@ -480,7 +486,6 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             watchdog_guard=fixture.watchdog,
             supervisor_reader=fixture.supervisor_reader,
             current_preflight_guard=fixture.current_preflight_guard,
-            packet_factory=lambda request: Packet(request),
         )
         for key, value, pattern in (
             ("teacher_authorization", object(), "TeacherRunAuthorization"),
@@ -572,6 +577,8 @@ def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> No
     )
     for forbidden in (
         "def send_once(",
+        "packet_factory:",
+        "self._packet_factory",
         "_COMMAND_TAKEOFF",
         "_COMMAND_LAND",
         "_COMMAND_STOP",
@@ -609,7 +616,7 @@ def main() -> int:
     test_fresh_supervisor_fault_or_not_flying_blocks_send()
     test_teacher_invalidation_during_request_construction_blocks_send()
     test_watchdog_terminal_during_request_construction_blocks_send()
-    test_packet_factory_cannot_substitute_port_or_data()
+    test_public_packet_factory_seam_is_absent()
     test_concrete_authority_and_exact_cf_bindings_are_required()
     test_out_of_policy_commands_have_no_raw_effect_surface()
     test_timeout_send_failure_and_wrong_reply_are_ambiguous_without_retry()
