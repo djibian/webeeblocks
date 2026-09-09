@@ -13,7 +13,6 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import secrets
-from typing import Callable
 
 from probe_reference_hardware import ProbeError, ReadOnlyCapabilitySession
 
@@ -31,8 +30,8 @@ class ReadOnlyCapabilityHttpBridge:
         host: str = "127.0.0.1",
         port: int = 0,
     ) -> None:
-        if host not in {"127.0.0.1", "::1", "localhost"}:
-            raise CapabilityBridgeError("capability bridge must bind to loopback")
+        if host not in {"127.0.0.1", "localhost"}:
+            raise CapabilityBridgeError("capability bridge must bind to IPv4 loopback")
         self.session = session
         self.token = token or secrets.token_urlsafe(32)
         if not isinstance(self.token, str) or not self.token.strip():
@@ -46,17 +45,32 @@ class ReadOnlyCapabilityHttpBridge:
             def log_message(self, _format: str, *_args) -> None:
                 return
 
+            def _cors(self) -> None:
+                # The service is loopback-only and every data read still requires
+                # the unguessable bearer capability. No cookies/credentials are used.
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Authorization, Cache-Control")
+
             def _json(self, status: int, payload: object) -> None:
                 data = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "no-store")
+                self._cors()
                 self.end_headers()
                 self.wfile.write(data)
 
             def _authorized(self) -> bool:
                 return self.headers.get("Authorization") == f"Bearer {bridge.token}"
+
+            def do_OPTIONS(self) -> None:  # noqa: N802 - browser CORS preflight only
+                self.send_response(204)
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self._cors()
+                self.end_headers()
 
             def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
                 if not self._authorized():
