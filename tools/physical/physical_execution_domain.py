@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Process-local reset/effect exclusion for the trusted Crazyflie host path.
 
-This module is deliberately a no-effect prerequisite. It owns only the
-process-local lifecycle needed to compose the already established physical
-safety primitives without allowing reset and flight-capable command emission to
-race.
+This module is deliberately a no-effect prerequisite. It owns one
+process-wide lifecycle, shared by every `PhysicalExecutionDomain` handle, needed
+to compose the already established physical safety primitives without allowing
+reset and flight-capable command emission to race through independently
+constructed handles.
 
 A fresh process starts in ``recovery-required``. It may not emit a physical
 effect until the caller has completed the trusted #266 reset-establishment
@@ -53,41 +54,48 @@ def _require_callable(value: object, name: str) -> Callable:
     return value
 
 
-class PhysicalExecutionDomain:
-    """Serialize trusted reset establishment and flight-capable effect boundaries."""
+class _ProcessExecutionState:
+    """Single trusted-host lifecycle shared by every handle in this process."""
 
     def __init__(self) -> None:
-        self._lock = RLock()
-        self._phase = RECOVERY_REQUIRED
-        self._active_section: str | None = None
-        self._section_owner: int | None = None
+        self.lock = RLock()
+        self.phase = RECOVERY_REQUIRED
+        self.active_section: str | None = None
+        self.section_owner: int | None = None
+
+
+_PROCESS_STATE = _ProcessExecutionState()
+
+
+class PhysicalExecutionDomain:
+    """Handle onto the one process-wide trusted physical execution domain."""
 
     @property
     def phase(self) -> str:
-        with self._lock:
-            return self._phase
+        with _PROCESS_STATE.lock:
+            return _PROCESS_STATE.phase
 
     def _enter_section(self, name: str) -> None:
-        self._lock.acquire()
-        if self._active_section is not None:
-            self._lock.release()
+        _PROCESS_STATE.lock.acquire()
+        if _PROCESS_STATE.active_section is not None:
+            _PROCESS_STATE.lock.release()
             raise PhysicalExecutionDomainError(
                 "physical execution exclusion is already active"
             )
-        self._active_section = name
-        self._section_owner = get_ident()
+        _PROCESS_STATE.active_section = name
+        _PROCESS_STATE.section_owner = get_ident()
 
     def _leave_section(self, expected: str) -> None:
         if (
-            self._active_section != expected
-            or self._section_owner != get_ident()
+            _PROCESS_STATE.active_section != expected
+            or _PROCESS_STATE.section_owner != get_ident()
         ):
             raise PhysicalExecutionDomainError(
                 "physical execution exclusion ownership was lost"
             )
-        self._active_section = None
-        self._section_owner = None
-        self._lock.release()
+        _PROCESS_STATE.active_section = None
+        _PROCESS_STATE.section_owner = None
+        _PROCESS_STATE.lock.release()
 
     def run_reset_establishment(self, establish_reset: Callable[[], object]) -> object:
         """Run the complete trusted #266 reset-establishment path under exclusion.
@@ -103,14 +111,14 @@ class PhysicalExecutionDomain:
         )
         self._enter_section("reset")
         try:
-            if self._phase not in (RECOVERY_REQUIRED, INACTIVE):
+            if _PROCESS_STATE.phase not in (RECOVERY_REQUIRED, INACTIVE):
                 raise PhysicalExecutionDomainError(
                     "STM+deck reset is blocked by current physical execution state"
                 )
             # Invalidate ordinary effect eligibility before invoking any reset
             # collaborator. #266 performs its own evidence invalidation and
             # fresh flight-inactive check inside this same exclusion.
-            self._phase = RECOVERY_REQUIRED
+            _PROCESS_STATE.phase = RECOVERY_REQUIRED
             try:
                 result = transaction()
             except Exception as exc:
@@ -121,7 +129,7 @@ class PhysicalExecutionDomain:
                 raise PhysicalExecutionDomainError(
                     "trusted reset-establishment returned no established session"
                 )
-            self._phase = INACTIVE
+            _PROCESS_STATE.phase = INACTIVE
             return result
         finally:
             self._leave_section("reset")
@@ -153,11 +161,11 @@ class PhysicalExecutionDomain:
     ) -> str:
         self._enter_section("effect")
         try:
-            if self._phase not in _STABLE_EFFECT_PHASES:
+            if _PROCESS_STATE.phase not in _STABLE_EFFECT_PHASES:
                 raise PhysicalExecutionDomainError(
                     "physical effect is not eligible in current execution state"
                 )
-            prior_phase = self._phase
+            prior_phase = _PROCESS_STATE.phase
             for check in checks:
                 check()
             return prior_phase
@@ -167,16 +175,16 @@ class PhysicalExecutionDomain:
 
     def _mark_effect_emitted(self) -> None:
         if (
-            self._active_section != "effect"
-            or self._section_owner != get_ident()
+            _PROCESS_STATE.active_section != "effect"
+            or _PROCESS_STATE.section_owner != get_ident()
         ):
             raise PhysicalExecutionDomainError(
                 "physical effect emission is outside the execution exclusion"
             )
-        self._phase = EFFECT_UNRESOLVED
+        _PROCESS_STATE.phase = EFFECT_UNRESOLVED
 
     def _mark_effect_rejected(self, prior_phase: str) -> None:
-        if self._phase != EFFECT_UNRESOLVED:
+        if _PROCESS_STATE.phase != EFFECT_UNRESOLVED:
             raise PhysicalExecutionDomainError(
                 "definitive rejection requires one emitted unresolved effect"
             )
@@ -184,14 +192,14 @@ class PhysicalExecutionDomain:
             raise PhysicalExecutionDomainError(
                 "prior physical execution phase is invalid"
             )
-        self._phase = prior_phase
+        _PROCESS_STATE.phase = prior_phase
 
     def _mark_effect_accepted(self) -> None:
-        if self._phase != EFFECT_UNRESOLVED:
+        if _PROCESS_STATE.phase != EFFECT_UNRESOLVED:
             raise PhysicalExecutionDomainError(
                 "positive acknowledgement requires one emitted unresolved effect"
             )
-        self._phase = AWAITING_COMPLETION
+        _PROCESS_STATE.phase = AWAITING_COMPLETION
 
     def _close_effect(
         self,
@@ -206,9 +214,9 @@ class PhysicalExecutionDomain:
                 # boundary without a definitive application result is
                 # consequential uncertainty. Only #266 recovery may re-open
                 # ordinary effect eligibility.
-                self._phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.phase = RECOVERY_REQUIRED
             elif not emitted and prior_phase in _STABLE_EFFECT_PHASES:
-                self._phase = prior_phase
+                _PROCESS_STATE.phase = prior_phase
         finally:
             self._leave_section("effect")
 
@@ -231,23 +239,23 @@ class PhysicalExecutionDomain:
         proof = _require_callable(prove_completion, "fresh effect-completion proof")
         self._enter_section("completion")
         try:
-            if self._phase != AWAITING_COMPLETION:
+            if _PROCESS_STATE.phase != AWAITING_COMPLETION:
                 raise PhysicalExecutionDomainError(
                     "no positively acknowledged effect is awaiting completion"
                 )
             try:
                 proven = proof()
             except Exception as exc:
-                self._phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.phase = RECOVERY_REQUIRED
                 raise PhysicalExecutionDomainError(
                     "fresh effect-completion proof failed or is ambiguous"
                 ) from exc
             if proven is not True:
-                self._phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.phase = RECOVERY_REQUIRED
                 raise PhysicalExecutionDomainError(
                     "fresh effect completion was not positively established"
                 )
-            self._phase = next_phase
+            _PROCESS_STATE.phase = next_phase
         finally:
             self._leave_section("completion")
 
