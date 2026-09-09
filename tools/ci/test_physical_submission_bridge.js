@@ -51,6 +51,7 @@ function program(distance) {
   let assertionWaiter = null;
   const assertionQueue = [];
   const token = 'unit-test-secret';
+  const responderToken = 'unit-test-preflight-responder-secret';
 
   function response(payload, ok, status) {
     return {
@@ -100,20 +101,22 @@ function program(distance) {
   }
 
   async function fakeFetch(url, options) {
-    assert.strictEqual(options.headers.Authorization, 'Bearer ' + token);
     if (url.endsWith('/v1/preflight-challenge')) {
+      assert.strictEqual(options.headers.Authorization, 'Bearer ' + responderToken);
       assert.strictEqual(options.method, 'GET');
       if (challengeQueue.length)
         return response(challengeQueue.shift());
       return new Promise(resolve => { challengeWaiter = resolve; });
     }
     if (url.endsWith('/v1/preflight-assertion')) {
+      assert.strictEqual(options.headers.Authorization, 'Bearer ' + responderToken);
       assert.strictEqual(options.method, 'POST');
       assert.strictEqual(options.headers['Content-Type'], 'application/json');
       const payload = JSON.parse(options.body);
       recordAssertion(payload);
       return response({accepted: true, executionAuthority: false});
     }
+    assert.strictEqual(options.headers.Authorization, 'Bearer ' + token);
     assert.strictEqual(options.method, 'GET');
     if (url.endsWith('/v1/capabilities')) {
       capabilityReads += 1;
@@ -138,7 +141,17 @@ function program(distance) {
   });
   assert.deepStrictEqual(
     Object.keys(adapter).sort(),
-    ['readCapabilities', 'readConnectionEpoch', 'readCurrentProgramChallenge', 'submitCurrentProgramAssertion']
+    ['readCapabilities', 'readConnectionEpoch']
+  );
+  assert.strictEqual(
+    typeof adapter.readCurrentProgramChallenge,
+    'undefined',
+    'ordinary capability bearer must not expose challenge claim'
+  );
+  assert.strictEqual(
+    typeof adapter.submitCurrentProgramAssertion,
+    'undefined',
+    'ordinary capability bearer must not expose assertion submit'
   );
   assert.strictEqual(Object.isFrozen(adapter), true);
 
@@ -198,7 +211,7 @@ function program(distance) {
   });
   await assert.rejects(
     () => failingAdapter.readCapabilities(),
-    /bridge request failed \(401\): unauthorized/
+    /bridge read failed \(401\): unauthorized/
   );
 
   const productHtml = fs.readFileSync(path.join(__dirname, '../../plugins/robot_windows/blockly_v2/blockly_v2.html'), 'utf8');
@@ -226,7 +239,12 @@ function program(distance) {
 
   epoch = 'connection-product';
   currentAst = program(0.2);
-  productBridge.configure({baseUrl: 'http://127.0.0.1:8765', token: token, fetchImpl: fakeFetch});
+  productBridge.configure({
+    baseUrl: 'http://127.0.0.1:8765',
+    token: token,
+    preflightResponderToken: responderToken,
+    fetchImpl: fakeFetch
+  });
   const productPreflight = await productBridge.preflightCurrentProgram();
   assert.strictEqual(productPreflight.connectionEpoch, 'connection-product');
   const productAssertion = await productBridge.assertCurrentProgram();
