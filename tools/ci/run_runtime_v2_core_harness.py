@@ -49,6 +49,10 @@ def main():
     if physical_probe_test.returncode:
         print('FAIL read-only Crazyradio capability evidence',file=sys.stderr);print(physical_probe_test.stdout,file=sys.stderr);print(physical_probe_test.stderr,file=sys.stderr);return physical_probe_test.returncode
     print(physical_probe_test.stdout.strip())
+    physical_supervisor_test=subprocess.run([sys.executable,'tools/ci/test_physical_supervisor_state.py'],text=True,capture_output=True)
+    if physical_supervisor_test.returncode:
+        print('FAIL connection-epoch physical supervisor freshness',file=sys.stderr);print(physical_supervisor_test.stdout,file=sys.stderr);print(physical_supervisor_test.stderr,file=sys.stderr);return physical_supervisor_test.returncode
+    print(physical_supervisor_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
