@@ -40,9 +40,13 @@ flight-capable command/effect, firmware-independent arming semantics, an
 independent emergency-stop watchdog/liveness guard, controlled normal
 land/disarm behavior and proof of safe real execution continuity. Stock brushed
 Crazyflie 2.1 auto-arms when pre-flight checks pass, so teacher authorization
-must not be modeled as merely approving a host arming packet. Do not invent
-additional simulation vocabulary
-merely to keep #157 active. A new simulation slice needs a concrete pedagogical
+must not be modeled as merely approving a host arming packet. For the first
+physical effect consumer, preserve the existing generic interpreter semantics
+through direct high-level-command primitives: rotate body-relative horizontal
+movement into world-frame deltas from the accepted yaw, keep turn relative in yaw
+and vertical movement relative in world Z, and bound command completion by
+supervisor state rather than host-side sleeps. Do not invent additional simulation
+vocabulary merely to keep #157 active. A new simulation slice needs a concrete pedagogical
 need or contradictory evidence.
 
 Research / later work:
@@ -239,7 +243,10 @@ Runtime/controller change is justified by #236 alone.
   authorization must gate every flight-capable command/effect rather than merely
   a host arming request. The physical path must also establish an independent
   emergency-stop watchdog/liveness guard plus controlled normal land/disarm
-  behavior before real student execution continuity can be claimed
+  behavior before real student execution continuity can be claimed. The selected
+  command substrate is direct high-level-command primitives behind the shared
+  interpreter, with the minimum body-to-world transform needed to preserve the
+  existing movement semantics and supervisor-observed trajectory completion
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -299,10 +306,14 @@ Runtime/controller change is justified by #236 alone.
   auto-arms when pre-flight checks pass
 - proof direction: preserve backend-neutral AST continuity while adding only the
   minimum teacher-authorized physical execution authority after the live
-  capability and safety gates are independently established. Keep immediate
-  emergency stop and high-level commander stop exceptional because both can cut
-  motors in flight; normal completion/voluntary abort needs a controlled
-  land/disarm path
+  capability and safety gates are independently established. Reuse the shared
+  interpreter's generic actions and drive direct high-level-command primitives:
+  transform body-relative horizontal movement into world-frame deltas from the
+  accepted yaw, keep relative yaw/world-Z semantics, and establish completion
+  from supervisor trajectory state plus timeout/locked/crashed checks rather than
+  host sleeps. Keep immediate emergency stop and high-level commander stop
+  exceptional because both can cut motors in flight; normal completion/voluntary
+  abort needs a controlled land/disarm path
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
