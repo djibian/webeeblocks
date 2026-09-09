@@ -11,7 +11,8 @@ The future trusted authority path is expected to:
 3. await completion here while the independent watchdog/session remains live.
 
 Completion is accepted only after the same observer has first established
-physical flight, and a later fresh supervisor state reports:
+physical flight under active high-level control, and a later fresh supervisor
+state reports:
 - no blocking fault;
 - physical flight ended;
 - high-level control no longer actively flying;
@@ -172,7 +173,7 @@ class ControlledLandingCompletionObserver:
         *,
         timeout_seconds: float = 0.2,
     ) -> PreLandingFlightEvidence:
-        """Establish fresh same-epoch evidence that physical flight is active."""
+        """Establish fresh same-epoch evidence of flight under high-level control."""
         timeout = _positive_finite(
             timeout_seconds,
             "pre-land supervisor read timeout",
@@ -182,6 +183,10 @@ class ControlledLandingCompletionObserver:
         if not state.is_flying:
             raise LandingCompletionError(
                 "pre-land baseline did not observe active physical flight"
+            )
+        if not state.hl_control_active:
+            raise LandingCompletionError(
+                "pre-land baseline did not observe active high-level control"
             )
         return PreLandingFlightEvidence(
             connection_epoch=self._bound_connection_epoch,

@@ -155,6 +155,18 @@ def test_stock_auto_arm_after_landing_is_not_rejected() -> None:
     require(result.supervisor_state.is_auto_armed, "auto-arm bit is preserved")
 
 
+def test_low_level_flight_cannot_become_high_level_landing_baseline() -> None:
+    observer, reader, _epoch, _clock = make_observer(
+        [state(0x010, is_flying=True, hl_control_active=False)],
+        epoch_value="epoch-low-level",
+    )
+    expect_error(
+        observer.capture_pre_land_flight,
+        "did not observe active high-level control",
+    )
+    require(reader.read_count == 1, "low-level flight is freshly observed then rejected")
+
+
 def test_stale_non_flying_state_cannot_become_a_baseline() -> None:
     observer, reader, _epoch, _clock = make_observer(
         [state(0x200, hl_traj_finished=True)],
@@ -314,6 +326,7 @@ def main() -> int:
     tests = [
         test_fresh_flight_then_finished_landed_transition,
         test_stock_auto_arm_after_landing_is_not_rejected,
+        test_low_level_flight_cannot_become_high_level_landing_baseline,
         test_stale_non_flying_state_cannot_become_a_baseline,
         test_blocking_fault_refutes_completion_immediately,
         test_same_epoch_is_required_for_completion,
@@ -327,7 +340,7 @@ def main() -> int:
         test()
 
     print(
-        "PASS controlled landing completion requires fresh flight -> finished/non-flying evidence"
+        "PASS controlled landing completion requires fresh high-level flight -> finished/non-flying evidence"
     )
     return 0
 
