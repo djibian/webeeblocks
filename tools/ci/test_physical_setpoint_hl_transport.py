@@ -12,6 +12,7 @@ PHYSICAL = ROOT / "tools" / "physical"
 MODULE_PATH = PHYSICAL / "setpoint_hl_transport.py"
 sys.path.insert(0, str(PHYSICAL))
 
+import current_program_preflight as current_preflight  # noqa: E402
 import high_level_ack as ack  # noqa: E402
 import high_level_timing as timing  # noqa: E402
 import physical_execution_domain as execution  # noqa: E402
@@ -248,6 +249,10 @@ class Fixture:
             lambda _binding: True,
         )
         self.current_binding = self.binding
+        self.current_preflight_factory = current_preflight.TrustedCurrentProgramPreflightFactory(
+            lambda: self.current_binding
+        )
+        self.current_preflight_guard = self.current_preflight_factory.bind(self.binding)
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
         factory = packet_factory or (lambda request: Packet(request))
@@ -255,12 +260,12 @@ class Fixture:
             crazyflie=cf,
             execution_domain=self.domain,
             acknowledgement_domain=self.ack,
-            safelink_precondition=self.safelink,
+            safelink_guard=self.safelink,
             teacher_authorization=self.authorization,
             powered_session=self.powered,
             watchdog_guard=self.watchdog,
             supervisor_reader=self.supervisor_reader,
-            current_preflight_binding_reader=lambda: self.current_binding,
+            current_preflight_guard=self.current_preflight_guard,
             packet_factory=factory,
         )
 
@@ -469,18 +474,19 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             crazyflie=cf,
             execution_domain=fixture.domain,
             acknowledgement_domain=fixture.ack,
-            safelink_precondition=fixture.safelink,
+            safelink_guard=fixture.safelink,
             teacher_authorization=fixture.authorization,
             powered_session=fixture.powered,
             watchdog_guard=fixture.watchdog,
             supervisor_reader=fixture.supervisor_reader,
-            current_preflight_binding_reader=lambda: fixture.binding,
+            current_preflight_guard=fixture.current_preflight_guard,
             packet_factory=lambda request: Packet(request),
         )
         for key, value, pattern in (
             ("teacher_authorization", object(), "TeacherRunAuthorization"),
             ("watchdog_guard", object(), "watchdog guard"),
             ("supervisor_reader", object(), "FreshSupervisorStateReader"),
+            ("current_preflight_guard", object(), "current-program preflight guard"),
         ):
             candidate = dict(kwargs)
             candidate[key] = value
@@ -560,18 +566,22 @@ def test_timeout_send_failure_and_wrong_reply_are_ambiguous_without_retry() -> N
 
 def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    require(source.count("self._cf.send_packet(packet)") == 1, "one ordinary physical send site")
+    require(source.count("send_packet(packet)") == 1, "one ordinary physical send site")
     for forbidden in (
         "def send_once(",
-        "TAKEOFF_2",
-        "LAND_2",
-        "COMMAND_STOP",
+        "_COMMAND_TAKEOFF",
+        "_COMMAND_LAND",
+        "_COMMAND_STOP",
+        "def send_takeoff(",
+        "def send_land(",
+        "def send_vertical(",
         "expected_reply=",
         "HighLevelCommander(",
-        "send_emergency_stop",
+        "send_emergency_stop(",
     ):
         require(forbidden not in source, "forbidden raw/retry/effect surface: " + forbidden)
     for required in (
+        "LiveCurrentProgramPreflightGuard",
         "TeacherRunAuthorization",
         "EstablishedPoweredSession",
         "EmergencyWatchdogLivenessGuard",
