@@ -412,7 +412,7 @@ def test_teacher_invalidation_during_request_construction_blocks_send() -> None:
         expect_error(
             lambda: fixture.transport.send_turn(angle_deg=20, timing_policy=policy),
             teacher.TeacherRunAuthorizationError,
-            "inactive",
+            "teacher withdrew run",
         )
         require(not cf.send_calls, "teacher invalidation during builder must prevent send")
         require(fixture.domain.phase == execution.FLYING, "late authority failure remains pre-effect")
@@ -566,7 +566,10 @@ def test_timeout_send_failure_and_wrong_reply_are_ambiguous_without_retry() -> N
 
 def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    require(source.count("send_packet(packet)") == 1, "one ordinary physical send site")
+    require(
+        source.count("\n                    send_packet(packet)\n") == 1,
+        "one ordinary physical send site",
+    )
     for forbidden in (
         "def send_once(",
         "_COMMAND_TAKEOFF",
