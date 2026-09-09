@@ -89,6 +89,10 @@ def main():
     if physical_high_level_timing_test.returncode:
         print('FAIL physical HighLevelCommander timing policy',file=sys.stderr);print(physical_high_level_timing_test.stdout,file=sys.stderr);print(physical_high_level_timing_test.stderr,file=sys.stderr);return physical_high_level_timing_test.returncode
     print(physical_high_level_timing_test.stdout.strip())
+    physical_high_level_ack_test=subprocess.run([sys.executable,'tools/ci/test_physical_high_level_ack.py'],text=True,capture_output=True)
+    if physical_high_level_ack_test.returncode:
+        print('FAIL pure SETPOINT_HL acknowledgement freshness domain',file=sys.stderr);print(physical_high_level_ack_test.stdout,file=sys.stderr);print(physical_high_level_ack_test.stderr,file=sys.stderr);return physical_high_level_ack_test.returncode
+    print(physical_high_level_ack_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
