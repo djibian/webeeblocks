@@ -13,7 +13,6 @@ PHYSICAL = ROOT / "tools" / "physical"
 MODULE_PATH = PHYSICAL / "setpoint_hl_transport.py"
 sys.path.insert(0, str(PHYSICAL))
 
-import current_program_preflight as current_preflight  # noqa: E402
 import high_level_ack as ack  # noqa: E402
 import high_level_timing as timing  # noqa: E402
 import physical_execution_domain as execution  # noqa: E402
@@ -350,10 +349,6 @@ class Fixture:
             daemon=True,
         )
         self.preflight_responder_thread.start()
-        self.current_preflight_factory = current_preflight.TrustedCurrentProgramPreflightFactory(
-            self.preflight_bridge
-        )
-        self.current_preflight_guard = self.current_preflight_factory.bind(self.binding)
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
         self.transport = transport.TrustedSetpointHlTransport(
@@ -365,7 +360,7 @@ class Fixture:
             powered_session=self.powered,
             watchdog_guard=self.watchdog,
             supervisor_reader=self.supervisor_reader,
-            current_preflight_guard=self.current_preflight_guard,
+            current_program_bridge=self.preflight_bridge,
         )
 
     def close(self) -> None:
@@ -652,7 +647,7 @@ def test_public_packet_factory_seam_is_absent() -> None:
                 powered_session=fixture.powered,
                 watchdog_guard=fixture.watchdog,
                 supervisor_reader=fixture.supervisor_reader,
-                current_preflight_guard=fixture.current_preflight_guard,
+                current_program_bridge=fixture.preflight_bridge,
                 packet_factory=lambda request: Packet(request),
             ),
             TypeError,
@@ -679,21 +674,25 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             powered_session=fixture.powered,
             watchdog_guard=fixture.watchdog,
             supervisor_reader=fixture.supervisor_reader,
-            current_preflight_guard=fixture.current_preflight_guard,
+            current_program_bridge=fixture.preflight_bridge,
         )
         expect_error(
-            lambda: current_preflight.TrustedCurrentProgramPreflightFactory(
-                lambda: fixture.binding
+            lambda: capability_bridge.CurrentProgramPreflightEvidence(
+                profile_id=fixture.binding.profile_id,
+                ast_binding=fixture.binding.ast_binding,
+                connection_epoch=fixture.binding.connection_epoch,
+                challenge_id="fabricated",
+                _mint_key=object(),
             ),
-            current_preflight.CurrentProgramPreflightError,
-            "ReadOnlyCapabilityHttpBridge",
+            capability_bridge.CapabilityBridgeError,
+            "only be minted",
         )
 
         for key, value, pattern in (
             ("teacher_authorization", object(), "TeacherRunAuthorization"),
             ("watchdog_guard", object(), "watchdog guard"),
             ("supervisor_reader", object(), "FreshSupervisorStateReader"),
-            ("current_preflight_guard", object(), "current-program preflight guard"),
+            ("current_program_bridge", object(), "current-program host bridge"),
         ):
             candidate = dict(kwargs)
             candidate[key] = value
@@ -793,7 +792,8 @@ def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> No
     ):
         require(forbidden not in source, "forbidden raw/retry/effect surface: " + forbidden)
     for required in (
-        "LiveCurrentProgramPreflightGuard",
+        "ReadOnlyCapabilityHttpBridge",
+        "CurrentProgramPreflightEvidence",
         "TeacherRunAuthorization",
         "EstablishedPoweredSession",
         "EmergencyWatchdogLivenessGuard",
