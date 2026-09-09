@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import FrozenInstanceError
 import json
 from pathlib import Path
 import sys
@@ -103,21 +104,21 @@ def start_host_assertion(
 
 def complete_host_assertion(
     base: str,
-    token: str,
+    responder_token: str,
     *,
     profile_id: str = "activity-1",
     ast_binding: str = "ast-1",
     connection_epoch: str = "connection-one",
 ):
-    status, challenge, _ = request(base + "/v1/preflight-challenge", token)
+    status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
     assert status == 200
     assert challenge["executionAuthority"] is False
     challenge_id = challenge["challengeId"]
     assert isinstance(challenge_id, str) and challenge_id
     status, response, _ = request(
         base + "/v1/preflight-assertion",
-        token,
-        method="POST",
+            responder_token,
+            method="POST",
         payload={
             "challengeId": challenge_id,
             "ok": True,
@@ -133,7 +134,12 @@ def complete_host_assertion(
 def main() -> int:
     fake = FakeSession()
     token = "test-bridge-token"
-    bridge = bridge_module.ReadOnlyCapabilityHttpBridge(fake, token=token)
+    responder_token = "test-preflight-responder-token"
+    bridge = bridge_module.ReadOnlyCapabilityHttpBridge(
+        fake,
+        token=token,
+        preflight_responder_token=responder_token,
+    )
     host, port = bridge.address
     thread = Thread(target=bridge.serve_forever, daemon=True)
     thread.start()
@@ -166,9 +172,32 @@ def main() -> int:
         assert status == 405 and payload == {"error": "read-only bridge"}
         assert fake.epoch_reads == 1, "effect-shaped methods must never reach the live session"
 
-        # Only the trusted host can create a fresh current-program challenge.
+        # The ordinary capability bearer cannot claim or answer trusted #249
+        # challenges, even if it knows plausible binding values.
+        status, payload, _ = request(base + "/v1/preflight-challenge", token)
+        assert status == 401 and payload == {"error": "unauthorized"}
+        status, payload, _ = request(
+            base + "/v1/preflight-assertion",
+            token,
+            method="POST",
+            payload={
+                "challengeId": "guessed",
+                "ok": True,
+                "profileId": "activity-1",
+                "astBinding": "ast-1",
+                "connectionEpoch": "connection-one",
+                "executionAuthority": False,
+            },
+        )
+        assert status == 401 and payload == {"error": "unauthorized"}
+
+        # Only the separately authenticated production responder can complete a
+        # fresh host-created current-program challenge.
         thread, outcome = start_host_assertion(bridge)
-        status, response, challenge_id = complete_host_assertion(base, token)
+        status, response, challenge_id = complete_host_assertion(
+            base,
+            responder_token,
+        )
         assert status == 200 and response["accepted"] is True
         assert response["executionAuthority"] is False
         thread.join(timeout=2)
@@ -179,11 +208,26 @@ def main() -> int:
         assert evidence.connection_epoch == "connection-one"
         assert evidence.challenge_id == challenge_id
         assert evidence.execution_authority is False
+        for field, replacement in (
+            ("profile_id", "other-activity"),
+            ("ast_binding", "other-ast"),
+            ("connection_epoch", "other-epoch"),
+            ("challenge_id", "other-challenge"),
+            ("execution_authority", True),
+        ):
+            try:
+                setattr(evidence, field, replacement)
+            except (FrozenInstanceError, AttributeError):
+                pass
+            else:
+                raise AssertionError(
+                    "minted current-program evidence must be immutable: " + field
+                )
 
         # The exact challenge is one-shot; replay/late responses are rejected.
         status, replay, _ = request(
             base + "/v1/preflight-assertion",
-            token,
+            responder_token,
             method="POST",
             payload={
                 "challengeId": challenge_id,
@@ -198,11 +242,11 @@ def main() -> int:
 
         # A same-challenge profile/AST mismatch settles the host request fail-closed.
         thread, outcome = start_host_assertion(bridge)
-        status, challenge, _ = request(base + "/v1/preflight-challenge", token)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
         mismatch_id = challenge["challengeId"]
         status, mismatch, _ = request(
             base + "/v1/preflight-assertion",
-            token,
+            responder_token,
             method="POST",
             payload={
                 "challengeId": mismatch_id,
@@ -221,12 +265,12 @@ def main() -> int:
         # Reconnect after challenge creation but before host acceptance is stale.
         fake.epoch = "connection-one"
         thread, outcome = start_host_assertion(bridge)
-        status, challenge, _ = request(base + "/v1/preflight-challenge", token)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
         epoch_id = challenge["challengeId"]
         fake.epoch = "connection-two"
         status, response, _ = request(
             base + "/v1/preflight-assertion",
-            token,
+            responder_token,
             method="POST",
             payload={
                 "challengeId": epoch_id,
@@ -245,14 +289,14 @@ def main() -> int:
         # A host timeout invalidates the challenge; a later response cannot revive it.
         fake.epoch = "connection-one"
         thread, outcome = start_host_assertion(bridge, timeout_seconds=0.03)
-        status, challenge, _ = request(base + "/v1/preflight-challenge", token)
+        status, challenge, _ = request(base + "/v1/preflight-challenge", responder_token)
         timeout_id = challenge["challengeId"]
         thread.join(timeout=2)
         assert isinstance(outcome.get("error"), bridge_module.CapabilityBridgeError)
         assert "timed out" in str(outcome["error"])
         status, late, _ = request(
             base + "/v1/preflight-assertion",
-            token,
+            responder_token,
             method="POST",
             payload={
                 "challengeId": timeout_id,
@@ -268,7 +312,7 @@ def main() -> int:
         # Browser responses cannot create a challenge on their own.
         status, unsolicited, _ = request(
             base + "/v1/preflight-assertion",
-            token,
+            responder_token,
             method="POST",
             payload={
                 "challengeId": "fabricated-challenge",
