@@ -75,11 +75,17 @@ preflighted against fresh live capability evidence, then both semantic
 requirements and the reconnect-sensitive connection epoch are re-asserted
 immediately before any later separately authorized physical effect. Workspace,
 profile or connection changes invalidate the prior binding. The bridge remains
-non-authority and exposes no WebeeBlocks flight command API.
+non-authority and exposes no WebeeBlocks flight command API. Its browser-held
+capability/preflight bearer is therefore not a teacher-authorization credential:
+future physical authority must stay on a distinct trusted host-side control path
+that the student/browser runtime cannot mint or invoke, and effect methods must
+not be added under the existing read-only bearer merely for reuse.
 
 The remaining #157 boundary therefore begins after that validated pre-effect
 assertion: a separately authorized physical effect consumer with explicit teacher
-authorization before any flight-capable command/effect, firmware-independent
+authorization before any flight-capable command/effect, using a distinct trusted
+host-side authority path rather than the browser-held capability/preflight bearer,
+and firmware-independent
 arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
 pass), an independent emergency-stop watchdog/liveness guard, controlled normal
 landing/completion behavior and proof of real execution continuity. Integrated #256
