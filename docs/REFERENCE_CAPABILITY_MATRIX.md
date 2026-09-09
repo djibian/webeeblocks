@@ -54,20 +54,25 @@ real `color_led` device and gate that normal-view color visibility without
 modeling deck electronics or photometric fidelity.
 
 The substantive remaining #157 boundary is physical-backend continuity/proof.
-The integrated physical preflight core now derives required actions, range
-sensors and movement/vertical capabilities from the exact submitted
-backend-neutral AST, keeps optional deck requirements intent-dependent, and
-produces a canonical non-authority AST binding that later code can verify before
-authorization/submission. A connected-preflight entry point now acquires and
-normalizes the live descriptor from the read-only adapter on every invocation,
-brackets that acquisition with an opaque adapter-provided connection epoch, and
-binds the successful result to that epoch. The connected assertion fails closed
-if the epoch changes before a later consumer checks the preflight, and a
-connection change during descriptor acquisition invalidates the attempt. This
-still is not execution authority: a real physical adapter must provide a
-trustworthy epoch that changes on reconnect, the future authorization/submission
-consumer must perform the check immediately before its effect, and the
-real-Crazyflie student execution path remains unproven. Do not turn source
+The integrated physical preflight core derives required actions, range sensors
+and movement/vertical capabilities from the exact submitted backend-neutral AST,
+keeps optional deck requirements intent-dependent, and produces a canonical
+non-authority AST binding that later code can verify before
+authorization/submission. The host-side read-only probe now also exposes a
+persistent `ReadOnlyCapabilitySession`: it opens one explicit Crazyradio URI,
+waits for the connected parameter snapshot, creates an opaque epoch only after
+the link is live, invalidates that epoch from cflib's disconnect callback, and
+creates each descriptor read from the current connected evidence instead of
+caching an earlier descriptor object. Reopening therefore rotates the epoch, and
+a disconnect makes both epoch and capability reads fail closed. The session
+exposes no WebeeBlocks movement, light, arming or setpoint method and retains the
+documented cflib safety-zero close-path qualification.
+
+This still is not execution authority or a complete physical backend. The
+Blockly/runtime submission path does not yet consume this host session, and no
+authorization/execution consumer performs the bound AST/session assertion
+immediately before a physical effect. Arming, abort/failsafe behavior and
+real-Crazyflie student execution remain unproven. Do not turn source
 availability, Lab firmware experiments, preflight compatibility, or simulation
 coverage into a real-hardware support claim.
 
