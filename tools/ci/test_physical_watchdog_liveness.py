@@ -120,11 +120,23 @@ class FakePoweredSessionLifecycle(watchdog.PoweredSessionWatchdogAuthority):
         terminal_reason: str | None = None,
         reset_proven: bool = True,
     ) -> None:
-        self.identity = identity
-        self.state = state
-        self.terminal_reason = terminal_reason
+        self._identity = identity
+        self._state = state
+        self._terminal_reason = terminal_reason
         self.reset_proven = reset_proven
         self.lock = threading.Lock()
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @property
+    def terminal_reason(self) -> str | None:
+        return self._terminal_reason
 
     def require_fresh_reset_proof(self) -> None:
         with self.lock:
@@ -133,23 +145,23 @@ class FakePoweredSessionLifecycle(watchdog.PoweredSessionWatchdogAuthority):
 
     def begin_activation(self) -> None:
         with self.lock:
-            if self.state != "new":
+            if self._state != "new":
                 raise RuntimeError("powered session is not fresh")
-            self.state = "activating"
+            self._state = "activating"
 
     def mark_active(self) -> None:
         with self.lock:
-            if self.state != "activating":
+            if self._state != "activating":
                 raise RuntimeError("powered session is not activating")
-            self.state = "active"
+            self._state = "active"
 
     def mark_terminal(self, reason: str) -> None:
         with self.lock:
-            if self.state == "terminal":
+            if self._state == "terminal":
                 return
-            self.state = "terminal"
-            if self.terminal_reason is None:
-                self.terminal_reason = reason
+            self._state = "terminal"
+            if self._terminal_reason is None:
+                self._terminal_reason = reason
 
 
 def make_guard(
