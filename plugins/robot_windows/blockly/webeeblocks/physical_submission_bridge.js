@@ -47,15 +47,23 @@
     async function assertCurrentWorkspace(workspace) {
       if (!bound)
         fail('physical preflight is required before re-assertion');
+      var ticket = bound;
       var ast = compileWorkspace(workspace);
-      if (PhysicalCapabilities.bindAst(ast) !== bound.astBinding)
+      if (PhysicalCapabilities.bindAst(ast) !== ticket.astBinding) {
+        bound = null;
         fail('workspace changed since physical preflight');
-      await PhysicalCapabilities.assertPreflightConnected(bound, ast, adapter);
+      }
+      await PhysicalCapabilities.assertPreflightConnected(ticket, ast, adapter);
+      var currentAst = compileWorkspace(workspace);
+      if (PhysicalCapabilities.bindAst(currentAst) !== ticket.astBinding) {
+        bound = null;
+        fail('workspace changed during physical re-assertion');
+      }
       return {
         compatible: true,
         executionAuthority: false,
-        ast: ast,
-        preflight: bound
+        ast: currentAst,
+        preflight: ticket
       };
     }
 
