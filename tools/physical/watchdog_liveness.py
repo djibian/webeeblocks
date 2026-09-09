@@ -35,9 +35,6 @@ FIRMWARE_WATCHDOG_TIMEOUT_SECONDS = 1.0
 DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 0.25
 DEFAULT_MAX_HOST_GAP_SECONDS = 0.75
 
-_POWERED_SESSION_LOCK = Lock()
-_POWERED_SESSION_STATES: dict[str, tuple[str, str | None]] = {}
-
 _STATE_NEW = "new"
 _STATE_ACTIVATING = "activating"
 _STATE_ACTIVE = "active"
@@ -57,98 +54,115 @@ def _positive_finite(value: object, name: str) -> float:
     return parsed
 
 
-class PoweredSessionWatchdogLifecycle:
-    """Process-shared watchdog state for one trusted powered STM identity.
-
-    Reconstructing this object with the same identity preserves ACTIVE/TERMINAL
-    state across guard and Crazyradio connection replacement. A different
-    identity is allowed only when the trusted host has separately established an
-    STM+deck reset/power-cycle boundary; this class deliberately provides no
-    reset method and does not mint identities.
-    """
-
-    def __init__(self, identity: str) -> None:
-        if not isinstance(identity, str) or not identity.strip():
-            raise WatchdogLivenessError(
-                "powered-session watchdog identity must be a non-empty string"
-            )
-        self._identity = identity.strip()
-        with _POWERED_SESSION_LOCK:
-            _POWERED_SESSION_STATES.setdefault(
-                self._identity,
-                (_STATE_NEW, None),
-            )
-
-    @property
-    def identity(self) -> str:
-        return self._identity
-
-    def _snapshot(self) -> tuple[str, str | None]:
-        with _POWERED_SESSION_LOCK:
-            return _POWERED_SESSION_STATES[self._identity]
-
-    @property
-    def state(self) -> str:
-        return self._snapshot()[0]
-
-    @property
-    def terminal_reason(self) -> str | None:
-        return self._snapshot()[1]
-
-    def require_new(self) -> None:
-        state, reason = self._snapshot()
-        if state == _STATE_NEW:
-            return
-        if state == _STATE_TERMINAL:
-            raise WatchdogLivenessError(
-                "powered-session watchdog lifecycle is terminal until a separately "
-                "proven STM+deck reset/new identity: " + (reason or "unknown reason")
-            )
+def _read_powered_session_identity(lifecycle: object) -> str:
+    try:
+        identity = getattr(lifecycle, "identity")
+    except Exception as exc:
         raise WatchdogLivenessError(
-            "powered-session watchdog lifecycle is already " + state
+            "external trusted powered-session identity is unavailable"
+        ) from exc
+    if not isinstance(identity, str) or not identity.strip():
+        raise WatchdogLivenessError(
+            "external trusted powered-session identity must be a non-empty string"
+        )
+    return identity.strip()
+
+
+def _read_powered_session_state(lifecycle: object) -> str:
+    try:
+        state = getattr(lifecycle, "state")
+    except Exception as exc:
+        raise WatchdogLivenessError(
+            "external trusted powered-session watchdog state is unavailable"
+        ) from exc
+    if state not in (_STATE_NEW, _STATE_ACTIVATING, _STATE_ACTIVE, _STATE_TERMINAL):
+        raise WatchdogLivenessError(
+            "external trusted powered-session watchdog state is invalid"
+        )
+    return state
+
+
+def _read_powered_session_terminal_reason(lifecycle: object) -> str | None:
+    try:
+        reason = getattr(lifecycle, "terminal_reason")
+    except Exception as exc:
+        raise WatchdogLivenessError(
+            "external trusted powered-session terminal reason is unavailable"
+        ) from exc
+    if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+        raise WatchdogLivenessError(
+            "external trusted powered-session terminal reason is invalid"
+        )
+    return reason.strip() if isinstance(reason, str) else None
+
+
+def _require_powered_session_contract(lifecycle: object) -> None:
+    if lifecycle is None:
+        raise WatchdogLivenessError(
+            "external trusted powered-session watchdog lifecycle is required"
+        )
+    _read_powered_session_identity(lifecycle)
+    _read_powered_session_state(lifecycle)
+    _read_powered_session_terminal_reason(lifecycle)
+    for method_name in ("begin_activation", "mark_active", "mark_terminal"):
+        if not callable(getattr(lifecycle, method_name, None)):
+            raise WatchdogLivenessError(
+                "external trusted powered-session watchdog lifecycle contract is incomplete"
+            )
+
+
+def _require_powered_session_new(lifecycle: object) -> None:
+    state = _read_powered_session_state(lifecycle)
+    if state == _STATE_NEW:
+        return
+    if state == _STATE_TERMINAL:
+        reason = _read_powered_session_terminal_reason(lifecycle)
+        raise WatchdogLivenessError(
+            "powered-session watchdog lifecycle is terminal until a separately "
+            "proven STM+deck reset establishes a fresh external lifecycle: "
+            + (reason or "unknown reason")
+        )
+    raise WatchdogLivenessError(
+        "powered-session watchdog lifecycle is not externally established fresh: "
+        + state
+    )
+
+
+def _begin_powered_session_activation(lifecycle: object) -> None:
+    _require_powered_session_new(lifecycle)
+    try:
+        lifecycle.begin_activation()
+    except Exception as exc:
+        raise WatchdogLivenessError(
+            "external powered-session watchdog activation claim failed"
+        ) from exc
+    if _read_powered_session_state(lifecycle) != _STATE_ACTIVATING:
+        raise WatchdogLivenessError(
+            "external powered-session watchdog lifecycle did not enter activating state"
         )
 
-    def _begin_activation(self) -> None:
-        with _POWERED_SESSION_LOCK:
-            state, reason = _POWERED_SESSION_STATES[self._identity]
-            if state != _STATE_NEW:
-                if state == _STATE_TERMINAL:
-                    raise WatchdogLivenessError(
-                        "powered-session watchdog lifecycle is terminal until a "
-                        "separately proven STM+deck reset/new identity: "
-                        + (reason or "unknown reason")
-                    )
-                raise WatchdogLivenessError(
-                    "powered-session watchdog lifecycle is already " + state
-                )
-            _POWERED_SESSION_STATES[self._identity] = (
-                _STATE_ACTIVATING,
-                None,
-            )
 
-    def _mark_active(self) -> None:
-        with _POWERED_SESSION_LOCK:
-            state, reason = _POWERED_SESSION_STATES[self._identity]
-            if state != _STATE_ACTIVATING:
-                raise WatchdogLivenessError(
-                    "powered-session watchdog activation state is invalid: "
-                    + state
-                    + (f" ({reason})" if reason else "")
-                )
-            _POWERED_SESSION_STATES[self._identity] = (
-                _STATE_ACTIVE,
-                None,
-            )
+def _mark_powered_session_active(lifecycle: object) -> None:
+    try:
+        lifecycle.mark_active()
+    except Exception as exc:
+        raise WatchdogLivenessError(
+            "external powered-session watchdog active transition failed"
+        ) from exc
+    if _read_powered_session_state(lifecycle) != _STATE_ACTIVE:
+        raise WatchdogLivenessError(
+            "external powered-session watchdog lifecycle did not enter active state"
+        )
 
-    def _mark_terminal(self, reason: str) -> None:
-        with _POWERED_SESSION_LOCK:
-            state, existing = _POWERED_SESSION_STATES[self._identity]
-            if state == _STATE_TERMINAL:
-                return
-            _POWERED_SESSION_STATES[self._identity] = (
-                _STATE_TERMINAL,
-                existing or reason,
-            )
+
+def _try_mark_powered_session_terminal(lifecycle: object, reason: str) -> str | None:
+    try:
+        lifecycle.mark_terminal(reason)
+        if _read_powered_session_state(lifecycle) != _STATE_TERMINAL:
+            return "external powered-session watchdog lifecycle did not enter terminal state"
+        return None
+    except Exception as exc:
+        return "external powered-session watchdog terminal transition failed: " + str(exc)
 
 
 class EmergencyWatchdogLivenessGuard:
@@ -164,7 +178,7 @@ class EmergencyWatchdogLivenessGuard:
         cf: object,
         connection_epoch_reader: Callable[[], str],
         supervisor_reader: object,
-        powered_session: PoweredSessionWatchdogLifecycle,
+        powered_session: object,
         *,
         keepalive_interval_seconds: float = DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
         max_host_gap_seconds: float = DEFAULT_MAX_HOST_GAP_SECONDS,
@@ -186,15 +200,13 @@ class EmergencyWatchdogLivenessGuard:
             raise WatchdogLivenessError(
                 "watchdog maximum host gap must be below firmware timeout"
             )
-        if not isinstance(powered_session, PoweredSessionWatchdogLifecycle):
-            raise WatchdogLivenessError(
-                "trusted powered-session watchdog lifecycle is required"
-            )
+        _require_powered_session_contract(powered_session)
 
         self._cf = cf
         self._connection_epoch_reader = connection_epoch_reader
         self._supervisor_reader = supervisor_reader
         self._powered_session = powered_session
+        self._powered_session_identity = _read_powered_session_identity(powered_session)
         self._keepalive_interval_seconds = interval
         self._max_host_gap_seconds = max_gap
         self._clock = clock
@@ -210,7 +222,7 @@ class EmergencyWatchdogLivenessGuard:
                 "watchdog and supervisor reader must share the exact Crazyflie object"
             )
         self._require_reader_ready()
-        self._powered_session.require_new()
+        _require_powered_session_new(self._powered_session)
 
         self._state_lock = Lock()
         self._stop_event = Event()
@@ -225,19 +237,19 @@ class EmergencyWatchdogLivenessGuard:
 
     @property
     def powered_session_identity(self) -> str:
-        return self._powered_session.identity
+        return self._powered_session_identity
 
     @property
     def active(self) -> bool:
         with self._state_lock:
             locally_active = self._active and self._terminal_reason is None
-        return locally_active and self._powered_session.state == _STATE_ACTIVE
+        return locally_active and _read_powered_session_state(self._powered_session) == _STATE_ACTIVE
 
     @property
     def terminal_reason(self) -> str | None:
         with self._state_lock:
             local_reason = self._terminal_reason
-        return local_reason or self._powered_session.terminal_reason
+        return local_reason or _read_powered_session_terminal_reason(self._powered_session)
 
     def _read_epoch(self) -> str:
         try:
@@ -304,10 +316,14 @@ class EmergencyWatchdogLivenessGuard:
         return now
 
     def _record_terminal(self, reason: str) -> None:
-        self._powered_session._mark_terminal(reason)
+        lifecycle_failure = _try_mark_powered_session_terminal(
+            self._powered_session,
+            reason,
+        )
+        recorded_reason = reason if lifecycle_failure is None else reason + "; " + lifecycle_failure
         with self._state_lock:
             if self._terminal_reason is None:
-                self._terminal_reason = reason
+                self._terminal_reason = recorded_reason
             self._active = False
         self._stop_event.set()
 
@@ -340,7 +356,12 @@ class EmergencyWatchdogLivenessGuard:
             ) from exc
 
         after = self._clock_now()
-        if previous is not None and after - previous > self._max_host_gap_seconds:
+        if previous is None:
+            if after - before > self._max_host_gap_seconds:
+                raise WatchdogLivenessError(
+                    "watchdog host keepalive deadline was missed during initial enqueue"
+                )
+        elif after - previous > self._max_host_gap_seconds:
             raise WatchdogLivenessError(
                 "watchdog host keepalive deadline was missed during enqueue"
             )
@@ -372,7 +393,7 @@ class EmergencyWatchdogLivenessGuard:
         self._read_protocol_version()
         self._require_reader_ready()
         sender = self._watchdog_sender()
-        self._powered_session._begin_activation()
+        _begin_powered_session_activation(self._powered_session)
 
         try:
             # Same-port causal fence: watchdog command first, fresh GET_STATE next.
@@ -385,7 +406,7 @@ class EmergencyWatchdogLivenessGuard:
                 raise WatchdogLivenessError(
                     "watchdog activation fence observed a blocking supervisor fault"
                 )
-            self._powered_session._mark_active()
+            _mark_powered_session_active(self._powered_session)
         except Exception as exc:
             error = (
                 exc
@@ -404,14 +425,31 @@ class EmergencyWatchdogLivenessGuard:
             daemon=True,
         )
         self._thread = thread
-        thread.start()
+        try:
+            thread.start()
+        except Exception as exc:
+            error = WatchdogLivenessError(
+                "watchdog keepalive service could not start: " + str(exc)
+            )
+            self._record_terminal(str(error))
+            raise error
+        self.assert_live()
         return state
 
     def _keepalive_loop(self) -> None:
-        sender = self._watchdog_sender()
+        try:
+            sender = self._watchdog_sender()
+        except Exception as exc:
+            reason = (
+                str(exc)
+                if isinstance(exc, WatchdogLivenessError)
+                else "watchdog keepalive service failed: " + str(exc)
+            )
+            self._record_terminal(reason)
+            return
         while not self._stop_event.wait(self._keepalive_interval_seconds):
             try:
-                if self._powered_session.state != _STATE_ACTIVE:
+                if _read_powered_session_state(self._powered_session) != _STATE_ACTIVE:
                     raise WatchdogLivenessError(
                         "powered-session watchdog lifecycle is no longer active"
                     )
@@ -431,16 +469,20 @@ class EmergencyWatchdogLivenessGuard:
             reason = self._terminal_reason
             active = self._active
             thread = self._thread
-        powered_state = self._powered_session.state
+        powered_state = _read_powered_session_state(self._powered_session)
         if reason is not None or powered_state == _STATE_TERMINAL:
-            detail = reason or self._powered_session.terminal_reason or "unknown reason"
+            detail = reason or _read_powered_session_terminal_reason(self._powered_session) or "unknown reason"
             raise WatchdogLivenessError("watchdog liveness is terminal: " + detail)
-        if powered_state != _STATE_ACTIVE:
-            raise WatchdogLivenessError(
-                "powered-session watchdog lifecycle is not active"
-            )
-        if not active or thread is None or not thread.is_alive():
+        if not active:
             raise WatchdogLivenessError("watchdog liveness service is not active")
+        if powered_state != _STATE_ACTIVE:
+            reason = "powered-session watchdog lifecycle is not active"
+            self._record_terminal(reason)
+            raise WatchdogLivenessError(reason)
+        if thread is None or not thread.is_alive():
+            reason = "watchdog liveness service is not active"
+            self._record_terminal(reason)
+            raise WatchdogLivenessError(reason)
         self._verify_epoch()
         try:
             self._verify_host_gap()

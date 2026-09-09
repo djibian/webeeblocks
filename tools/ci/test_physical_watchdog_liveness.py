@@ -109,6 +109,42 @@ class FakeClock:
             self.value += seconds
 
 
+class FakePoweredSessionLifecycle:
+    """Test double for state supplied by the future trusted powered-session/reset layer."""
+
+    def __init__(
+        self,
+        identity: str,
+        *,
+        state: str = "new",
+        terminal_reason: str | None = None,
+    ) -> None:
+        self.identity = identity
+        self.state = state
+        self.terminal_reason = terminal_reason
+        self.lock = threading.Lock()
+
+    def begin_activation(self) -> None:
+        with self.lock:
+            if self.state != "new":
+                raise RuntimeError("powered session is not fresh")
+            self.state = "activating"
+
+    def mark_active(self) -> None:
+        with self.lock:
+            if self.state != "activating":
+                raise RuntimeError("powered session is not activating")
+            self.state = "active"
+
+    def mark_terminal(self, reason: str) -> None:
+        with self.lock:
+            if self.state == "terminal":
+                return
+            self.state = "terminal"
+            if self.terminal_reason is None:
+                self.terminal_reason = reason
+
+
 def make_guard(
     *,
     epoch_value: str,
@@ -123,7 +159,7 @@ def make_guard(
     epoch = Epoch(epoch_value)
     cf = FakeCf(events, protocol_version)
     reader = FakeReader(cf, epoch_value, events, blocking_fault=blocking_fault)
-    powered = watchdog.PoweredSessionWatchdogLifecycle(powered_session_id)
+    powered = FakePoweredSessionLifecycle(powered_session_id)
     kwargs = {}
     if clock is not None:
         kwargs["clock"] = clock
@@ -180,7 +216,7 @@ def test_local_preconditions_emit_no_watchdog_and_do_not_poison_powered_session(
     cf2 = FakeCf(events2)
     cf2.supervisor.send_emergency_stop_watchdog = None
     reader2 = FakeReader(cf2, "epoch-missing-sender", events2)
-    powered2 = watchdog.PoweredSessionWatchdogLifecycle("powered-missing-sender")
+    powered2 = FakePoweredSessionLifecycle("powered-missing-sender")
     guard2 = watchdog.EmergencyWatchdogLivenessGuard(
         cf2,
         epoch2,
@@ -198,7 +234,7 @@ def test_reader_binding_and_poison_preconditions_emit_nothing() -> None:
     events: list[str] = []
     epoch = Epoch("epoch-reader")
     cf = FakeCf(events)
-    powered = watchdog.PoweredSessionWatchdogLifecycle("powered-reader-epoch")
+    powered = FakePoweredSessionLifecycle("powered-reader-epoch")
 
     mismatched_epoch = FakeReader(cf, "epoch-other", events)
     expect_error(
@@ -215,7 +251,7 @@ def test_reader_binding_and_poison_preconditions_emit_nothing() -> None:
 
     other_cf = FakeCf(events)
     wrong_cf = FakeReader(other_cf, "epoch-reader", events)
-    powered_cf = watchdog.PoweredSessionWatchdogLifecycle("powered-reader-cf")
+    powered_cf = FakePoweredSessionLifecycle("powered-reader-cf")
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             cf,
@@ -230,7 +266,7 @@ def test_reader_binding_and_poison_preconditions_emit_nothing() -> None:
 
     poisoned = FakeReader(cf, "epoch-reader", events)
     poisoned.poisoned = True
-    powered_poison = watchdog.PoweredSessionWatchdogLifecycle("powered-reader-poison")
+    powered_poison = FakePoweredSessionLifecycle("powered-reader-poison")
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             cf,
@@ -245,7 +281,7 @@ def test_reader_binding_and_poison_preconditions_emit_nothing() -> None:
 
     unknown_poison = FakeReader(cf, "epoch-reader", events)
     del unknown_poison.poisoned
-    powered_unknown = watchdog.PoweredSessionWatchdogLifecycle("powered-reader-unknown")
+    powered_unknown = FakePoweredSessionLifecycle("powered-reader-unknown")
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             cf,
@@ -275,7 +311,7 @@ def test_ambiguous_fence_poisons_same_powered_session_across_reconnect() -> None
     reconnect_cf = FakeCf(reconnect_events)
     reconnect_epoch = Epoch("epoch-fence-b")
     reconnect_reader = FakeReader(reconnect_cf, "epoch-fence-b", reconnect_events)
-    same_powered = watchdog.PoweredSessionWatchdogLifecycle("powered-fence")
+    same_powered = FakePoweredSessionLifecycle("powered-fence")
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             reconnect_cf,
@@ -318,7 +354,7 @@ def test_epoch_rotation_is_terminal_for_powered_session() -> None:
     reconnect_events: list[str] = []
     reconnect_cf = FakeCf(reconnect_events)
     reconnect_reader = FakeReader(reconnect_cf, "epoch-rotate-b", reconnect_events)
-    same_powered = watchdog.PoweredSessionWatchdogLifecycle("powered-rotate")
+    same_powered = FakePoweredSessionLifecycle("powered-rotate")
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             reconnect_cf,
@@ -364,6 +400,20 @@ def test_host_gap_never_silently_recovers() -> None:
 
 
 def test_fence_and_enqueue_duration_are_bounded_by_host_gap() -> None:
+    clock0 = FakeClock()
+    guard0, cf0, _reader0, _epoch0, powered0, events0 = make_guard(
+        epoch_value="epoch-slow-initial-enqueue",
+        powered_session_id="powered-slow-initial-enqueue",
+        interval=0.05,
+        max_gap=0.2,
+        clock=clock0,
+    )
+    cf0.supervisor.on_send = lambda _count: clock0.advance(0.25)
+    expect_error(guard0.activate, "initial enqueue")
+    require(events0 == ["watchdog"], "slow initial enqueue never reaches supervisor fence")
+    require(powered0.state == "terminal", "slow initial enqueue poisons powered session")
+    require(cf0.supervisor.send_count == 1, "slow initial enqueue emits no retry")
+
     clock = FakeClock()
     guard, cf, reader, _epoch, powered, events = make_guard(
         epoch_value="epoch-slow-fence",
@@ -421,7 +471,7 @@ def test_local_arguments_have_no_command_effect() -> None:
     reader = FakeReader(cf, "epoch-args", events)
 
     for index, (interval, gap) in enumerate(((0, 0.5), (0.5, 0.5), (0.5, 1.0), (True, 0.5))):
-        powered = watchdog.PoweredSessionWatchdogLifecycle(f"powered-args-{index}")
+        powered = FakePoweredSessionLifecycle(f"powered-args-{index}")
         expect_error(
             lambda i=interval, g=gap, p=powered: watchdog.EmergencyWatchdogLivenessGuard(
                 cf,
@@ -435,7 +485,7 @@ def test_local_arguments_have_no_command_effect() -> None:
         )
     require(events == [], "invalid construction emits no command")
 
-    powered = watchdog.PoweredSessionWatchdogLifecycle("powered-args-activate")
+    powered = FakePoweredSessionLifecycle("powered-args-activate")
     guard = watchdog.EmergencyWatchdogLivenessGuard(
         cf,
         epoch,
@@ -452,11 +502,49 @@ def test_local_arguments_have_no_command_effect() -> None:
     require(events == [], "invalid activation timeout emits no command")
     require(powered.state == "new", "invalid local arguments do not claim powered session")
 
-    for identity in ("", "   "):
-        expect_error(
-            lambda value=identity: watchdog.PoweredSessionWatchdogLifecycle(value),
-            "non-empty string",
+
+
+def test_external_powered_session_freshness_is_required() -> None:
+    events: list[str] = []
+    epoch = Epoch("epoch-reconstructed")
+    cf = FakeCf(events)
+    reader = FakeReader(cf, "epoch-reconstructed", events)
+
+    for index, state in enumerate(("activating", "active", "terminal", "unknown")):
+        powered = FakePoweredSessionLifecycle(
+            f"powered-reconstructed-{index}",
+            state=state,
+            terminal_reason="prior watchdog certainty lost" if state == "terminal" else None,
         )
+        expect_error(
+            lambda p=powered: watchdog.EmergencyWatchdogLivenessGuard(
+                cf,
+                epoch,
+                reader,
+                p,
+                keepalive_interval_seconds=0.01,
+                max_host_gap_seconds=0.2,
+            ),
+            "powered-session",
+        )
+
+    class MissingLifecycle:
+        identity = "powered-missing-contract"
+        state = "new"
+        terminal_reason = None
+
+    expect_error(
+        lambda: watchdog.EmergencyWatchdogLivenessGuard(
+            cf,
+            epoch,
+            reader,
+            MissingLifecycle(),
+            keepalive_interval_seconds=0.01,
+            max_host_gap_seconds=0.2,
+        ),
+        "contract is incomplete",
+    )
+    require(events == [], "reconstructed/unknown lifecycle state emits no watchdog command")
 
 
 def test_source_keeps_authority_and_reset_out_of_scope() -> None:
@@ -474,6 +562,11 @@ def test_source_keeps_authority_and_reset_out_of_scope() -> None:
         require(forbidden not in source, f"watchdog guard exposes forbidden authority: {forbidden}")
     require("__enter__" not in source and "__exit__" not in source, "no benign context-manager lifecycle")
     require("def reset" not in source, "watchdog lifecycle must not self-authorize reset")
+    require(
+        "class PoweredSessionWatchdogLifecycle" not in source
+        and "_POWERED_SESSION_STATES" not in source,
+        "watchdog primitive must not mint fresh powered-session state from an arbitrary token",
+    )
 
 
 def main() -> int:
@@ -487,6 +580,7 @@ def main() -> int:
     test_fence_and_enqueue_duration_are_bounded_by_host_gap()
     test_terminal_stop_is_explicit_and_idempotent()
     test_local_arguments_have_no_command_effect()
+    test_external_powered_session_freshness_is_required()
     test_source_keeps_authority_and_reset_out_of_scope()
 
     print(
