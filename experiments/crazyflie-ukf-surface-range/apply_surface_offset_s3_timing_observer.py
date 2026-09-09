@@ -9,7 +9,8 @@ motor authority.
 
 It records enough provenance to distinguish ToF producer time from UKF
 queue-processing time and to identify which already-dequeued barometer/VZ
-snapshot the late classifier is using.
+snapshot the late classifier is using. Observer state is cleared by both S3
+navigation reset paths so provenance cannot leak across estimator resets.
 """
 
 from __future__ import annotations
@@ -89,17 +90,32 @@ BARO_NEW = """        case MeasurementTypeBarometer:
           surfaceBaroSeen = 1;
 """
 
-SUSPECT_OLD = """                surfaceBaroAtSuspect = latestRelativeBaro;
+SUSPECT_ENTRY_OLD = """                surfaceBaroAtSuspect = latestRelativeBaro;
                 surfaceOffsetBefore = surfaceOffset;
 """
 
-SUSPECT_NEW = """                surfaceBaroAtSuspect = latestRelativeBaro;
+SUSPECT_ENTRY_NEW = """                surfaceBaroAtSuspect = latestRelativeBaro;
                 surfaceTofAgeAtSuspectMs = surfaceTofAgeMs;
                 surfaceBaroAgeAtSuspectMs = surfaceBaroAgeMs;
                 surfaceBaroLagAtSuspect = surfaceBaroLagEvents;
                 surfaceBaroSeenAtSuspect = surfaceBaroSeen;
                 surfaceVzAtSuspect = stateNav[5];
                 surfaceOffsetBefore = surfaceOffset;
+"""
+
+SUSPECT_RESTART_OLD = """                  surfaceSuspectStartMs = nowMs;
+                  surfaceBaroAtSuspect = latestRelativeBaro;
+                  surfaceSuspectCount = 0;
+"""
+
+SUSPECT_RESTART_NEW = """                  surfaceSuspectStartMs = nowMs;
+                  surfaceBaroAtSuspect = latestRelativeBaro;
+                  surfaceTofAgeAtSuspectMs = surfaceTofAgeMs;
+                  surfaceBaroAgeAtSuspectMs = surfaceBaroAgeMs;
+                  surfaceBaroLagAtSuspect = surfaceBaroLagEvents;
+                  surfaceBaroSeenAtSuspect = surfaceBaroSeen;
+                  surfaceVzAtSuspect = stateNav[5];
+                  surfaceSuspectCount = 0;
 """
 
 DECISION_OLD = """              const bool vzVerticalVeto = fabsf(stateNav[5]) >= S3_VZ_VERTICAL_VETO_MPS;
@@ -132,12 +148,61 @@ LOG_ADD(LOG_FLOAT, vzDec, &surfaceVzAtDecision)
 LOG_GROUP_STOP(sensorFilter)
 """
 
+BIAS_RESET_OLD = """      surfaceDetectorState = S3_STATE_NORMAL;
+      surfaceDetectorReason = S3_REASON_NONE;
+
+      // set initial parameters"""
+
+BIAS_RESET_NEW = """      surfaceDetectorState = S3_STATE_NORMAL;
+      surfaceDetectorReason = S3_REASON_NONE;
+      surfaceQueueSequence = 0;
+      surfaceLatestBaroSequence = 0;
+      surfaceLatestBaroProcessMs = 0;
+      surfaceTofAgeMs = 0;
+      surfaceBaroAgeMs = 0;
+      surfaceBaroLagEvents = 0;
+      surfaceTofAgeAtSuspectMs = 0;
+      surfaceBaroAgeAtSuspectMs = 0;
+      surfaceBaroLagAtSuspect = 0;
+      surfaceBaroSeen = 0;
+      surfaceBaroSeenAtSuspect = 0;
+      surfaceVzAtSuspect = 0.0f;
+      surfaceVzAtDecision = 0.0f;
+
+      // set initial parameters"""
+
+NAV_RESET_OLD = """  surfaceDetectorState = S3_STATE_NORMAL;
+  surfaceDetectorReason = S3_REASON_NONE;
+
+  // set initial parameters"""
+
+NAV_RESET_NEW = """  surfaceDetectorState = S3_STATE_NORMAL;
+  surfaceDetectorReason = S3_REASON_NONE;
+  surfaceQueueSequence = 0;
+  surfaceLatestBaroSequence = 0;
+  surfaceLatestBaroProcessMs = 0;
+  surfaceTofAgeMs = 0;
+  surfaceBaroAgeMs = 0;
+  surfaceBaroLagEvents = 0;
+  surfaceTofAgeAtSuspectMs = 0;
+  surfaceBaroAgeAtSuspectMs = 0;
+  surfaceBaroLagAtSuspect = 0;
+  surfaceBaroSeen = 0;
+  surfaceBaroSeenAtSuspect = 0;
+  surfaceVzAtSuspect = 0.0f;
+  surfaceVzAtDecision = 0.0f;
+
+  // set initial parameters"""
+
 MARKERS = (
     ("timing state", STATE_OLD, STATE_NEW, 1),
+    ("bias reset", BIAS_RESET_OLD, BIAS_RESET_NEW, 1),
+    ("navigation reset", NAV_RESET_OLD, NAV_RESET_NEW, 1),
     ("queue sequence", QUEUE_OLD, QUEUE_NEW, 1),
     ("ToF timing", TOF_OLD, TOF_NEW, 1),
     ("barometer provenance", BARO_OLD, BARO_NEW, 1),
-    ("SUSPECT provenance", SUSPECT_OLD, SUSPECT_NEW, 2),
+    ("SUSPECT-entry provenance", SUSPECT_ENTRY_OLD, SUSPECT_ENTRY_NEW, 1),
+    ("SUSPECT-restart provenance", SUSPECT_RESTART_OLD, SUSPECT_RESTART_NEW, 1),
     ("late-decision VZ snapshot", DECISION_OLD, DECISION_NEW, 1),
     ("timing logs", LOG_OLD, LOG_NEW, 1),
 )

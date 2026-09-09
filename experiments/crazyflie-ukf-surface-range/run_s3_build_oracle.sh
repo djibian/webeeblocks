@@ -40,6 +40,7 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   grep -Fq 'surfaceLatestBaroSequence = surfaceQueueSequence;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'surfaceBaroLagAtSuspect = surfaceBaroLagEvents;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'surfaceVzAtDecision = stateNav[5];' src/modules/src/estimator/estimator_ukf.c
+  grep -Fq 'surfaceBaroSeen = 0;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_UINT32, tofAge, &surfaceTofAgeMs)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_UINT32, baroLag0, &surfaceBaroLagAtSuspect)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, vzDec, &surfaceVzAtDecision)' src/modules/src/estimator/estimator_ukf.c
@@ -85,4 +86,4 @@ EOF
   find build -type f -name 'estimator_ukf.o' -size +0c -print -quit | grep -q .
 )
 
-printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and timing observer applied and UKF-enabled cf2 firmware built."
+printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and reset-safe timing observer applied and UKF-enabled cf2 firmware built."
