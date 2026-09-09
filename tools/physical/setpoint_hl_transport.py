@@ -46,7 +46,7 @@ import math
 import struct
 from threading import Event, Lock
 from time import monotonic
-from typing import Callable, Iterable
+from typing import Callable
 
 import high_level_ack
 import high_level_semantics
@@ -301,53 +301,30 @@ class TrustedSetpointHlTransport:
             )
         return binding
 
-    def _authority_checks(
-        self,
-        holder: dict[str, object],
-        extra_checks: tuple[Callable[[], object], ...],
-    ) -> tuple[Callable[[], object], ...]:
-        def assert_current_preflight() -> None:
-            holder["binding"] = self._read_current_binding()
-
-        def assert_teacher_binding() -> None:
-            binding = holder.get("binding")
-            if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
-                raise SetpointHlTransportError(
-                    "current preflight binding was not established inside effect exclusion"
-                )
-            self._teacher.assert_effect_binding(
-                profile_id=binding.profile_id,
-                ast_binding=binding.ast_binding,
-                connection_epoch=binding.connection_epoch,
-            )
-
-        def assert_powered_watchdog() -> None:
-            if self._powered_session.connection_epoch != self._bound_connection_epoch:
-                raise SetpointHlTransportError(
-                    "powered session connection epoch changed"
-                )
-            if (
-                self._watchdog.powered_session_identity
-                != self._powered_session.watchdog_authority.identity
-            ):
-                raise SetpointHlTransportError(
-                    "watchdog/powered-session identity changed"
-                )
-            self._watchdog.assert_live()
-
-        def assert_flying_phase() -> None:
-            if self._execution.phase != physical_execution_domain.FLYING:
-                raise SetpointHlTransportError(
-                    "ordinary GO_TO_2 motion requires fresh established flying state"
-                )
-
-        return (
-            assert_current_preflight,
-            assert_teacher_binding,
-            assert_powered_watchdog,
-            assert_flying_phase,
-            *extra_checks,
+    def _assert_current_authority(self) -> None:
+        """Re-establish mutable run authority/evidence at one effect boundary."""
+        binding = self._read_current_binding()
+        self._teacher.assert_effect_binding(
+            profile_id=binding.profile_id,
+            ast_binding=binding.ast_binding,
+            connection_epoch=binding.connection_epoch,
         )
+        if self._powered_session.connection_epoch != self._bound_connection_epoch:
+            raise SetpointHlTransportError(
+                "powered session connection epoch changed"
+            )
+        if (
+            self._watchdog.powered_session_identity
+            != self._powered_session.watchdog_authority.identity
+        ):
+            raise SetpointHlTransportError(
+                "watchdog/powered-session identity changed"
+            )
+        self._watchdog.assert_live()
+        if self._execution.phase != physical_execution_domain.FLYING:
+            raise SetpointHlTransportError(
+                "ordinary GO_TO_2 motion requires fresh established flying state"
+            )
 
     def _require_connection_live(self) -> None:
         method = getattr(self._cf, "is_connected", None)
@@ -407,32 +384,23 @@ class TrustedSetpointHlTransport:
         self,
         request_builder: Callable[[], bytes],
         *,
-        action_preconditions: Iterable[Callable[[], object]],
         reply_timeout_seconds: float,
     ) -> high_level_ack.HighLevelAckResult:
         builder = _require_callable(request_builder, "validated GO_TO_2 builder")
-        try:
-            extra_checks = tuple(action_preconditions)
-        except Exception as exc:
-            raise SetpointHlTransportError(
-                "action-specific physical preconditions must be iterable"
-            ) from exc
-        checks = tuple(
-            _require_callable(check, "action-specific physical precondition")
-            for check in extra_checks
-        )
         timeout = _positive_timeout(
             reply_timeout_seconds,
             "SETPOINT_HL reply timeout",
         )
-        holder: dict[str, object] = {}
 
         with self._execution.effect_transaction(
-            *self._authority_checks(holder, checks)
+            self._assert_current_authority
         ) as effect:
             request = _validate_request(builder())
 
-            # Remains immediately adjacent to acknowledgement serialization.
+            # Horizontal request construction may wait for a fresh yaw sample.
+            # Recheck mutable preflight/teacher/watchdog/flying evidence after
+            # that delay, immediately before the final SafeLink proof.
+            self._assert_current_authority()
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
@@ -460,9 +428,14 @@ class TrustedSetpointHlTransport:
 
                 add_callback = getattr(self._cf, "add_port_callback", None)
                 remove_callback = getattr(self._cf, "remove_port_callback", None)
-                if not callable(add_callback) or not callable(remove_callback):
+                send_packet = getattr(self._cf, "send_packet", None)
+                if (
+                    not callable(add_callback)
+                    or not callable(remove_callback)
+                    or not callable(send_packet)
+                ):
                     raise SetpointHlTransportError(
-                        "Crazyflie SETPOINT_HL reply callback surface is unavailable"
+                        "Crazyflie SETPOINT_HL callback/send surface is unavailable"
                     )
 
                 callback_installed = False
@@ -474,7 +447,7 @@ class TrustedSetpointHlTransport:
                     effect.mark_emitted()
 
                     # One positional argument only: never cflib expected_reply.
-                    self._cf.send_packet(packet)
+                    send_packet(packet)
 
                     try:
                         reply = self._wait_for_reply(
@@ -496,7 +469,6 @@ class TrustedSetpointHlTransport:
                         try:
                             remove_callback(_SETPOINT_HL_PORT, on_reply)
                         except Exception:
-                            # One-shot callback state ignores later packets.
                             pass
 
     def send_horizontal_move(
@@ -506,7 +478,6 @@ class TrustedSetpointHlTransport:
         distance_m: object,
         yaw_reader: yaw_observer.FreshYawObserver,
         timing_policy: high_level_timing.HighLevelTimingPolicy,
-        action_preconditions: Iterable[Callable[[], object]] = (),
         yaw_timeout_seconds: float = _DEFAULT_YAW_TIMEOUT_SECONDS,
         reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
     ) -> high_level_ack.HighLevelAckResult:
@@ -549,7 +520,6 @@ class TrustedSetpointHlTransport:
 
         return self._send_go_to_once(
             build,
-            action_preconditions=action_preconditions,
             reply_timeout_seconds=reply_timeout_seconds,
         )
 
@@ -558,7 +528,6 @@ class TrustedSetpointHlTransport:
         *,
         angle_deg: object,
         timing_policy: high_level_timing.HighLevelTimingPolicy,
-        action_preconditions: Iterable[Callable[[], object]] = (),
         reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
     ) -> high_level_ack.HighLevelAckResult:
         """Send one #256/#268 relative yaw GO_TO_2 command."""
@@ -574,7 +543,6 @@ class TrustedSetpointHlTransport:
 
         return self._send_go_to_once(
             build,
-            action_preconditions=action_preconditions,
             reply_timeout_seconds=reply_timeout_seconds,
         )
 
