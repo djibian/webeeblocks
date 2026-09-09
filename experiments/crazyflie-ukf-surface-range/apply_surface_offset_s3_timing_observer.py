@@ -27,7 +27,7 @@ static uint8_t surfaceDetectorReason = 0;
 """
 
 STATE_NEW = """static uint8_t surfaceDetectorState = 0;
-static uint8_t surfaceDetectorReason = 0;
+static uint8_t surfaceDetectorReason = 0; // X3 observer anchor boundary.
 
 // X3 timing observer: provenance only; classifier semantics stay unchanged.
 static uint32_t surfaceQueueSequence = 0;
@@ -83,7 +83,7 @@ TOF_NEW = """            // Capture producer-vs-processing timing before any lat
               surfaceBaroLagEvents = 0;
             }
 
-            // Capture local surface geometry before deciding whether ToF is a world-Z update.
+            // Capture local surface geometry before deciding whether ToF is a world-Z update (X3 observed).
             if (m.data.tof.distance >= FLOW_LOCAL_RANGE_MIN_M)
 """
 
@@ -92,6 +92,7 @@ BARO_OLD = """        case MeasurementTypeBarometer:
 """
 
 BARO_NEW = """        case MeasurementTypeBarometer:
+          // X3 provenance anchor boundary.
           latestRelativeBaro = m.data.barometer.baro.asl - baroAslBias;
           surfaceLatestBaroSequence = surfaceQueueSequence;
           surfaceLatestBaroProcessMs = nowMs;
@@ -270,16 +271,13 @@ def marker_state(text: str) -> str:
     for label, old, new, count in MARKERS:
         old_count = text.count(old)
         new_count = text.count(new)
-        embedded_old_per_new = new.count(old)
         if old_count == count and new_count == 0:
             states.append("old")
-        elif new_count == count and old_count == embedded_old_per_new * count:
+        elif old_count == 0 and new_count == count:
             states.append("new")
         else:
-            expected_embedded_old = embedded_old_per_new * count
             raise SystemExit(
-                f"{label}: expected old={count}/new=0 or "
-                f"old={expected_embedded_old}/new={count}, "
+                f"{label}: expected old={count}/new=0 or old=0/new={count}, "
                 f"found old={old_count}, new={new_count}; no file written"
             )
     if all(state == "old" for state in states):
