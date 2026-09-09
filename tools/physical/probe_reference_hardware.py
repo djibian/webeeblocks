@@ -15,8 +15,9 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import secrets
 import sys
-from threading import Event
+from threading import Event, Lock
 from typing import Callable, Mapping
 
 PARAMETERS = (
@@ -220,38 +221,220 @@ def build_descriptor(
     }
 
 
+def _read_connected_descriptor(cf: object) -> dict[str, object]:
+    """Read one truthful capability descriptor from an already-live link."""
+    protocol_version = cf.platform.get_protocol_version()
+    device_type_name = _read_device_type_name(cf)
+    values = _read_required_parameters(cf.param.get_value)
+    return build_descriptor(protocol_version, values, device_type_name)
+
+
+def _installed_cflib_version() -> str:
+    try:
+        return importlib.metadata.version("cflib")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
+class ReadOnlyCapabilitySession:
+    """Persistent non-authority capability adapter for one live Crazyflie link.
+
+    The opaque epoch is created only after a successful live connection and is
+    invalidated by the Crazyflie disconnected callback. Reopening creates a new
+    epoch. Capability reads are bracketed by that epoch and never cache the
+    descriptor, so a later preflight observes the current descriptor fields from
+    the same still-live session.
+
+    This adapter deliberately exposes no flight, arming, setpoint or parameter
+    write operation. Closing the underlying cflib link retains cflib's documented
+    safety-zero close-path behavior; that transport qualification is not execution
+    authority.
+    """
+
+    def __init__(
+        self,
+        uri: str,
+        *,
+        scf_factory: Callable[[str], object] | None = None,
+        driver_init: Callable[[], None] | None = None,
+        epoch_factory: Callable[[], str] | None = None,
+        cflib_version_reader: Callable[[], str] | None = None,
+    ) -> None:
+        if not uri.startswith("radio://"):
+            raise ProbeError("P0b requires an explicit Crazyradio radio:// URI")
+        self._uri = uri
+        self._scf_factory = scf_factory
+        self._driver_init = driver_init
+        self._epoch_factory = epoch_factory or (lambda: secrets.token_hex(16))
+        self._cflib_version_reader = cflib_version_reader or _installed_cflib_version
+        self._drivers_initialized = False
+        self._scf: object | None = None
+        self._disconnect_callback: Callable[[str], None] | None = None
+        self._connection_epoch: str | None = None
+        self._cflib_version = "unknown"
+        self._state_lock = Lock()
+
+    def _initialize_drivers(self) -> None:
+        if self._drivers_initialized:
+            return
+        if self._driver_init is not None:
+            self._driver_init()
+        elif self._scf_factory is None:
+            try:
+                import cflib.crtp
+            except ImportError as exc:
+                raise ProbeError("cflib is required for the live read-only probe") from exc
+            cflib.crtp.init_drivers()
+        self._drivers_initialized = True
+
+    def _new_scf(self) -> object:
+        if self._scf_factory is not None:
+            return self._scf_factory(self._uri)
+        try:
+            from cflib.crazyflie import Crazyflie
+            from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+        except ImportError as exc:
+            raise ProbeError("cflib is required for the live read-only probe") from exc
+        return SyncCrazyflie(self._uri, cf=Crazyflie())
+
+    def _invalidate(self, expected_scf: object) -> None:
+        with self._state_lock:
+            if self._scf is expected_scf:
+                self._connection_epoch = None
+
+    def _discard_stale_session(self) -> None:
+        with self._state_lock:
+            scf = self._scf
+            callback = self._disconnect_callback
+            if scf is None:
+                return
+            if scf.is_link_open():
+                raise ProbeError("read-only capability session is already connected")
+            self._scf = None
+            self._disconnect_callback = None
+            self._connection_epoch = None
+        if callback is not None:
+            try:
+                scf.cf.disconnected.remove_callback(callback)
+            except ValueError:
+                pass
+
+    def open(self) -> None:
+        self._discard_stale_session()
+        self._initialize_drivers()
+        scf = self._new_scf()
+        try:
+            scf.open_link()
+            scf.wait_for_params()
+            if not scf.is_link_open():
+                raise ProbeError("Crazyflie connection closed during session setup")
+            epoch = self._epoch_factory()
+            if not isinstance(epoch, str) or not epoch.strip():
+                raise ProbeError("connection epoch factory returned an invalid epoch")
+            epoch = epoch.strip()
+
+            def disconnected(_uri: str) -> None:
+                self._invalidate(scf)
+
+            with self._state_lock:
+                self._scf = scf
+                self._disconnect_callback = disconnected
+                self._connection_epoch = epoch
+                self._cflib_version = self._cflib_version_reader()
+
+            scf.cf.disconnected.add_callback(disconnected)
+            if not scf.is_link_open():
+                self._invalidate(scf)
+                raise ProbeError("Crazyflie connection closed during session setup")
+        except ProbeError:
+            self._cleanup_failed_open(scf)
+            raise
+        except Exception as exc:
+            self._cleanup_failed_open(scf)
+            raise ProbeError(f"Crazyradio/Crazyflie read-only session failed: {exc}") from exc
+
+    def _cleanup_failed_open(self, scf: object) -> None:
+        with self._state_lock:
+            callback = self._disconnect_callback if self._scf is scf else None
+            if self._scf is scf:
+                self._scf = None
+                self._disconnect_callback = None
+                self._connection_epoch = None
+        if callback is not None:
+            try:
+                scf.cf.disconnected.remove_callback(callback)
+            except ValueError:
+                pass
+        try:
+            if scf.is_link_open():
+                scf.close_link()
+        except Exception:
+            pass
+
+    def read_connection_epoch(self) -> str:
+        with self._state_lock:
+            scf = self._scf
+            epoch = self._connection_epoch
+        if scf is None or epoch is None or not scf.is_link_open():
+            raise ProbeError("Crazyflie connection is not established for capability preflight")
+        return epoch
+
+    def read_capabilities(self) -> dict[str, object]:
+        before = self.read_connection_epoch()
+        with self._state_lock:
+            scf = self._scf
+            cflib_version = self._cflib_version
+        if scf is None:
+            raise ProbeError("Crazyflie connection is not established for capability preflight")
+        try:
+            descriptor = _read_connected_descriptor(scf.cf)
+        except ProbeError:
+            raise
+        except Exception as exc:
+            raise ProbeError(f"Crazyflie capability read failed: {exc}") from exc
+        after = self.read_connection_epoch()
+        if after != before:
+            raise ProbeError("Crazyflie connection changed while capabilities were read")
+        descriptor["evidence"]["cflibVersion"] = cflib_version
+        return descriptor
+
+    def close(self) -> None:
+        with self._state_lock:
+            scf = self._scf
+            callback = self._disconnect_callback
+            self._scf = None
+            self._disconnect_callback = None
+            self._connection_epoch = None
+        if scf is None:
+            return
+        if callback is not None:
+            try:
+                scf.cf.disconnected.remove_callback(callback)
+            except ValueError:
+                pass
+        try:
+            if scf.is_link_open():
+                scf.close_link()
+        except Exception as exc:
+            raise ProbeError(f"Crazyradio/Crazyflie read-only session close failed: {exc}") from exc
+
+    def __enter__(self) -> "ReadOnlyCapabilitySession":
+        self.open()
+        return self
+
+    def __exit__(self, _exc_type, _exc_val, _exc_tb) -> None:
+        self.close()
+
+
 def probe_live(uri: str) -> dict[str, object]:
     """Connect to one explicitly named Crazyradio URI and read evidence only."""
-    if not uri.startswith("radio://"):
-        raise ProbeError("P0b requires an explicit Crazyradio radio:// URI")
-
     try:
-        import cflib.crtp
-        from cflib.crazyflie import Crazyflie
-        from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
-    except ImportError as exc:
-        raise ProbeError("cflib is required for the live read-only probe") from exc
-
-    cflib.crtp.init_drivers()
-    try:
-        cflib_version = importlib.metadata.version("cflib")
-    except importlib.metadata.PackageNotFoundError:
-        cflib_version = "unknown"
-
-    try:
-        with SyncCrazyflie(uri, cf=Crazyflie()) as scf:
-            scf.wait_for_params()
-            protocol_version = scf.cf.platform.get_protocol_version()
-            device_type_name = _read_device_type_name(scf.cf)
-            values = _read_required_parameters(scf.cf.param.get_value)
+        with ReadOnlyCapabilitySession(uri) as session:
+            return session.read_capabilities()
     except ProbeError:
         raise
     except Exception as exc:
         raise ProbeError(f"Crazyradio/Crazyflie read-only probe failed: {exc}") from exc
-
-    descriptor = build_descriptor(protocol_version, values, device_type_name)
-    descriptor["evidence"]["cflibVersion"] = cflib_version
-    return descriptor
 
 
 def main(argv: list[str] | None = None) -> int:
