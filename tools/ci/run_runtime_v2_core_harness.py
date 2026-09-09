@@ -77,6 +77,10 @@ def main():
     if physical_submission_test.returncode:
         print('FAIL session-bound physical submission bridge',file=sys.stderr);print(physical_submission_test.stdout,file=sys.stderr);print(physical_submission_test.stderr,file=sys.stderr);return physical_submission_test.returncode
     print(physical_submission_test.stdout.strip())
+    current_program_authority_test=subprocess.run([sys.executable,'tools/ci/test_current_program_authority_process.py'],text=True,capture_output=True)
+    if current_program_authority_test.returncode:
+        print('FAIL trusted-host current-program authority process',file=sys.stderr);print(current_program_authority_test.stdout,file=sys.stderr);print(current_program_authority_test.stderr,file=sys.stderr);return current_program_authority_test.returncode
+    print(current_program_authority_test.stdout.strip())
     teacher_authorization_test=subprocess.run([sys.executable,'tools/ci/test_teacher_run_authorization.py'],text=True,capture_output=True)
     if teacher_authorization_test.returncode:
         print('FAIL host-only teacher run authorization binding',file=sys.stderr);print(teacher_authorization_test.stdout,file=sys.stderr);print(teacher_authorization_test.stderr,file=sys.stderr);return teacher_authorization_test.returncode
