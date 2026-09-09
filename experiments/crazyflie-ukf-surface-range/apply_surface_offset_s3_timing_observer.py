@@ -179,34 +179,34 @@ LOG_GROUP_STOP(sensorFilter)
 """
 
 BIAS_RESET_OLD = """      surfaceDetectorState = S3_STATE_NORMAL;
-      surfaceDetectorReason = S3_REASON_NONE;
+        surfaceDetectorReason = S3_REASON_NONE;
 
-      // set initial parameters"""
+        // set initial parameters"""
 
 BIAS_RESET_NEW = """      surfaceDetectorState = S3_STATE_NORMAL;
-      surfaceDetectorReason = S3_REASON_NONE;
-      surfaceQueueSequence = 0;
-      surfaceLatestBaroSequence = 0;
-      surfaceLatestBaroProcessMs = 0;
-      surfaceTofAgeMs = 0;
-      surfaceBaroAgeMs = 0;
-      surfaceBaroLagEvents = 0;
-      surfaceTofAgeAtSuspectMs = 0;
-      surfaceBaroAgeAtSuspectMs = 0;
-      surfaceBaroLagAtSuspect = 0;
-      surfaceTofAgeAtDecisionMs = 0;
-      surfaceBaroAgeAtDecisionMs = 0;
-      surfaceBaroLagAtDecision = 0;
-      surfaceBaroSeen = 0;
-      surfaceBaroSeenAtSuspect = 0;
-      surfaceBaroSeenAtDecision = 0;
-      surfaceLateDecisionEligible = 0;
-      surfaceVzAtSuspect = 0.0f;
-      surfaceVzAtDecision = 0.0f;
-      surfaceBaroAtDecision = 0.0f;
-      surfaceBaroDeltaAtDecision = 0.0f;
+        surfaceDetectorReason = S3_REASON_NONE;
+        surfaceQueueSequence = 0;
+        surfaceLatestBaroSequence = 0;
+        surfaceLatestBaroProcessMs = 0;
+        surfaceTofAgeMs = 0;
+        surfaceBaroAgeMs = 0;
+        surfaceBaroLagEvents = 0;
+        surfaceTofAgeAtSuspectMs = 0;
+        surfaceBaroAgeAtSuspectMs = 0;
+        surfaceBaroLagAtSuspect = 0;
+        surfaceTofAgeAtDecisionMs = 0;
+        surfaceBaroAgeAtDecisionMs = 0;
+        surfaceBaroLagAtDecision = 0;
+        surfaceBaroSeen = 0;
+        surfaceBaroSeenAtSuspect = 0;
+        surfaceBaroSeenAtDecision = 0;
+        surfaceLateDecisionEligible = 0;
+        surfaceVzAtSuspect = 0.0f;
+        surfaceVzAtDecision = 0.0f;
+        surfaceBaroAtDecision = 0.0f;
+        surfaceBaroDeltaAtDecision = 0.0f;
 
-      // set initial parameters"""
+        // set initial parameters"""
 
 NAV_RESET_OLD = """  surfaceDetectorState = S3_STATE_NORMAL;
   surfaceDetectorReason = S3_REASON_NONE;
