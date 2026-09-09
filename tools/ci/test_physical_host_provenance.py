@@ -301,8 +301,14 @@ def _run_separated_case(*, browser: bool, request_ast: str) -> dict:
         browser_recv.close()
         browser_result_send.close()
     else:
-        # No process receives the bootstrap secret.  Closing the receiver models
-        # responder loss; the authority-side #278 challenge must time out.
+        # Trusted composition still routes and consumes the one-way bootstrap,
+        # but no browser responder is started.  The caller never receives these
+        # credentials, and the authority-side #278 challenge must time out.
+        discarded_bootstrap = browser_recv.recv()
+        require(
+            discarded_bootstrap["executionAuthority"] is False,
+            "discarded browser bootstrap remains non-authority",
+        )
         browser_recv.close()
 
     caller = ctx.Process(
@@ -323,7 +329,16 @@ def _run_separated_case(*, browser: bool, request_ast: str) -> dict:
         browser_result_recv.close()
         browser_process.join(timeout=5.0)
         require(browser_process.exitcode == 0, "browser responder process exits cleanly")
-        require(browser_result["ok"], "production-shaped #249 browser responder succeeds")
+        if request_ast == AST_BINDING:
+            require(
+                browser_result["ok"],
+                "production-shaped #249 browser responder succeeds",
+            )
+        else:
+            require(
+                not browser_result["ok"],
+                "mismatched actual browser AST must be rejected by #278",
+            )
 
     # Closing the installed caller capability terminates the authority fixture.
     authority.join(timeout=5.0)
