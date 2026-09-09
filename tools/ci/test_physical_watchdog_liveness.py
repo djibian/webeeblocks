@@ -109,7 +109,7 @@ class FakeClock:
             self.value += seconds
 
 
-class FakePoweredSessionLifecycle:
+class FakePoweredSessionLifecycle(watchdog.PoweredSessionWatchdogAuthority):
     """Test double for state supplied by the future trusted powered-session/reset layer."""
 
     def __init__(
@@ -515,6 +515,13 @@ def test_local_arguments_have_no_command_effect() -> None:
 
 
 def test_external_powered_session_freshness_is_required() -> None:
+    try:
+        watchdog.PoweredSessionWatchdogAuthority()
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("watchdog module must not provide a concrete powered-session authority")
+
     events: list[str] = []
     epoch = Epoch("epoch-reconstructed")
     cf = FakeCf(events)
@@ -571,7 +578,7 @@ def test_external_powered_session_freshness_is_required() -> None:
             keepalive_interval_seconds=0.01,
             max_host_gap_seconds=0.2,
         ),
-        "contract is incomplete",
+        "external trusted powered-session watchdog authority is required",
     )
     require(events == [], "reconstructed/unknown lifecycle state emits no watchdog command")
 
@@ -595,6 +602,10 @@ def test_source_keeps_authority_and_reset_out_of_scope() -> None:
         "class PoweredSessionWatchdogLifecycle" not in source
         and "_POWERED_SESSION_STATES" not in source,
         "watchdog primitive must not mint fresh powered-session state from an arbitrary token",
+    )
+    require(
+        "class PoweredSessionWatchdogAuthority(ABC)" in source,
+        "watchdog freshness must remain an explicit external abstract trust boundary",
     )
 
 

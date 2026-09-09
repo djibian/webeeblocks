@@ -27,6 +27,7 @@ student/browser API.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from math import isfinite
 from threading import Event, Lock, Thread, current_thread
 from time import monotonic
@@ -45,6 +46,47 @@ _STATE_TERMINAL = "terminal"
 
 class WatchdogLivenessError(RuntimeError):
     """Fail-closed error for an unproven or lost watchdog liveness domain."""
+
+
+class PoweredSessionWatchdogAuthority(ABC):
+    """External trust boundary for powered-session watchdog certainty.
+
+    Production implementations belong to the distinct trusted reset/session
+    layer. They must preserve state across guard replacement, reconnect and
+    host-process restart, and may report "new" only after separately proving the
+    STM+deck reset boundary. This watchdog module provides no concrete authority.
+    """
+
+    @property
+    @abstractmethod
+    def identity(self) -> str:
+        """Stable identity of the externally established powered session."""
+
+    @property
+    @abstractmethod
+    def state(self) -> str:
+        """Externally durable watchdog lifecycle state."""
+
+    @property
+    @abstractmethod
+    def terminal_reason(self) -> str | None:
+        """Durable terminal reason, when applicable."""
+
+    @abstractmethod
+    def require_fresh_reset_proof(self) -> None:
+        """Fail unless fresh powered-session reset proof is externally established."""
+
+    @abstractmethod
+    def begin_activation(self) -> None:
+        """Atomically consume external freshness before the first watchdog effect."""
+
+    @abstractmethod
+    def mark_active(self) -> None:
+        """Durably commit successful causal activation."""
+
+    @abstractmethod
+    def mark_terminal(self, reason: str) -> None:
+        """Durably commit terminal/lost watchdog certainty."""
 
 
 def _positive_finite(value: object, name: str) -> float:
@@ -99,9 +141,9 @@ def _read_powered_session_terminal_reason(lifecycle: object) -> str | None:
 
 
 def _require_powered_session_contract(lifecycle: object) -> None:
-    if lifecycle is None:
+    if not isinstance(lifecycle, PoweredSessionWatchdogAuthority):
         raise WatchdogLivenessError(
-            "external trusted powered-session watchdog lifecycle is required"
+            "external trusted powered-session watchdog authority is required"
         )
     _read_powered_session_identity(lifecycle)
     _read_powered_session_state(lifecycle)
@@ -195,7 +237,7 @@ class EmergencyWatchdogLivenessGuard:
         cf: object,
         connection_epoch_reader: Callable[[], str],
         supervisor_reader: object,
-        powered_session: object,
+        powered_session: PoweredSessionWatchdogAuthority,
         *,
         keepalive_interval_seconds: float = DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
         max_host_gap_seconds: float = DEFAULT_MAX_HOST_GAP_SECONDS,
@@ -503,8 +545,8 @@ class EmergencyWatchdogLivenessGuard:
             reason = "watchdog liveness service is not active"
             self._record_terminal(reason)
             raise WatchdogLivenessError(reason)
-        self._verify_epoch()
         try:
+            self._verify_epoch()
             self._verify_host_gap()
         except WatchdogLivenessError as exc:
             self._record_terminal(str(exc))
