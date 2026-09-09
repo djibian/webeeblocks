@@ -389,11 +389,33 @@ def make_cflib_stm_deck_power_cycle(
                 ) from exc
             factory = PowerSwitch
         switch = factory(radio_uri)
-        method = getattr(switch, "stm_power_cycle", None)
-        if not callable(method):
-            raise PoweredSessionAuthorityError(
-                "cflib PowerSwitch STM power-cycle operation is unavailable"
-            )
-        method()
+        failure: Exception | None = None
+        try:
+            method = getattr(switch, "stm_power_cycle", None)
+            if not callable(method):
+                raise PoweredSessionAuthorityError(
+                    "cflib PowerSwitch STM power-cycle operation is unavailable"
+                )
+            method()
+        except Exception as exc:
+            failure = exc
+
+        try:
+            close_method = getattr(switch, "close", None)
+            if not callable(close_method):
+                raise PoweredSessionAuthorityError(
+                    "cflib PowerSwitch close operation is unavailable"
+                )
+            close_method()
+        except Exception as close_exc:
+            detail = f"cflib PowerSwitch cleanup failed: {close_exc}"
+            if failure is not None:
+                raise PoweredSessionAuthorityError(
+                    f"STM+deck power-cycle failed or is ambiguous: {failure}; {detail}"
+                ) from failure
+            raise PoweredSessionAuthorityError(detail) from close_exc
+
+        if failure is not None:
+            raise failure
 
     return reset

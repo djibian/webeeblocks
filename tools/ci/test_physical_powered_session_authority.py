@@ -288,6 +288,9 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
         def stm_power_cycle(self) -> None:
             calls.append("cycle")
 
+        def close(self) -> None:
+            calls.append("close")
+
     reset = authority.make_cflib_stm_deck_power_cycle(
         "radio://0/80/2M/E7E7E7E7E7",
         power_switch_factory=FakePowerSwitch,
@@ -298,9 +301,62 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
         calls == [
             ("construct", "radio://0/80/2M/E7E7E7E7E7"),
             "cycle",
+            "close",
         ],
-        "explicit reset delegates once to cflib PowerSwitch STM+deck cycle",
+        "explicit reset delegates once and releases the PowerSwitch transport",
     )
+
+    failing_calls: list[str] = []
+
+    class FailingCyclePowerSwitch:
+        def __init__(self, _uri: str) -> None:
+            failing_calls.append("construct")
+
+        def stm_power_cycle(self) -> None:
+            failing_calls.append("cycle")
+            raise RuntimeError("reset ambiguity")
+
+        def close(self) -> None:
+            failing_calls.append("close")
+
+    failing_reset = authority.make_cflib_stm_deck_power_cycle(
+        "radio://0/80/2M/E7E7E7E7E7",
+        power_switch_factory=FailingCyclePowerSwitch,
+    )
+    try:
+        failing_reset()
+    except RuntimeError as exc:
+        require("reset ambiguity" in str(exc), "reset failure remains fail-closed")
+    else:
+        raise AssertionError("expected reset ambiguity")
+    require(
+        failing_calls == ["construct", "cycle", "close"],
+        "PowerSwitch transport closes even when STM power-cycle fails",
+    )
+
+    close_failure_calls: list[str] = []
+
+    class FailingClosePowerSwitch:
+        def __init__(self, _uri: str) -> None:
+            close_failure_calls.append("construct")
+
+        def stm_power_cycle(self) -> None:
+            close_failure_calls.append("cycle")
+
+        def close(self) -> None:
+            close_failure_calls.append("close")
+            raise RuntimeError("radio release failed")
+
+    close_failing_reset = authority.make_cflib_stm_deck_power_cycle(
+        "radio://0/80/2M/E7E7E7E7E7",
+        power_switch_factory=FailingClosePowerSwitch,
+    )
+    expect_error(close_failing_reset, "PowerSwitch cleanup failed")
+    require(
+        close_failure_calls == ["construct", "cycle", "close"],
+        "cleanup failure is observed after the exact reset attempt",
+    )
+
     expect_error(
         lambda: authority.make_cflib_stm_deck_power_cycle("usb://not-radio"),
         "explicit Crazyradio radio:// URI",
