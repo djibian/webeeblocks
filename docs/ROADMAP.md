@@ -299,35 +299,40 @@ Runtime/controller change is justified by #236 alone.
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — redesign S3 evidence after the terrain-veto discriminator
+### X3 — establish independent vertical-motion evidence before terrain redesign
 
 - parent: #70
-- established technical result: the isolated S3 `surfaceOffset` applicator and
-  deterministic build oracle remain pinned to `crazyflie-firmware` 2026.08 and
-  preserve the proven local-range Flow split plus pre-registered terrain and
-  true-vertical controls
-- established physical result: #180 refuted the original terrain candidate; the
-  exact follow-up discriminator checkpoint #236 then PASSed its causal purpose.
-  Terrain S3-A can trigger VZ, BARO or BOTH vetoes, whereas the valid S3-B/S3-C
-  true-vertical controls remain below the ToF rejection gate, never enter
-  SUSPECT and never falsely commit terrain
-- causal consequence: the current VZ/barometer cues are not sufficiently
-  independent/discriminating after a terrain discontinuity; the available
-  S3-B/S3-C controls do not prove the late veto unnecessary because they do not
-  exercise that decision path
-- next proof: redesign the classifier evidence and/or temporal alignment so a
-  terrain-induced estimator response cannot masquerade as independent true
-  vertical-motion evidence; pre-register a bounded candidate and include at
-  least one true-vertical control that reaches the revised late-decision path
-  before relying on the result
-- acceptance boundary: a later candidate must both permit coherent terrain
-  commit/recovery and reject true vertical motion on the decision path it
-  changes; controls that never enter that path cannot establish the latter
+- established physical result: #180 refuted the original terrain candidate and
+  #236 showed that the late S3 VZ/barometer vetoes are not independent terrain
+  discriminators; the valid S3-B/S3-C controls stay below the stock ToF rejection
+  gate and therefore do not exercise the late decision path
+- causal consequence: the scalar S3 `surfaceOffset` direction is not a sound
+  architecture to repair by threshold or veto tuning. Preserve the proven
+  local-range Flow split, but first separate vehicle vertical displacement from
+  surface-height change instead of assuming `delta z = 0`
+- current proof question: determine whether an independent vehicle displacement
+  estimate from IMU/barometer evidence that excludes suspect ToF can bound
+  `delta z` tightly enough that `delta h = delta z_ind - delta c` distinguishes
+  terrain, true vertical motion and a mixed event
+- next proof: reanalyse the existing #180/#236/#251 archives before collecting
+  new physical data. Verify provenance/hashes and available columns, use the raw
+  barometer plus IMU/attitude when present, quantify uncertainty/latency, and
+  compare the same frozen calculation across stationary, terrain, vertical and
+  mixed controls with an independent metric reference where one exists
+- falsification boundary: the current #70 review uses at most 5 cm displacement
+  error and at most 1 s after transition end as bounded experimental criteria,
+  not classifier thresholds or flight acceptance. A valid counterexample
+  refutes that candidate; missing raw inputs/reference makes the result UNPROVEN
+  rather than grounds for tuning around the evidence
+- if the archived evidence is insufficient, prepare only one bounded props-off
+  checkpoint that fills the exact missing signal/reference and exercises the
+  revised decision path; do not repeat generic S3-A/B/C trials
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
-  thresholds/persistence against the outcome, add `rangeUp` fusion/full `z/f/r`,
-  or perform motorized real flight as an agent
-- consequence: no stronger world-altitude capability claim is justified until
-  a separately proven mechanism replaces the refuted S3 boundary.
+  thresholds/persistence, delete the late veto to rescue S3, add `rangeUp` or a
+  full `z/f/r` estimator by default, or perform motorized real flight as an agent
+- consequence: no new terrain-classifier implementation or stronger world-altitude
+  capability claim is justified until this independent-information proof
+  converges; #70 remains Lab-only.
 
 ## Later gates kept intentionally coarse
 
