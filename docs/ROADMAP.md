@@ -247,11 +247,17 @@ justified by the current evidence.
   during or after preflight invalidates it; #246 provides the concrete host-side
   `ReadOnlyCapabilitySession` that opens one explicit Crazyradio link, creates/
   rotates that epoch around live connections, invalidates it on cflib disconnect
-  and reconstructs descriptors from current connected evidence; and #249 binds
-  the production physical submission path to that live session, preserving the
-  exact current activity profile and semantic workspace AST across preflight and
-  re-asserting them with the same connection epoch immediately before any later
-  separately authorized effect. Integrated #256 then codifies the physical
+  and reconstructs descriptors from current connected evidence; #249 binds the
+  production physical submission path to that live session, preserving the exact
+  current activity profile and semantic workspace AST across preflight; and
+  integrated #278 adds a fresh host-initiated one-shot profile/AST/epoch
+  re-assertion channel from the production browser path. #276 subsequently
+  falsified same-process wrappers around that channel as effect provenance:
+  ordinary effect-side Python can still construct/mutate/self-answer reachable
+  bridge/session objects. #280 is therefore the remaining production-composition
+  prerequisite: the positive #249 responder/mint authority must live outside the
+  effect caller's importable authority domain, while the effect consumer receives
+  only a fresh exact request/reply capability. Integrated #256 then codifies the physical
   body-relative horizontal -> world-frame transform plus relative world-Z/yaw as
   a pure semantic adapter, without importing cflib or emitting any command.
   Integrated #257 adds the fresh fail-closed supervisor-state observer: one
@@ -284,10 +290,16 @@ justified by the current evidence.
   concrete trusted powered-session/reset authority (#266), exact-run host-only
   teacher authorization (#267), pure HighLevel trajectory timing policy (#268),
   process-wide HighLevel acknowledgement-freshness domain (#271), live SafeLink
-  duplicate-suppression precondition (#272), and process-wide reset/effect
-  exclusion lifecycle (#273) are integrated. The separately authorized physical
-  effect consumer and safe real-execution proof remain unproven. That consumer
-  must compose the exact-bound preflight with #257/#260/#256/#268, consume #266
+  duplicate-suppression precondition (#272), process-wide reset/effect
+  exclusion lifecycle (#273), and exact accepted-effect completion permit (#279)
+  are integrated. #280 remains a technical prerequisite to the first separately
+  authorized physical effect consumer: fresh #278/#249 current-program evidence
+  must cross a production authority process/channel that the effect caller cannot
+  self-answer or mint through imported Python state. Until that is established,
+  #276 cannot truthfully claim the current-program precondition and must not
+  become an integration candidate. The physical effect consumer and safe
+  real-execution proof therefore remain unproven. That consumer must compose the
+  exact-bound preflight with #257/#260/#256/#268, consume #266
   to establish the powered session, keep #262 live across that reusable session,
   require the exact #267 run binding and #272 SafeLink evidence immediately
   before each flight-capable effect, execute inside #273, enter #271 before one
@@ -369,13 +381,20 @@ justified by the current evidence.
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
 - depends: separately authorized physical effect consumption and proof of
-  physical execution continuity. Integrated #266 now satisfies #262's concrete
+  physical execution continuity. Integrated #278 supplies the fresh host-initiated
+  browser #249 assertion, but #280 is now a demonstrated prerequisite before that
+  assertion may authorize an effect: responder/mint authority must be separated
+  from the effect caller so caller-selected bridge/session state cannot self-answer
+  or manufacture accepted provenance. Integrated #266 now satisfies #262's concrete
   trusted powered-session/reset authority boundary, and integrated #267 now
   supplies the exact-run host-only teacher-authorization binding that every
   flight-capable effect must re-check. The existing browser-held capability/
   preflight bearer remains non-authority; the #267 teacher path is distinct and
   unavailable to the student/browser runtime, and the read-only capability
-  bridge must not gain effect methods merely to reuse that bearer. Integrated
+  bridge must not gain effect methods merely to reuse that bearer. #280 should
+  preserve this non-authority split with the smallest OS-handle/process boundary
+  needed for a fresh exact assertion; do not substitute Python privacy naming,
+  mutable provenance flags or caller-selected bridge/session wrappers. Integrated
   #268 additionally supplies the pure horizontal/yaw HighLevel timing policy
   needed by the later serialized effect consumer. #262, #264, #266, #267 and
   #268 are safety/authority/semantic prerequisites; none alone establishes the
