@@ -18,6 +18,9 @@ spec = importlib.util.spec_from_file_location("serve_reference_capabilities", BR
 if spec is None or spec.loader is None:
     raise RuntimeError("cannot load capability HTTP bridge")
 bridge_module = importlib.util.module_from_spec(spec)
+# exec_module does not register manually created modules; dataclasses resolves
+# postponed annotations through sys.modules while the module is executing.
+sys.modules[spec.name] = bridge_module
 spec.loader.exec_module(bridge_module)
 
 
