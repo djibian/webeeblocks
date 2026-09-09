@@ -95,7 +95,12 @@ reconnect. Neither slice emits flight authority.
 
 A later effect consumer still must supply the accepted live yaw, consume #257 to
 bound command completion, and establish the independent watchdog before any
-flight-capable effect. The pinned watchdog is one-way after first activation:
+flight-capable effect. For safety decisions, #257 must be the exclusive
+authoritative issuer of supervisor GET_STATE requests on the connection epoch:
+the passive cflib supervisor callback may remain registered, but later
+authority/completion/watchdog code must not invoke cflib `Supervisor` getters in
+parallel or use them as a second oracle because they bypass #257's epoch-wide
+serialization and ambiguity poisoning. The pinned watchdog is one-way after first activation:
 there is no normal disable/reset command and abandoning keepalives eventually
 enters the latching locked/reboot path. Its keepalive also has no application
 reply. The current bounded activation-proof direction is therefore a same-epoch,
