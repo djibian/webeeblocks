@@ -1,53 +1,73 @@
 #!/usr/bin/env python3
-"""Trusted one-shot SETPOINT_HL effect transport for the physical Crazyflie host.
+"""Trusted one-shot in-flight SETPOINT_HL transport for the physical Crazyflie.
 
 This is the first bounded module in this directory that may emit an ordinary
-flight-capable CRTP packet. It deliberately does not expose a browser/HTTP
-surface and it does not build student semantics itself.
+flight-capable CRTP packet. It deliberately exposes no browser/HTTP surface and
+it cannot manufacture teacher or powered-session authority.
 
-One send is eligible only inside the process-wide PhysicalExecutionDomain after
-the caller-supplied exact preflight, teacher-run, powered-session/watchdog and
-action-specific assertions succeed. The request builder then runs under the
-same exclusion so fresh yaw/geometry/timing evidence may be consumed without a
-reset race. Live SafeLink is re-checked after request construction and
-immediately before the HighLevelAckDomain transaction.
+The transport is bound at construction time to the exact integrated authority
+objects that make one physical run eligible:
+- one #267 TeacherRunAuthorization receipt;
+- one #266 EstablishedPoweredSession and its non-forgeable watchdog authority;
+- the exact active #262 EmergencyWatchdogLivenessGuard for that powered session;
+- one #272 live SafeLink precondition and one #271 acknowledgement domain on the
+  same connection epoch;
+- the process-wide #273 reset/effect exclusion domain.
 
-The firmware reply callback is installed before the effect boundary is crossed.
-The packet is sent exactly once with plain Crazyflie.send_packet(packet): this
-module never supplies cflib expected_reply and therefore cannot activate its
-application-level auto-retry machinery. A timeout, disconnect, malformed reply,
-send exception or epoch change leaves the physical execution domain
-recovery-required and poisons acknowledgement freshness for the old epoch.
-A definitive non-zero firmware result restores the exact prior execution phase.
-A zero result moves the execution domain only to awaiting-completion; the caller
-must separately establish fresh #257/#264 completion before another effect or
-reset is eligible.
+The current slice intentionally supports only in-flight relative GO_TO_2 commands
+for horizontal movement and yaw turns. It does not expose TAKEOFF_2, LAND_2,
+vertical movement, STOP, trajectory, spiral, raw command bytes or a generic send
+method. Horizontal geometry is derived through integrated #256 from one fresh
+#260 yaw observation and duration through integrated #268. Turns use #256/#268
+directly. Takeoff/landing/vertical timing policy remains a separate prerequisite.
 
-Two-byte STOP/group-mask requests are intentionally outside this transport
-because HighLevelAckDomain requires the firmware's three-byte surviving reply
-prefix. Emergency/motor-cut STOP remains a separately justified exceptional
-path.
+A caller must supply a trusted non-authority current-preflight binding reader.
+Its result is required to be the exact #267 PhysicalRunBinding and is rechecked
+inside #273 immediately before every effect. Arbitrary authority callbacks are
+not accepted.
+
+Live SafeLink is re-checked immediately before entering #271. The SETPOINT_HL
+reply callback is installed before the pessimistic effect boundary is crossed.
+Exactly one plain Crazyflie.send_packet(packet) call is made, with no
+expected_reply/application retry. A non-zero firmware result restores the prior
+flying phase. A zero result moves #273 only to awaiting-completion; fresh #257
+completion evidence must establish flying again before another motion effect.
+Timeout, disconnect, malformed reply, send failure or epoch change is ambiguous
+and remains fail-closed.
+
+packet_factory exists only as a deterministic test seam. The returned packet is
+revalidated byte-for-byte and for exact SETPOINT_HL port before the effect
+boundary, so it cannot substitute another physical command.
 """
 
 from __future__ import annotations
 
 import math
+import struct
 from threading import Event, Lock
 from time import monotonic
 from typing import Callable, Iterable
 
-import high_level_ack as high_level_ack
-import physical_execution_domain as physical_execution
-import safelink_precondition as safelink
+import high_level_ack
+import high_level_semantics
+import high_level_timing
+import physical_execution_domain
+import powered_session_authority
+import safelink_precondition
+import teacher_run_authorization
+import watchdog_liveness
+import yaw_observer
 
 _SETPOINT_HL_PORT = 0x08
+_COMMAND_GO_TO_2 = 12
 _DEFAULT_REPLY_TIMEOUT_SECONDS = 0.2
+_DEFAULT_YAW_TIMEOUT_SECONDS = 0.5
 _WAIT_SLICE_SECONDS = 0.01
-_ALLOWED_REQUEST_SIZES = {7: 15, 8: 15, 12: 24}
+_GO_TO_2_SIZE = 24
 
 
 class SetpointHlTransportError(RuntimeError):
-    """Fail-closed local error for the trusted SETPOINT_HL effect transport."""
+    """Fail-closed trusted SETPOINT_HL transport error."""
 
 
 def _require_callable(value: object, name: str) -> Callable:
@@ -56,47 +76,77 @@ def _require_callable(value: object, name: str) -> Callable:
     return value
 
 
-def _positive_timeout(value: object) -> float:
+def _positive_timeout(value: object, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise SetpointHlTransportError("SETPOINT_HL reply timeout must be positive")
+        raise SetpointHlTransportError(f"{name} must be positive")
     timeout = float(value)
     if not math.isfinite(timeout) or timeout <= 0.0:
-        raise SetpointHlTransportError("SETPOINT_HL reply timeout must be positive")
+        raise SetpointHlTransportError(f"{name} must be positive")
     return timeout
 
 
-def _request_bytes(value: object) -> bytes:
+def _nonempty_text(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        raise SetpointHlTransportError(f"{name} must be a non-empty trimmed string")
+    return value
+
+
+def _go_to_request(target: object, duration_seconds: object) -> bytes:
+    if not isinstance(target, high_level_semantics.RelativeHighLevelTarget):
+        raise SetpointHlTransportError("validated #256 relative target is required")
+    duration = _positive_timeout(duration_seconds, "GO_TO_2 duration")
+    values = (target.x_m, target.y_m, target.z_m, target.yaw_rad, duration)
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        for value in values
+    ):
+        raise SetpointHlTransportError("GO_TO_2 target/duration must be finite")
+    data = struct.pack(
+        "<BBBBfffff",
+        _COMMAND_GO_TO_2,
+        0,  # group mask: one reference Crazyflie only
+        1,  # relative world-frame target
+        0,  # smooth seventh-order planner, not linear
+        float(target.x_m),
+        float(target.y_m),
+        float(target.z_m),
+        float(target.yaw_rad),
+        duration,
+    )
+    _validate_request(data)
+    return data
+
+
+def _validate_request(value: object) -> bytes:
     if isinstance(value, bytearray):
         data = bytes(value)
     elif isinstance(value, bytes):
         data = value
     else:
-        raise SetpointHlTransportError("SETPOINT_HL request builder must return bytes")
-    if len(data) < 3:
+        raise SetpointHlTransportError("validated SETPOINT_HL request must be bytes")
+    if len(data) != _GO_TO_2_SIZE:
+        raise SetpointHlTransportError("GO_TO_2 payload size does not match pinned cflib")
+    command, group_mask, relative, linear, x, y, z, yaw, duration = struct.unpack(
+        "<BBBBfffff", data
+    )
+    if command != _COMMAND_GO_TO_2:
         raise SetpointHlTransportError(
-            "SETPOINT_HL ordinary effect request requires a three-byte reply prefix"
+            "only validated GO_TO_2 is available on the ordinary effect surface"
         )
-    if len(data) > 30:
-        raise SetpointHlTransportError("SETPOINT_HL request exceeds CRTP data capacity")
-    command = data[0]
-    expected_size = _ALLOWED_REQUEST_SIZES.get(command)
-    if expected_size is None:
+    if group_mask != 0 or relative != 1 or linear != 0:
         raise SetpointHlTransportError(
-            "SETPOINT_HL command is outside the ordinary WebeeBlocks motion surface"
+            "GO_TO_2 must be single-Crazyflie, relative and smooth"
         )
-    if len(data) != expected_size:
-        raise SetpointHlTransportError(
-            "SETPOINT_HL command payload size does not match pinned cflib format"
-        )
-    if data[1] != 0:
-        raise SetpointHlTransportError(
-            "SETPOINT_HL ordinary WebeeBlocks motion requires group mask zero"
-        )
+    if any(not math.isfinite(value) for value in (x, y, z, yaw, duration)):
+        raise SetpointHlTransportError("GO_TO_2 payload contains non-finite values")
+    if duration <= 0.0:
+        raise SetpointHlTransportError("GO_TO_2 duration must be positive")
     return data
 
 
 def _default_packet_factory(request: bytes) -> object:
-    """Build the pinned cflib CRTP packet lazily on the physical host."""
     try:
         from cflib.crtp.crtpstack import CRTPPacket, CRTPPort
     except Exception as exc:
@@ -104,7 +154,9 @@ def _default_packet_factory(request: bytes) -> object:
             "pinned cflib CRTP packet types are unavailable"
         ) from exc
     if getattr(CRTPPort, "SETPOINT_HL", None) != _SETPOINT_HL_PORT:
-        raise SetpointHlTransportError("cflib SETPOINT_HL port does not match pinned contract")
+        raise SetpointHlTransportError(
+            "cflib SETPOINT_HL port does not match pinned contract"
+        )
     packet = CRTPPacket()
     packet.port = CRTPPort.SETPOINT_HL
     packet.data = request
@@ -112,66 +164,196 @@ def _default_packet_factory(request: bytes) -> object:
 
 
 class TrustedSetpointHlTransport:
-    """Compose one acknowledged physical SETPOINT_HL send under trusted exclusion."""
+    """One exact-authority, no-retry in-flight HighLevel motion transport."""
 
     def __init__(
         self,
         *,
         crazyflie: object,
-        execution_domain: physical_execution.PhysicalExecutionDomain,
+        execution_domain: physical_execution_domain.PhysicalExecutionDomain,
         acknowledgement_domain: high_level_ack.HighLevelAckDomain,
-        safelink_precondition: safelink.LiveSafeLinkPrecondition,
+        safelink_precondition: safelink_precondition.LiveSafeLinkPrecondition,
+        teacher_authorization: teacher_run_authorization.TeacherRunAuthorization,
+        powered_session: powered_session_authority.EstablishedPoweredSession,
+        watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
+        current_preflight_binding_reader: Callable[
+            [], teacher_run_authorization.PhysicalRunBinding
+        ],
         packet_factory: Callable[[bytes], object] | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if crazyflie is None:
             raise SetpointHlTransportError("exact live Crazyflie object is required")
-        if not isinstance(execution_domain, physical_execution.PhysicalExecutionDomain):
+        if type(execution_domain) is not physical_execution_domain.PhysicalExecutionDomain:
             raise SetpointHlTransportError(
-                "trusted process-wide PhysicalExecutionDomain is required"
+                "exact process-wide PhysicalExecutionDomain is required"
             )
-        if not isinstance(acknowledgement_domain, high_level_ack.HighLevelAckDomain):
+        if type(acknowledgement_domain) is not high_level_ack.HighLevelAckDomain:
             raise SetpointHlTransportError(
-                "HighLevelAckDomain is required for physical acknowledgement freshness"
+                "exact HighLevelAckDomain is required"
             )
-        if not isinstance(safelink_precondition, safelink.LiveSafeLinkPrecondition):
+        if type(safelink_precondition) is not safelink_precondition_module_type():
             raise SetpointHlTransportError(
-                "LiveSafeLinkPrecondition is required before physical emission"
+                "exact LiveSafeLinkPrecondition is required"
             )
-        if safelink_precondition.bound_crazyflie is not crazyflie:
+        if type(teacher_authorization) is not teacher_run_authorization.TeacherRunAuthorization:
             raise SetpointHlTransportError(
-                "SafeLink precondition is not bound to the exact Crazyflie"
+                "exact #267 TeacherRunAuthorization receipt is required"
+            )
+        if type(powered_session) is not powered_session_authority.EstablishedPoweredSession:
+            raise SetpointHlTransportError(
+                "exact #266 EstablishedPoweredSession is required"
             )
         if (
-            safelink_precondition.bound_connection_epoch
-            != acknowledgement_domain.bound_connection_epoch
+            type(powered_session.watchdog_authority)
+            is not powered_session_authority.EphemeralPoweredSessionWatchdogAuthority
         ):
             raise SetpointHlTransportError(
-                "SafeLink and acknowledgement domains are not bound to the same epoch"
+                "powered session lacks the #266-minted watchdog authority"
             )
+        if type(watchdog_guard) is not watchdog_liveness.EmergencyWatchdogLivenessGuard:
+            raise SetpointHlTransportError(
+                "exact active #262 watchdog guard is required"
+            )
+
         self._cf = crazyflie
         self._execution = execution_domain
         self._ack = acknowledgement_domain
         self._safelink = safelink_precondition
+        self._teacher = teacher_authorization
+        self._powered_session = powered_session
+        self._watchdog = watchdog_guard
+        self._current_preflight_binding_reader = _require_callable(
+            current_preflight_binding_reader,
+            "current exact preflight binding reader",
+        )
         self._packet_factory = _require_callable(
             packet_factory or _default_packet_factory,
             "SETPOINT_HL packet factory",
         )
         self._clock = _require_callable(clock, "monotonic clock")
 
-    @property
-    def bound_connection_epoch(self) -> str:
-        return self._ack.bound_connection_epoch
+        epoch = _nonempty_text(
+            acknowledgement_domain.bound_connection_epoch,
+            "HighLevel acknowledgement epoch",
+        )
+        if safelink_precondition.bound_crazyflie is not crazyflie:
+            raise SetpointHlTransportError(
+                "SafeLink precondition is not bound to the exact Crazyflie"
+            )
+        if safelink_precondition.bound_connection_epoch != epoch:
+            raise SetpointHlTransportError(
+                "SafeLink and acknowledgement domains are not bound to the same epoch"
+            )
+        if teacher_authorization.binding.connection_epoch != epoch:
+            raise SetpointHlTransportError(
+                "teacher run receipt belongs to a different connection epoch"
+            )
+        if powered_session.connection_epoch != epoch:
+            raise SetpointHlTransportError(
+                "powered session belongs to a different connection epoch"
+            )
+        if watchdog_guard.bound_connection_epoch != epoch:
+            raise SetpointHlTransportError(
+                "watchdog guard belongs to a different connection epoch"
+            )
+        if watchdog_guard.bound_crazyflie is not crazyflie:
+            raise SetpointHlTransportError(
+                "watchdog guard is not bound to the exact Crazyflie"
+            )
+        if (
+            watchdog_guard.powered_session_identity
+            != powered_session.watchdog_authority.identity
+        ):
+            raise SetpointHlTransportError(
+                "watchdog guard is not bound to the #266 powered session"
+            )
+        if powered_session.session is None:
+            raise SetpointHlTransportError(
+                "powered session has no established live-session identity"
+            )
+        self._bound_connection_epoch = epoch
 
     @property
-    def execution_domain(self) -> physical_execution.PhysicalExecutionDomain:
+    def bound_connection_epoch(self) -> str:
+        return self._bound_connection_epoch
+
+    @property
+    def execution_domain(self) -> physical_execution_domain.PhysicalExecutionDomain:
         return self._execution
+
+    def _read_current_binding(
+        self,
+    ) -> teacher_run_authorization.PhysicalRunBinding:
+        try:
+            binding = self._current_preflight_binding_reader()
+        except Exception as exc:
+            raise SetpointHlTransportError(
+                "current exact preflight binding is unavailable"
+            ) from exc
+        if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
+            raise SetpointHlTransportError(
+                "current preflight reader did not return PhysicalRunBinding"
+            )
+        if binding.connection_epoch != self._bound_connection_epoch:
+            raise SetpointHlTransportError(
+                "current preflight binding belongs to a different connection epoch"
+            )
+        return binding
+
+    def _authority_checks(
+        self,
+        holder: dict[str, object],
+        extra_checks: tuple[Callable[[], object], ...],
+    ) -> tuple[Callable[[], object], ...]:
+        def assert_current_preflight() -> None:
+            holder["binding"] = self._read_current_binding()
+
+        def assert_teacher_binding() -> None:
+            binding = holder.get("binding")
+            if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
+                raise SetpointHlTransportError(
+                    "current preflight binding was not established inside effect exclusion"
+                )
+            self._teacher.assert_effect_binding(
+                profile_id=binding.profile_id,
+                ast_binding=binding.ast_binding,
+                connection_epoch=binding.connection_epoch,
+            )
+
+        def assert_powered_watchdog() -> None:
+            if self._powered_session.connection_epoch != self._bound_connection_epoch:
+                raise SetpointHlTransportError(
+                    "powered session connection epoch changed"
+                )
+            if (
+                self._watchdog.powered_session_identity
+                != self._powered_session.watchdog_authority.identity
+            ):
+                raise SetpointHlTransportError(
+                    "watchdog/powered-session identity changed"
+                )
+            self._watchdog.assert_live()
+
+        def assert_flying_phase() -> None:
+            if self._execution.phase != physical_execution_domain.FLYING:
+                raise SetpointHlTransportError(
+                    "ordinary GO_TO_2 motion requires fresh established flying state"
+                )
+
+        return (
+            assert_current_preflight,
+            assert_teacher_binding,
+            assert_powered_watchdog,
+            assert_flying_phase,
+            *extra_checks,
+        )
 
     def _require_connection_live(self) -> None:
         method = getattr(self._cf, "is_connected", None)
         if not callable(method):
             raise SetpointHlTransportError(
-                "Crazyflie live connection state is unavailable during acknowledgement wait"
+                "Crazyflie live connection state is unavailable during acknowledgement"
             )
         try:
             connected = method()
@@ -190,7 +372,7 @@ class TrustedSetpointHlTransport:
         reply_reader: Callable[[], bytes | None],
         timeout_seconds: float,
     ) -> bytes:
-        deadline = self._clock() + timeout_seconds
+        deadline = float(self._clock()) + timeout_seconds
         while True:
             if event.is_set():
                 reply = reply_reader()
@@ -200,68 +382,62 @@ class TrustedSetpointHlTransport:
                     )
                 return reply
             self._require_connection_live()
-            remaining = deadline - self._clock()
+            remaining = deadline - float(self._clock())
             if remaining <= 0.0:
-                raise SetpointHlTransportError(
-                    "SETPOINT_HL acknowledgement timeout"
-                )
+                raise SetpointHlTransportError("SETPOINT_HL acknowledgement timeout")
             event.wait(min(_WAIT_SLICE_SECONDS, remaining))
 
-    def send_once(
+    def _validate_packet(self, packet: object, request: bytes) -> None:
+        if getattr(packet, "port", None) != _SETPOINT_HL_PORT:
+            raise SetpointHlTransportError(
+                "packet factory substituted a non-SETPOINT_HL port"
+            )
+        try:
+            packet_data = bytes(getattr(packet, "data"))
+        except Exception as exc:
+            raise SetpointHlTransportError(
+                "packet factory returned unreadable SETPOINT_HL data"
+            ) from exc
+        if packet_data != request:
+            raise SetpointHlTransportError(
+                "packet factory substituted SETPOINT_HL request bytes"
+            )
+
+    def _send_go_to_once(
         self,
+        request_builder: Callable[[], bytes],
         *,
-        request_builder: Callable[[], object],
-        exact_preflight_assertion: Callable[[], object],
-        teacher_binding_assertion: Callable[[], object],
-        powered_session_assertion: Callable[[], object],
-        watchdog_liveness_assertion: Callable[[], object],
-        action_preconditions: Iterable[Callable[[], object]] = (),
-        reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
+        action_preconditions: Iterable[Callable[[], object]],
+        reply_timeout_seconds: float,
     ) -> high_level_ack.HighLevelAckResult:
-        """Emit exactly one ordinary SETPOINT_HL request and require its exact reply.
-
-        The four mandatory assertions and every action-specific assertion execute
-        after the process-wide reset/effect exclusion is held. request_builder
-        then runs under that same exclusion; callers may use it to consume fresh
-        yaw/geometry/timing evidence. SafeLink is re-checked after the request has
-        been fully built and immediately before acknowledgement serialization.
-
-        A positive return value is acknowledgement only. Callers must separately
-        invoke execution_domain.complete_accepted_effect(...) with fresh
-        supervisor/landing evidence before issuing another effect or reset.
-        """
-        builder = _require_callable(request_builder, "SETPOINT_HL request builder")
-        checks = [
-            _require_callable(exact_preflight_assertion, "exact preflight assertion"),
-            _require_callable(teacher_binding_assertion, "teacher-run binding assertion"),
-            _require_callable(powered_session_assertion, "powered-session assertion"),
-            _require_callable(
-                watchdog_liveness_assertion,
-                "watchdog-liveness assertion",
-            ),
-        ]
+        builder = _require_callable(request_builder, "validated GO_TO_2 builder")
         try:
             extra_checks = tuple(action_preconditions)
         except Exception as exc:
             raise SetpointHlTransportError(
                 "action-specific physical preconditions must be iterable"
             ) from exc
-        checks.extend(
+        checks = tuple(
             _require_callable(check, "action-specific physical precondition")
             for check in extra_checks
         )
-        timeout = _positive_timeout(reply_timeout_seconds)
+        timeout = _positive_timeout(
+            reply_timeout_seconds,
+            "SETPOINT_HL reply timeout",
+        )
+        holder: dict[str, object] = {}
 
-        with self._execution.effect_transaction(*checks) as effect:
-            request = _request_bytes(builder())
+        with self._execution.effect_transaction(
+            *self._authority_checks(holder, checks)
+        ) as effect:
+            request = _validate_request(builder())
 
-            # This must remain immediately adjacent to acknowledgement
-            # serialization: no other trusted precondition may be inserted
-            # between the live radio duplicate-suppression proof and #271.
+            # Remains immediately adjacent to acknowledgement serialization.
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
                 packet = self._packet_factory(request)
+                self._validate_packet(packet, request)
 
                 reply_event = Event()
                 reply_lock = Lock()
@@ -294,14 +470,10 @@ class TrustedSetpointHlTransport:
                     add_callback(_SETPOINT_HL_PORT, on_reply)
                     callback_installed = True
 
-                    # Both state machines cross their pessimistic boundary before
-                    # the single caller-side physical send. No send occurs before
-                    # these two calls have succeeded.
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
 
-                    # Deliberately one positional argument only: cflib's
-                    # expected-reply auto-resend path is never activated here.
+                    # One positional argument only: never cflib expected_reply.
                     self._cf.send_packet(packet)
 
                     try:
@@ -324,7 +496,89 @@ class TrustedSetpointHlTransport:
                         try:
                             remove_callback(_SETPOINT_HL_PORT, on_reply)
                         except Exception:
-                            # Callback cleanup cannot change the already-sent
-                            # physical effect outcome. The callback itself is
-                            # one-shot and ignores all packets after its first.
+                            # One-shot callback state ignores later packets.
                             pass
+
+    def send_horizontal_move(
+        self,
+        *,
+        direction: str,
+        distance_m: object,
+        yaw_reader: yaw_observer.FreshYawObserver,
+        timing_policy: high_level_timing.HighLevelTimingPolicy,
+        action_preconditions: Iterable[Callable[[], object]] = (),
+        yaw_timeout_seconds: float = _DEFAULT_YAW_TIMEOUT_SECONDS,
+        reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
+    ) -> high_level_ack.HighLevelAckResult:
+        """Send one #256/#260/#268 horizontal relative GO_TO_2 command."""
+        if type(yaw_reader) is not yaw_observer.FreshYawObserver:
+            raise SetpointHlTransportError(
+                "exact #260 FreshYawObserver is required for horizontal movement"
+            )
+        if yaw_reader.bound_crazyflie is not self._cf:
+            raise SetpointHlTransportError(
+                "yaw observer is not bound to the exact Crazyflie"
+            )
+        if yaw_reader.bound_connection_epoch != self._bound_connection_epoch:
+            raise SetpointHlTransportError(
+                "yaw observer is not open on the exact connection epoch"
+            )
+        if not yaw_reader.is_open:
+            raise SetpointHlTransportError(
+                "yaw observer must be open before horizontal physical movement"
+            )
+        if type(timing_policy) is not high_level_timing.HighLevelTimingPolicy:
+            raise SetpointHlTransportError(
+                "exact #268 HighLevelTimingPolicy is required"
+            )
+        yaw_timeout = _positive_timeout(yaw_timeout_seconds, "fresh yaw timeout")
+
+        def build() -> bytes:
+            observation = yaw_reader.read(timeout_seconds=yaw_timeout)
+            if observation.connection_epoch != self._bound_connection_epoch:
+                raise SetpointHlTransportError(
+                    "fresh yaw observation belongs to another connection epoch"
+                )
+            target = high_level_semantics.body_relative_move(
+                direction,
+                distance_m,
+                observation.yaw_rad,
+            )
+            duration = timing_policy.horizontal_move_duration(distance_m)
+            return _go_to_request(target, duration)
+
+        return self._send_go_to_once(
+            build,
+            action_preconditions=action_preconditions,
+            reply_timeout_seconds=reply_timeout_seconds,
+        )
+
+    def send_turn(
+        self,
+        *,
+        angle_deg: object,
+        timing_policy: high_level_timing.HighLevelTimingPolicy,
+        action_preconditions: Iterable[Callable[[], object]] = (),
+        reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
+    ) -> high_level_ack.HighLevelAckResult:
+        """Send one #256/#268 relative yaw GO_TO_2 command."""
+        if type(timing_policy) is not high_level_timing.HighLevelTimingPolicy:
+            raise SetpointHlTransportError(
+                "exact #268 HighLevelTimingPolicy is required"
+            )
+
+        def build() -> bytes:
+            target = high_level_semantics.relative_turn(angle_deg)
+            duration = timing_policy.turn_duration(angle_deg)
+            return _go_to_request(target, duration)
+
+        return self._send_go_to_once(
+            build,
+            action_preconditions=action_preconditions,
+            reply_timeout_seconds=reply_timeout_seconds,
+        )
+
+
+def safelink_precondition_module_type():
+    """Late helper avoids shadowing the constructor argument name in isinstance checks."""
+    return safelink_precondition.LiveSafeLinkPrecondition
