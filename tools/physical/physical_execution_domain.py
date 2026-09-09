@@ -42,10 +42,23 @@ AWAITING_COMPLETION = "awaiting-completion"
 
 _STABLE_EFFECT_PHASES = frozenset((INACTIVE, FLYING))
 _COMPLETION_PHASES = frozenset((INACTIVE, FLYING))
+_COMPLETION_MINT_KEY = object()
 
 
 class PhysicalExecutionDomainError(RuntimeError):
     """Fail-closed error for the trusted physical execution exclusion domain."""
+
+
+class AcceptedEffectCompletionClaim:
+    """Opaque claim returned only by the transaction that accepted one effect."""
+
+    __slots__ = ()
+
+    def __init__(self, *, _mint_key: object) -> None:
+        if _mint_key is not _COMPLETION_MINT_KEY:
+            raise PhysicalExecutionDomainError(
+                "accepted-effect completion claim is not trusted"
+            )
 
 
 def _require_callable(value: object, name: str) -> Callable:
@@ -62,6 +75,7 @@ class _ProcessExecutionState:
         self.phase = RECOVERY_REQUIRED
         self.active_section: str | None = None
         self.section_owner: int | None = None
+        self.pending_completion: AcceptedEffectCompletionClaim | None = None
 
 
 _PROCESS_STATE = _ProcessExecutionState()
@@ -119,6 +133,7 @@ class PhysicalExecutionDomain:
             # collaborator. #266 performs its own evidence invalidation and
             # fresh flight-inactive check inside this same exclusion.
             _PROCESS_STATE.phase = RECOVERY_REQUIRED
+            _PROCESS_STATE.pending_completion = None
             try:
                 result = transaction()
             except Exception as exc:
@@ -182,6 +197,7 @@ class PhysicalExecutionDomain:
                 "physical effect emission is outside the execution exclusion"
             )
         _PROCESS_STATE.phase = EFFECT_UNRESOLVED
+        _PROCESS_STATE.pending_completion = None
 
     def _mark_effect_rejected(self, prior_phase: str) -> None:
         if _PROCESS_STATE.phase != EFFECT_UNRESOLVED:
@@ -193,13 +209,17 @@ class PhysicalExecutionDomain:
                 "prior physical execution phase is invalid"
             )
         _PROCESS_STATE.phase = prior_phase
+        _PROCESS_STATE.pending_completion = None
 
-    def _mark_effect_accepted(self) -> None:
+    def _mark_effect_accepted(self) -> AcceptedEffectCompletionClaim:
         if _PROCESS_STATE.phase != EFFECT_UNRESOLVED:
             raise PhysicalExecutionDomainError(
                 "positive acknowledgement requires one emitted unresolved effect"
             )
+        claim = AcceptedEffectCompletionClaim(_mint_key=_COMPLETION_MINT_KEY)
+        _PROCESS_STATE.pending_completion = claim
         _PROCESS_STATE.phase = AWAITING_COMPLETION
+        return claim
 
     def _close_effect(
         self,
@@ -215,6 +235,7 @@ class PhysicalExecutionDomain:
                 # consequential uncertainty. Only #266 recovery may re-open
                 # ordinary effect eligibility.
                 _PROCESS_STATE.phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.pending_completion = None
             elif not emitted and prior_phase in _STABLE_EFFECT_PHASES:
                 _PROCESS_STATE.phase = prior_phase
         finally:
@@ -222,16 +243,22 @@ class PhysicalExecutionDomain:
 
     def complete_accepted_effect(
         self,
+        completion_claim: AcceptedEffectCompletionClaim,
         next_phase: str,
         prove_completion: Callable[[], object],
     ) -> None:
-        """Establish a fresh post-effect stable phase after positive acknowledgement.
+        """Commit one accepted effect only for its exact opaque completion claim.
 
-        The proof callable runs under the same exclusion and must return exactly
-        ``True``. The caller is responsible for binding it to fresh #257/#264
-        evidence appropriate to the command. Unavailable/negative proof moves
-        the run to ``recovery-required`` rather than guessing completion.
+        The opaque claim is returned by the transaction that observed the
+        definitive positive acknowledgement. A caller that did not perform that
+        transaction cannot manufacture completion with an assertion-shaped
+        callable alone. The trusted effect consumer still supplies the concrete
+        fresh #257/#264 proof appropriate to its command.
         """
+        if type(completion_claim) is not AcceptedEffectCompletionClaim:
+            raise PhysicalExecutionDomainError(
+                "exact accepted-effect completion claim is required"
+            )
         if next_phase not in _COMPLETION_PHASES:
             raise PhysicalExecutionDomainError(
                 "post-effect phase must be exactly 'flying' or 'inactive'"
@@ -243,18 +270,25 @@ class PhysicalExecutionDomain:
                 raise PhysicalExecutionDomainError(
                     "no positively acknowledged effect is awaiting completion"
                 )
+            if _PROCESS_STATE.pending_completion is not completion_claim:
+                raise PhysicalExecutionDomainError(
+                    "accepted-effect completion claim does not match pending effect"
+                )
             try:
                 proven = proof()
             except Exception as exc:
                 _PROCESS_STATE.phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.pending_completion = None
                 raise PhysicalExecutionDomainError(
                     "fresh effect-completion proof failed or is ambiguous"
                 ) from exc
             if proven is not True:
                 _PROCESS_STATE.phase = RECOVERY_REQUIRED
+                _PROCESS_STATE.pending_completion = None
                 raise PhysicalExecutionDomainError(
                     "fresh effect completion was not positively established"
                 )
+            _PROCESS_STATE.pending_completion = None
             _PROCESS_STATE.phase = next_phase
         finally:
             self._leave_section("completion")
@@ -307,14 +341,15 @@ class PhysicalEffectTransaction:
         self._domain._mark_effect_rejected(self._prior_phase)
         self._resolved = True
 
-    def mark_accepted(self) -> None:
-        """Record a definitive zero firmware result; completion remains required."""
+    def mark_accepted(self) -> AcceptedEffectCompletionClaim:
+        """Record acceptance and return its one opaque completion claim."""
         if not self._emitted or self._resolved:
             raise PhysicalExecutionDomainError(
                 "positive acknowledgement requires one unresolved emitted effect"
             )
-        self._domain._mark_effect_accepted()
+        claim = self._domain._mark_effect_accepted()
         self._resolved = True
+        return claim
 
     def close(self) -> None:
         if self._closed:
