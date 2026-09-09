@@ -37,7 +37,12 @@ yaw; it imports no cflib command surface and emits no physical effect. Integrate
 #257 further establishes a non-authority fresh supervisor-state observer bound to
 the reconnect-sensitive connection epoch: reads are serialized across that epoch,
 exact-framed, preserve the raw bitfield including deck fault, and poison ambiguous
-freshness/transport until reconnect. All of this remains non-authority with
+freshness/transport until reconnect. Integrated #260 now also establishes the
+non-authority accepted-yaw observer for the future #256 horizontal transform: it
+streams firmware `stateEstimate.yaw`, binds the stream to that same reconnect-
+sensitive epoch, rejects cached/duplicate/stale/non-finite samples and converts a
+strictly later post-call sample from degrees to radians exactly once. All of this
+remains non-authority with
 `executionAuthority:false`. The underlying cflib SyncCrazyflie close path still
 emits its documented safety-zero commander setpoint, so this is not a claim that
 the transport emits no command packet. The substantive remaining product boundary
@@ -46,7 +51,11 @@ authorized physical effect consumer plus explicit teacher authorization before a
 flight-capable command/effect, firmware-independent arming semantics, a causally
 activated and continuously maintained emergency-stop watchdog/liveness guard,
 controlled normal landing/completion behavior and proof of safe real execution
-continuity. Stock brushed Crazyflie 2.1 auto-arms when pre-flight checks pass and
+continuity. The existing browser-held capability/preflight bearer remains
+non-authority: teacher authorization must use a distinct trusted host-side control
+path that the student/browser runtime cannot mint or invoke, and effect methods
+must not be added under that read-only bearer merely for reuse. Stock brushed
+Crazyflie 2.1 auto-arms when pre-flight checks pass and
 can return to ReadyToFly after a normal landing/reset cycle, so post-landing
 disarm is not a persistent safety gate and teacher authorization must not be
 modeled as merely approving a host arming packet. Do not invent
@@ -238,9 +247,13 @@ Runtime/controller change is justified by #236 alone.
   Integrated #257 adds the fresh fail-closed supervisor-state observer: one
   reconnect-sensitive epoch serializes all reads, exact response framing and raw
   state including deck fault are preserved, and timeout/disconnect/malformed or
-  otherwise ambiguous freshness poisons that epoch until reconnect. These slices
-  preserve `executionAuthority:false` and expose no WebeeBlocks motor/arming
-  command API
+  otherwise ambiguous freshness poisons that epoch until reconnect. Integrated
+  #260 adds the matching non-authority live-yaw observer for #256: a continuous
+  `stateEstimate.yaw` stream is epoch-bound, its first sample is only a timestamp
+  baseline, and each accepted reading requires a strictly later post-call sample,
+  with duplicate/stale/malformed/non-finite values rejected and degrees converted
+  to radians exactly once. These slices preserve `executionAuthority:false` and
+  expose no WebeeBlocks motor/arming command API
 - real-device checkpoint #226 was authoritatively closed `NOT_NEEDED` after the
   live-preflight product decision superseded the fixed all-reference-decks gate.
   Its bounded partial observation still established exact Crazyflie 2.1
@@ -306,9 +319,11 @@ Runtime/controller change is justified by #236 alone.
   the production physical submission bridge that binds and immediately re-asserts
   the current profile/semantic AST with that live epoch; #256 establishes the
   pure no-effect body/world, world-Z and relative-yaw semantic adapter intended
-  for later direct HighLevelCommander consumption; and #257 establishes a fresh
+  for later direct HighLevelCommander consumption; #257 establishes a fresh
   fail-closed raw supervisor observer bound to that reconnect-sensitive epoch,
-  including deck-fault handling and epoch-wide ambiguity poisoning. The surface
+  including deck-fault handling and epoch-wide ambiguity poisoning; and #260
+  establishes the non-authority fresh `stateEstimate.yaw` observer bound to the
+  same epoch for later #256 horizontal-transform input. The surface
   remains non-authority with `executionAuthority:false`; the cflib close path
   retains its safety-zero transport setpoint
 - bounded real-device evidence from superseded checkpoint #226 confirms the
@@ -316,8 +331,12 @@ Runtime/controller change is justified by #236 alone.
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
 - depends: separately authorized physical effect consumption gated by explicit
-  teacher authorization before any flight-capable command/effect, plus an
-  independent emergency-stop watchdog/liveness guard, controlled normal
+  teacher authorization before any flight-capable command/effect. The existing
+  browser-held capability/preflight bearer must remain non-authority; teacher
+  authorization belongs to a distinct trusted host-side control path unavailable
+  to the student/browser runtime, and the read-only capability bridge must not
+  gain effect methods merely to reuse that bearer. Also require an independent
+  emergency-stop watchdog/liveness guard and controlled normal
   landing/completion behavior and proof of physical execution continuity. Stock
   auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
   so a host disarm request is not a durable post-mission lockout. The pinned
@@ -335,16 +354,19 @@ Runtime/controller change is justified by #236 alone.
 - proof direction: preserve backend-neutral AST continuity and consume the
   integrated #256 pure semantic adapter from a later direct cflib
   `HighLevelCommander` effect substrate rather than the `MotionCommander` /
-  `PositionHlCommander` helpers. The authority layer still must supply an
-  accepted current yaw, preserve the exact preflight/session binding and consume
-  the integrated #257 fresh supervisor observer to bound command completion by
+  `PositionHlCommander` helpers. The accepted-yaw observation itself is now
+  established by #260; a later authority layer must consume one fresh same-epoch
+  #260 sample immediately before the #256 horizontal transform, preserve the exact
+  preflight/session binding across that observation/transform, and consume the
+  integrated #257 fresh supervisor observer to bound command completion by
   high-level trajectory state plus timeout/locked/crashed/deck-fault checks. That
   observer must be the exclusive authoritative issuer of supervisor GET_STATE
   requests on the connection epoch; do not invoke cflib `Supervisor` getters in
   parallel or as a second safety oracle because they bypass #257's epoch-wide
   serialization/ambiguity guard. Add only the minimum teacher-authorized physical
-  execution authority after the
-  live capability and safety gates are independently established. Keep immediate
+  execution authority after the live capability and safety gates are independently
+  established, keeping that authority outside the existing browser capability
+  credential/domain. Keep immediate
   emergency stop and high-level commander stop exceptional because both can cut
   motors in flight; normal completion/voluntary abort needs a controlled
   high-level land, fresh #257 evidence that flight ended without a blocking

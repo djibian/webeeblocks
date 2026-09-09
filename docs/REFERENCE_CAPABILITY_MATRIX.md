@@ -75,11 +75,17 @@ preflighted against fresh live capability evidence, then both semantic
 requirements and the reconnect-sensitive connection epoch are re-asserted
 immediately before any later separately authorized physical effect. Workspace,
 profile or connection changes invalidate the prior binding. The bridge remains
-non-authority and exposes no WebeeBlocks flight command API.
+non-authority and exposes no WebeeBlocks flight command API. Its browser-held
+capability/preflight bearer is therefore not a teacher-authorization credential:
+future physical authority must stay on a distinct trusted host-side control path
+that the student/browser runtime cannot mint or invoke, and effect methods must
+not be added under the existing read-only bearer merely for reuse.
 
 The remaining #157 boundary therefore begins after that validated pre-effect
 assertion: a separately authorized physical effect consumer with explicit teacher
-authorization before any flight-capable command/effect, firmware-independent
+authorization before any flight-capable command/effect, using a distinct trusted
+host-side authority path rather than the browser-held capability/preflight bearer,
+and firmware-independent
 arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
 pass), an independent emergency-stop watchdog/liveness guard, controlled normal
 landing/completion behavior and proof of real execution continuity. Integrated #256
@@ -91,10 +97,17 @@ fresh fail-closed supervisor-state observer needed for later completion/safety
 decisions: it is bound to the reconnect-sensitive connection epoch, serializes
 reads across that epoch, requires exact response framing, preserves the raw
 bitfield including deck fault and poisons ambiguous freshness/transport until
-reconnect. Neither slice emits flight authority.
+reconnect. Integrated #260 establishes the non-authority accepted-yaw observer
+needed by #256: it streams firmware `stateEstimate.yaw` on the same reconnect-
+sensitive epoch, treats the first received sample only as a timestamp baseline,
+requires a strictly later post-call sample, rejects duplicate/stale/malformed/
+non-finite samples and converts degrees to radians exactly once. None of these
+slices emits flight authority.
 
-A later effect consumer still must supply the accepted live yaw, consume #257 to
-bound command completion, and establish the independent watchdog before any
+A later effect consumer must consume one fresh same-epoch #260 yaw sample
+immediately before the #256 horizontal transform, preserve the exact preflight/
+session binding across that observation and transform, consume #257 to bound
+command completion, and establish the independent watchdog before any
 flight-capable effect. For safety decisions, #257 must be the exclusive
 authoritative issuer of supervisor GET_STATE requests on the connection epoch:
 the passive cflib supervisor callback may remain registered, but later
