@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "teacher_run_authorization.py"
@@ -10,6 +11,7 @@ spec = importlib.util.spec_from_file_location("webeeblocks_teacher_run_authoriza
 if spec is None or spec.loader is None:
     raise RuntimeError("cannot load teacher run authorization")
 auth = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = auth
 spec.loader.exec_module(auth)
 
 
