@@ -21,10 +21,11 @@ method. Horizontal geometry is derived through integrated #256 from one fresh
 #260 yaw observation and duration through integrated #268. Turns use #256/#268
 directly. Takeoff/landing/vertical timing policy remains a separate prerequisite.
 
-A caller must supply a trusted non-authority current-preflight binding reader.
-Its result is required to be the exact #267 PhysicalRunBinding and is rechecked
-inside #273 immediately before every effect. Arbitrary authority callbacks are
-not accepted.
+The transport consumes the integrated #278 host-side current-program bridge
+directly. Before every effect it asks that concrete bridge to perform one fresh
+host-initiated #249 profile/AST/epoch assertion for the exact #267 run binding.
+The private-minted immutable #278 evidence is validated locally; no candidate-
+local preflight factory/guard or assertion-shaped callback is accepted.
 
 Live SafeLink is re-checked immediately before entering #271. The SETPOINT_HL
 reply callback is installed before the pessimistic effect boundary is crossed.
@@ -52,7 +53,7 @@ from typing import Callable
 import high_level_ack
 import high_level_semantics
 import high_level_timing
-import current_program_preflight
+import serve_reference_capabilities as capability_bridge
 import physical_execution_domain
 import powered_session_authority
 import safelink_precondition
@@ -186,7 +187,7 @@ class TrustedSetpointHlTransport:
         powered_session: powered_session_authority.EstablishedPoweredSession,
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
         supervisor_reader: supervisor_state.FreshSupervisorStateReader,
-        current_preflight_guard: current_program_preflight.LiveCurrentProgramPreflightGuard,
+        current_program_bridge: capability_bridge.ReadOnlyCapabilityHttpBridge,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if crazyflie is None:
@@ -226,9 +227,9 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "exact #257 FreshSupervisorStateReader is required"
             )
-        if type(current_preflight_guard) is not current_program_preflight.LiveCurrentProgramPreflightGuard:
+        if type(current_program_bridge) is not capability_bridge.ReadOnlyCapabilityHttpBridge:
             raise SetpointHlTransportError(
-                "exact trusted #249 current-program preflight guard is required"
+                "exact integrated #278 current-program host bridge is required"
             )
 
         self._cf = crazyflie
@@ -239,7 +240,7 @@ class TrustedSetpointHlTransport:
         self._powered_session = powered_session
         self._watchdog = watchdog_guard
         self._supervisor = supervisor_reader
-        self._current_preflight = current_preflight_guard
+        self._current_program_bridge = current_program_bridge
         self._clock = _require_callable(clock, "monotonic clock")
 
         epoch = _nonempty_text(
@@ -258,9 +259,15 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "teacher run receipt belongs to a different connection epoch"
             )
-        if current_preflight_guard.binding != teacher_authorization.binding:
+        try:
+            bridge_epoch = current_program_bridge.session.read_connection_epoch()
+        except Exception as exc:
             raise SetpointHlTransportError(
-                "current-program preflight guard is not bound to the teacher-authorized run"
+                "integrated #278 current-program bridge has no live connection epoch"
+            ) from exc
+        if bridge_epoch != epoch:
+            raise SetpointHlTransportError(
+                "integrated #278 current-program bridge belongs to a different connection epoch"
             )
         if powered_session.connection_epoch != epoch:
             raise SetpointHlTransportError(
@@ -310,16 +317,39 @@ class TrustedSetpointHlTransport:
     def _read_current_binding(
         self,
     ) -> teacher_run_authorization.PhysicalRunBinding:
+        binding = self._teacher.binding
         try:
-            evidence = self._current_preflight.assert_current()
+            evidence = self._current_program_bridge.assert_current_program(
+                profile_id=binding.profile_id,
+                ast_binding=binding.ast_binding,
+                connection_epoch=binding.connection_epoch,
+            )
         except Exception as exc:
             raise SetpointHlTransportError(
-                "trusted #249 current-program re-assertion failed"
+                "integrated #278/#249 current-program re-assertion failed"
             ) from exc
-        binding = getattr(evidence, "binding", None)
-        if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
+        if type(evidence) is not capability_bridge.CurrentProgramPreflightEvidence:
             raise SetpointHlTransportError(
-                "trusted #249 guard returned invalid current-program evidence"
+                "integrated #278 bridge returned invalid current-program evidence"
+            )
+        if evidence.execution_authority is not False:
+            raise SetpointHlTransportError(
+                "current-program evidence crossed the non-authority boundary"
+            )
+        if (
+            evidence.profile_id != binding.profile_id
+            or evidence.ast_binding != binding.ast_binding
+            or evidence.connection_epoch != binding.connection_epoch
+        ):
+            raise SetpointHlTransportError(
+                "current-program evidence does not match the teacher-authorized run"
+            )
+        if (
+            not isinstance(evidence.challenge_id, str)
+            or not evidence.challenge_id.strip()
+        ):
+            raise SetpointHlTransportError(
+                "current-program challenge provenance is unavailable"
             )
         if binding.connection_epoch != self._bound_connection_epoch:
             raise SetpointHlTransportError(
