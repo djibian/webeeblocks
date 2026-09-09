@@ -124,6 +124,8 @@ class FakePoweredSessionLifecycle(watchdog.PoweredSessionWatchdogAuthority):
         self._state = state
         self._terminal_reason = terminal_reason
         self.reset_proven = reset_proven
+        self.state_error: Exception | None = None
+        self.terminal_reason_error: Exception | None = None
         self.lock = threading.Lock()
 
     @property
@@ -132,11 +134,17 @@ class FakePoweredSessionLifecycle(watchdog.PoweredSessionWatchdogAuthority):
 
     @property
     def state(self) -> str:
-        return self._state
+        with self.lock:
+            if self.state_error is not None:
+                raise self.state_error
+            return self._state
 
     @property
     def terminal_reason(self) -> str | None:
-        return self._terminal_reason
+        with self.lock:
+            if self.terminal_reason_error is not None:
+                raise self.terminal_reason_error
+            return self._terminal_reason
 
     def require_fresh_reset_proof(self) -> None:
         with self.lock:
@@ -495,6 +503,26 @@ def test_post_fence_keepalive_reanchors_before_long_periodic_wait() -> None:
     guard.stop_for_terminal_reboot(join_timeout_seconds=0.2)
 
 
+def test_lost_external_lifecycle_read_is_terminal_until_reset() -> None:
+    guard, cf, _reader, _epoch, powered, _events = make_guard(
+        epoch_value="epoch-state-unavailable",
+        powered_session_id="powered-state-unavailable",
+        interval=0.8,
+        max_gap=0.9,
+    )
+    guard.activate()
+    sends_before = cf.supervisor.send_count
+
+    powered.state_error = RuntimeError("durable lifecycle store unavailable")
+    expect_error(guard.assert_live, "watchdog state is unavailable")
+
+    # Restoring readability/ACTIVE must not resurrect this powered session.
+    powered.state_error = None
+    require(powered.state == "terminal", "lost lifecycle read durably poisons powered session")
+    expect_error(guard.assert_live, "terminal")
+    require(cf.supervisor.send_count == sends_before, "terminal guard emits no recovery keepalive")
+
+
 def test_terminal_stop_is_explicit_and_idempotent() -> None:
     guard, cf, _reader, _epoch, powered, _events = make_guard(
         epoch_value="epoch-stop",
@@ -655,6 +683,7 @@ def main() -> int:
     test_host_gap_never_silently_recovers()
     test_fence_and_enqueue_duration_are_bounded_by_host_gap()
     test_post_fence_keepalive_reanchors_before_long_periodic_wait()
+    test_lost_external_lifecycle_read_is_terminal_until_reset()
     test_terminal_stop_is_explicit_and_idempotent()
     test_local_arguments_have_no_command_effect()
     test_external_powered_session_freshness_is_required()

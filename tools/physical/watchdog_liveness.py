@@ -536,9 +536,26 @@ class EmergencyWatchdogLivenessGuard:
             reason = self._terminal_reason
             active = self._active
             thread = self._thread
-        powered_state = _read_powered_session_state(self._powered_session)
+        try:
+            powered_state = _read_powered_session_state(self._powered_session)
+        except WatchdogLivenessError as exc:
+            # Once active, losing the trusted powered-session state is itself
+            # lost watchdog-lifecycle certainty. It cannot be treated as a
+            # transient read failure that later recovers without reset proof.
+            self._record_terminal(str(exc))
+            raise
         if reason is not None or powered_state == _STATE_TERMINAL:
-            detail = reason or _read_powered_session_terminal_reason(self._powered_session) or "unknown reason"
+            if reason is not None:
+                detail = reason
+            else:
+                try:
+                    detail = (
+                        _read_powered_session_terminal_reason(self._powered_session)
+                        or "unknown reason"
+                    )
+                except WatchdogLivenessError as exc:
+                    self._record_terminal(str(exc))
+                    raise
             raise WatchdogLivenessError("watchdog liveness is terminal: " + detail)
         if not active:
             raise WatchdogLivenessError("watchdog liveness service is not active")
