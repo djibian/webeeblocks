@@ -333,8 +333,12 @@ Runtime/controller change is justified by #236 alone.
   `PositionHlCommander` helpers. The authority layer still must supply an
   accepted current yaw, preserve the exact preflight/session binding and consume
   the integrated #257 fresh supervisor observer to bound command completion by
-  high-level trajectory state plus timeout/locked/crashed/deck-fault checks. Add
-  only the minimum teacher-authorized physical execution authority after the
+  high-level trajectory state plus timeout/locked/crashed/deck-fault checks. That
+  observer must be the exclusive authoritative issuer of supervisor GET_STATE
+  requests on the connection epoch; do not invoke cflib `Supervisor` getters in
+  parallel or as a second safety oracle because they bypass #257's epoch-wide
+  serialization/ambiguity guard. Add only the minimum teacher-authorized physical
+  execution authority after the
   live capability and safety gates are independently established. Keep immediate
   emergency stop and high-level commander stop exceptional because both can cut
   motors in flight; normal completion/voluntary abort needs a controlled
