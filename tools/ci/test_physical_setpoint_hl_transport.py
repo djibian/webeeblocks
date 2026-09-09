@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from math import isclose, pi
 from pathlib import Path
+from types import SimpleNamespace
 import struct
 import sys
 
@@ -11,9 +13,15 @@ MODULE_PATH = PHYSICAL / "setpoint_hl_transport.py"
 sys.path.insert(0, str(PHYSICAL))
 
 import high_level_ack as ack  # noqa: E402
+import high_level_timing as timing  # noqa: E402
 import physical_execution_domain as execution  # noqa: E402
+import powered_session_authority as powered  # noqa: E402
 import safelink_precondition as safelink  # noqa: E402
 import setpoint_hl_transport as transport  # noqa: E402
+import supervisor_state  # noqa: E402
+import teacher_run_authorization as teacher  # noqa: E402
+import watchdog_liveness as watchdog  # noqa: E402
+import yaw_observer as yaw  # noqa: E402
 
 
 def require(condition: bool, message: str) -> None:
@@ -44,16 +52,30 @@ class Link:
 
 
 class Packet:
-    def __init__(self, data=b"") -> None:
-        self.port = 0x08
+    def __init__(self, data=b"", *, port=0x08) -> None:
+        self.port = port
         self.data = bytearray(data)
+
+
+class Platform:
+    def get_protocol_version(self):
+        return 12
+
+
+class Supervisor:
+    def __init__(self) -> None:
+        self.watchdog_sends = 0
+
+    def send_emergency_stop_watchdog(self) -> None:
+        self.watchdog_sends += 1
 
 
 class FakeCrazyflie:
     def __init__(
         self,
         *,
-        reply: bytes | None = None,
+        reply_status: int | None = 0,
+        explicit_reply: bytes | None = None,
         send_error: BaseException | None = None,
         disconnect_on_send: bool = False,
         needs_resending=False,
@@ -61,12 +83,15 @@ class FakeCrazyflie:
         self.link_uri = "radio://0/80/2M/E7E7E7E7E7"
         self.link = Link(needs_resending)
         self.connected = True
-        self.reply = reply
+        self.reply_status = reply_status
+        self.explicit_reply = explicit_reply
         self.send_error = send_error
         self.disconnect_on_send = disconnect_on_send
         self.callbacks: dict[int, list] = {}
         self.send_calls: list[tuple[tuple, dict]] = []
         self.callback_removals = 0
+        self.platform = Platform()
+        self.supervisor = Supervisor()
 
     def is_connected(self):
         return self.connected
@@ -88,18 +113,19 @@ class FakeCrazyflie:
             "SETPOINT_HL reply callback must be installed before physical send",
         )
         self.send_calls.append((args, kwargs))
+        packet = args[0]
         if self.disconnect_on_send:
             self.connected = False
         if self.send_error is not None:
             raise self.send_error
-        if self.reply is not None:
-            packet = Packet(self.reply)
+        reply = self.explicit_reply
+        if reply is None and self.reply_status is not None:
+            request = bytes(packet.data)
+            reply = request[:3] + bytes((self.reply_status,))
+        if reply is not None:
+            response = Packet(reply)
             for callback in tuple(self.callbacks.get(0x08, ())):
-                callback(packet)
-
-
-def packet_factory(request: bytes):
-    return Packet(request)
+                callback(response)
 
 
 _counter = 0
@@ -111,317 +137,473 @@ def unique(label: str) -> str:
     return f"transport-{label}-{_counter}"
 
 
-def ready_execution() -> execution.PhysicalExecutionDomain:
+def ensure_flying() -> execution.PhysicalExecutionDomain:
     domain = execution.PhysicalExecutionDomain()
+    if domain.phase == execution.AWAITING_COMPLETION:
+        domain.complete_accepted_effect(execution.FLYING, lambda: True)
     if domain.phase == execution.RECOVERY_REQUIRED:
         domain.run_reset_establishment(lambda: object())
-    require(
-        domain.phase == execution.INACTIVE,
-        "test fixture must enter from stable inactive execution phase",
-    )
+    if domain.phase == execution.INACTIVE:
+        with domain.effect_transaction(lambda: None) as effect:
+            effect.mark_emitted()
+            effect.mark_accepted()
+        domain.complete_accepted_effect(execution.FLYING, lambda: True)
+    require(domain.phase == execution.FLYING, "fixture must establish flying phase")
     return domain
 
 
-def reset_after_ambiguity(domain: execution.PhysicalExecutionDomain) -> None:
+def recover_after_ambiguity(domain: execution.PhysicalExecutionDomain) -> None:
     require(
         domain.phase == execution.RECOVERY_REQUIRED,
-        "ambiguous physical effect must force recovery-required",
+        "ambiguous effect must force recovery-required",
     )
     domain.run_reset_establishment(lambda: object())
-    require(domain.phase == execution.INACTIVE, "fixture reset restores inactive")
+    with domain.effect_transaction(lambda: None) as effect:
+        effect.mark_emitted()
+        effect.mark_accepted()
+    domain.complete_accepted_effect(execution.FLYING, lambda: True)
 
 
-def make_transport(
-    label: str,
-    cf: FakeCrazyflie,
-    domain: execution.PhysicalExecutionDomain,
-):
-    epoch = Epoch(unique(label))
-    guard = safelink.LiveSafeLinkPrecondition(cf, epoch)
-    acknowledgement = ack.HighLevelAckDomain(epoch)
-    return (
-        transport.TrustedSetpointHlTransport(
-            crazyflie=cf,
-            execution_domain=domain,
-            acknowledgement_domain=acknowledgement,
-            safelink_precondition=guard,
-            packet_factory=packet_factory,
-        ),
-        acknowledgement,
-        guard,
-        epoch,
-    )
-
-
-def request(command: int = 12) -> bytes:
-    if command == 12:
-        return struct.pack("<BBBBfffff", 12, 0, 1, 0, 0.2, 0.0, 0.0, 0.0, 1.0)
-    if command in (7, 8):
-        return struct.pack("<BBff?f", command, 0, 0.5, 0.0, True, 1.0)
-    raise AssertionError("test request helper supports only ordinary motion commands")
-
-
-def required_assertions(log: list[str]):
-    def check(name):
-        def assertion():
-            log.append(name)
-        return assertion
-
-    return {
-        "exact_preflight_assertion": check("preflight"),
-        "teacher_binding_assertion": check("teacher"),
-        "powered_session_assertion": check("powered"),
-        "watchdog_liveness_assertion": check("watchdog"),
-    }
-
-
-def test_definitive_acceptance_is_one_send_then_completion_required() -> None:
-    domain = ready_execution()
-    req = request()
-    cf = FakeCrazyflie(reply=req[:3] + b"\x00")
-    sender, acknowledgement, _, _ = make_transport("accept", cf, domain)
-    order: list[str] = []
-    checks = required_assertions(order)
-
-    def build():
-        order.append("builder")
-        require(
-            domain.phase == execution.INACTIVE,
-            "request builder runs under stable pre-effect exclusion",
-        )
-        return req
-
-    result = sender.send_once(
-        request_builder=build,
-        **checks,
-        action_preconditions=(lambda: order.append("action"),),
-    )
-    require(result.accepted and result.status == 0, "zero firmware reply accepted")
-    require(
-        order == ["preflight", "teacher", "powered", "watchdog", "action", "builder"],
-        "all trusted gates run before request construction",
-    )
-    require(len(cf.send_calls) == 1, "accepted request is emitted exactly once")
-    packet = cf.send_calls[0][0][0]
-    require(packet.port == 0x08, "request uses SETPOINT_HL port")
-    require(bytes(packet.data) == req, "exact request bytes are emitted")
-    require(cf.callback_removals == 1, "reply callback is cleaned up")
-    require(not acknowledgement.poisoned, "definitive reply preserves ack freshness")
+def complete_motion(domain: execution.PhysicalExecutionDomain) -> None:
     require(
         domain.phase == execution.AWAITING_COMPLETION,
-        "positive acknowledgement is not trajectory completion",
+        "positive acknowledgement must await fresh completion",
     )
-    domain.complete_accepted_effect(execution.INACTIVE, lambda: True)
+    domain.complete_accepted_effect(execution.FLYING, lambda: True)
 
 
-def test_definitive_rejection_restores_prior_phase_without_retry() -> None:
-    domain = ready_execution()
-    req = request(7)
-    cf = FakeCrazyflie(reply=req[:3] + b"\x10")
-    sender, acknowledgement, _, _ = make_transport("reject", cf, domain)
-    result = sender.send_once(
-        request_builder=lambda: req,
-        **required_assertions([]),
+def make_supervisor_reader(cf: FakeCrazyflie, epoch: Epoch):
+    reader = supervisor_state.FreshSupervisorStateReader(
+        cf,
+        epoch,
+        crtp_types=(Packet, SimpleNamespace(SUPERVISOR=0x0E)),
     )
-    require(not result.accepted and result.status == 0x10, "non-zero status rejects")
-    require(len(cf.send_calls) == 1, "rejected command is never retried")
-    require(not acknowledgement.poisoned, "definitive rejection is not ambiguity")
-    require(
-        domain.phase == execution.INACTIVE,
-        "definitive rejection restores exact prior inactive phase",
-    )
+    state = SimpleNamespace(blocking_fault=False, is_flying=True)
+    reader.read = lambda *, timeout_seconds=0.2: state
+    return reader, state
 
 
-def test_all_mandatory_gates_precede_builder_and_send() -> None:
-    domain = ready_execution()
-    cf = FakeCrazyflie(reply=request()[:3] + b"\x00")
-    sender, acknowledgement, _, _ = make_transport("gate-fail", cf, domain)
-    called: list[str] = []
-
-    def fail_teacher():
-        called.append("teacher")
-        raise RuntimeError("teacher binding mismatch")
-
-    checks = required_assertions(called)
-    checks["teacher_binding_assertion"] = fail_teacher
-    expect_error(
-        lambda: sender.send_once(
-            request_builder=lambda: called.append("builder") or request(),
-            **checks,
+def mint_powered_session(cf: FakeCrazyflie, epoch: Epoch):
+    factory = powered.TrustedPoweredSessionFactory(
+        require_flight_known_inactive=lambda: True,
+        invalidate_prior_evidence=lambda: None,
+        stm_deck_power_cycle=lambda: None,
+        open_post_reset_session=lambda: cf,
+        close_post_reset_session=lambda _session: None,
+        read_connection_epoch=lambda session: epoch(),
+        read_capabilities=lambda session: {
+            "connected": True,
+            "executionAuthority": False,
+            "identity": {
+                "model": "crazyflie-2.1",
+                "modelEvidence": "verified",
+            },
+            "evidence": {
+                "systemSelfTestPassed": True,
+                "protocolVersion": 12,
+            },
+        },
+        assert_bound_preflight=lambda session, current_epoch: True,
+        read_fresh_supervisor=lambda session, current_epoch: SimpleNamespace(
+            blocking_fault=False
         ),
-        RuntimeError,
-        "teacher binding mismatch",
+        identity_factory=lambda: unique("powered"),
     )
-    require(called == ["preflight", "teacher"], "gates stop on first failure")
-    require(not cf.send_calls, "failed trusted gate emits no packet")
-    require(not acknowledgement.poisoned, "pre-effect gate failure is non-poisoning")
-    require(domain.phase == execution.INACTIVE, "pre-effect gate failure is neutral")
+    return factory.establish()
 
 
-def test_safelink_is_rechecked_after_builder_before_ack_and_send() -> None:
-    domain = ready_execution()
-    cf = FakeCrazyflie(
-        reply=request()[:3] + b"\x00",
-        needs_resending=True,
-    )
-    sender, acknowledgement, _, _ = make_transport("safelink", cf, domain)
-    built: list[bool] = []
-    expect_error(
-        lambda: sender.send_once(
-            request_builder=lambda: built.append(True) or request(),
-            **required_assertions([]),
-        ),
-        safelink.SafeLinkPreconditionError,
-        "not positively established",
-    )
-    require(built == [True], "request is finalized before last live SafeLink proof")
-    require(not cf.callbacks.get(0x08), "ack callback is not installed before SafeLink")
-    require(not cf.send_calls, "failed SafeLink emits no packet")
-    require(not acknowledgement.poisoned, "pre-effect SafeLink failure is non-poisoning")
-    require(domain.phase == execution.INACTIVE, "failed SafeLink preserves prior phase")
+class Fixture:
+    def __init__(
+        self,
+        label: str,
+        cf: FakeCrazyflie,
+        *,
+        packet_factory=None,
+    ) -> None:
+        self.cf = cf
+        self.epoch = Epoch(unique(label))
+        self.domain = ensure_flying()
+        self.powered = mint_powered_session(cf, self.epoch)
+        self.supervisor_reader, self.supervisor_state = make_supervisor_reader(
+            cf,
+            self.epoch,
+        )
+        self.watchdog = watchdog.EmergencyWatchdogLivenessGuard(
+            cf,
+            self.epoch,
+            self.supervisor_reader,
+            self.powered.watchdog_authority,
+            keepalive_interval_seconds=0.2,
+            max_host_gap_seconds=0.7,
+        )
+        self.watchdog.activate(supervisor_timeout_seconds=0.05)
+        self.binding = teacher.PhysicalRunBinding(
+            profile_id="activity-1",
+            ast_binding=unique("ast"),
+            connection_epoch=self.epoch(),
+        )
+        self.authorizer = teacher.TrustedTeacherAuthorizer()
+        self.authorization = self.authorizer.authorize_run(
+            self.binding,
+            lambda _binding: True,
+        )
+        self.current_binding = self.binding
+        self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
+        self.ack = ack.HighLevelAckDomain(self.epoch)
+        factory = packet_factory or (lambda request: Packet(request))
+        self.transport = transport.TrustedSetpointHlTransport(
+            crazyflie=cf,
+            execution_domain=self.domain,
+            acknowledgement_domain=self.ack,
+            safelink_precondition=self.safelink,
+            teacher_authorization=self.authorization,
+            powered_session=self.powered,
+            watchdog_guard=self.watchdog,
+            supervisor_reader=self.supervisor_reader,
+            current_preflight_binding_reader=lambda: self.current_binding,
+            packet_factory=factory,
+        )
+
+    def close(self) -> None:
+        try:
+            self.watchdog.stop_for_terminal_reboot(join_timeout_seconds=0.2)
+        except watchdog.WatchdogLivenessError:
+            pass
 
 
-def test_two_byte_stop_is_rejected_before_physical_effect() -> None:
-    domain = ready_execution()
-    cf = FakeCrazyflie()
-    sender, acknowledgement, _, _ = make_transport("stop", cf, domain)
-    expect_error(
-        lambda: sender.send_once(
-            request_builder=lambda: b"\x03\x00",
-            **required_assertions([]),
-        ),
-        transport.SetpointHlTransportError,
-        "three-byte reply prefix",
-    )
-    require(not cf.send_calls, "two-byte motor-cut STOP is outside ordinary transport")
-    require(not acknowledgement.poisoned, "local request rejection is non-poisoning")
-    require(domain.phase == execution.INACTIVE, "invalid request is pre-effect neutral")
-
-    expect_error(
-        lambda: sender.send_once(
-            request_builder=lambda: b"\x03\x00\x00" + bytes(12),
-            **required_assertions([]),
-        ),
-        transport.SetpointHlTransportError,
-        "outside the ordinary WebeeBlocks motion surface",
-    )
-    require(not cf.send_calls, "padded STOP cannot enter ordinary motion transport")
+def unpack_go_to(cf: FakeCrazyflie):
+    require(len(cf.send_calls) == 1, "exactly one physical packet must be emitted")
+    packet = cf.send_calls[0][0][0]
+    return struct.unpack("<BBBBfffff", bytes(packet.data))
 
 
-def test_timeout_disconnect_send_failure_and_bad_reply_fail_closed() -> None:
+def test_turn_acceptance_uses_semantics_timing_and_requires_completion() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("turn-ok", cf)
+    try:
+        policy = timing.HighLevelTimingPolicy()
+        result = fixture.transport.send_turn(angle_deg=90, timing_policy=policy)
+        require(result.accepted, "zero firmware result must be accepted")
+        command, group, relative, linear, x, y, z, angle, duration = unpack_go_to(cf)
+        require((command, group, relative, linear) == (12, 0, 1, 0), "exact GO_TO_2 header")
+        require(isclose(x, 0.0) and isclose(y, 0.0) and isclose(z, 0.0), "turn has no translation")
+        require(isclose(angle, pi / 2, rel_tol=1e-6), "turn uses #256 relative yaw")
+        require(
+            isclose(duration, policy.turn_duration(90), rel_tol=1e-6),
+            "turn duration uses #268 policy",
+        )
+        require(
+            fixture.domain.phase == execution.AWAITING_COMPLETION,
+            "acknowledgement is not trajectory completion",
+        )
+        complete_motion(fixture.domain)
+    finally:
+        fixture.close()
+
+
+def test_horizontal_move_uses_fresh_yaw_and_horizontal_speed_policy() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("move-ok", cf)
+    try:
+        observer = yaw.FreshYawObserver(cf, fixture.epoch)
+        observer._bound_connection_epoch = fixture.epoch()
+        observer._opened = True
+        observer._config = object()
+        observer.read = lambda *, timeout_seconds=0.5: yaw.YawObservation(
+            fixture.epoch(),
+            10,
+            90.0,
+            pi / 2,
+        )
+        policy = timing.HighLevelTimingPolicy(0.2)
+        result = fixture.transport.send_horizontal_move(
+            direction="forward",
+            distance_m=0.2,
+            yaw_reader=observer,
+            timing_policy=policy,
+        )
+        require(result.accepted, "horizontal command accepted")
+        _, _, _, _, x, y, z, angle, duration = unpack_go_to(cf)
+        require(abs(x) < 1e-6 and isclose(y, 0.2, rel_tol=1e-6), "#256 rotates body move with fresh yaw")
+        require(isclose(z, 0.0) and isclose(angle, 0.0), "horizontal move preserves relative z/yaw")
+        require(
+            isclose(duration, policy.horizontal_move_duration(0.2), rel_tol=1e-6),
+            "horizontal duration uses current #268 speed state",
+        )
+        complete_motion(fixture.domain)
+    finally:
+        fixture.close()
+
+
+def test_definitive_rejection_restores_flying_without_retry() -> None:
+    cf = FakeCrazyflie(reply_status=22)
+    fixture = Fixture("reject", cf)
+    try:
+        result = fixture.transport.send_turn(
+            angle_deg=30,
+            timing_policy=timing.HighLevelTimingPolicy(),
+        )
+        require(not result.accepted and result.status == 22, "non-zero firmware status is definitive rejection")
+        require(fixture.domain.phase == execution.FLYING, "definitive rejection restores prior flying phase")
+        require(len(cf.send_calls) == 1, "definitive rejection must never resend")
+    finally:
+        fixture.close()
+
+
+def test_last_moment_safelink_failure_is_pre_effect() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("safelink", cf)
+    try:
+        cf.link.needs_resending = True
+        expect_error(
+            lambda: fixture.transport.send_turn(
+                angle_deg=20,
+                timing_policy=timing.HighLevelTimingPolicy(),
+            ),
+            safelink.SafeLinkPreconditionError,
+            "duplicate suppression",
+        )
+        require(not cf.send_calls, "missing SafeLink must prevent emission")
+        require(fixture.domain.phase == execution.FLYING, "pre-effect SafeLink failure is neutral")
+    finally:
+        fixture.close()
+
+
+def test_fresh_supervisor_fault_or_not_flying_blocks_send() -> None:
+    for label, state, pattern in (
+        ("fault", SimpleNamespace(blocking_fault=True, is_flying=True), "blocking"),
+        ("not-flying", SimpleNamespace(blocking_fault=False, is_flying=False), "flight"),
+    ):
+        cf = FakeCrazyflie(reply_status=0)
+        fixture = Fixture(label, cf)
+        try:
+            fixture.supervisor_reader.read = lambda *, timeout_seconds=0.2, state=state: state
+            expect_error(
+                lambda: fixture.transport.send_turn(
+                    angle_deg=20,
+                    timing_policy=timing.HighLevelTimingPolicy(),
+                ),
+                transport.SetpointHlTransportError,
+                pattern,
+            )
+            require(not cf.send_calls, "fresh #257 failure must prevent emission")
+            require(fixture.domain.phase == execution.FLYING, "fresh supervisor failure is pre-effect")
+        finally:
+            fixture.close()
+
+
+def test_teacher_invalidation_during_request_construction_blocks_send() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("teacher-race", cf)
+    try:
+        policy = timing.HighLevelTimingPolicy()
+        original = policy.turn_duration
+
+        def invalidate_then_duration(angle):
+            fixture.authorization.invalidate("teacher withdrew run")
+            return original(angle)
+
+        policy.turn_duration = invalidate_then_duration
+        expect_error(
+            lambda: fixture.transport.send_turn(angle_deg=20, timing_policy=policy),
+            teacher.TeacherRunAuthorizationError,
+            "inactive",
+        )
+        require(not cf.send_calls, "teacher invalidation during builder must prevent send")
+        require(fixture.domain.phase == execution.FLYING, "late authority failure remains pre-effect")
+    finally:
+        fixture.close()
+
+
+def test_watchdog_terminal_during_request_construction_blocks_send() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("watchdog-race", cf)
+    try:
+        policy = timing.HighLevelTimingPolicy()
+        original = policy.turn_duration
+
+        def terminate_then_duration(angle):
+            fixture.watchdog.stop_for_terminal_reboot(join_timeout_seconds=0.2)
+            return original(angle)
+
+        policy.turn_duration = terminate_then_duration
+        expect_error(
+            lambda: fixture.transport.send_turn(angle_deg=20, timing_policy=policy),
+            watchdog.WatchdogLivenessError,
+            "terminal",
+        )
+        require(not cf.send_calls, "watchdog terminal transition during builder must prevent send")
+        require(fixture.domain.phase == execution.FLYING, "late watchdog failure remains pre-effect")
+    finally:
+        fixture.close()
+
+
+def test_packet_factory_cannot_substitute_port_or_data() -> None:
     cases = (
-        ("timeout", FakeCrazyflie(), ack.HighLevelAckError, "timeout"),
+        ("port", lambda request: Packet(request, port=0x07), "non-SETPOINT_HL"),
+        ("data", lambda request: Packet(request[:-1] + b"\x00"), "substituted"),
+    )
+    for label, factory, pattern in cases:
+        cf = FakeCrazyflie(reply_status=0)
+        fixture = Fixture("packet-" + label, cf, packet_factory=factory)
+        try:
+            expect_error(
+                lambda: fixture.transport.send_turn(
+                    angle_deg=20,
+                    timing_policy=timing.HighLevelTimingPolicy(),
+                ),
+                transport.SetpointHlTransportError,
+                pattern,
+            )
+            require(not cf.send_calls, "packet-factory substitution must never reach send_packet")
+            require(fixture.domain.phase == execution.FLYING, "invalid packet is pre-effect")
+        finally:
+            fixture.close()
+
+
+def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("authority-types", cf)
+    try:
+        kwargs = dict(
+            crazyflie=cf,
+            execution_domain=fixture.domain,
+            acknowledgement_domain=fixture.ack,
+            safelink_precondition=fixture.safelink,
+            teacher_authorization=fixture.authorization,
+            powered_session=fixture.powered,
+            watchdog_guard=fixture.watchdog,
+            supervisor_reader=fixture.supervisor_reader,
+            current_preflight_binding_reader=lambda: fixture.binding,
+            packet_factory=lambda request: Packet(request),
+        )
+        for key, value, pattern in (
+            ("teacher_authorization", object(), "TeacherRunAuthorization"),
+            ("watchdog_guard", object(), "watchdog guard"),
+            ("supervisor_reader", object(), "FreshSupervisorStateReader"),
+        ):
+            candidate = dict(kwargs)
+            candidate[key] = value
+            expect_error(
+                lambda candidate=candidate: transport.TrustedSetpointHlTransport(**candidate),
+                transport.SetpointHlTransportError,
+                pattern,
+            )
+
+        forged = powered.EstablishedPoweredSession(
+            session=object(),
+            connection_epoch=fixture.epoch(),
+            watchdog_authority=fixture.powered.watchdog_authority,
+        )
+        candidate = dict(kwargs)
+        candidate["powered_session"] = forged
+        expect_error(
+            lambda: transport.TrustedSetpointHlTransport(**candidate),
+            transport.SetpointHlTransportError,
+            "exact Crazyflie",
+        )
+        require(not cf.send_calls, "constructor authority counterexamples emit no command")
+    finally:
+        fixture.close()
+
+
+def test_out_of_policy_commands_have_no_raw_effect_surface() -> None:
+    cf = FakeCrazyflie(reply_status=0)
+    fixture = Fixture("policy", cf)
+    try:
+        require(not hasattr(fixture.transport, "send_once"), "raw public send_once must not exist")
+        for action in ("send_takeoff", "send_land", "send_vertical", "send_stop"):
+            require(not hasattr(fixture.transport, action), "unsupported command surface leaked: " + action)
+        expect_error(
+            lambda: fixture.transport.send_turn(
+                angle_deg=180,
+                timing_policy=timing.HighLevelTimingPolicy(),
+            ),
+            ValueError,
+            "bounds",
+        )
+        require(not cf.send_calls, "out-of-policy but structurally possible command must not emit")
+    finally:
+        fixture.close()
+
+
+def test_timeout_send_failure_and_wrong_reply_are_ambiguous_without_retry() -> None:
+    cases = (
+        ("timeout", FakeCrazyflie(reply_status=None), ack.HighLevelAckError, "timeout"),
+        ("send", FakeCrazyflie(send_error=RuntimeError("radio enqueue failed")), RuntimeError, "radio enqueue failed"),
         (
-            "disconnect",
-            FakeCrazyflie(disconnect_on_send=True),
-            ack.HighLevelAckError,
-            "disconnected",
-        ),
-        (
-            "send-error",
-            FakeCrazyflie(send_error=RuntimeError("radio send failed")),
-            RuntimeError,
-            "radio send failed",
-        ),
-        (
-            "bad-reply",
-            FakeCrazyflie(reply=b"\x0c\x00\x00\x00"),
+            "reply",
+            FakeCrazyflie(explicit_reply=b"\x7f\x00\x00\x00"),
             ack.HighLevelAckError,
             "prefix",
         ),
     )
     for label, cf, error_type, pattern in cases:
-        domain = ready_execution()
-        sender, acknowledgement, _, _ = make_transport(label, cf, domain)
-        expect_error(
-            lambda s=sender: s.send_once(
-                request_builder=request,
-                **required_assertions([]),
-                reply_timeout_seconds=0.01,
-            ),
-            error_type,
-            pattern,
-        )
-        require(len(cf.send_calls) == 1, label + ": physical send occurs at most once")
-        require(
-            acknowledgement.poisoned,
-            label + ": ambiguous post-send outcome poisons ack epoch",
-        )
-        reset_after_ambiguity(domain)
+        fixture = Fixture("ambiguous-" + label, cf)
+        try:
+            expect_error(
+                lambda: fixture.transport.send_turn(
+                    angle_deg=20,
+                    timing_policy=timing.HighLevelTimingPolicy(),
+                    reply_timeout_seconds=0.03,
+                ),
+                error_type,
+                pattern,
+            )
+            require(len(cf.send_calls) == 1, "ambiguous command is emitted exactly once")
+            require(fixture.domain.phase == execution.RECOVERY_REQUIRED, "ambiguous command poisons execution state")
+            require(fixture.ack.poisoned, "ambiguous command poisons #271 epoch freshness")
+            recover_after_ambiguity(fixture.domain)
+        finally:
+            fixture.close()
 
 
-def test_exact_crazyflie_and_epoch_bindings_are_required() -> None:
-    domain = ready_execution()
-    cf = FakeCrazyflie()
-    other = FakeCrazyflie()
-    epoch = Epoch(unique("binding"))
-    guard = safelink.LiveSafeLinkPrecondition(other, epoch)
-    acknowledgement = ack.HighLevelAckDomain(epoch)
-    expect_error(
-        lambda: transport.TrustedSetpointHlTransport(
-            crazyflie=cf,
-            execution_domain=domain,
-            acknowledgement_domain=acknowledgement,
-            safelink_precondition=guard,
-            packet_factory=packet_factory,
-        ),
-        transport.SetpointHlTransportError,
-        "exact Crazyflie",
-    )
-
-    guard = safelink.LiveSafeLinkPrecondition(cf, Epoch(unique("safe-epoch")))
-    acknowledgement = ack.HighLevelAckDomain(Epoch(unique("ack-epoch")))
-    expect_error(
-        lambda: transport.TrustedSetpointHlTransport(
-            crazyflie=cf,
-            execution_domain=domain,
-            acknowledgement_domain=acknowledgement,
-            safelink_precondition=guard,
-            packet_factory=packet_factory,
-        ),
-        transport.SetpointHlTransportError,
-        "same epoch",
-    )
-
-
-def test_source_has_only_bounded_trusted_effect_surface() -> None:
+def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    require(
-        "self._cf.send_packet(packet)" in source,
-        "transport must contain one explicit plain physical send boundary",
-    )
-    require(
-        source.count("self._cf.send_packet(packet)") == 1,
-        "transport source has exactly one physical send call",
-    )
+    require(source.count("self._cf.send_packet(packet)") == 1, "one ordinary physical send site")
     for forbidden in (
+        "def send_once(",
+        "TAKEOFF_2",
+        "LAND_2",
+        "COMMAND_STOP",
         "expected_reply=",
         "HighLevelCommander(",
-        "send_arming_request",
         "send_emergency_stop",
-        "send_emergency_stop_watchdog",
-        "http.server",
-        "requests.",
-        "Flask",
     ):
-        require(
-            forbidden not in source,
-            "transport contains forbidden authority/retry surface: " + forbidden,
-        )
+        require(forbidden not in source, "forbidden raw/retry/effect surface: " + forbidden)
+    for required in (
+        "TeacherRunAuthorization",
+        "EstablishedPoweredSession",
+        "EmergencyWatchdogLivenessGuard",
+        "FreshSupervisorStateReader",
+        "LiveSafeLinkPrecondition",
+        "HighLevelAckDomain",
+        "body_relative_move",
+        "relative_turn",
+        "horizontal_move_duration",
+        "turn_duration",
+        "packet factory substituted",
+        "fresh supervisor",
+    ):
+        require(required in source, "missing concrete transport contract: " + required)
 
 
 def main() -> int:
-    test_definitive_acceptance_is_one_send_then_completion_required()
-    test_definitive_rejection_restores_prior_phase_without_retry()
-    test_all_mandatory_gates_precede_builder_and_send()
-    test_safelink_is_rechecked_after_builder_before_ack_and_send()
-    test_two_byte_stop_is_rejected_before_physical_effect()
-    test_timeout_disconnect_send_failure_and_bad_reply_fail_closed()
-    test_exact_crazyflie_and_epoch_bindings_are_required()
-    test_source_has_only_bounded_trusted_effect_surface()
+    test_turn_acceptance_uses_semantics_timing_and_requires_completion()
+    test_horizontal_move_uses_fresh_yaw_and_horizontal_speed_policy()
+    test_definitive_rejection_restores_flying_without_retry()
+    test_last_moment_safelink_failure_is_pre_effect()
+    test_fresh_supervisor_fault_or_not_flying_blocks_send()
+    test_teacher_invalidation_during_request_construction_blocks_send()
+    test_watchdog_terminal_during_request_construction_blocks_send()
+    test_packet_factory_cannot_substitute_port_or_data()
+    test_concrete_authority_and_exact_cf_bindings_are_required()
+    test_out_of_policy_commands_have_no_raw_effect_surface()
+    test_timeout_send_failure_and_wrong_reply_are_ambiguous_without_retry()
+    test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api()
     print(
-        "PASS trusted SETPOINT_HL transport composes mandatory gates, SafeLink, "
-        "process-wide exclusion and exact acknowledgement around one no-retry send"
+        "PASS trusted SETPOINT_HL transport binds concrete authority, fresh safety, "
+        "validated semantics and exactly one no-retry in-flight effect"
     )
     return 0
 
