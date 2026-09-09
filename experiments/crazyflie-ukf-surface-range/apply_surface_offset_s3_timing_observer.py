@@ -39,10 +39,17 @@ static uint32_t surfaceBaroLagEvents = 0;
 static uint32_t surfaceTofAgeAtSuspectMs = 0;
 static uint32_t surfaceBaroAgeAtSuspectMs = 0;
 static uint32_t surfaceBaroLagAtSuspect = 0;
+static uint32_t surfaceTofAgeAtDecisionMs = 0;
+static uint32_t surfaceBaroAgeAtDecisionMs = 0;
+static uint32_t surfaceBaroLagAtDecision = 0;
 static uint8_t surfaceBaroSeen = 0;
 static uint8_t surfaceBaroSeenAtSuspect = 0;
+static uint8_t surfaceBaroSeenAtDecision = 0;
+static uint8_t surfaceLateDecisionEligible = 0;
 static float surfaceVzAtSuspect = 0.0f;
 static float surfaceVzAtDecision = 0.0f;
+static float surfaceBaroAtDecision = 0.0f;
+static float surfaceBaroDeltaAtDecision = 0.0f;
 """
 
 QUEUE_OLD = """  measurement_t m;
@@ -64,6 +71,7 @@ TOF_OLD = """            // Capture local surface geometry before deciding wheth
 
 TOF_NEW = """            // Capture producer-vs-processing timing before any late classifier decision.
             surfaceTofAgeMs = nowMs - T2M(m.data.tof.timestamp);
+            surfaceLateDecisionEligible = 0;
             if (surfaceBaroSeen)
             {
               surfaceBaroAgeMs = nowMs - surfaceLatestBaroProcessMs;
@@ -118,13 +126,27 @@ SUSPECT_RESTART_NEW = """                  surfaceSuspectStartMs = nowMs;
                   surfaceSuspectCount = 0;
 """
 
-DECISION_OLD = """              const bool vzVerticalVeto = fabsf(stateNav[5]) >= S3_VZ_VERTICAL_VETO_MPS;
-              const bool baroVerticalVeto = fabsf(surfaceBaroDelta) >= S3_BARO_VERTICAL_VETO_M;
+DECISION_OLD = """              surfaceCandidateInno = candidateInnovation * candidateInnovation / Pyy;
+
+              if (verticalVeto)
 """
 
-DECISION_NEW = """              surfaceVzAtDecision = stateNav[5];
-              const bool vzVerticalVeto = fabsf(stateNav[5]) >= S3_VZ_VERTICAL_VETO_MPS;
-              const bool baroVerticalVeto = fabsf(surfaceBaroDelta) >= S3_BARO_VERTICAL_VETO_M;
+DECISION_NEW = """              surfaceCandidateInno = candidateInnovation * candidateInnovation / Pyy;
+              surfaceLateDecisionEligible = (
+                sameSignPersistent && settled && plausibleStep &&
+                surfaceCandidateInno < qualGateTof) ? 1U : 0U;
+              if (surfaceLateDecisionEligible)
+              {
+                surfaceTofAgeAtDecisionMs = surfaceTofAgeMs;
+                surfaceBaroAgeAtDecisionMs = surfaceBaroAgeMs;
+                surfaceBaroLagAtDecision = surfaceBaroLagEvents;
+                surfaceBaroSeenAtDecision = surfaceBaroSeen;
+                surfaceVzAtDecision = stateNav[5];
+                surfaceBaroAtDecision = latestRelativeBaro;
+                surfaceBaroDeltaAtDecision = surfaceBaroDelta;
+              }
+
+              if (verticalVeto)
 """
 
 LOG_OLD = """LOG_ADD(LOG_UINT8, surfState, &surfaceDetectorState)
@@ -143,8 +165,16 @@ LOG_ADD(LOG_UINT32, baroAge0, &surfaceBaroAgeAtSuspectMs)
 LOG_ADD(LOG_UINT32, baroLag0, &surfaceBaroLagAtSuspect)
 LOG_ADD(LOG_UINT8, baroSeen, &surfaceBaroSeen)
 LOG_ADD(LOG_UINT8, baroSeen0, &surfaceBaroSeenAtSuspect)
+LOG_ADD(LOG_UINT8, lateElig, &surfaceLateDecisionEligible)
+LOG_ADD(LOG_UINT32, tofAgeD, &surfaceTofAgeAtDecisionMs)
+LOG_ADD(LOG_UINT32, baroAgeD, &surfaceBaroAgeAtDecisionMs)
+LOG_ADD(LOG_UINT32, baroLagD, &surfaceBaroLagAtDecision)
+LOG_ADD(LOG_UINT8, baroSeenD, &surfaceBaroSeenAtDecision)
+LOG_ADD(LOG_FLOAT, baro0, &surfaceBaroAtSuspect)
 LOG_ADD(LOG_FLOAT, vz0, &surfaceVzAtSuspect)
 LOG_ADD(LOG_FLOAT, vzDec, &surfaceVzAtDecision)
+LOG_ADD(LOG_FLOAT, baroDec, &surfaceBaroAtDecision)
+LOG_ADD(LOG_FLOAT, baroDDec, &surfaceBaroDeltaAtDecision)
 LOG_GROUP_STOP(sensorFilter)
 """
 
@@ -164,10 +194,17 @@ BIAS_RESET_NEW = """      surfaceDetectorState = S3_STATE_NORMAL;
       surfaceTofAgeAtSuspectMs = 0;
       surfaceBaroAgeAtSuspectMs = 0;
       surfaceBaroLagAtSuspect = 0;
+      surfaceTofAgeAtDecisionMs = 0;
+      surfaceBaroAgeAtDecisionMs = 0;
+      surfaceBaroLagAtDecision = 0;
       surfaceBaroSeen = 0;
       surfaceBaroSeenAtSuspect = 0;
+      surfaceBaroSeenAtDecision = 0;
+      surfaceLateDecisionEligible = 0;
       surfaceVzAtSuspect = 0.0f;
       surfaceVzAtDecision = 0.0f;
+      surfaceBaroAtDecision = 0.0f;
+      surfaceBaroDeltaAtDecision = 0.0f;
 
       // set initial parameters"""
 
@@ -187,10 +224,17 @@ NAV_RESET_NEW = """  surfaceDetectorState = S3_STATE_NORMAL;
   surfaceTofAgeAtSuspectMs = 0;
   surfaceBaroAgeAtSuspectMs = 0;
   surfaceBaroLagAtSuspect = 0;
+  surfaceTofAgeAtDecisionMs = 0;
+  surfaceBaroAgeAtDecisionMs = 0;
+  surfaceBaroLagAtDecision = 0;
   surfaceBaroSeen = 0;
   surfaceBaroSeenAtSuspect = 0;
+  surfaceBaroSeenAtDecision = 0;
+  surfaceLateDecisionEligible = 0;
   surfaceVzAtSuspect = 0.0f;
   surfaceVzAtDecision = 0.0f;
+  surfaceBaroAtDecision = 0.0f;
+  surfaceBaroDeltaAtDecision = 0.0f;
 
   // set initial parameters"""
 
