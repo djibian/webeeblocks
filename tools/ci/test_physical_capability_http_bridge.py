@@ -51,14 +51,18 @@ class FakeSession:
         }
 
 
-def request_json(url: str, token: str | None = None, method: str = "GET") -> tuple[int, object]:
+def request(url: str, token: str | None = None, method: str = "GET") -> tuple[int, object | None, object]:
     headers = {} if token is None else {"Authorization": f"Bearer {token}"}
-    request = Request(url, method=method, headers=headers)
+    req = Request(url, method=method, headers=headers)
     try:
-        with urlopen(request, timeout=2) as response:
-            return response.status, json.loads(response.read().decode("utf-8"))
+        with urlopen(req, timeout=2) as response:
+            raw = response.read()
+            payload = json.loads(raw.decode("utf-8")) if raw else None
+            return response.status, payload, response.headers
     except HTTPError as exc:
-        return exc.code, json.loads(exc.read().decode("utf-8"))
+        raw = exc.read()
+        payload = json.loads(raw.decode("utf-8")) if raw else None
+        return exc.code, payload, exc.headers
 
 
 def main() -> int:
@@ -70,35 +74,46 @@ def main() -> int:
     thread.start()
     base = f"http://{host}:{port}"
     try:
-        status, payload = request_json(base + "/v1/connection-epoch", token)
+        status, payload, headers = request(base + "/v1/connection-epoch", token)
         assert status == 200 and payload == {"connectionEpoch": "connection-one"}
-        status, payload = request_json(base + "/v1/capabilities", token)
+        assert headers["Access-Control-Allow-Origin"] == "*"
+        assert headers["Cache-Control"] == "no-store"
+
+        status, payload, _ = request(base + "/v1/capabilities", token)
         assert status == 200
         assert payload["executionAuthority"] is False
         assert payload["hardware"] == ["flow-deck-v2"]
         assert fake.epoch_reads == 1 and fake.capability_reads == 1
 
-        status, payload = request_json(base + "/v1/capabilities")
+        status, payload, cors = request(base + "/v1/capabilities", method="OPTIONS")
+        assert status == 204 and payload is None
+        assert cors["Access-Control-Allow-Origin"] == "*"
+        assert cors["Access-Control-Allow-Methods"] == "GET, OPTIONS"
+        assert "Authorization" in cors["Access-Control-Allow-Headers"]
+        assert fake.epoch_reads == 1 and fake.capability_reads == 1, "CORS preflight must not touch live session"
+
+        status, payload, _ = request(base + "/v1/capabilities")
         assert status == 401 and payload == {"error": "unauthorized"}
         assert fake.capability_reads == 1, "unauthorized read must not touch the live session"
 
-        status, payload = request_json(base + "/v1/connection-epoch", token, method="POST")
+        status, payload, _ = request(base + "/v1/connection-epoch", token, method="POST")
         assert status == 405 and payload == {"error": "read-only bridge"}
         assert fake.epoch_reads == 1, "effect-shaped methods must never reach the live session"
 
         fake.epoch = "connection-two"
-        status, payload = request_json(base + "/v1/connection-epoch", token)
+        status, payload, _ = request(base + "/v1/connection-epoch", token)
         assert status == 200 and payload == {"connectionEpoch": "connection-two"}
     finally:
         bridge.shutdown()
         thread.join(timeout=2)
 
-    try:
-        bridge_module.ReadOnlyCapabilityHttpBridge(fake, host="0.0.0.0")
-    except bridge_module.CapabilityBridgeError as exc:
-        assert "loopback" in str(exc)
-    else:
-        raise AssertionError("non-loopback bind must fail closed")
+    for forbidden_host in ("0.0.0.0", "::1"):
+        try:
+            bridge_module.ReadOnlyCapabilityHttpBridge(fake, host=forbidden_host)
+        except bridge_module.CapabilityBridgeError as exc:
+            assert "loopback" in str(exc)
+        else:
+            raise AssertionError(f"unsupported bind {forbidden_host} must fail closed")
 
     forbidden = (
         "takeoff", "land", "move", "vertical", "turn", "set_light", "arm",
@@ -107,7 +122,7 @@ def main() -> int:
     for name in forbidden:
         assert not hasattr(bridge, name), f"HTTP bridge exposes authority method: {name}"
 
-    print("PASS loopback capability bridge exposes authenticated reads only and no physical authority")
+    print("PASS loopback capability bridge supports browser reads with authentication and no physical authority")
     return 0
 
 
