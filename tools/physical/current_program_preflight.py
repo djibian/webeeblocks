@@ -1,36 +1,28 @@
 #!/usr/bin/env python3
-"""Concrete non-authority freshness guard for the #249 current-program preflight.
+"""Concrete #249 current-program freshness guard for the physical effect path.
 
-The browser-side #249 bridge already owns the exact-current activity/profile,
-backend-neutral AST and reconnect-sensitive preflight re-assertion. A physical
-effect consumer must not accept an arbitrary assertion-shaped callback in place
-of that boundary.
+Integrated #277 provides the production host-initiated round trip for exact
+current profile / backend-neutral AST / connection-epoch evidence. The ordinary
+browser capability bearer cannot answer that round trip; only the distinct
+closure-private #249 responder can settle a host-created challenge.
 
-This module separates the trust adapter from the effect surface. The trusted
-host integration supplies the one concrete callback that actually invokes the
-#249 current-program re-assertion and returns its exact PhysicalRunBinding. That
-callback is captured only by TrustedCurrentProgramPreflightFactory. The factory
-mints a LiveCurrentProgramPreflightGuard through a private key; callers of the
-physical effect transport receive only that guard and cannot substitute a
-lambda/no-op for preflight at the effect boundary.
+This module binds that concrete production bridge to one exact #267 run binding.
+It deliberately accepts no assertion-shaped callback. Every assert_current()
+call invokes a fresh ReadOnlyCapabilityHttpBridge.assert_current_program(...)
+round trip and validates the bridge-private immutable evidence before returning
+the binding to the effect transport.
 
-The guard is deliberately non-authority. A successful assertion proves only
-that the trusted #249 adapter just re-established the exact profile/AST/epoch
-binding expected for this run. It does not grant teacher approval, watchdog
-liveness, powered-session authority, command acknowledgement or flight
-completion. Those remain separate concrete gates.
-
-The trusted-host adapter is the integration trust boundary. It must invoke the
-real production #249 assertCurrentProgram path and must not be exposed to the
-student/browser as a command or authority surface.
+The guard remains non-authority. Current-program evidence does not grant teacher
+approval, watchdog liveness, powered-session authority, command acknowledgement
+or trajectory completion.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Callable
 
+import serve_reference_capabilities as capability_bridge
 from teacher_run_authorization import PhysicalRunBinding
 
 
@@ -43,19 +35,20 @@ _MINT_KEY = object()
 
 @dataclass(frozen=True)
 class CurrentProgramPreflightEvidence:
-    """One fresh non-authority exact-program assertion from the trusted adapter."""
+    """One fresh exact-program assertion translated from integrated #277 evidence."""
 
     binding: PhysicalRunBinding
-    sequence: int
+    challenge_id: str
+    execution_authority: bool = False
 
 
 class LiveCurrentProgramPreflightGuard:
-    """Non-forgeable handle that re-invokes the trusted #249 adapter on demand."""
+    """Private-minted handle onto the concrete production #249 host bridge."""
 
     def __init__(
         self,
         binding: PhysicalRunBinding,
-        reassert_current_program: Callable[[], PhysicalRunBinding],
+        bridge: capability_bridge.ReadOnlyCapabilityHttpBridge,
         *,
         _mint_key: object,
     ) -> None:
@@ -67,63 +60,81 @@ class LiveCurrentProgramPreflightGuard:
             raise CurrentProgramPreflightError(
                 "exact PhysicalRunBinding is required for current-program preflight"
             )
-        if not callable(reassert_current_program):
+        if type(bridge) is not capability_bridge.ReadOnlyCapabilityHttpBridge:
             raise CurrentProgramPreflightError(
-                "trusted #249 current-program adapter is unavailable"
+                "integrated #277 ReadOnlyCapabilityHttpBridge is required"
             )
         self._binding = binding
-        self._reassert_current_program = reassert_current_program
+        self._bridge = bridge
         self._lock = Lock()
-        self._sequence = 0
 
     @property
     def binding(self) -> PhysicalRunBinding:
         return self._binding
 
     def assert_current(self) -> CurrentProgramPreflightEvidence:
-        """Synchronously obtain one fresh exact binding from the trusted #249 path."""
+        """Synchronously require one fresh host-initiated #249 round trip."""
         with self._lock:
             try:
-                current = self._reassert_current_program()
+                evidence = self._bridge.assert_current_program(
+                    profile_id=self._binding.profile_id,
+                    ast_binding=self._binding.ast_binding,
+                    connection_epoch=self._binding.connection_epoch,
+                )
             except Exception as exc:
                 raise CurrentProgramPreflightError(
-                    "trusted #249 current-program re-assertion failed"
+                    "integrated #249 current-program re-assertion failed"
                 ) from exc
-            if type(current) is not PhysicalRunBinding:
+
+            if type(evidence) is not capability_bridge.CurrentProgramPreflightEvidence:
                 raise CurrentProgramPreflightError(
-                    "trusted #249 adapter returned invalid current-program evidence"
+                    "integrated #277 bridge returned invalid current-program evidence"
                 )
-            if current != self._binding:
+            if evidence.execution_authority is not False:
+                raise CurrentProgramPreflightError(
+                    "current-program evidence crossed the non-authority boundary"
+                )
+            if (
+                evidence.profile_id != self._binding.profile_id
+                or evidence.ast_binding != self._binding.ast_binding
+                or evidence.connection_epoch != self._binding.connection_epoch
+            ):
                 raise CurrentProgramPreflightError(
                     "current profile/AST/connection binding differs from authorized run"
                 )
-            self._sequence += 1
+            if not isinstance(evidence.challenge_id, str) or not evidence.challenge_id.strip():
+                raise CurrentProgramPreflightError(
+                    "current-program challenge provenance is unavailable"
+                )
             return CurrentProgramPreflightEvidence(
-                binding=current,
-                sequence=self._sequence,
+                binding=self._binding,
+                challenge_id=evidence.challenge_id,
             )
 
 
 class TrustedCurrentProgramPreflightFactory:
-    """Trusted-host adapter boundary for the production #249 re-assertion path."""
+    """Bind the integrated #277 production bridge to exact run evidence."""
 
     def __init__(
         self,
-        reassert_current_program: Callable[[], PhysicalRunBinding],
+        bridge: capability_bridge.ReadOnlyCapabilityHttpBridge,
     ) -> None:
-        if not callable(reassert_current_program):
+        if type(bridge) is not capability_bridge.ReadOnlyCapabilityHttpBridge:
             raise CurrentProgramPreflightError(
-                "trusted #249 current-program adapter must be callable"
+                "integrated #277 ReadOnlyCapabilityHttpBridge is required"
             )
-        self._reassert_current_program = reassert_current_program
+        self._bridge = bridge
 
     def bind(
         self,
         binding: PhysicalRunBinding,
     ) -> LiveCurrentProgramPreflightGuard:
-        """Mint one non-authority guard for one exact preflight/run binding."""
+        if type(binding) is not PhysicalRunBinding:
+            raise CurrentProgramPreflightError(
+                "exact PhysicalRunBinding is required for current-program preflight"
+            )
         return LiveCurrentProgramPreflightGuard(
             binding,
-            self._reassert_current_program,
+            self._bridge,
             _mint_key=_MINT_KEY,
         )
