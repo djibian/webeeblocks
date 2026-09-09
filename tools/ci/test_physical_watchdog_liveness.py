@@ -311,7 +311,7 @@ def test_ambiguous_fence_poisons_same_powered_session_across_reconnect() -> None
     reconnect_cf = FakeCf(reconnect_events)
     reconnect_epoch = Epoch("epoch-fence-b")
     reconnect_reader = FakeReader(reconnect_cf, "epoch-fence-b", reconnect_events)
-    same_powered = FakePoweredSessionLifecycle("powered-fence")
+    same_powered = powered
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             reconnect_cf,
@@ -321,19 +321,22 @@ def test_ambiguous_fence_poisons_same_powered_session_across_reconnect() -> None
             keepalive_interval_seconds=0.01,
             max_host_gap_seconds=0.2,
         ),
-        "terminal until a separately proven STM+deck reset/new identity",
+        "terminal until a separately proven STM+deck reset",
     )
     require(reconnect_events == [], "reconnect on same powered identity emits no watchdog")
     require(reconnect_cf.supervisor.send_count == 0, "same powered session cannot retry")
 
+    # This fixture stands in only for a fresh lifecycle object established by the
+    # future trusted reset layer after separate STM+deck reset proof. The watchdog
+    # module itself has no API that can create this state.
     reset_guard, reset_cf, _reset_reader, _reset_epoch, reset_powered, _reset_events = make_guard(
         epoch_value="epoch-fence-reset",
-        powered_session_id="powered-fence-after-explicit-reset",
+        powered_session_id="externally-proven-powered-session-after-reset",
     )
     reset_guard.activate()
-    require(reset_powered.state == "active", "new reset identity can establish a new lifecycle")
+    require(reset_powered.state == "active", "externally reset-proven lifecycle may activate")
     reset_guard.stop_for_terminal_reboot(join_timeout_seconds=0.2)
-    require(reset_cf.supervisor.send_count >= 1, "new reset identity may activate")
+    require(reset_cf.supervisor.send_count >= 1, "external fresh lifecycle may activate")
 
 
 def test_epoch_rotation_is_terminal_for_powered_session() -> None:
@@ -354,7 +357,7 @@ def test_epoch_rotation_is_terminal_for_powered_session() -> None:
     reconnect_events: list[str] = []
     reconnect_cf = FakeCf(reconnect_events)
     reconnect_reader = FakeReader(reconnect_cf, "epoch-rotate-b", reconnect_events)
-    same_powered = FakePoweredSessionLifecycle("powered-rotate")
+    same_powered = powered
     expect_error(
         lambda: watchdog.EmergencyWatchdogLivenessGuard(
             reconnect_cf,
@@ -364,7 +367,7 @@ def test_epoch_rotation_is_terminal_for_powered_session() -> None:
             keepalive_interval_seconds=0.01,
             max_host_gap_seconds=0.2,
         ),
-        "terminal until a separately proven STM+deck reset/new identity",
+        "terminal until a separately proven STM+deck reset",
     )
     require(reconnect_events == [], "new connection epoch is not watchdog reset proof")
 
