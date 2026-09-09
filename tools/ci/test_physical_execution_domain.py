@@ -162,6 +162,13 @@ def test_definitive_rejection_restores_exact_prior_phase() -> None:
         "rejected in-flight command preserves flying",
     )
 
+    # Keep the process-wide fixture in a stable non-flying phase for the next
+    # independent regression without bypassing the public lifecycle.
+    with execution.effect_transaction(lambda: None) as landing:
+        landing.mark_emitted()
+        landing.mark_accepted()
+    execution.complete_accepted_effect(domain.INACTIVE, lambda: True)
+
 
 def test_positive_ack_requires_fresh_completion_before_next_transition() -> None:
     execution = domain.PhysicalExecutionDomain()
@@ -234,6 +241,7 @@ def test_completion_uncertainty_forces_recovery() -> None:
         execution.phase == domain.RECOVERY_REQUIRED,
         "ambiguous completion requires recovery",
     )
+    reset_ok(execution)
 
 
 def test_reset_and_effect_boundary_are_mutually_exclusive() -> None:
@@ -291,6 +299,67 @@ def test_reset_and_effect_boundary_are_mutually_exclusive() -> None:
     )
 
 
+def test_independent_handles_share_process_wide_exclusion() -> None:
+    effect_execution = domain.PhysicalExecutionDomain()
+    reset_execution = domain.PhysicalExecutionDomain()
+    reset_ok(effect_execution)
+    effect_entered = Event()
+    release_effect = Event()
+    reset_entered = Event()
+    failures: list[BaseException] = []
+
+    def held_effect():
+        try:
+            with effect_execution.effect_transaction(lambda: None):
+                effect_entered.set()
+                require(
+                    release_effect.wait(1.0),
+                    "test effect release signal",
+                )
+        except BaseException as exc:
+            failures.append(exc)
+
+    def reset_attempt():
+        try:
+            def establish():
+                reset_entered.set()
+                return object()
+
+            reset_execution.run_reset_establishment(establish)
+        except BaseException as exc:
+            failures.append(exc)
+
+    effect_thread = Thread(target=held_effect)
+    effect_thread.start()
+    require(
+        effect_entered.wait(1.0),
+        "effect transaction entered process-wide exclusion",
+    )
+    reset_thread = Thread(target=reset_attempt)
+    reset_thread.start()
+    require(
+        not reset_entered.wait(0.05),
+        "independent reset handle must not enter while another handle owns effect exclusion",
+    )
+    release_effect.set()
+    effect_thread.join(1.0)
+    reset_thread.join(1.0)
+    require(
+        not effect_thread.is_alive() and not reset_thread.is_alive(),
+        "independent-handle threads completed",
+    )
+    require(not failures, f"independent-handle concurrency fixture failed: {failures!r}")
+    require(
+        reset_entered.is_set(),
+        "reset may enter only after the independent effect handle releases exclusion",
+    )
+    require(
+        effect_execution.phase == domain.INACTIVE
+        and reset_execution.phase == domain.INACTIVE,
+        "all handles must observe one shared stable process phase",
+    )
+
+
 def test_no_physical_effect_or_browser_surface() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     for forbidden in (
@@ -320,6 +389,7 @@ def main() -> int:
     test_positive_ack_requires_fresh_completion_before_next_transition()
     test_completion_uncertainty_forces_recovery()
     test_reset_and_effect_boundary_are_mutually_exclusive()
+    test_independent_handles_share_process_wide_exclusion()
     test_no_physical_effect_or_browser_surface()
     print(
         "PASS trusted physical reset/effect exclusion is process-local, fail-closed "
