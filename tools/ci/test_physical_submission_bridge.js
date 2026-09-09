@@ -116,6 +116,12 @@ function program(distance) {
   );
 
   currentAst = program(0.2);
+  await assert.rejects(
+    () => bridge.assertCurrentWorkspace({}),
+    /physical preflight is required/,
+    'workspace mismatch must clear the stored exact-AST binding'
+  );
+  await bridge.preflightWorkspace({});
   epoch = 'connection-2';
   await assert.rejects(
     () => bridge.assertCurrentWorkspace({}),
