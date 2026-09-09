@@ -20,15 +20,18 @@ here.
 interface) are validated baseline, not active priority nodes.
 
 The #157 simulation-side C1b boundary is now established for every currently
-justified student-facing generic capability. Integrated #193/#196 now establish
-the machine-readable physical capability/preflight evidence path and exact
-Crazyflie 2.1 identity without granting WebeeBlocks execution authority. The
-capability/API surface is read-only; the underlying cflib SyncCrazyflie close
-path still emits its documented safety-zero commander setpoint, so this is not a
-claim that the transport emits no command packet. The substantive remaining
-product boundary is real-hardware observation plus safe physical execution
-continuity; do not invent additional simulation vocabulary merely to keep #157
-active. A new simulation slice needs a concrete pedagogical need or
+justified student-facing generic capability. Integrated #193/#196 establish the
+machine-readable read-only capability evidence path and exact Crazyflie 2.1
+identity; #238/#241/#243/#244 then establish intent-dependent exact-AST
+preflight, canonical AST binding, fresh connected-descriptor acquisition on each
+preflight, and reconnect invalidation through an opaque connection epoch. All of
+this remains non-authority with `executionAuthority:false`. The underlying cflib
+SyncCrazyflie close path still emits its documented safety-zero commander
+setpoint, so this is not a claim that the transport emits no command packet. The
+substantive remaining product boundary is a concrete trustworthy live adapter,
+immediate pre-effect consumption of the bound preflight, and safe physical
+execution continuity; do not invent additional simulation vocabulary merely to
+keep #157 active. A new simulation slice needs a concrete pedagogical need or
 contradictory evidence.
 
 Research / later work:
@@ -196,23 +199,27 @@ Runtime/controller change is justified by #236 alone.
 - explicit exclusion: Flow Deck downward ToF remains infrastructure-only at
   current evidence because no activity has a pupil-facing downward-clearance
   objective; do not add `range(down)` merely for hardware completeness
-- established physical capability/API boundary: integrated #193 and #196
-  provide a fail-closed capability probe that can verify exact Crazyflie 2.1
-  identity plus reference-deck capability evidence while keeping
-  `executionAuthority:false` and exposing no WebeeBlocks motor/arming command
-  API; the normal cflib close path still emits its safety-zero commander
-  setpoint, so transport-level packet emission is not claimed read-only
-- deterministic checkpoint preparation: integrated #207 restores the
-  checkpoint-only `physical-capabilities-readonly` profile using the exact
-  cflib source boundary and the four-wheel Ubuntu 22.04 / CPython 3.10
-  capability-probe runtime closure proven on #157; this preserves
-  `executionAuthority:false` and the cflib safety-zero close-path qualification
-- this is checkpoint support, not evidence that a particular classroom device
-  has already been observed; human checkpoint publication remains serialized by
-  the governance contract
-- remaining boundary: real-hardware observation, then physical execution
-  continuity/safety, remain unproven and belong behind the physical
-  capability/safety gate
+- established physical capability/API boundary: integrated #193/#196 provide
+  the fail-closed read-only descriptor/probe and exact Crazyflie 2.1 identity
+  path; #238 derives requirements from the exact submitted AST with optional
+  deck capabilities intent-dependent; #241 binds a successful preflight to that
+  canonical AST; #243 re-reads the connected descriptor on every invocation; and
+  #244 binds the result to an adapter-provided connection epoch so a reconnect
+  during or after preflight invalidates it. These slices preserve
+  `executionAuthority:false` and expose no WebeeBlocks motor/arming command API
+- real-device checkpoint #226 was authoritatively closed `NOT_NEEDED` after the
+  live-preflight product decision superseded the fixed all-reference-decks gate.
+  Its bounded partial observation still established exact Crazyflie 2.1
+  identity, Flow Deck V2 and Multi-ranger presence plus successful self-test on
+  the available device, while truthfully observing the Color LED Deck absent;
+  this is historical capability evidence, not a reusable execution preflight
+- the normal cflib close path still emits its safety-zero commander setpoint, so
+  transport-level packet emission is not claimed read-only
+- remaining boundary: a concrete physical adapter must provide a trustworthy
+  reconnect-sensitive epoch and fresh truthful descriptors; a future
+  authorization/submission consumer must re-assert the exact AST and epoch
+  immediately before its effect; arming/abort/failsafe and real student
+  execution continuity remain separately unproven
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -251,15 +258,21 @@ Runtime/controller change is justified by #236 alone.
 ### P — physical backend capability and safety
 
 - parents: physical-backend product work and #70 evidence
-- established prerequisite: #193/#196 provide the non-authority
-  Crazyradio/deck capability/API and exact-airframe evidence path; the
-  WebeeBlocks surface remains read-only and `executionAuthority:false`, while
-  the cflib close path retains its safety-zero transport setpoint and no
-  completed real-device observation is claimed
-- depends: backend-neutral AST continuity plus demonstrated real-hardware
-  capability evidence before any execution authority is introduced
-- proof direction: preflight, arming/abort/failsafe and simulation/physical AST
-  continuity without granting authority to student code
+- established prerequisite: #193/#196 plus #238/#241/#243/#244 provide the
+  non-authority Crazyradio/deck evidence path, exact-airframe proof, exact-AST
+  capability derivation/binding, fresh descriptor acquisition and reconnect
+  invalidation. The surface remains read-only with `executionAuthority:false`;
+  the cflib close path retains its safety-zero transport setpoint
+- bounded real-device evidence from superseded checkpoint #226 confirms the
+  available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
+  not a reusable live execution preflight and does not prove an absent Color LED
+  capability or any command path
+- depends: a trustworthy real adapter plus immediate pre-effect verification of
+  the bound AST/session, then separately authorized arming/abort/failsafe and
+  physical execution continuity
+- proof direction: preserve backend-neutral AST continuity while adding only the
+  minimum teacher-authorized physical execution authority after the live
+  capability and safety gates are independently established
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
