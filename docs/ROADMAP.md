@@ -282,22 +282,26 @@ justified by the current evidence.
 - remaining boundary: the validated pre-effect assertion, fresh supervisor/yaw
   observations, watchdog safety primitive, controlled-completion observer,
   concrete trusted powered-session/reset authority (#266), exact-run host-only
-  teacher authorization (#267), and pure HighLevel trajectory timing policy
-  (#268) are integrated; the separately authorized physical effect consumer and
-  safe real-execution proof remain unproven. The future effect layer must
-  compose the exact-bound preflight with #257/#260/#256/#268, consume #266 to
-  establish the powered session, keep #262 live across that reusable session,
-  require the exact #267 run binding before every flight-capable effect, and use
-  #264 around controlled landing/completion. The
-  #262/#266 powered-session identity remains distinct from the Crazyradio
-  connection epoch: ambiguous activation/maintenance, a missed keepalive
-  deadline, epoch loss or otherwise lost lifecycle certainty is terminal across
-  ordinary reconnect. Reuse requires the #266 trusted STM+deck reset/
-  postcondition establishment, then a new connection epoch and complete
-  capability/preflight/safety re-observation before a fresh external #262
-  authority can exist. On stock auto-arming firmware, post-landing disarm is not
-  a persistent lockout; a later physical run still requires a new #267 teacher
-  authorization
+  teacher authorization (#267), pure HighLevel trajectory timing policy (#268),
+  process-wide HighLevel acknowledgement-freshness domain (#271), live SafeLink
+  duplicate-suppression precondition (#272), and process-wide reset/effect
+  exclusion lifecycle (#273) are integrated. The separately authorized physical
+  effect consumer and safe real-execution proof remain unproven. That consumer
+  must compose the exact-bound preflight with #257/#260/#256/#268, consume #266
+  to establish the powered session, keep #262 live across that reusable session,
+  require the exact #267 run binding and #272 SafeLink evidence immediately
+  before each flight-capable effect, execute inside #273, enter #271 before one
+  plain one-shot SETPOINT_HL send with no application retry, and require fresh
+  #257/#264 completion afterward. Unknown acknowledgement/effect outcome remains
+  fail-closed and cannot authorize retry or reset. The #262/#266 powered-session
+  identity remains distinct from the Crazyradio connection epoch: ambiguous
+  activation/maintenance, a missed keepalive deadline, epoch loss or otherwise
+  lost lifecycle certainty is terminal across ordinary reconnect. Reuse requires
+  the #266 trusted STM+deck reset/postcondition establishment, then a new
+  connection epoch and complete capability/preflight/safety re-observation
+  before a fresh external #262 authority can exist. On stock auto-arming
+  firmware, post-landing disarm is not a persistent lockout; a later physical
+  run still requires a new #267 teacher authorization
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
