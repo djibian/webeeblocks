@@ -46,8 +46,8 @@ through direct high-level-command primitives: rotate body-relative horizontal
 movement into world-frame deltas from the accepted yaw, keep turn relative in yaw
 and vertical movement relative in world Z, and bound command completion by
 supervisor state rather than host-side sleeps. Do not invent additional simulation
-vocabulary merely to keep #157 active. A new simulation slice needs a concrete pedagogical
-need or contradictory evidence.
+vocabulary merely to keep #157 active. A new simulation slice needs a concrete
+pedagogical need or contradictory evidence.
 
 Research / later work:
 
