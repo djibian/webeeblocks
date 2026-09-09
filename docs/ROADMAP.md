@@ -279,13 +279,14 @@ Runtime/controller change is justified by #236 alone.
   transport-level packet emission is not claimed read-only
 - remaining boundary: the validated pre-effect assertion, fresh supervisor/yaw
   observations, watchdog safety primitive, controlled-completion observer,
-  concrete trusted powered-session/reset authority (#266) and exact-run
-  host-only teacher authorization (#267) are integrated; the separately
-  authorized physical effect consumer and safe real-execution proof remain
-  unproven. The future effect layer must compose the exact-bound preflight with
-  #257/#260/#256, consume #266 to establish the powered session, keep #262 live
-  across that reusable session, require the exact #267 run binding before every
-  flight-capable effect, and use #264 around controlled landing/completion. The
+  concrete trusted powered-session/reset authority (#266), exact-run host-only
+  teacher authorization (#267), and pure HighLevel trajectory timing policy
+  (#268) are integrated; the separately authorized physical effect consumer and
+  safe real-execution proof remain unproven. The future effect layer must
+  compose the exact-bound preflight with #257/#260/#256/#268, consume #266 to
+  establish the powered session, keep #262 live across that reusable session,
+  require the exact #267 run binding before every flight-capable effect, and use
+  #264 around controlled landing/completion. The
   #262/#266 powered-session identity remains distinct from the Crazyradio
   connection epoch: ambiguous activation/maintenance, a missed keepalive
   deadline, epoch loss or otherwise lost lifecycle certainty is terminal across
@@ -363,8 +364,10 @@ Runtime/controller change is justified by #236 alone.
   flight-capable effect must re-check. The existing browser-held capability/
   preflight bearer remains non-authority; the #267 teacher path is distinct and
   unavailable to the student/browser runtime, and the read-only capability
-  bridge must not gain effect methods merely to reuse that bearer. #262, #264,
-  #266 and #267 are safety/authority prerequisites; none alone establishes the
+  bridge must not gain effect methods merely to reuse that bearer. Integrated
+  #268 additionally supplies the pure horizontal/yaw HighLevel timing policy
+  needed by the later serialized effect consumer. #262, #264, #266, #267 and
+  #268 are safety/authority/semantic prerequisites; none alone establishes the
   physical effect consumer or real-flight proof. Stock
   auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
   so a host disarm request is not a durable post-mission lockout. The pinned
@@ -384,24 +387,29 @@ Runtime/controller change is justified by #236 alone.
   followed by reconnect/new epoch and complete re-preflight. That power-cycle is
   a motor-cut recovery boundary, not a normal abort action, and must never be
   triggered opportunistically while physical flight may still be active. The
-  #262 now establishes the watchdog safety primitive itself, but its concrete
-  trusted powered-session/reset authority must still independently prove this
-  recovery boundary before effect authority relies on it. Do not assume a host
-  arming packet is the teacher gate: stock brushed Crazyflie 2.1 auto-arms when
-  pre-flight checks pass
+  integrated #266 now supplies the concrete trusted powered-session/reset
+  authority for this recovery boundary: explicit STM+deck reset establishment
+  plus a new connection epoch and fresh capability/preflight/safety
+  postconditions are required before #262 can receive fresh lifecycle authority.
+  Do not assume a host arming packet is the teacher gate: stock brushed Crazyflie
+  2.1 auto-arms when pre-flight checks pass
 - proof direction: preserve backend-neutral AST continuity and consume the
-  integrated #256 pure semantic adapter from a later direct cflib
+  integrated #256 pure semantic adapter plus #268 timing from a later direct
   `HighLevelCommander` effect substrate rather than the `MotionCommander` /
   `PositionHlCommander` helpers. The accepted-yaw observation itself is now
   established by #260; a later authority layer must consume one fresh same-epoch
-  #260 sample immediately before the #256 horizontal transform, preserve the exact
-  preflight/session binding across that observation/transform, and consume the
-  integrated #257 fresh supervisor observer to bound command completion by
-  high-level trajectory state plus timeout/locked/crashed/deck-fault checks. That
-  observer must be the exclusive authoritative issuer of supervisor GET_STATE
-  requests on the connection epoch; do not invoke cflib `Supervisor` getters in
-  parallel or as a second safety oracle because they bypass #257's epoch-wide
-  serialization/ambiguity guard. Add only the minimum teacher-authorized physical
+  #260 sample immediately before the #256 horizontal transform and preserve the
+  exact preflight/session binding across that observation/transform. For the
+  command transport, use the stock SETPOINT_HL firmware application reply as the
+  acceptance result instead of treating cflib's immediate helper return as an
+  acknowledgement; timeout/malformed/disconnect is an ambiguous effect outcome
+  and must not trigger automatic command resend. After positive acknowledgement,
+  consume the integrated #257 fresh supervisor observer to bound command
+  completion by high-level trajectory state plus timeout/locked/crashed/deck-fault
+  checks. That observer must be the exclusive authoritative issuer of supervisor
+  GET_STATE requests on the connection epoch; do not invoke cflib `Supervisor`
+  getters in parallel or as a second safety oracle because they bypass #257's
+  epoch-wide serialization/ambiguity guard. Add only the minimum teacher-authorized physical
   execution authority after the live capability and safety gates are independently
   established, keeping that authority outside the existing browser capability
   credential/domain. Keep immediate emergency stop and high-level commander stop
