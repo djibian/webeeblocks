@@ -35,8 +35,13 @@ separately authorized effect. All of this remains non-authority with
 emits its documented safety-zero commander setpoint, so this is not a claim that
 the transport emits no command packet. The substantive remaining product boundary
 now starts after that validated pre-effect assertion: a separately authorized
-physical effect consumer plus explicit arming/abort/failsafe semantics and proof
-of safe real execution continuity. Do not invent additional simulation vocabulary
+physical effect consumer plus explicit teacher authorization before any
+flight-capable command/effect, firmware-independent arming semantics, an
+independent emergency-stop watchdog/liveness guard, controlled normal
+land/disarm behavior and proof of safe real execution continuity. Stock brushed
+Crazyflie 2.1 auto-arms when pre-flight checks pass, so teacher authorization
+must not be modeled as merely approving a host arming packet. Do not invent
+additional simulation vocabulary
 merely to keep #157 active. A new simulation slice needs a concrete pedagogical
 need or contradictory evidence.
 
@@ -229,8 +234,12 @@ Runtime/controller change is justified by #236 alone.
 - the normal cflib close path still emits its safety-zero commander setpoint, so
   transport-level packet emission is not claimed read-only
 - remaining boundary: the validated pre-effect assertion is integrated; a
-  separately authorized physical effect consumer, explicit arming/abort/failsafe
-  semantics and real student execution continuity remain unproven
+  separately authorized physical effect consumer remains unproven. On stock
+  brushed Crazyflie 2.1, auto-arming is enabled, so explicit teacher
+  authorization must gate every flight-capable command/effect rather than merely
+  a host arming request. The physical path must also establish an independent
+  emergency-stop watchdog/liveness guard plus controlled normal land/disarm
+  behavior before real student execution continuity can be claimed
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -282,11 +291,18 @@ Runtime/controller change is justified by #236 alone.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: separately authorized physical effect consumption plus explicit
-  arming/abort/failsafe semantics and proof of physical execution continuity
+- depends: separately authorized physical effect consumption gated by explicit
+  teacher authorization before any flight-capable command/effect, plus an
+  independent emergency-stop watchdog/liveness guard, controlled normal
+  land/disarm behavior and proof of physical execution continuity. Do not assume
+  a host arming packet is the teacher gate: stock brushed Crazyflie 2.1
+  auto-arms when pre-flight checks pass
 - proof direction: preserve backend-neutral AST continuity while adding only the
   minimum teacher-authorized physical execution authority after the live
-  capability and safety gates are independently established
+  capability and safety gates are independently established. Keep immediate
+  emergency stop and high-level commander stop exceptional because both can cut
+  motors in flight; normal completion/voluntary abort needs a controlled
+  land/disarm path
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
