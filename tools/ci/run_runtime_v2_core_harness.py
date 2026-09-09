@@ -73,6 +73,10 @@ def main():
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
     print(physical_http_test.stdout.strip())
+    current_program_authority_test=subprocess.run([sys.executable,'tools/ci/test_current_program_authority_channel.py'],text=True,capture_output=True)
+    if current_program_authority_test.returncode:
+        print('FAIL current-program production authority channel',file=sys.stderr);print(current_program_authority_test.stdout,file=sys.stderr);print(current_program_authority_test.stderr,file=sys.stderr);return current_program_authority_test.returncode
+    print(current_program_authority_test.stdout.strip())
     physical_submission_test=subprocess.run(['node','tools/ci/test_physical_submission_bridge.js'],text=True,capture_output=True)
     if physical_submission_test.returncode:
         print('FAIL session-bound physical submission bridge',file=sys.stderr);print(physical_submission_test.stdout,file=sys.stderr);print(physical_submission_test.stderr,file=sys.stderr);return physical_submission_test.returncode
