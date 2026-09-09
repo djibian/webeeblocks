@@ -17,9 +17,10 @@ An effect transaction holds that exclusion across all supplied immediate
 preconditions and the caller's emission/acknowledgement boundary. Once emission
 is marked, any unresolved or exceptional outcome moves the domain back to
 ``recovery-required``. A definitive firmware rejection restores the prior
-stable phase. A positive acknowledgement moves to ``awaiting-completion`` and
-no reset or later effect is eligible until a separately supplied fresh
-completion proof establishes either ``flying`` or ``inactive``.
+stable phase. A positive acknowledgement moves to ``awaiting-completion`` and mints one
+opaque one-shot completion permit. No reset or later effect is eligible until
+the trusted consumer presents that exact permit together with a fresh completion
+proof establishing either ``flying`` or ``inactive``.
 
 The module imports no cflib/CRTP command API and emits no packet. The later
 trusted transport must compose exact preflight, #267 teacher binding, #266/#262
@@ -42,6 +43,7 @@ AWAITING_COMPLETION = "awaiting-completion"
 
 _STABLE_EFFECT_PHASES = frozenset((INACTIVE, FLYING))
 _COMPLETION_PHASES = frozenset((INACTIVE, FLYING))
+_COMPLETION_MINT_KEY = object()
 
 
 class PhysicalExecutionDomainError(RuntimeError):
@@ -54,12 +56,31 @@ def _require_callable(value: object, name: str) -> Callable:
     return value
 
 
+class AcceptedEffectCompletionPermit:
+    """Opaque one-shot capability for completing one exact accepted effect.
+
+    This permit proves only which positive acknowledgement is pending. It grants
+    no physical authority and does not prove trajectory completion by itself.
+    The trusted effect consumer must keep it private and pair it with the
+    appropriate fresh #257/#264 completion observation.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, *, _mint_key: object) -> None:
+        if _mint_key is not _COMPLETION_MINT_KEY:
+            raise PhysicalExecutionDomainError(
+                "accepted-effect completion permit may only be minted by the execution domain"
+            )
+
+
 class _ProcessExecutionState:
     """Single trusted-host lifecycle shared by every handle in this process."""
 
     def __init__(self) -> None:
         self.lock = RLock()
         self.phase = RECOVERY_REQUIRED
+        self.pending_completion: AcceptedEffectCompletionPermit | None = None
         self.active_section: str | None = None
         self.section_owner: int | None = None
 
@@ -119,6 +140,7 @@ class PhysicalExecutionDomain:
             # collaborator. #266 performs its own evidence invalidation and
             # fresh flight-inactive check inside this same exclusion.
             _PROCESS_STATE.phase = RECOVERY_REQUIRED
+            _PROCESS_STATE.pending_completion = None
             try:
                 result = transaction()
             except Exception as exc:
@@ -181,6 +203,7 @@ class PhysicalExecutionDomain:
             raise PhysicalExecutionDomainError(
                 "physical effect emission is outside the execution exclusion"
             )
+        _PROCESS_STATE.pending_completion = None
         _PROCESS_STATE.phase = EFFECT_UNRESOLVED
 
     def _mark_effect_rejected(self, prior_phase: str) -> None:
@@ -192,14 +215,18 @@ class PhysicalExecutionDomain:
             raise PhysicalExecutionDomainError(
                 "prior physical execution phase is invalid"
             )
+        _PROCESS_STATE.pending_completion = None
         _PROCESS_STATE.phase = prior_phase
 
-    def _mark_effect_accepted(self) -> None:
+    def _mark_effect_accepted(self) -> AcceptedEffectCompletionPermit:
         if _PROCESS_STATE.phase != EFFECT_UNRESOLVED:
             raise PhysicalExecutionDomainError(
                 "positive acknowledgement requires one emitted unresolved effect"
             )
+        permit = AcceptedEffectCompletionPermit(_mint_key=_COMPLETION_MINT_KEY)
+        _PROCESS_STATE.pending_completion = permit
         _PROCESS_STATE.phase = AWAITING_COMPLETION
+        return permit
 
     def _close_effect(
         self,
@@ -214,24 +241,35 @@ class PhysicalExecutionDomain:
                 # boundary without a definitive application result is
                 # consequential uncertainty. Only #266 recovery may re-open
                 # ordinary effect eligibility.
+                _PROCESS_STATE.pending_completion = None
                 _PROCESS_STATE.phase = RECOVERY_REQUIRED
             elif not emitted and prior_phase in _STABLE_EFFECT_PHASES:
+                _PROCESS_STATE.pending_completion = None
                 _PROCESS_STATE.phase = prior_phase
         finally:
             self._leave_section("effect")
 
     def complete_accepted_effect(
         self,
+        permit: AcceptedEffectCompletionPermit,
         next_phase: str,
         prove_completion: Callable[[], object],
     ) -> None:
-        """Establish a fresh post-effect stable phase after positive acknowledgement.
+        """Establish a fresh stable phase for one exact accepted effect.
 
-        The proof callable runs under the same exclusion and must return exactly
-        ``True``. The caller is responsible for binding it to fresh #257/#264
-        evidence appropriate to the command. Unavailable/negative proof moves
-        the run to ``recovery-required`` rather than guessing completion.
+        ``permit`` is minted only by the transaction that recorded this
+        positive acknowledgement. A second domain handle, stale permit or
+        assertion-shaped completion callback cannot substitute for it.
+
+        The exact permit is consumed before the potentially blocking fresh
+        #257/#264 completion proof. If that proof is unavailable, negative or
+        ambiguous, recovery is required and the accepted effect cannot be
+        retried with stale completion evidence.
         """
+        if type(permit) is not AcceptedEffectCompletionPermit:
+            raise PhysicalExecutionDomainError(
+                "exact accepted-effect completion permit is required"
+            )
         if next_phase not in _COMPLETION_PHASES:
             raise PhysicalExecutionDomainError(
                 "post-effect phase must be exactly 'flying' or 'inactive'"
@@ -243,6 +281,12 @@ class PhysicalExecutionDomain:
                 raise PhysicalExecutionDomainError(
                     "no positively acknowledged effect is awaiting completion"
                 )
+            if _PROCESS_STATE.pending_completion is not permit:
+                raise PhysicalExecutionDomainError(
+                    "completion permit does not match the pending accepted effect"
+                )
+
+            _PROCESS_STATE.pending_completion = None
             try:
                 proven = proof()
             except Exception as exc:
@@ -307,14 +351,15 @@ class PhysicalEffectTransaction:
         self._domain._mark_effect_rejected(self._prior_phase)
         self._resolved = True
 
-    def mark_accepted(self) -> None:
-        """Record a definitive zero firmware result; completion remains required."""
+    def mark_accepted(self) -> AcceptedEffectCompletionPermit:
+        """Record a definitive zero result and return its one-shot completion permit."""
         if not self._emitted or self._resolved:
             raise PhysicalExecutionDomainError(
                 "positive acknowledgement requires one unresolved emitted effect"
             )
-        self._domain._mark_effect_accepted()
+        permit = self._domain._mark_effect_accepted()
         self._resolved = True
+        return permit
 
     def close(self) -> None:
         if self._closed:
