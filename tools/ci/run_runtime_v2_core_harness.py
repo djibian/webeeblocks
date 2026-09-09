@@ -101,6 +101,10 @@ def main():
     if physical_execution_domain_test.returncode:
         print('FAIL trusted physical reset/effect exclusion domain',file=sys.stderr);print(physical_execution_domain_test.stdout,file=sys.stderr);print(physical_execution_domain_test.stderr,file=sys.stderr);return physical_execution_domain_test.returncode
     print(physical_execution_domain_test.stdout.strip())
+    physical_setpoint_transport_test=subprocess.run([sys.executable,'tools/ci/test_physical_setpoint_hl_transport.py'],text=True,capture_output=True)
+    if physical_setpoint_transport_test.returncode:
+        print('FAIL trusted one-shot SETPOINT_HL effect transport',file=sys.stderr);print(physical_setpoint_transport_test.stdout,file=sys.stderr);print(physical_setpoint_transport_test.stderr,file=sys.stderr);return physical_setpoint_transport_test.returncode
+    print(physical_setpoint_transport_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
