@@ -16,6 +16,15 @@
     throw new Error('physical submission bridge: ' + message);
   }
 
+  function immutableTicket(result) {
+    return Object.freeze({
+      compatible: result.compatible,
+      executionAuthority: result.executionAuthority,
+      astBinding: result.astBinding,
+      connectionEpoch: result.connectionEpoch
+    });
+  }
+
   function create(profile, adapter, compileWorkspace) {
     if (!profile || !Array.isArray(profile.hardware))
       fail('activity profile is required');
@@ -31,7 +40,7 @@
     async function preflightWorkspace(workspace) {
       var ast = compileWorkspace(workspace);
       var result = await PhysicalCapabilities.preflightConnected(profile, ast, adapter);
-      bound = {astBinding: result.astBinding, result: result};
+      bound = immutableTicket(result);
       return result;
     }
 
@@ -41,12 +50,12 @@
       var ast = compileWorkspace(workspace);
       if (PhysicalCapabilities.bindAst(ast) !== bound.astBinding)
         fail('workspace changed since physical preflight');
-      await PhysicalCapabilities.assertPreflightConnected(bound.result, ast, adapter);
+      await PhysicalCapabilities.assertPreflightConnected(bound, ast, adapter);
       return {
         compatible: true,
         executionAuthority: false,
         ast: ast,
-        preflight: bound.result
+        preflight: bound
       };
     }
 
