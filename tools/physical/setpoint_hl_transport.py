@@ -51,6 +51,7 @@ from typing import Callable
 import high_level_ack
 import high_level_semantics
 import high_level_timing
+import current_program_preflight
 import physical_execution_domain
 import powered_session_authority
 import safelink_precondition
@@ -173,14 +174,12 @@ class TrustedSetpointHlTransport:
         crazyflie: object,
         execution_domain: physical_execution_domain.PhysicalExecutionDomain,
         acknowledgement_domain: high_level_ack.HighLevelAckDomain,
-        safelink_precondition: safelink_precondition.LiveSafeLinkPrecondition,
+        safelink_guard: safelink_precondition.LiveSafeLinkPrecondition,
         teacher_authorization: teacher_run_authorization.TeacherRunAuthorization,
         powered_session: powered_session_authority.EstablishedPoweredSession,
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
         supervisor_reader: supervisor_state.FreshSupervisorStateReader,
-        current_preflight_binding_reader: Callable[
-            [], teacher_run_authorization.PhysicalRunBinding
-        ],
+        current_preflight_guard: current_program_preflight.LiveCurrentProgramPreflightGuard,
         packet_factory: Callable[[bytes], object] | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -194,7 +193,7 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "exact HighLevelAckDomain is required"
             )
-        if type(safelink_precondition) is not safelink_precondition_module_type():
+        if type(safelink_guard) is not safelink_precondition.LiveSafeLinkPrecondition:
             raise SetpointHlTransportError(
                 "exact LiveSafeLinkPrecondition is required"
             )
@@ -221,19 +220,20 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "exact #257 FreshSupervisorStateReader is required"
             )
+        if type(current_preflight_guard) is not current_program_preflight.LiveCurrentProgramPreflightGuard:
+            raise SetpointHlTransportError(
+                "exact trusted #249 current-program preflight guard is required"
+            )
 
         self._cf = crazyflie
         self._execution = execution_domain
         self._ack = acknowledgement_domain
-        self._safelink = safelink_precondition
+        self._safelink = safelink_guard
         self._teacher = teacher_authorization
         self._powered_session = powered_session
         self._watchdog = watchdog_guard
         self._supervisor = supervisor_reader
-        self._current_preflight_binding_reader = _require_callable(
-            current_preflight_binding_reader,
-            "current exact preflight binding reader",
-        )
+        self._current_preflight = current_preflight_guard
         self._packet_factory = _require_callable(
             packet_factory or _default_packet_factory,
             "SETPOINT_HL packet factory",
@@ -244,17 +244,21 @@ class TrustedSetpointHlTransport:
             acknowledgement_domain.bound_connection_epoch,
             "HighLevel acknowledgement epoch",
         )
-        if safelink_precondition.bound_crazyflie is not crazyflie:
+        if safelink_guard.bound_crazyflie is not crazyflie:
             raise SetpointHlTransportError(
                 "SafeLink precondition is not bound to the exact Crazyflie"
             )
-        if safelink_precondition.bound_connection_epoch != epoch:
+        if safelink_guard.bound_connection_epoch != epoch:
             raise SetpointHlTransportError(
                 "SafeLink and acknowledgement domains are not bound to the same epoch"
             )
         if teacher_authorization.binding.connection_epoch != epoch:
             raise SetpointHlTransportError(
                 "teacher run receipt belongs to a different connection epoch"
+            )
+        if current_preflight_guard.binding != teacher_authorization.binding:
+            raise SetpointHlTransportError(
+                "current-program preflight guard is not bound to the teacher-authorized run"
             )
         if powered_session.connection_epoch != epoch:
             raise SetpointHlTransportError(
@@ -305,14 +309,15 @@ class TrustedSetpointHlTransport:
         self,
     ) -> teacher_run_authorization.PhysicalRunBinding:
         try:
-            binding = self._current_preflight_binding_reader()
+            evidence = self._current_preflight.assert_current()
         except Exception as exc:
             raise SetpointHlTransportError(
-                "current exact preflight binding is unavailable"
+                "trusted #249 current-program re-assertion failed"
             ) from exc
+        binding = getattr(evidence, "binding", None)
         if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
             raise SetpointHlTransportError(
-                "current preflight reader did not return PhysicalRunBinding"
+                "trusted #249 guard returned invalid current-program evidence"
             )
         if binding.connection_epoch != self._bound_connection_epoch:
             raise SetpointHlTransportError(
@@ -590,7 +595,3 @@ class TrustedSetpointHlTransport:
             reply_timeout_seconds=reply_timeout_seconds,
         )
 
-
-def safelink_precondition_module_type():
-    """Late helper avoids shadowing the constructor argument name in isinstance checks."""
-    return safelink_precondition.LiveSafeLinkPrecondition
