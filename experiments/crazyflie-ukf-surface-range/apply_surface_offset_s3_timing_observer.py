@@ -181,7 +181,7 @@ LOG_GROUP_STOP(sensorFilter)
 BIAS_RESET_OLD = """        surfaceDetectorState = S3_STATE_NORMAL;
         surfaceDetectorReason = S3_REASON_NONE;
 
-        // set initial parameters"""
+      // set initial parameters"""
 
 BIAS_RESET_NEW = """        surfaceDetectorState = S3_STATE_NORMAL;
         surfaceDetectorReason = S3_REASON_NONE;
@@ -206,7 +206,7 @@ BIAS_RESET_NEW = """        surfaceDetectorState = S3_STATE_NORMAL;
         surfaceBaroAtDecision = 0.0f;
         surfaceBaroDeltaAtDecision = 0.0f;
 
-        // set initial parameters"""
+      // set initial parameters"""
 
 NAV_RESET_OLD = """  surfaceDetectorState = S3_STATE_NORMAL;
   surfaceDetectorReason = S3_REASON_NONE;
