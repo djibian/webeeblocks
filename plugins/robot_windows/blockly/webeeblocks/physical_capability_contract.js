@@ -58,6 +58,11 @@
       fail(path + ' must be a non-empty string');
   }
 
+  function normalizeConnectionEpoch(value) {
+    requireString(value, 'connection epoch');
+    return String(value);
+  }
+
   function normalizeStringArray(value, path) {
     if (!Array.isArray(value))
       fail(path + ' must be an array');
@@ -132,14 +137,27 @@
     });
   }
 
+  function assertConnectedAdapter(adapter) {
+    assertReadOnlyAdapter(adapter);
+    if (typeof adapter.readConnectionEpoch !== 'function')
+      fail('adapter.readConnectionEpoch is required for connected preflight');
+  }
+
   async function inspect(adapter) {
     assertReadOnlyAdapter(adapter);
     return normalizeDescriptor(await adapter.readCapabilities());
   }
 
   async function preflightConnected(profile, ast, adapter) {
-    var descriptor = await inspect(adapter);
-    return preflightAst(profile, ast, descriptor);
+    assertConnectedAdapter(adapter);
+    var beforeEpoch = normalizeConnectionEpoch(await adapter.readConnectionEpoch());
+    var descriptor = normalizeDescriptor(await adapter.readCapabilities());
+    var afterEpoch = normalizeConnectionEpoch(await adapter.readConnectionEpoch());
+    if (beforeEpoch !== afterEpoch)
+      fail('Crazyflie connection changed during physical preflight');
+    var result = preflightAst(profile, ast, descriptor);
+    result.connectionEpoch = afterEpoch;
+    return result;
   }
 
   function requireSubset(requiredValues, availableValues, messagePrefix) {
@@ -327,6 +345,17 @@
     return true;
   }
 
+  async function assertPreflightConnected(preflightResult, ast, adapter) {
+    assertPreflightAst(preflightResult, ast);
+    if (typeof preflightResult.connectionEpoch !== 'string')
+      fail('session-bound physical preflight result required');
+    assertConnectedAdapter(adapter);
+    var currentEpoch = normalizeConnectionEpoch(await adapter.readConnectionEpoch());
+    if (currentEpoch !== preflightResult.connectionEpoch)
+      fail('Crazyflie connection changed since physical preflight');
+    return true;
+  }
+
   return {
     normalizeDescriptor: normalizeDescriptor,
     inspect: inspect,
@@ -336,6 +365,7 @@
     preflightAst: preflightAst,
     preflightConnected: preflightConnected,
     assertPreflightAst: assertPreflightAst,
+    assertPreflightConnected: assertPreflightConnected,
     FORBIDDEN_AUTHORITY_METHODS: FORBIDDEN_AUTHORITY_METHODS.slice()
   };
 });

@@ -227,6 +227,8 @@ const descriptor = {
   );
 
   let freshReads = 0;
+  let epochReads = 0;
+  let currentConnectionEpoch = 'connection-1';
   let currentLiveDescriptor = JSON.parse(JSON.stringify(flowOnly));
   currentLiveDescriptor.hardware = ['flow-deck-v2','color-led-deck'];
   currentLiveDescriptor.capabilities.actions = ['takeoff','move','set_light','land'];
@@ -236,6 +238,10 @@ const descriptor = {
     {kind: 'land'}
   ]);
   const connectedAdapter = {
+    async readConnectionEpoch() {
+      epochReads += 1;
+      return currentConnectionEpoch;
+    },
     async readCapabilities() {
       freshReads += 1;
       return JSON.parse(JSON.stringify(currentLiveDescriptor));
@@ -245,12 +251,55 @@ const descriptor = {
     reactiveProfile, connectedLightIntent, connectedAdapter
   );
   assert.strictEqual(freshReads, 1, 'connected preflight must read the live descriptor');
+  assert.strictEqual(epochReads, 2, 'connected preflight must bracket capability acquisition with one connection epoch');
   assert.strictEqual(freshCompatible.compatible, true);
   assert.strictEqual(freshCompatible.executionAuthority, false);
+  assert.strictEqual(freshCompatible.connectionEpoch, 'connection-1');
   assert.strictEqual(
-    PhysicalCapabilities.assertPreflightAst(freshCompatible, connectedLightIntent),
+    await PhysicalCapabilities.assertPreflightConnected(freshCompatible, connectedLightIntent, connectedAdapter),
     true,
-    'fresh connected preflight must preserve the exact checked AST binding'
+    'unchanged AST and connection epoch must remain eligible for a later non-authority consumer'
+  );
+  assert.strictEqual(epochReads, 3, 'connected assertion must re-read the current connection epoch');
+
+  currentConnectionEpoch = 'connection-2';
+  await assert.rejects(
+    () => PhysicalCapabilities.assertPreflightConnected(freshCompatible, connectedLightIntent, connectedAdapter),
+    /connection changed since physical preflight/,
+    'a reconnect after successful preflight must invalidate that preflight'
+  );
+
+  await assert.rejects(
+    () => PhysicalCapabilities.assertPreflightConnected(
+      {compatible: true, executionAuthority: false, astBinding: freshCompatible.astBinding},
+      connectedLightIntent,
+      connectedAdapter
+    ),
+    /session-bound physical preflight result required/,
+    'a fabricated preflight without a connection epoch must not satisfy the connected assertion'
+  );
+
+  let unstableEpochReads = 0;
+  await assert.rejects(
+    () => PhysicalCapabilities.preflightConnected(reactiveProfile, connectedLightIntent, {
+      async readConnectionEpoch() {
+        unstableEpochReads += 1;
+        return unstableEpochReads === 1 ? 'connection-a' : 'connection-b';
+      },
+      async readCapabilities() {
+        return JSON.parse(JSON.stringify(currentLiveDescriptor));
+      }
+    }),
+    /connection changed during physical preflight/,
+    'a reconnect during descriptor acquisition must invalidate the preflight attempt'
+  );
+
+  await assert.rejects(
+    () => PhysicalCapabilities.preflightConnected(reactiveProfile, connectedLightIntent, {
+      async readCapabilities() { return JSON.parse(JSON.stringify(currentLiveDescriptor)); }
+    }),
+    /readConnectionEpoch is required/,
+    'connected preflight must fail closed when session freshness cannot be observed'
   );
 
   currentLiveDescriptor = JSON.parse(JSON.stringify(flowOnly));
@@ -318,7 +367,7 @@ const descriptor = {
     'unknown AST capabilities must fail closed rather than be ignored'
   );
 
-  console.log('PASS live physical capability preflight derives exact AST needs, re-reads connected hardware and binds the checked AST without granting execution authority');
+  console.log('PASS live physical capability preflight binds exact AST and connection epoch, re-reads connected hardware and grants no execution authority');
 })().catch(error => {
   console.error(error);
   process.exit(1);
