@@ -147,8 +147,12 @@ def test_definitive_rejection_restores_exact_prior_phase() -> None:
 
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
-    execution.complete_accepted_effect(domain.FLYING, lambda: True)
+        takeoff_permit = effect.mark_accepted()
+    execution.complete_accepted_effect(
+        takeoff_permit,
+        domain.FLYING,
+        lambda: True,
+    )
     require(
         execution.phase == domain.FLYING,
         "accepted takeoff completion establishes flying",
@@ -166,8 +170,12 @@ def test_definitive_rejection_restores_exact_prior_phase() -> None:
     # independent regression without bypassing the public lifecycle.
     with execution.effect_transaction(lambda: None) as landing:
         landing.mark_emitted()
-        landing.mark_accepted()
-    execution.complete_accepted_effect(domain.INACTIVE, lambda: True)
+        landing_permit = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        landing_permit,
+        domain.INACTIVE,
+        lambda: True,
+    )
 
 
 def test_positive_ack_requires_fresh_completion_before_next_transition() -> None:
@@ -175,7 +183,7 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
     reset_ok(execution)
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        permit = effect.mark_accepted()
 
     require(
         execution.phase == domain.AWAITING_COMPLETION,
@@ -189,7 +197,11 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
         lambda: execution.run_reset_establishment(lambda: object()),
         "blocked",
     )
-    execution.complete_accepted_effect(domain.FLYING, lambda: True)
+    execution.complete_accepted_effect(
+        permit,
+        domain.FLYING,
+        lambda: True,
+    )
     require(
         execution.phase == domain.FLYING,
         "fresh trajectory completion can establish flying",
@@ -201,8 +213,12 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
 
     with execution.effect_transaction(lambda: None) as landing:
         landing.mark_emitted()
-        landing.mark_accepted()
-    execution.complete_accepted_effect(domain.INACTIVE, lambda: True)
+        landing_permit = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        landing_permit,
+        domain.INACTIVE,
+        lambda: True,
+    )
     require(
         execution.phase == domain.INACTIVE,
         "fresh #264 landing completion can establish inactive",
@@ -210,14 +226,82 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
     reset_ok(execution)
 
 
+def test_completion_requires_exact_pending_effect_permit() -> None:
+    execution = domain.PhysicalExecutionDomain()
+    reset_ok(execution)
+    with execution.effect_transaction(lambda: None) as effect:
+        effect.mark_emitted()
+        permit = effect.mark_accepted()
+
+    # This is the exact old bypass: arbitrary proof with no provenance for the
+    # accepted effect must not restore ordinary motion eligibility.
+    expect_error(
+        lambda: execution.complete_accepted_effect(
+            object(),
+            domain.FLYING,
+            lambda: True,
+        ),
+        "completion permit",
+    )
+    require(
+        execution.phase == domain.AWAITING_COMPLETION,
+        "forged completion leaves the real accepted effect pending",
+    )
+
+    execution.complete_accepted_effect(
+        permit,
+        domain.FLYING,
+        lambda: True,
+    )
+    require(
+        execution.phase == domain.FLYING,
+        "exact accepted-effect permit can be paired with trusted fresh proof",
+    )
+
+    with execution.effect_transaction(lambda: None) as second:
+        second.mark_emitted()
+        current_permit = second.mark_accepted()
+
+    expect_error(
+        lambda: execution.complete_accepted_effect(
+            permit,
+            domain.FLYING,
+            lambda: True,
+        ),
+        "does not match",
+    )
+    require(
+        execution.phase == domain.AWAITING_COMPLETION,
+        "consumed stale permit cannot complete a newer effect",
+    )
+    execution.complete_accepted_effect(
+        current_permit,
+        domain.FLYING,
+        lambda: True,
+    )
+
+    with execution.effect_transaction(lambda: None) as landing:
+        landing.mark_emitted()
+        landing_permit = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        landing_permit,
+        domain.INACTIVE,
+        lambda: True,
+    )
+
+
 def test_completion_uncertainty_forces_recovery() -> None:
     execution = domain.PhysicalExecutionDomain()
     reset_ok(execution)
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        permit = effect.mark_accepted()
     expect_error(
-        lambda: execution.complete_accepted_effect(domain.FLYING, lambda: False),
+        lambda: execution.complete_accepted_effect(
+            permit,
+            domain.FLYING,
+            lambda: False,
+        ),
         "not positively established",
     )
     require(
@@ -228,13 +312,17 @@ def test_completion_uncertainty_forces_recovery() -> None:
 
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        permit = effect.mark_accepted()
 
     def fail_proof():
         raise RuntimeError("fresh supervisor poisoned")
 
     expect_error(
-        lambda: execution.complete_accepted_effect(domain.INACTIVE, fail_proof),
+        lambda: execution.complete_accepted_effect(
+            permit,
+            domain.INACTIVE,
+            fail_proof,
+        ),
         "failed or is ambiguous",
     )
     require(
@@ -387,6 +475,7 @@ def main() -> int:
     test_unresolved_emission_requires_recovery()
     test_definitive_rejection_restores_exact_prior_phase()
     test_positive_ack_requires_fresh_completion_before_next_transition()
+    test_completion_requires_exact_pending_effect_permit()
     test_completion_uncertainty_forces_recovery()
     test_reset_and_effect_boundary_are_mutually_exclusive()
     test_independent_handles_share_process_wide_exclusion()
