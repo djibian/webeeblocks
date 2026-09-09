@@ -147,8 +147,12 @@ def test_definitive_rejection_restores_exact_prior_phase() -> None:
 
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
-    execution.complete_accepted_effect(domain.FLYING, lambda: True)
+        takeoff_completion = effect.mark_accepted()
+    execution.complete_accepted_effect(
+        takeoff_completion,
+        domain.FLYING,
+        lambda: True,
+    )
     require(
         execution.phase == domain.FLYING,
         "accepted takeoff completion establishes flying",
@@ -166,8 +170,12 @@ def test_definitive_rejection_restores_exact_prior_phase() -> None:
     # independent regression without bypassing the public lifecycle.
     with execution.effect_transaction(lambda: None) as landing:
         landing.mark_emitted()
-        landing.mark_accepted()
-    execution.complete_accepted_effect(domain.INACTIVE, lambda: True)
+        landing_completion = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        landing_completion,
+        domain.INACTIVE,
+        lambda: True,
+    )
 
 
 def test_positive_ack_requires_fresh_completion_before_next_transition() -> None:
@@ -175,7 +183,7 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
     reset_ok(execution)
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        completion = effect.mark_accepted()
 
     require(
         execution.phase == domain.AWAITING_COMPLETION,
@@ -189,7 +197,35 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
         lambda: execution.run_reset_establishment(lambda: object()),
         "blocked",
     )
-    execution.complete_accepted_effect(domain.FLYING, lambda: True)
+    try:
+        execution.complete_accepted_effect(domain.FLYING, lambda: True)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError(
+            "assertion-shaped completion without the accepted-effect claim must fail"
+        )
+    require(
+        execution.phase == domain.AWAITING_COMPLETION,
+        "missing opaque claim cannot manufacture completion",
+    )
+    expect_error(
+        lambda: execution.complete_accepted_effect(
+            object(),
+            domain.FLYING,
+            lambda: True,
+        ),
+        "exact accepted-effect completion claim",
+    )
+    require(
+        execution.phase == domain.AWAITING_COMPLETION,
+        "wrong completion claim must be neutral",
+    )
+    execution.complete_accepted_effect(
+        completion,
+        domain.FLYING,
+        lambda: True,
+    )
     require(
         execution.phase == domain.FLYING,
         "fresh trajectory completion can establish flying",
@@ -201,8 +237,12 @@ def test_positive_ack_requires_fresh_completion_before_next_transition() -> None
 
     with execution.effect_transaction(lambda: None) as landing:
         landing.mark_emitted()
-        landing.mark_accepted()
-    execution.complete_accepted_effect(domain.INACTIVE, lambda: True)
+        landing_completion = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        landing_completion,
+        domain.INACTIVE,
+        lambda: True,
+    )
     require(
         execution.phase == domain.INACTIVE,
         "fresh #264 landing completion can establish inactive",
@@ -215,9 +255,13 @@ def test_completion_uncertainty_forces_recovery() -> None:
     reset_ok(execution)
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        completion = effect.mark_accepted()
     expect_error(
-        lambda: execution.complete_accepted_effect(domain.FLYING, lambda: False),
+        lambda: execution.complete_accepted_effect(
+            completion,
+            domain.FLYING,
+            lambda: False,
+        ),
         "not positively established",
     )
     require(
@@ -228,13 +272,17 @@ def test_completion_uncertainty_forces_recovery() -> None:
 
     with execution.effect_transaction(lambda: None) as effect:
         effect.mark_emitted()
-        effect.mark_accepted()
+        completion = effect.mark_accepted()
 
     def fail_proof():
         raise RuntimeError("fresh supervisor poisoned")
 
     expect_error(
-        lambda: execution.complete_accepted_effect(domain.INACTIVE, fail_proof),
+        lambda: execution.complete_accepted_effect(
+            completion,
+            domain.INACTIVE,
+            fail_proof,
+        ),
         "failed or is ambiguous",
     )
     require(
