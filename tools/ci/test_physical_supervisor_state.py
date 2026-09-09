@@ -28,6 +28,27 @@ def expect_error(callable_, pattern: str) -> None:
     raise AssertionError(f"expected SupervisorReadError containing {pattern!r}")
 
 
+def frame(bitfield: int) -> bytes:
+    return bytes(
+        (
+            supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE,
+            bitfield & 0xFF,
+            (bitfield >> 8) & 0xFF,
+        )
+    )
+
+
+class EpochSource:
+    def __init__(self, value: str) -> None:
+        self.value = value
+        self.error = None
+
+    def __call__(self) -> str:
+        if self.error is not None:
+            raise self.error
+        return self.value
+
+
 class FakeCaller:
     def __init__(self) -> None:
         self.callbacks = []
@@ -71,6 +92,7 @@ class FakeCf:
         self.platform = FakePlatform(protocol_version)
         self.disconnected = FakeCaller()
         self.response = response
+        self.pending_late_response = None
         self.callback = None
         self.callback_port = None
         self.removed = False
@@ -87,6 +109,21 @@ class FakeCf:
         require(port == self.callback_port, "supervisor callback cleanup port")
         require(callback is self.callback, "supervisor callback cleanup identity")
         self.removed = True
+        self.callback = None
+
+    def _emit(self, response: bytes) -> None:
+        if self.callback is None:
+            return
+        self.callback(
+            type(
+                "Packet",
+                (),
+                {
+                    "channel": supervisor_state.SUPERVISOR_CH_INFO,
+                    "data": bytearray(response),
+                },
+            )()
+        )
 
     def send_packet(self, packet) -> None:
         self.sent.append((packet.port, packet.channel, bytes(packet.data)))
@@ -96,36 +133,23 @@ class FakeCf:
         if self.fail_on_send:
             raise RuntimeError("radio send failed")
         if self.send_unrelated_first:
-            self.callback(
-                type(
-                    "Packet",
-                    (),
-                    {
-                        "channel": supervisor_state.SUPERVISOR_CH_INFO,
-                        "data": bytearray((0x81, 0x00, 0x00)),
-                    },
-                )()
-            )
+            self._emit(bytes((0x81, 0x00, 0x00)))
+        if self.pending_late_response is not None:
+            pending = self.pending_late_response
+            self.pending_late_response = None
+            self._emit(pending)
+            return
         if self.response is not None:
-            self.callback(
-                type(
-                    "Packet",
-                    (),
-                    {
-                        "channel": supervisor_state.SUPERVISOR_CH_INFO,
-                        "data": bytearray(self.response),
-                    },
-                )()
-            )
+            self._emit(self.response)
 
 
 CRTP_TYPES = (FakeCRTPPacket, FakeCRTPPort)
 
 
-def read(cf: FakeCf, timeout_seconds: float = 0.01):
-    return supervisor_state.read_fresh_supervisor_state(
+def make_reader(cf: FakeCf, epoch: EpochSource):
+    return supervisor_state.FreshSupervisorStateReader(
         cf,
-        timeout_seconds=timeout_seconds,
+        epoch,
         crtp_types=CRTP_TYPES,
     )
 
@@ -137,17 +161,12 @@ def test_success_and_decode() -> None:
         | (1 << supervisor_state.BIT_CAN_FLY)
         | (1 << supervisor_state.BIT_HL_TRAJ_FINISHED)
     )
-    cf = FakeCf(
-        bytes(
-            (
-                supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE,
-                bitfield & 0xFF,
-                (bitfield >> 8) & 0xFF,
-            )
-        )
-    )
+    cf = FakeCf(frame(bitfield))
     cf.send_unrelated_first = True
-    state = read(cf)
+    epoch = EpochSource("epoch-success")
+    reader = make_reader(cf, epoch)
+    state = reader.read(timeout_seconds=0.01)
+
     require(
         cf.sent
         == [
@@ -162,94 +181,215 @@ def test_success_and_decode() -> None:
     require(state.protocol_version == 12, "protocol version")
     require(state.bitfield == bitfield, "bitfield round trip")
     require(state.can_be_armed, "can-be-armed bit")
-    require(state.is_auto_armed, "auto-armed configuration bit")
+    require(state.is_auto_armed, "auto-armed bit")
     require(state.can_fly, "can-fly bit")
     require(state.hl_traj_finished, "trajectory-finished bit")
-    require(not state.is_armed and not state.is_locked and not state.is_crashed, "unset bits")
+    require(not state.deck_fault and not state.blocking_fault, "healthy state")
+    require(not reader.poisoned, "successful read must not poison epoch")
     require(cf.removed, "supervisor callback cleanup")
     require(cf.disconnected.callbacks == [], "disconnect callback cleanup")
 
 
-def test_timeout_never_reuses_previous_state() -> None:
+def test_deck_fault_is_preserved_and_blocks() -> None:
+    bitfield = (
+        (1 << supervisor_state.BIT_CAN_FLY)
+        | (1 << supervisor_state.BIT_DECK_FAULT)
+    )
+    reader = make_reader(FakeCf(frame(bitfield)), EpochSource("epoch-deck"))
+    state = reader.read(timeout_seconds=0.01)
+    require(state.bitfield == bitfield, "raw deck-fault bitfield")
+    require(state.deck_fault, "deck fault bit must be decoded")
+    require(state.blocking_fault, "deck fault must be evaluated as blocking")
+
+
+def test_timeout_poison_blocks_delayed_reply_until_epoch_rotates() -> None:
     finished = 1 << supervisor_state.BIT_HL_TRAJ_FINISHED
-    cf = FakeCf(
+    cf = FakeCf(frame(finished))
+    epoch = EpochSource("epoch-timeout")
+    reader = make_reader(cf, epoch)
+
+    first = reader.read(timeout_seconds=0.01)
+    require(first.hl_traj_finished, "first fresh state")
+
+    cf.response = None
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.001),
+        "fresh supervisor state request timed out",
+    )
+    require(reader.poisoned, "timeout must poison the connection epoch")
+    sent_after_timeout = len(cf.sent)
+
+    # Model the old untagged reply arriving on the next request. A poisoned
+    # reader must refuse before sending, so that reply can never be accepted.
+    cf.pending_late_response = frame(finished)
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "poisoned until reconnect",
+    )
+    require(
+        len(cf.sent) == sent_after_timeout,
+        "poisoned epoch must not send a retry that could consume a delayed reply",
+    )
+    require(
+        cf.pending_late_response is not None,
+        "delayed reply should remain unconsumed because no retry was emitted",
+    )
+
+    expect_error(
+        lambda: make_reader(cf, epoch),
+        "poisoned until reconnect",
+    )
+
+    reconnected = FakeCf(frame(finished))
+    new_epoch = EpochSource("epoch-timeout-reconnected")
+    recovered = make_reader(reconnected, new_epoch)
+    require(
+        recovered.read(timeout_seconds=0.01).hl_traj_finished,
+        "rotated reconnect epoch must permit a new freshness domain",
+    )
+
+
+def test_malformed_framing_poison() -> None:
+    short_cf = FakeCf(
+        bytes((supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE, 0x01))
+    )
+    short_reader = make_reader(short_cf, EpochSource("epoch-short"))
+    expect_error(
+        lambda: short_reader.read(timeout_seconds=0.01),
+        "malformed supervisor state response",
+    )
+    require(short_reader.poisoned, "short response must poison epoch")
+
+    extended_cf = FakeCf(
         bytes(
             (
                 supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE,
-                finished & 0xFF,
-                (finished >> 8) & 0xFF,
+                0x01,
+                0x00,
+                0x00,
             )
         )
     )
-    first = read(cf)
-    require(first.hl_traj_finished, "first fresh state")
-    cf.response = None
-    cf.removed = False
-    expect_error(lambda: read(cf, timeout_seconds=0.001), "timed out")
-    require(cf.removed, "timeout callback cleanup")
-    require(
-        len(cf.sent) == 2,
-        "second read must issue a new request instead of consulting cached state",
+    extended_reader = make_reader(extended_cf, EpochSource("epoch-extended"))
+    expect_error(
+        lambda: extended_reader.read(timeout_seconds=0.01),
+        "malformed supervisor state response",
     )
+    require(extended_reader.poisoned, "extended response must poison epoch")
 
 
-def test_malformed_response_fails_closed() -> None:
-    cf = FakeCf(bytes((supervisor_state.CMD_GET_STATE_BITFIELD_RESPONSE, 0x01)))
-    expect_error(lambda: read(cf), "malformed supervisor state response")
-    require(cf.removed, "malformed response callback cleanup")
+def test_unknown_state_bits_poison() -> None:
+    unknown = 1 << 12
+    reader = make_reader(FakeCf(frame(unknown)), EpochSource("epoch-unknown"))
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "unknown supervisor state bits set",
+    )
+    require(reader.poisoned, "unknown state semantics must poison epoch")
 
 
-def test_disconnect_fails_closed() -> None:
+def test_disconnect_poison() -> None:
     cf = FakeCf(None)
     cf.disconnect_on_send = True
-    expect_error(lambda: read(cf), "disconnected during supervisor state read")
+    reader = make_reader(cf, EpochSource("epoch-disconnect"))
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "disconnected during supervisor state read",
+    )
+    require(reader.poisoned, "disconnect must poison epoch")
     require(cf.removed, "disconnect callback cleanup")
 
 
-def test_request_transport_failure_is_typed_and_cleaned_up() -> None:
+def test_request_transport_failure_poison() -> None:
     cf = FakeCf(None)
     cf.fail_on_send = True
-    expect_error(lambda: read(cf), "fresh supervisor state request failed")
+    reader = make_reader(cf, EpochSource("epoch-send-fail"))
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "fresh supervisor state request failed",
+    )
+    require(reader.poisoned, "ambiguous send failure must poison epoch")
     require(cf.removed, "send-failure callback cleanup")
     require(cf.disconnected.callbacks == [], "send-failure disconnect cleanup")
 
 
-def test_protocol_boundary() -> None:
-    legacy = FakeCf(None, protocol_version=11)
-    expect_error(lambda: read(legacy), "protocol version 12 or later")
-    require(legacy.sent == [], "legacy protocol must not emit supervisor request")
-    require(legacy.callback is None, "legacy protocol must fail before callback registration")
+def test_connection_epoch_change_poison_and_recovery() -> None:
+    cf = FakeCf(frame(0))
+    epoch = EpochSource("epoch-before-change")
+    reader = make_reader(cf, epoch)
+    epoch.value = "epoch-after-change"
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "connection epoch changed",
+    )
+    require(reader.poisoned, "old epoch must be poisoned after rotation")
+    require(cf.sent == [], "epoch mismatch must fail before supervisor request")
+
+    replacement = make_reader(
+        FakeCf(frame(0)),
+        EpochSource("epoch-after-change"),
+    )
+    require(
+        replacement.read(timeout_seconds=0.01).bitfield == 0,
+        "new reconnect epoch must establish a separate freshness domain",
+    )
 
 
-def test_timeout_argument() -> None:
-    cf = FakeCf(None)
-    expect_error(lambda: read(cf, timeout_seconds=0), "timeout must be positive")
+def test_protocol_boundary_poison() -> None:
+    cf = FakeCf(None, protocol_version=11)
+    reader = make_reader(cf, EpochSource("epoch-legacy"))
+    expect_error(
+        lambda: reader.read(timeout_seconds=0.01),
+        "protocol version 12 or later",
+    )
+    require(reader.poisoned, "unsupported supervisor protocol must poison epoch")
+    require(cf.sent == [], "legacy protocol must not emit supervisor request")
+
+
+def test_invalid_timeout_has_no_transport_effect() -> None:
+    cf = FakeCf(frame(0))
+    reader = make_reader(cf, EpochSource("epoch-invalid-timeout"))
+    expect_error(
+        lambda: reader.read(timeout_seconds=0),
+        "timeout must be positive",
+    )
+    require(not reader.poisoned, "invalid local timeout must not poison connection")
     require(cf.sent == [], "invalid timeout must not emit a request")
+    require(
+        reader.read(timeout_seconds=0.01).bitfield == 0,
+        "same epoch remains usable when no ambiguous transport occurred",
+    )
 
 
 def main() -> int:
     test_success_and_decode()
-    test_timeout_never_reuses_previous_state()
-    test_malformed_response_fails_closed()
-    test_disconnect_fails_closed()
-    test_request_transport_failure_is_typed_and_cleaned_up()
-    test_protocol_boundary()
-    test_timeout_argument()
+    test_deck_fault_is_preserved_and_blocks()
+    test_timeout_poison_blocks_delayed_reply_until_epoch_rotates()
+    test_malformed_framing_poison()
+    test_unknown_state_bits_poison()
+    test_disconnect_poison()
+    test_request_transport_failure_poison()
+    test_connection_epoch_change_poison_and_recovery()
+    test_protocol_boundary_poison()
+    test_invalid_timeout_has_no_transport_effect()
 
     source = MODULE_PATH.read_text(encoding="utf-8")
     for forbidden in (
         "send_arming_request",
         "send_emergency_stop",
         "send_emergency_stop_watchdog",
-        "high_level_commander",
+        "HighLevelCommander(",
         "send_setpoint",
         "send_hover_setpoint",
         "send_velocity_world_setpoint",
     ):
-        require(forbidden not in source, f"supervisor reader exposes authority surface: {forbidden}")
+        require(
+            forbidden not in source,
+            f"supervisor reader exposes authority surface: {forbidden}",
+        )
 
     print(
-        "PASS fresh supervisor-state read fails closed on timeout/disconnect without execution authority"
+        "PASS connection-epoch supervisor freshness fails closed without execution authority"
     )
     return 0
 
