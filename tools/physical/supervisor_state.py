@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Fresh, fail-closed read-only Crazyflie supervisor-state observation.
 
-cflib Supervisor convenience properties may return a cached bitfield when a
-fresh request times out. That behavior is not a sufficient freshness oracle for
-WebeeBlocks physical command completion. This module therefore owns a bounded
-read-only supervisor transaction, binds it to a reconnect-sensitive connection
-epoch and permanently poisons that reader after any ambiguous read failure.
+cflib Supervisor convenience properties may return cached state when a fresh
+request times out. That behavior is not a sufficient freshness oracle for
+WebeeBlocks command completion. This module binds each read to the live
+connection epoch and permanently poisons that epoch after an ambiguous read.
 
 The reader deliberately exposes no arming, watchdog keepalive, setpoint,
-high-level commander or other physical-effect operation.
+high-level commander or other effect operation.
 """
 
 from __future__ import annotations
@@ -35,6 +34,9 @@ BIT_HL_CONTROL_DISABLED = 10
 BIT_DECK_FAULT = 11
 KNOWN_STATE_MASK = (1 << (BIT_DECK_FAULT + 1)) - 1
 
+_POISON_LOCK = Lock()
+_POISONED_EPOCHS: dict[str, str] = {}
+
 
 class SupervisorReadError(RuntimeError):
     """Fail-closed error for unavailable or ambiguous fresh supervisor state."""
@@ -60,6 +62,16 @@ class SupervisorState(NamedTuple):
 
 def _bit(value: int, position: int) -> bool:
     return bool((value >> position) & 0x01)
+
+
+def _poison_epoch(epoch: str, reason: str) -> None:
+    with _POISON_LOCK:
+        _POISONED_EPOCHS.setdefault(epoch, reason)
+
+
+def _poison_reason(epoch: str) -> str | None:
+    with _POISON_LOCK:
+        return _POISONED_EPOCHS.get(epoch)
 
 
 def decode_supervisor_state(protocol_version: int, bitfield: int) -> SupervisorState:
@@ -121,13 +133,12 @@ def _read_protocol_version(cf: object) -> int:
 
 
 class FreshSupervisorStateReader:
-    """One connection-bound supervisor freshness domain.
+    """One reconnect-sensitive supervisor freshness domain.
 
-    A timeout, disconnect, malformed response, protocol incompatibility or
-    connection-epoch change permanently poisons the instance. Since the
-    supervisor GET_STATE command has no transaction identifier, the caller must
-    reconnect and construct a new reader after poison; retrying on the same
-    connection could misclassify a delayed old reply as fresh evidence.
+    GET_STATE has no transaction identifier. A timeout or malformed transport
+    can leave an old reply in flight, so poison is stored by connection epoch,
+    not merely by reader instance. A new reader on the same epoch is rejected.
+    Recovery requires a reconnect/session replacement that rotates the epoch.
     """
 
     def __init__(
@@ -141,10 +152,8 @@ class FreshSupervisorStateReader:
         self._connection_epoch_reader = connection_epoch_reader
         self._crtp_types = crtp_types
         self._read_lock = Lock()
-        self._state_lock = Lock()
-        self._poisoned = False
-        self._poison_reason: str | None = None
         self._bound_connection_epoch = self._read_epoch()
+        self._raise_if_poisoned()
 
     @property
     def bound_connection_epoch(self) -> str:
@@ -152,8 +161,7 @@ class FreshSupervisorStateReader:
 
     @property
     def poisoned(self) -> bool:
-        with self._state_lock:
-            return self._poisoned
+        return _poison_reason(self._bound_connection_epoch) is not None
 
     def _read_epoch(self) -> str:
         try:
@@ -166,26 +174,19 @@ class FreshSupervisorStateReader:
             raise SupervisorReadError("connection epoch is invalid for supervisor state")
         return epoch
 
-    def _poison(self, reason: str) -> None:
-        with self._state_lock:
-            if not self._poisoned:
-                self._poisoned = True
-                self._poison_reason = reason
-
     def _raise_if_poisoned(self) -> None:
-        with self._state_lock:
-            if self._poisoned:
-                raise SupervisorReadError(
-                    "supervisor freshness is poisoned until reconnect: "
-                    + (self._poison_reason or "ambiguous prior read")
-                )
+        reason = _poison_reason(self._bound_connection_epoch)
+        if reason is not None:
+            raise SupervisorReadError(
+                "supervisor freshness is poisoned until reconnect: " + reason
+            )
 
     def _verify_connection_epoch(self) -> None:
         self._raise_if_poisoned()
         current_epoch = self._read_epoch()
         if current_epoch != self._bound_connection_epoch:
             reason = "connection epoch changed during supervisor freshness domain"
-            self._poison(reason)
+            _poison_epoch(self._bound_connection_epoch, reason)
             raise SupervisorReadError(reason)
 
     def read(self, *, timeout_seconds: float = 0.2) -> SupervisorState:
@@ -199,7 +200,7 @@ class FreshSupervisorStateReader:
                 self._verify_connection_epoch()
                 return state
             except SupervisorReadError as exc:
-                self._poison(str(exc))
+                _poison_epoch(self._bound_connection_epoch, str(exc))
                 raise
 
     def _resolve_crtp_types(self) -> tuple[object, object]:
@@ -240,8 +241,7 @@ class FreshSupervisorStateReader:
                 data = bytes(packet.data)
                 if not data or data[0] != CMD_GET_STATE_BITFIELD_RESPONSE:
                     return
-                # Pinned 2026.08 firmware responds with one command byte plus a
-                # uint16 supervisor bitfield. Anything else is incompatible.
+                # Pinned firmware 2026.08 sends command + uint16 exactly.
                 if len(data) != 3:
                     finish(
                         error=SupervisorReadError(
@@ -259,7 +259,7 @@ class FreshSupervisorStateReader:
 
         def disconnected(_uri: str) -> None:
             reason = "Crazyflie disconnected during supervisor state read"
-            self._poison(reason)
+            _poison_epoch(self._bound_connection_epoch, reason)
             finish(error=SupervisorReadError(reason))
 
         disconnect_callbacks = getattr(self._cf, "disconnected", None)
