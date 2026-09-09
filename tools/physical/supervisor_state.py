@@ -171,6 +171,11 @@ class FreshSupervisorStateReader:
         return self._bound_connection_epoch
 
     @property
+    def bound_crazyflie(self) -> object:
+        """Exact live Crazyflie object whose supervisor replies this reader accepts."""
+        return self._cf
+
+    @property
     def poisoned(self) -> bool:
         return _poison_reason(self._bound_connection_epoch) is not None
 

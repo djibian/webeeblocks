@@ -172,6 +172,7 @@ def test_success_and_decode() -> None:
     cf.send_unrelated_first = True
     epoch = EpochSource("epoch-success")
     reader = make_reader(cf, epoch)
+    require(reader.bound_crazyflie is cf, "reader must expose exact Crazyflie binding")
     state = reader.read(timeout_seconds=0.01)
 
     require(
