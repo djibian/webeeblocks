@@ -259,6 +259,7 @@ class ReadOnlyCapabilitySession:
         driver_init: Callable[[], None] | None = None,
         epoch_factory: Callable[[], str] | None = None,
         cflib_version_reader: Callable[[], str] | None = None,
+        descriptor_reader: Callable[[object], dict[str, object]] | None = None,
     ) -> None:
         if not uri.startswith("radio://"):
             raise ProbeError("P0b requires an explicit Crazyradio radio:// URI")
@@ -267,6 +268,7 @@ class ReadOnlyCapabilitySession:
         self._driver_init = driver_init
         self._epoch_factory = epoch_factory or (lambda: secrets.token_hex(16))
         self._cflib_version_reader = cflib_version_reader or _installed_cflib_version
+        self._descriptor_reader = descriptor_reader or _read_connected_descriptor
         self._drivers_initialized = False
         self._scf: object | None = None
         self._disconnect_callback: Callable[[str], None] | None = None
@@ -387,7 +389,7 @@ class ReadOnlyCapabilitySession:
         if scf is None:
             raise ProbeError("Crazyflie connection is not established for capability preflight")
         try:
-            descriptor = _read_connected_descriptor(scf.cf)
+            descriptor = self._descriptor_reader(scf.cf)
         except ProbeError:
             raise
         except Exception as exc:
