@@ -54,6 +54,7 @@ import high_level_timing
 import physical_execution_domain
 import powered_session_authority
 import safelink_precondition
+import supervisor_state
 import teacher_run_authorization
 import watchdog_liveness
 import yaw_observer
@@ -176,6 +177,7 @@ class TrustedSetpointHlTransport:
         teacher_authorization: teacher_run_authorization.TeacherRunAuthorization,
         powered_session: powered_session_authority.EstablishedPoweredSession,
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
+        supervisor_reader: supervisor_state.FreshSupervisorStateReader,
         current_preflight_binding_reader: Callable[
             [], teacher_run_authorization.PhysicalRunBinding
         ],
@@ -215,6 +217,10 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "exact active #262 watchdog guard is required"
             )
+        if type(supervisor_reader) is not supervisor_state.FreshSupervisorStateReader:
+            raise SetpointHlTransportError(
+                "exact #257 FreshSupervisorStateReader is required"
+            )
 
         self._cf = crazyflie
         self._execution = execution_domain
@@ -223,6 +229,7 @@ class TrustedSetpointHlTransport:
         self._teacher = teacher_authorization
         self._powered_session = powered_session
         self._watchdog = watchdog_guard
+        self._supervisor = supervisor_reader
         self._current_preflight_binding_reader = _require_callable(
             current_preflight_binding_reader,
             "current exact preflight binding reader",
@@ -268,9 +275,21 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "watchdog guard is not bound to the #266 powered session"
             )
-        if powered_session.session is None:
+        if powered_session.session is not crazyflie:
             raise SetpointHlTransportError(
-                "powered session has no established live-session identity"
+                "powered session is not bound to the exact Crazyflie object"
+            )
+        if supervisor_reader.bound_connection_epoch != epoch:
+            raise SetpointHlTransportError(
+                "fresh supervisor reader belongs to a different connection epoch"
+            )
+        if supervisor_reader.bound_crazyflie is not crazyflie:
+            raise SetpointHlTransportError(
+                "fresh supervisor reader is not bound to the exact Crazyflie"
+            )
+        if supervisor_reader.poisoned is not False:
+            raise SetpointHlTransportError(
+                "fresh supervisor reader is poisoned before physical execution"
             )
         self._bound_connection_epoch = epoch
 
@@ -325,6 +344,28 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "ordinary GO_TO_2 motion requires fresh established flying state"
             )
+
+    def _read_fresh_flying(self) -> object:
+        """Require one fresh same-epoch #257 non-fault flying observation."""
+        if self._supervisor.poisoned is not False:
+            raise SetpointHlTransportError(
+                "fresh supervisor reader is poisoned before physical effect"
+            )
+        try:
+            state = self._supervisor.read(timeout_seconds=0.2)
+        except Exception as exc:
+            raise SetpointHlTransportError(
+                "fresh supervisor safety observation failed before physical effect"
+            ) from exc
+        if getattr(state, "blocking_fault", None) is not False:
+            raise SetpointHlTransportError(
+                "fresh supervisor state has a blocking or unknown fault"
+            )
+        if getattr(state, "is_flying", None) is not True:
+            raise SetpointHlTransportError(
+                "fresh supervisor state does not positively establish flight"
+            )
+        return state
 
     def _require_connection_live(self) -> None:
         method = getattr(self._cf, "is_connected", None)
@@ -396,16 +437,19 @@ class TrustedSetpointHlTransport:
             self._assert_current_authority
         ) as effect:
             request = _validate_request(builder())
+            # Test seam / cflib packet construction is completed and verified
+            # before the final fresh safety/authority observations.
+            packet = self._packet_factory(request)
+            self._validate_packet(packet, request)
 
-            # Horizontal request construction may wait for a fresh yaw sample.
-            # Recheck mutable preflight/teacher/watchdog/flying evidence after
-            # that delay, immediately before the final SafeLink proof.
+            # Request construction may block for fresh yaw. Re-establish fresh
+            # supervisor flight safety first, then mutable teacher/watchdog
+            # authority, immediately before SafeLink/#271/emission.
+            self._read_fresh_flying()
             self._assert_current_authority()
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
-                packet = self._packet_factory(request)
-                self._validate_packet(packet, request)
 
                 reply_event = Event()
                 reply_lock = Lock()
