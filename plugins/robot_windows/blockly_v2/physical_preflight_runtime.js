@@ -8,6 +8,7 @@
   var adapter = null;
   var bridge = null;
   var boundProfile = null;
+  var responderGeneration = 0;
 
   function profileBinding(profile) {
     if (!profile || typeof profile.id !== 'string' || profile.id.trim() === '' ||
@@ -40,12 +41,64 @@
       fail('current Blockly workspace is unavailable');
   }
 
+  function delay(ms) {
+    return new Promise(function(resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  async function answerCurrentProgramChallenges(generation, activeAdapter) {
+    while (adapter === activeAdapter && responderGeneration === generation) {
+      var challengeId;
+      try {
+        challengeId = await activeAdapter.readCurrentProgramChallenge();
+      } catch (_error) {
+        if (adapter !== activeAdapter || responderGeneration !== generation)
+          return;
+        await delay(100);
+        continue;
+      }
+      if (adapter !== activeAdapter || responderGeneration !== generation)
+        return;
+      if (challengeId === null)
+        continue;
+
+      var assertion = {
+        challengeId: challengeId,
+        ok: false,
+        executionAuthority: false
+      };
+      try {
+        var result = await assertCurrentProgram();
+        if (adapter !== activeAdapter || responderGeneration !== generation)
+          return;
+        assertion.ok = true;
+        assertion.profileId = root.runtimeProfile.id;
+        assertion.astBinding = result.preflight.astBinding;
+        assertion.connectionEpoch = result.preflight.connectionEpoch;
+      } catch (_error) {
+        assertion.ok = false;
+      }
+
+      try {
+        await activeAdapter.submitCurrentProgramAssertion(assertion);
+      } catch (_error) {
+        // The host may have timed out, reconnected or invalidated the challenge.
+        // A rejected/late assertion creates no authority and is never retried.
+      }
+    }
+  }
+
   function configure(options) {
+    responderGeneration += 1;
     if (bridge && typeof bridge.clear === 'function')
       bridge.clear();
     bridge = null;
     boundProfile = null;
     adapter = root.WebeeBlocksPhysicalCapabilityHttpAdapter.create(options || {});
+    var generation = responderGeneration;
+    var activeAdapter = adapter;
+    answerCurrentProgramChallenges(generation, activeAdapter);
     return true;
   }
 
@@ -110,6 +163,7 @@
   }
 
   function clear() {
+    responderGeneration += 1;
     if (bridge && typeof bridge.clear === 'function')
       bridge.clear();
     bridge = null;
