@@ -154,6 +154,25 @@ function program(distance) {
   assert.strictEqual(productAssertion.executionAuthority, false);
   assert.strictEqual(productAssertion.preflight.connectionEpoch, 'connection-product');
 
+  const preflightProfile = global.runtimeProfile;
+  global.runtimeProfile = Profiles.resolveById(
+    Activities.DOCUMENT,
+    'progression-precise-movement-v1',
+    Activities.BLOCK_CATALOG
+  );
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /activity profile changed since physical preflight/,
+    'profile change with identical AST and connection epoch must invalidate physical preflight'
+  );
+  global.runtimeProfile = preflightProfile;
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /physical preflight is required/,
+    'profile mismatch must clear the prior physical preflight binding'
+  );
+  await productBridge.preflightCurrentProgram();
+
   currentAst = program(0.4);
   await assert.rejects(
     () => productBridge.assertCurrentProgram(),
