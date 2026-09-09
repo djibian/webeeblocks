@@ -82,7 +82,7 @@ assertion: a separately authorized physical effect consumer with explicit teache
 authorization before any flight-capable command/effect, firmware-independent
 arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
 pass), an independent emergency-stop watchdog/liveness guard, controlled normal
-land/disarm behavior and proof of real execution continuity. Integrated #256
+landing/completion behavior and proof of real execution continuity. Integrated #256
 codifies the non-authority semantic transform for the future direct cflib
 HighLevelCommander path: body-relative horizontal movement is rotated into
 world-frame displacement from an accepted yaw, vertical intent stays relative
@@ -107,8 +107,16 @@ reply. The current bounded activation-proof direction is therefore a same-epoch,
 same-supervisor-port causal fence: enqueue a keepalive and then require a
 successful fresh #257 GET_STATE read, relying on the documented same-port ordering
 before treating watchdog liveness as active. That fence/lifecycle still requires
-its own non-motorized implementation proof. Immediate emergency stop and high-level
-commander stop remain exceptional motor-cut paths, not normal Stop/Land semantics.
+its own non-motorized implementation proof.
+
+Normal completion must use the controlled high-level landing trajectory rather
+than the high-level `stop()` motor-cut path and require fresh #257 evidence that
+flight ended without a blocking fault while trusted watchdog/session handling
+continues. Stock CF2.1 auto-arming can return the vehicle to ReadyToFly after the
+landing/reset cycle, so post-landing disarm is not a persistent teacher/safety
+gate; every later flight-capable effect still requires explicit teacher
+authorization. Immediate emergency stop and high-level commander stop remain
+exceptional motor-cut paths, not normal Stop/Land semantics.
 
 Do not turn source availability, Lab firmware experiments, preflight
 compatibility, simulation coverage or this implementation direction into a
