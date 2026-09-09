@@ -34,8 +34,9 @@ BIT_HL_CONTROL_DISABLED = 10
 BIT_DECK_FAULT = 11
 KNOWN_STATE_MASK = (1 << (BIT_DECK_FAULT + 1)) - 1
 
-_POISON_LOCK = Lock()
+_EPOCH_STATE_LOCK = Lock()
 _POISONED_EPOCHS: dict[str, str] = {}
+_EPOCH_READ_LOCKS: dict[str, Lock] = {}
 
 
 class SupervisorReadError(RuntimeError):
@@ -65,13 +66,23 @@ def _bit(value: int, position: int) -> bool:
 
 
 def _poison_epoch(epoch: str, reason: str) -> None:
-    with _POISON_LOCK:
+    with _EPOCH_STATE_LOCK:
         _POISONED_EPOCHS.setdefault(epoch, reason)
 
 
 def _poison_reason(epoch: str) -> str | None:
-    with _POISON_LOCK:
+    with _EPOCH_STATE_LOCK:
         return _POISONED_EPOCHS.get(epoch)
+
+
+def _read_lock_for_epoch(epoch: str) -> Lock:
+    """Return the process-wide serialization guard for one connection epoch."""
+    with _EPOCH_STATE_LOCK:
+        lock = _EPOCH_READ_LOCKS.get(epoch)
+        if lock is None:
+            lock = Lock()
+            _EPOCH_READ_LOCKS[epoch] = lock
+        return lock
 
 
 def decode_supervisor_state(protocol_version: int, bitfield: int) -> SupervisorState:
@@ -151,8 +162,8 @@ class FreshSupervisorStateReader:
         self._cf = cf
         self._connection_epoch_reader = connection_epoch_reader
         self._crtp_types = crtp_types
-        self._read_lock = Lock()
         self._bound_connection_epoch = self._read_epoch()
+        self._read_lock = _read_lock_for_epoch(self._bound_connection_epoch)
         self._raise_if_poisoned()
 
     @property
