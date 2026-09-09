@@ -297,12 +297,17 @@ Runtime/controller change is justified by #236 alone.
   land/disarm behavior and proof of physical execution continuity. Do not assume
   a host arming packet is the teacher gate: stock brushed Crazyflie 2.1
   auto-arms when pre-flight checks pass
-- proof direction: preserve backend-neutral AST continuity while adding only the
-  minimum teacher-authorized physical execution authority after the live
-  capability and safety gates are independently established. Keep immediate
+- proof direction: preserve backend-neutral AST continuity and use direct cflib
+  `HighLevelCommander` as the primitive effect substrate rather than the
+  `MotionCommander` / `PositionHlCommander` helpers: rotate body-relative
+  horizontal intent into world-frame deltas from an accepted current yaw, use
+  relative world-Z/yaw as appropriate, and bound command completion by observed
+  supervisor/high-level trajectory state plus timeout/locked/crashed checks.
+  Add only the minimum teacher-authorized physical execution authority after the
+  live capability and safety gates are independently established. Keep immediate
   emergency stop and high-level commander stop exceptional because both can cut
   motors in flight; normal completion/voluntary abort needs a controlled
-  land/disarm path
+  high-level land then disarm path
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
