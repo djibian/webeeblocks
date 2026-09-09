@@ -122,8 +122,167 @@ def test_device_type_query() -> None:
     require(timeout.removed, "device-type callback cleanup after timeout")
 
 
+
+def test_live_capability_session() -> None:
+    class FakeCaller:
+        def __init__(self) -> None:
+            self.callbacks = []
+
+        def add_callback(self, callback) -> None:
+            self.callbacks.append(callback)
+
+        def remove_callback(self, callback) -> None:
+            self.callbacks.remove(callback)
+
+        def call(self, *args) -> None:
+            for callback in list(self.callbacks):
+                callback(*args)
+
+    class FakeCf:
+        def __init__(self, values, device_type: str) -> None:
+            self.values = dict(values)
+            self.device_type = device_type
+            self.disconnected = FakeCaller()
+
+    class FakeSyncCrazyflie:
+        def __init__(self, uri: str, values, device_type: str) -> None:
+            self.uri = uri
+            self.cf = FakeCf(values, device_type)
+            self.link_open = False
+            self.params_waited = False
+            self.close_count = 0
+
+        def open_link(self) -> None:
+            require(not self.link_open, "fake link must start closed")
+            self.link_open = True
+
+        def wait_for_params(self) -> None:
+            require(self.link_open, "fake params require a live link")
+            self.params_waited = True
+
+        def is_link_open(self) -> bool:
+            return self.link_open
+
+        def close_link(self) -> None:
+            if not self.link_open:
+                return
+            self.link_open = False
+            self.close_count += 1
+            self.cf.disconnected.call(self.uri)
+
+        def lose_link(self) -> None:
+            require(self.link_open, "fake lost-link requires a live link")
+            self.link_open = False
+            self.cf.disconnected.call(self.uri)
+
+    def read_fake_descriptor(cf) -> dict[str, object]:
+        return probe.build_descriptor(11, cf.values, cf.device_type)
+
+    first = FakeSyncCrazyflie(
+        "radio://0/80/2M/E7E7E7E7E7",
+        BASE_VALUES,
+        "Crazyflie 2.1",
+    )
+    second_values = dict(BASE_VALUES)
+    second_values["deck.bcColorLedBot"] = "0"
+    second = FakeSyncCrazyflie(
+        "radio://0/80/2M/E7E7E7E7E7",
+        second_values,
+        "Crazyflie 2.1",
+    )
+    candidates = [first, second]
+    epochs = iter(("session-epoch-one", "session-epoch-two"))
+    driver_inits: list[str] = []
+
+    session = probe.ReadOnlyCapabilitySession(
+        "radio://0/80/2M/E7E7E7E7E7",
+        scf_factory=lambda _uri: candidates.pop(0),
+        driver_init=lambda: driver_inits.append("init"),
+        epoch_factory=lambda: next(epochs),
+        cflib_version_reader=lambda: "test-cflib",
+        descriptor_reader=read_fake_descriptor,
+    )
+
+    session.open()
+    require(first.params_waited, "session must wait for the connected parameter snapshot")
+    require(session.read_connection_epoch() == "session-epoch-one", "first session epoch")
+    observed = session.read_capabilities()
+    require(
+        observed["evidence"]["cflibVersion"] == "test-cflib",
+        "live session must preserve cflib provenance",
+    )
+    require("set_light" in observed["capabilities"]["actions"], "first live descriptor")
+
+    first.cf.values["deck.bcColorLedBot"] = "0"
+    refreshed = session.read_capabilities()
+    require(
+        "set_light" not in refreshed["capabilities"]["actions"],
+        "capability reads must not cache an earlier descriptor",
+    )
+
+    for forbidden in (
+        "takeoff",
+        "land",
+        "move",
+        "vertical",
+        "turn",
+        "set_speed",
+        "set_light",
+        "arm",
+        "disarm",
+    ):
+        require(not hasattr(session, forbidden), f"session exposes forbidden authority method: {forbidden}")
+
+    first.lose_link()
+    expect_probe_error(
+        session.read_connection_epoch,
+        "connection is not established",
+    )
+    expect_probe_error(
+        session.read_capabilities,
+        "connection is not established",
+    )
+
+    session.open()
+    require(session.read_connection_epoch() == "session-epoch-two", "reconnect must rotate epoch")
+    require(driver_inits == ["init"], "Crazyradio drivers initialize once per adapter")
+    second_observed = session.read_capabilities()
+    require(
+        "set_light" not in second_observed["capabilities"]["actions"],
+        "reconnected descriptor must reflect the new live session",
+    )
+    session.close()
+    require(second.close_count == 1, "explicit session close")
+    expect_probe_error(
+        session.read_connection_epoch,
+        "connection is not established",
+    )
+
+    invalid_epoch_link = FakeSyncCrazyflie(
+        "radio://0/80/2M/E7E7E7E7E7",
+        BASE_VALUES,
+        "Crazyflie 2.1",
+    )
+    invalid_epoch = probe.ReadOnlyCapabilitySession(
+        "radio://0/80/2M/E7E7E7E7E7",
+        scf_factory=lambda _uri: invalid_epoch_link,
+        driver_init=lambda: None,
+        epoch_factory=lambda: "",
+        cflib_version_reader=lambda: "test-cflib",
+        descriptor_reader=read_fake_descriptor,
+    )
+    expect_probe_error(
+        invalid_epoch.open,
+        "invalid epoch",
+    )
+    require(
+        invalid_epoch_link.close_count == 1 and not invalid_epoch_link.is_link_open(),
+        "failed session setup must close the live link",
+    )
+
 def main() -> int:
     test_device_type_query()
+    test_live_capability_session()
     descriptor = probe.build_descriptor("11", BASE_VALUES)
 
     require(descriptor["transport"] == "crazyradio", "transport")
