@@ -270,8 +270,14 @@ Runtime/controller change is justified by #236 alone.
   #257; the remaining physical path must consume it from the future authority
   layer, establish an independent emergency-stop watchdog/liveness guard with a
   proven activation fence and explicit powered-session lifecycle, plus a
-  controlled high-level landing/completion proof from fresh #257 evidence. On
-  stock auto-arming firmware, post-landing disarm is not a persistent lockout;
+  controlled high-level landing/completion proof from fresh #257 evidence. The
+  watchdog powered-session identity is distinct from the Crazyradio connection
+  epoch: after a watchdog command may have reached firmware, ambiguous
+  activation/maintenance, a missed keepalive deadline, epoch loss or otherwise
+  lost lifecycle certainty remains terminal across ordinary reconnect. Reuse
+  requires a separately established STM+deck power-cycle/reboot boundary, then a
+  new connection epoch and complete capability/preflight/safety re-observation.
+  On stock auto-arming firmware, post-landing disarm is not a persistent lockout;
   later flight-capable effects still require a new teacher authorization
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
@@ -347,10 +353,19 @@ Runtime/controller change is justified by #236 alone.
   also has no application-level reply: the current bounded activation-proof
   direction is to enqueue the keepalive and then require a successful #257 fresh
   GET_STATE read on the same unchanged connection epoch/supervisor port, relying
-  on the documented same-port ordering as a causal fence. That safety primitive
-  must be independently implemented/tested before effect authority relies on it.
-  Do not assume a host arming packet is the teacher gate: stock brushed Crazyflie
-  2.1 auto-arms when pre-flight checks pass
+  on the documented same-port ordering as a causal fence. Powered-session
+  watchdog certainty must survive guard replacement and Crazyradio reconnect:
+  reconnect/new epoch invalidates connection evidence but does not reset firmware
+  watchdog state. After ambiguous activation/maintenance, a missed keepalive
+  deadline, locked state or other lifecycle uncertainty, ordinary authority stays
+  fail-closed until an explicit STM+deck power-cycle/reboot is separately proven,
+  followed by reconnect/new epoch and complete re-preflight. That power-cycle is
+  a motor-cut recovery boundary, not a normal abort action, and must never be
+  triggered opportunistically while physical flight may still be active. The
+  watchdog safety primitive and reset boundary must be independently
+  implemented/tested before effect authority relies on them. Do not assume a host
+  arming packet is the teacher gate: stock brushed Crazyflie 2.1 auto-arms when
+  pre-flight checks pass
 - proof direction: preserve backend-neutral AST continuity and consume the
   integrated #256 pure semantic adapter from a later direct cflib
   `HighLevelCommander` effect substrate rather than the `MotionCommander` /

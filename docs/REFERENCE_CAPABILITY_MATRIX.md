@@ -119,8 +119,16 @@ enters the latching locked/reboot path. Its keepalive also has no application
 reply. The current bounded activation-proof direction is therefore a same-epoch,
 same-supervisor-port causal fence: enqueue a keepalive and then require a
 successful fresh #257 GET_STATE read, relying on the documented same-port ordering
-before treating watchdog liveness as active. That fence/lifecycle still requires
-its own non-motorized implementation proof.
+before treating watchdog liveness as active. Watchdog lifecycle identity is
+stronger than the reconnect-sensitive connection epoch: once a watchdog command
+may have reached firmware, ambiguous activation/maintenance, a missed host
+deadline, epoch loss or otherwise lost certainty must remain terminal across an
+ordinary Crazyradio reconnect. Reuse requires a separately proven STM+deck
+power-cycle/reboot boundary, then a new connection epoch plus full capability,
+preflight and safety re-observation. The power-cycle is a motor-cut recovery
+operation rather than normal completion and must not be triggered while flight may
+still be active. The fence/lifecycle/reset boundary still requires its own
+non-motorized implementation proof before effect authority relies on it.
 
 Normal completion must use the controlled high-level landing trajectory rather
 than the high-level `stop()` motor-cut path and require fresh #257 evidence that
