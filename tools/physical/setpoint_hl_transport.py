@@ -30,8 +30,10 @@ Live SafeLink is re-checked immediately before entering #271. The SETPOINT_HL
 reply callback is installed before the pessimistic effect boundary is crossed.
 Exactly one plain Crazyflie.send_packet(packet) call is made, with no
 expected_reply/application retry. A non-zero firmware result restores the prior
-flying phase. A zero result moves #273 only to awaiting-completion; fresh #257
-completion evidence must establish flying again before another motion effect.
+flying phase. A zero result moves #273 to awaiting-completion and returns one opaque
+accepted-effect claim only to this transport. The transport consumes that claim
+only after fresh #257 evidence positively observes the prior trajectory finished
+while flight remains healthy.
 Timeout, disconnect, malformed reply, send failure or epoch change is ambiguous
 and remains fail-closed.
 
@@ -44,7 +46,7 @@ from __future__ import annotations
 import math
 import struct
 from threading import Event, Lock
-from time import monotonic
+from time import monotonic, sleep
 from typing import Callable
 
 import high_level_ack
@@ -64,6 +66,8 @@ _COMMAND_GO_TO_2 = 12
 _DEFAULT_REPLY_TIMEOUT_SECONDS = 0.2
 _DEFAULT_YAW_TIMEOUT_SECONDS = 0.5
 _WAIT_SLICE_SECONDS = 0.01
+_COMPLETION_READ_TIMEOUT_SECONDS = 0.2
+_COMPLETION_POLL_SECONDS = 0.05
 _GO_TO_2_SIZE = 24
 
 
@@ -145,6 +149,10 @@ def _validate_request(value: object) -> bytes:
     if duration <= 0.0:
         raise SetpointHlTransportError("GO_TO_2 duration must be positive")
     return data
+
+
+def _request_duration(request: bytes) -> float:
+    return float(struct.unpack("<BBBBfffff", request)[-1])
 
 
 def _default_packet_factory(request: bytes) -> object:
@@ -344,8 +352,8 @@ class TrustedSetpointHlTransport:
                 "ordinary GO_TO_2 motion requires fresh established flying state"
             )
 
-    def _read_fresh_flying(self) -> object:
-        """Require one fresh same-epoch #257 non-fault flying observation."""
+    def _read_fresh_finished_flying(self) -> object:
+        """Require final fresh #257 no-fault flight with no active trajectory."""
         if self._supervisor.poisoned is not False:
             raise SetpointHlTransportError(
                 "fresh supervisor reader is poisoned before physical effect"
@@ -356,13 +364,28 @@ class TrustedSetpointHlTransport:
             raise SetpointHlTransportError(
                 "fresh supervisor safety observation failed before physical effect"
             ) from exc
-        if getattr(state, "blocking_fault", None) is not False:
+        blocking_fault = getattr(state, "blocking_fault", None)
+        is_flying = getattr(state, "is_flying", None)
+        trajectory_finished = getattr(state, "hl_traj_finished", None)
+        if (
+            not isinstance(blocking_fault, bool)
+            or not isinstance(is_flying, bool)
+            or not isinstance(trajectory_finished, bool)
+        ):
             raise SetpointHlTransportError(
-                "fresh supervisor state has a blocking or unknown fault"
+                "fresh supervisor pre-effect state is malformed"
             )
-        if getattr(state, "is_flying", None) is not True:
+        if blocking_fault:
+            raise SetpointHlTransportError(
+                "fresh supervisor state has a blocking fault"
+            )
+        if not is_flying:
             raise SetpointHlTransportError(
                 "fresh supervisor state does not positively establish flight"
+            )
+        if not trajectory_finished:
+            raise SetpointHlTransportError(
+                "previous high-level trajectory is not freshly finished"
             )
         return state
 
@@ -420,6 +443,95 @@ class TrustedSetpointHlTransport:
                 "packet factory substituted SETPOINT_HL request bytes"
             )
 
+    def _force_completion_uncertainty(
+        self,
+        claim: physical_execution_domain.AcceptedEffectCompletionClaim,
+    ) -> None:
+        if self._execution.phase == physical_execution_domain.AWAITING_COMPLETION:
+            try:
+                self._execution.complete_accepted_effect(
+                    claim,
+                    physical_execution_domain.FLYING,
+                    lambda: False,
+                )
+            except physical_execution_domain.PhysicalExecutionDomainError:
+                pass
+
+    def _await_motion_completion(
+        self,
+        claim: physical_execution_domain.AcceptedEffectCompletionClaim,
+        planned_duration: float,
+    ) -> None:
+        """Consume the private accepted-effect claim only after fresh #257 proof."""
+        if type(claim) is not physical_execution_domain.AcceptedEffectCompletionClaim:
+            raise SetpointHlTransportError(
+                "exact accepted-effect completion claim is required"
+            )
+        timeout = _positive_timeout(
+            planned_duration + max(1.0, planned_duration * 0.5),
+            "high-level motion completion timeout",
+        )
+        deadline = monotonic() + timeout
+        try:
+            while True:
+                remaining = deadline - monotonic()
+                if remaining <= 0.0:
+                    raise SetpointHlTransportError(
+                        "high-level motion completion timed out"
+                    )
+                if self._supervisor.poisoned is not False:
+                    raise SetpointHlTransportError(
+                        "fresh supervisor reader is poisoned during motion completion"
+                    )
+                try:
+                    state = self._supervisor.read(
+                        timeout_seconds=min(
+                            _COMPLETION_READ_TIMEOUT_SECONDS,
+                            remaining,
+                        )
+                    )
+                except Exception as exc:
+                    raise SetpointHlTransportError(
+                        "fresh supervisor motion-completion observation failed"
+                    ) from exc
+
+                blocking_fault = getattr(state, "blocking_fault", None)
+                is_flying = getattr(state, "is_flying", None)
+                trajectory_finished = getattr(state, "hl_traj_finished", None)
+                if (
+                    not isinstance(blocking_fault, bool)
+                    or not isinstance(is_flying, bool)
+                    or not isinstance(trajectory_finished, bool)
+                ):
+                    raise SetpointHlTransportError(
+                        "fresh supervisor motion-completion state is malformed"
+                    )
+                if blocking_fault:
+                    raise SetpointHlTransportError(
+                        "blocking supervisor fault during motion completion"
+                    )
+                if not is_flying:
+                    raise SetpointHlTransportError(
+                        "physical flight ended unexpectedly during motion completion"
+                    )
+                if trajectory_finished:
+                    self._execution.complete_accepted_effect(
+                        claim,
+                        physical_execution_domain.FLYING,
+                        lambda: True,
+                    )
+                    return
+
+                remaining = deadline - monotonic()
+                if remaining <= 0.0:
+                    raise SetpointHlTransportError(
+                        "high-level motion completion timed out"
+                    )
+                sleep(min(_COMPLETION_POLL_SECONDS, remaining))
+        except Exception:
+            self._force_completion_uncertainty(claim)
+            raise
+
     def _send_go_to_once(
         self,
         request_builder: Callable[[], bytes],
@@ -431,25 +543,28 @@ class TrustedSetpointHlTransport:
             reply_timeout_seconds,
             "SETPOINT_HL reply timeout",
         )
+        result: high_level_ack.HighLevelAckResult | None = None
+        completion_claim: (
+            physical_execution_domain.AcceptedEffectCompletionClaim | None
+        ) = None
+        planned_duration: float | None = None
 
         with self._execution.effect_transaction(
             self._assert_current_authority
         ) as effect:
             request = _validate_request(builder())
-            # Test seam / cflib packet construction is completed and verified
-            # before the final fresh safety/authority observations.
+            planned_duration = _request_duration(request)
             packet = _default_packet_factory(request)
             self._validate_packet(packet, request)
 
-            # Request construction may block for fresh yaw. Re-establish fresh
-            # supervisor flight safety first, then mutable teacher/watchdog
-            # authority, immediately before SafeLink/#271/emission.
-            self._read_fresh_flying()
+            # The fresh host-initiated #249 round trip may block. Keep it before
+            # the final #257 observation so supervisor evidence is adjacent to
+            # SafeLink/#271/emission instead of ageing during preflight.
             self._assert_current_authority()
+            self._read_fresh_finished_flying()
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
-
                 reply_event = Event()
                 reply_lock = Lock()
                 first_reply: list[bytes] = []
@@ -503,16 +618,33 @@ class TrustedSetpointHlTransport:
 
                     result = acknowledgement.resolve_reply(reply)
                     if result.accepted:
-                        effect.mark_accepted()
+                        # The opaque claim never crosses this transport surface.
+                        # An external lambda alone therefore cannot restore
+                        # effect eligibility after this accepted command.
+                        completion_claim = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
-                    return result
                 finally:
                     if callback_installed:
                         try:
                             remove_callback(_SETPOINT_HL_PORT, on_reply)
                         except Exception:
                             pass
+
+        if result is None or planned_duration is None:
+            raise SetpointHlTransportError(
+                "SETPOINT_HL acknowledgement result is unavailable"
+            )
+        if result.accepted:
+            if completion_claim is None:
+                raise SetpointHlTransportError(
+                    "accepted SETPOINT_HL effect has no private completion claim"
+                )
+            self._await_motion_completion(
+                completion_claim,
+                planned_duration,
+            )
+        return result
 
     def send_horizontal_move(
         self,
