@@ -91,10 +91,17 @@ fresh fail-closed supervisor-state observer needed for later completion/safety
 decisions: it is bound to the reconnect-sensitive connection epoch, serializes
 reads across that epoch, requires exact response framing, preserves the raw
 bitfield including deck fault and poisons ambiguous freshness/transport until
-reconnect. Neither slice emits flight authority.
+reconnect. Integrated #260 establishes the non-authority accepted-yaw observer
+needed by #256: it streams firmware `stateEstimate.yaw` on the same reconnect-
+sensitive epoch, treats the first received sample only as a timestamp baseline,
+requires a strictly later post-call sample, rejects duplicate/stale/malformed/
+non-finite samples and converts degrees to radians exactly once. None of these
+slices emits flight authority.
 
-A later effect consumer still must supply the accepted live yaw, consume #257 to
-bound command completion, and establish the independent watchdog before any
+A later effect consumer must consume one fresh same-epoch #260 yaw sample
+immediately before the #256 horizontal transform, preserve the exact preflight/
+session binding across that observation and transform, consume #257 to bound
+command completion, and establish the independent watchdog before any
 flight-capable effect. For safety decisions, #257 must be the exclusive
 authoritative issuer of supervisor GET_STATE requests on the connection epoch:
 the passive cflib supervisor callback may remain registered, but later
