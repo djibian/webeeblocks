@@ -18,7 +18,7 @@ arming, high-level commander, setpoint, landing or student/browser API.
 from __future__ import annotations
 
 from math import isfinite
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, current_thread
 from time import monotonic
 from typing import Callable
 
@@ -89,10 +89,7 @@ class EmergencyWatchdogLivenessGuard:
             raise WatchdogLivenessError(
                 "watchdog and supervisor reader must share one connection epoch"
             )
-        if bool(getattr(supervisor_reader, "poisoned", False)):
-            raise WatchdogLivenessError(
-                "supervisor freshness is poisoned for watchdog activation"
-            )
+        self._require_reader_ready()
 
         self._state_lock = Lock()
         self._stop_event = Event()
@@ -134,6 +131,18 @@ class EmergencyWatchdogLivenessGuard:
                 "connection epoch changed during watchdog liveness domain"
             )
 
+    def _require_reader_ready(self) -> None:
+        poisoned = getattr(self._supervisor_reader, "poisoned", None)
+        if poisoned is not False:
+            raise WatchdogLivenessError(
+                "fresh supervisor reader poison state is unavailable or poisoned "
+                "for watchdog activation"
+            )
+        if not callable(getattr(self._supervisor_reader, "read", None)):
+            raise WatchdogLivenessError(
+                "fresh supervisor reader is unavailable for watchdog activation"
+            )
+
     def _read_protocol_version(self) -> int:
         try:
             version = int(self._cf.platform.get_protocol_version())
@@ -147,12 +156,35 @@ class EmergencyWatchdogLivenessGuard:
             )
         return version
 
+    def _clock_now(self) -> float:
+        try:
+            now = float(self._clock())
+        except Exception as exc:
+            raise WatchdogLivenessError(
+                "watchdog monotonic clock is unavailable"
+            ) from exc
+        if not isfinite(now):
+            raise WatchdogLivenessError("watchdog monotonic clock is invalid")
+        return now
+
     def _record_terminal(self, reason: str) -> None:
         with self._state_lock:
             if self._terminal_reason is None:
                 self._terminal_reason = reason
             self._active = False
         self._stop_event.set()
+
+    def _last_keepalive(self) -> float | None:
+        with self._state_lock:
+            return self._last_keepalive_at
+
+    def _verify_host_gap(self) -> None:
+        last = self._last_keepalive()
+        now = self._clock_now()
+        if last is None or now - last > self._max_host_gap_seconds:
+            raise WatchdogLivenessError(
+                "watchdog host keepalive deadline was missed"
+            )
 
     def _send_keepalive(self) -> None:
         self._verify_epoch()
@@ -162,17 +194,28 @@ class EmergencyWatchdogLivenessGuard:
             raise WatchdogLivenessError(
                 "cflib supervisor watchdog command is unavailable"
             )
+
+        previous = self._last_keepalive()
+        before = self._clock_now()
+        if previous is not None and before - previous > self._max_host_gap_seconds:
+            raise WatchdogLivenessError(
+                "watchdog host keepalive deadline was missed"
+            )
+
         try:
             sender()
         except Exception as exc:
             raise WatchdogLivenessError(
                 f"watchdog keepalive enqueue failed: {exc}"
             ) from exc
-        now = float(self._clock())
-        if not isfinite(now):
-            raise WatchdogLivenessError("watchdog monotonic clock is invalid")
+
+        after = self._clock_now()
+        if previous is not None and after - previous > self._max_host_gap_seconds:
+            raise WatchdogLivenessError(
+                "watchdog host keepalive deadline was missed during enqueue"
+            )
         with self._state_lock:
-            self._last_keepalive_at = now
+            self._last_keepalive_at = after
 
     def activate(self, *, supervisor_timeout_seconds: float = 0.2) -> object:
         """Activate and causally fence the watchdog before any flight effect.
@@ -196,15 +239,13 @@ class EmergencyWatchdogLivenessGuard:
         try:
             self._verify_epoch()
             self._read_protocol_version()
-            if bool(getattr(self._supervisor_reader, "poisoned", False)):
-                raise WatchdogLivenessError(
-                    "supervisor freshness is poisoned for watchdog activation"
-                )
+            self._require_reader_ready()
 
             # Same-port causal fence: watchdog command first, fresh GET_STATE next.
             self._send_keepalive()
             state = self._supervisor_reader.read(timeout_seconds=timeout)
             self._verify_epoch()
+            self._verify_host_gap()
 
             if bool(getattr(state, "blocking_fault", True)):
                 raise WatchdogLivenessError(
@@ -234,18 +275,6 @@ class EmergencyWatchdogLivenessGuard:
     def _keepalive_loop(self) -> None:
         while not self._stop_event.wait(self._keepalive_interval_seconds):
             try:
-                self._verify_epoch()
-                now = float(self._clock())
-                with self._state_lock:
-                    last = self._last_keepalive_at
-                if (
-                    not isfinite(now)
-                    or last is None
-                    or now - last > self._max_host_gap_seconds
-                ):
-                    raise WatchdogLivenessError(
-                        "watchdog host keepalive deadline was missed"
-                    )
                 self._send_keepalive()
             except Exception as exc:
                 reason = (
@@ -261,22 +290,17 @@ class EmergencyWatchdogLivenessGuard:
         with self._state_lock:
             reason = self._terminal_reason
             active = self._active
-            last = self._last_keepalive_at
             thread = self._thread
         if reason is not None:
             raise WatchdogLivenessError("watchdog liveness is terminal: " + reason)
         if not active or thread is None or not thread.is_alive():
             raise WatchdogLivenessError("watchdog liveness service is not active")
         self._verify_epoch()
-        now = float(self._clock())
-        if (
-            not isfinite(now)
-            or last is None
-            or now - last > self._max_host_gap_seconds
-        ):
-            reason = "watchdog host keepalive deadline was missed"
-            self._record_terminal(reason)
-            raise WatchdogLivenessError(reason)
+        try:
+            self._verify_host_gap()
+        except WatchdogLivenessError as exc:
+            self._record_terminal(str(exc))
+            raise
 
     def stop_for_terminal_reboot(self, *, join_timeout_seconds: float = 1.0) -> None:
         """Intentionally end keepalives, accepting eventual firmware lock/reboot.
@@ -292,9 +316,7 @@ class EmergencyWatchdogLivenessGuard:
             "watchdog keepalives intentionally stopped; firmware lock/reboot is expected"
         )
         thread = self._thread
-        if thread is not None and thread is not Thread.current_thread if False else False:
-            pass
-        if thread is not None:
+        if thread is not None and thread is not current_thread():
             thread.join(timeout)
             if thread.is_alive():
                 raise WatchdogLivenessError(
