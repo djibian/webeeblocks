@@ -82,13 +82,33 @@ assertion: a separately authorized physical effect consumer with explicit teache
 authorization before any flight-capable command/effect, firmware-independent
 arming semantics (stock brushed Crazyflie 2.1 auto-arms when pre-flight checks
 pass), an independent emergency-stop watchdog/liveness guard, controlled normal
-land/disarm behavior and proof of real execution continuity. Current source
-evidence selects direct cflib HighLevelCommander semantics as the closest
-physical primitive substrate; body-relative horizontal movement must be rotated
-into world-frame displacement from the accepted yaw, and normal command
-completion must be bounded by observed supervisor state rather than host-side
-sleep alone. Immediate emergency stop and high-level commander stop remain
-exceptional motor-cut paths, not normal Stop/Land semantics.
+land/disarm behavior and proof of real execution continuity. Integrated #256
+codifies the non-authority semantic transform for the future direct cflib
+HighLevelCommander path: body-relative horizontal movement is rotated into
+world-frame displacement from an accepted yaw, vertical intent stays relative
+world-Z and turns stay relative yaw. Integrated #257 separately establishes the
+fresh fail-closed supervisor-state observer needed for later completion/safety
+decisions: it is bound to the reconnect-sensitive connection epoch, serializes
+reads across that epoch, requires exact response framing, preserves the raw
+bitfield including deck fault and poisons ambiguous freshness/transport until
+reconnect. Neither slice emits flight authority.
+
+A later effect consumer still must supply the accepted live yaw, consume #257 to
+bound command completion, and establish the independent watchdog before any
+flight-capable effect. For safety decisions, #257 must be the exclusive
+authoritative issuer of supervisor GET_STATE requests on the connection epoch:
+the passive cflib supervisor callback may remain registered, but later
+authority/completion/watchdog code must not invoke cflib `Supervisor` getters in
+parallel or use them as a second oracle because they bypass #257's epoch-wide
+serialization and ambiguity poisoning. The pinned watchdog is one-way after first activation:
+there is no normal disable/reset command and abandoning keepalives eventually
+enters the latching locked/reboot path. Its keepalive also has no application
+reply. The current bounded activation-proof direction is therefore a same-epoch,
+same-supervisor-port causal fence: enqueue a keepalive and then require a
+successful fresh #257 GET_STATE read, relying on the documented same-port ordering
+before treating watchdog liveness as active. That fence/lifecycle still requires
+its own non-motorized implementation proof. Immediate emergency stop and high-level
+commander stop remain exceptional motor-cut paths, not normal Stop/Land semantics.
 
 Do not turn source availability, Lab firmware experiments, preflight
 compatibility, simulation coverage or this implementation direction into a
