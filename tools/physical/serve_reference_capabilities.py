@@ -27,7 +27,6 @@ class CapabilityBridgeError(RuntimeError):
 
 
 _EVIDENCE_MINT_KEY = object()
-_EFFECT_PREFLIGHT_MINT_KEY = object()
 
 
 def _require_text(value: object, name: str) -> str:
@@ -430,119 +429,110 @@ class ReadOnlyCapabilityHttpBridge:
         self._server.server_close()
 
 
-class CurrentProgramEffectPreflightHandle:
-    """Opaque non-authority handle onto one integrated #278 production bridge.
+def _build_effect_preflight_contract():
+    mint_key = object()
 
-    Public ReadOnlyCapabilityHttpBridge construction, injected/fake capability
-    sessions and responder credentials are deliberately insufficient to create
-    an effect-eligible current-program source. Binding additionally requires the
-    exact uninjected live ReadOnlyCapabilitySession construction path; the
-    physical effect consumer receives only this handle.
-    """
+    class CurrentProgramEffectPreflightHandle:
+        """Opaque non-authority capability minted only inside production main.
 
-    __slots__ = ("__bridge",)
+        There is intentionally no module-level binder/factory. A public bridge,
+        its responder credential, or a self-answered #249 assertion cannot be
+        converted into this effect-eligible type through normal imported APIs.
+        """
 
-    def __init__(
-        self,
-        bridge: ReadOnlyCapabilityHttpBridge,
-        *,
-        _mint_key: object,
-    ) -> None:
-        if _mint_key is not _EFFECT_PREFLIGHT_MINT_KEY:
-            raise CapabilityBridgeError(
-                "effect current-program handle may only be minted by trusted host integration"
+        __slots__ = ("__bridge",)
+
+        def __init__(
+            self,
+            bridge: ReadOnlyCapabilityHttpBridge,
+            *,
+            _mint_key: object,
+        ) -> None:
+            if _mint_key is not mint_key:
+                raise CapabilityBridgeError(
+                    "effect current-program handle may only be minted by production host composition"
+                )
+            if type(bridge) is not ReadOnlyCapabilityHttpBridge:
+                raise CapabilityBridgeError(
+                    "exact integrated current-program bridge is required"
+                )
+            self.__bridge = bridge
+
+        @property
+        def bound_connection_epoch(self) -> str:
+            return self.__bridge.session.read_connection_epoch()
+
+        def assert_current_program(
+            self,
+            *,
+            profile_id: str,
+            ast_binding: str,
+            connection_epoch: str,
+            timeout_seconds: float = 1.0,
+        ) -> CurrentProgramPreflightEvidence:
+            return self.__bridge.assert_current_program(
+                profile_id=profile_id,
+                ast_binding=ast_binding,
+                connection_epoch=connection_epoch,
+                timeout_seconds=timeout_seconds,
             )
-        if type(bridge) is not ReadOnlyCapabilityHttpBridge:
-            raise CapabilityBridgeError(
-                "exact integrated current-program bridge is required"
+
+    def production_main() -> int:
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--uri",
+            required=True,
+            help="explicit radio:// Crazyradio URI",
+        )
+        parser.add_argument("--host", default="127.0.0.1")
+        parser.add_argument("--port", type=int, default=0)
+        args = parser.parse_args()
+
+        with ReadOnlyCapabilitySession(args.uri) as session:
+            bridge = ReadOnlyCapabilityHttpBridge(
+                session,
+                host=args.host,
+                port=args.port,
             )
-        self.__bridge = bridge
+            # The effect-eligible capability is minted only in this production
+            # composition closure. It is deliberately not returned or exposed by
+            # the public/read-only bridge API; a later trusted host composition
+            # may consume this local capability when it owns the full run.
+            _effect_current_program_preflight = CurrentProgramEffectPreflightHandle(
+                bridge,
+                _mint_key=mint_key,
+            )
+            if type(_effect_current_program_preflight) is not CurrentProgramEffectPreflightHandle:
+                raise CapabilityBridgeError(
+                    "production current-program preflight capability was not established"
+                )
 
-    @property
-    def bound_connection_epoch(self) -> str:
-        return self.__bridge.session.read_connection_epoch()
+            host, port = bridge.address
+            print(
+                json.dumps(
+                    {
+                        "baseUrl": f"http://{host}:{port}",
+                        "token": bridge.token,
+                        "preflightResponderToken": bridge.preflight_responder_token,
+                        "executionAuthority": False,
+                    },
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
+            try:
+                bridge.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                bridge.shutdown()
+        return 0
 
-    def assert_current_program(
-        self,
-        *,
-        profile_id: str,
-        ast_binding: str,
-        connection_epoch: str,
-        timeout_seconds: float = 1.0,
-    ) -> CurrentProgramPreflightEvidence:
-        return self.__bridge.assert_current_program(
-            profile_id=profile_id,
-            ast_binding=ast_binding,
-            connection_epoch=connection_epoch,
-            timeout_seconds=timeout_seconds,
-        )
-
-
-def _bind_effect_current_program_bridge(
-    bridge: ReadOnlyCapabilityHttpBridge,
-) -> CurrentProgramEffectPreflightHandle:
-    """Bind only the actual uninjected live capability-session composition."""
-    if type(bridge) is not ReadOnlyCapabilityHttpBridge:
-        raise CapabilityBridgeError(
-            "exact integrated current-program bridge is required"
-        )
-    session = bridge.session
-    if (
-        type(session) is not ReadOnlyCapabilitySession
-        or session.effect_preflight_production_backed is not True
-    ):
-        raise CapabilityBridgeError(
-            "effect current-program binding requires the production-backed live session"
-        )
-    try:
-        session.read_connection_epoch()
-    except Exception as exc:
-        raise CapabilityBridgeError(
-            "effect current-program binding requires an active production session"
-        ) from exc
-    return CurrentProgramEffectPreflightHandle(
-        bridge,
-        _mint_key=_EFFECT_PREFLIGHT_MINT_KEY,
-    )
+    return CurrentProgramEffectPreflightHandle, production_main
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--uri",
-        required=True,
-        help="explicit radio:// Crazyradio URI",
-    )
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=0)
-    args = parser.parse_args()
-
-    with ReadOnlyCapabilitySession(args.uri) as session:
-        bridge = ReadOnlyCapabilityHttpBridge(
-            session,
-            host=args.host,
-            port=args.port,
-        )
-        host, port = bridge.address
-        print(
-            json.dumps(
-                {
-                    "baseUrl": f"http://{host}:{port}",
-                    "token": bridge.token,
-                    "preflightResponderToken": bridge.preflight_responder_token,
-                    "executionAuthority": False,
-                },
-                separators=(",", ":"),
-            ),
-            flush=True,
-        )
-        try:
-            bridge.serve_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            bridge.shutdown()
-    return 0
+CurrentProgramEffectPreflightHandle, main = _build_effect_preflight_contract()
+del _build_effect_preflight_contract
 
 
 if __name__ == "__main__":

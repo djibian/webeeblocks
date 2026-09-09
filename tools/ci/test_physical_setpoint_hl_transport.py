@@ -363,10 +363,16 @@ class Fixture:
             daemon=True,
         )
         self.preflight_responder_thread.start()
-        self.current_program_preflight = (
-            capability_bridge._bind_effect_current_program_bridge(
-                self.preflight_bridge
-            )
+        # Test-only object-model bypass: production deliberately exposes no
+        # handle binder. Trust-path regressions below prove normal imported code
+        # cannot turn an arbitrary bridge into this effect-eligible type.
+        self.current_program_preflight = object.__new__(
+            capability_bridge.CurrentProgramEffectPreflightHandle
+        )
+        object.__setattr__(
+            self.current_program_preflight,
+            "_CurrentProgramEffectPreflightHandle__bridge",
+            self.preflight_bridge,
         )
         self.safelink = safelink.LiveSafeLinkPrecondition(cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
@@ -754,12 +760,13 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
             is capability_bridge.CurrentProgramPreflightEvidence,
             "public bridge counterexample must actually mint self-answered evidence",
         )
-        expect_error(
-            lambda: capability_bridge._bind_effect_current_program_bridge(
-                forged_bridge
-            ),
-            capability_bridge.CapabilityBridgeError,
-            "production-backed live session",
+        require(
+            not hasattr(capability_bridge, "_bind_effect_current_program_bridge"),
+            "normal imported Python must expose no bridge-to-effect binder",
+        )
+        require(
+            not hasattr(capability_bridge, "_EFFECT_PREFLIGHT_MINT_KEY"),
+            "effect preflight mint key must not be a module attribute",
         )
         expect_error(
             lambda: capability_bridge.CurrentProgramEffectPreflightHandle(
@@ -767,7 +774,7 @@ def test_concrete_authority_and_exact_cf_bindings_are_required() -> None:
                 _mint_key=object(),
             ),
             capability_bridge.CapabilityBridgeError,
-            "trusted host integration",
+            "production host composition",
         )
         forged_candidate = dict(kwargs)
         forged_candidate["current_program_preflight"] = forged_bridge
@@ -899,6 +906,7 @@ def test_source_has_one_effect_primitive_and_no_retry_or_raw_command_api() -> No
         "hl_traj_finished",
         "hl_control_active",
         "complete_accepted_effect",
+        "CurrentProgramEffectPreflightHandle",
     ):
         require(required in source, "missing concrete transport contract: " + required)
 

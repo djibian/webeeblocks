@@ -264,16 +264,6 @@ class ReadOnlyCapabilitySession:
         if not uri.startswith("radio://"):
             raise ProbeError("P0b requires an explicit Crazyradio radio:// URI")
         self._uri = uri
-        self._effect_preflight_production_backed = all(
-            seam is None
-            for seam in (
-                scf_factory,
-                driver_init,
-                epoch_factory,
-                cflib_version_reader,
-                descriptor_reader,
-            )
-        )
         self._scf_factory = scf_factory
         self._driver_init = driver_init
         self._epoch_factory = epoch_factory or (lambda: secrets.token_hex(16))
@@ -382,11 +372,6 @@ class ReadOnlyCapabilitySession:
                 scf.close_link()
         except Exception:
             pass
-
-    @property
-    def effect_preflight_production_backed(self) -> bool:
-        """True only for the uninjected live-session construction path."""
-        return self._effect_preflight_production_backed
 
     def read_connection_epoch(self) -> str:
         with self._state_lock:
