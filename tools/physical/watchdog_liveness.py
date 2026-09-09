@@ -205,6 +205,10 @@ class EmergencyWatchdogLivenessGuard:
             raise WatchdogLivenessError(
                 "watchdog and supervisor reader must share one connection epoch"
             )
+        if getattr(supervisor_reader, "bound_crazyflie", None) is not cf:
+            raise WatchdogLivenessError(
+                "watchdog and supervisor reader must share the exact Crazyflie object"
+            )
         self._require_reader_ready()
         self._powered_session.require_new()
 
