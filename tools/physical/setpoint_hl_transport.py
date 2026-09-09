@@ -373,10 +373,12 @@ class TrustedSetpointHlTransport:
             ) from exc
         blocking_fault = getattr(state, "blocking_fault", None)
         is_flying = getattr(state, "is_flying", None)
+        high_level_active = getattr(state, "hl_control_active", None)
         trajectory_finished = getattr(state, "hl_traj_finished", None)
         if (
             not isinstance(blocking_fault, bool)
             or not isinstance(is_flying, bool)
+            or not isinstance(high_level_active, bool)
             or not isinstance(trajectory_finished, bool)
         ):
             raise SetpointHlTransportError(
@@ -389,6 +391,10 @@ class TrustedSetpointHlTransport:
         if not is_flying:
             raise SetpointHlTransportError(
                 "fresh supervisor state does not positively establish flight"
+            )
+        if not high_level_active:
+            raise SetpointHlTransportError(
+                "fresh supervisor state has no active high-level control"
             )
         if not trajectory_finished:
             raise SetpointHlTransportError(
@@ -452,7 +458,7 @@ class TrustedSetpointHlTransport:
 
     def _force_completion_uncertainty(
         self,
-        claim: physical_execution_domain.AcceptedEffectCompletionClaim,
+        claim: physical_execution_domain.AcceptedEffectCompletionPermit,
     ) -> None:
         if self._execution.phase == physical_execution_domain.AWAITING_COMPLETION:
             try:
@@ -466,26 +472,29 @@ class TrustedSetpointHlTransport:
 
     def _await_motion_completion(
         self,
-        claim: physical_execution_domain.AcceptedEffectCompletionClaim,
+        permit: physical_execution_domain.AcceptedEffectCompletionPermit,
         planned_duration: float,
     ) -> None:
-        """Consume the private accepted-effect claim only after fresh #257 proof."""
-        if type(claim) is not physical_execution_domain.AcceptedEffectCompletionClaim:
+        """Consume the private permit only after causally fresh #257 completion."""
+        if type(permit) is not physical_execution_domain.AcceptedEffectCompletionPermit:
             raise SetpointHlTransportError(
-                "exact accepted-effect completion claim is required"
+                "exact accepted-effect completion permit is required"
             )
         timeout = _positive_timeout(
             planned_duration + max(1.0, planned_duration * 0.5),
             "high-level motion completion timeout",
         )
-        deadline = monotonic() + timeout
+        started_at = float(self._clock())
+        deadline = started_at + timeout
+        saw_in_progress = False
         try:
             while True:
-                remaining = deadline - monotonic()
+                remaining = deadline - float(self._clock())
                 if remaining <= 0.0:
                     raise SetpointHlTransportError(
                         "high-level motion completion timed out"
                     )
+                self._watchdog.assert_live()
                 if self._supervisor.poisoned is not False:
                     raise SetpointHlTransportError(
                         "fresh supervisor reader is poisoned during motion completion"
@@ -504,10 +513,12 @@ class TrustedSetpointHlTransport:
 
                 blocking_fault = getattr(state, "blocking_fault", None)
                 is_flying = getattr(state, "is_flying", None)
+                high_level_active = getattr(state, "hl_control_active", None)
                 trajectory_finished = getattr(state, "hl_traj_finished", None)
                 if (
                     not isinstance(blocking_fault, bool)
                     or not isinstance(is_flying, bool)
+                    or not isinstance(high_level_active, bool)
                     or not isinstance(trajectory_finished, bool)
                 ):
                     raise SetpointHlTransportError(
@@ -521,22 +532,35 @@ class TrustedSetpointHlTransport:
                     raise SetpointHlTransportError(
                         "physical flight ended unexpectedly during motion completion"
                     )
-                if trajectory_finished:
+                if not high_level_active:
+                    raise SetpointHlTransportError(
+                        "high-level control ended unexpectedly during motion completion"
+                    )
+
+                elapsed = float(self._clock()) - started_at
+                if not trajectory_finished:
+                    saw_in_progress = True
+                elif saw_in_progress or elapsed >= planned_duration:
+                    # A true bit observed immediately after acknowledgement may
+                    # still belong to the previous completed trajectory. Require
+                    # either false -> true on fresh #257 reads, or conservatively
+                    # wait the full planned duration before accepting a new true.
+                    self._watchdog.assert_live()
                     self._execution.complete_accepted_effect(
-                        claim,
+                        permit,
                         physical_execution_domain.FLYING,
                         lambda: True,
                     )
                     return
 
-                remaining = deadline - monotonic()
+                remaining = deadline - float(self._clock())
                 if remaining <= 0.0:
                     raise SetpointHlTransportError(
                         "high-level motion completion timed out"
                     )
                 sleep(min(_COMPLETION_POLL_SECONDS, remaining))
         except Exception:
-            self._force_completion_uncertainty(claim)
+            self._force_completion_uncertainty(permit)
             raise
 
     def _send_go_to_once(
@@ -551,8 +575,8 @@ class TrustedSetpointHlTransport:
             "SETPOINT_HL reply timeout",
         )
         result: high_level_ack.HighLevelAckResult | None = None
-        completion_claim: (
-            physical_execution_domain.AcceptedEffectCompletionClaim | None
+        completion_permit: (
+            physical_execution_domain.AcceptedEffectCompletionPermit | None
         ) = None
         planned_duration: float | None = None
 
@@ -631,7 +655,7 @@ class TrustedSetpointHlTransport:
                         # The opaque claim never crosses this transport surface.
                         # An external lambda alone therefore cannot restore
                         # effect eligibility after this accepted command.
-                        completion_claim = effect.mark_accepted()
+                        completion_permit = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
                 finally:
@@ -646,12 +670,12 @@ class TrustedSetpointHlTransport:
                 "SETPOINT_HL acknowledgement result is unavailable"
             )
         if result.accepted:
-            if completion_claim is None:
+            if completion_permit is None:
                 raise SetpointHlTransportError(
                     "accepted SETPOINT_HL effect has no private completion claim"
                 )
             self._await_motion_completion(
-                completion_claim,
+                completion_permit,
                 planned_duration,
             )
         return result
