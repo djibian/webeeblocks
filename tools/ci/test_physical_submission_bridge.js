@@ -45,7 +45,20 @@ function program(distance) {
   let currentAst = program(0.2);
   let capabilityReads = 0;
   let epochReads = 0;
+  let epochReadHook = null;
   const token = 'unit-test-secret';
+
+  function delayNextEpochRead() {
+    let startedResolve;
+    let releaseResolve;
+    const started = new Promise(resolve => { startedResolve = resolve; });
+    const released = new Promise(resolve => { releaseResolve = resolve; });
+    epochReadHook = async function() {
+      startedResolve();
+      await released;
+    };
+    return {started: started, release: releaseResolve};
+  }
 
   async function fakeFetch(url, options) {
     assert.strictEqual(options.method, 'GET');
@@ -56,6 +69,11 @@ function program(distance) {
     }
     if (url.endsWith('/v1/connection-epoch')) {
       epochReads += 1;
+      if (epochReadHook) {
+        const hook = epochReadHook;
+        epochReadHook = null;
+        await hook();
+      }
       return {ok: true, status: 200, async json() { return {connectionEpoch: epoch}; }};
     }
     return {ok: false, status: 404, async json() { return {error: 'not-found'}; }};
@@ -154,22 +172,44 @@ function program(distance) {
   assert.strictEqual(productAssertion.executionAuthority, false);
   assert.strictEqual(productAssertion.preflight.connectionEpoch, 'connection-product');
 
+  const workspaceDelay = delayNextEpochRead();
+  const pendingWorkspaceAssertion = productBridge.assertCurrentProgram();
+  await workspaceDelay.started;
+  currentAst = program(0.3);
+  workspaceDelay.release();
+  await assert.rejects(
+    pendingWorkspaceAssertion,
+    /workspace changed during physical re-assertion/,
+    'workspace mutation while epoch re-assertion is pending must fail closed'
+  );
+  currentAst = program(0.2);
+  await assert.rejects(
+    () => productBridge.assertCurrentProgram(),
+    /physical preflight is required/,
+    'async workspace mismatch must invalidate the prior physical preflight'
+  );
+  await productBridge.preflightCurrentProgram();
+
   const preflightProfile = global.runtimeProfile;
+  const profileDelay = delayNextEpochRead();
+  const pendingProfileAssertion = productBridge.assertCurrentProgram();
+  await profileDelay.started;
   global.runtimeProfile = Profiles.resolveById(
     Activities.DOCUMENT,
     'progression-precise-movement-v1',
     Activities.BLOCK_CATALOG
   );
+  profileDelay.release();
   await assert.rejects(
-    () => productBridge.assertCurrentProgram(),
-    /activity profile changed since physical preflight/,
-    'profile change with identical AST and connection epoch must invalidate physical preflight'
+    pendingProfileAssertion,
+    /activity profile changed during physical re-assertion/,
+    'profile mutation while epoch re-assertion is pending must fail closed'
   );
   global.runtimeProfile = preflightProfile;
   await assert.rejects(
     () => productBridge.assertCurrentProgram(),
     /physical preflight is required/,
-    'profile mismatch must clear the prior physical preflight binding'
+    'async profile mismatch must invalidate the prior physical preflight'
   );
   await productBridge.preflightCurrentProgram();
 
