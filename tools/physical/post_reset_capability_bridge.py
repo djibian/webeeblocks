@@ -53,6 +53,37 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
         with self._session_lock:
             return self._replacement_previous_epoch is not None
 
+    def assert_current_program(
+        self,
+        *,
+        profile_id: str,
+        ast_binding: str,
+        connection_epoch: str,
+        timeout_seconds: float = 1.0,
+    ):
+        """Serialize #249 assertion admission against the #266 replacement edge.
+
+        The base bridge reads the epoch immediately before registering its pending
+        challenge. Without this outer condition there is a narrow race where a
+        reset replacement can begin after that first read but before the pending
+        challenge becomes visible. Holding the same re-entrant condition across
+        admission closes that gap. During the base wait the condition is released,
+        but the pending challenge is already installed, so replacement still
+        rejects rather than crossing an in-flight assertion.
+        """
+        with self._preflight_condition:
+            with self._session_lock:
+                if self._replacement_previous_epoch is not None:
+                    raise CapabilityBridgeError(
+                        "capability bridge session is unavailable during post-reset replacement"
+                    )
+            return super().assert_current_program(
+                profile_id=profile_id,
+                ast_binding=ast_binding,
+                connection_epoch=connection_epoch,
+                timeout_seconds=timeout_seconds,
+            )
+
     def begin_post_reset_replacement(self, expected_connection_epoch: str) -> None:
         """Invalidate the current bridge view immediately before #266 reset.
 

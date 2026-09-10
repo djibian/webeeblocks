@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
-from threading import Thread
+from threading import Event, Thread
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -33,6 +33,22 @@ class FakeSession:
         }
 
 
+class BlockingFirstEpochSession(FakeSession):
+    def __init__(self, epoch: str, label: str) -> None:
+        super().__init__(epoch, label)
+        self.first_read_started = Event()
+        self.release_first_read = Event()
+        self._read_count = 0
+
+    def read_connection_epoch(self) -> str:
+        self._read_count += 1
+        if self._read_count == 1:
+            self.first_read_started.set()
+            if not self.release_first_read.wait(1.0):
+                raise RuntimeError("test did not release first epoch read")
+        return super().read_connection_epoch()
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -56,7 +72,94 @@ def expect_error(callable_, pattern: str) -> None:
     raise AssertionError("expected CapabilityBridgeError containing " + repr(pattern))
 
 
+def test_assertion_admission_cannot_race_replacement() -> None:
+    """Force the old pre-read/pending-registration race and prove it is closed."""
+    before = BlockingFirstEpochSession("epoch-race", "race")
+    bridge = rebind.PostResetCapabilityHttpBridge(
+        before,
+        token="race-capability-token",
+        preflight_responder_token="race-responder-token",
+    )
+    assertion_outcome: dict[str, object] = {}
+    replacement_outcome: dict[str, object] = {}
+
+    def assert_current() -> None:
+        try:
+            assertion_outcome["evidence"] = bridge.assert_current_program(
+                profile_id="activity-race",
+                ast_binding="ast-race",
+                connection_epoch="epoch-race",
+                timeout_seconds=0.5,
+            )
+        except Exception as exc:
+            assertion_outcome["error"] = exc
+
+    def begin_replacement() -> None:
+        try:
+            bridge.begin_post_reset_replacement("epoch-race")
+            replacement_outcome["started"] = True
+        except Exception as exc:
+            replacement_outcome["error"] = exc
+
+    assertion = Thread(target=assert_current, daemon=True)
+    assertion.start()
+    require(
+        before.first_read_started.wait(1.0),
+        "current-program assertion did not reach its first epoch read",
+    )
+
+    replacement = Thread(target=begin_replacement, daemon=True)
+    replacement.start()
+    replacement.join(timeout=0.02)
+    require(
+        replacement.is_alive(),
+        "replacement crossed the assertion pre-read/pending-registration window",
+    )
+
+    before.release_first_read.set()
+    replacement.join(timeout=1.0)
+    require(not replacement.is_alive(), "replacement attempt did not settle")
+    error = replacement_outcome.get("error")
+    require(
+        isinstance(error, rebind.CapabilityBridgeError)
+        and "during current-program assertion" in str(error),
+        "replacement must reject once the admitted assertion publishes its pending challenge",
+    )
+    require(
+        "started" not in replacement_outcome,
+        "replacement must not invalidate the bridge across an admitted assertion",
+    )
+
+    challenge_id = bridge._claim_current_program_challenge(timeout_seconds=0.2)
+    require(isinstance(challenge_id, str) and challenge_id, "race assertion challenge")
+    bridge._submit_current_program_assertion(
+        {
+            "challengeId": challenge_id,
+            "ok": True,
+            "profileId": "activity-race",
+            "astBinding": "ast-race",
+            "connectionEpoch": "epoch-race",
+            "executionAuthority": False,
+        }
+    )
+    assertion.join(timeout=1.0)
+    require(not assertion.is_alive(), "current-program assertion did not settle")
+    require("error" not in assertion_outcome, "admitted assertion must complete normally")
+    evidence = assertion_outcome.get("evidence")
+    require(
+        getattr(evidence, "connection_epoch", None) == "epoch-race",
+        "completed assertion remains bound to the unchanged pre-reset epoch",
+    )
+    require(
+        not bridge.post_reset_replacement_pending,
+        "failed concurrent replacement cannot leave a replacement marker",
+    )
+    bridge.shutdown()
+
+
 def main() -> int:
+    test_assertion_admission_cannot_race_replacement()
+
     before = FakeSession("epoch-before", "before")
     after = FakeSession("epoch-after", "after")
     bridge = rebind.PostResetCapabilityHttpBridge(
@@ -176,7 +279,7 @@ def main() -> int:
 
     print(
         "PASS post-reset capability bridge preserves trusted loopback identity "
-        "while stale epochs fail closed"
+        "while stale epochs and assertion/replacement races fail closed"
     )
     return 0
 
