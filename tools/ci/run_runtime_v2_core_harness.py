@@ -113,6 +113,10 @@ def main():
     if physical_execution_domain_test.returncode:
         print('FAIL trusted physical reset/effect exclusion domain',file=sys.stderr);print(physical_execution_domain_test.stdout,file=sys.stderr);print(physical_execution_domain_test.stderr,file=sys.stderr);return physical_execution_domain_test.returncode
     print(physical_execution_domain_test.stdout.strip())
+    physical_program_sequence_test=subprocess.run([sys.executable,'tools/ci/test_physical_program_sequence.py'],text=True,capture_output=True)
+    if physical_program_sequence_test.returncode:
+        print('FAIL exact physical program sequencing',file=sys.stderr);print(physical_program_sequence_test.stdout,file=sys.stderr);print(physical_program_sequence_test.stderr,file=sys.stderr);return physical_program_sequence_test.returncode
+    print(physical_program_sequence_test.stdout.strip())
     physical_takeoff_command_test=subprocess.run([sys.executable,'tools/ci/test_physical_takeoff_command.py'],text=True,capture_output=True)
     if physical_takeoff_command_test.returncode:
         print('FAIL exact-bound physical takeoff command semantics',file=sys.stderr);print(physical_takeoff_command_test.stdout,file=sys.stderr);print(physical_takeoff_command_test.stderr,file=sys.stderr);return physical_takeoff_command_test.returncode
