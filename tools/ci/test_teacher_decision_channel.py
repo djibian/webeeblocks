@@ -324,7 +324,7 @@ def test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority() -> 
         "run_teacher_decision_channel",
         "teacher_channel.receive_authorization(teacher_authorizer)",
         'if request.get("op") != "validate-run-context":',
-        "active_teacher_authorization = receipt",
+        'teacher_state["authorization"] = receipt',
     ):
         require(required in host_source, "host lacks trusted teacher composition: " + required)
     for forbidden in (
