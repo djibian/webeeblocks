@@ -9,20 +9,23 @@ session and the integrated #278 bridge/responder relationship.
 The ordinary caller/UI is outside this process. Its IPC messages are untrusted
 run-context validation requests only; a positive reply is diagnostic/non-authority
 data and must never be accepted later as an effect capability. A distinct
-launcher-installed teacher socket may independently approve one exact #267 run;
-that receipt remains process-local and is never returned on caller/browser IPC.
-The future #276 transport belongs *inside this same process* so fresh #249 and all
-identity-sensitive #257/#260/#262/#266/#267/#271/#272/#273 objects share the one
-live Crazyflie/session/connection epoch.
+launcher-installed teacher socket is the trusted preparation enablement for one
+physical run: by itself it has no candidate and emits no effect; ordinary caller
+data without that capability cannot trigger reset or teacher activity. Only the
+conjunction of that trusted capability and one freshly host-validated profile /
+canonical-AST candidate may enter the #273-protected #266 path. The exact #267
+receipt is still minted only by the host-first #290 decision after reset rotates
+the live connection epoch, and it never crosses caller/browser IPC.
 
 Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
-teacher decision socket is distinct from both channels and is consumed by its own
-one-shot trusted control path; ordinary caller data cannot trigger, select,
-replace or write that decision path. Starting the host and merely validating a
-run context remain effect-free. An optional distinct launcher-installed run
-control socket may activate only the exact latest host-validated binding; its
-message carries no profile, AST, epoch, reset-safety assertion or other authority.
+teacher socket is distinct from both channels and is consumed only inside the
+one-shot production activation path; ordinary caller data cannot supply, replace
+or write that trusted decision channel. The future #276 transport belongs *inside
+this same process* so fresh #249 and all identity-sensitive #257/#260/#262/#266/
+#267/#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
+Starting the host or validating a run without the trusted teacher capability
+remains effect-free.
 """
 
 if __name__ == "__main__":
@@ -47,14 +50,7 @@ if __name__ == "__main__":
             CapabilityBridgeError,
             ReadOnlyCapabilityHttpBridge,
         )
-        from teacher_decision_channel import (
-            TeacherDecisionChannelError,
-            TrustedTeacherDecisionChannel,
-        )
-        from teacher_run_authorization import (
-            PhysicalRunBinding,
-            TrustedTeacherAuthorizer,
-        )
+        from teacher_run_authorization import PhysicalRunBinding
 
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
@@ -79,13 +75,10 @@ if __name__ == "__main__":
             "--teacher-fd",
             type=int,
             default=None,
-            help="distinct launcher-installed trusted teacher decision socket handle",
-        )
-        parser.add_argument(
-            "--run-control-fd",
-            type=int,
-            default=None,
-            help="distinct launcher-installed one-shot trusted run activation socket",
+            help=(
+                "distinct launcher-installed teacher capability; its presence enables "
+                "one post-reset host-first #290 decision for a freshly validated candidate"
+            ),
         )
         args = parser.parse_args()
 
@@ -95,30 +88,14 @@ if __name__ == "__main__":
             raise SystemExit("physical host channels must be inherited non-stdio handles")
         if args.caller_fd == args.browser_config_fd:
             raise SystemExit("caller and browser bootstrap channels must be distinct")
-
-        occupied = {args.caller_fd, args.browser_config_fd}
         if args.teacher_fd is not None:
             if args.teacher_fd < 3:
                 raise SystemExit(
                     "teacher decision channel must be an inherited non-stdio handle"
                 )
-            if args.teacher_fd in occupied:
+            if args.teacher_fd in {args.caller_fd, args.browser_config_fd}:
                 raise SystemExit(
                     "teacher decision channel must be distinct from caller/browser channels"
-                )
-            occupied.add(args.teacher_fd)
-        if args.run_control_fd is not None:
-            if args.run_control_fd < 3:
-                raise SystemExit(
-                    "run control channel must be an inherited non-stdio handle"
-                )
-            if args.run_control_fd in occupied:
-                raise SystemExit(
-                    "run control channel must be distinct from caller/browser/teacher channels"
-                )
-            if args.teacher_fd is None:
-                raise SystemExit(
-                    "trusted run activation requires the distinct teacher decision channel"
                 )
 
         caller_socket = socket.socket(fileno=args.caller_fd)
@@ -127,11 +104,6 @@ if __name__ == "__main__":
         teacher_socket = (
             None if args.teacher_fd is None else socket.socket(fileno=args.teacher_fd)
         )
-        run_control_socket = (
-            None
-            if args.run_control_fd is None
-            else socket.socket(fileno=args.run_control_fd)
-        )
 
         with ReadOnlyCapabilitySession(args.uri) as session:
             bridge = ReadOnlyCapabilityHttpBridge(session)
@@ -139,7 +111,6 @@ if __name__ == "__main__":
             bridge_thread.start()
             host, port = bridge.address
 
-            teacher_authorizer = TrustedTeacherAuthorizer()
             execution_domain = PhysicalExecutionDomain()
             lifecycle_lock = Lock()
             staged_ready = Event()
@@ -150,68 +121,24 @@ if __name__ == "__main__":
                 "active_run": None,
                 "error": None,
             }
-
-            # Preserve #288's no-effect teacher-only mode when no activation
-            # channel is installed. The #287 path instead consumes the same
-            # teacher socket only after #266 has rotated to the new live epoch.
-            teacher_channel = (
-                None
-                if teacher_socket is None or run_control_socket is not None
-                else TrustedTeacherDecisionChannel(
-                    teacher_socket,
-                    session.read_connection_epoch,
-                )
-            )
-            teacher_state = {
-                "authorization": None,
-                "error": None,
-            }
-            teacher_thread = None
             activation_thread = None
 
-            def run_teacher_decision_channel() -> None:
-                if teacher_channel is None:
+            def run_trusted_activation() -> None:
+                if teacher_socket is None:
                     return
                 try:
-                    receipt = teacher_channel.receive_authorization(teacher_authorizer)
-                except TeacherDecisionChannelError as exc:
-                    teacher_state["error"] = str(exc)
-                    return
-                teacher_state["authorization"] = receipt
-
-            def run_trusted_activation_channel() -> None:
-                if run_control_socket is None or teacher_socket is None:
-                    return
-                reader = run_control_socket.makefile(
-                    "r",
-                    encoding="utf-8",
-                    newline="\n",
-                )
-                try:
-                    line = reader.readline()
-                    if not line or len(line.encode("utf-8")) > max_message_bytes:
-                        raise RuntimeError("trusted run control request is unavailable")
-                    request = json.loads(line)
-                    if request != {"op": "activate-validated-run"}:
-                        raise RuntimeError(
-                            "trusted run control accepts only one field-free activation operation"
-                        )
-                    # Require the peer to close its write side after the one-shot
-                    # trigger. Late/duplicate frames never become another run.
-                    if reader.readline() != "":
-                        raise RuntimeError("trusted run control contains duplicate or late data")
-
                     while not staged_ready.wait(0.05):
                         if host_stopping.is_set():
                             return
+                    if host_stopping.is_set():
+                        return
 
                     with lifecycle_lock:
                         binding = staged_state["binding"]
                         if type(binding) is not PhysicalRunBinding:
                             raise RuntimeError(
-                                "trusted run control has no exact host-validated binding"
+                                "trusted teacher capability has no exact host-validated candidate"
                             )
-                        activation_state["started"] = True
                         activation_state["active_run"] = activate_validated_run(
                             uri=args.uri,
                             session=session,
@@ -223,15 +150,6 @@ if __name__ == "__main__":
                         )
                 except Exception as exc:
                     activation_state["error"] = str(exc)
-                finally:
-                    try:
-                        reader.close()
-                    except OSError:
-                        pass
-                    try:
-                        run_control_socket.close()
-                    except OSError:
-                        pass
 
             # Trusted composition routes this descriptor only to the production
             # browser #249 responder. It never crosses the caller IPC channel.
@@ -256,19 +174,13 @@ if __name__ == "__main__":
                 )
                 browser_config.flush()
 
-            # The teacher protocol is independent from ordinary caller requests.
-            # In compatibility/no-effect mode it may remain idle until a teacher
-            # writes its one-run request. With trusted run activation installed,
-            # the teacher socket is instead consumed after reset by #290.
-            if teacher_channel is not None:
-                teacher_thread = Thread(
-                    target=run_teacher_decision_channel,
-                    daemon=True,
-                )
-                teacher_thread.start()
-            if run_control_socket is not None:
+            # The launcher-installed teacher descriptor is the trusted preparation
+            # capability. Its worker can only wait: with no freshly validated
+            # candidate it cannot reset, decide or emit anything. Conversely, a
+            # caller candidate with no teacher descriptor remains diagnostic only.
+            if teacher_socket is not None:
                 activation_thread = Thread(
-                    target=run_trusted_activation_channel,
+                    target=run_trusted_activation,
                     daemon=True,
                 )
                 activation_thread.start()
@@ -324,16 +236,21 @@ if __name__ == "__main__":
                                     "current-program evidence does not match requested run"
                                 )
 
-                            # Staging is non-authority data and occurs only after
-                            # the host itself completed #278/#249. Once the trusted
-                            # run-control transaction starts, later caller
-                            # validations remain diagnostic and cannot retarget it.
-                            if not activation_state["started"]:
+                            # Candidate data is non-authority. Freeze it only when
+                            # the launcher has already installed the distinct
+                            # trusted teacher capability; this conjunction is the
+                            # preparation gate. No caller field can create that
+                            # capability or alter the candidate after it is frozen.
+                            if (
+                                teacher_socket is not None
+                                and not activation_state["started"]
+                            ):
                                 staged_state["binding"] = PhysicalRunBinding(
                                     profile_id=profile_id,
                                     ast_binding=ast_binding,
                                     connection_epoch=connection_epoch,
                                 )
+                                activation_state["started"] = True
                                 staged_ready.set()
                     except CapabilityBridgeError as exc:
                         response = {
@@ -372,38 +289,12 @@ if __name__ == "__main__":
                 host_stopping.set()
                 staged_ready.set()
 
-                # A trusted activation owns the live session/bridge while it is
+                # A started activation owns the live session/bridge while it is
                 # running. Finish that bounded transaction before tearing down
                 # those authorities; do not convert host shutdown into ambiguous
                 # concurrent reset/effect cleanup.
                 if activation_thread is not None:
                     activation_thread.join()
-
-                bridge.shutdown()
-                bridge_thread.join(timeout=1.0)
-
-                # Closing the trusted channel first unblocks an idle legacy
-                # teacher worker; no late decision can survive host teardown.
-                if teacher_channel is not None:
-                    teacher_channel.close()
-                elif teacher_socket is not None:
-                    try:
-                        teacher_socket.close()
-                    except OSError:
-                        pass
-                if teacher_thread is not None:
-                    teacher_thread.join(timeout=1.0)
-
-                legacy_receipt = teacher_state["authorization"]
-                _teacher_channel_error = teacher_state["error"]
-                if legacy_receipt is not None:
-                    try:
-                        teacher_authorizer.close_run(
-                            legacy_receipt,
-                            "physical host shutting down",
-                        )
-                    except Exception:
-                        pass
 
                 active_controller = activation_state["active_run"]
                 _activation_error = activation_state["error"]
@@ -412,9 +303,18 @@ if __name__ == "__main__":
                         active_controller.shutdown()
                     except Exception:
                         pass
+
+                bridge.shutdown()
+                bridge_thread.join(timeout=1.0)
+
+                if teacher_socket is not None:
+                    try:
+                        teacher_socket.close()
+                    except OSError:
+                        pass
+
                 # Keep trusted failures deliberately non-observable to ordinary
                 # caller IPC while retaining them inside this execution boundary.
-                del _teacher_channel_error
                 del _activation_error
 
                 try:
