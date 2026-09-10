@@ -17,8 +17,10 @@ Browser bootstrap is a distinct one-way composition channel. The responder
 credential is written there once and is never returned on the ordinary caller
 channel. Live bridge/session/responder state remains local to the running host
 composition instead of being installed as attributes on the process' importable
-``__main__`` module. This executable emits no flight, arming, setpoint or reset
-command.
+``__main__`` module. The host-local #276 transport type closes directly over the
+same bridge; no bridge-to-effect handle, binder, client or caller-selectable
+provenance input is exported. This executable emits no flight, arming, setpoint
+or reset command merely by starting or validating a run context.
 """
 
 if __name__ == "__main__":
@@ -39,8 +41,12 @@ if __name__ == "__main__":
         from probe_reference_hardware import ReadOnlyCapabilitySession
         from serve_reference_capabilities import (
             CapabilityBridgeError,
-            CurrentProgramEffectPreflightHandle,
+            CurrentProgramPreflightEvidence,
             ReadOnlyCapabilityHttpBridge,
+        )
+        from setpoint_hl_transport import (
+            SetpointHlTransportError,
+            TrustedSetpointHlTransport,
         )
 
         max_message_bytes = 8192
@@ -78,26 +84,88 @@ if __name__ == "__main__":
         with ReadOnlyCapabilitySession(args.uri) as session:
             bridge = ReadOnlyCapabilityHttpBridge(session)
 
-            # #280's authority boundary is this trusted process, not Python
-            # object privacy inside it. The #276 transport is co-located TCB code,
-            # so its existing opaque adapter is composed only from this exact
-            # host-owned bridge and never crosses the ordinary caller IPC. There
-            # is deliberately no importable bridge->effect binder/factory.
-            effect_current_program_preflight = object.__new__(
-                CurrentProgramEffectPreflightHandle
-            )
-            object.__setattr__(
-                effect_current_program_preflight,
-                "_CurrentProgramEffectPreflightHandle__bridge",
-                bridge,
-            )
-            if (
-                effect_current_program_preflight.bound_connection_epoch
-                != session.read_connection_epoch()
+            class _HostBoundSetpointHlTransport(TrustedSetpointHlTransport):
+                """#276 effect transport whose provenance source is lexical to this host."""
+
+                def _read_current_binding(self):
+                    binding = self.teacher_binding
+                    try:
+                        evidence = bridge.assert_current_program(
+                            profile_id=binding.profile_id,
+                            ast_binding=binding.ast_binding,
+                            connection_epoch=binding.connection_epoch,
+                            timeout_seconds=assertion_timeout_seconds,
+                        )
+                    except Exception as exc:
+                        raise SetpointHlTransportError(
+                            "integrated #278/#249 current-program re-assertion failed"
+                        ) from exc
+                    if type(evidence) is not CurrentProgramPreflightEvidence:
+                        raise SetpointHlTransportError(
+                            "integrated #278 bridge returned invalid current-program evidence"
+                        )
+                    if evidence.execution_authority is not False:
+                        raise SetpointHlTransportError(
+                            "current-program evidence crossed the non-authority boundary"
+                        )
+                    if (
+                        evidence.profile_id != binding.profile_id
+                        or evidence.ast_binding != binding.ast_binding
+                        or evidence.connection_epoch != binding.connection_epoch
+                    ):
+                        raise SetpointHlTransportError(
+                            "current-program evidence does not match the teacher-authorized run"
+                        )
+                    if (
+                        not isinstance(evidence.challenge_id, str)
+                        or not evidence.challenge_id.strip()
+                    ):
+                        raise SetpointHlTransportError(
+                            "current-program challenge provenance is unavailable"
+                        )
+                    return binding
+
+            def _compose_inflight_setpoint_transport(
+                *,
+                crazyflie,
+                execution_domain,
+                acknowledgement_domain,
+                safelink_guard,
+                teacher_authorization,
+                powered_session,
+                watchdog_guard,
+                supervisor_reader,
             ):
-                raise CapabilityBridgeError(
-                    "co-located effect preflight is not bound to the live host epoch"
+                """Compose #276 only from safety objects already local to this TCB.
+
+                The current-program bridge is intentionally not an argument. The
+                trusted lifecycle/teacher path calls this local closure after it
+                has established the exact same-epoch #266/#267/#262/#257/#272/
+                #271/#273 objects. Ordinary caller IPC cannot invoke or replace
+                this composition path.
+                """
+                effect_transport = _HostBoundSetpointHlTransport(
+                    crazyflie=crazyflie,
+                    execution_domain=execution_domain,
+                    acknowledgement_domain=acknowledgement_domain,
+                    safelink_guard=safelink_guard,
+                    teacher_authorization=teacher_authorization,
+                    powered_session=powered_session,
+                    watchdog_guard=watchdog_guard,
+                    supervisor_reader=supervisor_reader,
                 )
+                if effect_transport.bound_connection_epoch != session.read_connection_epoch():
+                    raise SetpointHlTransportError(
+                        "co-located effect transport is not bound to the live host epoch"
+                    )
+                return effect_transport
+
+            # Keep the closure live only in this trusted runner. It is consumed
+            # by the host-side lifecycle/teacher composition once the exact
+            # effect prerequisites exist; it is never sent through caller IPC.
+            compose_inflight_setpoint_transport = _compose_inflight_setpoint_transport
+            if not callable(compose_inflight_setpoint_transport):
+                raise RuntimeError("host-local #276 composition is unavailable")
 
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
@@ -159,8 +227,8 @@ if __name__ == "__main__":
                     try:
                         # This evidence stays inside the trusted physical host.
                         # Future #276 composition must consume it here immediately
-                        # before the effect; this candidate supplies the same
-                        # host-local bridge through the co-located adapter above.
+                        # before the effect; the co-located transport above uses
+                        # this exact lexical bridge rather than caller provenance.
                         # Caller replies are never accepted as provenance.
                         evidence = bridge.assert_current_program(
                             profile_id=profile_id,

@@ -357,15 +357,6 @@ def main() -> int:
         else:
             raise AssertionError(f"unsupported bind {forbidden_host} must fail closed")
 
-    assert not hasattr(
-        bridge_module,
-        "_bind_effect_current_program_bridge",
-    ), "production bridge module must expose no effect-handle binder"
-    assert not hasattr(
-        bridge_module,
-        "_EFFECT_PREFLIGHT_MINT_KEY",
-    ), "effect-handle mint key must remain closure-private"
-
     forbidden = (
         "takeoff", "land", "move", "vertical", "turn", "set_light", "arm",
         "disarm", "setpoint", "send_setpoint", "thrust",

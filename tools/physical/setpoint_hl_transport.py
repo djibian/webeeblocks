@@ -1,46 +1,27 @@
 #!/usr/bin/env python3
-"""Trusted one-shot in-flight SETPOINT_HL transport for the physical Crazyflie.
+"""Trusted one-shot in-flight SETPOINT_HL effect core for the physical Crazyflie.
 
-This is the first bounded module in this directory that may emit an ordinary
-flight-capable CRTP packet. It deliberately exposes no browser/HTTP surface and
-it cannot manufacture teacher or powered-session authority.
+This module is trusted physical-host TCB code.  It owns the narrow ordinary
+flight-capable CRTP effect mechanics, but deliberately owns no current-program
+provenance source and exposes no browser/HTTP surface.  A directly constructed
+``TrustedSetpointHlTransport`` therefore cannot emit: its current-program check
+is fail-closed until the #283 physical-host composition supplies the host-local
+subclass that closes over the one live #278 bridge.
 
-The transport is bound at construction time to the exact integrated authority
-objects that make one physical run eligible:
-- one #267 TeacherRunAuthorization receipt;
-- one #266 EstablishedPoweredSession and its non-forgeable watchdog authority;
-- the exact active #262 EmergencyWatchdogLivenessGuard for that powered session;
-- one #272 live SafeLink precondition and one #271 acknowledgement domain on the
-  same connection epoch;
-- the process-wide #273 reset/effect exclusion domain.
+The effect core binds the exact integrated #267 teacher receipt, #266 powered
+session, #262 watchdog, #257 supervisor reader, #272 SafeLink guard, #271
+acknowledgement domain and process-wide #273 execution domain on one connection
+epoch.  The production host performs one fresh #278/#249 profile/AST/epoch
+assertion from its lexical bridge inside the effect transaction immediately
+before the remaining fresh safety checks.
 
-The current slice intentionally supports only in-flight relative GO_TO_2 commands
-for horizontal movement and yaw turns. It does not expose TAKEOFF_2, LAND_2,
-vertical movement, STOP, trajectory, spiral, raw command bytes or a generic send
-method. Horizontal geometry is derived through integrated #256 from one fresh
-#260 yaw observation and duration through integrated #268. Turns use #256/#268
-directly. Takeoff/landing/vertical timing policy remains a separate prerequisite.
-
-The transport consumes only a private-minted non-authority current-program
-handle produced by trusted host composition from the integrated #278 bridge.
-A raw/public ReadOnlyCapabilityHttpBridge or responder credential is not an
-effect-eligible input. Before every effect the handle performs one fresh
-host-initiated #249 profile/AST/epoch assertion for the exact #267 run binding,
-and the private-minted immutable #278 evidence is validated locally.
-
-Live SafeLink is re-checked immediately before entering #271. The SETPOINT_HL
-reply callback is installed before the pessimistic effect boundary is crossed.
-Exactly one plain Crazyflie.send_packet(packet) call is made, with no
-expected_reply/application retry. A non-zero firmware result restores the prior
-flying phase. A zero result moves #273 to awaiting-completion and returns one opaque
-accepted-effect claim only to this transport. The transport consumes that claim
-only after fresh #257 evidence positively observes the prior trajectory finished
-while flight remains healthy.
-Timeout, disconnect, malformed reply, send failure or epoch change is ambiguous
-and remains fail-closed.
-
-The physical packet is constructed internally from the already-validated local
-request bytes. No caller-supplied packet object crosses the effect boundary.
+Only already-flying relative GO_TO_2 horizontal moves and yaw turns are exposed.
+There is no TAKEOFF_2, LAND_2, vertical, STOP, trajectory/spiral, raw-byte or
+generic send API.  Horizontal geometry uses #256 plus one fresh #260 yaw sample;
+durations use #268.  One plain ``Crazyflie.send_packet(packet)`` call is made
+with no application retry.  Positive acknowledgement yields the private #279
+completion permit, consumed only after causally fresh #257 completion evidence.
+Unknown acknowledgement/effect/completion outcome remains fail-closed.
 """
 
 from __future__ import annotations
@@ -54,7 +35,6 @@ from typing import Callable
 import high_level_ack
 import high_level_semantics
 import high_level_timing
-import serve_reference_capabilities as capability_bridge
 import physical_execution_domain
 import powered_session_authority
 import safelink_precondition
@@ -65,12 +45,12 @@ import yaw_observer
 
 _SETPOINT_HL_PORT = 0x08
 _COMMAND_GO_TO_2 = 12
+_GO_TO_2_SIZE = 24
 _DEFAULT_REPLY_TIMEOUT_SECONDS = 0.2
 _DEFAULT_YAW_TIMEOUT_SECONDS = 0.5
 _WAIT_SLICE_SECONDS = 0.01
 _COMPLETION_READ_TIMEOUT_SECONDS = 0.2
 _COMPLETION_POLL_SECONDS = 0.05
-_GO_TO_2_SIZE = 24
 
 
 class SetpointHlTransportError(RuntimeError):
@@ -86,10 +66,10 @@ def _require_callable(value: object, name: str) -> Callable:
 def _positive_timeout(value: object, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise SetpointHlTransportError(f"{name} must be positive")
-    timeout = float(value)
-    if not math.isfinite(timeout) or timeout <= 0.0:
+    number = float(value)
+    if not math.isfinite(number) or number <= 0.0:
         raise SetpointHlTransportError(f"{name} must be positive")
-    return timeout
+    return number
 
 
 def _nonempty_text(value: object, name: str) -> str:
@@ -98,7 +78,10 @@ def _nonempty_text(value: object, name: str) -> str:
     return value
 
 
-def _go_to_request(target: object, duration_seconds: object) -> bytes:
+def _go_to_request(
+    target: high_level_semantics.RelativeHighLevelTarget,
+    duration_seconds: object,
+) -> bytes:
     if not isinstance(target, high_level_semantics.RelativeHighLevelTarget):
         raise SetpointHlTransportError("validated #256 relative target is required")
     duration = _positive_timeout(duration_seconds, "GO_TO_2 duration")
@@ -113,17 +96,16 @@ def _go_to_request(target: object, duration_seconds: object) -> bytes:
     data = struct.pack(
         "<BBBBfffff",
         _COMMAND_GO_TO_2,
-        0,  # group mask: one reference Crazyflie only
-        1,  # relative world-frame target
-        0,  # smooth seventh-order planner, not linear
+        0,
+        1,
+        0,
         float(target.x_m),
         float(target.y_m),
         float(target.z_m),
         float(target.yaw_rad),
         duration,
     )
-    _validate_request(data)
-    return data
+    return _validate_request(data)
 
 
 def _validate_request(value: object) -> bytes:
@@ -175,7 +157,15 @@ def _default_packet_factory(request: bytes) -> object:
 
 
 class TrustedSetpointHlTransport:
-    """One exact-authority, no-retry in-flight HighLevel motion transport."""
+    """Fail-closed effect core completed only by #283 host-local composition.
+
+    The class intentionally has no constructor argument for a bridge, provenance
+    client, responder token, evidence object or assertion callback.  The base
+    implementation of :meth:`_read_current_binding` always fails.  Production
+    ``serve_physical_host.py`` defines a lexical subclass inside its trusted
+    runner; that subclass alone closes over the host-owned #278 bridge and
+    overrides the hook.  No such positive provenance path is exported here.
+    """
 
     def __init__(
         self,
@@ -188,53 +178,29 @@ class TrustedSetpointHlTransport:
         powered_session: powered_session_authority.EstablishedPoweredSession,
         watchdog_guard: watchdog_liveness.EmergencyWatchdogLivenessGuard,
         supervisor_reader: supervisor_state.FreshSupervisorStateReader,
-        current_program_preflight: capability_bridge.CurrentProgramEffectPreflightHandle,
         clock: Callable[[], float] = monotonic,
     ) -> None:
         if crazyflie is None:
             raise SetpointHlTransportError("exact live Crazyflie object is required")
         if type(execution_domain) is not physical_execution_domain.PhysicalExecutionDomain:
-            raise SetpointHlTransportError(
-                "exact process-wide PhysicalExecutionDomain is required"
-            )
+            raise SetpointHlTransportError("exact process-wide PhysicalExecutionDomain is required")
         if type(acknowledgement_domain) is not high_level_ack.HighLevelAckDomain:
-            raise SetpointHlTransportError(
-                "exact HighLevelAckDomain is required"
-            )
+            raise SetpointHlTransportError("exact HighLevelAckDomain is required")
         if type(safelink_guard) is not safelink_precondition.LiveSafeLinkPrecondition:
-            raise SetpointHlTransportError(
-                "exact LiveSafeLinkPrecondition is required"
-            )
+            raise SetpointHlTransportError("exact LiveSafeLinkPrecondition is required")
         if type(teacher_authorization) is not teacher_run_authorization.TeacherRunAuthorization:
-            raise SetpointHlTransportError(
-                "exact #267 TeacherRunAuthorization receipt is required"
-            )
+            raise SetpointHlTransportError("exact #267 TeacherRunAuthorization receipt is required")
         if type(powered_session) is not powered_session_authority.EstablishedPoweredSession:
-            raise SetpointHlTransportError(
-                "exact #266 EstablishedPoweredSession is required"
-            )
+            raise SetpointHlTransportError("exact #266 EstablishedPoweredSession is required")
         if (
             type(powered_session.watchdog_authority)
             is not powered_session_authority.EphemeralPoweredSessionWatchdogAuthority
         ):
-            raise SetpointHlTransportError(
-                "powered session lacks the #266-minted watchdog authority"
-            )
+            raise SetpointHlTransportError("powered session lacks the #266-minted watchdog authority")
         if type(watchdog_guard) is not watchdog_liveness.EmergencyWatchdogLivenessGuard:
-            raise SetpointHlTransportError(
-                "exact active #262 watchdog guard is required"
-            )
+            raise SetpointHlTransportError("exact active #262 watchdog guard is required")
         if type(supervisor_reader) is not supervisor_state.FreshSupervisorStateReader:
-            raise SetpointHlTransportError(
-                "exact #257 FreshSupervisorStateReader is required"
-            )
-        if (
-            type(current_program_preflight)
-            is not capability_bridge.CurrentProgramEffectPreflightHandle
-        ):
-            raise SetpointHlTransportError(
-                "exact trusted-host current-program preflight handle is required"
-            )
+            raise SetpointHlTransportError("exact #257 FreshSupervisorStateReader is required")
 
         self._cf = crazyflie
         self._execution = execution_domain
@@ -244,7 +210,6 @@ class TrustedSetpointHlTransport:
         self._powered_session = powered_session
         self._watchdog = watchdog_guard
         self._supervisor = supervisor_reader
-        self._current_program_preflight = current_program_preflight
         self._clock = _require_callable(clock, "monotonic clock")
 
         epoch = _nonempty_text(
@@ -252,62 +217,27 @@ class TrustedSetpointHlTransport:
             "HighLevel acknowledgement epoch",
         )
         if safelink_guard.bound_crazyflie is not crazyflie:
-            raise SetpointHlTransportError(
-                "SafeLink precondition is not bound to the exact Crazyflie"
-            )
+            raise SetpointHlTransportError("SafeLink precondition is not bound to the exact Crazyflie")
         if safelink_guard.bound_connection_epoch != epoch:
-            raise SetpointHlTransportError(
-                "SafeLink and acknowledgement domains are not bound to the same epoch"
-            )
+            raise SetpointHlTransportError("SafeLink and acknowledgement domains are not bound to the same epoch")
         if teacher_authorization.binding.connection_epoch != epoch:
-            raise SetpointHlTransportError(
-                "teacher run receipt belongs to a different connection epoch"
-            )
-        try:
-            preflight_epoch = current_program_preflight.bound_connection_epoch
-        except Exception as exc:
-            raise SetpointHlTransportError(
-                "trusted-host current-program preflight handle has no live connection epoch"
-            ) from exc
-        if preflight_epoch != epoch:
-            raise SetpointHlTransportError(
-                "current-program preflight handle belongs to a different connection epoch"
-            )
+            raise SetpointHlTransportError("teacher run receipt belongs to a different connection epoch")
         if powered_session.connection_epoch != epoch:
-            raise SetpointHlTransportError(
-                "powered session belongs to a different connection epoch"
-            )
+            raise SetpointHlTransportError("powered session belongs to a different connection epoch")
         if watchdog_guard.bound_connection_epoch != epoch:
-            raise SetpointHlTransportError(
-                "watchdog guard belongs to a different connection epoch"
-            )
+            raise SetpointHlTransportError("watchdog guard belongs to a different connection epoch")
         if watchdog_guard.bound_crazyflie is not crazyflie:
-            raise SetpointHlTransportError(
-                "watchdog guard is not bound to the exact Crazyflie"
-            )
-        if (
-            watchdog_guard.powered_session_identity
-            != powered_session.watchdog_authority.identity
-        ):
-            raise SetpointHlTransportError(
-                "watchdog guard is not bound to the #266 powered session"
-            )
+            raise SetpointHlTransportError("watchdog guard is not bound to the exact Crazyflie")
+        if watchdog_guard.powered_session_identity != powered_session.watchdog_authority.identity:
+            raise SetpointHlTransportError("watchdog guard is not bound to the #266 powered session")
         if powered_session.session is not crazyflie:
-            raise SetpointHlTransportError(
-                "powered session is not bound to the exact Crazyflie object"
-            )
+            raise SetpointHlTransportError("powered session is not bound to the exact Crazyflie object")
         if supervisor_reader.bound_connection_epoch != epoch:
-            raise SetpointHlTransportError(
-                "fresh supervisor reader belongs to a different connection epoch"
-            )
+            raise SetpointHlTransportError("fresh supervisor reader belongs to a different connection epoch")
         if supervisor_reader.bound_crazyflie is not crazyflie:
-            raise SetpointHlTransportError(
-                "fresh supervisor reader is not bound to the exact Crazyflie"
-            )
+            raise SetpointHlTransportError("fresh supervisor reader is not bound to the exact Crazyflie")
         if supervisor_reader.poisoned is not False:
-            raise SetpointHlTransportError(
-                "fresh supervisor reader is poisoned before physical execution"
-            )
+            raise SetpointHlTransportError("fresh supervisor reader is poisoned before physical execution")
         self._bound_connection_epoch = epoch
 
     @property
@@ -318,70 +248,32 @@ class TrustedSetpointHlTransport:
     def execution_domain(self) -> physical_execution_domain.PhysicalExecutionDomain:
         return self._execution
 
-    def _read_current_binding(
-        self,
-    ) -> teacher_run_authorization.PhysicalRunBinding:
-        binding = self._teacher.binding
-        try:
-            evidence = self._current_program_preflight.assert_current_program(
-                profile_id=binding.profile_id,
-                ast_binding=binding.ast_binding,
-                connection_epoch=binding.connection_epoch,
-            )
-        except Exception as exc:
-            raise SetpointHlTransportError(
-                "integrated #278/#249 current-program re-assertion failed"
-            ) from exc
-        if type(evidence) is not capability_bridge.CurrentProgramPreflightEvidence:
-            raise SetpointHlTransportError(
-                "integrated #278 bridge returned invalid current-program evidence"
-            )
-        if evidence.execution_authority is not False:
-            raise SetpointHlTransportError(
-                "current-program evidence crossed the non-authority boundary"
-            )
-        if (
-            evidence.profile_id != binding.profile_id
-            or evidence.ast_binding != binding.ast_binding
-            or evidence.connection_epoch != binding.connection_epoch
-        ):
-            raise SetpointHlTransportError(
-                "current-program evidence does not match the teacher-authorized run"
-            )
-        if (
-            not isinstance(evidence.challenge_id, str)
-            or not evidence.challenge_id.strip()
-        ):
-            raise SetpointHlTransportError(
-                "current-program challenge provenance is unavailable"
-            )
-        if binding.connection_epoch != self._bound_connection_epoch:
-            raise SetpointHlTransportError(
-                "current preflight binding belongs to a different connection epoch"
-            )
-        return binding
+    @property
+    def teacher_binding(self) -> teacher_run_authorization.PhysicalRunBinding:
+        return self._teacher.binding
+
+    def _read_current_binding(self) -> teacher_run_authorization.PhysicalRunBinding:
+        raise SetpointHlTransportError(
+            "current-program assertion is not bound to the trusted #283 physical host"
+        )
 
     def _assert_binding_authority(
         self,
         binding: teacher_run_authorization.PhysicalRunBinding,
     ) -> None:
-        """Re-check mutable authority without performing the slower #249 round trip."""
+        if type(binding) is not teacher_run_authorization.PhysicalRunBinding:
+            raise SetpointHlTransportError("exact #267 PhysicalRunBinding is required")
         self._teacher.assert_effect_binding(
             profile_id=binding.profile_id,
             ast_binding=binding.ast_binding,
             connection_epoch=binding.connection_epoch,
         )
+        if binding.connection_epoch != self._bound_connection_epoch:
+            raise SetpointHlTransportError("current run binding belongs to a different connection epoch")
         if self._powered_session.connection_epoch != self._bound_connection_epoch:
-            raise SetpointHlTransportError(
-                "powered session connection epoch changed"
-            )
-        if (
-            self._watchdog.powered_session_identity
-            != self._powered_session.watchdog_authority.identity
-        ):
-            raise SetpointHlTransportError(
-                "watchdog/powered-session identity changed"
-            )
+            raise SetpointHlTransportError("powered session connection epoch changed")
+        if self._watchdog.powered_session_identity != self._powered_session.watchdog_authority.identity:
+            raise SetpointHlTransportError("watchdog/powered-session identity changed")
         self._watchdog.assert_live()
         if self._execution.phase != physical_execution_domain.FLYING:
             raise SetpointHlTransportError(
@@ -389,69 +281,45 @@ class TrustedSetpointHlTransport:
             )
 
     def _assert_current_authority(self) -> None:
-        """Fresh #249 assertion followed by the exact mutable run authority."""
         binding = self._read_current_binding()
         self._assert_binding_authority(binding)
 
     def _read_fresh_finished_flying(self) -> object:
-        """Require final fresh #257 no-fault flight with no active trajectory."""
         if self._supervisor.poisoned is not False:
-            raise SetpointHlTransportError(
-                "fresh supervisor reader is poisoned before physical effect"
-            )
+            raise SetpointHlTransportError("fresh supervisor reader is poisoned before physical effect")
         try:
             state = self._supervisor.read(timeout_seconds=0.2)
         except Exception as exc:
-            raise SetpointHlTransportError(
-                "fresh supervisor safety observation failed before physical effect"
-            ) from exc
-        blocking_fault = getattr(state, "blocking_fault", None)
-        is_flying = getattr(state, "is_flying", None)
-        high_level_active = getattr(state, "hl_control_active", None)
-        trajectory_finished = getattr(state, "hl_traj_finished", None)
-        if (
-            not isinstance(blocking_fault, bool)
-            or not isinstance(is_flying, bool)
-            or not isinstance(high_level_active, bool)
-            or not isinstance(trajectory_finished, bool)
-        ):
-            raise SetpointHlTransportError(
-                "fresh supervisor pre-effect state is malformed"
-            )
+            raise SetpointHlTransportError("fresh supervisor safety observation failed before physical effect") from exc
+        values = (
+            getattr(state, "blocking_fault", None),
+            getattr(state, "is_flying", None),
+            getattr(state, "hl_control_active", None),
+            getattr(state, "hl_traj_finished", None),
+        )
+        if any(not isinstance(value, bool) for value in values):
+            raise SetpointHlTransportError("fresh supervisor pre-effect state is malformed")
+        blocking_fault, is_flying, high_level_active, trajectory_finished = values
         if blocking_fault:
-            raise SetpointHlTransportError(
-                "fresh supervisor state has a blocking fault"
-            )
+            raise SetpointHlTransportError("fresh supervisor state has a blocking fault")
         if not is_flying:
-            raise SetpointHlTransportError(
-                "fresh supervisor state does not positively establish flight"
-            )
+            raise SetpointHlTransportError("fresh supervisor state does not positively establish flight")
         if not high_level_active:
-            raise SetpointHlTransportError(
-                "fresh supervisor state has no active high-level control"
-            )
+            raise SetpointHlTransportError("fresh supervisor state has no active high-level control")
         if not trajectory_finished:
-            raise SetpointHlTransportError(
-                "previous high-level trajectory is not freshly finished"
-            )
+            raise SetpointHlTransportError("previous high-level trajectory is not freshly finished")
         return state
 
     def _require_connection_live(self) -> None:
         method = getattr(self._cf, "is_connected", None)
         if not callable(method):
-            raise SetpointHlTransportError(
-                "Crazyflie live connection state is unavailable during acknowledgement"
-            )
+            raise SetpointHlTransportError("Crazyflie live connection state is unavailable during acknowledgement")
         try:
             connected = method()
         except Exception as exc:
-            raise SetpointHlTransportError(
-                "Crazyflie live connection state became unavailable"
-            ) from exc
+            raise SetpointHlTransportError("Crazyflie live connection state became unavailable") from exc
         if connected is not True:
-            raise SetpointHlTransportError(
-                "Crazyflie disconnected before definitive SETPOINT_HL acknowledgement"
-            )
+            raise SetpointHlTransportError("Crazyflie disconnected before definitive SETPOINT_HL acknowledgement")
 
     def _wait_for_reply(
         self,
@@ -464,9 +332,7 @@ class TrustedSetpointHlTransport:
             if event.is_set():
                 reply = reply_reader()
                 if reply is None:
-                    raise SetpointHlTransportError(
-                        "SETPOINT_HL reply event has no packet data"
-                    )
+                    raise SetpointHlTransportError("SETPOINT_HL reply event has no packet data")
                 return reply
             self._require_connection_live()
             remaining = deadline - float(self._clock())
@@ -476,28 +342,22 @@ class TrustedSetpointHlTransport:
 
     def _validate_packet(self, packet: object, request: bytes) -> None:
         if getattr(packet, "port", None) != _SETPOINT_HL_PORT:
-            raise SetpointHlTransportError(
-                "packet factory substituted a non-SETPOINT_HL port"
-            )
+            raise SetpointHlTransportError("packet factory substituted a non-SETPOINT_HL port")
         try:
             packet_data = bytes(getattr(packet, "data"))
         except Exception as exc:
-            raise SetpointHlTransportError(
-                "packet factory returned unreadable SETPOINT_HL data"
-            ) from exc
+            raise SetpointHlTransportError("packet factory returned unreadable SETPOINT_HL data") from exc
         if packet_data != request:
-            raise SetpointHlTransportError(
-                "packet factory substituted SETPOINT_HL request bytes"
-            )
+            raise SetpointHlTransportError("packet factory substituted SETPOINT_HL request bytes")
 
     def _force_completion_uncertainty(
         self,
-        claim: physical_execution_domain.AcceptedEffectCompletionPermit,
+        permit: physical_execution_domain.AcceptedEffectCompletionPermit,
     ) -> None:
         if self._execution.phase == physical_execution_domain.AWAITING_COMPLETION:
             try:
                 self._execution.complete_accepted_effect(
-                    claim,
+                    permit,
                     physical_execution_domain.FLYING,
                     lambda: False,
                 )
@@ -509,11 +369,8 @@ class TrustedSetpointHlTransport:
         permit: physical_execution_domain.AcceptedEffectCompletionPermit,
         planned_duration: float,
     ) -> None:
-        """Consume the private permit only after causally fresh #257 completion."""
         if type(permit) is not physical_execution_domain.AcceptedEffectCompletionPermit:
-            raise SetpointHlTransportError(
-                "exact accepted-effect completion permit is required"
-            )
+            raise SetpointHlTransportError("exact accepted-effect completion permit is required")
         timeout = _positive_timeout(
             planned_duration + max(1.0, planned_duration * 0.5),
             "high-level motion completion timeout",
@@ -525,60 +382,35 @@ class TrustedSetpointHlTransport:
             while True:
                 remaining = deadline - float(self._clock())
                 if remaining <= 0.0:
-                    raise SetpointHlTransportError(
-                        "high-level motion completion timed out"
-                    )
+                    raise SetpointHlTransportError("high-level motion completion timed out")
                 self._watchdog.assert_live()
                 if self._supervisor.poisoned is not False:
-                    raise SetpointHlTransportError(
-                        "fresh supervisor reader is poisoned during motion completion"
-                    )
+                    raise SetpointHlTransportError("fresh supervisor reader is poisoned during motion completion")
                 try:
                     state = self._supervisor.read(
-                        timeout_seconds=min(
-                            _COMPLETION_READ_TIMEOUT_SECONDS,
-                            remaining,
-                        )
+                        timeout_seconds=min(_COMPLETION_READ_TIMEOUT_SECONDS, remaining)
                     )
                 except Exception as exc:
-                    raise SetpointHlTransportError(
-                        "fresh supervisor motion-completion observation failed"
-                    ) from exc
-
-                blocking_fault = getattr(state, "blocking_fault", None)
-                is_flying = getattr(state, "is_flying", None)
-                high_level_active = getattr(state, "hl_control_active", None)
-                trajectory_finished = getattr(state, "hl_traj_finished", None)
-                if (
-                    not isinstance(blocking_fault, bool)
-                    or not isinstance(is_flying, bool)
-                    or not isinstance(high_level_active, bool)
-                    or not isinstance(trajectory_finished, bool)
-                ):
-                    raise SetpointHlTransportError(
-                        "fresh supervisor motion-completion state is malformed"
-                    )
+                    raise SetpointHlTransportError("fresh supervisor motion-completion observation failed") from exc
+                values = (
+                    getattr(state, "blocking_fault", None),
+                    getattr(state, "is_flying", None),
+                    getattr(state, "hl_control_active", None),
+                    getattr(state, "hl_traj_finished", None),
+                )
+                if any(not isinstance(value, bool) for value in values):
+                    raise SetpointHlTransportError("fresh supervisor motion-completion state is malformed")
+                blocking_fault, is_flying, high_level_active, trajectory_finished = values
                 if blocking_fault:
-                    raise SetpointHlTransportError(
-                        "blocking supervisor fault during motion completion"
-                    )
+                    raise SetpointHlTransportError("blocking supervisor fault during motion completion")
                 if not is_flying:
-                    raise SetpointHlTransportError(
-                        "physical flight ended unexpectedly during motion completion"
-                    )
+                    raise SetpointHlTransportError("physical flight ended unexpectedly during motion completion")
                 if not high_level_active:
-                    raise SetpointHlTransportError(
-                        "high-level control ended unexpectedly during motion completion"
-                    )
-
+                    raise SetpointHlTransportError("high-level control ended unexpectedly during motion completion")
                 elapsed = float(self._clock()) - started_at
                 if not trajectory_finished:
                     saw_in_progress = True
                 elif saw_in_progress or elapsed >= planned_duration:
-                    # A true bit observed immediately after acknowledgement may
-                    # still belong to the previous completed trajectory. Require
-                    # either false -> true on fresh #257 reads, or conservatively
-                    # wait the full planned duration before accepting a new true.
                     self._watchdog.assert_live()
                     self._execution.complete_accepted_effect(
                         permit,
@@ -586,12 +418,9 @@ class TrustedSetpointHlTransport:
                         lambda: True,
                     )
                     return
-
                 remaining = deadline - float(self._clock())
                 if remaining <= 0.0:
-                    raise SetpointHlTransportError(
-                        "high-level motion completion timed out"
-                    )
+                    raise SetpointHlTransportError("high-level motion completion timed out")
                 sleep(min(_COMPLETION_POLL_SECONDS, remaining))
         except Exception:
             self._force_completion_uncertainty(permit)
@@ -604,28 +433,20 @@ class TrustedSetpointHlTransport:
         reply_timeout_seconds: float,
     ) -> high_level_ack.HighLevelAckResult:
         builder = _require_callable(request_builder, "validated GO_TO_2 builder")
-        timeout = _positive_timeout(
-            reply_timeout_seconds,
-            "SETPOINT_HL reply timeout",
-        )
+        timeout = _positive_timeout(reply_timeout_seconds, "SETPOINT_HL reply timeout")
         result: high_level_ack.HighLevelAckResult | None = None
-        completion_permit: (
-            physical_execution_domain.AcceptedEffectCompletionPermit | None
-        ) = None
+        completion_permit: physical_execution_domain.AcceptedEffectCompletionPermit | None = None
         planned_duration: float | None = None
 
-        with self._execution.effect_transaction(
-            self._assert_current_authority
-        ) as effect:
+        with self._execution.effect_transaction(self._assert_current_authority) as effect:
             request = _validate_request(builder())
             planned_duration = _request_duration(request)
             packet = _default_packet_factory(request)
             self._validate_packet(packet, request)
 
-            # The fresh host-initiated #249 round trip may block. Keep it before
-            # the final #257 observation so supervisor evidence is not aged by
-            # preflight. Then re-check the mutable teacher/watchdog authority
-            # once more after that supervisor read, immediately before SafeLink.
+            # #249 may block, so the host-local override runs again after request
+            # construction.  Fresh #257 then follows it, with mutable teacher and
+            # watchdog authority rechecked on both sides of that final observation.
             final_binding = self._read_current_binding()
             self._assert_binding_authority(final_binding)
             self._read_fresh_finished_flying()
@@ -655,40 +476,21 @@ class TrustedSetpointHlTransport:
                 add_callback = getattr(self._cf, "add_port_callback", None)
                 remove_callback = getattr(self._cf, "remove_port_callback", None)
                 send_packet = getattr(self._cf, "send_packet", None)
-                if (
-                    not callable(add_callback)
-                    or not callable(remove_callback)
-                    or not callable(send_packet)
-                ):
-                    raise SetpointHlTransportError(
-                        "Crazyflie SETPOINT_HL callback/send surface is unavailable"
-                    )
-
+                if not callable(add_callback) or not callable(remove_callback) or not callable(send_packet):
+                    raise SetpointHlTransportError("Crazyflie SETPOINT_HL callback/send surface is unavailable")
                 callback_installed = False
                 try:
                     add_callback(_SETPOINT_HL_PORT, on_reply)
                     callback_installed = True
-
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
-
-                    # One positional argument only: never cflib expected_reply.
                     send_packet(packet)
-
                     try:
-                        reply = self._wait_for_reply(
-                            reply_event,
-                            read_reply,
-                            timeout,
-                        )
+                        reply = self._wait_for_reply(reply_event, read_reply, timeout)
                     except Exception as exc:
                         acknowledgement.fail_ambiguous(str(exc))
-
                     result = acknowledgement.resolve_reply(reply)
                     if result.accepted:
-                        # The opaque claim never crosses this transport surface.
-                        # An external lambda alone therefore cannot restore
-                        # effect eligibility after this accepted command.
                         completion_permit = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
@@ -700,18 +502,11 @@ class TrustedSetpointHlTransport:
                             pass
 
         if result is None or planned_duration is None:
-            raise SetpointHlTransportError(
-                "SETPOINT_HL acknowledgement result is unavailable"
-            )
+            raise SetpointHlTransportError("SETPOINT_HL acknowledgement result is unavailable")
         if result.accepted:
             if completion_permit is None:
-                raise SetpointHlTransportError(
-                    "accepted SETPOINT_HL effect has no private completion claim"
-                )
-            self._await_motion_completion(
-                completion_permit,
-                planned_duration,
-            )
+                raise SetpointHlTransportError("accepted SETPOINT_HL effect has no private completion claim")
+            self._await_motion_completion(completion_permit, planned_duration)
         return result
 
     def send_horizontal_move(
@@ -724,47 +519,33 @@ class TrustedSetpointHlTransport:
         yaw_timeout_seconds: float = _DEFAULT_YAW_TIMEOUT_SECONDS,
         reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
     ) -> high_level_ack.HighLevelAckResult:
-        """Send one #256/#260/#268 horizontal relative GO_TO_2 command."""
         if type(yaw_reader) is not yaw_observer.FreshYawObserver:
-            raise SetpointHlTransportError(
-                "exact #260 FreshYawObserver is required for horizontal movement"
-            )
+            raise SetpointHlTransportError("exact #260 FreshYawObserver is required for horizontal movement")
         if yaw_reader.bound_crazyflie is not self._cf:
-            raise SetpointHlTransportError(
-                "yaw observer is not bound to the exact Crazyflie"
-            )
+            raise SetpointHlTransportError("yaw observer is not bound to the exact Crazyflie")
         if yaw_reader.bound_connection_epoch != self._bound_connection_epoch:
-            raise SetpointHlTransportError(
-                "yaw observer is not open on the exact connection epoch"
-            )
+            raise SetpointHlTransportError("yaw observer is not open on the exact connection epoch")
         if not yaw_reader.is_open:
-            raise SetpointHlTransportError(
-                "yaw observer must be open before horizontal physical movement"
-            )
+            raise SetpointHlTransportError("yaw observer must be open before horizontal physical movement")
         if type(timing_policy) is not high_level_timing.HighLevelTimingPolicy:
-            raise SetpointHlTransportError(
-                "exact #268 HighLevelTimingPolicy is required"
-            )
+            raise SetpointHlTransportError("exact #268 HighLevelTimingPolicy is required")
         yaw_timeout = _positive_timeout(yaw_timeout_seconds, "fresh yaw timeout")
 
         def build() -> bytes:
             observation = yaw_reader.read(timeout_seconds=yaw_timeout)
             if observation.connection_epoch != self._bound_connection_epoch:
-                raise SetpointHlTransportError(
-                    "fresh yaw observation belongs to another connection epoch"
-                )
+                raise SetpointHlTransportError("fresh yaw observation belongs to another connection epoch")
             target = high_level_semantics.body_relative_move(
                 direction,
                 distance_m,
                 observation.yaw_rad,
             )
-            duration = timing_policy.horizontal_move_duration(distance_m)
-            return _go_to_request(target, duration)
+            return _go_to_request(
+                target,
+                timing_policy.horizontal_move_duration(distance_m),
+            )
 
-        return self._send_go_to_once(
-            build,
-            reply_timeout_seconds=reply_timeout_seconds,
-        )
+        return self._send_go_to_once(build, reply_timeout_seconds=reply_timeout_seconds)
 
     def send_turn(
         self,
@@ -773,19 +554,11 @@ class TrustedSetpointHlTransport:
         timing_policy: high_level_timing.HighLevelTimingPolicy,
         reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
     ) -> high_level_ack.HighLevelAckResult:
-        """Send one #256/#268 relative yaw GO_TO_2 command."""
         if type(timing_policy) is not high_level_timing.HighLevelTimingPolicy:
-            raise SetpointHlTransportError(
-                "exact #268 HighLevelTimingPolicy is required"
-            )
+            raise SetpointHlTransportError("exact #268 HighLevelTimingPolicy is required")
 
         def build() -> bytes:
             target = high_level_semantics.relative_turn(angle_deg)
-            duration = timing_policy.turn_duration(angle_deg)
-            return _go_to_request(target, duration)
+            return _go_to_request(target, timing_policy.turn_duration(angle_deg))
 
-        return self._send_go_to_once(
-            build,
-            reply_timeout_seconds=reply_timeout_seconds,
-        )
-
+        return self._send_go_to_once(build, reply_timeout_seconds=reply_timeout_seconds)
