@@ -1,0 +1,262 @@
+{
+  "checkpoint": 180,
+  "source_archive_filename": "S3-173b7c5-results.tar.gz",
+  "source_url": "https://github.com/user-attachments/files/31959735/S3-173b7c5-results.tar.gz",
+  "source_issue_comment": "https://github.com/djibian/webeeblocks/issues/180#issuecomment-5586166222",
+  "source_archive_sha256": "7b13d7d6e8cd69b1cfd95451f61af2063797bc2716b3648b625c27c8caac122d",
+  "expected_archive_sha256": null,
+  "source_archive_bytes": 780714,
+  "machine_readable_files": [
+    {
+      "path": "raw/S3-173b7c5-bundle/FILES.txt",
+      "sha256": "51729c93dc8a1172396b2a5a1169e0aa6a6a52f2ac87e57e415ec3992cc0b295",
+      "bytes": 2479
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/artifact.zip.sha256",
+      "sha256": "4f8188ddf0f2e45909105b23bbf43ce49610bfc2f5e3793640ccd425fb2d1401",
+      "bytes": 109
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/build-oracle.log",
+      "sha256": "af18d3f0c6557e9a8c3e688b0b63417df189c8f7b8f36ff17064c3a5105848a0",
+      "bytes": 98908
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/cf2.bin.sha256",
+      "sha256": "9d5ef0d91bff4c3b0babe83af8a25b6bdb6d8896346e1badf256b0665930a926",
+      "bytes": 105
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/cf2.bin.sha256.local",
+      "sha256": "f9fa2bf376bb35174b219b9dce6922d124454d55907d7590f3620203fc79bb6e",
+      "bytes": 83
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/cf2.bin.size",
+      "sha256": "cacc646dad9563ea5f57d8b92e3f21136b0d516ffe8f0708c48d978c960606f0",
+      "bytes": 7
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/cf2.elf.sha256",
+      "sha256": "da14e0ba599fd32f6fa6d84c5e0301b5b61af119202c1b62f5a21c9b2943d201",
+      "bytes": 103
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/firmware-proof/upstream-sha.txt",
+      "sha256": "dde947114b467270a3db6ac3b317e1d063f4dba80a25572e4c2a0d466ebe43a0",
+      "bytes": 41
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/metadata.txt",
+      "sha256": "5594f8b4c774f74b43831481f50a54e5cbb436e4faa80e631722f130ee676f94",
+      "bytes": 530
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/filter.csv",
+      "sha256": "b9762a22047e34359e8919db726db7dfc0ca001c6657d6eed2b3633755ac298a",
+      "bytes": 99273
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/markers.csv",
+      "sha256": "b2d421f6d5b2ce207c4fec87b450f25e76c87bbb6d31d60c04671963ba2fd072",
+      "bytes": 97
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/motion_a.csv",
+      "sha256": "d1265ae980aa8809f1c16452ba0f80635aa3a428e609d69d91d95598ee5f64b9",
+      "bytes": 36909
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/motion_b.csv",
+      "sha256": "57634c293913313571a2523a6f67294a073c9c4cab2744ec82d62db1942d1bd3",
+      "bytes": 32538
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/range_attitude.csv",
+      "sha256": "4e85319280799cecbc154afa39105c9ccc2c7cb3e383417ff9b8c789de932056",
+      "bytes": 69316
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/state.csv",
+      "sha256": "7c49ea344dcdddcc3dbcf0c1c125cabb9b2ab780aef426ea27a99d8dfbbf5739",
+      "bytes": 156125
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_a.csv",
+      "sha256": "1947273812f9b92b2c6e6b4ed26c35fd7d3901cf513dc732f9369d2d6dab730b",
+      "bytes": 89193
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_b.csv",
+      "sha256": "b162dda8309873329c3a94b659c16abf2233c2fb2e3d72c143abf2723b9cd025",
+      "bytes": 85507
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_c.csv",
+      "sha256": "bc289ebb1fca1ecc04255cbb22b4b1bc57bf3d615f8d3f37c153df89f17907ef",
+      "bytes": 66490
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/filter.csv",
+      "sha256": "9c4ce357fde478f3f1aaaffc508ef5c5af1a7563653dbb64af7c2e563a7a6ce3",
+      "bytes": 89592
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/markers.csv",
+      "sha256": "6e0da5662fbc70603d6f34d99af7a6917d6a6394e3563d57fc01a2febf3edb2c",
+      "bytes": 98
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/motion_a.csv",
+      "sha256": "829ec32a28b07b86199e5a293c35d6c26c2b1d1fd5af7920b3db83c877eddfa7",
+      "bytes": 33379
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/motion_b.csv",
+      "sha256": "1a243e5e94a66cfc9b482e10498dd753d2a4d5de51db194d2c99aa623bcbfa9b",
+      "bytes": 29483
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/range_attitude.csv",
+      "sha256": "916ddf9a7f3cb860f48201cd2c7f6d8659c71d5a84b0e97e0655ba893bb0b84e",
+      "bytes": 62659
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/state.csv",
+      "sha256": "1c20dbd70789a590c7189794e5a1783c19c92c593a3b6538ef6d5b734eb854fa",
+      "bytes": 139765
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_a.csv",
+      "sha256": "9d1c269e2f133f94b2c9d6438496903afb6c78b6be50f59bff49f662294f2cdb",
+      "bytes": 84061
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_b.csv",
+      "sha256": "4f50f10af9b831e8e4652fc69be4d68bfc30783408df11baca6e4be83a10d8af",
+      "bytes": 82209
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_c.csv",
+      "sha256": "cdd6e02238834a1745c4f07608592baa506ccc32c7008ff4da38787fb35eabb1",
+      "bytes": 64155
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/filter.csv",
+      "sha256": "4bac1074eac9b0ce476605995ea2ba405766244fff679dbeb3ce0581c150faae",
+      "bytes": 141214
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/markers.csv",
+      "sha256": "7e6c6e2da9e2a34adab27d7be3b4df290ec8dc16d3c46d3e5a3b0ae9b31be76d",
+      "bytes": 98
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/motion_a.csv",
+      "sha256": "0677a51cbcec92c5d5eb996459d9171d9eef5098a1e53e6f5b60701f3ad13e47",
+      "bytes": 52351
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/motion_b.csv",
+      "sha256": "77a04602fc802f2334f6a5d6b8b8dec0892a1c5ec8ed3995bdd0bd3db13d02be",
+      "bytes": 46544
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/range_attitude.csv",
+      "sha256": "07e6d0c0e368cbc2beb06592e32638089259958d0b778ed8ec6002de7a7a3ecf",
+      "bytes": 98293
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/state.csv",
+      "sha256": "9f1fbd4a09c699eafa376669fc0f3baa31cb45a9d6597641620936be83eb4c5f",
+      "bytes": 219798
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_a.csv",
+      "sha256": "f9fff29b25838406b09beeafbd85c99b9492f6bfd2d291e6f12e7c2f0b1e7a66",
+      "bytes": 132493
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_b.csv",
+      "sha256": "2d108661c18c0e0c834a8bd121d4bcbe64fad0c6674f9efa61cf52da8a180e4c",
+      "bytes": 129894
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_c.csv",
+      "sha256": "422e020dafc14ce860a46891986bd0ab65abaa1e471365ac07b2fbf3698c63f5",
+      "bytes": 101270
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/cache/B411033C.json",
+      "sha256": "47d3956e62ab82cbfff0efd501a7ebf5731bd63abaad84aa863038a0ebfe7fdd",
+      "bytes": 95139
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/cache/E5446F4B.json",
+      "sha256": "e7244f5469ceabf938a0a3bad19e082c8a4761bb8fab1efd9ba3bd453a9a0c71",
+      "bytes": 70529
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/filter.csv",
+      "sha256": "02e4d47f542f21294e9a6ef6e1a27ae84b913f572f5378d05ae209a364fcc841",
+      "bytes": 71881
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/markers.csv",
+      "sha256": "c21b5665ac3b44b55cfd56ce9c41f07e3cfc738c0a4c23d813bdf9efb3665dc3",
+      "bytes": 96
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/motion_a.csv",
+      "sha256": "944eabf30f897f9253092116baea7065212462b38cb33e79794f6f4cbfa7afa4",
+      "bytes": 23864
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/motion_b.csv",
+      "sha256": "f1b491ec8789f47aaf3862e84ea951cddf36b617a31412d7f34e15594645f64e",
+      "bytes": 21732
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/range_attitude.csv",
+      "sha256": "bc1a98e99667891f6612c4e79966a39067c1e8ebf8a0494100ed97716c3ca3ae",
+      "bytes": 47623
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/state.csv",
+      "sha256": "d893ea22a206c35839774bf2515ea221da2a37d4e63b8b4eea99b901ade4ca00",
+      "bytes": 109862
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_a.csv",
+      "sha256": "036cdac262240bd94ffa97b8965e5022f5a377937575ae268ba763dcef146adc",
+      "bytes": 27936
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_b.csv",
+      "sha256": "c1609905002bca0be9da0be28c928180a1bdea352ade952beb7abc0e90066f40",
+      "bytes": 24909
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_c.csv",
+      "sha256": "e799f59f0da70510851e33689988171206aba4a9dc61ad93c8ffe007e07a7ff7",
+      "bytes": 24931
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/final_parameters.json",
+      "sha256": "95058dc7d73a05e945a1187a88c53d73e7fbbcbf82c9f3f1a9f35bd4603e71b1",
+      "bytes": 122
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/results-20ms/metadata.json",
+      "sha256": "a7a72b7cc9f2ea802397ad9ef1668aa6f1e6e6dacd171806b72185c9aa25bedd",
+      "bytes": 622
+    },
+    {
+      "path": "raw/S3-173b7c5-bundle/s3_session.py",
+      "sha256": "15b3ca5aab16f711ea599100d94146ef8c8b1e65632aff180f1ed8894984bf0a",
+      "bytes": 15922
+    }
+  ],
+  "skipped_files": []
+}

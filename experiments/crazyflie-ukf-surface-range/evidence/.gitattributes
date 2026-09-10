@@ -1,0 +1,2 @@
+# Preserve the exact archive bytes, including CRLF, even with core.autocrlf.
+checkpoint-*/raw/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
