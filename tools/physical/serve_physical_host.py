@@ -158,9 +158,10 @@ if __name__ == "__main__":
 
                     try:
                         # This evidence stays inside the trusted physical host.
-                        # The co-located #276 effect preflight uses this same exact
-                        # bridge immediately before effects; caller replies are
-                        # never accepted as provenance.
+                        # Future #276 composition must consume it here immediately
+                        # before the effect; this candidate supplies the same
+                        # host-local bridge through the co-located adapter above.
+                        # Caller replies are never accepted as provenance.
                         evidence = bridge.assert_current_program(
                             profile_id=profile_id,
                             ast_binding=ast_binding,
