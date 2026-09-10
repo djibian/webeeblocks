@@ -73,6 +73,14 @@ def main():
     if physical_host_provenance_test.returncode:
         print('FAIL physical-host current-program provenance boundary',file=sys.stderr);print(physical_host_provenance_test.stdout,file=sys.stderr);print(physical_host_provenance_test.stderr,file=sys.stderr);return physical_host_provenance_test.returncode
     print(physical_host_provenance_test.stdout.strip())
+    physical_host_activation_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_activation.py'],text=True,capture_output=True)
+    if physical_host_activation_test.returncode:
+        print('FAIL actual physical-host activation composition',file=sys.stderr);print(physical_host_activation_test.stdout,file=sys.stderr);print(physical_host_activation_test.stderr,file=sys.stderr);return physical_host_activation_test.returncode
+    print(physical_host_activation_test.stdout.strip())
+    physical_host_authority_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_authority_path.py'],text=True,capture_output=True)
+    if physical_host_authority_test.returncode:
+        print('FAIL actual trusted physical-host authority path',file=sys.stderr);print(physical_host_authority_test.stdout,file=sys.stderr);print(physical_host_authority_test.stderr,file=sys.stderr);return physical_host_authority_test.returncode
+    print(physical_host_authority_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
