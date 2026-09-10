@@ -55,7 +55,12 @@ student/browser flight authority. The underlying cflib SyncCrazyflie close path
 still emits its documented safety-zero commander setpoint, so this is not a claim
 that the transport emits no command packet. Integrated #266 now supplies the concrete trusted powered-session/reset
 implementation consumed by #262, and integrated #267 supplies the host-only
-exact-run teacher-authorization binding. The substantive remaining product
+exact-run teacher-authorization binding. Integrated #283/#280 now establishes the
+trusted physical-host composition root: the one live Crazyflie/session and #278
+bridge/responder stay inside that host, the ordinary caller/UI sends only bounded
+non-authority run-context requests, and the later #276 effect transport is
+co-located inside the same trusted process so fresh #249 provenance can be
+consumed on the exact live connection epoch. The substantive remaining product
 boundary therefore starts after those validated semantics, observations and
 safety/authority prerequisites: the separately authorized physical effect
 consumer and proof of safe real execution continuity. The existing browser-held
@@ -251,15 +256,18 @@ justified by the current evidence.
   production physical submission path to that live session, preserving the exact
   current activity profile and semantic workspace AST across preflight; and
   integrated #278 adds a fresh host-initiated one-shot profile/AST/epoch
-  re-assertion channel from the production browser path. #276 subsequently
-  falsified same-process wrappers around that channel as effect provenance:
-  ordinary effect-side Python can still construct/mutate/self-answer reachable
-  bridge/session objects. #280 is therefore the remaining production-composition
-  prerequisite: the positive #249 responder/mint authority must live outside the
-  effect caller's importable authority domain, while the effect consumer receives
-  only a fresh exact request/reply capability. Integrated #256 then codifies the physical
-  body-relative horizontal -> world-frame transform plus relative world-Z/yaw as
-  a pure semantic adapter, without importing cflib or emitting any command.
+  re-assertion channel from the production browser path. Integrated #283/#280 now
+  establishes the production composition root around that channel: the trusted
+  physical-host process owns the exact live session plus #278 bridge/responder,
+  browser responder bootstrap remains a distinct trusted channel, and the
+  ordinary caller/UI remains outside on bounded non-authority run-context IPC.
+  The later #276 transport is co-located inside that trusted host TCB and must
+  perform the fresh #249 assertion internally immediately before an effect; no
+  public/importable mint, binder or client may turn caller-selected bridge,
+  session, socket or token state into effect provenance. Integrated #256 then
+  codifies the physical body-relative horizontal -> world-frame transform plus
+  relative world-Z/yaw as a pure semantic adapter, without importing cflib or
+  emitting any command.
   Integrated #257 adds the fresh fail-closed supervisor-state observer: one
   reconnect-sensitive epoch serializes all reads, exact response framing and raw
   state including deck fault are preserved, and timeout/disconnect/malformed or
@@ -292,13 +300,11 @@ justified by the current evidence.
   process-wide HighLevel acknowledgement-freshness domain (#271), live SafeLink
   duplicate-suppression precondition (#272), process-wide reset/effect
   exclusion lifecycle (#273), and exact accepted-effect completion permit (#279)
-  are integrated. #280 remains a technical prerequisite to the first separately
-  authorized physical effect consumer: fresh #278/#249 current-program evidence
-  must cross a production authority process/channel that the effect caller cannot
-  self-answer or mint through imported Python state. Until that is established,
-  #276 cannot truthfully claim the current-program precondition and must not
-  become an integration candidate. The physical effect consumer and safe
-  real-execution proof therefore remain unproven. That consumer must compose the
+  are integrated. #280 is integrated by #283 and no longer blocks #276. The
+  remaining boundary is the first separately authorized physical effect consumer
+  itself: #276 must be co-located inside the #283 trusted physical-host process,
+  perform fresh #278/#249 current-program assertion internally immediately before
+  each effect without accepting caller-returned provenance, and compose the
   exact-bound preflight with #257/#260/#256/#268, consume #266
   to establish the powered session, keep #262 live across that reusable session,
   require the exact #267 run binding and #272 SafeLink evidence immediately
@@ -381,24 +387,27 @@ justified by the current evidence.
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
 - depends: separately authorized physical effect consumption and proof of
-  physical execution continuity. Integrated #278 supplies the fresh host-initiated
-  browser #249 assertion, but #280 is now a demonstrated prerequisite before that
-  assertion may authorize an effect: responder/mint authority must be separated
-  from the effect caller so caller-selected bridge/session state cannot self-answer
-  or manufacture accepted provenance. Integrated #266 now satisfies #262's concrete
-  trusted powered-session/reset authority boundary, and integrated #267 now
-  supplies the exact-run host-only teacher-authorization binding that every
-  flight-capable effect must re-check. The existing browser-held capability/
-  preflight bearer remains non-authority; the #267 teacher path is distinct and
-  unavailable to the student/browser runtime, and the read-only capability
-  bridge must not gain effect methods merely to reuse that bearer. #280 should
-  preserve this non-authority split with the smallest OS-handle/process boundary
-  needed for a fresh exact assertion; do not substitute Python privacy naming,
-  mutable provenance flags or caller-selected bridge/session wrappers. Integrated
-  #268 additionally supplies the pure horizontal/yaw HighLevel timing policy
-  needed by the later serialized effect consumer. #262, #264, #266, #267 and
-  #268 are safety/authority/semantic prerequisites; none alone establishes the
-  physical effect consumer or real-flight proof. Stock
+  physical execution continuity. Integrated #283/#280 now supplies the trusted
+  physical-host boundary around #278: one host process owns the live session,
+  bridge/responder and later physical effect transport; browser bootstrap remains
+  distinct, while the ordinary caller/UI has only bounded non-authority run-context
+  IPC. The fresh #249 assertion therefore remains inside the trusted host and is
+  consumed immediately before a co-located effect rather than crossing back as
+  caller-held provenance. Integrated #266 now satisfies #262's concrete trusted
+  powered-session/reset authority boundary, and integrated #267 now supplies the
+  exact-run host-only teacher-authorization binding that every flight-capable
+  effect must re-check. The existing browser-held capability/preflight bearer
+  remains non-authority; the #267 teacher path is distinct and unavailable to the
+  student/browser runtime, and the read-only capability bridge must not gain
+  effect methods merely to reuse that bearer. This boundary deliberately does
+  not treat arbitrary code already inside the trusted physical-host TCB as an
+  adversarial Python principal; Python privacy naming is not a sandbox, while
+  ambient production import surfaces that expose bridge/session/responder or a
+  caller-selectable mint/binder/client remain forbidden. Integrated #268
+  additionally supplies the pure horizontal/yaw HighLevel timing policy needed
+  by the later serialized effect consumer. #262, #264, #266, #267 and #268 are
+  safety/authority/semantic prerequisites; none alone establishes the physical
+  effect consumer or real-flight proof. Stock
   auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
   so a host disarm request is not a durable post-mission lockout. The pinned
   watchdog has no disable/reset command after first activation, so its trusted
