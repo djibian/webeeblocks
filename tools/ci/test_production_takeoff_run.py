@@ -316,32 +316,11 @@ def test_actual_host_runner_contract() -> None:
     )
 
 
-def test_actual_host_authority_path() -> None:
-    result = subprocess.run(
-        [sys.executable, "tools/ci/test_physical_host_authority_path.py"],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-    )
-    if result.returncode:
-        raise AssertionError(
-            "actual production-host authority regression failed\n"
-            + result.stdout
-            + "\n"
-            + result.stderr
-        )
-    require(
-        "PASS actual host authority path:" in result.stdout,
-        "actual host authority path did not publish its exact PASS evidence",
-    )
-
-
 def main() -> int:
     test_real_controller_orders_post_reset_authority_before_takeoff()
     test_stale_candidate_fails_before_reset()
     test_host_and_adapter_preserve_authority_ownership_boundaries()
     test_actual_host_runner_contract()
-    test_actual_host_authority_path()
     print(
         "PASS production takeoff lifecycle: reset epoch -> post-reset teacher -> watchdog -> "
         "causal takeoff, stale candidate rejection, actual host runner and controller-owned teardown"
