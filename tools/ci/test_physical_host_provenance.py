@@ -6,7 +6,6 @@ import importlib.util
 import json
 import multiprocessing
 from pathlib import Path
-import socket
 import sys
 from threading import Thread
 import time
@@ -70,7 +69,8 @@ def _http_json(
 
 
 def _authority_fixture(
-    caller_socket: socket.socket,
+    request_recv,
+    response_send,
     browser_config_send,
     epoch: str,
 ) -> None:
@@ -92,46 +92,50 @@ def _authority_fixture(
     )
     browser_config_send.close()
 
-    reader = caller_socket.makefile("r", encoding="utf-8")
-    writer = caller_socket.makefile("w", encoding="utf-8")
     try:
-        for line in reader:
-            request = json.loads(line)
-            request_id = request["requestId"]
+        while True:
             try:
-                if request.get("op") != "validate-run-context":
-                    raise bridge_module.CapabilityBridgeError("unsupported caller operation")
+                request = request_recv.recv()
+            except EOFError:
+                break
+            request_id = request.get("requestId") if isinstance(request, dict) else None
+            try:
+                if not isinstance(request, dict):
+                    raise bridge_module.CapabilityBridgeError("malformed effect request")
+                if request.get("op") != "assert-current-program":
+                    raise bridge_module.CapabilityBridgeError("unsupported effect request")
                 evidence = bridge.assert_current_program(
                     profile_id=request["profileId"],
                     ast_binding=request["astBinding"],
                     connection_epoch=request["connectionEpoch"],
                     timeout_seconds=0.35,
                 )
-            except bridge_module.CapabilityBridgeError as exc:
-                response = {
-                    "requestId": request_id,
-                    "ok": False,
-                    "error": str(exc),
-                    "executionAuthority": False,
-                }
-            else:
-                require(
-                    evidence.execution_authority is False,
-                    "fixture #278 evidence remains non-authority",
+            except (KeyError, bridge_module.CapabilityBridgeError) as exc:
+                response_send.send(
+                    {
+                        "requestId": request_id,
+                        "ok": False,
+                        "error": str(exc),
+                        "executionAuthority": False,
+                    }
                 )
-                response = {
-                    "requestId": request_id,
-                    "ok": True,
-                    "executionAuthority": False,
-                }
-            writer.write(json.dumps(response, separators=(",", ":")) + "\n")
-            writer.flush()
+            else:
+                response_send.send(
+                    {
+                        "requestId": request_id,
+                        "ok": True,
+                        "profileId": evidence.profile_id,
+                        "astBinding": evidence.ast_binding,
+                        "connectionEpoch": evidence.connection_epoch,
+                        "challengeId": evidence.challenge_id,
+                        "executionAuthority": False,
+                    }
+                )
     finally:
         bridge.shutdown()
         thread.join(timeout=1.0)
-        reader.close()
-        writer.close()
-        caller_socket.close()
+        request_recv.close()
+        response_send.close()
 
 
 def _browser_responder(
@@ -148,10 +152,7 @@ def _browser_responder(
     base = config["baseUrl"]
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
-        status, challenge = _http_json(
-            base + "/v1/preflight-challenge",
-            token,
-        )
+        status, challenge = _http_json(base + "/v1/preflight-challenge", token)
         if status != 200:
             result_send.send({"ok": False, "error": challenge.get("error")})
             result_send.close()
@@ -222,48 +223,69 @@ def _self_answer_public_bridge() -> bool:
     )
 
 
-def _caller_worker(
-    caller_socket: socket.socket,
-    request_ast: str,
-    result_send,
-) -> None:
-    # Strongest historical same-process attack remains possible locally: the
-    # ordinary caller can manufacture ordinary #278 evidence.  It is irrelevant
-    # to the trusted physical host because no caller-side evidence/client is an
-    # input to that host's future effect composition.
+def _effect_request(request_send, response_recv, request_ast: str, timeout: float = 1.0) -> dict:
+    request_id = "installed-channel-request"
+    request_send.send(
+        {
+            "op": "assert-current-program",
+            "requestId": request_id,
+            "profileId": PROFILE,
+            "astBinding": request_ast,
+            "connectionEpoch": EPOCH,
+        }
+    )
+    if not response_recv.poll(timeout):
+        raise RuntimeError("authority response timeout")
+    try:
+        response = response_recv.recv()
+    except EOFError as exc:
+        raise RuntimeError("authority response EOF") from exc
+    if not isinstance(response, dict):
+        raise RuntimeError("malformed authority response")
+    if response.get("requestId") != request_id:
+        raise RuntimeError("authority response correlation mismatch")
+    if response_recv.poll(0):
+        raise RuntimeError("duplicate authority response")
+    if response.get("executionAuthority") is not False:
+        raise RuntimeError("authority response must remain non-authority")
+    if response.get("ok") is True:
+        expected = {
+            "profileId": PROFILE,
+            "astBinding": request_ast,
+            "connectionEpoch": EPOCH,
+        }
+        for key, value in expected.items():
+            if response.get(key) != value:
+                raise RuntimeError("authority response binding mismatch")
+        if not isinstance(response.get("challengeId"), str) or not response["challengeId"]:
+            raise RuntimeError("authority response missing challenge provenance")
+    return response
+
+
+def _effect_worker(request_send, response_recv, request_ast: str, result_send) -> None:
+    # Reproduce the strongest historical attacks inside the actual effect-side
+    # process.  It can manufacture public #278 evidence and arbitrary local data,
+    # but it owns no send capability for the trusted response pipe.
     local_forgery = _self_answer_public_bridge()
-
-    # Also manufacture a completely caller-controlled local IPC peer.  This can
-    # produce arbitrary JSON, but no production code consumes it as effect
-    # authority because #276 will live inside the separate physical host.
-    fake_client, fake_server = socket.socketpair()
-    fake_server.sendall(
-        b'{"requestId":"fake","ok":true,"executionAuthority":false}\n'
-    )
-    local_fake_reply = fake_client.recv(256)
-    fake_client.close()
-    fake_server.close()
-
-    request = {
-        "op": "validate-run-context",
-        "requestId": "installed-channel-request",
-        "profileId": PROFILE,
-        "astBinding": request_ast,
-        "connectionEpoch": EPOCH,
-    }
-    caller_socket.sendall(
-        (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
-    )
-    reader = caller_socket.makefile("r", encoding="utf-8")
-    line = reader.readline()
-    reply = json.loads(line) if line else None
-    reader.close()
-    caller_socket.close()
+    fake_recv, fake_send = multiprocessing.get_context("spawn").Pipe(duplex=False)
+    fake_send.send({"requestId": "fake", "ok": True, "executionAuthority": False})
+    local_fake_reply = fake_recv.recv()
+    fake_recv.close()
+    fake_send.close()
+    try:
+        authority_reply = _effect_request(request_send, response_recv, request_ast)
+        error = None
+    except RuntimeError as exc:
+        authority_reply = None
+        error = str(exc)
+    request_send.close()
+    response_recv.close()
     result_send.send(
         {
             "localForgery": local_forgery,
-            "localFakeReply": local_fake_reply.decode("utf-8").strip(),
-            "authorityReply": reply,
+            "localFakeReply": local_fake_reply,
+            "authorityReply": authority_reply,
+            "error": error,
         }
     )
     result_send.close()
@@ -271,16 +293,18 @@ def _caller_worker(
 
 def _run_separated_case(*, browser: bool, request_ast: str) -> dict:
     ctx = multiprocessing.get_context("spawn")
-    caller_parent, caller_child = socket.socketpair()
+    request_recv, request_send = ctx.Pipe(duplex=False)
+    response_recv, response_send = ctx.Pipe(duplex=False)
     browser_recv, browser_send = ctx.Pipe(duplex=False)
-    caller_result_recv, caller_result_send = ctx.Pipe(duplex=False)
+    result_recv, result_send = ctx.Pipe(duplex=False)
 
     authority = ctx.Process(
         target=_authority_fixture,
-        args=(caller_parent, browser_send, EPOCH),
+        args=(request_recv, response_send, browser_send, EPOCH),
     )
     authority.start()
-    caller_parent.close()
+    request_recv.close()
+    response_send.close()
     browser_send.close()
 
     browser_process = None
@@ -301,92 +325,125 @@ def _run_separated_case(*, browser: bool, request_ast: str) -> dict:
         browser_recv.close()
         browser_result_send.close()
     else:
-        # Trusted composition still routes and consumes the one-way bootstrap,
-        # but no browser responder is started.  The caller never receives these
-        # credentials, and the authority-side #278 challenge must time out.
-        discarded_bootstrap = browser_recv.recv()
-        require(
-            discarded_bootstrap["executionAuthority"] is False,
-            "discarded browser bootstrap remains non-authority",
-        )
+        discarded = browser_recv.recv()
+        require(discarded["executionAuthority"] is False, "bootstrap remains non-authority")
         browser_recv.close()
 
-    caller = ctx.Process(
-        target=_caller_worker,
-        args=(caller_child, request_ast, caller_result_send),
+    effect = ctx.Process(
+        target=_effect_worker,
+        args=(request_send, response_recv, request_ast, result_send),
     )
-    caller.start()
-    caller_child.close()
-    caller_result_send.close()
+    effect.start()
+    request_send.close()
+    response_recv.close()
+    result_send.close()
 
-    result = caller_result_recv.recv()
-    caller_result_recv.close()
-    caller.join(timeout=5.0)
-    require(caller.exitcode == 0, "ordinary caller process must exit cleanly")
+    result = result_recv.recv()
+    result_recv.close()
+    effect.join(timeout=5.0)
+    require(effect.exitcode == 0, "effect worker exits cleanly")
 
     if browser_process is not None:
         browser_result = browser_result_recv.recv()
         browser_result_recv.close()
         browser_process.join(timeout=5.0)
-        require(browser_process.exitcode == 0, "browser responder process exits cleanly")
+        require(browser_process.exitcode == 0, "browser responder exits cleanly")
         if request_ast == AST_BINDING:
-            require(
-                browser_result["ok"],
-                "production-shaped #249 browser responder succeeds",
-            )
+            require(browser_result["ok"], "production #249 responder succeeds")
         else:
-            require(
-                not browser_result["ok"],
-                "mismatched actual browser AST must be rejected by #278",
-            )
+            require(not browser_result["ok"], "browser AST mismatch is rejected")
 
-    # Closing the installed caller capability terminates the authority fixture.
     authority.join(timeout=5.0)
     if authority.is_alive():
         authority.terminate()
         authority.join(timeout=2.0)
-        raise AssertionError("authority process did not terminate after caller EOF")
+        raise AssertionError("authority did not terminate after request EOF")
     require(authority.exitcode == 0, "authority process exits cleanly")
     return result
 
 
-def test_separate_host_accepts_only_its_browser_responder() -> None:
+def test_effect_worker_cannot_forge_trusted_response() -> None:
     result = _run_separated_case(browser=True, request_ast=AST_BINDING)
-    require(result["localForgery"], "caller reproduces ordinary #278 self-answer attack")
-    require('"ok":true' in result["localFakeReply"], "caller can forge local IPC data")
+    require(result["localForgery"], "effect process reproduces public #278 self-answer")
+    require(result["localFakeReply"]["ok"] is True, "effect process can forge local IPC")
+    require(result["error"] is None, "trusted authority request succeeds")
     reply = result["authorityReply"]
-    require(reply["ok"] is True, "trusted host exact current-program request succeeds")
-    require(
-        reply["executionAuthority"] is False,
-        "caller-visible result remains explicitly non-authority",
-    )
+    require(reply["ok"] is True, "exact current-program request succeeds")
+    require(reply["profileId"] == PROFILE, "exact profile is returned")
+    require(reply["astBinding"] == AST_BINDING, "exact AST binding is returned")
+    require(reply["connectionEpoch"] == EPOCH, "exact epoch is returned")
 
 
 def test_local_forgery_cannot_replace_missing_browser_responder() -> None:
     result = _run_separated_case(browser=False, request_ast=AST_BINDING)
     require(result["localForgery"], "strong local bridge forgery is reproduced")
-    require(
-        result["authorityReply"]["ok"] is False,
-        "local bridge/socket forgery cannot settle trusted host challenge",
-    )
+    require(result["error"] is None, "authority returned a correlated fail-closed result")
+    require(result["authorityReply"]["ok"] is False, "missing browser fails closed")
 
 
 def test_binding_mismatch_fails_closed_across_process_boundary() -> None:
     result = _run_separated_case(browser=True, request_ast="different-ast")
+    require(result["error"] is None, "mismatch is a correlated negative result")
+    require(result["authorityReply"]["ok"] is False, "browser AST mismatch fails closed")
+
+
+def _protocol_worker(response_payloads: list[object], close_without_reply: bool = False) -> str:
+    ctx = multiprocessing.get_context("spawn")
+    request_recv, request_send = ctx.Pipe(duplex=False)
+    response_recv, response_send = ctx.Pipe(duplex=False)
+
+    def responder() -> None:
+        try:
+            request = request_recv.recv()
+            if close_without_reply:
+                return
+            for payload in response_payloads:
+                if payload == "MATCH":
+                    payload = {
+                        "requestId": request["requestId"],
+                        "ok": True,
+                        "profileId": request["profileId"],
+                        "astBinding": request["astBinding"],
+                        "connectionEpoch": request["connectionEpoch"],
+                        "challengeId": "challenge",
+                        "executionAuthority": False,
+                    }
+                response_send.send(payload)
+        finally:
+            request_recv.close()
+            response_send.close()
+
+    thread = Thread(target=responder, daemon=True)
+    thread.start()
+    try:
+        _effect_request(request_send, response_recv, AST_BINDING, timeout=0.1)
+    except RuntimeError as exc:
+        outcome = str(exc)
+    else:
+        outcome = "accepted"
+    request_send.close()
+    response_recv.close()
+    thread.join(timeout=1.0)
+    return outcome
+
+
+def test_effect_requester_fails_closed_on_channel_ambiguity() -> None:
+    require("malformed" in _protocol_worker(["not-a-dict"]), "malformed response rejected")
     require(
-        result["authorityReply"]["ok"] is False,
-        "actual browser AST mismatch must fail closed",
+        "correlation mismatch" in _protocol_worker([{"requestId": "wrong", "ok": False, "executionAuthority": False}]),
+        "wrong correlation rejected",
     )
+    require("duplicate" in _protocol_worker(["MATCH", "MATCH"]), "duplicate response rejected")
+    require("EOF" in _protocol_worker([], close_without_reply=True), "authority EOF rejected")
+    require("timeout" in _protocol_worker([]), "missing/late authority response rejected")
 
 
-def test_production_host_is_executable_only_and_keeps_provenance_internal() -> None:
+def test_production_host_is_executable_only_and_preserves_one_way_split() -> None:
     source = HOST.read_text(encoding="utf-8")
     tree = ast.parse(source)
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            raise AssertionError(
-                "physical-host authority must export no importable callable/class"
-            )
+            raise AssertionError("physical authority host must export no callable/class")
 
     spec = importlib.util.spec_from_file_location("physical_host_import_probe", HOST)
     require(spec is not None and spec.loader is not None, "physical host import spec")
@@ -400,24 +457,24 @@ def test_production_host_is_executable_only_and_keeps_provenance_internal() -> N
         "preflight_responder_token",
         "CurrentProgramProvenanceClient",
     ):
-        require(
-            not hasattr(module, forbidden_attr),
-            "imported host leaks authority state/API: " + forbidden_attr,
-        )
+        require(not hasattr(module, forbidden_attr), "imported host leaks authority: " + forbidden_attr)
 
     for required in (
         "ReadOnlyCapabilitySession",
         "ReadOnlyCapabilityHttpBridge",
         "bridge.assert_current_program(",
-        "--caller-fd",
+        "--request-fd",
+        "--response-fd",
         "--browser-config-fd",
         "preflightResponderToken",
-        "Future #276 composition must consume it here immediately",
-        "validate-run-context",
+        "assert-current-program",
+        "challengeId",
+        "separate effect worker",
     ):
-        require(required in source, "missing physical-host composition contract: " + required)
+        require(required in source, "missing selected #280 boundary: " + required)
 
     for forbidden in (
+        "--caller-fd",
         "CurrentProgramProvenanceClient",
         "CurrentProgramAuthorityEvidence",
         "_bind_effect_current_program_bridge",
@@ -426,26 +483,21 @@ def test_production_host_is_executable_only_and_keeps_provenance_internal() -> N
         "takeoff",
         "land(",
     ):
-        require(forbidden not in source, "physical-host prerequisite leaks old/effect API: " + forbidden)
+        require(forbidden not in source, "authority prerequisite leaks old/effect API: " + forbidden)
 
-    require(
-        not REMOVED_CLIENT.exists(),
-        "caller-selectable provenance client must be removed",
-    )
-    require(
-        not REMOVED_BROKER.exists(),
-        "preflight-only broker must be removed in favor of physical-host root",
-    )
+    require(not REMOVED_CLIENT.exists(), "caller-selectable provenance client must stay removed")
+    require(not REMOVED_BROKER.exists(), "preflight-only broker must stay removed")
 
 
 def main() -> int:
-    test_separate_host_accepts_only_its_browser_responder()
+    test_effect_worker_cannot_forge_trusted_response()
     test_local_forgery_cannot_replace_missing_browser_responder()
     test_binding_mismatch_fails_closed_across_process_boundary()
-    test_production_host_is_executable_only_and_keeps_provenance_internal()
+    test_effect_requester_fails_closed_on_channel_ambiguity()
+    test_production_host_is_executable_only_and_preserves_one_way_split()
     print(
-        "PASS physical-host process owns #278 provenance; ordinary caller can "
-        "forge local bridge/socket data but cannot replace the host browser responder"
+        "PASS #280 authority/effect process split: effect worker owns only request-send "
+        "and response-receive capabilities; local forgery and channel ambiguity fail closed"
     )
     return 0
 
