@@ -49,6 +49,19 @@ class BlockingFirstEpochSession(FakeSession):
         return super().read_connection_epoch()
 
 
+class BlockingCapabilitySession(FakeSession):
+    def __init__(self, epoch: str, label: str) -> None:
+        super().__init__(epoch, label)
+        self.capability_read_started = Event()
+        self.release_capability_read = Event()
+
+    def read_capabilities(self) -> dict[str, object]:
+        self.capability_read_started.set()
+        if not self.release_capability_read.wait(1.0):
+            raise RuntimeError("test did not release capability read")
+        return super().read_capabilities()
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -110,6 +123,74 @@ def test_direct_session_assignment_cannot_bypass_replacement() -> None:
     finally:
         bridge.shutdown()
         worker.join(timeout=1.0)
+
+
+def test_capability_http_read_is_drained_before_replacement_begin() -> None:
+    before = BlockingCapabilitySession("epoch-http-race", "http-race")
+    bridge = rebind.PostResetCapabilityHttpBridge(
+        before,
+        token="http-race-capability-token",
+        preflight_responder_token="http-race-responder-token",
+    )
+    host, port = bridge.address
+    base = f"http://{host}:{port}"
+    worker = Thread(target=bridge.serve_forever, daemon=True)
+    worker.start()
+    read_outcome: dict[str, object] = {}
+    replacement_outcome: dict[str, object] = {}
+
+    def read_capabilities() -> None:
+        try:
+            read_outcome["result"] = request(base + "/v1/capabilities", bridge.token)
+        except Exception as exc:
+            read_outcome["error"] = exc
+
+    def begin_replacement() -> None:
+        try:
+            bridge.begin_post_reset_replacement("epoch-http-race")
+            replacement_outcome["started"] = True
+        except Exception as exc:
+            replacement_outcome["error"] = exc
+
+    reader = Thread(target=read_capabilities, daemon=True)
+    reader.start()
+    require(
+        before.capability_read_started.wait(1.0),
+        "HTTP capability read did not enter the old session",
+    )
+
+    replacement = Thread(target=begin_replacement, daemon=True)
+    replacement.start()
+    replacement.join(timeout=0.02)
+    require(
+        replacement.is_alive(),
+        "replacement begin returned while an admitted old capability read was still blocked",
+    )
+
+    before.release_capability_read.set()
+    reader.join(timeout=1.0)
+    replacement.join(timeout=1.0)
+    require(not reader.is_alive(), "old capability read did not settle")
+    require(not replacement.is_alive(), "replacement begin did not settle after draining read")
+    require("error" not in read_outcome, "admitted old capability read must settle normally")
+    status, payload = read_outcome["result"]
+    require(
+        status == 200 and payload["evidence"]["label"] == "http-race",
+        "the admitted pre-cutover capability response must complete before the cutover returns",
+    )
+    require(
+        replacement_outcome.get("started") is True and "error" not in replacement_outcome,
+        "replacement must begin only after the admitted old read has drained",
+    )
+
+    status, payload = request(base + "/v1/capabilities", bridge.token)
+    require(
+        status == 409 and "replacement" in payload["error"],
+        "new capability reads must fail closed after replacement begins",
+    )
+
+    bridge.shutdown()
+    worker.join(timeout=1.0)
 
 
 def test_assertion_admission_cannot_race_replacement() -> None:
@@ -199,6 +280,7 @@ def test_assertion_admission_cannot_race_replacement() -> None:
 
 def main() -> int:
     test_direct_session_assignment_cannot_bypass_replacement()
+    test_capability_http_read_is_drained_before_replacement_begin()
     test_assertion_admission_cannot_race_replacement()
 
     before = FakeSession("epoch-before", "before")
