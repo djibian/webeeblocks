@@ -50,6 +50,9 @@ if __name__ == "__main__":
         from serve_reference_capabilities import CapabilityBridgeError
         from teacher_run_authorization import PhysicalRunBinding
 
+        # The reset-aware bridge is the production ReadOnlyCapabilityHttpBridge
+        # specialization: same #278 read/provenance boundary, plus the explicit
+        # fail-closed #266 session-replacement transaction integrated by #294.
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
 
