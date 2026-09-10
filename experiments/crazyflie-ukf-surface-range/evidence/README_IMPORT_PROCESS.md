@@ -1,0 +1,1 @@
+The import is intentionally performed through a temporary branch-only GitHub Actions workflow because the ChatGPT GitHub connector cannot materialize `github.com/user-attachments/files/...` binaries. The workflow removes itself after importing the already-existing raw traces.
