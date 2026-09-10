@@ -69,6 +69,10 @@ def main():
     if powered_session_test.returncode:
         print('FAIL trusted physical powered-session/reset authority',file=sys.stderr);print(powered_session_test.stdout,file=sys.stderr);print(powered_session_test.stderr,file=sys.stderr);return powered_session_test.returncode
     print(powered_session_test.stdout.strip())
+    physical_host_provenance_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_provenance.py'],text=True,capture_output=True)
+    if physical_host_provenance_test.returncode:
+        print('FAIL physical-host current-program provenance boundary',file=sys.stderr);print(physical_host_provenance_test.stdout,file=sys.stderr);print(physical_host_provenance_test.stderr,file=sys.stderr);return physical_host_provenance_test.returncode
+    print(physical_host_provenance_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
