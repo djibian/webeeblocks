@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -267,6 +268,7 @@ def test_host_and_adapter_preserve_authority_ownership_boundaries() -> None:
         "activate_validated_run(",
         'staged_state["binding"] = PhysicalRunBinding(',
         "active_controller.shutdown()",
+        "PostResetCapabilityHttpBridge(session)",
     ):
         require(required in host, "production host missing lifecycle ownership: " + required)
     require(
@@ -278,6 +280,8 @@ def test_host_and_adapter_preserve_authority_ownership_boundaries() -> None:
         "ProductionTakeoffRunController(",
         "session.close()",
         "session.open()",
+        "begin_post_reset_replacement",
+        "install_post_reset_session",
         "_assert_current_program(",
         "controller.start(",
     ):
@@ -292,13 +296,34 @@ def test_host_and_adapter_preserve_authority_ownership_boundaries() -> None:
         require(forbidden not in adapter, "host adapter leaks caller/effect primitive: " + forbidden)
 
 
+def test_actual_host_runner_contract() -> None:
+    result = subprocess.run(
+        [sys.executable, "tools/ci/test_physical_host_activation.py"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode:
+        raise AssertionError(
+            "actual production-host activation regression failed\n"
+            + result.stdout
+            + "\n"
+            + result.stderr
+        )
+    require(
+        "PASS actual physical host runner:" in result.stdout,
+        "actual host runner did not publish its exact PASS evidence",
+    )
+
+
 def main() -> int:
     test_real_controller_orders_post_reset_authority_before_takeoff()
     test_stale_candidate_fails_before_reset()
     test_host_and_adapter_preserve_authority_ownership_boundaries()
+    test_actual_host_runner_contract()
     print(
         "PASS production takeoff lifecycle: reset epoch -> post-reset teacher -> watchdog -> "
-        "causal takeoff, stale candidate rejection and controller-owned teardown"
+        "causal takeoff, stale candidate rejection, actual host runner and controller-owned teardown"
     )
     return 0
 
