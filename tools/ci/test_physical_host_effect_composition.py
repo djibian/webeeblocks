@@ -55,11 +55,14 @@ def production_activation(bridge, session):
         "_ActiveInflightRun",
         "_activate_inflight_run",
     }
-    definitions = [
-        node
-        for node in runner.body
-        if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted
-    ]
+    definitions = sorted(
+        (
+            node
+            for node in ast.walk(runner)
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted
+        ),
+        key=lambda node: node.lineno,
+    )
     require({node.name for node in definitions} == wanted, "production host activation path is incomplete")
 
     wrapper = ast.FunctionDef(
