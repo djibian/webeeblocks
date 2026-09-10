@@ -236,9 +236,9 @@ def test_binding_validation() -> None:
         )
 
 
-def test_trusted_teacher_decision_channel_contract() -> None:
+def _run_contract(path: str, marker: str, failure: str) -> None:
     result = subprocess.run(
-        [sys.executable, "tools/ci/test_teacher_decision_channel.py"],
+        [sys.executable, path],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -246,10 +246,23 @@ def test_trusted_teacher_decision_channel_contract() -> None:
     if result.returncode:
         print(result.stdout, file=sys.stderr)
         print(result.stderr, file=sys.stderr)
-        raise AssertionError("trusted teacher decision channel regression failed")
-    require(
-        "PASS trusted teacher decision channel" in result.stdout,
-        "trusted teacher decision channel PASS marker",
+        raise AssertionError(failure)
+    require(marker in result.stdout, marker + " PASS marker")
+
+
+def test_trusted_teacher_decision_channel_contract() -> None:
+    _run_contract(
+        "tools/ci/test_teacher_decision_channel.py",
+        "PASS trusted teacher decision channel",
+        "trusted teacher decision channel regression failed",
+    )
+
+
+def test_post_reset_teacher_binding_contract() -> None:
+    _run_contract(
+        "tools/ci/test_post_reset_teacher_decision.py",
+        "PASS post-reset teacher binding bootstrap",
+        "post-reset teacher binding regression failed",
     )
 
 
@@ -261,6 +274,7 @@ def main() -> int:
     test_receipt_cannot_be_minted_or_restored_from_serialized_identity()
     test_binding_validation()
     test_trusted_teacher_decision_channel_contract()
+    test_post_reset_teacher_binding_contract()
     print(
         "PASS host-only teacher run authorization: one explicit decision binds one exact "
         "profile/AST/epoch run and every effect boundary re-checks it"
