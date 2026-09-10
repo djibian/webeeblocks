@@ -266,6 +266,14 @@ def test_post_reset_teacher_binding_contract() -> None:
     )
 
 
+def test_post_reset_capability_bridge_contract() -> None:
+    _run_contract(
+        "tools/ci/test_post_reset_capability_bridge.py",
+        "PASS post-reset capability bridge",
+        "post-reset capability bridge regression failed",
+    )
+
+
 def main() -> int:
     test_exact_binding_authorizes_one_run()
     test_denial_non_boolean_and_decision_failure_fail_closed()
@@ -275,6 +283,7 @@ def main() -> int:
     test_binding_validation()
     test_trusted_teacher_decision_channel_contract()
     test_post_reset_teacher_binding_contract()
+    test_post_reset_capability_bridge_contract()
     print(
         "PASS host-only teacher run authorization: one explicit decision binds one exact "
         "profile/AST/epoch run and every effect boundary re-checks it"
