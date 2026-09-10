@@ -8,10 +8,10 @@ session and the integrated #278 bridge/responder relationship.
 
 The ordinary caller/UI is outside this process. Its IPC messages are untrusted
 run-context requests only; a positive reply is diagnostic/non-authority data and
-must never be accepted later as an effect capability. The future #276 transport
-belongs *inside this same process* so the fresh #249 assertion and all
-identity-sensitive #257/#260/#262/#266/#267/#271/#272/#273 objects share the
-one live Crazyflie/session/connection epoch.
+must never be accepted later as an effect capability. The #276 transport belongs
+*inside this same process* so the fresh #249 assertion and all identity-sensitive
+#257/#260/#262/#266/#267/#271/#272/#273 objects share the one live
+Crazyflie/session/connection epoch.
 
 Browser bootstrap is a distinct one-way composition channel. The responder
 credential is written there once and is never returned on the ordinary caller
@@ -39,6 +39,7 @@ if __name__ == "__main__":
         from probe_reference_hardware import ReadOnlyCapabilitySession
         from serve_reference_capabilities import (
             CapabilityBridgeError,
+            CurrentProgramEffectPreflightHandle,
             ReadOnlyCapabilityHttpBridge,
         )
 
@@ -76,6 +77,28 @@ if __name__ == "__main__":
 
         with ReadOnlyCapabilitySession(args.uri) as session:
             bridge = ReadOnlyCapabilityHttpBridge(session)
+
+            # #280's authority boundary is this trusted process, not Python
+            # object privacy inside it. The #276 transport is co-located TCB code,
+            # so its existing opaque adapter is composed only from this exact
+            # host-owned bridge and never crosses the ordinary caller IPC. There
+            # is deliberately no importable bridge->effect binder/factory.
+            effect_current_program_preflight = object.__new__(
+                CurrentProgramEffectPreflightHandle
+            )
+            object.__setattr__(
+                effect_current_program_preflight,
+                "_CurrentProgramEffectPreflightHandle__bridge",
+                bridge,
+            )
+            if (
+                effect_current_program_preflight.bound_connection_epoch
+                != session.read_connection_epoch()
+            ):
+                raise CapabilityBridgeError(
+                    "co-located effect preflight is not bound to the live host epoch"
+                )
+
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
@@ -135,8 +158,9 @@ if __name__ == "__main__":
 
                     try:
                         # This evidence stays inside the trusted physical host.
-                        # Future #276 composition must consume it here immediately
-                        # before the effect; caller replies are never provenance.
+                        # The co-located #276 effect preflight uses this same exact
+                        # bridge immediately before effects; caller replies are
+                        # never accepted as provenance.
                         evidence = bridge.assert_current_program(
                             profile_id=profile_id,
                             ast_binding=ast_binding,
