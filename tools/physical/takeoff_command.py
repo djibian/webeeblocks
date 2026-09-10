@@ -17,6 +17,7 @@ and fresh #278/#249 provenance immediately before emission.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 import json
 import math
 import struct
@@ -48,6 +49,66 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str,
     return result
 
 
+def _canonical_json_string(value: str) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    # Modern JSON.stringify emits non-ASCII text directly but escapes lone UTF-16
+    # surrogates. Python can retain a lone surrogate when ensure_ascii=False, so
+    # normalize that one difference before exact-text comparison.
+    return "".join(
+        f"\\u{ord(character):04x}"
+        if 0xD800 <= ord(character) <= 0xDFFF
+        else character
+        for character in encoded
+    )
+
+
+def _canonical_json_number(value: int | float) -> str:
+    number = float(value)
+    if not math.isfinite(number):
+        raise TakeoffCommandError("AST binding contains a non-finite JSON number")
+    if number == 0.0:
+        return "0"
+
+    # JSON.parse/JSON.stringify use IEEE-754 Number semantics. Python's float
+    # ``repr`` supplies the shortest round-tripping decimal; normalize only the
+    # ECMAScript presentation thresholds/exponent spelling used by canonicalJson.
+    shortest = repr(number).lower()
+    magnitude = abs(number)
+    if 1e-6 <= magnitude < 1e21:
+        fixed = format(Decimal(shortest), "f") if "e" in shortest else shortest
+        if "." in fixed:
+            fixed = fixed.rstrip("0").rstrip(".")
+        return fixed
+
+    if "e" not in shortest:
+        return shortest.rstrip("0").rstrip(".") if "." in shortest else shortest
+    mantissa, exponent_text = shortest.split("e", 1)
+    if mantissa.endswith(".0"):
+        mantissa = mantissa[:-2]
+    exponent = int(exponent_text)
+    sign = "+" if exponent >= 0 else ""
+    return f"{mantissa}e{sign}{exponent}"
+
+
+def _canonical_json(value: object) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return _canonical_json_string(value)
+    if isinstance(value, (int, float)):
+        return _canonical_json_number(value)
+    if isinstance(value, list):
+        return "[" + ",".join(_canonical_json(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ",".join(
+            _canonical_json_string(key) + ":" + _canonical_json(value[key])
+            for key in sorted(value)
+        ) + "}"
+    raise TakeoffCommandError("AST binding contains a non-JSON value")
+
+
 def _parse_ast_binding(ast_binding: object) -> dict[str, object]:
     if (
         not isinstance(ast_binding, str)
@@ -61,6 +122,8 @@ def _parse_ast_binding(ast_binding: object) -> dict[str, object]:
         value = json.loads(
             ast_binding,
             parse_constant=_reject_json_constant,
+            parse_int=float,
+            parse_float=float,
             object_pairs_hook=_object_without_duplicate_keys,
         )
     except TakeoffCommandError:
@@ -68,6 +131,10 @@ def _parse_ast_binding(ast_binding: object) -> dict[str, object]:
     except (TypeError, ValueError) as exc:
         raise TakeoffCommandError("exact canonical AST binding is malformed JSON") from exc
 
+    if _canonical_json(value) != ast_binding:
+        raise TakeoffCommandError(
+            "AST binding is not the exact canonical JSON serialization"
+        )
     if not isinstance(value, dict) or set(value) != {"version", "semantics", "program"}:
         raise TakeoffCommandError(
             "AST binding must contain only version, semantics and program"

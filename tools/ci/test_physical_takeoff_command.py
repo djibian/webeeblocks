@@ -86,6 +86,31 @@ def test_duplicate_and_nonfinite_json_fail_closed() -> None:
     expect_error(nonfinite, "non-finite")
 
 
+def test_noncanonical_json_never_reaches_command_construction() -> None:
+    # Current-main physical_capability_contract.bindAst() recursively sorts
+    # object keys and emits whitespace-free JSON.stringify-compatible text.
+    # Equivalent parsed values with a different wire representation are not the
+    # exact #267/#249 astBinding and must fail before command bytes are built.
+    noncanonical = (
+        '{"version":1,"semantics":"webeeblocks-ast-v1",'
+        '"program":[{"height_m":0.8,"kind":"takeoff"},{"kind":"land"}]}'
+    )
+    expect_error(noncanonical, "canonical JSON")
+
+    whitespace = canonical().replace(',"semantics"', ', "semantics"')
+    expect_error(whitespace, "canonical JSON")
+
+    numeric_spelling = canonical().replace('"height_m":0.8', '"height_m":8e-1')
+    expect_error(numeric_spelling, "canonical JSON")
+
+
+def test_exact_browser_number_spelling_is_accepted() -> None:
+    # JSON.stringify(Number(1.0)) emits `1`, not Python's `1.0` spelling.
+    binding = canonical(1)
+    command = takeoff.derive_bound_takeoff_command(binding)
+    require(command.height_m == 1.0, "canonical integer-shaped JSON number is accepted")
+
+
 def test_no_effect_or_caller_height_surface() -> None:
     source = (PHYSICAL / "takeoff_command.py").read_text(encoding="utf-8")
     for forbidden in (
@@ -104,6 +129,8 @@ def main() -> int:
     test_exact_command_9_packet()
     test_ast_binding_rejections()
     test_duplicate_and_nonfinite_json_fail_closed()
+    test_noncanonical_json_never_reaches_command_construction()
+    test_exact_browser_number_spelling_is_accepted()
     test_no_effect_or_caller_height_surface()
     print(
         "PASS exact-bound takeoff command semantics derive pinned command 9 solely from canonical AST"
