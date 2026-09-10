@@ -319,24 +319,38 @@ def test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority() -> 
     host_source = HOST.read_text(encoding="utf-8")
     for required in (
         "--teacher-fd",
-        "TrustedTeacherDecisionChannel",
-        "TrustedTeacherAuthorizer",
-        "run_teacher_decision_channel",
-        "teacher_channel.receive_authorization(teacher_authorizer)",
+        "activate_validated_run(",
+        "if teacher_socket is not None:",
+        'teacher_socket is not None\n                                and not activation_state["started"]',
+        'staged_state["binding"] = PhysicalRunBinding(',
+        'activation_state["started"] = True',
+        "staged_ready.set()",
         'if request.get("op") != "validate-run-context":',
-        'teacher_state["authorization"] = receipt',
     ):
-        require(required in host_source, "host lacks trusted teacher composition: " + required)
+        require(required in host_source, "host lacks trusted preparation/teacher composition: " + required)
+
     for forbidden in (
+        "--run-control-fd",
+        "run_teacher_decision_channel",
+        "TrustedTeacherDecisionChannel(",
         "authorize-run-context",
         '"runId"',
         '"teacherDecision"',
         '"approved"',
     ):
-        require(forbidden not in host_source, "ordinary caller path leaked teacher authority: " + forbidden)
+        require(forbidden not in host_source, "ordinary/pre-reset host path leaked teacher authority: " + forbidden)
+
     require(
         "args.teacher_fd in {args.caller_fd, args.browser_config_fd}" in host_source,
         "teacher fd must be distinct from caller/browser channels",
+    )
+    require(
+        "if teacher_socket is None:\n                    return" in host_source,
+        "activation worker must be inert without the trusted teacher capability",
+    )
+    require(
+        "while not staged_ready.wait(0.05):" in host_source,
+        "trusted teacher capability alone must wait for a host-validated candidate",
     )
 
     spec = importlib.util.spec_from_file_location("teacher_host_import_probe", HOST)
@@ -349,10 +363,11 @@ def test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority() -> 
         "teacher_channel",
         "teacher_socket",
         "active_teacher_authorization",
+        "activate_validated_run",
     ):
         require(
             not hasattr(module, forbidden_attr),
-            "imported physical host leaked trusted teacher state/API: " + forbidden_attr,
+            "imported physical host leaked trusted teacher/effect state/API: " + forbidden_attr,
         )
 
 
@@ -365,8 +380,8 @@ def main() -> int:
     test_receipt_binding_change_stays_permanently_invalid()
     test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority()
     print(
-        "PASS trusted teacher decision channel mints one exact #267 run receipt "
-        "inside the physical host without an ordinary caller flight-request path"
+        "PASS trusted teacher decision channel remains effect-free while the production host "
+        "uses the launcher-installed teacher capability only as a post-reset preparation gate"
     )
     return 0
 
