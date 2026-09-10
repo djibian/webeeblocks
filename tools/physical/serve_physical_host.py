@@ -45,11 +45,9 @@ if __name__ == "__main__":
 
         from physical_execution_domain import PhysicalExecutionDomain
         from physical_run_activation import activate_validated_run
+        from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
-        from serve_reference_capabilities import (
-            CapabilityBridgeError,
-            ReadOnlyCapabilityHttpBridge,
-        )
+        from serve_reference_capabilities import CapabilityBridgeError
         from teacher_run_authorization import PhysicalRunBinding
 
         max_message_bytes = 8192
@@ -106,7 +104,7 @@ if __name__ == "__main__":
         )
 
         with ReadOnlyCapabilitySession(args.uri) as session:
-            bridge = ReadOnlyCapabilityHttpBridge(session)
+            bridge = PostResetCapabilityHttpBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
