@@ -111,6 +111,42 @@ def test_exact_browser_number_spelling_is_accepted() -> None:
     require(command.height_m == 1.0, "canonical integer-shaped JSON number is accepted")
 
 
+def test_browser_canonical_depth_and_utf16_order_are_exact() -> None:
+    # current-main canonicalJson rejects once recursion depth exceeds 100.
+    nested: object = "leaf"
+    for _ in range(110):
+        nested = [nested]
+    over_depth = json.dumps(
+        {
+            "version": 1,
+            "semantics": "webeeblocks-ast-v1",
+            "program": [{"kind": "takeoff", "height_m": 0.8}, nested],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    expect_error(over_depth, "nesting is too deep")
+
+    # JavaScript Array.sort() compares UTF-16 code units. U+1F600 begins with
+    # surrogate D83D and therefore sorts before BMP U+E000, opposite to Python's
+    # default Unicode code-point ordering.
+    python_codepoint_order = (
+        '{"program":[{"height_m":0.8,"kind":"takeoff"},'
+        '{"\ue000":1,"😀":2},{"kind":"land"}],'
+        '"semantics":"webeeblocks-ast-v1","version":1}'
+    )
+    expect_error(python_codepoint_order, "canonical JSON")
+
+    browser_utf16_order = (
+        '{"program":[{"height_m":0.8,"kind":"takeoff"},'
+        '{"😀":2,"\ue000":1},{"kind":"land"}],'
+        '"semantics":"webeeblocks-ast-v1","version":1}'
+    )
+    command = takeoff.derive_bound_takeoff_command(browser_utf16_order)
+    require(command.height_m == 0.8, "browser UTF-16 key order is accepted")
+
+
 def test_no_effect_or_caller_height_surface() -> None:
     source = (PHYSICAL / "takeoff_command.py").read_text(encoding="utf-8")
     for forbidden in (
@@ -131,6 +167,7 @@ def main() -> int:
     test_duplicate_and_nonfinite_json_fail_closed()
     test_noncanonical_json_never_reaches_command_construction()
     test_exact_browser_number_spelling_is_accepted()
+    test_browser_canonical_depth_and_utf16_order_are_exact()
     test_no_effect_or_caller_height_surface()
     print(
         "PASS exact-bound takeoff command semantics derive pinned command 9 solely from canonical AST"
