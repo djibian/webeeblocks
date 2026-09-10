@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
-"""Trusted physical-host composition root for current-program provenance.
+"""Trusted #280 current-program authority process.
 
-This executable is the #280 authority boundary. Importing this file creates no
-session, bridge, responder, mint/bind API or physical effect object. When run by
-trusted production composition it alone owns the live Crazyflie capability
-session and the integrated #278 bridge/responder relationship.
+This executable is the authority side of the selected production process split.
+It alone owns the live Crazyflie capability session, integrated #278 bridge,
+host-created challenge state and browser responder credential.
 
-The ordinary caller/UI is outside this process. Its IPC messages are untrusted
-run-context requests only; a positive reply is diagnostic/non-authority data and
-must never be accepted later as an effect capability. The future #276 transport
-belongs *inside this same process* so the fresh #249 assertion and all
-identity-sensitive #257/#260/#262/#266/#267/#271/#272/#273 objects share the
-one live Crazyflie/session/connection epoch.
+Trusted production composition gives the separate effect worker only a one-way
+request-send capability and a one-way response-receive capability. This host
+receives the matching request-read and response-write handles. Browser bootstrap
+uses a third, distinct one-way channel. No bridge/session/responder object or
+credential crosses to the effect worker.
 
-Browser bootstrap is a distinct one-way composition channel. The responder
-credential is written there once and is never returned on the ordinary caller
-channel. Live bridge/session/responder state remains local to the running host
-composition instead of being installed as attributes on the process' importable
-``__main__`` module. This executable emits no flight, arming, setpoint or reset
-command.
+A positive response remains non-authority data. It is useful only as the fresh
+current-program prerequisite consumed inside the separately composed #276 effect
+worker together with its independent teacher/safety/effect preconditions.
+
+Importing this file creates no session, bridge, responder, requester, binder,
+mint API or physical effect object. This prerequisite emits no movement, arming,
+setpoint or reset command.
 """
 
 if __name__ == "__main__":
@@ -28,7 +27,6 @@ if __name__ == "__main__":
         import json
         import os
         from pathlib import Path
-        import socket
         import sys
         from threading import Thread
 
@@ -46,14 +44,20 @@ if __name__ == "__main__":
         assertion_timeout_seconds = 1.0
 
         parser = argparse.ArgumentParser(
-            description="WebeeBlocks trusted physical-host composition root"
+            description="WebeeBlocks trusted current-program authority process"
         )
         parser.add_argument("--uri", required=True, help="explicit radio:// Crazyradio URI")
         parser.add_argument(
-            "--caller-fd",
+            "--request-fd",
             required=True,
             type=int,
-            help="trusted-launcher-installed ordinary caller IPC socket handle",
+            help="trusted-launcher-installed effect request read handle",
+        )
+        parser.add_argument(
+            "--response-fd",
+            required=True,
+            type=int,
+            help="trusted-launcher-installed effect response write handle",
         )
         parser.add_argument(
             "--browser-config-fd",
@@ -65,14 +69,26 @@ if __name__ == "__main__":
 
         if not args.uri.startswith("radio://"):
             raise SystemExit("physical host requires explicit radio:// URI")
-        if args.caller_fd < 3 or args.browser_config_fd < 3:
+        handles = (args.request_fd, args.response_fd, args.browser_config_fd)
+        if any(fd < 3 for fd in handles):
             raise SystemExit("physical host channels must be inherited non-stdio handles")
-        if args.caller_fd == args.browser_config_fd:
-            raise SystemExit("caller and browser bootstrap channels must be distinct")
+        if len(set(handles)) != len(handles):
+            raise SystemExit("physical host channels must be distinct")
 
-        caller_socket = socket.socket(fileno=args.caller_fd)
-        caller_reader = caller_socket.makefile("r", encoding="utf-8", newline="\n")
-        caller_writer = caller_socket.makefile("w", encoding="utf-8", newline="\n")
+        request_reader = os.fdopen(
+            args.request_fd,
+            "r",
+            encoding="utf-8",
+            newline="\n",
+            closefd=True,
+        )
+        response_writer = os.fdopen(
+            args.response_fd,
+            "w",
+            encoding="utf-8",
+            newline="\n",
+            closefd=True,
+        )
 
         with ReadOnlyCapabilitySession(args.uri) as session:
             bridge = ReadOnlyCapabilityHttpBridge(session)
@@ -80,8 +96,9 @@ if __name__ == "__main__":
             bridge_thread.start()
             host, port = bridge.address
 
-            # Trusted composition routes this descriptor only to the production
-            # browser #249 responder. It never crosses the caller IPC channel.
+            # Trusted composition routes this descriptor only toward the
+            # production browser #249 responder. It never crosses either effect
+            # IPC capability.
             with os.fdopen(
                 args.browser_config_fd,
                 "w",
@@ -104,7 +121,7 @@ if __name__ == "__main__":
                 browser_config.flush()
 
             try:
-                for line in caller_reader:
+                for line in request_reader:
                     if len(line.encode("utf-8")) > max_message_bytes:
                         break
                     try:
@@ -113,7 +130,7 @@ if __name__ == "__main__":
                         break
                     if not isinstance(request, dict):
                         break
-                    if request.get("op") != "validate-run-context":
+                    if request.get("op") != "assert-current-program":
                         break
 
                     request_id = request.get("requestId")
@@ -134,9 +151,6 @@ if __name__ == "__main__":
                         break
 
                     try:
-                        # This evidence stays inside the trusted physical host.
-                        # Future #276 composition must consume it here immediately
-                        # before the effect; caller replies are never provenance.
                         evidence = bridge.assert_current_program(
                             profile_id=profile_id,
                             ast_binding=ast_binding,
@@ -163,11 +177,15 @@ if __name__ == "__main__":
                         response = {
                             "requestId": request_id,
                             "ok": True,
+                            "profileId": evidence.profile_id,
+                            "astBinding": evidence.ast_binding,
+                            "connectionEpoch": evidence.connection_epoch,
+                            "challengeId": evidence.challenge_id,
                             "executionAuthority": False,
                         }
 
                     try:
-                        caller_writer.write(
+                        response_writer.write(
                             json.dumps(
                                 response,
                                 separators=(",", ":"),
@@ -175,16 +193,15 @@ if __name__ == "__main__":
                             )
                             + "\n"
                         )
-                        caller_writer.flush()
+                        response_writer.flush()
                     except OSError:
                         break
             finally:
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
                 try:
-                    caller_reader.close()
-                    caller_writer.close()
-                    caller_socket.close()
+                    request_reader.close()
+                    response_writer.close()
                 except OSError:
                     pass
 
