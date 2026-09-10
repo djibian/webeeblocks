@@ -19,8 +19,12 @@ channel. Live bridge/session/responder state remains local to the running host
 composition instead of being installed as attributes on the process' importable
 ``__main__`` module. The host-local #276 transport type closes directly over the
 same bridge; no bridge-to-effect handle, binder, client or caller-selectable
-provenance input is exported. This executable emits no flight, arming, setpoint
-or reset command merely by starting or validating a run context.
+provenance input is exported. A trusted run activation may construct the bounded
+in-flight effect surface only after the exact run-scoped safety/authority objects
+already exist on that same live epoch; the ordinary caller can provide only the
+bounded semantic motion request, never those authorities. This executable emits
+no flight, arming, setpoint or reset command merely by starting or validating a
+run context.
 """
 
 if __name__ == "__main__":
@@ -38,6 +42,7 @@ if __name__ == "__main__":
         if str(physical) not in sys.path:
             sys.path.insert(0, str(physical))
 
+        from high_level_timing import HighLevelTimingPolicy
         from probe_reference_hardware import ReadOnlyCapabilitySession
         from serve_reference_capabilities import (
             CapabilityBridgeError,
@@ -48,6 +53,7 @@ if __name__ == "__main__":
             SetpointHlTransportError,
             TrustedSetpointHlTransport,
         )
+        from yaw_observer import FreshYawObserver
 
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
@@ -160,12 +166,95 @@ if __name__ == "__main__":
                     )
                 return effect_transport
 
-            # Keep the closure live only in this trusted runner. It is consumed
-            # by the host-side lifecycle/teacher composition once the exact
-            # effect prerequisites exist; it is never sent through caller IPC.
-            compose_inflight_setpoint_transport = _compose_inflight_setpoint_transport
-            if not callable(compose_inflight_setpoint_transport):
-                raise RuntimeError("host-local #276 composition is unavailable")
+            class _ActiveInflightRun:
+                """Host-local run surface holding authorities outside ordinary IPC."""
+
+                __slots__ = ("_transport", "_yaw_reader", "_timing_policy")
+
+                def __init__(self, transport, yaw_reader, timing_policy) -> None:
+                    self._transport = transport
+                    self._yaw_reader = yaw_reader
+                    self._timing_policy = timing_policy
+
+                def execute(self, request):
+                    if not isinstance(request, dict):
+                        raise SetpointHlTransportError(
+                            "physical motion request must be a bounded semantic object"
+                        )
+                    motion = request.get("motion")
+                    if motion == "turn":
+                        if set(request) != {"motion", "angleDeg"}:
+                            raise SetpointHlTransportError(
+                                "turn request contains unsupported fields"
+                            )
+                        return self._transport.send_turn(
+                            angle_deg=request["angleDeg"],
+                            timing_policy=self._timing_policy,
+                        )
+                    if motion == "horizontal":
+                        if set(request) != {"motion", "direction", "distanceM"}:
+                            raise SetpointHlTransportError(
+                                "horizontal request contains unsupported fields"
+                            )
+                        return self._transport.send_horizontal_move(
+                            direction=request["direction"],
+                            distance_m=request["distanceM"],
+                            yaw_reader=self._yaw_reader,
+                            timing_policy=self._timing_policy,
+                        )
+                    raise SetpointHlTransportError(
+                        "unsupported ordinary physical motion request"
+                    )
+
+            def _activate_inflight_run(
+                *,
+                crazyflie,
+                execution_domain,
+                acknowledgement_domain,
+                safelink_guard,
+                teacher_authorization,
+                powered_session,
+                watchdog_guard,
+                supervisor_reader,
+                yaw_reader,
+                timing_policy,
+            ):
+                """Create one usable effect surface only from trusted run-scoped objects."""
+                if type(yaw_reader) is not FreshYawObserver:
+                    raise SetpointHlTransportError(
+                        "exact #260 FreshYawObserver is required for active physical run"
+                    )
+                if type(timing_policy) is not HighLevelTimingPolicy:
+                    raise SetpointHlTransportError(
+                        "exact #268 HighLevelTimingPolicy is required for active physical run"
+                    )
+                if yaw_reader.bound_crazyflie is not crazyflie:
+                    raise SetpointHlTransportError(
+                        "active-run yaw observer is not bound to the exact Crazyflie"
+                    )
+                if yaw_reader.bound_connection_epoch != session.read_connection_epoch():
+                    raise SetpointHlTransportError(
+                        "active-run yaw observer is not bound to the live host epoch"
+                    )
+                if not yaw_reader.is_open:
+                    raise SetpointHlTransportError(
+                        "active-run yaw observer must already be open"
+                    )
+                effect_transport = _compose_inflight_setpoint_transport(
+                    crazyflie=crazyflie,
+                    execution_domain=execution_domain,
+                    acknowledgement_domain=acknowledgement_domain,
+                    safelink_guard=safelink_guard,
+                    teacher_authorization=teacher_authorization,
+                    powered_session=powered_session,
+                    watchdog_guard=watchdog_guard,
+                    supervisor_reader=supervisor_reader,
+                )
+                return _ActiveInflightRun(
+                    effect_transport,
+                    yaw_reader,
+                    timing_policy,
+                )
 
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
