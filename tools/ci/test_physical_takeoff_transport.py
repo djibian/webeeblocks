@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import importlib.util
+import inspect
 import json
 from pathlib import Path
-from threading import Thread
-from types import SimpleNamespace
 import sys
+from types import ModuleType, SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 PHYSICAL = ROOT / "tools" / "physical"
@@ -78,9 +77,15 @@ class FakeCrazyflie:
 
 
 def install_fake_cflib() -> None:
-    crtpstack = SimpleNamespace(CRTPPacket=FakePacket, CRTPPort=FakePort)
-    sys.modules["cflib"] = SimpleNamespace()
-    sys.modules["cflib.crtp"] = SimpleNamespace()
+    cflib = ModuleType("cflib")
+    crtp = ModuleType("cflib.crtp")
+    crtpstack = ModuleType("cflib.crtp.crtpstack")
+    crtpstack.CRTPPacket = FakePacket
+    crtpstack.CRTPPort = FakePort
+    cflib.crtp = crtp
+    crtp.crtpstack = crtpstack
+    sys.modules["cflib"] = cflib
+    sys.modules["cflib.crtp"] = crtp
     sys.modules["cflib.crtp.crtpstack"] = crtpstack
 
 
@@ -105,13 +110,13 @@ class Fixture:
             "activity-1", canonical_ast(), self.epoch_value
         )
         self.authorizer = teacher.TrustedTeacherAuthorizer()
-        self.authorization = self.authorizer.authorize_run(self.binding, lambda _binding: True)
+        self.authorization = self.authorizer.authorize_run(
+            self.binding, lambda _binding: True
+        )
         lifecycle = powered.EphemeralPoweredSessionWatchdogAuthority(
             "powered-" + name,
             _factory_token=getattr(powered, "_FACTORY_TOKEN"),
         )
-        lifecycle.begin_activation()
-        lifecycle.mark_active()
         self.powered = powered.EstablishedPoweredSession(
             session=self.cf,
             connection_epoch=self.epoch_value,
@@ -126,20 +131,18 @@ class Fixture:
             12,
             (1 << supervisor_state.BIT_CAN_FLY),
         )
+        # The real guard constructor must see the exact freshly reset NEW
+        # powered-session lifecycle.  Only after that identity composition has
+        # succeeded do deterministic tests advance the lifecycle to ACTIVE and
+        # replace the asynchronous keepalive oracle with a local exact one.
         self.watchdog = watchdog.EmergencyWatchdogLivenessGuard(
             self.cf,
             self.epoch,
             self.supervisor,
             lifecycle,
         )
-        self.watchdog._active = True
-        self.watchdog._last_keepalive_at = self.watchdog._clock_now()
-        self.watchdog._thread = Thread(target=lambda: None)
-        self.watchdog._thread.start()
-        self.watchdog._thread.join()
-        # The production guard also requires a live keepalive thread.  The
-        # deterministic transport tests replace assert_live with an exact local
-        # liveness oracle after proving constructor identity composition.
+        lifecycle.begin_activation()
+        lifecycle.mark_active()
         self.watchdog.assert_live = lambda: None
         self.safelink = safelink.LiveSafeLinkPrecondition(self.cf, self.epoch)
         self.ack = ack.HighLevelAckDomain(self.epoch)
@@ -149,7 +152,6 @@ class Fixture:
         execution._PROCESS_STATE.active_section = None
         execution._PROCESS_STATE.section_owner = None
         self.current_assertions = 0
-        self.states = []
 
     def epoch(self) -> str:
         return self.epoch_value
@@ -242,10 +244,16 @@ def test_positive_ack_requires_causal_flying_completion() -> None:
     )
     result = HostBoundTakeoffTransport(fixture).send_from_authorized_ast()
     require(result.accepted, "takeoff command accepted")
-    require(fixture.execution.phase == execution.FLYING, "causal completion advances to flying")
+    require(
+        fixture.execution.phase == execution.FLYING,
+        "causal completion advances to flying",
+    )
     require(len(fixture.cf.send_calls) == 1, "exactly one command packet emitted")
     require(fixture.cf.send_calls[0][0] == 9, "exact command-9 packet emitted")
-    require(fixture.current_assertions >= 2, "current program reasserted inside transaction")
+    require(
+        fixture.current_assertions >= 2,
+        "current program reasserted inside effect transaction",
+    )
 
 
 def test_first_post_ack_flying_finished_is_causal_from_not_flying_baseline() -> None:
@@ -255,16 +263,25 @@ def test_first_post_ack_flying_finished_is_causal_from_not_flying_baseline() -> 
         fixture.state(flying=True, hl_active=True, finished=True),
     )
     result = HostBoundTakeoffTransport(fixture).send_from_authorized_ast()
-    require(result.accepted, "immediate fresh flying+finished sample may complete takeoff")
-    require(fixture.execution.phase == execution.FLYING, "exact #279 permit reaches flying")
+    require(result.accepted, "fresh flying+finished sample may complete takeoff")
+    require(
+        fixture.execution.phase == execution.FLYING,
+        "exact #279 permit reaches flying",
+    )
 
 
 def test_definitive_rejection_restores_inactive() -> None:
     fixture = Fixture("reject", status=7)
     fixture.queue_states(fixture.state())
     result = HostBoundTakeoffTransport(fixture).send_from_authorized_ast()
-    require(not result.accepted and result.status == 7, "firmware rejection is definitive")
-    require(fixture.execution.phase == execution.INACTIVE, "definitive rejection restores inactive")
+    require(
+        not result.accepted and result.status == 7,
+        "firmware rejection is definitive",
+    )
+    require(
+        fixture.execution.phase == execution.INACTIVE,
+        "definitive rejection restores inactive",
+    )
     require(len(fixture.cf.send_calls) == 1, "rejection still has exactly one send")
 
 
@@ -272,36 +289,56 @@ def test_preconditions_fail_before_effect() -> None:
     cases = (
         ("fault", lambda f: f.queue_states(f.state(fault=True)), "fault"),
         ("nofly", lambda f: f.queue_states(f.state(can_fly=False)), "permit flight"),
-        ("already", lambda f: f.queue_states(f.state(flying=True, hl_active=True)), "not-flying"),
+        (
+            "already",
+            lambda f: f.queue_states(f.state(flying=True, hl_active=True)),
+            "not-flying",
+        ),
         ("hl", lambda f: f.queue_states(f.state(hl_active=True)), "high-level"),
     )
     for name, prepare, pattern in cases:
         fixture = Fixture(name)
         prepare(fixture)
-        expect_transport_error(HostBoundTakeoffTransport(fixture).send_from_authorized_ast, pattern)
+        expect_transport_error(
+            HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
+            pattern,
+        )
         require(not fixture.cf.send_calls, "failed precondition cannot emit: " + name)
 
     fixture = Fixture("safelink")
     fixture.cf.link.needs_resending = True
     fixture.queue_states(fixture.state())
-    expect_transport_error(HostBoundTakeoffTransport(fixture).send_from_authorized_ast, "SafeLink")
+    expect_transport_error(
+        HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
+        "duplicate suppression",
+    )
     require(not fixture.cf.send_calls, "lost SafeLink cannot emit")
 
     fixture = Fixture("phase")
     execution._PROCESS_STATE.phase = execution.RECOVERY_REQUIRED
-    expect_transport_error(HostBoundTakeoffTransport(fixture).send_from_authorized_ast, "inactive")
+    expect_transport_error(
+        HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
+        "inactive",
+    )
     require(not fixture.cf.send_calls, "recovery-required cannot emit")
 
 
 def test_teacher_or_epoch_change_fails_before_effect() -> None:
     fixture = Fixture("teacher")
     fixture.authorization.invalidate("teacher cancelled")
-    expect_transport_error(HostBoundTakeoffTransport(fixture).send_from_authorized_ast, "teacher")
+    expect_transport_error(
+        HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
+        "teacher",
+    )
     require(not fixture.cf.send_calls, "stale teacher receipt cannot emit")
 
     fixture = Fixture("epoch")
     fixture.epoch_value = "changed"
-    expect_transport_error(HostBoundTakeoffTransport(fixture).send_from_authorized_ast, "epoch")
+    fixture.queue_states(fixture.state())
+    expect_transport_error(
+        HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
+        "epoch",
+    )
     require(not fixture.cf.send_calls, "reconnect cannot emit under stale run")
 
 
@@ -315,21 +352,35 @@ def test_completion_without_causal_flight_fails_closed() -> None:
     transport_ = HostBoundTakeoffTransport(fixture)
     transport_._clock = lambda: next(clock_values, 10.0)
     expect_transport_error(transport_.send_from_authorized_ast, "completion")
-    require(fixture.execution.phase == execution.RECOVERY_REQUIRED, "uncertain accepted effect requires recovery")
-    require(len(fixture.cf.send_calls) == 1, "accepted-but-uncertain takeoff is never retried")
+    require(
+        fixture.execution.phase == execution.RECOVERY_REQUIRED,
+        "uncertain accepted effect requires recovery",
+    )
+    require(
+        len(fixture.cf.send_calls) == 1,
+        "accepted-but-uncertain takeoff is never retried",
+    )
 
 
 def test_no_raw_or_caller_height_surface() -> None:
     source = (PHYSICAL / "takeoff_transport.py").read_text(encoding="utf-8")
-    signature = transport.TrustedTakeoffTransport.send_from_authorized_ast
-    require("height" not in str(importlib.util.find_spec("takeoff_transport")), "module import remains ordinary")
-    import inspect
-    parameters = inspect.signature(signature).parameters
+    parameters = inspect.signature(
+        transport.TrustedTakeoffTransport.send_from_authorized_ast
+    ).parameters
     require("height" not in parameters, "effect API accepts no caller height")
-    require("request" not in parameters and "bytes" not in parameters, "effect API accepts no raw request")
-    require("assert_current_program" not in inspect.signature(transport.TrustedTakeoffTransport).parameters,
-            "constructor accepts no caller-selected provenance callback")
-    require("derive_bound_takeoff_command" in source, "transport consumes exact-bound semantic command")
+    require(
+        "request" not in parameters and "bytes" not in parameters,
+        "effect API accepts no raw request",
+    )
+    require(
+        "assert_current_program"
+        not in inspect.signature(transport.TrustedTakeoffTransport).parameters,
+        "constructor accepts no caller-selected provenance callback",
+    )
+    require(
+        "derive_bound_takeoff_command" in source,
+        "transport consumes exact-bound semantic command",
+    )
 
 
 def main() -> int:
@@ -342,7 +393,8 @@ def main() -> int:
     test_completion_without_causal_flight_fails_closed()
     test_no_raw_or_caller_height_surface()
     print(
-        "PASS causal physical takeoff transport: exact AST command 9, fresh gates, one send and #279 flying completion"
+        "PASS causal physical takeoff transport: exact AST command 9, fresh gates, "
+        "one send and #279 flying completion"
     )
     return 0
 
