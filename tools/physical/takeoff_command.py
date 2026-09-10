@@ -90,7 +90,14 @@ def _canonical_json_number(value: int | float) -> str:
     return f"{mantissa}e{sign}{exponent}"
 
 
-def _canonical_json(value: object) -> str:
+def _utf16_sort_key(value: str) -> bytes:
+    """Mirror JavaScript Array.sort() lexicographic UTF-16 code-unit ordering."""
+    return value.encode("utf-16-be", errors="surrogatepass")
+
+
+def _canonical_json(value: object, depth: int = 0) -> str:
+    if depth > 100:
+        raise TakeoffCommandError("AST binding nesting is too deep")
     if value is None:
         return "null"
     if isinstance(value, bool):
@@ -100,11 +107,11 @@ def _canonical_json(value: object) -> str:
     if isinstance(value, (int, float)):
         return _canonical_json_number(value)
     if isinstance(value, list):
-        return "[" + ",".join(_canonical_json(item) for item in value) + "]"
+        return "[" + ",".join(_canonical_json(item, depth + 1) for item in value) + "]"
     if isinstance(value, dict):
         return "{" + ",".join(
-            _canonical_json_string(key) + ":" + _canonical_json(value[key])
-            for key in sorted(value)
+            _canonical_json_string(key) + ":" + _canonical_json(value[key], depth + 1)
+            for key in sorted(value, key=_utf16_sort_key)
         ) + "}"
     raise TakeoffCommandError("AST binding contains a non-JSON value")
 
