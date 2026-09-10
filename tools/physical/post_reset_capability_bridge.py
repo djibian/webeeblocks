@@ -28,9 +28,13 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
 
     def __init__(self, session: object, **kwargs) -> None:
         self._session_lock = RLock()
-        self._session = session
+        self._session: object | None = None
+        self._base_session_assignment_open = True
         self._replacement_previous_epoch: str | None = None
-        super().__init__(session, **kwargs)
+        try:
+            super().__init__(session, **kwargs)
+        finally:
+            self._base_session_assignment_open = False
 
     @property
     def session(self) -> object:
@@ -39,14 +43,22 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
                 raise CapabilityBridgeError(
                     "capability bridge session is unavailable during post-reset replacement"
                 )
+            if self._session is None:
+                raise CapabilityBridgeError("capability bridge session is unavailable")
             return self._session
 
     @session.setter
     def session(self, value: object) -> None:
-        # Base construction assigns ``session`` once. Later rotation is permitted
-        # only through the explicit two-phase methods below.
+        # ReadOnlyCapabilityHttpBridge assigns ``session`` once from its own
+        # constructor. No later property assignment is allowed: all post-reset
+        # rotation must pass through the explicit two-phase protocol below.
         with self._session_lock:
+            if not self._base_session_assignment_open:
+                raise CapabilityBridgeError(
+                    "capability bridge session replacement requires the explicit post-reset protocol"
+                )
             self._session = value
+            self._base_session_assignment_open = False
 
     @property
     def post_reset_replacement_pending(self) -> bool:
@@ -106,6 +118,10 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
                         "post-reset capability session replacement is already pending"
                     )
                 current = self._session
+                if current is None:
+                    raise CapabilityBridgeError(
+                        "current capability session is unavailable before replacement"
+                    )
                 try:
                     observed = current.read_connection_epoch()
                 except Exception as exc:

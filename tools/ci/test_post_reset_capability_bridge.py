@@ -72,6 +72,46 @@ def expect_error(callable_, pattern: str) -> None:
     raise AssertionError("expected CapabilityBridgeError containing " + repr(pattern))
 
 
+def test_direct_session_assignment_cannot_bypass_replacement() -> None:
+    before = FakeSession("epoch-before-direct", "before-direct")
+    bridge = rebind.PostResetCapabilityHttpBridge(
+        before,
+        token="direct-capability-token",
+        preflight_responder_token="direct-responder-token",
+    )
+    host, port = bridge.address
+    base = f"http://{host}:{port}"
+    worker = Thread(target=bridge.serve_forever, daemon=True)
+    worker.start()
+    try:
+        for replacement in (
+            FakeSession("epoch-before-direct", "same-epoch-direct"),
+            FakeSession("epoch-different-direct", "different-epoch-direct"),
+        ):
+            expect_error(
+                lambda replacement=replacement: setattr(bridge, "session", replacement),
+                "explicit post-reset protocol",
+            )
+            require(
+                not bridge.post_reset_replacement_pending,
+                "rejected direct assignment cannot start replacement",
+            )
+            status, payload = request(base + "/v1/connection-epoch", bridge.token)
+            require(
+                status == 200
+                and payload == {"connectionEpoch": "epoch-before-direct"},
+                "rejected direct assignment cannot change observable epoch",
+            )
+            status, payload = request(base + "/v1/capabilities", bridge.token)
+            require(
+                status == 200 and payload["evidence"]["label"] == "before-direct",
+                "rejected direct assignment cannot change capability view",
+            )
+    finally:
+        bridge.shutdown()
+        worker.join(timeout=1.0)
+
+
 def test_assertion_admission_cannot_race_replacement() -> None:
     """Force the old pre-read/pending-registration race and prove it is closed."""
     before = BlockingFirstEpochSession("epoch-race", "race")
@@ -158,6 +198,7 @@ def test_assertion_admission_cannot_race_replacement() -> None:
 
 
 def main() -> int:
+    test_direct_session_assignment_cannot_bypass_replacement()
     test_assertion_admission_cannot_race_replacement()
 
     before = FakeSession("epoch-before", "before")
