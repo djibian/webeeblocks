@@ -32,7 +32,7 @@ if __name__ == "__main__":
         from pathlib import Path
         import socket
         import sys
-        from threading import Lock, Thread
+        from threading import Thread
 
         physical = Path(__file__).resolve().parent
         if str(physical) not in sys.path:
@@ -114,23 +114,21 @@ if __name__ == "__main__":
                     session.read_connection_epoch,
                 )
             )
-            teacher_state_lock = Lock()
-            active_teacher_authorization = None
-            teacher_channel_error = None
+            teacher_state = {
+                "authorization": None,
+                "error": None,
+            }
             teacher_thread = None
 
             def run_teacher_decision_channel() -> None:
-                nonlocal active_teacher_authorization, teacher_channel_error
                 if teacher_channel is None:
                     return
                 try:
                     receipt = teacher_channel.receive_authorization(teacher_authorizer)
                 except TeacherDecisionChannelError as exc:
-                    with teacher_state_lock:
-                        teacher_channel_error = str(exc)
+                    teacher_state["error"] = str(exc)
                     return
-                with teacher_state_lock:
-                    active_teacher_authorization = receipt
+                teacher_state["authorization"] = receipt
 
             # Trusted composition routes this descriptor only to the production
             # browser #249 responder. It never crosses the caller IPC channel.
@@ -256,9 +254,8 @@ if __name__ == "__main__":
                 if teacher_thread is not None:
                     teacher_thread.join(timeout=1.0)
 
-                with teacher_state_lock:
-                    receipt = active_teacher_authorization
-                    _teacher_channel_error = teacher_channel_error
+                receipt = teacher_state["authorization"]
+                _teacher_channel_error = teacher_state["error"]
                 if receipt is not None:
                     try:
                         teacher_authorizer.close_run(
