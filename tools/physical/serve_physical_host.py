@@ -8,14 +8,17 @@ session and the integrated #278 bridge/responder relationship.
 
 The ordinary caller/UI is outside this process. Its IPC messages are untrusted
 run-context requests only; a positive reply is diagnostic/non-authority data and
-must never be accepted later as an effect capability. The future #276 transport
-belongs *inside this same process* so the fresh #249 assertion and all
-identity-sensitive #257/#260/#262/#266/#267/#271/#272/#273 objects share the
-one live Crazyflie/session/connection epoch.
+must never be accepted later as an effect capability. A distinct optional
+launcher-installed teacher channel may approve one exact run through #267; its
+receipt remains local to this host. The future #276 transport belongs *inside this
+same process* so the fresh #249 assertion and all identity-sensitive
+#257/#260/#262/#266/#267/#271/#272/#273 objects share the one live
+Crazyflie/session/connection epoch.
 
 Browser bootstrap is a distinct one-way composition channel. The responder
 credential is written there once and is never returned on the ordinary caller
-channel. Live bridge/session/responder state remains local to the running host
+channel. The teacher decision channel is also distinct from both paths. Live
+bridge/session/responder/teacher-authority state remains local to the running host
 composition instead of being installed as attributes on the process' importable
 ``__main__`` module. This executable emits no flight, arming, setpoint or reset
 command.
@@ -41,6 +44,14 @@ if __name__ == "__main__":
             CapabilityBridgeError,
             ReadOnlyCapabilityHttpBridge,
         )
+        from teacher_decision_channel import (
+            TeacherDecisionChannelError,
+            TrustedTeacherDecisionChannel,
+        )
+        from teacher_run_authorization import (
+            PhysicalRunBinding,
+            TrustedTeacherAuthorizer,
+        )
 
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
@@ -61,6 +72,12 @@ if __name__ == "__main__":
             type=int,
             help="distinct one-way browser bootstrap descriptor",
         )
+        parser.add_argument(
+            "--teacher-fd",
+            type=int,
+            default=None,
+            help="distinct launcher-installed trusted teacher decision socket handle",
+        )
         args = parser.parse_args()
 
         if not args.uri.startswith("radio://"):
@@ -69,16 +86,39 @@ if __name__ == "__main__":
             raise SystemExit("physical host channels must be inherited non-stdio handles")
         if args.caller_fd == args.browser_config_fd:
             raise SystemExit("caller and browser bootstrap channels must be distinct")
+        if args.teacher_fd is not None:
+            if args.teacher_fd < 3:
+                raise SystemExit("teacher decision channel must be an inherited non-stdio handle")
+            if args.teacher_fd in {args.caller_fd, args.browser_config_fd}:
+                raise SystemExit(
+                    "teacher decision channel must be distinct from caller/browser channels"
+                )
 
         caller_socket = socket.socket(fileno=args.caller_fd)
         caller_reader = caller_socket.makefile("r", encoding="utf-8", newline="\n")
         caller_writer = caller_socket.makefile("w", encoding="utf-8", newline="\n")
+        teacher_socket = (
+            None if args.teacher_fd is None else socket.socket(fileno=args.teacher_fd)
+        )
 
         with ReadOnlyCapabilitySession(args.uri) as session:
             bridge = ReadOnlyCapabilityHttpBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
+
+            teacher_authorizer = TrustedTeacherAuthorizer()
+            teacher_channel = (
+                None
+                if teacher_socket is None
+                else TrustedTeacherDecisionChannel(
+                    teacher_socket,
+                    session.read_connection_epoch,
+                )
+            )
+            # A future co-located #276 transport consumes this exact local receipt.
+            # It is never serialized onto the ordinary caller or browser channels.
+            active_teacher_authorization = None
 
             # Trusted composition routes this descriptor only to the production
             # browser #249 responder. It never crosses the caller IPC channel.
@@ -113,7 +153,11 @@ if __name__ == "__main__":
                         break
                     if not isinstance(request, dict):
                         break
-                    if request.get("op") != "validate-run-context":
+                    operation = request.get("op")
+                    if operation not in {
+                        "validate-run-context",
+                        "authorize-run-context",
+                    }:
                         break
 
                     request_id = request.get("requestId")
@@ -135,8 +179,9 @@ if __name__ == "__main__":
 
                     try:
                         # This evidence stays inside the trusted physical host.
-                        # Future #276 composition must consume it here immediately
-                        # before the effect; caller replies are never provenance.
+                        # Future #276 composition must consume the same bridge
+                        # immediately before each effect; caller replies are never
+                        # accepted as provenance.
                         evidence = bridge.assert_current_program(
                             profile_id=profile_id,
                             ast_binding=ast_binding,
@@ -152,6 +197,26 @@ if __name__ == "__main__":
                             raise CapabilityBridgeError(
                                 "current-program evidence does not match requested run"
                             )
+
+                        if operation == "authorize-run-context":
+                            if teacher_channel is None:
+                                raise CapabilityBridgeError(
+                                    "trusted teacher decision channel is unavailable"
+                                )
+                            run_binding = PhysicalRunBinding(
+                                profile_id=profile_id,
+                                ast_binding=ast_binding,
+                                connection_epoch=connection_epoch,
+                            )
+                            try:
+                                active_teacher_authorization = (
+                                    teacher_channel.authorize_run(
+                                        run_binding,
+                                        teacher_authorizer,
+                                    )
+                                )
+                            except TeacherDecisionChannelError as exc:
+                                raise CapabilityBridgeError(str(exc)) from exc
                     except CapabilityBridgeError as exc:
                         response = {
                             "requestId": request_id,
@@ -181,6 +246,21 @@ if __name__ == "__main__":
             finally:
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
+                if active_teacher_authorization is not None:
+                    try:
+                        teacher_authorizer.close_run(
+                            active_teacher_authorization,
+                            "physical host shutting down",
+                        )
+                    except Exception:
+                        pass
+                if teacher_channel is not None:
+                    teacher_channel.close()
+                elif teacher_socket is not None:
+                    try:
+                        teacher_socket.close()
+                    except OSError:
+                        pass
                 try:
                     caller_reader.close()
                     caller_writer.close()
