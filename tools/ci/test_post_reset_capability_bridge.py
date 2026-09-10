@@ -123,6 +123,7 @@ def test_direct_session_assignment_cannot_bypass_replacement() -> None:
     finally:
         bridge.shutdown()
         worker.join(timeout=1.0)
+        require(not worker.is_alive(), "direct-assignment bridge worker did not stop")
 
 
 def test_capability_http_read_is_drained_before_replacement_begin() -> None:
@@ -191,6 +192,7 @@ def test_capability_http_read_is_drained_before_replacement_begin() -> None:
 
     bridge.shutdown()
     worker.join(timeout=1.0)
+    require(not worker.is_alive(), "capability-race bridge worker did not stop")
 
 
 def test_assertion_admission_cannot_race_replacement() -> None:
@@ -201,6 +203,8 @@ def test_assertion_admission_cannot_race_replacement() -> None:
         token="race-capability-token",
         preflight_responder_token="race-responder-token",
     )
+    worker = Thread(target=bridge.serve_forever, daemon=True)
+    worker.start()
     assertion_outcome: dict[str, object] = {}
     replacement_outcome: dict[str, object] = {}
 
@@ -276,6 +280,8 @@ def test_assertion_admission_cannot_race_replacement() -> None:
         "failed concurrent replacement cannot leave a replacement marker",
     )
     bridge.shutdown()
+    worker.join(timeout=1.0)
+    require(not worker.is_alive(), "assertion-race bridge worker did not stop")
 
 
 def main() -> int:
@@ -399,6 +405,7 @@ def main() -> int:
     finally:
         bridge.shutdown()
         worker.join(timeout=1.0)
+        require(not worker.is_alive(), "main bridge worker did not stop")
 
     print(
         "PASS post-reset capability bridge preserves trusted loopback identity "
