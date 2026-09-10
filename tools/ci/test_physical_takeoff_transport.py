@@ -337,7 +337,7 @@ def test_teacher_or_epoch_change_fails_before_effect() -> None:
     fixture.queue_states(fixture.state())
     expect_transport_error(
         HostBoundTakeoffTransport(fixture).send_from_authorized_ast,
-        "epoch",
+        "supervisor state unavailable",
     )
     require(not fixture.cf.send_calls, "reconnect cannot emit under stale run")
 
