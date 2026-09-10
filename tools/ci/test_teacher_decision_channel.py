@@ -40,11 +40,37 @@ class Epoch:
         return self.value
 
 
-def binding(epoch: str = "epoch-1") -> auth.PhysicalRunBinding:
-    return auth.PhysicalRunBinding(
-        profile_id="activity-1",
-        ast_binding="ast-1",
-        connection_epoch=epoch,
+def proposal(*, epoch: str = "epoch-1", **changes) -> dict:
+    value = {
+        "op": "teacher-run-authorization-request",
+        "requestId": "teacher-request-1",
+        "profileId": "activity-1",
+        "astBinding": "ast-1",
+        "connectionEpoch": epoch,
+        "executionAuthority": False,
+    }
+    value.update(changes)
+    return value
+
+
+def decision_for(challenge: dict, *, approved: bool = True, **changes) -> dict:
+    value = {
+        "op": "teacher-run-decision-result",
+        "requestId": challenge["requestId"],
+        "challengeId": challenge["challengeId"],
+        "profileId": challenge["profileId"],
+        "astBinding": challenge["astBinding"],
+        "connectionEpoch": challenge["connectionEpoch"],
+        "approved": approved,
+        "executionAuthority": False,
+    }
+    value.update(changes)
+    return value
+
+
+def send_line(sock: socket.socket, payload: object) -> None:
+    sock.sendall(
+        (json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
     )
 
 
@@ -58,24 +84,29 @@ def read_line(sock: socket.socket) -> dict:
             return json.loads(bytes(data[:-1]).decode("utf-8"))
 
 
-def reply_for(request: dict, *, approved: bool = True, **changes) -> dict:
-    reply = {
-        "op": "teacher-run-decision-result",
-        "requestId": request["requestId"],
-        "profileId": request["profileId"],
-        "astBinding": request["astBinding"],
-        "connectionEpoch": request["connectionEpoch"],
-        "approved": approved,
-        "executionAuthority": False,
-    }
-    reply.update(changes)
-    return reply
-
-
-def send_line(sock: socket.socket, payload: object) -> None:
-    sock.sendall(
-        (json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+def run_teacher_exchange(
+    teacher_sock: socket.socket,
+    *,
+    request: dict | None = None,
+    approved: bool = True,
+    decision_changes: dict | None = None,
+    duplicate: bool = False,
+    mutate_epoch=None,
+) -> None:
+    send_line(teacher_sock, request or proposal())
+    challenge = read_line(teacher_sock)
+    require(challenge["op"] == "teacher-run-decision-challenge", "host challenge op")
+    if mutate_epoch is not None:
+        mutate_epoch()
+    result = decision_for(
+        challenge,
+        approved=approved,
+        **(decision_changes or {}),
     )
+    send_line(teacher_sock, result)
+    if duplicate:
+        send_line(teacher_sock, result)
+    teacher_sock.shutdown(socket.SHUT_WR)
 
 
 def test_exact_positive_decision_mints_one_local_receipt() -> None:
@@ -84,185 +115,195 @@ def test_exact_positive_decision_mints_one_local_receipt() -> None:
     decision = channel.TrustedTeacherDecisionChannel(
         host_sock,
         epoch,
-        request_id_factory=lambda: "decision-1",
+        challenge_id_factory=lambda: "challenge-1",
     )
     authorizer = auth.TrustedTeacherAuthorizer()
-    observed: list[dict] = []
 
-    def teacher() -> None:
-        request = read_line(teacher_sock)
-        observed.append(request)
-        send_line(teacher_sock, reply_for(request, approved=True))
-        teacher_sock.close()
-
-    worker = Thread(target=teacher, daemon=True)
+    worker = Thread(target=run_teacher_exchange, args=(teacher_sock,), daemon=True)
     worker.start()
-    receipt = decision.authorize_run(
-        binding(),
-        authorizer,
-        timeout_seconds=0.5,
-    )
+    receipt = decision.receive_authorization(authorizer, decision_timeout_seconds=0.5)
     worker.join(timeout=1.0)
 
     require(type(receipt) is auth.TeacherRunAuthorization, "exact #267 receipt")
-    require(receipt.binding == binding(), "receipt keeps exact approved binding")
-    require(receipt.active is True and authorizer.has_active_run, "approved run is active")
-    require(decision.terminal, "one teacher decision consumes the channel")
-    require(len(observed) == 1, "teacher receives one decision challenge")
-    request = observed[0]
-    require(request["op"] == "teacher-run-decision", "bounded teacher operation")
-    require(request["requestId"] == "decision-1", "host correlation id")
-    require(request["executionAuthority"] is False, "teacher transport is non-authority data")
+    require(
+        receipt.binding
+        == auth.PhysicalRunBinding("activity-1", "ast-1", "epoch-1"),
+        "receipt keeps exact teacher-approved binding",
+    )
+    require(receipt.active and authorizer.has_active_run, "approved run is active")
+    require(decision.terminal, "one positive decision consumes the channel")
     expect_error(
-        lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.1),
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.1),
         "terminal",
     )
+    teacher_sock.close()
     decision.close()
 
 
-def test_denial_does_not_mint_authority() -> None:
+def test_denial_eof_and_malformed_messages_fail_closed() -> None:
     host_sock, teacher_sock = socket.socketpair()
     decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
-
-    def teacher() -> None:
-        request = read_line(teacher_sock)
-        send_line(teacher_sock, reply_for(request, approved=False))
-        teacher_sock.close()
-
-    worker = Thread(target=teacher, daemon=True)
-    worker.start()
     authorizer = auth.TrustedTeacherAuthorizer()
+    worker = Thread(
+        target=run_teacher_exchange,
+        args=(teacher_sock,),
+        kwargs={"approved": False},
+        daemon=True,
+    )
+    worker.start()
     expect_error(
-        lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.5),
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.5),
         "explicitly denied",
     )
     worker.join(timeout=1.0)
-    require(not authorizer.has_active_run, "denial must not mint #267 authority")
-    require(decision.terminal, "denial consumes the one-shot channel")
+    require(not authorizer.has_active_run, "denial mints no authority")
+    teacher_sock.close()
+    decision.close()
+
+    host_sock, teacher_sock = socket.socketpair()
+    decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
+    authorizer = auth.TrustedTeacherAuthorizer()
+    teacher_sock.close()
+    expect_error(
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.1),
+        "closed",
+    )
+    require(not authorizer.has_active_run, "EOF mints no authority")
+    decision.close()
+
+    host_sock, teacher_sock = socket.socketpair()
+    decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
+    authorizer = auth.TrustedTeacherAuthorizer()
+    teacher_sock.sendall(b"{bad-json}\n")
+    expect_error(
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.1),
+        "malformed JSON",
+    )
+    require(not authorizer.has_active_run, "malformed request mints no authority")
+    teacher_sock.close()
     decision.close()
 
 
-def test_wrong_correlation_or_binding_fails_closed_and_stays_terminal() -> None:
+def test_wrong_correlation_or_binding_fails_closed() -> None:
     cases = (
-        ("correlation", {"requestId": "wrong"}, "correlation"),
-        ("binding", {"astBinding": "different-ast"}, "exact run binding"),
+        ({"requestId": "wrong"}, "request correlation"),
+        ({"challengeId": "wrong"}, "challenge correlation"),
+        ({"profileId": "activity-2"}, "exact run binding"),
+        ({"astBinding": "other-ast"}, "exact run binding"),
+        ({"connectionEpoch": "other-epoch"}, "exact run binding"),
     )
-    for _label, changes, pattern in cases:
+    for changes, pattern in cases:
         host_sock, teacher_sock = socket.socketpair()
         decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
         authorizer = auth.TrustedTeacherAuthorizer()
-
-        def teacher(changes=changes) -> None:
-            request = read_line(teacher_sock)
-            send_line(teacher_sock, reply_for(request, **changes))
-            teacher_sock.close()
-
-        worker = Thread(target=teacher, daemon=True)
+        worker = Thread(
+            target=run_teacher_exchange,
+            args=(teacher_sock,),
+            kwargs={"decision_changes": changes},
+            daemon=True,
+        )
         worker.start()
         expect_error(
-            lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.5),
+            lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.5),
             pattern,
         )
         worker.join(timeout=1.0)
-        require(not authorizer.has_active_run, "mismatched decision cannot mint authority")
-        require(decision.terminal, "mismatched reply poisons one-shot channel")
-        expect_error(
-            lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.1),
-            "terminal",
-        )
+        require(not authorizer.has_active_run, "mismatched decision mints no authority")
+        require(decision.terminal, "mismatch consumes one-shot channel")
+        teacher_sock.close()
         decision.close()
 
 
-def test_eof_and_malformed_reply_fail_closed() -> None:
-    for mode, pattern in (("eof", "closed"), ("json", "malformed JSON")):
-        host_sock, teacher_sock = socket.socketpair()
-        decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
-        authorizer = auth.TrustedTeacherAuthorizer()
+def test_wrong_request_binding_and_reconnect_fail_closed() -> None:
+    host_sock, teacher_sock = socket.socketpair()
+    decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
+    authorizer = auth.TrustedTeacherAuthorizer()
+    send_line(teacher_sock, proposal(epoch="epoch-2"))
+    expect_error(
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.1),
+        "live connection epoch",
+    )
+    require(not authorizer.has_active_run, "wrong-epoch request mints no authority")
+    teacher_sock.close()
+    decision.close()
 
-        def teacher(mode=mode) -> None:
-            read_line(teacher_sock)
-            if mode == "json":
-                teacher_sock.sendall(b"{not-json}\n")
-            teacher_sock.close()
-
-        worker = Thread(target=teacher, daemon=True)
-        worker.start()
-        expect_error(
-            lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.5),
-            pattern,
-        )
-        worker.join(timeout=1.0)
-        require(not authorizer.has_active_run, "ambiguous/malformed transport mints no authority")
-        require(decision.terminal, "ambiguous/malformed transport is terminal")
-        decision.close()
-
-
-def test_reconnect_during_decision_fails_closed() -> None:
     host_sock, teacher_sock = socket.socketpair()
     epoch = Epoch()
     decision = channel.TrustedTeacherDecisionChannel(host_sock, epoch)
     authorizer = auth.TrustedTeacherAuthorizer()
-
-    def teacher() -> None:
-        request = read_line(teacher_sock)
-        epoch.value = "epoch-2"
-        send_line(teacher_sock, reply_for(request))
-        teacher_sock.close()
-
-    worker = Thread(target=teacher, daemon=True)
+    worker = Thread(
+        target=run_teacher_exchange,
+        args=(teacher_sock,),
+        kwargs={"mutate_epoch": lambda: setattr(epoch, "value", "epoch-2")},
+        daemon=True,
+    )
     worker.start()
     expect_error(
-        lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.5),
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.5),
         "epoch changed",
     )
     worker.join(timeout=1.0)
-    require(not authorizer.has_active_run, "reconnect cannot inherit teacher authority")
-    require(decision.terminal, "reconnect ambiguity consumes channel")
+    require(not authorizer.has_active_run, "reconnect mints no stale authority")
+    teacher_sock.close()
     decision.close()
 
 
-def test_untrusted_substitute_socket_cannot_replace_installed_teacher_channel() -> None:
-    installed_host, installed_teacher = socket.socketpair()
-    fake_host, fake_peer = socket.socketpair()
-    decision = channel.TrustedTeacherDecisionChannel(installed_host, Epoch())
+def test_duplicate_or_late_decision_data_fails_before_mint() -> None:
+    host_sock, teacher_sock = socket.socketpair()
+    decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
     authorizer = auth.TrustedTeacherAuthorizer()
-
-    # An ordinary caller may manufacture arbitrary positive JSON on another
-    # socket; it has no route into the launcher-installed channel.
-    send_line(
-        fake_peer,
-        {
-            "op": "teacher-run-decision-result",
-            "requestId": "forged",
-            "profileId": "activity-1",
-            "astBinding": "ast-1",
-            "connectionEpoch": "epoch-1",
-            "approved": True,
-            "executionAuthority": False,
-        },
+    worker = Thread(
+        target=run_teacher_exchange,
+        args=(teacher_sock,),
+        kwargs={"duplicate": True},
+        daemon=True,
     )
-
-    def teacher() -> None:
-        request = read_line(installed_teacher)
-        send_line(installed_teacher, reply_for(request, approved=False))
-        installed_teacher.close()
-
-    worker = Thread(target=teacher, daemon=True)
     worker.start()
     expect_error(
-        lambda: decision.authorize_run(binding(), authorizer, timeout_seconds=0.5),
-        "explicitly denied",
+        lambda: decision.receive_authorization(authorizer, decision_timeout_seconds=0.5),
+        "duplicate or late",
     )
     worker.join(timeout=1.0)
-    require(not authorizer.has_active_run, "forged side socket cannot authorize installed host")
-    forged = read_line(fake_host)
-    require(forged["approved"] is True, "forged data remained isolated on substitute socket")
-    fake_host.close()
-    fake_peer.close()
+    require(not authorizer.has_active_run, "duplicate/late decision mints no authority")
+    teacher_sock.close()
     decision.close()
 
 
-def test_module_and_host_composition_expose_no_effect_or_receipt_channel() -> None:
+def test_receipt_binding_change_stays_permanently_invalid() -> None:
+    host_sock, teacher_sock = socket.socketpair()
+    decision = channel.TrustedTeacherDecisionChannel(host_sock, Epoch())
+    authorizer = auth.TrustedTeacherAuthorizer()
+    worker = Thread(target=run_teacher_exchange, args=(teacher_sock,), daemon=True)
+    worker.start()
+    receipt = decision.receive_authorization(authorizer, decision_timeout_seconds=0.5)
+    worker.join(timeout=1.0)
+
+    try:
+        receipt.assert_effect_binding(
+            profile_id="activity-2",
+            ast_binding="ast-1",
+            connection_epoch="epoch-1",
+        )
+    except auth.TeacherRunAuthorizationError:
+        pass
+    else:
+        raise AssertionError("changed exact run binding must invalidate #267 receipt")
+    require(not receipt.active, "binding mismatch permanently invalidates receipt")
+    try:
+        receipt.assert_effect_binding(
+            profile_id="activity-1",
+            ast_binding="ast-1",
+            connection_epoch="epoch-1",
+        )
+    except auth.TeacherRunAuthorizationError:
+        pass
+    else:
+        raise AssertionError("correcting binding must not resurrect stale receipt")
+    teacher_sock.close()
+    decision.close()
+
+
+def test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority() -> None:
     module_source = (PHYSICAL / "teacher_decision_channel.py").read_text(encoding="utf-8")
     for forbidden in (
         "send_packet(",
@@ -270,6 +311,8 @@ def test_module_and_host_composition_expose_no_effect_or_receipt_channel() -> No
         "PowerSwitch(",
         "send_setpoint(",
         "send_emergency_stop(",
+        "TAKEOFF",
+        "LAND",
     ):
         require(forbidden not in module_source, "teacher channel leaked effect primitive: " + forbidden)
 
@@ -278,19 +321,23 @@ def test_module_and_host_composition_expose_no_effect_or_receipt_channel() -> No
         "--teacher-fd",
         "TrustedTeacherDecisionChannel",
         "TrustedTeacherAuthorizer",
-        "PhysicalRunBinding",
-        "authorize-run-context",
-        "teacher_channel.authorize_run(",
-        "active_teacher_authorization =",
-        "bridge.assert_current_program(",
+        "run_teacher_decision_channel",
+        "teacher_channel.receive_authorization(teacher_authorizer)",
+        'if request.get("op") != "validate-run-context":',
+        "active_teacher_authorization = receipt",
     ):
         require(required in host_source, "host lacks trusted teacher composition: " + required)
+    for forbidden in (
+        "authorize-run-context",
+        '"runId"',
+        '"teacherDecision"',
+        '"approved"',
+    ):
+        require(forbidden not in host_source, "ordinary caller path leaked teacher authority: " + forbidden)
     require(
-        host_source.index("bridge.assert_current_program(")
-        < host_source.index("teacher_channel.authorize_run("),
-        "fresh #249 assertion must precede the teacher decision for the exact run",
+        "args.teacher_fd in {args.caller_fd, args.browser_config_fd}" in host_source,
+        "teacher fd must be distinct from caller/browser channels",
     )
-    require('"runId"' not in host_source, "caller response must not serialize #267 receipt identity")
 
     spec = importlib.util.spec_from_file_location("teacher_host_import_probe", HOST)
     require(spec is not None and spec.loader is not None, "physical-host import spec")
@@ -311,15 +358,15 @@ def test_module_and_host_composition_expose_no_effect_or_receipt_channel() -> No
 
 def main() -> int:
     test_exact_positive_decision_mints_one_local_receipt()
-    test_denial_does_not_mint_authority()
-    test_wrong_correlation_or_binding_fails_closed_and_stays_terminal()
-    test_eof_and_malformed_reply_fail_closed()
-    test_reconnect_during_decision_fails_closed()
-    test_untrusted_substitute_socket_cannot_replace_installed_teacher_channel()
-    test_module_and_host_composition_expose_no_effect_or_receipt_channel()
+    test_denial_eof_and_malformed_messages_fail_closed()
+    test_wrong_correlation_or_binding_fails_closed()
+    test_wrong_request_binding_and_reconnect_fail_closed()
+    test_duplicate_or_late_decision_data_fails_before_mint()
+    test_receipt_binding_change_stays_permanently_invalid()
+    test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority()
     print(
         "PASS trusted teacher decision channel mints one exact #267 run receipt "
-        "inside the physical host and fails closed on substitution/ambiguity"
+        "inside the physical host without an ordinary caller flight-request path"
     )
     return 0
 
