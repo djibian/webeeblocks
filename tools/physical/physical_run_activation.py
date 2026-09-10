@@ -8,8 +8,9 @@ session/bridge, the distinct launcher-installed teacher socket and the shared
 ``production_takeoff_run``; this adapter supplies only the host-local seams that
 must remain lexical to the trusted process:
 
-- reuse the same ``ReadOnlyCapabilitySession`` object behind the existing #278
-  bridge while closing/reopening its underlying cflib link across #266 reset;
+- keep the same ``PostResetCapabilityHttpBridge`` URL/tokens while explicitly
+  fencing its read-only view before #266 closes the old session and reinstalling
+  that view only after a genuinely new post-reset epoch is live;
 - unwrap the raw post-reset Crazyflie object only inside the trusted host TCB;
 - perform every positive #278/#249 current-program assertion through the same
   host-owned bridge;
@@ -156,6 +157,13 @@ def activate_validated_run(
     if assertion_timeout_seconds <= 0:
         raise PhysicalRunActivationError("current-program assertion timeout must be positive")
 
+    begin_replacement = getattr(bridge, "begin_post_reset_replacement", None)
+    install_replacement = getattr(bridge, "install_post_reset_session", None)
+    if not callable(begin_replacement) or not callable(install_replacement):
+        raise PhysicalRunActivationError(
+            "trusted activation requires the integrated fail-closed post-reset bridge"
+        )
+
     previous_epoch = staged_binding.connection_epoch
     try:
         current_epoch = session.read_connection_epoch()
@@ -181,13 +189,28 @@ def activate_validated_run(
         return _require_flight_inactive(pre_reset_reader)
 
     def invalidate_prior_evidence() -> None:
-        # The bridge keeps the same loopback URL/tokens and the same adapter
-        # identity. Closing this adapter invalidates only the old live epoch.
+        # Linearize the externally readable #278 view before closing the old
+        # cflib session. Once this succeeds there is intentionally no rollback to
+        # pre-reset evidence if close/reset/reconnect later becomes ambiguous.
+        begin_replacement(previous_epoch)
         session.close()
 
     def open_post_reset_session() -> object:
         session.open()
-        return _live_crazyflie(session)
+        try:
+            installed_epoch = install_replacement(session)
+            live_epoch = session.read_connection_epoch()
+            if installed_epoch != live_epoch or live_epoch == previous_epoch:
+                raise PhysicalRunActivationError(
+                    "post-reset bridge was not rebound to the genuinely new live epoch"
+                )
+            return _live_crazyflie(session)
+        except Exception:
+            try:
+                session.close()
+            except Exception:
+                pass
+            raise
 
     def close_post_reset_session(crazyflie: object) -> None:
         if crazyflie is not _live_crazyflie(session):
