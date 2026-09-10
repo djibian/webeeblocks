@@ -9,23 +9,22 @@ session and the integrated #278 bridge/responder relationship.
 The ordinary caller/UI is outside this process. Its IPC messages are untrusted
 run-context validation requests only; a positive reply is diagnostic/non-authority
 data and must never be accepted later as an effect capability. A distinct
-launcher-installed teacher socket may independently approve one exact #267 run;
-that receipt remains process-local and is never returned on caller/browser IPC.
-The #276 transport belongs *inside this same process* so fresh #249 and all
-identity-sensitive #257/#260/#262/#266/#267/#271/#272/#273 objects share the one
-live Crazyflie/session/connection epoch.
+launcher-installed teacher socket is the trusted preparation enablement for one
+physical run: by itself it has no candidate and emits no effect; ordinary caller
+data without that capability cannot trigger reset or teacher activity. Only the
+conjunction of that trusted capability and one freshly host-validated profile /
+canonical-AST candidate may enter the #273-protected #266 path. The exact #267
+receipt is still minted only by the host-first #290 decision after reset rotates
+the live connection epoch, and it never crosses caller/browser IPC.
 
 Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
-teacher decision socket is distinct from both channels and is consumed by its own
-one-shot trusted control path; ordinary caller data cannot trigger, select,
-replace or write that decision path. The host-local #276 transport type closes
-directly over the same bridge; no bridge-to-effect handle, binder, client or
-caller-selectable provenance input is exported. A trusted run activation may
-construct the bounded in-flight effect surface only after the exact run-scoped
-safety/authority objects already exist on that same live epoch. This executable
-emits no flight, arming, setpoint or reset command merely by starting or
-validating a run context.
+teacher socket is distinct from both channels and is consumed only inside the
+one-shot production activation path; ordinary caller data cannot supply, replace
+or write that trusted decision channel. The future #276 transport belongs *inside this same process* so fresh #249 and all identity-sensitive #257/#260/#262/#266/
+#267/#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
+Starting the host or validating a run without the trusted teacher capability
+remains effect-free.
 """
 
 if __name__ == "__main__":
@@ -37,30 +36,22 @@ if __name__ == "__main__":
         from pathlib import Path
         import socket
         import sys
-        from threading import Thread
+        from threading import Event, Lock, Thread
 
         physical = Path(__file__).resolve().parent
         if str(physical) not in sys.path:
             sys.path.insert(0, str(physical))
 
-        from high_level_timing import HighLevelTimingPolicy
+        from physical_execution_domain import PhysicalExecutionDomain
+        from physical_run_activation import activate_validated_run
+        from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
-        from serve_reference_capabilities import (
-            CapabilityBridgeError,
-            CurrentProgramPreflightEvidence,
-            ReadOnlyCapabilityHttpBridge,
-        )
-        from setpoint_hl_transport import (
-            SetpointHlTransportError,
-            TrustedSetpointHlTransport,
-        )
-        from teacher_decision_channel import (
-            TeacherDecisionChannelError,
-            TrustedTeacherDecisionChannel,
-        )
-        from teacher_run_authorization import TrustedTeacherAuthorizer
-        from yaw_observer import FreshYawObserver
+        from serve_reference_capabilities import CapabilityBridgeError
+        from teacher_run_authorization import PhysicalRunBinding
 
+        # The reset-aware bridge is the production ReadOnlyCapabilityHttpBridge
+        # specialization: same #278 read/provenance boundary, plus the explicit
+        # fail-closed #266 session-replacement transaction integrated by #294.
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
 
@@ -84,7 +75,10 @@ if __name__ == "__main__":
             "--teacher-fd",
             type=int,
             default=None,
-            help="distinct launcher-installed trusted teacher decision socket handle",
+            help=(
+                "distinct launcher-installed teacher capability; its presence enables "
+                "one post-reset host-first #290 decision for a freshly validated candidate"
+            ),
         )
         args = parser.parse_args()
 
@@ -112,202 +106,50 @@ if __name__ == "__main__":
         )
 
         with ReadOnlyCapabilitySession(args.uri) as session:
-            bridge = ReadOnlyCapabilityHttpBridge(session)
-
-            class _HostBoundSetpointHlTransport(TrustedSetpointHlTransport):
-                """#276 effect transport whose provenance source is lexical to this host."""
-
-                def _read_current_binding(self):
-                    binding = self.teacher_binding
-                    try:
-                        evidence = bridge.assert_current_program(
-                            profile_id=binding.profile_id,
-                            ast_binding=binding.ast_binding,
-                            connection_epoch=binding.connection_epoch,
-                            timeout_seconds=assertion_timeout_seconds,
-                        )
-                    except Exception as exc:
-                        raise SetpointHlTransportError(
-                            "integrated #278/#249 current-program re-assertion failed"
-                        ) from exc
-                    if type(evidence) is not CurrentProgramPreflightEvidence:
-                        raise SetpointHlTransportError(
-                            "integrated #278 bridge returned invalid current-program evidence"
-                        )
-                    if evidence.execution_authority is not False:
-                        raise SetpointHlTransportError(
-                            "current-program evidence crossed the non-authority boundary"
-                        )
-                    if (
-                        evidence.profile_id != binding.profile_id
-                        or evidence.ast_binding != binding.ast_binding
-                        or evidence.connection_epoch != binding.connection_epoch
-                    ):
-                        raise SetpointHlTransportError(
-                            "current-program evidence does not match the teacher-authorized run"
-                        )
-                    if (
-                        not isinstance(evidence.challenge_id, str)
-                        or not evidence.challenge_id.strip()
-                    ):
-                        raise SetpointHlTransportError(
-                            "current-program challenge provenance is unavailable"
-                        )
-                    return binding
-
-            def _compose_inflight_setpoint_transport(
-                *,
-                crazyflie,
-                execution_domain,
-                acknowledgement_domain,
-                safelink_guard,
-                teacher_authorization,
-                powered_session,
-                watchdog_guard,
-                supervisor_reader,
-            ):
-                """Compose #276 only from safety objects already local to this TCB.
-
-                The current-program bridge is intentionally not an argument. The
-                trusted lifecycle/teacher path calls this local closure after it
-                has established the exact same-epoch #266/#267/#262/#257/#272/
-                #271/#273 objects. Ordinary caller IPC cannot invoke or replace
-                this composition path.
-                """
-                effect_transport = _HostBoundSetpointHlTransport(
-                    crazyflie=crazyflie,
-                    execution_domain=execution_domain,
-                    acknowledgement_domain=acknowledgement_domain,
-                    safelink_guard=safelink_guard,
-                    teacher_authorization=teacher_authorization,
-                    powered_session=powered_session,
-                    watchdog_guard=watchdog_guard,
-                    supervisor_reader=supervisor_reader,
-                )
-                if effect_transport.bound_connection_epoch != session.read_connection_epoch():
-                    raise SetpointHlTransportError(
-                        "co-located effect transport is not bound to the live host epoch"
-                    )
-                return effect_transport
-
-            class _ActiveInflightRun:
-                """Host-local run surface holding authorities outside ordinary IPC."""
-
-                __slots__ = ("_transport", "_yaw_reader", "_timing_policy")
-
-                def __init__(self, transport, yaw_reader, timing_policy) -> None:
-                    self._transport = transport
-                    self._yaw_reader = yaw_reader
-                    self._timing_policy = timing_policy
-
-                def execute(self, request):
-                    if not isinstance(request, dict):
-                        raise SetpointHlTransportError(
-                            "physical motion request must be a bounded semantic object"
-                        )
-                    motion = request.get("motion")
-                    if motion == "turn":
-                        if set(request) != {"motion", "angleDeg"}:
-                            raise SetpointHlTransportError(
-                                "turn request contains unsupported fields"
-                            )
-                        return self._transport.send_turn(
-                            angle_deg=request["angleDeg"],
-                            timing_policy=self._timing_policy,
-                        )
-                    if motion == "horizontal":
-                        if set(request) != {"motion", "direction", "distanceM"}:
-                            raise SetpointHlTransportError(
-                                "horizontal request contains unsupported fields"
-                            )
-                        return self._transport.send_horizontal_move(
-                            direction=request["direction"],
-                            distance_m=request["distanceM"],
-                            yaw_reader=self._yaw_reader,
-                            timing_policy=self._timing_policy,
-                        )
-                    raise SetpointHlTransportError(
-                        "unsupported ordinary physical motion request"
-                    )
-
-            def _activate_inflight_run(
-                *,
-                crazyflie,
-                execution_domain,
-                acknowledgement_domain,
-                safelink_guard,
-                teacher_authorization,
-                powered_session,
-                watchdog_guard,
-                supervisor_reader,
-                yaw_reader,
-                timing_policy,
-            ):
-                """Create one usable effect surface only from trusted run-scoped objects."""
-                if type(yaw_reader) is not FreshYawObserver:
-                    raise SetpointHlTransportError(
-                        "exact #260 FreshYawObserver is required for active physical run"
-                    )
-                if type(timing_policy) is not HighLevelTimingPolicy:
-                    raise SetpointHlTransportError(
-                        "exact #268 HighLevelTimingPolicy is required for active physical run"
-                    )
-                if yaw_reader.bound_crazyflie is not crazyflie:
-                    raise SetpointHlTransportError(
-                        "active-run yaw observer is not bound to the exact Crazyflie"
-                    )
-                if yaw_reader.bound_connection_epoch != session.read_connection_epoch():
-                    raise SetpointHlTransportError(
-                        "active-run yaw observer is not bound to the live host epoch"
-                    )
-                if not yaw_reader.is_open:
-                    raise SetpointHlTransportError(
-                        "active-run yaw observer must already be open"
-                    )
-                effect_transport = _compose_inflight_setpoint_transport(
-                    crazyflie=crazyflie,
-                    execution_domain=execution_domain,
-                    acknowledgement_domain=acknowledgement_domain,
-                    safelink_guard=safelink_guard,
-                    teacher_authorization=teacher_authorization,
-                    powered_session=powered_session,
-                    watchdog_guard=watchdog_guard,
-                    supervisor_reader=supervisor_reader,
-                )
-                return _ActiveInflightRun(
-                    effect_transport,
-                    yaw_reader,
-                    timing_policy,
-                )
-
+            bridge = PostResetCapabilityHttpBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
 
-            teacher_authorizer = TrustedTeacherAuthorizer()
-            teacher_channel = (
-                None
-                if teacher_socket is None
-                else TrustedTeacherDecisionChannel(
-                    teacher_socket,
-                    session.read_connection_epoch,
-                )
-            )
-            teacher_state = {
-                "authorization": None,
+            execution_domain = PhysicalExecutionDomain()
+            lifecycle_lock = Lock()
+            staged_ready = Event()
+            host_stopping = Event()
+            staged_state = {"binding": None}
+            activation_state = {
+                "started": False,
+                "active_run": None,
                 "error": None,
             }
-            teacher_thread = None
+            activation_thread = None
 
-            def run_teacher_decision_channel() -> None:
-                if teacher_channel is None:
+            def run_trusted_activation() -> None:
+                if teacher_socket is None:
                     return
                 try:
-                    receipt = teacher_channel.receive_authorization(teacher_authorizer)
-                except TeacherDecisionChannelError as exc:
-                    teacher_state["error"] = str(exc)
-                    return
-                teacher_state["authorization"] = receipt
+                    while not staged_ready.wait(0.05):
+                        if host_stopping.is_set():
+                            return
+                    if host_stopping.is_set():
+                        return
+
+                    with lifecycle_lock:
+                        binding = staged_state["binding"]
+                        if type(binding) is not PhysicalRunBinding:
+                            raise RuntimeError(
+                                "trusted teacher capability has no exact host-validated candidate"
+                            )
+                        activation_state["active_run"] = activate_validated_run(
+                            uri=args.uri,
+                            session=session,
+                            bridge=bridge,
+                            teacher_socket=teacher_socket,
+                            staged_binding=binding,
+                            execution_domain=execution_domain,
+                            assertion_timeout_seconds=assertion_timeout_seconds,
+                        )
+                except Exception as exc:
+                    activation_state["error"] = str(exc)
 
             # Trusted composition routes this descriptor only to the production
             # browser #249 responder. It never crosses the caller IPC channel.
@@ -332,15 +174,16 @@ if __name__ == "__main__":
                 )
                 browser_config.flush()
 
-            # The teacher protocol is independent from ordinary caller requests.
-            # It may remain idle until the trusted launcher/teacher writes its
-            # one-run request, and it never serializes the resulting #267 receipt.
-            if teacher_channel is not None:
-                teacher_thread = Thread(
-                    target=run_teacher_decision_channel,
+            # The launcher-installed teacher descriptor is the trusted preparation
+            # capability. Its worker can only wait: with no freshly validated
+            # candidate it cannot reset, decide or emit anything. Conversely, a
+            # caller candidate with no teacher descriptor remains diagnostic only.
+            if teacher_socket is not None:
+                activation_thread = Thread(
+                    target=run_trusted_activation,
                     daemon=True,
                 )
-                teacher_thread.start()
+                activation_thread.start()
 
             try:
                 for line in caller_reader:
@@ -373,31 +216,54 @@ if __name__ == "__main__":
                         break
 
                     try:
-                        # This evidence stays inside the trusted physical host.
-                        # Future #276 composition must consume it here immediately
-                        # before the effect; the co-located transport above uses
-                        # this exact lexical bridge rather than caller provenance.
-                        # Caller replies are never accepted as provenance.
-                        evidence = bridge.assert_current_program(
-                            profile_id=profile_id,
-                            ast_binding=ast_binding,
-                            connection_epoch=connection_epoch,
-                            timeout_seconds=assertion_timeout_seconds,
-                        )
-                        if (
-                            evidence.execution_authority is not False
-                            or evidence.profile_id != profile_id
-                            or evidence.ast_binding != ast_binding
-                            or evidence.connection_epoch != connection_epoch
-                        ):
-                            raise CapabilityBridgeError(
-                                "current-program evidence does not match requested run"
+                        with lifecycle_lock:
+                            # This evidence stays inside the trusted physical host.
+                            # Future #276 composition must consume it here immediately
+                            # before the effect; caller replies are never provenance.
+                            evidence = bridge.assert_current_program(
+                                profile_id=profile_id,
+                                ast_binding=ast_binding,
+                                connection_epoch=connection_epoch,
+                                timeout_seconds=assertion_timeout_seconds,
                             )
+                            if (
+                                evidence.execution_authority is not False
+                                or evidence.profile_id != profile_id
+                                or evidence.ast_binding != ast_binding
+                                or evidence.connection_epoch != connection_epoch
+                            ):
+                                raise CapabilityBridgeError(
+                                    "current-program evidence does not match requested run"
+                                )
+
+                            # Candidate data is non-authority. Freeze it only when
+                            # the launcher has already installed the distinct
+                            # trusted teacher capability; this conjunction is the
+                            # preparation gate. No caller field can create that
+                            # capability or alter the candidate after it is frozen.
+                            if (
+                                teacher_socket is not None
+                                and not activation_state["started"]
+                            ):
+                                staged_state["binding"] = PhysicalRunBinding(
+                                    profile_id=profile_id,
+                                    ast_binding=ast_binding,
+                                    connection_epoch=connection_epoch,
+                                )
+                                activation_state["started"] = True
+                                staged_ready.set()
                     except CapabilityBridgeError as exc:
                         response = {
                             "requestId": request_id,
                             "ok": False,
                             "error": str(exc),
+                            "executionAuthority": False,
+                        }
+                    except Exception as exc:
+                        response = {
+                            "requestId": request_id,
+                            "ok": False,
+                            "error": "run context validation failed closed: " + str(exc),
                             "executionAuthority": False,
                         }
                     else:
@@ -420,34 +286,36 @@ if __name__ == "__main__":
                     except OSError:
                         break
             finally:
+                host_stopping.set()
+                staged_ready.set()
+
+                # A started activation owns the live session/bridge while it is
+                # running. Finish that bounded transaction before tearing down
+                # those authorities; do not convert host shutdown into ambiguous
+                # concurrent reset/effect cleanup.
+                if activation_thread is not None:
+                    activation_thread.join()
+
+                active_controller = activation_state["active_run"]
+                _activation_error = activation_state["error"]
+                if active_controller is not None:
+                    try:
+                        active_controller.shutdown()
+                    except Exception:
+                        pass
+
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
 
-                # Closing the trusted channel first unblocks an idle one-shot
-                # teacher worker; no late decision can survive host teardown.
-                if teacher_channel is not None:
-                    teacher_channel.close()
-                elif teacher_socket is not None:
+                if teacher_socket is not None:
                     try:
                         teacher_socket.close()
                     except OSError:
                         pass
-                if teacher_thread is not None:
-                    teacher_thread.join(timeout=1.0)
 
-                receipt = teacher_state["authorization"]
-                _teacher_channel_error = teacher_state["error"]
-                if receipt is not None:
-                    try:
-                        teacher_authorizer.close_run(
-                            receipt,
-                            "physical host shutting down",
-                        )
-                    except Exception:
-                        pass
-                # Keep the local error value deliberately non-observable to caller
-                # IPC while retaining it for a future co-located trusted lifecycle.
-                del _teacher_channel_error
+                # Keep trusted failures deliberately non-observable to ordinary
+                # caller IPC while retaining them inside this execution boundary.
+                del _activation_error
 
                 try:
                     caller_reader.close()

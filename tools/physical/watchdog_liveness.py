@@ -296,7 +296,7 @@ class EmergencyWatchdogLivenessGuard:
 
     @property
     def bound_crazyflie(self) -> object:
-        """Exact live Crazyflie object guarded by this watchdog lifecycle."""
+        """Exact Crazyflie object whose watchdog liveness this guard protects."""
         return self._cf
 
     @property
