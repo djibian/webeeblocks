@@ -73,6 +73,14 @@ def main():
     if physical_host_provenance_test.returncode:
         print('FAIL physical-host current-program provenance boundary',file=sys.stderr);print(physical_host_provenance_test.stdout,file=sys.stderr);print(physical_host_provenance_test.stderr,file=sys.stderr);return physical_host_provenance_test.returncode
     print(physical_host_provenance_test.stdout.strip())
+    physical_host_activation_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_activation.py'],text=True,capture_output=True)
+    if physical_host_activation_test.returncode:
+        print('FAIL actual physical-host activation composition',file=sys.stderr);print(physical_host_activation_test.stdout,file=sys.stderr);print(physical_host_activation_test.stderr,file=sys.stderr);return physical_host_activation_test.returncode
+    print(physical_host_activation_test.stdout.strip())
+    physical_host_authority_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_authority_path.py'],text=True,capture_output=True)
+    if physical_host_authority_test.returncode:
+        print('FAIL actual trusted physical-host authority path',file=sys.stderr);print(physical_host_authority_test.stdout,file=sys.stderr);print(physical_host_authority_test.stderr,file=sys.stderr);return physical_host_authority_test.returncode
+    print(physical_host_authority_test.stdout.strip())
     physical_http_test=subprocess.run([sys.executable,'tools/ci/test_physical_capability_http_bridge.py'],text=True,capture_output=True)
     if physical_http_test.returncode:
         print('FAIL read-only physical capability HTTP bridge',file=sys.stderr);print(physical_http_test.stdout,file=sys.stderr);print(physical_http_test.stderr,file=sys.stderr);return physical_http_test.returncode
@@ -113,6 +121,10 @@ def main():
     if physical_takeoff_transport_test.returncode:
         print('FAIL causal physical takeoff transport',file=sys.stderr);print(physical_takeoff_transport_test.stdout,file=sys.stderr);print(physical_takeoff_transport_test.stderr,file=sys.stderr);return physical_takeoff_transport_test.returncode
     print(physical_takeoff_transport_test.stdout.strip())
+    production_takeoff_run_test=subprocess.run([sys.executable,'tools/ci/test_production_takeoff_run.py'],text=True,capture_output=True)
+    if production_takeoff_run_test.returncode:
+        print('FAIL production-shaped causal takeoff lifecycle',file=sys.stderr);print(production_takeoff_run_test.stdout,file=sys.stderr);print(production_takeoff_run_test.stderr,file=sys.stderr);return production_takeoff_run_test.returncode
+    print(production_takeoff_run_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
