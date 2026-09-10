@@ -8,8 +8,8 @@ session and the integrated #278 bridge/responder relationship.
 
 The ordinary caller/UI is outside this process. Its IPC messages are untrusted
 run-context requests only; a positive reply is diagnostic/non-authority data and
-must never be accepted later as an effect capability. The #276 transport belongs
-*inside this same process* so the fresh #249 assertion and all identity-sensitive
+must never be accepted later as an effect capability. The #276 transport
+belongs *inside this same process* so the fresh #249 assertion and all identity-sensitive
 #257/#260/#262/#266/#267/#271/#272/#273 objects share the one live
 Crazyflie/session/connection epoch.
 
