@@ -6,25 +6,23 @@ session, bridge, responder, teacher channel or physical effect object. When run
 by trusted production composition it alone owns the live Crazyflie capability
 session and the integrated #278 bridge/responder relationship.
 
-The ordinary caller/UI is outside this process. Its IPC messages are untrusted
-run-context validation requests only; a positive reply is diagnostic/non-authority
-data and must never be accepted later as an effect capability. A distinct
-launcher-installed teacher socket is the trusted preparation enablement for one
-physical run: by itself it has no candidate and emits no effect; ordinary caller
-data without that capability cannot trigger reset or teacher activity. Only the
-conjunction of that trusted capability and one freshly host-validated profile /
-canonical-AST candidate may enter the #273-protected #266 path. The exact #267
-receipt is still minted only by the host-first #290 decision after reset rotates
-the live connection epoch, and it never crosses caller/browser IPC.
+The ordinary caller/UI is outside this process. Run-context validation requests
+remain diagnostic/non-authority. After the distinct launcher-installed teacher
+capability has established one exact #293 run, ordinary IPC may also request a
+parameter-free ``execute-next-inflight`` step. That request carries no motion
+semantics or authority: ``activate_validated_run()`` derives the next eligible
+move/turn from the exact #267 canonical AST and keeps the #276 effect/provenance
+objects inside the trusted process. A positive reply is still non-authority data.
 
 Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
 teacher socket is distinct from both channels and is consumed only inside the
 one-shot production activation path; ordinary caller data cannot supply, replace
-or write that trusted decision channel. The future #276 transport belongs *inside this same process* so fresh #249 and all identity-sensitive #257/#260/#262/#266/
-#267/#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
-Starting the host or validating a run without the trusted teacher capability
-remains effect-free.
+or write that trusted decision channel. The #276 transport belongs inside this
+same process so fresh #249 and all identity-sensitive #257/#260/#262/#266/#267/
+#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
+Starting the host, validating a run without the trusted teacher capability, or
+requesting an in-flight step before successful activation remains effect-free.
 """
 
 if __name__ == "__main__":
@@ -49,9 +47,6 @@ if __name__ == "__main__":
         from serve_reference_capabilities import CapabilityBridgeError
         from teacher_run_authorization import PhysicalRunBinding
 
-        # The reset-aware bridge is the production ReadOnlyCapabilityHttpBridge
-        # specialization: same #278 read/provenance boundary, plus the explicit
-        # fail-closed #266 session-replacement transaction integrated by #294.
         max_message_bytes = 8192
         assertion_timeout_seconds = 1.0
 
@@ -151,8 +146,6 @@ if __name__ == "__main__":
                 except Exception as exc:
                     activation_state["error"] = str(exc)
 
-            # Trusted composition routes this descriptor only to the production
-            # browser #249 responder. It never crosses the caller IPC channel.
             with os.fdopen(
                 args.browser_config_fd,
                 "w",
@@ -174,16 +167,27 @@ if __name__ == "__main__":
                 )
                 browser_config.flush()
 
-            # The launcher-installed teacher descriptor is the trusted preparation
-            # capability. Its worker can only wait: with no freshly validated
-            # candidate it cannot reset, decide or emit anything. Conversely, a
-            # caller candidate with no teacher descriptor remains diagnostic only.
             if teacher_socket is not None:
                 activation_thread = Thread(
                     target=run_trusted_activation,
                     daemon=True,
                 )
                 activation_thread.start()
+
+            def write_response(response: dict[str, object]) -> bool:
+                try:
+                    caller_writer.write(
+                        json.dumps(
+                            response,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        )
+                        + "\n"
+                    )
+                    caller_writer.flush()
+                    return True
+                except OSError:
+                    return False
 
             try:
                 for line in caller_reader:
@@ -195,7 +199,57 @@ if __name__ == "__main__":
                         break
                     if not isinstance(request, dict):
                         break
-                    if request.get("op") != "validate-run-context":
+
+                    operation = request.get("op")
+                    if operation == "execute-next-inflight":
+                        request_id = request.get("requestId")
+                        if (
+                            not isinstance(request_id, str)
+                            or not request_id.strip()
+                            or request_id != request_id.strip()
+                        ):
+                            break
+                        if set(request) != {"op", "requestId"}:
+                            response = {
+                                "requestId": request_id,
+                                "ok": False,
+                                "error": (
+                                    "in-flight execution accepts no caller-selected "
+                                    "motion semantics"
+                                ),
+                                "executionAuthority": False,
+                            }
+                        else:
+                            try:
+                                with lifecycle_lock:
+                                    active_controller = activation_state["active_run"]
+                                    if active_controller is None:
+                                        raise RuntimeError(
+                                            "authorized in-flight execution is unavailable"
+                                        )
+                                    result = active_controller.execute_next_inflight()
+                                    if getattr(result, "accepted", None) is not True:
+                                        raise RuntimeError(
+                                            "authorized in-flight effect was rejected"
+                                        )
+                            except Exception:
+                                response = {
+                                    "requestId": request_id,
+                                    "ok": False,
+                                    "error": "authorized in-flight execution failed closed",
+                                    "executionAuthority": False,
+                                }
+                            else:
+                                response = {
+                                    "requestId": request_id,
+                                    "ok": True,
+                                    "executionAuthority": False,
+                                }
+                        if not write_response(response):
+                            break
+                        continue
+
+                    if operation != "validate-run-context":
                         break
 
                     request_id = request.get("requestId")
@@ -217,9 +271,6 @@ if __name__ == "__main__":
 
                     try:
                         with lifecycle_lock:
-                            # This evidence stays inside the trusted physical host.
-                            # Future #276 composition must consume it here immediately
-                            # before the effect; caller replies are never provenance.
                             evidence = bridge.assert_current_program(
                                 profile_id=profile_id,
                                 ast_binding=ast_binding,
@@ -236,11 +287,6 @@ if __name__ == "__main__":
                                     "current-program evidence does not match requested run"
                                 )
 
-                            # Candidate data is non-authority. Freeze it only when
-                            # the launcher has already installed the distinct
-                            # trusted teacher capability; this conjunction is the
-                            # preparation gate. No caller field can create that
-                            # capability or alter the candidate after it is frozen.
                             if (
                                 teacher_socket is not None
                                 and not activation_state["started"]
@@ -273,26 +319,12 @@ if __name__ == "__main__":
                             "executionAuthority": False,
                         }
 
-                    try:
-                        caller_writer.write(
-                            json.dumps(
-                                response,
-                                separators=(",", ":"),
-                                sort_keys=True,
-                            )
-                            + "\n"
-                        )
-                        caller_writer.flush()
-                    except OSError:
+                    if not write_response(response):
                         break
             finally:
                 host_stopping.set()
                 staged_ready.set()
 
-                # A started activation owns the live session/bridge while it is
-                # running. Finish that bounded transaction before tearing down
-                # those authorities; do not convert host shutdown into ambiguous
-                # concurrent reset/effect cleanup.
                 if activation_thread is not None:
                     activation_thread.join()
 
@@ -313,8 +345,6 @@ if __name__ == "__main__":
                     except OSError:
                         pass
 
-                # Keep trusted failures deliberately non-observable to ordinary
-                # caller IPC while retaining them inside this execution boundary.
                 del _activation_error
 
                 try:
