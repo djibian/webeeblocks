@@ -21,8 +21,7 @@ Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
 teacher socket is distinct from both channels and is consumed only inside the
 one-shot production activation path; ordinary caller data cannot supply, replace
-or write that trusted decision channel. The future #276 transport belongs *inside
-this same process* so fresh #249 and all identity-sensitive #257/#260/#262/#266/
+or write that trusted decision channel. The future #276 transport belongs *inside this same process* so fresh #249 and all identity-sensitive #257/#260/#262/#266/
 #267/#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
 Starting the host or validating a run without the trusted teacher capability
 remains effect-free.
