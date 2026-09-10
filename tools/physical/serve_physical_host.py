@@ -405,15 +405,13 @@ if __name__ == "__main__":
                     except Exception:
                         pass
 
-                active_run = activation_state["active_run"]
+                active_controller = activation_state["active_run"]
                 _activation_error = activation_state["error"]
-                if active_run is not None:
-                    receipt = active_run.teacher_authorization
-                    if receipt.active:
-                        try:
-                            receipt.invalidate("physical host shutting down")
-                        except Exception:
-                            pass
+                if active_controller is not None:
+                    try:
+                        active_controller.shutdown()
+                    except Exception:
+                        pass
                 # Keep trusted failures deliberately non-observable to ordinary
                 # caller IPC while retaining them inside this execution boundary.
                 del _teacher_channel_error
