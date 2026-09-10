@@ -16,11 +16,25 @@ from __future__ import annotations
 
 from threading import RLock
 
+from probe_reference_hardware import ProbeError
 from serve_reference_capabilities import (
     CapabilityBridgeError,
     ReadOnlyCapabilityHttpBridge,
     _require_text,
 )
+
+
+class _LockedSessionView:
+    """Read-only session facade whose calls stay inside the reset cutover lock."""
+
+    def __init__(self, bridge: "PostResetCapabilityHttpBridge") -> None:
+        self._bridge = bridge
+
+    def read_connection_epoch(self):
+        return self._bridge._read_current_session("read_connection_epoch")
+
+    def read_capabilities(self):
+        return self._bridge._read_current_session("read_capabilities")
 
 
 class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
@@ -29,6 +43,7 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
     def __init__(self, session: object, **kwargs) -> None:
         self._session_lock = RLock()
         self._session: object | None = None
+        self._session_view = _LockedSessionView(self)
         self._base_session_assignment_open = True
         self._replacement_previous_epoch: str | None = None
         try:
@@ -36,16 +51,31 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
         finally:
             self._base_session_assignment_open = False
 
+    def _current_session_locked(self) -> object:
+        if self._replacement_previous_epoch is not None:
+            raise CapabilityBridgeError(
+                "capability bridge session is unavailable during post-reset replacement"
+            )
+        if self._session is None:
+            raise CapabilityBridgeError("capability bridge session is unavailable")
+        return self._session
+
+    def _read_current_session(self, method_name: str):
+        """Keep direct bridge reads linearized against replacement begin/install."""
+        with self._session_lock:
+            session = self._current_session_locked()
+            method = getattr(session, method_name, None)
+            if not callable(method):
+                raise CapabilityBridgeError(
+                    "capability bridge session does not expose " + method_name
+                )
+            return method()
+
     @property
     def session(self) -> object:
-        with self._session_lock:
-            if self._replacement_previous_epoch is not None:
-                raise CapabilityBridgeError(
-                    "capability bridge session is unavailable during post-reset replacement"
-                )
-            if self._session is None:
-                raise CapabilityBridgeError("capability bridge session is unavailable")
-            return self._session
+        # The base bridge calls ``self.session.read_*``. Return a facade rather
+        # than the raw session so the actual read stays inside ``_session_lock``.
+        return self._session_view
 
     @session.setter
     def session(self, value: object) -> None:
@@ -59,6 +89,46 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
                 )
             self._session = value
             self._base_session_assignment_open = False
+
+    def _handler_type(self):
+        """Linearize successful HTTP capability replies with the reset cutover.
+
+        The base handler obtains ``bridge.session`` and only then invokes the
+        session method. A property-level lock therefore ends too early: reset can
+        begin while the old read is still running. For the two ordinary read-only
+        endpoints, keep ``_session_lock`` through both the physical read and the
+        response write. Consequently ``begin_post_reset_replacement()`` cannot
+        return while an admitted old-session HTTP view can still be published,
+        and any request admitted after that edge sees replacement-pending and
+        fails closed. The trusted preflight-responder endpoint remains delegated
+        to the base implementation and is fenced separately by
+        ``_preflight_condition`` below.
+        """
+        base_handler = super()._handler_type()
+        bridge = self
+
+        class Handler(base_handler):
+            def do_GET(self) -> None:  # noqa: N802
+                if self.path not in {"/v1/connection-epoch", "/v1/capabilities"}:
+                    super().do_GET()
+                    return
+                if not self._capability_authorized():
+                    self._json(401, {"error": "unauthorized"})
+                    return
+                try:
+                    with bridge._session_lock:
+                        session = bridge._current_session_locked()
+                        if self.path == "/v1/connection-epoch":
+                            payload = {
+                                "connectionEpoch": session.read_connection_epoch()
+                            }
+                        else:
+                            payload = session.read_capabilities()
+                        self._json(200, payload)
+                except (ProbeError, CapabilityBridgeError) as exc:
+                    self._json(409, {"error": str(exc)})
+
+        return Handler
 
     @property
     def post_reset_replacement_pending(self) -> bool:
@@ -102,7 +172,9 @@ class PostResetCapabilityHttpBridge(ReadOnlyCapabilityHttpBridge):
         This method is intended to be the #266 ``invalidate_prior_evidence``
         collaborator. Once it succeeds there is deliberately no rollback to the
         old session: an ambiguous reset must not make stale pre-reset evidence
-        reusable.
+        reusable. Acquiring ``_session_lock`` after the assertion fence also
+        drains any already-admitted ordinary capability response before this
+        cutover returns.
         """
         expected = _require_text(expected_connection_epoch, "connectionEpoch")
         with self._preflight_condition:
