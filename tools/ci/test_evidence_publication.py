@@ -70,7 +70,7 @@ def expect_error(callable_, contains: str) -> None:
     raise AssertionError(f"expected EvidenceError containing {contains!r}")
 
 
-def rewrite_bundled_profile_limit(path: Path, key: str, value: int) -> None:
+def rewrite_bundled_profile_limit(path: Path, key: str, value: int) -> bytes:
     profile_path = path / "PROFILE.json"
     profile = json.loads(profile_path.read_text(encoding="utf-8"))
     profile[key] = value
@@ -80,6 +80,20 @@ def rewrite_bundled_profile_limit(path: Path, key: str, value: int) -> None:
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     metadata["profile"]["sha256"] = evidence.sha256_bytes(profile_raw)
     metadata_path.write_bytes(evidence.metadata_bytes(metadata))
+    return profile_raw
+
+
+def rewrite_registered_profile_limit(repo: Path, key: str, value: int) -> None:
+    profile_path = repo / "tools" / "evidence" / "profiles" / PROFILE.name
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile[key] = value
+    profile_path.write_text(
+        json.dumps(profile, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def restore_registered_profile(repo: Path) -> None:
+    shutil.copyfile(PROFILE, repo / "tools" / "evidence" / "profiles" / PROFILE.name)
 
 
 def test_materialize_and_verify_preserve_raw_bytes(tmp: Path) -> None:
@@ -219,10 +233,12 @@ def test_fail_closed_inputs_and_mutation(tmp: Path) -> None:
         provenance="fixture max-files verifier capture",
     )
     rewrite_bundled_profile_limit(files_path, "max_files", 1)
+    rewrite_registered_profile_limit(repo, "max_files", 1)
     expect_error(
         lambda: evidence.verify(repo_root=repo, evidence_dir=files_path),
         "max_files",
     )
+    restore_registered_profile(repo)
 
     bytes_source, _ = fixture_source(tmp / "max-bytes-source-root")
     bytes_path = evidence.materialize(
@@ -240,9 +256,76 @@ def test_fail_closed_inputs_and_mutation(tmp: Path) -> None:
     total_bytes = sum(item["size"] for item in bytes_metadata["raw_files"])
     assert total_bytes > 1
     rewrite_bundled_profile_limit(bytes_path, "max_total_bytes", total_bytes - 1)
+    rewrite_registered_profile_limit(repo, "max_total_bytes", total_bytes - 1)
     expect_error(
         lambda: evidence.verify(repo_root=repo, evidence_dir=bytes_path),
         "max_total_bytes",
+    )
+    restore_registered_profile(repo)
+
+    # A self-consistent bundled profile may not widen the repository-controlled
+    # registered contract merely by rebinding its digest in EVIDENCE.json.
+    widened_source, _ = fixture_source(tmp / "widened-profile-source-root")
+    widened_path = evidence.materialize(
+        repo_root=repo,
+        source=widened_source,
+        destination="evidence/widened-profile",
+        profile_id="physical-csv-text-v1",
+        target_sha=base,
+        checkpoint_ref="issue-126e",
+        purpose="checkpoint",
+        request="issue-126e",
+        provenance="fixture widened-profile tamper",
+    )
+    original_profile = json.loads(PROFILE.read_text(encoding="utf-8"))
+    rewrite_bundled_profile_limit(
+        widened_path, "max_files", int(original_profile["max_files"]) + 100
+    )
+    expect_error(
+        lambda: evidence.verify(repo_root=repo, evidence_dir=widened_path),
+        "registered profile",
+    )
+
+    # Durable evidence must not be supplied through checkout-dependent symlink
+    # indirection, even when the external bytes and metadata still match.
+    raw_link_source, _ = fixture_source(tmp / "raw-link-source-root")
+    raw_link_path = evidence.materialize(
+        repo_root=repo,
+        source=raw_link_source,
+        destination="evidence/raw-link",
+        profile_id="physical-csv-text-v1",
+        target_sha=base,
+        checkpoint_ref="issue-126f",
+        purpose="checkpoint",
+        request="issue-126f",
+        provenance="fixture raw-directory symlink tamper",
+    )
+    external_raw = tmp / "external-raw"
+    shutil.move(raw_link_path / "raw", external_raw)
+    (raw_link_path / "raw").symlink_to(external_raw, target_is_directory=True)
+    expect_error(
+        lambda: evidence.verify(repo_root=repo, evidence_dir=raw_link_path),
+        "real directory",
+    )
+
+    top_link_source, _ = fixture_source(tmp / "top-link-source-root")
+    top_link_path = evidence.materialize(
+        repo_root=repo,
+        source=top_link_source,
+        destination="evidence/top-link",
+        profile_id="physical-csv-text-v1",
+        target_sha=base,
+        checkpoint_ref="issue-126g",
+        purpose="checkpoint",
+        request="issue-126g",
+        provenance="fixture top-level symlink tamper",
+    )
+    external_metadata = tmp / "external-EVIDENCE.json"
+    shutil.move(top_link_path / "EVIDENCE.json", external_metadata)
+    (top_link_path / "EVIDENCE.json").symlink_to(external_metadata)
+    expect_error(
+        lambda: evidence.verify(repo_root=repo, evidence_dir=top_link_path),
+        "real regular file",
     )
 
 
