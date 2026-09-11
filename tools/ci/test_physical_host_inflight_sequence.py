@@ -117,14 +117,17 @@ class FakeLandingTransportBase(FakeInflightTransportBase):
         require(self._watchdog.active, "same-session watchdog remains live through landing")
         binding = self._read_current_binding()
         require(binding == self.teacher_binding, "fresh #249 matches exact landing run")
-        with self._execution.effect_transaction(lambda: None) as effect:
-            effect.mark_emitted()
-            permit = effect.mark_accepted()
-        self._execution.complete_accepted_effect(
-            permit,
-            base.physical_execution_domain.INACTIVE,
-            lambda: True,
+        require(
+            self._execution.phase == base.physical_execution_domain.FLYING,
+            "landing fake requires the already established flying phase",
         )
+        # This production-host integration fixture deliberately supplies only the
+        # minimal phaseful execution-domain fake from test_physical_host_activation.
+        # The real #273 transaction/permit/completion semantics are exercised by
+        # test_controlled_landing_transport.py; here we model only their successful
+        # externally observable postcondition so the host sequence seam remains
+        # independent of the execution-domain unit implementation.
+        self._execution.phase = base.physical_execution_domain.INACTIVE
         base.EVENTS.append(("controlled-land", binding.connection_epoch))
         return SimpleNamespace(accepted=True, status=0)
 
