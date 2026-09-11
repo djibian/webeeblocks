@@ -8,6 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 PHYSICAL = ROOT / "tools" / "physical"
+SEMANTIC_AST = ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks" / "semantic_ast.js"
 sys.path.insert(0, str(PHYSICAL))
 
 import landing_command as landing  # noqa: E402
@@ -60,6 +61,16 @@ def sample_ast() -> str:
     )
 
 
+def wait_ast(seconds: object = 0.4) -> str:
+    return canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "wait", "seconds": seconds},
+            {"kind": "land"},
+        ]
+    )
+
+
 def advance_to_landing(domain: sequence.PhysicalProgramSequence) -> None:
     first = domain.reserve_next_motion()
     domain.complete_motion(first)
@@ -70,6 +81,7 @@ def advance_to_landing(domain: sequence.PhysicalProgramSequence) -> None:
 def test_exact_order_and_claim_identity() -> None:
     domain = sequence.PhysicalProgramSequence(sample_ast())
     require(domain.next_index == 1, "sequence must begin immediately after completed takeoff")
+    require(domain.next_step_kind == "move", "exact next kind must derive from AST")
     require(not domain.completed, "fresh post-takeoff sequence cannot be complete")
 
     first = domain.reserve_next_motion()
@@ -78,11 +90,13 @@ def test_exact_order_and_claim_identity() -> None:
         motion == sequence.SequencedInflightMotion(1, "move", "forward", 0.3, None),
         "first in-flight motion must come from exact AST index 1",
     )
+    expect_error(lambda: getattr(domain, "next_step_kind"), "pending")
     expect_error(domain.reserve_next_motion, "pending")
     expect_error(lambda: domain.complete_motion(object()), "motion claim")
 
     domain.complete_motion(first)
     require(domain.next_index == 2, "causal completion alone advances the cursor")
+    require(domain.next_step_kind == "turn", "turn must remain exact next kind")
     second = domain.reserve_next_motion()
     turn = domain.motion_for_claim(second)
     require(
@@ -97,6 +111,7 @@ def test_exact_order_and_claim_identity() -> None:
     domain.complete_motion(retry)
 
     require(domain.next_index == 3, "completed motions must expose exact terminal landing")
+    require(domain.next_step_kind == "land", "landing must be exact next kind")
     landing_claim = domain.reserve_terminal_landing()
     require(
         domain.landing_for_claim(landing_claim) == sequence.SequencedTerminalLanding(3),
@@ -111,10 +126,43 @@ def test_exact_order_and_claim_identity() -> None:
     domain.complete_landing(landing_retry)
     require(domain.next_index == 4, "causal landing completion advances past final statement")
     require(domain.completed, "exact program completes only after terminal landing completion")
+    require(domain.next_step_kind is None, "completed program exposes no next step")
     expect_error(domain.reserve_terminal_landing, "not the next")
 
 
-def test_caller_cannot_select_motion_index_or_landing() -> None:
+def test_exact_wait_is_no_effect_sequence_step() -> None:
+    domain = sequence.PhysicalProgramSequence(wait_ast())
+    require(domain.next_step_kind == "wait", "exact wait must be visible as next step kind")
+    claim = domain.reserve_next_wait()
+    wait = domain.wait_for_claim(claim)
+    require(wait == sequence.SequencedWait(1, 0.4), "wait duration must derive from exact AST")
+    expect_error(domain.reserve_next_wait, "pending")
+    expect_error(lambda: domain.wait_for_claim(object()), "wait claim")
+    try:
+        domain.release_unemitted(claim)
+    except sequence.PhysicalProgramSequenceError as exc:
+        require("effect claim" in str(exc), "wait must not be classified as an unemitted effect")
+    else:
+        raise AssertionError("no-effect wait entered physical effect release API")
+    domain.complete_wait(claim)
+    require(domain.next_step_kind == "land", "full wait completion alone advances to land")
+    landing_claim = domain.reserve_terminal_landing()
+    domain.complete_landing(landing_claim)
+    require(domain.completed, "wait program completes only after terminal landing")
+
+
+def test_failed_wait_is_terminal_without_completion() -> None:
+    domain = sequence.PhysicalProgramSequence(wait_ast())
+    claim = domain.reserve_next_wait()
+    domain.fail_wait(claim, "watchdog/session certainty lost during wait")
+    require(domain.terminal, "incomplete trusted wait must fail the sequence closed")
+    require(domain.next_index == 1, "failed wait cannot manufacture completion")
+    require(not domain.completed, "failed wait cannot complete exact program")
+    expect_error(lambda: getattr(domain, "next_step_kind"), "terminal")
+    expect_error(domain.reserve_next_wait, "terminal")
+
+
+def test_caller_cannot_select_motion_wait_index_or_landing() -> None:
     domain = sequence.PhysicalProgramSequence(sample_ast())
     try:
         domain.reserve_next_motion({"kind": "turn", "angle_deg": -90})
@@ -122,6 +170,14 @@ def test_caller_cannot_select_motion_index_or_landing() -> None:
         pass
     else:
         raise AssertionError("caller-selected motion unexpectedly entered sequencing API")
+
+    wait_domain = sequence.PhysicalProgramSequence(wait_ast())
+    try:
+        wait_domain.reserve_next_wait(0.1)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("caller-selected wait duration unexpectedly entered sequencing API")
 
     try:
         domain.reserve_terminal_landing({"height_m": 0.1})
@@ -163,6 +219,9 @@ def test_complete_envelope_is_validated_before_flight() -> None:
         {"kind": "move", "direction": "forward", "distance_m": 0.3, "extra": True},
         {"kind": "move", "direction": "forward", "distance_m": 20},
         {"kind": "turn", "angle_deg": 0},
+        {"kind": "wait", "seconds": 0},
+        {"kind": "wait", "seconds": 5.1},
+        {"kind": "wait", "seconds": 0.4, "extra": True},
         {"kind": "repeat", "count": 2, "body": []},
     ):
         ast = canonical(
@@ -173,6 +232,18 @@ def test_complete_envelope_is_validated_before_flight() -> None:
             ]
         )
         expect_error(lambda ast=ast: sequence.PhysicalProgramSequence(ast), "next")
+
+
+def test_wait_bounds_match_authoritative_semantic_ast() -> None:
+    source = SEMANTIC_AST.read_text(encoding="utf-8")
+    require(
+        "wait_s:{min:0.1,max:5.0}" in source,
+        "authoritative semantic AST wait envelope changed without physical contract update",
+    )
+    require(sequence.MIN_WAIT_SECONDS == 0.1, "physical wait minimum must match Runtime v2")
+    require(sequence.MAX_WAIT_SECONDS == 5.0, "physical wait maximum must match Runtime v2")
+    sequence.PhysicalProgramSequence(wait_ast(sequence.MIN_WAIT_SECONDS))
+    sequence.PhysicalProgramSequence(wait_ast(sequence.MAX_WAIT_SECONDS))
 
 
 def test_exact_canonical_ast_and_flight_boundaries_are_required() -> None:
@@ -224,6 +295,10 @@ def test_exact_bound_command_10_landing_semantics() -> None:
     require(
         landing.derive_bound_landing_command(boundary_only).descent_m == 0.5,
         "boundary-only exact program derives the same relative landing policy",
+    )
+    require(
+        landing.derive_bound_landing_command(wait_ast()).descent_m == 0.8,
+        "no-effect wait remains inside exact landing command envelope",
     )
 
 
@@ -277,16 +352,19 @@ def test_landing_command_has_no_effect_or_caller_parameter_surface() -> None:
 
 def main() -> int:
     test_exact_order_and_claim_identity()
-    test_caller_cannot_select_motion_index_or_landing()
+    test_exact_wait_is_no_effect_sequence_step()
+    test_failed_wait_is_terminal_without_completion()
+    test_caller_cannot_select_motion_wait_index_or_landing()
     test_ambiguous_motion_or_landing_is_terminal()
     test_complete_envelope_is_validated_before_flight()
+    test_wait_bounds_match_authoritative_semantic_ast()
     test_exact_canonical_ast_and_flight_boundaries_are_required()
     test_exact_bound_command_10_landing_semantics()
     test_landing_command_fails_closed_on_unsupported_envelope()
     test_landing_command_has_no_effect_or_caller_parameter_surface()
     print(
         "PASS exact physical-program sequencing validates the complete supported envelope, "
-        "exposes only the exact terminal land after prior causal completion, and derives "
+        "preserves exact no-effect wait pacing and terminal landing order, and derives "
         "pinned command 10 solely from the teacher-bound canonical AST"
     )
     return 0
