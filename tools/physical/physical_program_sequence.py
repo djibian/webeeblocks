@@ -133,6 +133,34 @@ class PhysicalProgramSequence:
                 and self._next_index == len(self._program)
             )
 
+    @property
+    def next_effect_kind(self) -> str:
+        """Expose only the exact next validated effect kind for trusted dispatch."""
+        with self._lock:
+            if self._terminal_reason is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program sequence is terminal: " + self._terminal_reason
+                )
+            if self._pending is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program already has a pending effect"
+                )
+            if self._next_index >= len(self._program):
+                raise PhysicalProgramSequenceError(
+                    "physical program sequence is already completed"
+                )
+            statement = self._program[self._next_index]
+            if not isinstance(statement, dict):
+                raise PhysicalProgramSequenceError(
+                    "next physical statement is malformed"
+                )
+            kind = statement.get("kind")
+            if kind not in {"move", "turn", "land"}:
+                raise PhysicalProgramSequenceError(
+                    "next exact AST statement is outside the validated physical envelope"
+                )
+            return kind
+
     def _motion_at(self, index: int) -> SequencedInflightMotion:
         if index >= len(self._program) - 1:
             raise PhysicalProgramSequenceError(
