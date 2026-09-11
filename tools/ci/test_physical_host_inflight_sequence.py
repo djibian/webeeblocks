@@ -19,6 +19,7 @@ HOST = PHYSICAL / "serve_physical_host.py"
 
 import controlled_landing_transport  # noqa: E402
 import setpoint_hl_transport  # noqa: E402
+import test_physical_controlled_landing_transport as landing_effect_test  # noqa: E402
 import test_physical_host_activation as base  # noqa: E402
 import yaw_observer  # noqa: E402
 
@@ -143,9 +144,6 @@ class FakePhysicalTransportBase:
 
 def install_fakes() -> None:
     base.install_fakes()
-    # ``physical_run_activation`` was imported by the reusable #293 fixture
-    # before these substitutions, so patch its exact globals as well as modules
-    # future imports would see.
     base.activation.TrustedControlledLandingTransport = FakePhysicalTransportBase
     base.activation.FreshYawObserver = FakeYawObserver
     controlled_landing_transport.TrustedControlledLandingTransport = FakePhysicalTransportBase
@@ -341,6 +339,10 @@ def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
 
 
 def main() -> int:
+    require(
+        landing_effect_test.main() == 0,
+        "trusted controlled-landing transport regression must pass before host composition",
+    )
     test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_completes_exact_program_with_terminal_landing()
     test_boundary_only_program_lands_without_opening_yaw()
