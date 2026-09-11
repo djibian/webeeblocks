@@ -17,6 +17,7 @@ sys.path.insert(0, str(CI))
 sys.path.insert(0, str(PHYSICAL))
 HOST = PHYSICAL / "serve_physical_host.py"
 
+import controlled_landing_transport  # noqa: E402
 import setpoint_hl_transport  # noqa: E402
 import test_physical_host_activation as base  # noqa: E402
 import yaw_observer  # noqa: E402
@@ -45,6 +46,21 @@ def canonical_ast(final_statement: dict[str, object] | None = None) -> str:
     )
 
 
+def boundary_only_ast() -> str:
+    return json.dumps(
+        {
+            "program": [
+                {"height_m": 0.6, "kind": "takeoff"},
+                {"kind": "land"},
+            ],
+            "semantics": "webeeblocks-ast-v1",
+            "version": 1,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 class FakeYawObserver:
     def __init__(self, crazyflie: object, epoch_reader) -> None:
         self.bound_crazyflie = crazyflie
@@ -63,7 +79,7 @@ class FakeYawObserver:
         self.is_open = False
 
 
-class FakeInflightTransportBase:
+class FakePhysicalTransportBase:
     def __init__(
         self,
         *,
@@ -75,11 +91,19 @@ class FakeInflightTransportBase:
         powered_session: object,
         watchdog_guard: object,
         supervisor_reader: object,
+        connection_epoch_reader=None,
     ) -> None:
-        require(powered_session.session is crazyflie, "in-flight exact powered session")
+        del acknowledgement_domain, safelink_guard, supervisor_reader
+        require(powered_session.session is crazyflie, "physical effect exact powered session")
         require(execution_domain.phase == base.physical_execution_domain.FLYING, "takeoff must complete first")
+        if connection_epoch_reader is not None:
+            require(
+                connection_epoch_reader() == powered_session.connection_epoch,
+                "landing completion observer must bind exact active epoch",
+            )
         self.teacher_binding = teacher_authorization.binding
         self.bound_connection_epoch = powered_session.connection_epoch
+        self.execution_domain = execution_domain
         self._crazyflie = crazyflie
         self._watchdog = watchdog_guard
 
@@ -87,6 +111,7 @@ class FakeInflightTransportBase:
         raise AssertionError("host-local provenance override is required")
 
     def send_horizontal_move(self, *, direction, distance_m, yaw_reader, timing_policy):
+        del timing_policy
         require(yaw_reader is not None and yaw_reader.is_open, "fresh yaw observer must be opened lazily for moves")
         require(yaw_reader.bound_crazyflie is self._crazyflie, "yaw exact Crazyflie")
         require(self._watchdog.active, "same-session watchdog remains live")
@@ -96,21 +121,35 @@ class FakeInflightTransportBase:
         return SimpleNamespace(accepted=True, status=0)
 
     def send_turn(self, *, angle_deg, timing_policy):
+        del timing_policy
         require(self._watchdog.active, "same-session watchdog remains live")
         binding = self._read_current_binding()
         require(binding == self.teacher_binding, "fresh #249 matches exact teacher run")
         base.EVENTS.append(("inflight-turn", angle_deg, binding.connection_epoch))
         return SimpleNamespace(accepted=True, status=0)
 
+    def send_controlled_landing(self):
+        require(self._watchdog.active, "watchdog must remain live through controlled landing")
+        binding = self._read_current_binding()
+        require(binding == self.teacher_binding, "fresh #249 matches exact terminal landing")
+        require(
+            self.execution_domain.phase == base.physical_execution_domain.FLYING,
+            "terminal landing starts only from causally established flying",
+        )
+        base.EVENTS.append(("terminal-land", binding.connection_epoch))
+        self.execution_domain.phase = base.physical_execution_domain.INACTIVE
+        return SimpleNamespace(accepted=True, status=0)
+
 
 def install_fakes() -> None:
     base.install_fakes()
     # ``physical_run_activation`` was imported by the reusable #293 fixture
-    # before these substitutions, so patch its exact globals as well as the
-    # modules future imports would see.
-    base.activation.TrustedSetpointHlTransport = FakeInflightTransportBase
+    # before these substitutions, so patch its exact globals as well as modules
+    # future imports would see.
+    base.activation.TrustedControlledLandingTransport = FakePhysicalTransportBase
     base.activation.FreshYawObserver = FakeYawObserver
-    setpoint_hl_transport.TrustedSetpointHlTransport = FakeInflightTransportBase
+    controlled_landing_transport.TrustedControlledLandingTransport = FakePhysicalTransportBase
+    setpoint_hl_transport.TrustedSetpointHlTransport = FakePhysicalTransportBase
     yaw_observer.FreshYawObserver = FakeYawObserver
 
 
@@ -126,7 +165,11 @@ def read_line(stream) -> dict[str, object]:
     return value
 
 
-def run_host_sequence(ast_binding: str | None = None) -> list[dict[str, object]]:
+def run_host_sequence(
+    ast_binding: str | None = None,
+    *,
+    steps: int = 3,
+) -> list[dict[str, object]]:
     caller_host, caller_peer = socket.socketpair()
     caller_stream = caller_peer.makefile("r", encoding="utf-8")
     browser_read, browser_write = os.pipe()
@@ -173,7 +216,6 @@ def run_host_sequence(ast_binding: str | None = None) -> list[dict[str, object]]
     )
     replies = [read_line(caller_stream)]
 
-    # Caller-selected semantics are rejected before the exact-program operation.
     send_line(
         caller_peer,
         {
@@ -185,12 +227,12 @@ def run_host_sequence(ast_binding: str | None = None) -> list[dict[str, object]]
     )
     replies.append(read_line(caller_stream))
 
-    send_line(caller_peer, {"op": "execute-next-inflight", "requestId": "step-1"})
-    replies.append(read_line(caller_stream))
-    send_line(caller_peer, {"op": "execute-next-inflight", "requestId": "step-2"})
-    replies.append(read_line(caller_stream))
-    send_line(caller_peer, {"op": "execute-next-inflight", "requestId": "step-land"})
-    replies.append(read_line(caller_stream))
+    for index in range(steps):
+        send_line(
+            caller_peer,
+            {"op": "execute-next-inflight", "requestId": f"step-{index + 1}"},
+        )
+        replies.append(read_line(caller_stream))
 
     caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
@@ -204,10 +246,9 @@ def run_host_sequence(ast_binding: str | None = None) -> list[dict[str, object]]
 
 
 def test_started_activation_wait_is_outside_lifecycle_lock() -> None:
-    """Keep the validate->execute handoff free of the scheduler race from #276."""
     source = HOST.read_text(encoding="utf-8")
     wait = 'if activation_state["started"]:\n                                    activation_complete.wait()'
-    require(wait in source, "started activation must be awaited before in-flight availability is decided")
+    require(wait in source, "started activation must be awaited before physical availability is decided")
     wait_index = source.index(wait)
     lock_index = source.find("with lifecycle_lock:", wait_index)
     require(lock_index > wait_index, "activation wait must happen before reacquiring lifecycle lock")
@@ -217,7 +258,7 @@ def test_started_activation_wait_is_outside_lifecycle_lock() -> None:
     )
 
 
-def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
+def test_actual_host_completes_exact_program_with_terminal_landing() -> None:
     base.EVENTS.clear()
     install_fakes()
     replies = run_host_sequence()
@@ -227,32 +268,54 @@ def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
     require(replies[1]["executionAuthority"] is False, "rejected substitution mints no authority")
     require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "exact next turn executes")
     require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "exact next move executes")
-    require(replies[4]["ok"] is False, "landing remains outside this bounded #276 slice")
+    require(replies[4] == {"executionAuthority": False, "ok": True, "requestId": "step-3"}, "exact terminal landing completes")
 
     move_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-move"]
     turn_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-turn"]
+    land_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "terminal-land"]
     require(
         turn_events == [("inflight-turn", -25.0, "epoch-after")],
         "caller substitution must not change the exact first authorized effect",
     )
     require(
         move_events == [("inflight-move", "forward", 0.3, "epoch-after")],
-        "second in-flight effect must follow exact canonical AST order",
+        "second physical effect must follow exact canonical AST order",
+    )
+    require(
+        land_events == [("terminal-land", "epoch-after")],
+        "exact terminal landing must execute once on the same authorized epoch",
     )
 
     takeoff_index = base.EVENTS.index(("transport-send", "epoch-after"))
     turn_index = base.EVENTS.index(turn_events[0])
     yaw_open_index = base.EVENTS.index(("yaw-open", "epoch-after"))
     move_index = base.EVENTS.index(move_events[0])
+    land_index = base.EVENTS.index(land_events[0])
     require(
-        takeoff_index < turn_index < yaw_open_index < move_index,
-        "#260 yaw must stay unopened for a turn and open only before the exact horizontal move",
+        takeoff_index < turn_index < yaw_open_index < move_index < land_index,
+        "takeoff, exact motions and terminal landing must preserve canonical order",
     )
     require(
         any(event == ("current-program", "epoch-after") for event in base.EVENTS[takeoff_index:turn_index]),
-        "fresh host-local #278/#249 must guard the first in-flight effect",
+        "fresh host-local #278/#249 must guard the first post-takeoff effect",
     )
     require(("yaw-close", "epoch-after") in base.EVENTS, "host teardown closes #260 observer")
+
+
+def test_boundary_only_program_lands_without_opening_yaw() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    replies = run_host_sequence(boundary_only_ast(), steps=1)
+    require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "terminal land follows takeoff directly")
+    require(
+        [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "terminal-land"]
+        == [("terminal-land", "epoch-after")],
+        "boundary-only program consumes exactly one terminal landing",
+    )
+    require(
+        not any(isinstance(event, tuple) and event[0] == "yaw-open" for event in base.EVENTS),
+        "terminal landing must not create a yaw-observer dependency",
+    )
 
 
 def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
@@ -265,22 +328,27 @@ def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
     require(replies[2]["ok"] is False, "malformed terminal must make exact activation unavailable")
     require(
         ("transport-send", "epoch-after") not in base.EVENTS,
-        "malformed terminal must be rejected by #295 before the takeoff effect",
+        "malformed terminal must be rejected before the takeoff effect",
     )
     require(
-        not any(isinstance(event, tuple) and event[0] in {"inflight-turn", "inflight-move"} for event in base.EVENTS),
-        "malformed terminal must never be skipped into an in-flight effect",
+        not any(
+            isinstance(event, tuple)
+            and event[0] in {"inflight-turn", "inflight-move", "terminal-land"}
+            for event in base.EVENTS
+        ),
+        "malformed terminal must never be skipped into a physical effect",
     )
 
 
 def main() -> int:
     test_started_activation_wait_is_outside_lifecycle_lock()
-    test_actual_host_uses_exact_program_sequence_after_takeoff()
+    test_actual_host_completes_exact_program_with_terminal_landing()
+    test_boundary_only_program_lands_without_opening_yaw()
     test_actual_host_rejects_malformed_terminal_before_takeoff()
     print(
-        "PASS actual physical host sequencing: validate/activation handoff is race-free; "
-        "successful takeoff hands the same run/epoch to shared #295 exact-AST turn/move execution; "
-        "#260 yaw opens only for horizontal motion; malformed landing boundaries fail before takeoff"
+        "PASS actual physical host sequencing: validated takeoff hands the same exact run/epoch "
+        "through ordered move/turn effects into one parameter-free terminal controlled landing; "
+        "boundary-only programs land directly and malformed landing boundaries fail before takeoff"
     )
     return 0
 
