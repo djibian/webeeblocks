@@ -70,6 +70,18 @@ def expect_error(callable_, contains: str) -> None:
     raise AssertionError(f"expected EvidenceError containing {contains!r}")
 
 
+def rewrite_bundled_profile_limit(path: Path, key: str, value: int) -> None:
+    profile_path = path / "PROFILE.json"
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile[key] = value
+    profile_raw = (json.dumps(profile, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    profile_path.write_bytes(profile_raw)
+    metadata_path = path / "EVIDENCE.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["profile"]["sha256"] = evidence.sha256_bytes(profile_raw)
+    metadata_path.write_bytes(evidence.metadata_bytes(metadata))
+
+
 def test_materialize_and_verify_preserve_raw_bytes(tmp: Path) -> None:
     repo = tmp / "repo-materialize"
     repo.mkdir()
@@ -192,6 +204,45 @@ def test_fail_closed_inputs_and_mutation(tmp: Path) -> None:
     expect_error(
         lambda: evidence.verify(repo_root=repo, evidence_dir=manifest_path),
         "MANIFEST.sha256",
+    )
+
+    files_source, _ = fixture_source(tmp / "max-files-source-root")
+    files_path = evidence.materialize(
+        repo_root=repo,
+        source=files_source,
+        destination="evidence/max-files",
+        profile_id="physical-csv-text-v1",
+        target_sha=base,
+        checkpoint_ref="issue-126c",
+        purpose="checkpoint",
+        request="issue-126c",
+        provenance="fixture max-files verifier capture",
+    )
+    rewrite_bundled_profile_limit(files_path, "max_files", 1)
+    expect_error(
+        lambda: evidence.verify(repo_root=repo, evidence_dir=files_path),
+        "max_files",
+    )
+
+    bytes_source, _ = fixture_source(tmp / "max-bytes-source-root")
+    bytes_path = evidence.materialize(
+        repo_root=repo,
+        source=bytes_source,
+        destination="evidence/max-bytes",
+        profile_id="physical-csv-text-v1",
+        target_sha=base,
+        checkpoint_ref="issue-126d",
+        purpose="checkpoint",
+        request="issue-126d",
+        provenance="fixture max-bytes verifier capture",
+    )
+    bytes_metadata = json.loads((bytes_path / "EVIDENCE.json").read_text(encoding="utf-8"))
+    total_bytes = sum(item["size"] for item in bytes_metadata["raw_files"])
+    assert total_bytes > 1
+    rewrite_bundled_profile_limit(bytes_path, "max_total_bytes", total_bytes - 1)
+    expect_error(
+        lambda: evidence.verify(repo_root=repo, evidence_dir=bytes_path),
+        "max_total_bytes",
     )
 
 

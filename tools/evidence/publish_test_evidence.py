@@ -473,6 +473,10 @@ def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
     actual_paths.sort()
     if expected_paths != sorted(expected_paths) or actual_paths != expected_paths:
         raise EvidenceError("raw evidence file set does not match EVIDENCE.json")
+    if len(actual_paths) > int(profile["max_files"]):
+        raise EvidenceError("raw evidence exceeds profile max_files")
+    if sum(int(record["size"]) for record in records) > int(profile["max_total_bytes"]):
+        raise EvidenceError("raw evidence exceeds profile max_total_bytes")
 
     relatives = [item[4:] for item in actual_paths]
     allowed = list(profile["allowed_globs"])
