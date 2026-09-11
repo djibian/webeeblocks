@@ -109,6 +109,7 @@ if __name__ == "__main__":
             execution_domain = PhysicalExecutionDomain()
             lifecycle_lock = Lock()
             staged_ready = Event()
+            activation_complete = Event()
             host_stopping = Event()
             staged_state = {"binding": None}
             activation_state = {
@@ -145,6 +146,8 @@ if __name__ == "__main__":
                         )
                 except Exception as exc:
                     activation_state["error"] = str(exc)
+                finally:
+                    activation_complete.set()
 
             with os.fdopen(
                 args.browser_config_fd,
@@ -221,6 +224,12 @@ if __name__ == "__main__":
                             }
                         else:
                             try:
+                                # Validation starts one bounded trusted activation transaction.
+                                # Do not race that already-started transaction by reacquiring
+                                # lifecycle_lock before its worker has had a chance to publish
+                                # either the active run or its terminal error.
+                                if activation_state["started"]:
+                                    activation_complete.wait()
                                 with lifecycle_lock:
                                     active_controller = activation_state["active_run"]
                                     if active_controller is None:
