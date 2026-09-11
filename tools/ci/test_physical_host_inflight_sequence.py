@@ -32,8 +32,8 @@ def canonical_ast() -> str:
         {
             "program": [
                 {"height_m": 0.8, "kind": "takeoff"},
-                {"direction": "forward", "distance_m": 0.3, "kind": "move"},
                 {"angle_deg": -25, "kind": "turn"},
+                {"direction": "forward", "distance_m": 0.3, "kind": "move"},
                 {"kind": "land"},
             ],
             "semantics": "webeeblocks-ast-v1",
@@ -86,7 +86,7 @@ class FakeInflightTransportBase:
         raise AssertionError("host-local provenance override is required")
 
     def send_horizontal_move(self, *, direction, distance_m, yaw_reader, timing_policy):
-        require(yaw_reader.is_open, "fresh yaw observer must be opened lazily")
+        require(yaw_reader is not None and yaw_reader.is_open, "fresh yaw observer must be opened lazily for moves")
         require(yaw_reader.bound_crazyflie is self._crazyflie, "yaw exact Crazyflie")
         require(self._watchdog.active, "same-session watchdog remains live")
         binding = self._read_current_binding()
@@ -202,6 +202,20 @@ def run_host_sequence() -> list[dict[str, object]]:
     return replies
 
 
+def test_started_activation_wait_is_outside_lifecycle_lock() -> None:
+    """Keep the validate->execute handoff free of the scheduler race from #276."""
+    source = HOST.read_text(encoding="utf-8")
+    wait = 'if activation_state["started"]:\n                                    activation_complete.wait()'
+    require(wait in source, "started activation must be awaited before in-flight availability is decided")
+    wait_index = source.index(wait)
+    lock_index = source.find("with lifecycle_lock:", wait_index)
+    require(lock_index > wait_index, "activation wait must happen before reacquiring lifecycle lock")
+    require(
+        'finally:\n                    activation_complete.set()' in source,
+        "every started activation path must release the host wait",
+    )
+
+
 def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
     base.EVENTS.clear()
     install_fakes()
@@ -210,38 +224,43 @@ def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
     require(replies[0] == {"executionAuthority": False, "ok": True, "requestId": "validate-1"}, "validation stays diagnostic")
     require(replies[1]["ok"] is False, "caller-supplied motion fields must be rejected")
     require(replies[1]["executionAuthority"] is False, "rejected substitution mints no authority")
-    require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "exact next move executes")
-    require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "exact next turn executes")
+    require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "exact next turn executes")
+    require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "exact next move executes")
     require(replies[4]["ok"] is False, "landing remains outside this bounded #276 slice")
 
     move_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-move"]
     turn_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-turn"]
     require(
-        move_events == [("inflight-move", "forward", 0.3, "epoch-after")],
+        turn_events == [("inflight-turn", -25, "epoch-after")],
         "caller substitution must not change the exact first authorized effect",
     )
     require(
-        turn_events == [("inflight-turn", -25, "epoch-after")],
+        move_events == [("inflight-move", "forward", 0.3, "epoch-after")],
         "second in-flight effect must follow exact canonical AST order",
     )
 
     takeoff_index = base.EVENTS.index(("transport-send", "epoch-after"))
-    move_index = base.EVENTS.index(move_events[0])
     turn_index = base.EVENTS.index(turn_events[0])
-    require(takeoff_index < move_index < turn_index, "same exact run must preserve takeoff -> move -> turn order")
+    yaw_open_index = base.EVENTS.index(("yaw-open", "epoch-after"))
+    move_index = base.EVENTS.index(move_events[0])
     require(
-        any(event == ("current-program", "epoch-after") for event in base.EVENTS[takeoff_index:move_index]),
+        takeoff_index < turn_index < yaw_open_index < move_index,
+        "#260 yaw must stay unopened for a turn and open only before the exact horizontal move",
+    )
+    require(
+        any(event == ("current-program", "epoch-after") for event in base.EVENTS[takeoff_index:turn_index]),
         "fresh host-local #278/#249 must guard the first in-flight effect",
     )
-    require(("yaw-open", "epoch-after") in base.EVENTS, "#260 opens only for the in-flight consumer")
     require(("yaw-close", "epoch-after") in base.EVENTS, "host teardown closes #260 observer")
 
 
 def main() -> int:
+    test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_uses_exact_program_sequence_after_takeoff()
     print(
-        "PASS actual physical host sequencing: successful takeoff hands the same run/epoch "
-        "to exact-AST move/turn execution and caller-substituted motion is effect-free"
+        "PASS actual physical host sequencing: validate/activation handoff is race-free; "
+        "successful takeoff hands the same run/epoch to exact-AST turn/move execution; "
+        "#260 yaw opens only for horizontal motion"
     )
     return 0
 
