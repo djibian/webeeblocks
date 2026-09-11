@@ -107,7 +107,7 @@ def test_unsupported_or_malformed_next_statement_fails_closed() -> None:
         {"kind": "land"},
         {"kind": "vertical", "direction": "up", "distance_m": 0.2},
         {"kind": "move", "direction": "forward", "distance_m": 0.3, "extra": True},
-        {"kind": "move", "direction": "forward", "distance_m": 20.0},
+        {"kind": "move", "direction": "forward", "distance_m": 20},
         {"kind": "turn", "angle_deg": 0},
         {"kind": "repeat", "count": 2, "body": []},
     ):
