@@ -368,9 +368,11 @@ def activate_validated_run(
 
         def execute_next_inflight(self):
             """Advance one exact AST move/turn; accepts no caller semantic data."""
+            effect_kind = sequence.next_effect_kind
+            yaw_reader = self._ensure_yaw_reader() if effect_kind == "move" else None
             return sequence.execute_next(
                 self._ensure_transport(),
-                yaw_reader=self._ensure_yaw_reader(),
+                yaw_reader=yaw_reader,
                 timing_policy=timing_policy,
             )
 
