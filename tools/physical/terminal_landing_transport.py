@@ -94,6 +94,9 @@ class TrustedTerminalLandingTransport(setpoint_hl_transport.TrustedSetpointHlTra
         return command.request
 
     def _landing_observer(self) -> landing_completion.ControlledLandingCompletionObserver:
+        # #257 already owns the reconnect-sensitive epoch reader. Reuse that
+        # exact trusted source instead of accepting another caller-supplied epoch
+        # authority at the landing surface.
         epoch_reader = getattr(self._supervisor, "_read_epoch", None)
         if not callable(epoch_reader):
             raise TerminalLandingTransportError(
@@ -146,6 +149,9 @@ class TrustedTerminalLandingTransport(setpoint_hl_transport.TrustedSetpointHlTra
                 )
             self._assert_exact_landing_claim(claim)
 
+            # #304 lands only after the prior exact motion completed causally.
+            # Re-observe that condition immediately before the #264 baseline.
+            self._read_fresh_finished_flying()
             try:
                 baseline = observer.capture_pre_land_flight(
                     timeout_seconds=_PRE_LAND_READ_TIMEOUT_SECONDS
@@ -155,38 +161,55 @@ class TrustedTerminalLandingTransport(setpoint_hl_transport.TrustedSetpointHlTra
                     "fresh pre-land physical-flight evidence is unavailable"
                 ) from exc
 
-            # Recheck all effect authority after the asynchronous supervisor read.
+            # Recheck all effect authority after the asynchronous supervisor reads.
             self._assert_current_authority()
             self._assert_exact_landing_claim(claim)
             self._safelink.assert_ready()
             self._watchdog.assert_live()
 
-            reply_ready = Event()
-            reply_lock = Lock()
-            reply_data: dict[str, object] = {}
-
             with self._ack.transaction(request) as acknowledgement:
-                def high_level_callback(reply_packet: object) -> None:
+                reply_event = Event()
+                reply_lock = Lock()
+                first_reply: list[bytes] = []
+
+                def on_reply(reply_packet: object) -> None:
                     try:
-                        data = bytes(reply_packet.data)
+                        data = bytes(getattr(reply_packet, "data"))
                     except Exception:
                         data = b""
                     with reply_lock:
-                        if reply_ready.is_set():
+                        if first_reply:
                             return
-                        if len(data) >= 3 and data[:3] == acknowledgement.request_prefix:
-                            reply_data["data"] = data
-                            reply_ready.set()
+                        first_reply.append(data)
+                        reply_event.set()
 
-                self._cf.add_port_callback(_SETPOINT_HL_PORT, high_level_callback)
+                def read_reply() -> bytes | None:
+                    with reply_lock:
+                        return first_reply[0] if first_reply else None
+
+                add_callback = getattr(self._cf, "add_port_callback", None)
+                remove_callback = getattr(self._cf, "remove_port_callback", None)
+                send_packet = getattr(self._cf, "send_packet", None)
+                if (
+                    not callable(add_callback)
+                    or not callable(remove_callback)
+                    or not callable(send_packet)
+                ):
+                    raise TerminalLandingTransportError(
+                        "Crazyflie terminal-landing callback/send surface is unavailable"
+                    )
+
+                callback_installed = False
                 try:
+                    add_callback(_SETPOINT_HL_PORT, on_reply)
+                    callback_installed = True
                     # The two domains cross their effect boundary immediately
                     # before the one plain cflib send. No expected-reply/retry
                     # transport option is used.
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
                     try:
-                        self._cf.send_packet(packet)
+                        send_packet(packet)
                     except Exception as exc:
                         raise TerminalLandingTransportError(
                             "terminal landing send outcome is ambiguous"
@@ -194,13 +217,12 @@ class TrustedTerminalLandingTransport(setpoint_hl_transport.TrustedSetpointHlTra
 
                     try:
                         reply = self._wait_for_reply(
-                            reply_ready,
-                            reply_lock,
-                            reply_data,
+                            reply_event,
+                            read_reply,
                             _ACK_TIMEOUT_SECONDS,
                         )
                     except Exception as exc:
-                        acknowledgement.fail_ambiguous(exc)
+                        acknowledgement.fail_ambiguous(str(exc))
                         raise AssertionError("unreachable")
 
                     result = acknowledgement.resolve_reply(reply)
@@ -209,7 +231,11 @@ class TrustedTerminalLandingTransport(setpoint_hl_transport.TrustedSetpointHlTra
                     else:
                         effect.mark_definitive_rejection()
                 finally:
-                    self._cf.remove_port_callback(_SETPOINT_HL_PORT, high_level_callback)
+                    if callback_installed:
+                        try:
+                            remove_callback(_SETPOINT_HL_PORT, on_reply)
+                        except Exception:
+                            pass
 
         if result is None:
             raise TerminalLandingTransportError(
