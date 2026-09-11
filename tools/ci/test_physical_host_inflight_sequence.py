@@ -62,6 +62,22 @@ def boundary_only_ast() -> str:
     )
 
 
+def wait_ast(seconds: float = 0.12) -> str:
+    return json.dumps(
+        {
+            "program": [
+                {"height_m": 0.6, "kind": "takeoff"},
+                {"kind": "wait", "seconds": seconds},
+                {"kind": "land"},
+            ],
+            "semantics": "webeeblocks-ast-v1",
+            "version": 1,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 class FakeYawObserver:
     def __init__(self, crazyflie: object, epoch_reader) -> None:
         self.bound_crazyflie = crazyflie
@@ -107,6 +123,7 @@ class FakePhysicalTransportBase:
         self.execution_domain = execution_domain
         self._crazyflie = crazyflie
         self._watchdog = watchdog_guard
+        base.EVENTS.append(("physical-transport-compose", self.bound_connection_epoch))
 
     def _read_current_binding(self):
         raise AssertionError("host-local provenance override is required")
@@ -142,6 +159,21 @@ class FakePhysicalTransportBase:
         return SimpleNamespace(accepted=True, status=0)
 
 
+class FakeMonotonicWait:
+    def __init__(self, start: float = 100.0) -> None:
+        self.now = start
+        self.sleeps: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        require(0.0 < seconds <= 0.05 + 1e-12, "wait must sleep only bounded polling slices")
+        self.sleeps.append(seconds)
+        base.EVENTS.append(("wait-sleep", seconds))
+        self.now += seconds
+
+
 def install_fakes() -> None:
     base.install_fakes()
     base.activation.TrustedControlledLandingTransport = FakePhysicalTransportBase
@@ -167,6 +199,7 @@ def run_host_sequence(
     ast_binding: str | None = None,
     *,
     steps: int = 3,
+    substitute_fields: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     caller_host, caller_peer = socket.socketpair()
     caller_stream = caller_peer.makefile("r", encoding="utf-8")
@@ -214,13 +247,14 @@ def run_host_sequence(
     )
     replies = [read_line(caller_stream)]
 
+    if substitute_fields is None:
+        substitute_fields = {"direction": "right", "distanceM": 0.9}
     send_line(
         caller_peer,
         {
             "op": "execute-next-inflight",
             "requestId": "substitute-1",
-            "direction": "right",
-            "distanceM": 0.9,
+            **substitute_fields,
         },
     )
     replies.append(read_line(caller_stream))
@@ -316,6 +350,98 @@ def test_boundary_only_program_lands_without_opening_yaw() -> None:
     )
 
 
+def test_actual_host_consumes_exact_wait_without_flight_effect() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    fake_time = FakeMonotonicWait()
+    old_clock = base.activation._WAIT_CLOCK
+    old_sleep = base.activation._WAIT_SLEEP
+    old_poll = base.activation._WAIT_POLL_SECONDS
+    base.activation._WAIT_CLOCK = fake_time.clock
+    base.activation._WAIT_SLEEP = fake_time.sleep
+    base.activation._WAIT_POLL_SECONDS = 0.05
+    try:
+        replies = run_host_sequence(
+            wait_ast(0.12),
+            steps=2,
+            substitute_fields={"seconds": 4.9, "index": 99},
+        )
+    finally:
+        base.activation._WAIT_CLOCK = old_clock
+        base.activation._WAIT_SLEEP = old_sleep
+        base.activation._WAIT_POLL_SECONDS = old_poll
+
+    require(replies[1]["ok"] is False, "caller-selected wait duration/index must be rejected")
+    require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "exact AST wait completes as no-effect pacing")
+    require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "terminal landing follows completed wait")
+    require(sum(fake_time.sleeps) >= 0.12, "wait cannot advance before full monotonic duration")
+    require(sum(fake_time.sleeps) < 0.1200001, "wait sleeps only the exact remaining bounded duration")
+
+    wait_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "wait-sleep"]
+    compose_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "physical-transport-compose"]
+    land_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "terminal-land"]
+    require(wait_events, "deterministic host wait must use injected sleeper seam")
+    require(compose_events == [("physical-transport-compose", "epoch-after")], "wait must not instantiate the flight-effect transport")
+    require(land_events == [("terminal-land", "epoch-after")], "landing remains the next exact flight effect")
+    last_wait_index = max(base.EVENTS.index(event) for event in wait_events)
+    compose_index = base.EVENTS.index(compose_events[0])
+    require(last_wait_index < compose_index, "flight-effect transport must remain unopened until after wait completion")
+    require(
+        not any(
+            isinstance(event, tuple) and event[0] in {"inflight-turn", "inflight-move"}
+            for event in base.EVENTS
+        ),
+        "wait-only middle program must emit no horizontal/yaw flight effect",
+    )
+
+
+def test_watchdog_failure_does_not_consume_wait_and_retry_waits_full_duration() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    fake_time = FakeMonotonicWait()
+    old_clock = base.activation._WAIT_CLOCK
+    old_sleep = base.activation._WAIT_SLEEP
+    old_poll = base.activation._WAIT_POLL_SECONDS
+    old_assert_live = base.FakeWatchdog.assert_live
+    failed = {"once": False}
+
+    def fail_once_after_time_advances(self) -> None:
+        old_assert_live(self)
+        if fake_time.now > 100.0 and not failed["once"]:
+            failed["once"] = True
+            raise AssertionError("simulated watchdog liveness loss")
+
+    base.activation._WAIT_CLOCK = fake_time.clock
+    base.activation._WAIT_SLEEP = fake_time.sleep
+    base.activation._WAIT_POLL_SECONDS = 0.05
+    base.FakeWatchdog.assert_live = fail_once_after_time_advances
+    try:
+        replies = run_host_sequence(
+            wait_ast(0.12),
+            steps=3,
+            substitute_fields={"seconds": 4.9},
+        )
+    finally:
+        base.FakeWatchdog.assert_live = old_assert_live
+        base.activation._WAIT_CLOCK = old_clock
+        base.activation._WAIT_SLEEP = old_sleep
+        base.activation._WAIT_POLL_SECONDS = old_poll
+
+    require(failed["once"], "watchdog failure must occur during the first wait attempt")
+    require(replies[2]["ok"] is False, "watchdog loss must fail the wait closed")
+    require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "same exact wait remains next after no-effect failure")
+    require(replies[4] == {"executionAuthority": False, "ok": True, "requestId": "step-3"}, "landing follows only the completed retry")
+    require(
+        sum(fake_time.sleeps) >= 0.17,
+        "retry must wait a fresh full duration after interrupted first attempt",
+    )
+    require(
+        [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "terminal-land"]
+        == [("terminal-land", "epoch-after")],
+        "failed wait must not skip directly to landing",
+    )
+
+
 def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
     base.EVENTS.clear()
     install_fakes()
@@ -346,11 +472,13 @@ def main() -> int:
     test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_completes_exact_program_with_terminal_landing()
     test_boundary_only_program_lands_without_opening_yaw()
+    test_actual_host_consumes_exact_wait_without_flight_effect()
+    test_watchdog_failure_does_not_consume_wait_and_retry_waits_full_duration()
     test_actual_host_rejects_malformed_terminal_before_takeoff()
     print(
-        "PASS actual physical host sequencing: validated takeoff hands the same exact run/epoch "
-        "through ordered move/turn effects into one parameter-free terminal controlled landing; "
-        "boundary-only programs land directly and malformed landing boundaries fail before takeoff"
+        "PASS actual physical host sequencing: parameter-free exact AST operations preserve "
+        "ordered move/turn effects, consume bounded waits with monotonic host pacing and no "
+        "flight effect, and finish through one trusted terminal controlled landing"
     )
     return 0
 
