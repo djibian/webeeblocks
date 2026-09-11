@@ -68,7 +68,12 @@ python3 tools/evidence/publish_test_evidence.py \
 
 Verification fails closed on a missing, unexpected, modified, size-mismatched or
 digest-mismatched raw file, malformed metadata/profile, changed manifest, invalid
-tested commit, or byte-preservation attributes.
+tested commit, or byte-preservation attributes. It also requires the bundled
+`PROFILE.json` bytes and digest to match the repository-controlled registered
+profile for that versioned id; a self-consistent evidence directory cannot widen
+its own file/size contract. `raw/`, `EVIDENCE.json`, `PROFILE.json`,
+`MANIFEST.sha256` and `.gitattributes` must be real in-tree files/directories,
+not symlink indirections to checkout-dependent external content.
 
 ## Publish without a manual attachment
 
