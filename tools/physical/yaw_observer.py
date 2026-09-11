@@ -68,6 +68,11 @@ class FreshYawObserver:
         return self._bound_connection_epoch
 
     @property
+    def bound_crazyflie(self) -> object:
+        """Exact live Crazyflie object observed by this yaw stream."""
+        return self._cf
+
+    @property
     def is_open(self) -> bool:
         return self._opened
 

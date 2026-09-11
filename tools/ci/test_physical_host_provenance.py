@@ -416,26 +416,27 @@ def test_host_lexically_hides_live_authority_from_main_module() -> None:
         )
 
     # Durable e58 counterexample was import __main__/sys.modules['__main__'].
-    # Production source must never install the live authority names there; later
-    # co-located #276 is composed from runner locals, not module globals.
+    # Production source must never install the live authority names there; the
+    # co-located #276 consumer is composed from runner locals, not module globals.
     require("import __main__" not in source, "host must not use __main__ as authority registry")
     require("sys.modules[\"__main__\"]" not in source, "host must not publish authority in __main__")
 
 
-def test_production_contract_is_co_located_and_effect_free() -> None:
+def test_production_contract_keeps_effect_authority_co_located() -> None:
     source = HOST.read_text(encoding="utf-8")
     for required in (
         "ReadOnlyCapabilitySession",
-        "ReadOnlyCapabilityHttpBridge",
+        "PostResetCapabilityHttpBridge",
         "bridge.assert_current_program(",
+        "activate_validated_run(",
+        'operation == "execute-next-inflight"',
         "--caller-fd",
         "--browser-config-fd",
+        "--teacher-fd",
         "preflightResponderToken",
-        "Future #276 composition must consume it here immediately",
-        "belongs *inside this same process*",
         "validate-run-context",
     ):
-        require(required in source, "missing corrected #280 composition contract: " + required)
+        require(required in source, "missing co-located #280/#276 composition contract: " + required)
 
     for forbidden in (
         "--request-fd",
@@ -445,10 +446,8 @@ def test_production_contract_is_co_located_and_effect_free() -> None:
         "_bind_effect_current_program_bridge",
         "send_packet(",
         "HighLevelCommander(",
-        "takeoff",
-        "land(",
     ):
-        require(forbidden not in source, "physical-host prerequisite leaks superseded/effect API: " + forbidden)
+        require(forbidden not in source, "physical host leaks superseded/caller-selectable effect API: " + forbidden)
 
     require(not REMOVED_CLIENT.exists(), "caller-selectable provenance client must be removed")
     require(not REMOVED_BROKER.exists(), "preflight-only broker must be removed")
@@ -459,10 +458,10 @@ def main() -> int:
     test_local_forgery_cannot_replace_missing_browser_responder()
     test_binding_mismatch_fails_closed_across_process_boundary()
     test_host_lexically_hides_live_authority_from_main_module()
-    test_production_contract_is_co_located_and_effect_free()
+    test_production_contract_keeps_effect_authority_co_located()
     print(
-        "PASS corrected #280 physical-host composition: browser provenance and future #276 "
-        "remain co-located with one live session while __main__ exposes no authority state"
+        "PASS corrected #280/#276 physical-host composition: browser provenance and effect "
+        "activation remain co-located while caller/__main__ expose no authority state"
     )
     return 0
 
