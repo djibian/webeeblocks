@@ -470,9 +470,23 @@ justified by the current evidence.
 ### FF — Firefox same-file project semantics
 
 - parent: #87
-- depends: preserved native-bridge/browser evidence
-- proof direction: causal diagnosis first, implementation only after a viable
-  same-file path is proven
+- retained architecture: a native Qt file broker through the existing local
+  Webots/WWI path, as selected by the bounded post-C26 decision on #87
+- established causal result: C26 isolated executable COPY data interposition
+  relative to GOT binding in the pinned minimal Qt closure; do not reopen C8–C26
+- real-provider result: the single #301 qualification compiled the actual
+  provider as PIC, verified no Qt COPY relocation, and observed official Webots
+  launch, QApplication initialization, a displayed QFileDialog, real cancellation
+  and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
+  do not establish completion of the controller loop: its aggregate eight-step
+  marker and controller exit status are absent, so continuation remains UNPROVEN
+- remaining prerequisite: establish coexistence of the dialog with the
+  controller/WWI lifecycle before product implementation. The single authorized
+  qualification is recorded; this result does not authorize another causal
+  discriminator chain
+- product boundary: the native broker must preserve direct same-file Open,
+  Save As and Save semantics; full Firefox parity and Windows qualification
+  remain unproven. The supported Chromium path remains independent of #87
 - keep deferred while higher-value work remains executable.
 
 ### R — final real-flight activity
