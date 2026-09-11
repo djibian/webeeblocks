@@ -133,6 +133,10 @@ def main():
     if physical_setpoint_transport_test.returncode:
         print('FAIL trusted one-shot SETPOINT_HL effect transport',file=sys.stderr);print(physical_setpoint_transport_test.stdout,file=sys.stderr);print(physical_setpoint_transport_test.stderr,file=sys.stderr);return physical_setpoint_transport_test.returncode
     print(physical_setpoint_transport_test.stdout.strip())
+    controlled_landing_transport_test=subprocess.run([sys.executable,'tools/ci/test_controlled_landing_transport.py'],text=True,capture_output=True)
+    if controlled_landing_transport_test.returncode:
+        print('FAIL trusted one-shot controlled landing transport',file=sys.stderr);print(controlled_landing_transport_test.stdout,file=sys.stderr);print(controlled_landing_transport_test.stderr,file=sys.stderr);return controlled_landing_transport_test.returncode
+    print(controlled_landing_transport_test.stdout.strip())
     physical_host_inflight_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_inflight_sequence.py'],text=True,capture_output=True)
     if physical_host_inflight_test.returncode:
         print('FAIL actual physical-host exact-program in-flight composition',file=sys.stderr);print(physical_host_inflight_test.stdout,file=sys.stderr);print(physical_host_inflight_test.stderr,file=sys.stderr);return physical_host_inflight_test.returncode
