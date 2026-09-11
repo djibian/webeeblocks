@@ -240,7 +240,7 @@ def test_landing_command_fails_closed_on_unsupported_envelope() -> None:
     malformed_final = canonical(
         [
             {"kind": "takeoff", "height_m": 0.8},
-            {"kind": "land", "height_m": 0.0},
+            {"kind": "land", "extra": True},
         ]
     )
     expect_landing_error(malformed_final, "end")
