@@ -7,14 +7,16 @@ teacher socket and the shared #273 execution domain. The generic takeoff
 lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
 validated against the integrated sequencing boundary before any reset or flight
 effect; after exact takeoff has causally completed, the same sequence owns each
-bounded move/turn and the one terminal controlled landing.
+bounded move/turn, exact host-side wait and the one terminal controlled landing.
 
 Importing this module performs no physical effect.
 """
 
 from __future__ import annotations
 
+import math
 import socket
+from time import monotonic, sleep
 
 from controlled_landing_transport import (
     ControlledLandingTransportError,
@@ -34,6 +36,10 @@ from supervisor_state import FreshSupervisorStateReader
 from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
 from yaw_observer import FreshYawObserver
+
+_WAIT_CLOCK = monotonic
+_WAIT_SLEEP = sleep
+_WAIT_POLL_SECONDS = 0.05
 
 
 class PhysicalRunActivationError(RuntimeError):
@@ -120,6 +126,19 @@ def _require_flight_inactive(reader: FreshSupervisorStateReader) -> bool:
     return True
 
 
+def _wait_clock_now() -> float:
+    try:
+        value = _WAIT_CLOCK()
+    except Exception as exc:
+        raise PhysicalRunActivationError("trusted host monotonic wait clock is unavailable") from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise PhysicalRunActivationError("trusted host monotonic wait clock is malformed")
+    number = float(value)
+    if not math.isfinite(number):
+        raise PhysicalRunActivationError("trusted host monotonic wait clock is non-finite")
+    return number
+
+
 def activate_validated_run(
     *,
     uri: str,
@@ -133,9 +152,11 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    semantic parameters. It reserves only the next exact top-level move/turn or
-    terminal land from the post-reset #267 binding and keeps every positive
-    provenance/effect path lexical to this adapter's host-owned bridge.
+    semantic parameters. It reserves only the next exact top-level move/turn,
+    host-side wait or terminal land from the post-reset #267 binding and keeps
+    every positive provenance/effect path lexical to this adapter's host-owned
+    bridge. A wait is pacing only and enters no flight-effect/acknowledgement
+    transaction.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -382,6 +403,58 @@ def activate_validated_run(
             self._yaw_reader = reader
             return reader
 
+        def _assert_wait_context(self) -> None:
+            binding = active_run.teacher_authorization.binding
+            active_run.teacher_authorization.assert_effect_binding(
+                profile_id=binding.profile_id,
+                ast_binding=binding.ast_binding,
+                connection_epoch=binding.connection_epoch,
+            )
+            if active_run.powered_session.connection_epoch != binding.connection_epoch:
+                raise PhysicalRunActivationError(
+                    "powered session changed during exact physical wait"
+                )
+            try:
+                live_epoch = session.read_connection_epoch()
+            except Exception as exc:
+                raise PhysicalRunActivationError(
+                    "live connection epoch became unavailable during exact physical wait"
+                ) from exc
+            if live_epoch != binding.connection_epoch:
+                raise PhysicalRunActivationError(
+                    "connection epoch changed during exact physical wait"
+                )
+            if active_run.execution_domain.phase != FLYING:
+                raise PhysicalRunActivationError(
+                    "exact physical wait requires the causally established flying phase"
+                )
+            active_run.watchdog_guard.assert_live()
+
+        def _execute_wait(self, wait) -> None:
+            """Consume exact AST pacing without entering any flight-effect domain."""
+            duration = wait.seconds
+            self._assert_wait_context()
+            started = _wait_clock_now()
+            previous = started
+            deadline = started + duration
+            while True:
+                self._assert_wait_context()
+                now = _wait_clock_now()
+                if now < previous:
+                    raise PhysicalRunActivationError(
+                        "trusted host monotonic wait clock moved backwards"
+                    )
+                if now >= deadline:
+                    return
+                remaining = deadline - now
+                try:
+                    _WAIT_SLEEP(min(_WAIT_POLL_SECONDS, remaining))
+                except Exception as exc:
+                    raise PhysicalRunActivationError(
+                        "trusted host exact wait was interrupted"
+                    ) from exc
+                previous = now
+
         def _release_or_poison_sequence(self, claim: object, reason: str) -> None:
             if active_run.execution_domain.phase == FLYING:
                 sequence.release_unemitted(claim)
@@ -389,16 +462,33 @@ def activate_validated_run(
                 sequence.mark_ambiguous(claim, reason)
 
         def execute_next_inflight(self):
-            """Advance one exact AST effect; accepts no caller semantic data."""
+            """Advance one exact AST operation; accepts no caller semantic data."""
             terminal_landing = False
+            wait_statement = None
+            motion = None
             try:
                 claim = sequence.reserve_terminal_landing()
                 sequence.landing_for_claim(claim)
                 terminal_landing = True
-                motion = None
             except PhysicalProgramSequenceError:
-                claim = sequence.reserve_next_motion()
-                motion = sequence.motion_for_claim(claim)
+                try:
+                    claim = sequence.reserve_next_wait()
+                    wait_statement = sequence.wait_for_claim(claim)
+                except PhysicalProgramSequenceError:
+                    claim = sequence.reserve_next_motion()
+                    motion = sequence.motion_for_claim(claim)
+
+            if wait_statement is not None:
+                try:
+                    self._execute_wait(wait_statement)
+                except Exception:
+                    # No flight effect was emitted, so the exact wait remains the
+                    # next statement. Safety/session failures still fail the run
+                    # closed through their own authoritative domains.
+                    sequence.release_unemitted(claim)
+                    raise
+                sequence.complete_wait(claim)
+                return None
 
             try:
                 transport = self._ensure_transport()
