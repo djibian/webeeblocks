@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import struct
 import sys
 
@@ -55,6 +56,16 @@ def sample_ast() -> str:
             {"kind": "takeoff", "height_m": 0.8},
             {"kind": "move", "direction": "forward", "distance_m": 0.3},
             {"kind": "turn", "angle_deg": 45},
+            {"kind": "land"},
+        ]
+    )
+
+
+def wait_ast(seconds: object = 0.5) -> str:
+    return canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "wait", "seconds": seconds},
             {"kind": "land"},
         ]
     )
@@ -114,7 +125,78 @@ def test_exact_order_and_claim_identity() -> None:
     expect_error(domain.reserve_terminal_landing, "not the next")
 
 
-def test_caller_cannot_select_motion_index_or_landing() -> None:
+def test_exact_wait_claim_is_no_effect_and_retryable_until_complete() -> None:
+    domain = sequence.PhysicalProgramSequence(wait_ast())
+    require(domain.next_index == 1, "wait sequence begins after exact takeoff")
+    expect_error(domain.reserve_next_motion, "horizontal/turn")
+
+    claim = domain.reserve_next_wait()
+    wait = domain.wait_for_claim(claim)
+    require(
+        wait == sequence.SequencedWait(1, 0.5),
+        "wait duration and index must come from exact canonical AST",
+    )
+    expect_error(domain.reserve_terminal_landing, "pending")
+    expect_error(lambda: domain.complete_wait(object()), "wait claim")
+    expect_error(
+        lambda: domain.mark_ambiguous(claim, "wait is not an emitted flight effect"),
+        "emitted-effect claim",
+    )
+
+    domain.release_unemitted(claim)
+    require(domain.next_index == 1, "interrupted no-effect wait must not advance")
+    retry = domain.reserve_next_wait()
+    require(domain.wait_for_claim(retry) == wait, "released wait must remain exact next statement")
+    domain.complete_wait(retry)
+    require(domain.next_index == 2, "full wait completion advances exactly once")
+
+    landing_claim = domain.reserve_terminal_landing()
+    domain.complete_landing(landing_claim)
+    require(domain.completed, "wait program completes only after terminal landing")
+    expect_error(domain.reserve_next_wait, "no wait")
+
+
+def test_wait_reuses_runtime_v2_bounds_and_exact_shape() -> None:
+    semantic_source = (
+        ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks" / "semantic_ast.js"
+    ).read_text(encoding="utf-8")
+    match = re.search(r"wait_s:\{min:([0-9.]+),max:([0-9.]+)\}", semantic_source)
+    require(match is not None, "Runtime v2 wait_s bounds must remain machine-readable")
+    require(
+        (sequence.MIN_WAIT_SECONDS, sequence.MAX_WAIT_SECONDS)
+        == (float(match.group(1)), float(match.group(2))),
+        "physical wait bounds must equal authoritative Runtime v2 semantic bounds",
+    )
+
+    for duration in (sequence.MIN_WAIT_SECONDS, sequence.MAX_WAIT_SECONDS):
+        domain = sequence.PhysicalProgramSequence(wait_ast(duration))
+        claim = domain.reserve_next_wait()
+        require(
+            domain.wait_for_claim(claim).seconds == duration,
+            "inclusive Runtime v2 wait bounds must be accepted exactly",
+        )
+
+    for invalid in (
+        0.09,
+        5.01,
+        True,
+    ):
+        expect_error(
+            lambda invalid=invalid: sequence.PhysicalProgramSequence(wait_ast(invalid)),
+            "wait seconds",
+        )
+
+    malformed = canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "wait", "seconds": 0.5, "extra": True},
+            {"kind": "land"},
+        ]
+    )
+    expect_error(lambda: sequence.PhysicalProgramSequence(malformed), "supported wait")
+
+
+def test_caller_cannot_select_motion_wait_index_or_landing() -> None:
     domain = sequence.PhysicalProgramSequence(sample_ast())
     try:
         domain.reserve_next_motion({"kind": "turn", "angle_deg": -90})
@@ -122,6 +204,14 @@ def test_caller_cannot_select_motion_index_or_landing() -> None:
         pass
     else:
         raise AssertionError("caller-selected motion unexpectedly entered sequencing API")
+
+    wait_domain = sequence.PhysicalProgramSequence(wait_ast())
+    try:
+        wait_domain.reserve_next_wait(4.9)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("caller-selected wait duration unexpectedly entered sequencing API")
 
     try:
         domain.reserve_terminal_landing({"height_m": 0.1})
@@ -226,6 +316,12 @@ def test_exact_bound_command_10_landing_semantics() -> None:
         "boundary-only exact program derives the same relative landing policy",
     )
 
+    waited = wait_ast(0.5)
+    require(
+        landing.derive_bound_landing_command(waited).descent_m == 0.8,
+        "no-effect wait does not alter exact relative landing policy",
+    )
+
 
 def test_landing_command_fails_closed_on_unsupported_envelope() -> None:
     unsupported = canonical(
@@ -277,7 +373,9 @@ def test_landing_command_has_no_effect_or_caller_parameter_surface() -> None:
 
 def main() -> int:
     test_exact_order_and_claim_identity()
-    test_caller_cannot_select_motion_index_or_landing()
+    test_exact_wait_claim_is_no_effect_and_retryable_until_complete()
+    test_wait_reuses_runtime_v2_bounds_and_exact_shape()
+    test_caller_cannot_select_motion_wait_index_or_landing()
     test_ambiguous_motion_or_landing_is_terminal()
     test_complete_envelope_is_validated_before_flight()
     test_exact_canonical_ast_and_flight_boundaries_are_required()
@@ -285,9 +383,9 @@ def main() -> int:
     test_landing_command_fails_closed_on_unsupported_envelope()
     test_landing_command_has_no_effect_or_caller_parameter_surface()
     print(
-        "PASS exact physical-program sequencing validates the complete supported envelope, "
-        "exposes only the exact terminal land after prior causal completion, and derives "
-        "pinned command 10 solely from the teacher-bound canonical AST"
+        "PASS exact physical-program sequencing validates move/turn/wait before flight, "
+        "keeps wait as retryable no-effect pacing, exposes terminal land only after prior "
+        "causal completion, and derives pinned command 10 solely from exact bound AST"
     )
     return 0
 
