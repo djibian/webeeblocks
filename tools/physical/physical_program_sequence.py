@@ -133,6 +133,24 @@ class PhysicalProgramSequence:
                 and self._next_index == len(self._program)
             )
 
+    @property
+    def next_effect_kind(self) -> str:
+        """Describe the exact next effect without exposing caller selection authority."""
+        with self._lock:
+            if self._terminal_reason is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program sequence is terminal: " + self._terminal_reason
+                )
+            if self._pending is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program already has a pending effect"
+                )
+            if self._next_index == len(self._program):
+                return "complete"
+            if self._next_index == len(self._program) - 1:
+                return "landing"
+            return "motion"
+
     def _motion_at(self, index: int) -> SequencedInflightMotion:
         if index >= len(self._program) - 1:
             raise PhysicalProgramSequenceError(
