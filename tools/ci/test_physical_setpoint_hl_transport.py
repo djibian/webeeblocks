@@ -498,20 +498,21 @@ def test_production_source_roots_provenance_only_in_host_tcb() -> None:
         require(forbidden not in transport_source, "effect core retains obsolete provenance surface: " + forbidden)
 
     require(
-        "class _HostBoundSetpointHlTransport(TrustedSetpointHlTransport)" in host_source,
-        "production host must define the co-located #276 transport binding",
+        'activation_state["active_run"] = activate_validated_run(' in host_source,
+        "production host must enter the trusted #276 activation adapter",
     )
     require(
-        "evidence = bridge.assert_current_program(" in host_source,
-        "host-local transport must use the lexical #278 bridge",
+        "bridge=bridge," in host_source,
+        "trusted activation must receive only the host-owned lexical #278 bridge",
     )
     require(
-        "def _compose_inflight_setpoint_transport(" in host_source,
-        "host must own the #276 composition closure",
+        'set(request) != {"op", "requestId"}' in host_source,
+        "ordinary in-flight IPC must reject caller-selected motion/provenance fields",
     )
-    compose_source = host_source.split("def _compose_inflight_setpoint_transport(", 1)[1].split("):", 1)[0]
-    require("bridge" not in compose_source, "caller-selectable bridge must not enter composition signature")
-    require("current_program" not in compose_source, "caller-selectable provenance must not enter composition signature")
+    require(
+        "active_controller.execute_next_inflight()" in host_source,
+        "ordinary in-flight IPC must delegate only the parameter-free trusted step",
+    )
     require(
         "def _read_current_binding(self)" in transport_source
         and "current-program assertion is not bound to the trusted #283 physical host" in transport_source,
