@@ -212,25 +212,29 @@ def test_ack_timeout_is_ambiguous_and_never_retried() -> None:
         fixture.close()
 
 
+def changed_binding(fixture) -> teacher.PhysicalRunBinding:
+    return teacher.PhysicalRunBinding(
+        profile_id=fixture.binding.profile_id,
+        ast_binding=json.dumps(
+            {
+                "program": [
+                    {"height_m": 0.7, "kind": "takeoff"},
+                    {"kind": "land"},
+                ],
+                "semantics": "webeeblocks-ast-v1",
+                "version": 1,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+        connection_epoch=fixture.binding.connection_epoch,
+    )
+
+
 def test_changed_current_program_blocks_before_landing_effect() -> None:
     fixture, transport = make_fixture("landing-binding")
     try:
-        fixture.current_binding = teacher.PhysicalRunBinding(
-            profile_id=fixture.binding.profile_id,
-            ast_binding=json.dumps(
-                {
-                    "program": [
-                        {"height_m": 0.7, "kind": "takeoff"},
-                        {"kind": "land"},
-                    ],
-                    "semantics": "webeeblocks-ast-v1",
-                    "version": 1,
-                },
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-            connection_epoch=fixture.binding.connection_epoch,
-        )
+        fixture.current_binding = changed_binding(fixture)
         queue_pre_land(fixture)
         expect_error(
             transport.send_controlled_landing,
@@ -239,6 +243,39 @@ def test_changed_current_program_blocks_before_landing_effect() -> None:
         )
         require(not fixture.cf.send_calls, "changed current program prevents landing emission")
         require(fixture.domain.phase == execution.FLYING, "pre-effect provenance failure preserves flying")
+    finally:
+        fixture.close()
+
+
+def test_program_change_during_blocking_supervisor_reads_is_reconstructed() -> None:
+    fixture, transport = make_fixture("landing-binding-race")
+    try:
+        queue_pre_land(fixture)
+        original_read_finished = transport._read_fresh_finished_flying
+
+        def read_finished_then_change_program():
+            state = original_read_finished()
+            fixture.current_binding = changed_binding(fixture)
+            return state
+
+        transport._read_fresh_finished_flying = read_finished_then_change_program
+        expect_error(
+            transport.send_controlled_landing,
+            landing_transport.ControlledLandingTransportError,
+            "current-program re-assertion",
+        )
+        require(
+            len(fixture.supervisor_observed) >= 2,
+            "landing preparation must cross fresh supervisor reads before the injected program change is rejected",
+        )
+        require(
+            not fixture.cf.send_calls,
+            "program change during fresh supervisor preparation must block before landing emission",
+        )
+        require(
+            fixture.domain.phase == execution.FLYING,
+            "pre-emission current-program race preserves established flying phase",
+        )
     finally:
         fixture.close()
 
@@ -287,11 +324,13 @@ def main() -> int:
     test_definitive_rejection_does_not_complete_or_retry()
     test_ack_timeout_is_ambiguous_and_never_retried()
     test_changed_current_program_blocks_before_landing_effect()
+    test_program_change_during_blocking_supervisor_reads_is_reconstructed()
     test_direct_importable_landing_core_has_no_positive_provenance_path()
     test_source_has_no_stop_retry_or_caller_landing_surface()
     print(
         "PASS trusted terminal landing transport derives command 10 from exact AST provenance, "
-        "emits once under the shared physical authority domain, and requires fresh #264 completion"
+        "reconstructs current-program authority after blocking preflight reads, emits once under "
+        "the shared physical authority domain, and requires fresh #264 completion"
     )
     return 0
 
