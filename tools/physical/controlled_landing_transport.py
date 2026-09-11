@@ -1,37 +1,33 @@
 #!/usr/bin/env python3
-"""Trusted controlled terminal LAND_2 effect for the physical Crazyflie.
+"""Trusted exact-program controlled terminal landing for the physical Crazyflie.
 
 This module extends the integrated #276 host-local SETPOINT_HL trust root with
-one fixed-policy terminal landing primitive for #304. It exposes no altitude,
-duration, yaw, raw-byte or retry surface: the only command is pinned cflib
-``COMMAND_LAND_2`` to absolute 0.0 m over 2.0 s while preserving current yaw.
+one terminal landing effect for #304.  Landing semantics are not selected here:
+``landing_command`` derives the pinned firmware ``COMMAND_LAND_WITH_VELOCITY``
+request solely from the exact teacher-bound canonical AST already validated by
+#305.  There is no caller altitude, duration, velocity, yaw, raw-byte or retry
+surface.
 
-Authority remains the exact #276 composition. Fresh current-program provenance,
-teacher binding, powered session, watchdog, supervisor state, SafeLink and
-acknowledgement freshness are checked at the effect boundary. Positive firmware
-acknowledgement is not completion: the private #279 permit is consumed only
-after the integrated #264 observer establishes a later same-epoch finished,
-non-flying, high-level-inactive state. Importing this module performs no effect.
+Authority remains the exact integrated physical-host composition.  Fresh
+current-program provenance, teacher binding, powered session, watchdog,
+supervisor state, SafeLink and acknowledgement freshness are checked at the
+effect boundary.  Positive firmware acknowledgement is not completion: the
+private #279 permit is consumed only after the integrated #264 observer
+establishes a later same-epoch finished, non-flying, high-level-inactive state.
+Importing this module performs no physical effect.
 """
 
 from __future__ import annotations
 
-import struct
 from threading import Event, Lock
 from typing import Callable
 
 import high_level_ack
+import landing_command
 import landing_completion
 import physical_execution_domain
 import setpoint_hl_transport
 
-_COMMAND_LAND_2 = 8
-_LAND_GROUP_MASK = 0
-_LAND_ABSOLUTE_HEIGHT_M = 0.0
-_LAND_TARGET_YAW_RAD = 0.0
-_LAND_USE_CURRENT_YAW = True
-_LAND_DURATION_SECONDS = 2.0
-_LAND_PACKET = struct.Struct("<BBff?f")
 _DEFAULT_REPLY_TIMEOUT_SECONDS = 0.2
 _LANDING_COMPLETION_TIMEOUT_SECONDS = 8.0
 
@@ -40,41 +36,8 @@ class ControlledLandingTransportError(setpoint_hl_transport.SetpointHlTransportE
     """Fail-closed trusted controlled-landing transport error."""
 
 
-def _landing_request() -> bytes:
-    return _LAND_PACKET.pack(
-        _COMMAND_LAND_2,
-        _LAND_GROUP_MASK,
-        _LAND_ABSOLUTE_HEIGHT_M,
-        _LAND_TARGET_YAW_RAD,
-        _LAND_USE_CURRENT_YAW,
-        _LAND_DURATION_SECONDS,
-    )
-
-
-def _validate_landing_request(value: object) -> bytes:
-    if isinstance(value, bytearray):
-        data = bytes(value)
-    elif isinstance(value, bytes):
-        data = value
-    else:
-        raise ControlledLandingTransportError("validated LAND_2 request must be bytes")
-    if len(data) != _LAND_PACKET.size:
-        raise ControlledLandingTransportError("LAND_2 payload size does not match pinned cflib")
-    command, group_mask, height, yaw, use_current_yaw, duration = _LAND_PACKET.unpack(data)
-    if command != _COMMAND_LAND_2 or group_mask != _LAND_GROUP_MASK:
-        raise ControlledLandingTransportError("only the fixed single-Crazyflie LAND_2 policy is available")
-    if (
-        height != _LAND_ABSOLUTE_HEIGHT_M
-        or yaw != _LAND_TARGET_YAW_RAD
-        or use_current_yaw is not _LAND_USE_CURRENT_YAW
-        or duration != _LAND_DURATION_SECONDS
-    ):
-        raise ControlledLandingTransportError("LAND_2 request differs from trusted host landing policy")
-    return data
-
-
 class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlTransport):
-    """#276 transport plus one host-policy terminal LAND_2 effect."""
+    """#276 authority composition plus one exact-AST terminal landing effect."""
 
     def __init__(
         self,
@@ -147,24 +110,49 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
             self._force_landing_completion_uncertainty(permit)
             raise
 
+    def _derive_exact_landing_request(self, ast_binding: str) -> bytes:
+        try:
+            command = landing_command.derive_bound_landing_command(ast_binding)
+        except landing_command.LandingCommandError as exc:
+            raise ControlledLandingTransportError(
+                "exact teacher-bound terminal landing request is unavailable"
+            ) from exc
+        if command.ast_binding != ast_binding:
+            raise ControlledLandingTransportError(
+                "derived landing request does not match the exact teacher-bound AST"
+            )
+        if not isinstance(command.request, bytes):
+            raise ControlledLandingTransportError(
+                "derived terminal landing request is not exact packet bytes"
+            )
+        return command.request
+
     def send_controlled_landing(self) -> high_level_ack.HighLevelAckResult:
-        """Emit the fixed host-policy terminal landing exactly once."""
-        request = _validate_landing_request(_landing_request())
+        """Emit the exact teacher-bound terminal landing once, with no retry."""
         result: high_level_ack.HighLevelAckResult | None = None
         completion_permit: physical_execution_domain.AcceptedEffectCompletionPermit | None = None
         baseline: landing_completion.PreLandingFlightEvidence | None = None
 
         with self.execution_domain.effect_transaction(self._assert_current_authority) as effect:
+            # Derive command 10 only after the trusted exclusion and initial fresh
+            # host-local current-program assertion have established eligibility.
+            initial_binding = self._read_current_binding()
+            self._assert_binding_authority(initial_binding)
+            request = self._derive_exact_landing_request(initial_binding.ast_binding)
             packet = setpoint_hl_transport._default_packet_factory(request)
             self._validate_packet(packet, request)
 
-            # Preserve #276 ordering: fresh host-owned current-program assertion,
-            # fresh finished-flight state, another authority check, then SafeLink.
-            final_binding = self._read_current_binding()
-            self._assert_binding_authority(final_binding)
+            # Match #276's final-boundary discipline, strengthened with a second
+            # host-owned current-program assertion after the blocking fresh #257/
+            # #264 observations and immediately before SafeLink/ack/emission.
             self._read_fresh_finished_flying()
             baseline = self._landing_observer.capture_pre_land_flight()
+            final_binding = self._read_current_binding()
             self._assert_binding_authority(final_binding)
+            if final_binding != initial_binding:
+                raise ControlledLandingTransportError(
+                    "current physical program changed during landing preparation"
+                )
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
@@ -222,11 +210,13 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                             pass
 
         if result is None:
-            raise ControlledLandingTransportError("LAND_2 acknowledgement result is unavailable")
+            raise ControlledLandingTransportError(
+                "terminal landing acknowledgement result is unavailable"
+            )
         if result.accepted:
             if completion_permit is None or baseline is None:
                 raise ControlledLandingTransportError(
-                    "accepted LAND_2 effect lacks private completion state"
+                    "accepted terminal landing lacks private completion state"
                 )
             self._await_landing_completion(completion_permit, baseline)
         return result
