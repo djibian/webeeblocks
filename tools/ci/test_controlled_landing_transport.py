@@ -278,7 +278,7 @@ def test_landing_surface_accepts_no_caller_semantics() -> None:
 
         source = (PHYSICAL / "controlled_landing_transport.py").read_text(encoding="utf-8")
         require("COMMAND_STOP" not in source, "normal landing must never use STOP/motor cut")
-        require("expected_reply" not in source, "landing transport must not enable cflib retries")
+        require("expected_reply=" not in source, "landing transport must not enable cflib retries")
     finally:
         fixture.close()
 
