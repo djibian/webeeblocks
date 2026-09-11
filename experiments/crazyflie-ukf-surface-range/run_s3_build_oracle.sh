@@ -5,9 +5,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 UPSTREAM="${1:-$ROOT/.ci-crazyflie-firmware}"
 EXPECTED_COMMIT=54f31e243a0b28b67efef5ba20dbb6d9890a5478
 EXPECTED_BLOB=57c0e8405c07b63a29538019895ed17d0a379440
-APPLICATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py"
-DISCRIMINATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py"
-TIMING_OBSERVER="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py"
+EXPERIMENT="$ROOT/experiments/crazyflie-ukf-surface-range"
+APPLICATOR="$EXPERIMENT/apply_surface_offset_s3.py"
+DISCRIMINATOR="$EXPERIMENT/apply_surface_offset_s3_veto_discriminator.py"
+TIMING_OBSERVER="$EXPERIMENT/apply_surface_offset_s3_timing_observer.py"
+
+# Keep the offline X3 evidence components inside the same path-scoped CI oracle
+# that already owns changes under this experiment. These tests are pure and do
+# not require firmware, radio or physical hardware.
+python3 "$EXPERIMENT/test_frozen_pressure_probe.py"
+python3 "$EXPERIMENT/test_metric_reference.py"
 
 test -d "$UPSTREAM/.git"
 test "$(git -C "$UPSTREAM" rev-parse HEAD)" = "$EXPECTED_COMMIT"
@@ -86,4 +93,4 @@ EOF
   find build -type f -name 'estimator_ukf.o' -size +0c -print -quit | grep -q .
 )
 
-printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and reset-safe timing observer applied and UKF-enabled cf2 firmware built."
+printf '%s\n' "PASS: X3 offline pressure/reference controls plus exact Crazyflie 2026.08 S3 source, VZ/BARO/BOTH discriminator, reset-safe timing observer and UKF-enabled cf2 firmware build."
