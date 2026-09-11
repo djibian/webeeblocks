@@ -140,14 +140,12 @@ class FakeTerminalLandingTransportBase:
             self._execution.phase == base.physical_execution_domain.FLYING,
             "terminal landing effect starts from the causal flying phase",
         )
-        with self._execution.effect_transaction(lambda: None) as effect:
-            effect.mark_emitted()
-            permit = effect.mark_accepted()
-        self._execution.complete_accepted_effect(
-            permit,
-            base.physical_execution_domain.INACTIVE,
-            lambda: True,
-        )
+        # The production-host composition fixture deliberately installs the tiny
+        # FakeExecutionDomain from test_physical_host_activation. The real #273
+        # accepted-effect permit/completion machinery is exercised immediately
+        # before this test by landing_contract.main(); here we only model that
+        # successful terminal consumer's externally observable lifecycle result.
+        self._execution.phase = base.physical_execution_domain.INACTIVE
         require(self._watchdog.active, "watchdog remains live through causal landing completion")
         base.EVENTS.append(("terminal-land", landing.index, binding.connection_epoch))
         return SimpleNamespace(accepted=True, status=0)
