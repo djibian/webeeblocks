@@ -77,7 +77,40 @@ def test_exact_order_and_claim_identity() -> None:
     require(domain.motion_for_claim(retry) == turn, "released statement must remain next")
 
 
-def test_caller_cannot_select_motion_or_index() -> None:
+def test_terminal_landing_is_exact_one_shot_program_boundary() -> None:
+    domain = sequence.PhysicalProgramSequence(sample_ast())
+    expect_error(domain.reserve_terminal_landing, "not the next")
+
+    first = domain.reserve_next_motion()
+    domain.complete_motion(first)
+    second = domain.reserve_next_motion()
+    domain.complete_motion(second)
+
+    expect_error(domain.reserve_next_motion, "final landing")
+    landing_claim = domain.reserve_terminal_landing()
+    landing = domain.landing_for_claim(landing_claim)
+    require(
+        landing == sequence.SequencedTerminalLanding(3),
+        "terminal land must be derived from the exact final AST index",
+    )
+    expect_error(domain.reserve_terminal_landing, "pending")
+    expect_error(lambda: domain.complete_landing(object()), "exact pending")
+
+    domain.release_unemitted(landing_claim)
+    require(domain.next_index == 3, "definitive rejected landing cannot advance completion")
+    retry = domain.reserve_terminal_landing()
+    require(
+        domain.landing_for_claim(retry) == landing,
+        "definitively unemitted terminal landing must remain exactly next",
+    )
+    domain.complete_landing(retry)
+    require(domain.completed, "trusted terminal landing completion must close the sequence")
+    require(domain.next_index == 4, "completed landing must consume the exact final statement")
+    expect_error(domain.reserve_terminal_landing, "already completed")
+    expect_error(domain.reserve_next_motion, "already completed")
+
+
+def test_caller_cannot_select_motion_or_landing_parameters() -> None:
     domain = sequence.PhysicalProgramSequence(sample_ast())
     try:
         domain.reserve_next_motion({"kind": "turn", "angle_deg": -90})
@@ -85,6 +118,13 @@ def test_caller_cannot_select_motion_or_index() -> None:
         pass
     else:
         raise AssertionError("caller-selected motion unexpectedly entered sequencing API")
+
+    try:
+        domain.reserve_terminal_landing({"height_m": 0.0})
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("caller-selected landing unexpectedly entered sequencing API")
 
     claim = domain.reserve_next_motion()
     require(
@@ -100,6 +140,18 @@ def test_ambiguous_effect_is_terminal() -> None:
     require(domain.terminal, "ambiguous emitted effect must make sequencing terminal")
     require(domain.next_index == 1, "ambiguity cannot manufacture completion")
     expect_error(domain.reserve_next_motion, "terminal")
+
+    landing_domain = sequence.PhysicalProgramSequence(
+        canonical([
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "land"},
+        ])
+    )
+    landing_claim = landing_domain.reserve_terminal_landing()
+    landing_domain.mark_ambiguous(landing_claim, "landing completion uncertain")
+    require(landing_domain.terminal, "ambiguous landing must make sequence terminal")
+    require(not landing_domain.completed, "ambiguous landing must not manufacture completion")
+    expect_error(landing_domain.reserve_terminal_landing, "terminal")
 
 
 def test_unsupported_or_malformed_next_statement_fails_closed() -> None:
@@ -120,6 +172,7 @@ def test_unsupported_or_malformed_next_statement_fails_closed() -> None:
         )
         domain = sequence.PhysicalProgramSequence(ast)
         expect_error(domain.reserve_next_motion, "next")
+        expect_error(domain.reserve_terminal_landing, "not the next")
 
 
 def test_exact_canonical_ast_and_flight_boundaries_are_required() -> None:
@@ -146,13 +199,14 @@ def test_exact_canonical_ast_and_flight_boundaries_are_required() -> None:
 
 def main() -> int:
     test_exact_order_and_claim_identity()
-    test_caller_cannot_select_motion_or_index()
+    test_terminal_landing_is_exact_one_shot_program_boundary()
+    test_caller_cannot_select_motion_or_landing_parameters()
     test_ambiguous_effect_is_terminal()
     test_unsupported_or_malformed_next_statement_fails_closed()
     test_exact_canonical_ast_and_flight_boundaries_are_required()
     print(
-        "PASS exact physical-program sequencing derives the next in-flight motion from the "
-        "teacher-bound canonical AST and advances only on causal completion"
+        "PASS exact physical-program sequencing derives move/turn plus one terminal land "
+        "from the teacher-bound canonical AST and advances only on causal completion"
     )
     return 0
 
