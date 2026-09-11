@@ -72,6 +72,17 @@ class ExactInflightProgramSequence:
             raise InflightProgramSequenceError("next teacher-authorized statement is malformed")
         return statement
 
+    @property
+    def next_effect_kind(self) -> str:
+        """Return the next exact supported effect kind without advancing the cursor."""
+        kind = self._next_statement()["kind"]
+        if kind not in {"move", "turn"}:
+            raise InflightProgramSequenceError(
+                "next teacher-authorized statement is outside the bounded move/turn slice: "
+                + kind
+            )
+        return kind
+
     def execute_next(self, transport: object, *, yaw_reader: object, timing_policy: object):
         """Execute exactly the next authorized move/turn and advance only on success."""
         if getattr(transport, "teacher_binding", None) != self._binding:
