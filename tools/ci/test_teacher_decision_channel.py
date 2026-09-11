@@ -325,7 +325,7 @@ def test_untrusted_channels_cannot_trigger_or_substitute_teacher_authority() -> 
         'staged_state["binding"] = PhysicalRunBinding(',
         'activation_state["started"] = True',
         "staged_ready.set()",
-        'if request.get("op") != "validate-run-context":',
+        'if operation != "validate-run-context":',
     ):
         require(required in host_source, "host lacks trusted preparation/teacher composition: " + required)
 
