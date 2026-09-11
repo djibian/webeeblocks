@@ -607,7 +607,9 @@ def publish(
         if not SHA_RE.fullmatch(commit_sha):
             raise EvidenceError("publication commit did not resolve exactly")
 
-        # Reconstruct the remote immediately before the external effect.
+        # Reconstruct the remote immediately before the external effect. The lease
+        # below is the atomic create-if-absent check; the preceding read is only an
+        # early diagnostic and is never relied on as the write authority.
         if remote_branch_sha(repo_root, remote, base_ref) != base_sha:
             raise EvidenceError(
                 "remote base moved during publication; local evidence is retained"
@@ -619,13 +621,14 @@ def publish(
             repo_root,
             "push",
             "--porcelain",
+            f"--force-with-lease=refs/heads/{branch}:",
             remote,
             f"HEAD:refs/heads/{branch}",
             check=False,
         )
         if push.returncode:
             raise EvidenceError(
-                "race-safe evidence push failed; local evidence is retained: "
+                "atomic evidence branch creation failed; local evidence is retained: "
                 + push.stderr.strip()
             )
         published_sha = remote_branch_sha(repo_root, remote, branch)
@@ -676,7 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     publish_parser = subparsers.add_parser(
         "publish",
-        help="materialize and push a new immutable evidence branch without force",
+        help="materialize and atomically create a new immutable evidence branch",
     )
     add_evidence_args(publish_parser)
     publish_parser.add_argument("--base-sha", required=True)

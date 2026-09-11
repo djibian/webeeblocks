@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT / "tools" / "evidence" / "publish_test_evidence.py"
@@ -263,6 +264,62 @@ def test_publish_creates_new_remote_branch_and_refuses_race(tmp: Path) -> None:
     )
     assert not (racer / race_destination).exists()
     assert run("git", "rev-parse", "HEAD", cwd=racer).stdout.strip() == base
+
+    # Reproduce the actual check→push TOCTOU: create the destination ref only
+    # after publish() has completed its final absence reconstruction, immediately
+    # before the underlying push process starts. The empty expected lease must
+    # reject even a would-be fast-forward and preserve the concurrent ref.
+    toctou = tmp / "repo-toctou"
+    run("git", "clone", "-q", "-b", "main", str(remote), str(toctou))
+    run("git", "config", "user.name", "Evidence Test", cwd=toctou)
+    run("git", "config", "user.email", "evidence@example.invalid", cwd=toctou)
+    toctou_base = run("git", "rev-parse", "HEAD", cwd=toctou).stdout.strip()
+    assert toctou_base == base
+    toctou_source, _ = fixture_source(tmp / "toctou-source-root")
+    toctou_branch = "evidence/issue-128-" + base[:12]
+    original_run_git = evidence.run_git
+    injected = {"done": False}
+
+    def racing_run_git(repo_root, *args, **kwargs):
+        if args and args[0] == "push" and not injected["done"]:
+            injected["done"] = True
+            run(
+                "git",
+                f"--git-dir={remote}",
+                "update-ref",
+                f"refs/heads/{toctou_branch}",
+                base,
+            )
+        return original_run_git(repo_root, *args, **kwargs)
+
+    with patch.object(evidence, "run_git", side_effect=racing_run_git):
+        expect_error(
+            lambda: evidence.publish(
+                repo_root=toctou,
+                source=toctou_source,
+                destination="experiments/fixture/evidence/checkpoint-toctou",
+                profile_id="physical-csv-text-v1",
+                target_sha=base,
+                checkpoint_ref="issue-128",
+                purpose="checkpoint",
+                request="https://github.com/djibian/webeeblocks/issues/128",
+                provenance="fixture injected check-push race",
+                base_sha=base,
+                base_ref="main",
+                branch=toctou_branch,
+                remote="origin",
+            ),
+            "atomic evidence branch creation failed",
+        )
+    assert injected["done"]
+    preserved = run(
+        "git",
+        "ls-remote",
+        "--heads",
+        str(remote),
+        f"refs/heads/{toctou_branch}",
+    ).stdout.split()[0]
+    assert preserved == base
 
 
 def main() -> int:

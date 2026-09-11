@@ -94,13 +94,16 @@ python3 tools/evidence/publish_test_evidence.py \
 Publication requires a clean checkout exactly at `--base-sha`, reconstructs the
 remote `main` SHA, refuses an already-existing evidence branch, creates the local
 branch, materializes and re-verifies the evidence, commits only that destination,
-rechecks remote `main` and the destination branch immediately before push, and
-uses a normal non-force push. It then verifies that the remote branch resolves to
-the exact created commit.
+and rechecks remote `main` and the destination branch immediately before push.
+The push carries an explicit empty expected `--force-with-lease` for the exact
+destination ref: this is an atomic create-if-absent compare-and-swap, not authority
+to overwrite an existing branch. It then verifies that the remote branch resolves
+to the exact created commit.
 
-If the remote base moves, the evidence branch appears concurrently, push is
-rejected, or remote verification is ambiguous, the command reports failure and
-keeps the local source/evidence for recovery. It never deletes raw source data.
+If the remote base moves, the evidence branch appears concurrently (including in
+the final check→push gap), the atomic ref creation is rejected, or remote
+verification is ambiguous, the command reports failure and keeps the local
+source/evidence for recovery. It never deletes raw source data.
 
 After a successful push, the Controller/AI opens a short Draft PR from the
 reported branch to `main`, links the exact checkpoint/request, and lets normal
