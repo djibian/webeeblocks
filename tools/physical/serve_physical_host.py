@@ -8,21 +8,24 @@ session and the integrated #278 bridge/responder relationship.
 
 The ordinary caller/UI is outside this process. Run-context validation requests
 remain diagnostic/non-authority. After the distinct launcher-installed teacher
-capability has established one exact #293 run, ordinary IPC may also request a
-parameter-free ``execute-next-inflight`` step. That request carries no motion
-semantics or authority: ``activate_validated_run()`` derives the next eligible
-move/turn from the exact #267 canonical AST and keeps the #276 effect/provenance
-objects inside the trusted process. A positive reply is still non-authority data.
+capability has established one exact run, ordinary IPC may also request a
+parameter-free ``execute-next-inflight`` step. That request carries no motion,
+wait or landing semantics and no authority: ``activate_validated_run()`` derives
+the next eligible operation from the exact #267 canonical AST. Flight effects
+stay inside the trusted #276/#308 effect/provenance domains; a wait is host-side
+pacing only and emits no flight effect. A positive reply is still non-authority
+data.
 
 Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
 teacher socket is distinct from both channels and is consumed only inside the
 one-shot production activation path; ordinary caller data cannot supply, replace
-or write that trusted decision channel. The #276 transport belongs inside this
-same process so fresh #249 and all identity-sensitive #257/#260/#262/#266/#267/
-#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
-Starting the host, validating a run without the trusted teacher capability, or
-requesting an in-flight step before successful activation remains effect-free.
+or write that trusted decision channel. Physical effect transports belong inside
+this same process so fresh #249 and all identity-sensitive #257/#260/#262/#266/
+#267/#271/#272/#273 objects share the one live Crazyflie/session/connection
+epoch. Starting the host, validating a run without the trusted teacher
+capability, or requesting a step before successful activation remains
+effect-free.
 """
 
 if __name__ == "__main__":
@@ -218,7 +221,7 @@ if __name__ == "__main__":
                                 "ok": False,
                                 "error": (
                                     "in-flight execution accepts no caller-selected "
-                                    "motion semantics"
+                                    "program semantics"
                                 ),
                                 "executionAuthority": False,
                             }
@@ -237,7 +240,14 @@ if __name__ == "__main__":
                                             "authorized in-flight execution is unavailable"
                                         )
                                     result = active_controller.execute_next_inflight()
-                                    if getattr(result, "accepted", None) is not True:
+                                    # Flight-effect operations return their definitive
+                                    # acknowledgement result. Exact AST waits deliberately
+                                    # return None because they emit no flight effect/#271
+                                    # acknowledgement; successful return itself is completion.
+                                    if (
+                                        result is not None
+                                        and getattr(result, "accepted", None) is not True
+                                    ):
                                         raise RuntimeError(
                                             "authorized in-flight effect was rejected"
                                         )
