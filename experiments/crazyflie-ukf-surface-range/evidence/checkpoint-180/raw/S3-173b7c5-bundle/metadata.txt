@@ -1,0 +1,41 @@
+WebeeBlocks target:
+173b7c5b189b4c4241d7fbde5b1443214dd20a14
+
+Checkpoint:
+#180 s3-props-off
+
+Artifact:
+experimental-s3-surface-offset-2026-08
+
+Artifact SHA256:
+e2889f56c1a6b85b0021e7b4a1e7cc99142517041696b769ece6ecdff87ec31a
+
+cf2.bin SHA256:
+0edf7053b060705b1491fa01c77e97d637b0d24376a4ea21c3bdbc03a902f076
+
+Crazyflie:
+Crazyflie 2.1
+
+Deck:
+Flow Deck V2
+
+Radio URI:
+A_COMPLETER
+
+stabilizer.estimator:
+3
+
+ukf.qualityGateTof:
+20
+
+ukf.baroNoise:
+6.25
+
+ukf.surfaceOffsetS3:
+1
+
+Logging period:
+A_COMPLETER
+
+Platform height:
+A_COMPLETER
