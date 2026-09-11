@@ -29,6 +29,23 @@ provenance/digest and procedure are ready. Enabled profiles are:
 
 Any unknown profile is rejected until its preparation is implemented explicitly.
 
+## Raw output publication
+
+When an enabled or future checkpoint produces bounded CSV/text/log output, the
+canonical data path is Git-backed evidence, not a browser-only issue attachment.
+Use the repository-controlled profile plus
+`tools/evidence/publish_test_evidence.py` as described in
+[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md). AI/tooling should invoke that bridge when
+it can access the files; on a physical test machine it may guide the same
+deterministic local command.
+
+The helper binds the exact request and tested SHA, preserves raw bytes, records
+sizes/SHA-256/provenance, verifies a manifest, and race-safely pushes a new
+evidence branch without force or overwrite. A Controller then opens the short
+Draft PR. Publication leaves `human_verdict` null: PASS/FAIL/NOT_NEEDED remains a
+separate owner-authoritative action. Manual `github.com/user-attachments` uploads
+may remain optional convenience copies but are non-canonical.
+
 ## Human concurrency and idempotence
 
 There may be only one unresolved TEST_REQUIRED globally. There is no queue. If a
