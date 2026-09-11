@@ -253,7 +253,7 @@ def test_direct_importable_landing_core_has_no_positive_provenance_path() -> Non
         queue_pre_land(fixture)
         expect_error(
             direct.send_controlled_landing,
-            landing_transport.ControlledLandingTransportError,
+            base.transport.SetpointHlTransportError,
             "trusted #283 physical host",
         )
         require(not fixture.cf.send_calls, "unbound controlled landing core cannot emit")
