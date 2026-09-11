@@ -1,0 +1,6 @@
+{
+  "stabilizer.estimator": "3",
+  "ukf.qualityGateTof": "20.0",
+  "ukf.baroNoise": "6.25",
+  "ukf.surfaceOffsetS3": "1"
+}

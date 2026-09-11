@@ -1,0 +1,99 @@
+{
+  "checkpoint": 236,
+  "source_archive_filename": "S3-8561ec3-checkpoint-236-evidence.tar.gz",
+  "source_url": "https://github.com/user-attachments/files/31977115/S3-8561ec3-checkpoint-236-evidence.tar.gz",
+  "source_issue_comment": "https://github.com/djibian/webeeblocks/issues/236#issuecomment-5591721995",
+  "source_archive_sha256": "d47dd2b4e83e87c3fd8fa5576f720355a858879ac0d0c27550831dbcaaf1fccb",
+  "expected_archive_sha256": "d47dd2b4e83e87c3fd8fa5576f720355a858879ac0d0c27550831dbcaaf1fccb",
+  "source_archive_bytes": 360080,
+  "machine_readable_files": [
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/README.txt",
+      "sha256": "7120060969633e8c6499c86493ea7a2e6911fe6564650dd96f296e6a7c41e5a5",
+      "bytes": 794
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/SHA256SUMS",
+      "sha256": "ff8dcbcbb4ee34eee4c5b978cbc00badd7e8723579d46ea0e7c71ddba3435b7e",
+      "bytes": 1728
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/excluded/S3_CORE_236-20260908T22-35-57.csv",
+      "sha256": "0f7a810b7fabc27da0ab8c35050843a2a5c9eb0c907f4202b2af1ae92c7f6a9c",
+      "bytes": 65036
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/excluded/S3_DETECTOR_236-20260908T22-35-57.csv",
+      "sha256": "3688290defe50fa9b1f6eb8531cc558aa884a1df251abaaaf8644542f2b05f9b",
+      "bytes": 22873
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-16-14.csv",
+      "sha256": "2b39aa665cf8fb8d3a1d1c73cd86197bb54b69f5edc02e59e6629483a3d49b6a",
+      "bytes": 78221
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-20-53.csv",
+      "sha256": "4b425f1705953bf1d6934357ed185051cc601c9a754211c9dc60aca239796f72",
+      "bytes": 94464
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-26-25.csv",
+      "sha256": "9a7c43fc382c75d90541f7d5b11273b3c584d563650ff32ef855e2888d86cb62",
+      "bytes": 82000
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-28-49.csv",
+      "sha256": "f7bc936fa9c11784b469f9fb7911a5d6fbf5c03e4df3af7e1cf8376fbe48312c",
+      "bytes": 71360
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-38-15.csv",
+      "sha256": "c710e2def9a54eb15a452a7785b0132d88c19c82178f2857d7a6bcc4f4524f0c",
+      "bytes": 90519
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-43-38.csv",
+      "sha256": "d2601fe6f6a2ee237d7ce10db6ab90d2c3c74bf0cc0c3aaf239c7778e6c722b9",
+      "bytes": 92033
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-16-15.csv",
+      "sha256": "4ec914da9ab8ee1cd1b898ec3e3a967ecef5327a1c7ca10bf54d1d717d7e143a",
+      "bytes": 28931
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-20-53.csv",
+      "sha256": "29eaa97be7ce687ee56a588dabd2861537b76ead4a824ad88b452cac15bd12d7",
+      "bytes": 57827
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-26-25.csv",
+      "sha256": "09d2aa41eb4dcdb8d81955c5b03fe562c3c20304bcb1cc599cdec12cc6acc10a",
+      "bytes": 32017
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-28-50.csv",
+      "sha256": "399f871fc9ee802d021823ed213f3e65f190866ccec80474845f3fa2288807e9",
+      "bytes": 25889
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-38-15.csv",
+      "sha256": "96fea0b64b681c2cf3a99a1663ef9dfb5ea436a8ac3a710cd003387400ea1f7e",
+      "bytes": 32051
+    },
+    {
+      "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-43-39.csv",
+      "sha256": "8947af35e2151c251eeabbc9c8f8350e857f47ec69663f38f7f93d16058c180d",
+      "bytes": 61190
+    }
+  ],
+  "skipped_files": [
+    {
+      "path": "S3-8561ec3-checkpoint-236-evidence/original/S3-8561ec3-results.tar.gz",
+      "sha256": "46affd93964a358c10d9cc7344de41ad6af1f97d49012a1c030c5b9c80d38b44",
+      "bytes": 104135,
+      "reason": "non-UTF-8/binary"
+    }
+  ]
+}

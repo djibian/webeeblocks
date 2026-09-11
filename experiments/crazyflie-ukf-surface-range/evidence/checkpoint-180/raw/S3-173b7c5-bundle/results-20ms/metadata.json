@@ -1,0 +1,18 @@
+{
+  "target_sha": "173b7c5b189b4c4241d7fbde5b1443214dd20a14",
+  "artifact": "experimental-s3-surface-offset-2026-08",
+  "artifact_sha256": "e2889f56c1a6b85b0021e7b4a1e7cc99142517041696b769ece6ecdff87ec31a",
+  "cf2_bin_sha256": "0edf7053b060705b1491fa01c77e97d637b0d24376a4ea21c3bdbc03a902f076",
+  "uri": "radio://0/80/2M",
+  "logging_period_ms": 20,
+  "crazyflie": "Crazyflie 2.1",
+  "deck": "Flow Deck V2",
+  "parameters": {
+    "stabilizer.estimator": "3",
+    "ukf.qualityGateTof": "20.0",
+    "ukf.baroNoise": "6.25",
+    "ukf.surfaceOffsetS3": "1"
+  },
+  "props_removed": true,
+  "host_time_unix": 1788873364.826789
+}
