@@ -7,7 +7,8 @@ teacher socket and the shared #273 execution domain.  The generic takeoff
 lifecycle remains in ``production_takeoff_run``.  The exact canonical AST is
 validated against the integrated #295 sequencing boundary before any reset or
 flight effect; after the exact takeoff has causally completed, the same sequence
-owns each bounded #276 move/turn reservation and outcome.
+owns each bounded #276 move/turn reservation and the #304 controlled terminal
+landing reservation through causal completion.
 
 Importing this module performs no physical effect.
 """
@@ -17,7 +18,7 @@ from __future__ import annotations
 import socket
 
 from high_level_timing import HighLevelTimingPolicy
-from physical_execution_domain import FLYING, PhysicalExecutionDomain
+from physical_execution_domain import FLYING, INACTIVE, PhysicalExecutionDomain
 from physical_program_sequence import PhysicalProgramSequence, PhysicalProgramSequenceError
 from post_reset_teacher_decision import PostResetTeacherDecisionChannel
 from powered_session_authority import (
@@ -30,6 +31,10 @@ from setpoint_hl_transport import SetpointHlTransportError, TrustedSetpointHlTra
 from supervisor_state import FreshSupervisorStateReader
 from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
+from terminal_landing_transport import (
+    TerminalLandingTransportError,
+    TrustedTerminalLandingTransport,
+)
 from yaw_observer import FreshYawObserver
 
 
@@ -130,10 +135,10 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted run controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    motion parameters.  It reserves only the next supported top-level move/turn
-    from the exact post-reset #267 binding through the integrated #295 sequence,
-    and keeps the #276 positive provenance path lexical to this adapter's
-    host-owned bridge.
+    motion or landing parameters. It reserves only the exact next supported
+    top-level move/turn or terminal land from the post-reset #267 binding through
+    the integrated sequence, while keeping the #276/#304 positive provenance
+    path lexical to this adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -148,7 +153,7 @@ def activate_validated_run(
 
     # Validate the complete exact-program envelope before any reset or physical
     # effect. In particular this inherits #295's exact terminal {kind: land}
-    # boundary instead of maintaining a second, weaker parser in #276.
+    # boundary instead of maintaining a second, weaker parser in the host.
     try:
         sequence = PhysicalProgramSequence(staged_binding.ast_binding)
     except PhysicalProgramSequenceError as exc:
@@ -338,14 +343,28 @@ def activate_validated_run(
                 raise SetpointHlTransportError(str(exc)) from exc
             return binding
 
+    class _HostBoundTerminalLandingTransport(TrustedTerminalLandingTransport):
+        def _read_current_binding(self) -> PhysicalRunBinding:
+            binding = self.teacher_binding
+            try:
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except PhysicalRunActivationError as exc:
+                raise TerminalLandingTransportError(str(exc)) from exc
+            return binding
+
     timing_policy = HighLevelTimingPolicy()
 
     class _ActivatedRunController:
-        __slots__ = ("_yaw_reader", "_transport")
+        __slots__ = ("_yaw_reader", "_transport", "_landing_transport")
 
         def __init__(self) -> None:
             self._yaw_reader = None
             self._transport = None
+            self._landing_transport = None
 
         @property
         def active_run(self):
@@ -371,6 +390,27 @@ def activate_validated_run(
             self._transport = transport
             return transport
 
+        def _ensure_landing_transport(self):
+            if self._landing_transport is not None:
+                return self._landing_transport
+            transport = _HostBoundTerminalLandingTransport(
+                program_sequence=sequence,
+                crazyflie=active_run.crazyflie,
+                execution_domain=active_run.execution_domain,
+                acknowledgement_domain=active_run.acknowledgement_domain,
+                safelink_guard=active_run.safelink_guard,
+                teacher_authorization=active_run.teacher_authorization,
+                powered_session=active_run.powered_session,
+                watchdog_guard=active_run.watchdog_guard,
+                supervisor_reader=active_run.supervisor_reader,
+            )
+            if transport.bound_connection_epoch != session.read_connection_epoch():
+                raise PhysicalRunActivationError(
+                    "#304 landing transport is not bound to the exact active host epoch"
+                )
+            self._landing_transport = transport
+            return transport
+
         def _ensure_yaw_reader(self):
             if self._yaw_reader is not None:
                 return self._yaw_reader
@@ -385,15 +425,80 @@ def activate_validated_run(
         def _release_or_poison_sequence(self, claim: object, reason: str) -> None:
             # Before-emission/definitive failures restore #273 to flying and are
             # retryable without advancing. Any other phase means an effect may
-            # have crossed the boundary or completion certainty was lost; #295
-            # must become terminal rather than manufacturing a retry.
+            # have crossed the boundary or completion certainty was lost; the
+            # exact sequence must become terminal rather than manufacture retry.
             if active_run.execution_domain.phase == FLYING:
                 sequence.release_unemitted(claim)
             else:
                 sequence.mark_ambiguous(claim, reason)
 
+        def _execute_terminal_landing(self, claim: object):
+            try:
+                result = self._ensure_landing_transport().send_terminal_landing(claim)
+            except Exception:
+                self._release_or_poison_sequence(
+                    claim,
+                    "terminal landing outcome is not definitively retryable",
+                )
+                raise
+
+            accepted = getattr(result, "accepted", None)
+            if accepted is True:
+                if active_run.execution_domain.phase != INACTIVE:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "accepted terminal landing did not causally become inactive",
+                    )
+                    raise PhysicalRunActivationError(
+                        "accepted terminal landing completion is not causally established"
+                    )
+                try:
+                    sequence.complete_landing(claim)
+                except Exception as exc:
+                    try:
+                        sequence.mark_ambiguous(
+                            claim,
+                            "physical landing completed but exact sequence completion failed",
+                        )
+                    except Exception:
+                        pass
+                    raise PhysicalRunActivationError(
+                        "terminal landing could not complete the exact program sequence"
+                    ) from exc
+            elif accepted is False:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "rejected terminal landing did not restore the flying phase",
+                    )
+                    raise PhysicalRunActivationError(
+                        "definitive terminal landing rejection did not restore physical state"
+                    )
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(
+                    claim,
+                    "trusted terminal landing transport returned an indeterminate result",
+                )
+                raise PhysicalRunActivationError(
+                    "trusted terminal landing transport returned no definitive acknowledgement"
+                )
+            return result
+
         def execute_next_inflight(self):
-            """Advance one exact AST move/turn; accepts no caller semantic data."""
+            """Advance one exact AST effect; accepts no caller semantic data."""
+            # Terminal landing has its own opaque sequence claim. Trying that
+            # reservation first is side-effect-free: before the final cursor it
+            # fails without creating a pending claim, after which ordinary #276
+            # motion reservation proceeds. At the final cursor it succeeds and
+            # the caller still supplies no landing semantics or authority.
+            try:
+                landing_claim = sequence.reserve_terminal_landing()
+            except PhysicalProgramSequenceError:
+                landing_claim = None
+            if landing_claim is not None:
+                return self._execute_terminal_landing(landing_claim)
+
             claim = sequence.reserve_next_motion()
             motion = sequence.motion_for_claim(claim)
             try:
