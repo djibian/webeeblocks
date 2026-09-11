@@ -122,7 +122,7 @@ def test_unsupported_or_malformed_next_statement_fails_closed() -> None:
         expect_error(domain.reserve_next_motion, "next")
 
 
-def test_exact_canonical_ast_and_takeoff_boundary_are_required() -> None:
+def test_exact_canonical_ast_and_flight_boundaries_are_required() -> None:
     noncanonical = '{"version":1,"semantics":"webeeblocks-ast-v1","program":[{"kind":"takeoff","height_m":0.8},{"kind":"land"}]}'
     expect_error(lambda: sequence.PhysicalProgramSequence(noncanonical), "canonical")
 
@@ -134,13 +134,22 @@ def test_exact_canonical_ast_and_takeoff_boundary_are_required() -> None:
     )
     expect_error(lambda: sequence.PhysicalProgramSequence(wrong_first), "begin")
 
+    wrong_last = canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "move", "direction": "forward", "distance_m": 0.3},
+            {"kind": "wait", "seconds": 1},
+        ]
+    )
+    expect_error(lambda: sequence.PhysicalProgramSequence(wrong_last), "end")
+
 
 def main() -> int:
     test_exact_order_and_claim_identity()
     test_caller_cannot_select_motion_or_index()
     test_ambiguous_effect_is_terminal()
     test_unsupported_or_malformed_next_statement_fails_closed()
-    test_exact_canonical_ast_and_takeoff_boundary_are_required()
+    test_exact_canonical_ast_and_flight_boundaries_are_required()
     print(
         "PASS exact physical-program sequencing derives the next in-flight motion from the "
         "teacher-bound canonical AST and advances only on causal completion"

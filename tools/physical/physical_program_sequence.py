@@ -2,15 +2,15 @@
 """Exact-AST sequencing state for trusted physical in-flight effects.
 
 The #287 takeoff consumer deliberately derives its effect from the first
-statement in the exact teacher-authorized canonical AST.  Later physical effects
+statement in the exact teacher-authorized canonical AST. Later physical effects
 must preserve that property: a bounded caller-selected motion is not equivalent
 to the next statement of the authorized program.
 
-This module provides the small non-effect state machine needed by #276.  It
+This module provides the small non-effect state machine needed by #276. It
 starts only after a caller has already established the first takeoff statement by
 other trusted means, reserves exactly the next top-level move/turn statement,
 and advances only after the trusted effect consumer reports definitive causal
-completion.  A rejected/unemitted attempt may be released without advancing;
+completion. A rejected/unemitted attempt may be released without advancing;
 an ambiguous emitted outcome makes the sequence terminal.
 
 It emits no CRTP command and accepts no caller-selected motion, program index,
@@ -53,7 +53,7 @@ class PhysicalProgramSequence:
 
     def __init__(self, ast_binding: str) -> None:
         # Reuse the exact canonical parser and first-statement validation already
-        # integrated for #289.  The return value is intentionally discarded: the
+        # integrated for #289. The return value is intentionally discarded: the
         # call proves that index 0 is the exact bounded takeoff statement.
         try:
             takeoff_command.derive_bound_takeoff_command(ast_binding)
@@ -64,6 +64,15 @@ class PhysicalProgramSequence:
         program = parsed["program"]
         if not isinstance(program, list):
             raise PhysicalProgramSequenceError("physical AST program is unavailable")
+        final_statement = program[-1]
+        if (
+            not isinstance(final_statement, dict)
+            or set(final_statement) != {"kind"}
+            or final_statement.get("kind") != "land"
+        ):
+            raise PhysicalProgramSequenceError(
+                "physical AST must end with the exact landing statement"
+            )
         self._ast_binding = ast_binding
         self._program = tuple(program)
         self._next_index = 1
@@ -125,7 +134,7 @@ class PhysicalProgramSequence:
                 )
                 # body_relative_move at yaw=0 maps left/right onto Y, so preserve
                 # the exact canonical scalar instead of reverse-engineering the
-                # target.  The call above is solely the authoritative validation.
+                # target. The call above is solely the authoritative validation.
                 del validated_distance
                 return SequencedInflightMotion(
                     index=index,
