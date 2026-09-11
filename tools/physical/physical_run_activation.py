@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Trusted #287 host adapter for one production causal physical run activation.
+"""Trusted host adapter for one production causal physical run activation.
 
 The running #283 host supplies the already host-validated profile/canonical-AST
 binding, its one live reset-aware #278 bridge, the distinct launcher-installed
-teacher socket and the shared #273 execution domain.  The generic takeoff
-lifecycle remains in ``production_takeoff_run``.  The exact canonical AST is
-validated against the integrated #295 sequencing boundary before any reset or
-flight effect; after the exact takeoff has causally completed, the same sequence
-owns each bounded #276 move/turn reservation and outcome.
+teacher socket and the shared #273 execution domain. The generic takeoff
+lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
+validated against the integrated sequencing boundary before any reset or flight
+effect; after exact takeoff has causally completed, the same sequence owns each
+bounded move/turn and the one terminal controlled landing.
 
 Importing this module performs no physical effect.
 """
@@ -16,8 +16,12 @@ from __future__ import annotations
 
 import socket
 
+from controlled_landing_transport import (
+    ControlledLandingTransportError,
+    TrustedControlledLandingTransport,
+)
 from high_level_timing import HighLevelTimingPolicy
-from physical_execution_domain import FLYING, PhysicalExecutionDomain
+from physical_execution_domain import FLYING, INACTIVE, PhysicalExecutionDomain
 from physical_program_sequence import PhysicalProgramSequence, PhysicalProgramSequenceError
 from post_reset_teacher_decision import PostResetTeacherDecisionChannel
 from powered_session_authority import (
@@ -26,7 +30,6 @@ from powered_session_authority import (
 )
 from production_takeoff_run import ProductionTakeoffRunController
 from serve_reference_capabilities import CurrentProgramPreflightEvidence
-from setpoint_hl_transport import SetpointHlTransportError, TrustedSetpointHlTransport
 from supervisor_state import FreshSupervisorStateReader
 from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
@@ -127,13 +130,12 @@ def activate_validated_run(
     execution_domain: PhysicalExecutionDomain,
     assertion_timeout_seconds: float = 1.0,
 ):
-    """Activate one exact host-validated run and return its trusted run controller.
+    """Activate one exact host-validated run and return its trusted controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    motion parameters.  It reserves only the next supported top-level move/turn
-    from the exact post-reset #267 binding through the integrated #295 sequence,
-    and keeps the #276 positive provenance path lexical to this adapter's
-    host-owned bridge.
+    semantic parameters. It reserves only the next exact top-level move/turn or
+    terminal land from the post-reset #267 binding and keeps every positive
+    provenance/effect path lexical to this adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -146,9 +148,6 @@ def activate_validated_run(
     if assertion_timeout_seconds <= 0:
         raise PhysicalRunActivationError("current-program assertion timeout must be positive")
 
-    # Validate the complete exact-program envelope before any reset or physical
-    # effect. In particular this inherits #295's exact terminal {kind: land}
-    # boundary instead of maintaining a second, weaker parser in #276.
     try:
         sequence = PhysicalProgramSequence(staged_binding.ast_binding)
     except PhysicalProgramSequenceError as exc:
@@ -325,7 +324,7 @@ def activate_validated_run(
                 "post-takeoff teacher run no longer matches the exact sequenced AST"
             )
 
-    class _HostBoundInflightTransport(TrustedSetpointHlTransport):
+    class _HostBoundInflightTransport(TrustedControlledLandingTransport):
         def _read_current_binding(self) -> PhysicalRunBinding:
             binding = self.teacher_binding
             try:
@@ -335,7 +334,7 @@ def activate_validated_run(
                     timeout_seconds=assertion_timeout_seconds,
                 )
             except PhysicalRunActivationError as exc:
-                raise SetpointHlTransportError(str(exc)) from exc
+                raise ControlledLandingTransportError(str(exc)) from exc
             return binding
 
     timing_policy = HighLevelTimingPolicy()
@@ -363,10 +362,11 @@ def activate_validated_run(
                 powered_session=active_run.powered_session,
                 watchdog_guard=active_run.watchdog_guard,
                 supervisor_reader=active_run.supervisor_reader,
+                connection_epoch_reader=session.read_connection_epoch,
             )
             if transport.bound_connection_epoch != session.read_connection_epoch():
                 raise PhysicalRunActivationError(
-                    "#276 transport is not bound to the exact active host epoch"
+                    "physical effect transport is not bound to the exact active host epoch"
                 )
             self._transport = transport
             return transport
@@ -383,72 +383,89 @@ def activate_validated_run(
             return reader
 
         def _release_or_poison_sequence(self, claim: object, reason: str) -> None:
-            # Before-emission/definitive failures restore #273 to flying and are
-            # retryable without advancing. Any other phase means an effect may
-            # have crossed the boundary or completion certainty was lost; #295
-            # must become terminal rather than manufacturing a retry.
             if active_run.execution_domain.phase == FLYING:
                 sequence.release_unemitted(claim)
             else:
                 sequence.mark_ambiguous(claim, reason)
 
         def execute_next_inflight(self):
-            """Advance one exact AST move/turn; accepts no caller semantic data."""
-            claim = sequence.reserve_next_motion()
-            motion = sequence.motion_for_claim(claim)
+            """Advance one exact AST effect; accepts no caller semantic data."""
+            terminal_landing = False
+            try:
+                claim = sequence.reserve_terminal_landing()
+                sequence.landing_for_claim(claim)
+                terminal_landing = True
+                motion = None
+            except PhysicalProgramSequenceError:
+                claim = sequence.reserve_next_motion()
+                motion = sequence.motion_for_claim(claim)
+
             try:
                 transport = self._ensure_transport()
-                if motion.kind == "move":
+                if terminal_landing:
+                    result = transport.send_controlled_landing()
+                elif motion is not None and motion.kind == "move":
                     result = transport.send_horizontal_move(
                         direction=motion.direction,
                         distance_m=motion.distance_m,
                         yaw_reader=self._ensure_yaw_reader(),
                         timing_policy=timing_policy,
                     )
-                elif motion.kind == "turn":
+                elif motion is not None and motion.kind == "turn":
                     result = transport.send_turn(
                         angle_deg=motion.angle_deg,
                         timing_policy=timing_policy,
                     )
                 else:
                     raise PhysicalRunActivationError(
-                        "reserved physical statement is outside the bounded #276 slice"
+                        "reserved physical statement is outside the bounded effect slice"
                     )
             except Exception:
                 self._release_or_poison_sequence(
                     claim,
-                    "in-flight effect outcome is not definitively retryable",
+                    "physical effect outcome is not definitively retryable",
                 )
                 raise
 
             accepted = getattr(result, "accepted", None)
             if accepted is True:
-                if active_run.execution_domain.phase != FLYING:
-                    sequence.mark_ambiguous(
-                        claim,
-                        "accepted in-flight effect did not causally return to flying",
-                    )
-                    raise PhysicalRunActivationError(
-                        "accepted in-flight effect completion is not causally established"
-                    )
-                sequence.complete_motion(claim)
+                if terminal_landing:
+                    if active_run.execution_domain.phase != INACTIVE:
+                        sequence.mark_ambiguous(
+                            claim,
+                            "accepted terminal landing did not causally establish inactive",
+                        )
+                        raise PhysicalRunActivationError(
+                            "accepted terminal landing completion is not causally established"
+                        )
+                    sequence.complete_landing(claim)
+                else:
+                    if active_run.execution_domain.phase != FLYING:
+                        sequence.mark_ambiguous(
+                            claim,
+                            "accepted in-flight effect did not causally return to flying",
+                        )
+                        raise PhysicalRunActivationError(
+                            "accepted in-flight effect completion is not causally established"
+                        )
+                    sequence.complete_motion(claim)
             elif accepted is False:
                 if active_run.execution_domain.phase != FLYING:
                     sequence.mark_ambiguous(
                         claim,
-                        "rejected in-flight effect did not restore the flying phase",
+                        "rejected physical effect did not restore the flying phase",
                     )
                     raise PhysicalRunActivationError(
-                        "definitive in-flight rejection did not restore physical state"
+                        "definitive physical rejection did not restore physical state"
                     )
                 sequence.release_unemitted(claim)
             else:
                 sequence.mark_ambiguous(
                     claim,
-                    "trusted in-flight transport returned an indeterminate result",
+                    "trusted physical transport returned an indeterminate result",
                 )
                 raise PhysicalRunActivationError(
-                    "trusted in-flight transport returned no definitive acknowledgement"
+                    "trusted physical transport returned no definitive acknowledgement"
                 )
             return result
 
