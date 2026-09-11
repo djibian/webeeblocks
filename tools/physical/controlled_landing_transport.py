@@ -124,25 +124,40 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
         baseline: landing_completion.PreLandingFlightEvidence | None = None
 
         with self.execution_domain.effect_transaction(self._assert_current_authority) as effect:
+            # Bind the pure command to a fresh host-owned current-program read,
+            # not merely to the earlier immutable teacher receipt.  The effect
+            # transaction has already performed its own authority reconstruction;
+            # this explicit binding is retained so a later final read can prove
+            # that no program change occurred while fresh supervisor evidence was
+            # being acquired.
+            initial_binding = self._read_current_binding()
+            self._assert_binding_authority(initial_binding)
             try:
                 bound_command = landing_command.derive_bound_landing_command(
-                    self.teacher_binding.ast_binding
+                    initial_binding.ast_binding
                 )
             except landing_command.LandingCommandError as exc:
                 raise ControlledLandingTransportError(str(exc)) from exc
+            if bound_command.ast_binding != initial_binding.ast_binding:
+                raise ControlledLandingTransportError(
+                    "derived landing command differs from current-program provenance"
+                )
             request = bytes(bound_command.request)
             packet = setpoint_hl_transport._default_packet_factory(request)
             self._validate_packet(packet, request)
 
-            final_binding = self._read_current_binding()
-            self._assert_binding_authority(final_binding)
-            if final_binding.ast_binding != bound_command.ast_binding:
-                raise ControlledLandingTransportError(
-                    "fresh current-program binding differs from landing command provenance"
-                )
+            # Fresh supervisor reads may block.  Reconstruct current-program
+            # provenance again afterwards, immediately before the SafeLink/ack
+            # effect boundary, so a workspace/program change during those reads
+            # cannot inherit the earlier authority.
             self._read_fresh_finished_flying()
             baseline = self._landing_observer.capture_pre_land_flight()
+            final_binding = self._read_current_binding()
             self._assert_binding_authority(final_binding)
+            if final_binding != initial_binding:
+                raise ControlledLandingTransportError(
+                    "current physical program changed during landing preparation"
+                )
             self._safelink.assert_ready()
 
             with self._ack.transaction(request) as acknowledgement:
