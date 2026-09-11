@@ -1,0 +1,1473 @@
+CHECKED: exact 2026.08 commit/blob and every S3 anchor matched once
+APPLIED: src/modules/src/estimator/estimator_ukf.c
+Lab parameters: ukf.surfaceRangeFlow, ukf.surfaceOffsetS3
+Lab logs: sensorFilter.flowRange/flowLocal/surfOffset/surfCand/surfClear/surfBaroD/surfCandInn/surfState/surfReason
+NO FLIGHT AUTHORITY: validate build, then props-off S3-A/S3-B/S3-C only
+Unable to find image 'bitcraze/builder:latest' locally
+latest: Pulling from bitcraze/builder
+39a945af8df2: Pulling fs layer
+ccf7b87befb5: Pulling fs layer
+a9d513d6f6d6: Pulling fs layer
+6032965cada9: Pulling fs layer
+5d71dfb0a4c3: Pulling fs layer
+dc2247aff994: Pulling fs layer
+c723d43264fb: Pulling fs layer
+b852a4090722: Pulling fs layer
+f0bc33eab28f: Pulling fs layer
+faadf03231f5: Pulling fs layer
+cb61e9234b75: Pulling fs layer
+2a4170ee054a: Pulling fs layer
+51efe4a4eb36: Pulling fs layer
+4bace66f3088: Pulling fs layer
+3131bba36bcd: Pulling fs layer
+4f6ded0199b0: Pulling fs layer
+d261afaf981c: Pulling fs layer
+e7df868274bf: Pulling fs layer
+aa4d995a885c: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+cb61e9234b75: Waiting
+2a4170ee054a: Waiting
+51efe4a4eb36: Waiting
+4bace66f3088: Waiting
+3131bba36bcd: Waiting
+4f6ded0199b0: Waiting
+d261afaf981c: Waiting
+e7df868274bf: Waiting
+aa4d995a885c: Waiting
+4f4fb700ef54: Waiting
+c723d43264fb: Waiting
+b852a4090722: Waiting
+f0bc33eab28f: Waiting
+faadf03231f5: Waiting
+5d71dfb0a4c3: Waiting
+6032965cada9: Waiting
+dc2247aff994: Waiting
+ccf7b87befb5: Verifying Checksum
+ccf7b87befb5: Download complete
+39a945af8df2: Verifying Checksum
+39a945af8df2: Download complete
+a9d513d6f6d6: Verifying Checksum
+a9d513d6f6d6: Download complete
+6032965cada9: Verifying Checksum
+6032965cada9: Download complete
+dc2247aff994: Verifying Checksum
+dc2247aff994: Download complete
+c723d43264fb: Verifying Checksum
+c723d43264fb: Download complete
+b852a4090722: Verifying Checksum
+b852a4090722: Download complete
+faadf03231f5: Verifying Checksum
+faadf03231f5: Download complete
+f0bc33eab28f: Verifying Checksum
+f0bc33eab28f: Download complete
+39a945af8df2: Pull complete
+cb61e9234b75: Verifying Checksum
+cb61e9234b75: Download complete
+2a4170ee054a: Verifying Checksum
+2a4170ee054a: Download complete
+4bace66f3088: Verifying Checksum
+4bace66f3088: Download complete
+51efe4a4eb36: Verifying Checksum
+51efe4a4eb36: Download complete
+5d71dfb0a4c3: Verifying Checksum
+5d71dfb0a4c3: Download complete
+d261afaf981c: Verifying Checksum
+d261afaf981c: Download complete
+4f6ded0199b0: Verifying Checksum
+4f6ded0199b0: Download complete
+aa4d995a885c: Download complete
+4f4fb700ef54: Verifying Checksum
+4f4fb700ef54: Download complete
+3131bba36bcd: Verifying Checksum
+3131bba36bcd: Download complete
+e7df868274bf: Verifying Checksum
+e7df868274bf: Download complete
+ccf7b87befb5: Pull complete
+a9d513d6f6d6: Pull complete
+6032965cada9: Pull complete
+5d71dfb0a4c3: Pull complete
+dc2247aff994: Pull complete
+c723d43264fb: Pull complete
+b852a4090722: Pull complete
+f0bc33eab28f: Pull complete
+faadf03231f5: Pull complete
+cb61e9234b75: Pull complete
+2a4170ee054a: Pull complete
+51efe4a4eb36: Pull complete
+4bace66f3088: Pull complete
+3131bba36bcd: Pull complete
+4f6ded0199b0: Pull complete
+d261afaf981c: Pull complete
+e7df868274bf: Pull complete
+aa4d995a885c: Pull complete
+4f4fb700ef54: Pull complete
+Digest: sha256:42b8363f7560bc696f7c6ef3680a68da810cbb16374acf3bc6e7ee39d1cd1fc7
+Status: Downloaded newer image for bitcraze/builder:latest
+make[1]: Entering directory '/module/build'
+  HOSTCC  scripts/basic/fixdep
+  GEN     ./Makefile
+  HOSTCC  scripts/kconfig/conf.o
+  SHIPPED scripts/kconfig/zconf.tab.c
+  SHIPPED scripts/kconfig/zconf.lex.c
+  SHIPPED scripts/kconfig/zconf.hash.c
+  HOSTCC  scripts/kconfig/zconf.tab.o
+  HOSTLD  scripts/kconfig/conf
+#
+# configuration written to .config
+#
+make[1]: Leaving directory '/module/build'
+Using build/.config as base
+Merging /tmp/s3-ukf-default.config
+Value of CONFIG_ESTIMATOR_AUTO_SELECT is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_ESTIMATOR_AUTO_SELECT=y
+New value: # CONFIG_ESTIMATOR_AUTO_SELECT is not set
+
+Value of CONFIG_ESTIMATOR_UKF_ENABLE is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: # CONFIG_ESTIMATOR_UKF_ENABLE is not set
+New value: CONFIG_ESTIMATOR_UKF_ENABLE=y
+
+Value of CONFIG_DECK_ACTIVE_MARKER is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_ACTIVE_MARKER=y
+New value: # CONFIG_DECK_ACTIVE_MARKER is not set
+
+Value of CONFIG_DECK_AI is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_AI=y
+New value: # CONFIG_DECK_AI is not set
+
+Value of CONFIG_DECK_BUZZ is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_BUZZ=y
+New value: # CONFIG_DECK_BUZZ is not set
+
+Value of CONFIG_DECK_LEDRING is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_LEDRING=y
+New value: # CONFIG_DECK_LEDRING is not set
+
+Value of CONFIG_DECK_LIGHTHOUSE is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_LIGHTHOUSE=y
+New value: # CONFIG_DECK_LIGHTHOUSE is not set
+
+Value of CONFIG_DECK_LOCO is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_LOCO=y
+New value: # CONFIG_DECK_LOCO is not set
+
+Value of CONFIG_DECK_MULTIRANGER is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_MULTIRANGER=y
+New value: # CONFIG_DECK_MULTIRANGER is not set
+
+Value of CONFIG_DECK_OA is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_OA=y
+New value: # CONFIG_DECK_OA is not set
+
+Value of CONFIG_DECK_USD is redefined by fragment /tmp/s3-ukf-default.config:
+Previous value: CONFIG_DECK_USD=y
+New value: # CONFIG_DECK_USD is not set
+
+#
+# merged configuration written to /module/build/.config (needs make)
+#
+make[1]: Entering directory '/module/build'
+  GEN     ./Makefile
+scripts/kconfig/conf  --olddefconfig Kconfig
+#
+# configuration written to .config
+#
+make[1]: Leaving directory '/module/build'
+tools/kbuild/Makefile.kbuild:147: warning: overriding recipe for target 'unit'
+Makefile:156: warning: ignoring old recipe for target 'unit'
+make[1]: Entering directory '/module/build'
+  GEN     ./Makefile
+scripts/kconfig/conf  --silentoldconfig Kconfig
+rake unit "DEFINES=-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -g3 -fno-math-errno -DARM_MATH_CM4 -D__FPU_PRESENT=1 -mfp16-format=ieee -Wno-array-bounds -Wno-stringop-overread -Wno-stringop-overflow -DSTM32F4XX -DSTM32F40_41xxx -DHSE_VALUE=8000000 -DUSE_STDPERIPH_DRIVER -Os -Werror -DUNITY_INCLUDE_DOUBLE" "FILES=" "UNIT_TEST_STYLE=min"
+(in /module)
+[30;39;22mRunning system tests...[0m
+Adding lib TEST_SUPPORT
+[30;39;22mDECKCTRL_GPIO: Setting GPIO pin 10 direction to output (byte=0xa5)[0m
+[30;32;22mtest/deck/api/test_deckctrl_gpio.c:53:testPin10DirectionUsesUpperBankAndPreservesOtherBits:PASS[0m
+[30;32;22mtest/deck/api/test_deckctrl_gpio.c:64:testPin11ValueUsesUpperBankAndPreservesOtherBits:PASS[0m
+[30;32;22mtest/deck/api/test_deckctrl_gpio.c:73:testPin3ReadUsesLowerBank:PASS[0m
+[30;32;22mtest/deck/api/test_deckctrl_gpio.c:82:testPin11ReadUsesUpperBank:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m4 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/backends/test_deck_backend_deckctrl.c:92:testDiscoveryPropagatesStableNulTerminatedBoardRevisionPerDeck:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m1 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Creating mock for deck_core...
+Creating mock for mem...
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/core/test_deck_memory.c:132:testFirstByteOfInfoIsVersion:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:143:testNoInstalledDecks:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:161:testTwoDecksWithoutMemorySupport:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:177:testOneDeckReadPrimarySupported:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:191:testOneDeckWritePrimarySupported:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:205:testOneDeckUpgradePrimarySupported:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:220:testOneDeckPrimaryStarted:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:234:testOneDeckRequiresPrimaryUpgrade:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:248:testOneDeckPrimaryInBootloaderMode:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:262:testOneDeckPrimaryNoSupportForCommands:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:274:testOneDeckPrimaryBitFieldSupportsResetToFw:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:288:testOneDeckPrimaryBitFieldSupportsResetToBootloader:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:302:testOneDeckPrimaryResetToFw:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:317:testSecondDeckSecondaryResetToBootloader:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:333:testCommandForNonExistingDeck:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:348:testOneDeckPrimaryFlashBinarySize:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:364:testOneDeckPrimaryFlashBinarySizeNoReceptorSet:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:378:testOneDeckSecondaryInfoNotSetByPrimary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:393:testOneDeckAtleastOneSecondaryInfoBitIsSet:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:411:testOneDeckRequiredHashPrimary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:428:testOneDeckRequiredLengthPrimary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:445:testBaseAddressSecondDeckPrimary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:463:testBaseAddressSecondDeckSecondary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:483:testNameFirstDeckPrimary:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:497:testReadOfFiveFirstBytes:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:515:testReadNotFromZero:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:530:testReadFromPrimaryDeckMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:547:testReadFromSecondaryDeckMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:565:testReadFromDeckWithoutReadFunction:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:580:testReadFromNonExistingDeck:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:592:testWriteToPrimaryDeckMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:609:testWriteToSecondaryDeckMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:627:testWriteToSecondDeckPrimaryMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:645:testWriteToSecondaryDeckMemoryPassesInMemDef:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:660:testWriteToSecondDeckSecondaryMemory:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:678:testWriteToDeckWithoutWriteFunction:PASS[0m
+[30;32;22mtest/deck/core/test_deck_memory.c:693:testWriteToNonExistingDeck:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m37 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:34:testFullSentPacket:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:65:testEscapedSendData:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:97:testExtractCorrectReceivePcktCommands:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:127:testReceivedData:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:166:testEscapedReceivedData:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:202:testWrongCommandRaisesError:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:232:testThatWeIgnoreLeadingGarbage:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:273:testThatWeDetectMissingEndMarker:PASS[0m
+[30;32;22mtest/deck/drivers/esp32/src/test_esp_slip.c:307:testThatTheBufferIsClearedBeforeWritingSomething:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m9 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:118:testFlashWriteRejectsEraseRangeOverflowBeforeSendingErase:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:130:testFirstFlashWriteErasesBeforeBufferedWrite:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:151:testFlashCompletedIsLatchedOnlyAfterSuccessfulFinalWrite:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:171:testFlashWriteRejectsChunkPastDeclaredImageWithoutSendingWrite:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:193:testResetFlashSessionClearsPartialBufferedWrite:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:226:testFailedFinalFlashWriteDoesNotDuplicateChunkOnRetry:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:254:testFailedThresholdFlashWriteDoesNotDuplicateChunkOnRetry:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:316:testEnterBootloaderSetsIspBaudrateBeforeReleasingReset:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:349:testEnterBootloaderInitializesUartBeforeSettingIspBaudrate:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:367:testEnterBootloaderSendsHandshakeUntilOk:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:390:testFlashWriteEncodesIspWriteCommandAndWaitsForAck:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_bootloader_uart_client_host.c:441:testFlashReadRejectsLengthMismatch:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m12 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_controller_host.c:29:testFirmwareBootWindowDrivesResetLowAndBootLow:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_controller_host.c:66:testBootloaderBootWindowDrivesResetLowAndBootHigh:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_controller_host.c:103:testReleaseBootWindowDrivesResetHigh:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m3 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;39;22mBCCAM: Incompatible bcCam deck revision: expected G, got <missing>[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_host.c:88:testMissingBoardRevisionIsRejectedWithoutHardwareOrProtocolSideEffects:PASS[0m
+[30;39;22mBCCAM: Incompatible bcCam deck revision: expected G, got F[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_host.c:94:testNonGBoardRevisionIsRejectedWithoutHardwareOrProtocolSideEffects:PASS[0m
+[30;39;22mBCCAM: bcCam deck initialized[0m
+[30;39;22mBCCAM: bcCam deck test passed[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_host.c:104:testRevisionGInitializesRevGPowerAndUartSelectMappings:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_host.c:121:testDeckPropertiesOnlyReportBootloaderActiveForReadyAndBusy:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m4 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_deck_memory_host.c:78:testDeckMemoryImageOffsetZeroReachesQccRomAsAddressZero:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m1 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:44:testEnterFirmwarePreservesOneMbaudOrderingAndStartsEstablishment:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:59:testFirmwareAdapterFailureFailStopsWithoutRetry:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:78:testSuccessfulFirmwareAdapterResultCompletesOneRuntimeFlush:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:88:testPollWritesEstablishExactlyOnceWithoutTransparentRetry:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:103:testClientRxFaultBeforeEstablishmentLeavesLinkInactive:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:114:testClientRxFaultWhileActiveEntersLinkFault:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:128:testClientRejectsInvalidRxEvents:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_firmware_uart_client_host.c:140:testSuspendInvalidatesSessionAndBinding:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m8 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:97:testEstablishAndCatalogRequestsMatchPinnedGoldenVectors:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:139:testCatalogStreamsDescriptorsAndBindsOpaqueControlHandle:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:160:testExperimentalControlIsDiscoveredButNotBound:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:175:testOnlyOneAcknowledgedRequestCanBePendingAndEstablishPreemptsIt:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:192:testBootNoticeClearsSessionBindingCreditsAndPendingUnits:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:226:testNegotiatedMtuAndPerServiceCreditAreEnforced:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:248:testMalformedDuplicateHandleDescriptorFaultsActiveLink:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:271:testEstablishmentRejectionStopsInactiveWithoutFault:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:325:testDuplicateContractIdsOnDifferentHandlesRemainValid:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:340:testAlreadySeenDescriptorRequestIsRefusedWithoutQueueingTraffic:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:355:testBootstrapPayloadBoundariesEightAndNine:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:368:testEstablishmentAcceptanceVersionAndMtuBoundaries:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:411:testGenericEstablishmentHelperRejectsUnsupportedCapabilities:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:431:testBothDefinedEstablishmentRejectionsLeaveLinkInactive:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:455:testDefaultCameraProfileRejectsAcceptedMtu63AndAccepts64:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:483:testCatalogCountZeroAndMaximumOrdinalHandleBoundaries:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:499:testMinimumAndMaximumContractIdLengthsAreAccepted:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:515:testInvalidDescriptorGrammarVersionCorrelationAndLengthFault:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:573:testKnownServiceCountRequestIsRefusedWithoutQueueingTraffic:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:589:testMalformedServiceCountTlvFaultsActiveLink:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:615:testUnknownPreCatalogCreditZeroFaultsWhenCountIsZero:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:627:testUnknownPreCatalogCreditNonzeroFaultsAfterFinalDescriptor:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:647:testKnownPreCatalogCreditHandleRemainsValidAfterFinalDescriptor:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:667:testCreditBoundariesAndForbiddenDecrease:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:690:testNonzeroBootNoticeTransactionFaultsActiveLink:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:699:testReestablishmentClearsPendingRxTxCreditAndCatalogState:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:735:testTransactionIdWrapSkipsZero:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:771:testRemainingPinnedIncomingFullFrameVectorsDecodeExactly:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_link_host.c:794:testPinnedMaximumNormalFrameEncodesAllPayloadBytes:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m29 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:104:testRuntimeEstablishesThenStreamsCatalogOneDescriptorAtATime:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:128:testControlZeroZeroStopsCleanlyAfterDiscoveryWithoutServiceBurst:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:152:testCreditArrivingBeforeDescriptorIsAppliedToDiscoveredBinding:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:171:testEmptyNormalUnitIsTransmittedExactlyOnce:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:195:testEmptyIncomingControlUnitIsMalformedAndRxCreditIsReplenished:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:239:testSynchronousTxFailureIsFailStopAndNeverRetriedDuringBootstrap:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:258:testSynchronousTxFailureIsFailStopAndNeverRetriedWhileActive:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:283:testBootNoticeTriggersFreshEstablishmentAndInvalidatesBinding:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:307:testCompleteRawPacketWithTrailingByteIsBadLengthAndFaultsActive:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_runtime_host.c:331:testCorruptActiveUartPacketEntersLinkFault:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m10 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_rx_collector_host.c:48:testCollectorDeliversFirstCompletePacketWithoutDroppingItForSynchronization:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_rx_collector_host.c:62:testCollectorScansPastGarbageAndPreservesPacketOrder:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_rx_collector_host.c:80:testCollectorReportsPhysicalUartError:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_rx_collector_host.c:87:testCollectorRejectsLengthBeyondImplementationLimit:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_rx_collector_host.c:95:testRejectedQueueEventReportsOverflow:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:75:testInitialStateIsUninitialized:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:80:testBootloaderIsActiveOnlyWhileReadyOrBusy:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:91:testCompatibleStartupBecomesFirmwareActive:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:100:testControlZeroZeroIncompatibilityStopsWithoutResetLoop:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:116:testIncompatibleSessionBootNoticeStartsFreshEstablishment:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:169:testCompatibleActiveBootNoticeMapsServiceToFreshEstablishment:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:183:testAbnormalLinkFaultRequestsExternalFirmwareRecovery:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:192:testRxFaultBeforeEstablishmentDoesNotCreateLinkFault:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:203:testBootloaderRequestRemainsAvailableFromIncompatibleState:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:213:testFlashWriteRequiresReadyBootloader:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:221:testPollFailureFormattingKeepsLinkDiagnostics:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:237:testRxFaultWhileLinkActiveMovesServiceToExternalRecovery:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:248:testRxFaultEventsAreIgnoredOutsideRxFirmwareStates:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:264:testRxFaultInTransportAttachedIncompatibleStateTriggersRecovery:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:280:testRxEventBatchPollsFirmwareOnceAfterDrain:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:295:testBootloaderAndFirmwareLifecycleRequestTransitions:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:315:testResetRequestRestartsAllFirmwareLifecycleStates:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:330:testServiceStatusSnapshotAndCacheTrackState:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:349:testBootloaderEntrySuspendsFirmwareSession:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:360:testStartupDeadlineEdgesAndPhaseDiagnostics:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:377:testIncompatibleAndReadyStartupDisableDeadlineRecovery:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:394:testPollFailureFormattingBoundariesRemainTerminated:PASS[0m
+[30;32;22mtest/deck/drivers/src/test_bccam_uart_service_host.c:414:testInactiveDiagnosticUsesFinalizedLifecycleName:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m23 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Creating mock for kalman_core...
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/kalman_core/test_mm_absolute_height.c:25:testThatCorrectValuesAreUsedInScalatUpdate:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m1 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Creating mock for kalman_core...
+Creating mock for outlierFilterTdoa...
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/kalman_core/test_mm_tdoa.c:29:testThatScalarUpdateIsCalledInSimpleCase:PASS[0m
+[30;32;22mtest/modules/src/kalman_core/test_mm_tdoa.c:62:testThatSampleWhereDroneIsInSamePositionAsAnchorIsIgnored:PASS[0m
+[30;32;22mtest/modules/src/kalman_core/test_mm_tdoa.c:85:testThatScalarUpdateIsNotCalledWhenTheOutlierFilterIsBlocking:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m3 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:25:testThatLhFilterLetsGoodSampleThroughWhenOpen:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:38:testThatLhFilterLetsBadSampleThroughWhenOpen:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:51:testThatLhFilterLetsGoodSampleThroughWhenClosed:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:64:testThatLhFilterBlocksBadSampleWhenClosed:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:77:testThatLhFilterOpensForManyBadSamples:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:93:testThatLhFilterOpensAfterInactivity:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:107:testThatLhFilterClosesAfterManyGoodSamples:PASS[0m
+[30;32;22mtest/modules/src/outlierfilter/test_outlierFilterLighthouse.c:124:testThatLhFilterOpensWithMixedSamples:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m8 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_axis3fSubSampler.c:20:testThatOneSampleIsUnchanged:PASS[0m
+[30;32;22mtest/modules/src/test_axis3fSubSampler.c:36:testThatSamplesAreAveraged:PASS[0m
+[30;32;22mtest/modules/src/test_axis3fSubSampler.c:54:testThatResultIsUnchangedWhenNoNewSamplesAreAccumulated:PASS[0m
+[30;32;22mtest/modules/src/test_axis3fSubSampler.c:70:testThatResultIsUpdatedWhenNewSamplesAreAccumulated:PASS[0m
+[30;32;22mtest/modules/src/test_axis3fSubSampler.c:87:testThatResultIsMultipliedWithConversionFactor:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_cpx.c:6:testCPXRoutingPackedFormat:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m1 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_kalman_supervisor.c:17:testThatStationaryInOriginIsAccepted:PASS[0m
+[30;32;22mtest/modules/src/test_kalman_supervisor.c:28:testThatPositionOutOfBoundsPositiveIsNotAccepted:PASS[0m
+[30;32;22mtest/modules/src/test_kalman_supervisor.c:40:testThatPositionOutOfBoundsNegativeIsNotAccepted:PASS[0m
+[30;32;22mtest/modules/src/test_kalman_supervisor.c:52:testThatVelocityOutOfBoundsPositiveIsNotAccepted:PASS[0m
+[30;32;22mtest/modules/src/test_kalman_supervisor.c:64:testThatVelocityOutOfBoundsNegativeIsNotAccepted:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_mem.c:38:testThatTheTestHandlerTypeIsRegistered:PASS[0m
+[30;32;22mtest/modules/src/test_mem.c:47:testTheNumberOfRegisteredHandlersForTheTestHandler:PASS[0m
+[30;32;22mtest/modules/src/test_mem.c:59:testThatTheTestHandlerReturnsExpectedData:PASS[0m
+[30;32;22mtest/modules/src/test_mem.c:72:testThatAHandlerCanBeRegistered:PASS[0m
+[30;32;22mtest/modules/src/test_mem.c:86:testRead:PASS[0m
+[30;32;22mtest/modules/src/test_mem.c:100:testWrite:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m6 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Creating mock for crtp...
+Creating mock for storage...
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_param_logic.c:97:testSetUint8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:112:testSetUint16:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:127:testSetUint32:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:142:testSetInt8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:157:testSetInt16:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:172:testSetInt32:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:188:testGetUint8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:202:testGetUint16:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:216:testGetUint32:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:230:testGetInt8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:244:testGetInt16:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:258:testGetInt32:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:272:testGetFloat:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:285:testPersistentSetGetFloat:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:303:testPersistentStoreByVarIdStoresPersistentParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:317:testPersistentStoreByVarIdRefusesNonPersistentParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:331:testPersistentStoreCrtpRefusesNonPersistentParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:350:testReadProcessUint8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:369:testWriteProcessUint8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:400:testPersistentGetStateWithStoredParameter:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:440:testPersistentGetStateWithShortStoredParameter:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:474:testPersistentGetStateWithoutStoredParameter:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:507:testPersistentGetStateWithNonExistingParameter:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:529:testGetDefaultValueV2_Success_Uint8:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:556:testGetDefaultValueV2_Success_Uint16:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:577:testGetDefaultValueV2_Success_Float:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:598:testGetDefaultValueV2_Success_WithGetter:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:620:testGetDefaultValueV2_Error_InvalidId:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:642:testGetDefaultValueV2_Error_ReadOnlyParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:666:testGetExtendedTypeV2_Success:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:690:testGetExtendedTypeV2_Error_InvalidId:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:712:testGetExtendedTypeV2_Error_NonExtendedParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:732:testGetExtendedTypeV2_UnambiguousFormat:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:767:testStorageInitRestoresPersistentParam:PASS[0m
+[30;32;22mtest/modules/src/test_param_logic.c:783:testStorageInitSkipsNonPersistentParam:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m35 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_pptraj.c:242:testFigure8Evaluation:PASS[0m
+[30;32;22mtest/modules/src/test_pptraj.c:278:testCompressedFigure8Evaluation:PASS[0m
+[30;32;22mtest/modules/src/test_pptraj.c:311:testCompressedFrameEvaluation:PASS[0m
+[30;32;22mtest/modules/src/test_pptraj.c:344:testCompressedSimplifiedFigure8Evaluation:PASS[0m
+[30;32;22mtest/modules/src/test_pptraj.c:378:testCompressedFigure8RandomOrderQueries:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:29:testTransitionWithNoConditionsTriggerAlways:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:46:testTransitionWithNoConditionsTriggerNever:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:63:testTransitionWithNoConditionsBlockAlways:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:80:testTransitionOneRequiredConditionMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:97:testTransitionOneRequiredConditionNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:114:testTransitionOneNegatedRequiredConditionNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:131:testTransitionOneNegatedRequiredConditionMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:148:testTransitionMultiRequiredConditionsMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:165:testTransitionMultiRequiredConditionsMetWithOtherBitsSet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:182:testTransitionMultiRequiredConditionsOneMissing:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:199:testTransitionMultiRequiredConditionsOneMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:216:testTransitionMultiRequiredConditionsNoneMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:233:testTransitionMultiNegatedRequiredConditionOneNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:250:testTransitionMultiNegatedRequiredConditionsMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:267:testTransitionMultiMixedRequiredConditionsAllMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:284:testTransitionMultiMixedRequiredConditionsOnePositiveNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:301:testTransitionMultiMixedRequiredConditionsOneNegativeNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:318:testTransitionMultiMixedOnePositiveRequirementMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:335:testTransitionMultiMixedNoRequirementMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:352:testTransitionMultiMixedOneNegativeRequirementMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:369:testTransitionMultiRequiredConditionsOneMissingButOtherBitsSet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:386:testTransitionOneProhibitedConditionMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:403:testTransitionOneProhibitedConditionNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:420:testTransitionOneProhibitedConditionNotMetWithOtherBitsSet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:437:testTransitionMultiProhibitedConditionsMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:454:testTransitionMultiProhibitedConditionsOneNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:471:testTransitionMultiProhibitedConditionsAllNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:488:testTransitionMultiProhibitedConditionsAllMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:505:testTransitionMultiNegativeProhibitedConditionsNoneMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:522:testTransitionMultiNegativeProhibitedConditionsOneMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:539:testTransitionMultiNegativeProhibitedConditionsOneNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:556:testTransitionMultiNegativeProhibitedConditionsAllMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:573:testTransitionMultiRequiredAndProhibitedConditionsMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:590:testTransitionMultiRequiredAndProhibitedConditionsOneRequiredNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:607:testTransitionMultiRequiredAndProhibitedConditionsOneProhibitedNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:624:testTransitionMultiRequiredAndProhibitedConditionsMultipleNotMet:PASS[0m
+[30;32;22mtest/modules/src/test_supervisor_state_machine.c:641:testFirstValidTransitionIsChosen:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m37 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/platform/test_platform.c:29:testThatDeviceTypeStringIsReturned:PASS[0m
+[30;32;22mtest/platform/test_platform.c:41:testThatDeviceTypeStringIsReturnedWithTrailingSemiColonAndKeyValues:PASS[0m
+[30;32;22mtest/platform/test_platform.c:53:testThatDeviceTypeStringIsReturnedWhenTypeIdentifierIsShorterThan4Chars:PASS[0m
+[30;32;22mtest/platform/test_platform.c:65:testThatDeviceTypeIsNotReturnedWhenTypeIdentifierIsTooLong:PASS[0m
+[30;32;22mtest/platform/test_platform.c:76:testThatDeviceTypeIsNotReturnedIfVersionIfNot0:PASS[0m
+[30;32;22mtest/platform/test_platform.c:87:testThatDeviceTypeIsNotReturnedIfSecondCharIsNotSemicolon:PASS[0m
+[30;32;22mtest/platform/test_platform.c:98:testThatFirstMatchingPlatformConfigIsReturned:PASS[0m
+[30;32;22mtest/platform/test_platform.c:112:testThatErrorIsReturnedWhenDeviceIsNotInConfig:PASS[0m
+[30;32;22mtest/platform/test_platform.c:123:testThatItIsNotSearchingOutsideListOfPlatformConfigs:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m9 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/platform/test_platform_stm32f4.c:26:testThatFirstBlockIsReturnedIfSet:PASS[0m
+[30;32;22mtest/platform/test_platform_stm32f4.c:39:testThatLAterBlockIsReturnedIfEarlierBlockAreCleared:PASS[0m
+[30;32;22mtest/platform/test_platform_stm32f4.c:55:testThatDefaultPlatformStringIsCF20IfNoInfoIsSet:PASS[0m
+[30;32;22mtest/platform/test_platform_stm32f4.c:66:testThatDefaultPlatformStringIsCF20IfAllBlocksAreCleared:PASS[0m
+[30;32;22mtest/platform/test_platform_stm32f4.c:79:testThatNoMoreThanTheBlockSizeIsCopiedIfTheBlockIsNotNullTerminated:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/kve/test_kve.c:115:testSetupKve:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve.c:124:testFetchEmpty:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve.c:134:testStoreAndReadFirstKeyValue:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve.c:152:testOneStoredForEach:PASS[0m
+[30;32;22mError: memory full!test/utils/src/kve/test_kve.c:165:testFullStorageForEach:PASS[0m
+[30;32;22mError: memory full!Error: memory full!test/utils/src/kve/test_kve.c:177:testStoreWhenMemoryIsFull:PASS[0m
+[30;32;22mError: memory full!test/utils/src/kve/test_kve.c:189:testRemoveAndStoreWhenMemoryIsFull:PASS[0m
+[30;32;22mError: memory full!Error: memory full!Error: memory full!test/utils/src/kve/test_kve.c:202:testRemoveAndStoreBiggerWhenMemoryIsFull:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve.c:217:testStorageStatistics:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve.c:238:testFragmentationStatisticsIncreaseWhenFragmented:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m10 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:57:testThatWriteItemDoesWriteTheItemAtTheRightAddress:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:76:testThatWriteHoleDoesWriteAHoleAtTheRightAddress:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:95:testThatWriteEndDoesWriteTheEndAtTheRightAddress:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:113:testThatMoveMemoryDoesMoveAnItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:133:testThatFindItemByKeyFindsAnItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:148:testThatFindItemByKeyDoNotFindAnItemWhenSearchingAfterIt:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:165:testThatFindItemByPrefixFindsAnItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:185:testThatFindItemByPrefixFindsNextItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:208:testThatFindEndFindsTheEnd:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:225:testThatFindEndReturnInvalidAddressIfNoEnd:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:240:testThatFindNextItemFindsTheNextItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:257:testThatFindNextItemReturnInvalidAddressIfNoMoreItem:PASS[0m
+[30;32;22mtest/utils/src/kve/test_kve_storage.c:274:testThatFindNextItemJumpsOverHoles:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m13 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Creating mock for clockCorrectionEngine...
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:49:testThatCurrentTimeIsSetInContextForGet:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:63:testThatCurrentTimeIsSetInContextForGetCreate:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:77:testThatNoAnchorIsReturnedWhenItDoesNotExistInStorage:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:93:testThatANewAnchorContextIsReturnedWhenItDoesNotExistInStorage:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:109:testThatTheSameAnchorContextIsReturnedWhenItAlreadyExistsInStorageForGet:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:129:testThatTheSameAnchorContextIsReturnedWhenItAlreadyExistsInStorageForGetCreate:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:149:testThatTheOldestAnchorContextIsReplacedWhenStorageIsFull:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:185:testThatAListOfAnchorIdsIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:212:testThatAListOfAnchorIdsIsReturnedButNotMoreThanTheListLength:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:239:testThatAListOfActiveAnchorIdsIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:275:testThatAListOfActiveAnchorIdsIsReturnedButNotMoreThanTheListLength:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:303:testThatAnchorPositionIsSetAndGet:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:331:testThatAnchorPositionIsNotReturnedWhenTooOld:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:354:testThatRxTxDataIsSet:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:375:testThatClockCorrectionIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:392:testThatRemoteRxTimeIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:410:testThatRemoteRxTimeIsNotReturnedWhenOutdated:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:433:testThatRemoteRxTimeIsNotReturnedForUnknownRemoteAnchor:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:448:testThatRemoteRxTimeIsOverwrittenWhenSetWithTheSameRemoteId:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:472:testThatRemoteRxTimeReplacesTheOldestEntryWhenStorageIsFull:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:510:testThatRemoteRxTimeAndSequenceNumberIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:531:testThatRemoteRxTimeAndSequenceNumberIsNotReturnedWhenNotInList:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:547:testThatAListOfSequenceNumbersAndIdsOfRemoteAnchorsIsReturned:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:591:testThatNoTimeOfFlightIsReturnedWhenRemoteAnchorIsNotInStorage:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:609:testThatTimeOfFlightIsReturnedWhenSet:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:627:testThatTimeOfFlightIsReturnedWhenSetASecondTime:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:648:testThatTofReplacesTheOldestEntryWhenStorageIsFull:PASS[0m
+[30;32;22mtest/utils/src/tdoa/test_tdoa_storage.c:686:testThatTimeOfFlightIsSet:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m28 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_buf2buf.c:56:testThatASmallInBufferIsNotFillingLargeOutBuffer:PASS[0m
+[30;32;22mtest/utils/src/test_buf2buf.c:68:testThatEqualSizeInAndOutBufferFillsOutBuffer:PASS[0m
+[30;32;22mtest/utils/src/test_buf2buf.c:80:testThatALargeInBufferFillsSmallerOutBuffer:PASS[0m
+[30;32;22mtest/utils/src/test_buf2buf.c:92:testThatMultipleSmallInBufferFillsOutBuffer:PASS[0m
+[30;32;22mtest/utils/src/test_buf2buf.c:108:testThatOutBufferWithDataReportsSizeWhenReleased:PASS[0m
+[30;32;22mtest/utils/src/test_buf2buf.c:125:testStdUseCaseWithVariousConfigurations:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m6 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_cf_math.c:5:testThatClip1ReturnsValueInRange:PASS[0m
+[30;32;22mtest/utils/src/test_cf_math.c:16:testThatClip1Returns1ForLargeValues:PASS[0m
+[30;32;22mtest/utils/src/test_cf_math.c:27:testThatClip1ReturnsMinus1ForNegativeLargeValues:PASS[0m
+[30;32;22mtest/utils/src/test_cf_math.c:38:testThatLimPosReturnsValueInRange:PASS[0m
+[30;32;22mtest/utils/src/test_cf_math.c:49:testThatLimPosReturnsZeroForNegativeValues:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m5 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_clock_correction.c:19:testGetClockCorrection:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:35:testCalculateClockCorrectionWithValidInputDataWithoutWrapAround:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:54:testCalculateClockCorrectionWithValidInputDataWithWrapAround:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:77:testCalculateClockCorrectionWithInvalidInputData:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:94:testUpdateClockCorrectionWithSampleInTheOuterLimitOfTheSpecs:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:116:testUpdateClockCorrectionWithSampleInTheInnerLimitOfTheSpecsWithEmptyBucket:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:138:testUpdateClockCorrectionWithSampleInTheOuterLimitOfTheAcceptableNoiseWithEmptyBucket:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:160:testUpdateClockCorrectionWithSampleInTheOuterLimitOfTheAcceptableNoiseWithNonEmptyBucket:PASS[0m
+[30;32;22mtest/utils/src/test_clock_correction.c:182:testUpdateClockCorrectionWithSampleInTheInnerLimitOfTheAcceptableNoise:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m9 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_eprintf.c:48:testThatTextIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:59:testThatTheNumberOfCharactersIsReturned:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:70:testThatStringIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:77:testThatIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:86:testThatIntIsPrinted2:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:95:testThatLongIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:104:testThatLongLongIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:113:testThatUnsignedIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:122:testThatLongUnsignedIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:131:testThatLongLongUnsignedIntIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:140:testThatHexIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:154:testThatHexIsPrinted2:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:163:testThatLongHexIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:173:testThatLongLongHexIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:182:testThatHexWithWidthIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:191:testThatDoubleIsPrintedWithRoundingErrors:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:201:testThatHexWithZeroPaddedWidthIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:210:testThatDoubleWithPrecisionIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:219:testThatCharIsPrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:229:testThatMultipleParamsArePrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:237:testThatAllIntTypesArePrinted:PASS[0m
+[30;32;22mtest/utils/src/test_eprintf.c:261:testThatPercentIsPrinted:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m22 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_num.c:17:testThatSingle2halfConvertsZero:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:30:testThatSingle2halfConvertsOne:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:43:testThatSingle2halfConvertsNegativeOne:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:56:testThatSingle2halfConvertsFractionalValue:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:69:testThatSingle2halfHandlesRoundingCarryIntoExponent:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:85:testThatSingle2halfConvertsMaxFiniteValue:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:98:testThatSingle2halfClampsPositiveOverflowToInfinity:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:111:testThatSingle2halfClampsNegativeOverflowToInfinity:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:124:testThatSingle2halfConvertsPositiveInfinity:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:137:testThatSingle2halfConvertsNegativeInfinity:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:150:testThatSingle2halfConvertsNaN:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:163:testThatSingle2halfFlushesTinyValueToZero:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:176:testThatLimitUint16NotLimitInRange:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:189:testThatLimitUint16LimitZero:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:202:testThatLimitUint16LimitMax:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:215:testThatConstrainDoesNotLimitInRange:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:228:testThatConstrainLimitsMin:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:242:testThatConstrainLimitsMax:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:256:testThatDeadbandInDeadbandPositive:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:270:testThatDeadbandInDeadbandNegative:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:284:testThatDeadbandOutsideDeadbandPositive:PASS[0m
+[30;32;22mtest/utils/src/test_num.c:298:testThatDeadbandOutsideDeadbandNegative:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m22 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_rateSupervisor.c:49:testThatValidationPassesBeforeEvaluation:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:58:testThatValidationPassesWhenCountIsWithinInterval:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:70:testThatValidationFailesWhenCountIsTooLow:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:80:testThatValidationPassesWhenCountIsTooHigh:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:94:testThatCounterIsResetAtEvaluation:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:110:testThatLatestCountIsStored:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:122:testThatValidationPassesWithSkip:PASS[0m
+[30;32;22mtest/utils/src/test_rateSupervisor.c:134:testThatValidationFailesAfterSkip:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m8 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+Adding lib TEST_SUPPORT
+[30;32;22mtest/utils/src/test_statsCnt.c:38:testThatRateCounterIsInitialized:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:55:testThatRateIsComputedWhenTimeSinceLastComputationIsLongerThanTheInterval:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:85:testThatRateNotIsComputedWhenTimeSinceLastComputationIsLessThanTheInterval:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:113:testThatRateLoggerIsInitialized:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:127:testThatRateLoggerIsInitializedInline:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:136:testThatStatsCntRateLoggerCanBeCastToLogByFunction:PASS[0m
+[30;32;22mtest/utils/src/test_statsCnt.c:150:testThatCounterIsIncreased:PASS[0m
+[30;39;22m[0m
+[30;39;22m-----------------------[0m
+[30;32;22m7 Tests 0 Failures 0 Ignored [0m
+[30;32;22mOK[0m
+make[1]: Leaving directory '/module/build'
+Makefile:224: warning: overriding recipe for target 'test_python'
+tools/kbuild/Makefile.kbuild:147: warning: ignoring old recipe for target 'test_python'
+swig -python -Isrc/modules/interface -Isrc/hal/interface -Isrc/utils/interface -Isrc/modules/interface/controller -Isrc/platform/interface -Isrc/modules/interface/outlierfilter -Isrc/modules/interface/kalman_core -o build/cffirmware_wrap.c bindings/cffirmware.i
+python3 bindings/setup.py build_ext --inplace
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from build/cffirmware_wrap.c:2791:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/src/controller/attitude_pid_controller.c:32:
+src/modules/interface/param.h:154:31: warning: ‘__params_pid_rate’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/attitude_pid_controller.c:385:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  385 | PARAM_GROUP_START(pid_rate)
+      | ^~~~~~~~~~~~~~~~~
+src/modules/interface/param.h:154:31: warning: ‘__params_pid_attitude’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/attitude_pid_controller.c:318:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  318 | PARAM_GROUP_START(pid_attitude)
+      | ^~~~~~~~~~~~~~~~~
+In file included from src/modules/src/controller/controller_brescianini.c:39:
+src/modules/interface/param.h:154:31: warning: ‘__params_ctrlAtt’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/controller_brescianini.c:412:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  412 | PARAM_GROUP_START(ctrlAtt)
+      | ^~~~~~~~~~~~~~~~~
+In file included from src/modules/src/controller/controller_mellinger.c:40:
+src/modules/interface/param.h:154:31: warning: ‘__params_ctrlMel’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/controller_mellinger.c:359:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  359 | PARAM_GROUP_START(ctrlMel)
+      | ^~~~~~~~~~~~~~~~~
+In file included from src/modules/src/controller/position_controller_pid.c:31:
+src/modules/interface/param.h:154:31: warning: ‘__params_posCtlPid’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/position_controller_pid.c:521:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  521 | PARAM_GROUP_START(posCtlPid)
+      | ^~~~~~~~~~~~~~~~~
+src/modules/interface/param.h:154:31: warning: ‘__params_velCtlPid’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/controller/position_controller_pid.c:462:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  462 | PARAM_GROUP_START(velCtlPid)
+      | ^~~~~~~~~~~~~~~~~
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/src/kalman_core/kalman_core.c:88:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/interface/kalman_core/mm_distance.h:28,
+                 from src/modules/src/kalman_core/mm_distance.c:26:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/interface/kalman_core/mm_flow.h:28,
+                 from src/modules/src/kalman_core/mm_flow.c:26:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/src/kalman_core/mm_flow.c:29:
+At top level:
+src/modules/interface/param.h:154:31: warning: ‘__params_flowdeck’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/kalman_core/mm_flow.c:141:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  141 | PARAM_GROUP_START(flowdeck)
+      | ^~~~~~~~~~~~~~~~~
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/interface/kalman_core/mm_pose.h:28,
+                 from src/modules/src/kalman_core/mm_pose.c:26:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/interface/kalman_core/mm_tdoa.h:28,
+                 from src/modules/src/kalman_core/mm_tdoa.c:26:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/interface/kalman_core/kalman_core.h:58,
+                 from src/modules/interface/kalman_core/mm_tof.h:28,
+                 from src/modules/src/kalman_core/mm_tof.c:26:
+src/utils/interface/cf_math.h: In function ‘assert_aligned_4_bytes’:
+src/utils/interface/cf_math.h:60:28: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+   60 |   const uint32_t address = (uint32_t)matrix->pData;
+      |                            ^
+In file included from src/modules/src/power_distribution_quadrotor.c:33:
+src/modules/interface/param.h:154:31: warning: ‘__params_powerDist’ defined but not used [-Wunused-const-variable=]
+  154 |   static const struct param_s __params_##NAME[] = { \
+      |                               ^~~~~~~~~
+src/modules/src/power_distribution_quadrotor.c:208:1: note: in expansion of macro ‘PARAM_GROUP_START’
+  208 | PARAM_GROUP_START(powerDist)
+      | ^~~~~~~~~~~~~~~~~
+cp cffirmware_setup.py build/setup.py
+make[1]: Entering directory '/module/build'
+make[1]: Nothing to be done for 'test_python'.
+make[1]: Leaving directory '/module/build'
+PYTHONPATH=build python3 -m pytest test_python
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /module
+collected 23 items
+
+test_python/test_cf_assert.py .                                          [  4%]
+test_python/test_controller_brescianini.py .                             [  8%]
+test_python/test_controller_lee.py .                                     [ 13%]
+test_python/test_controller_mellinger.py .                               [ 17%]
+test_python/test_controller_pid.py .                                     [ 21%]
+test_python/test_kalman_core.py ..                                       [ 30%]
+test_python/test_math3d.py ...                                           [ 43%]
+test_python/test_planner.py .                                            [ 47%]
+test_python/test_power_distribution.py ..........                        [ 91%]
+test_python/test_pptraj.py ..                                            [100%]
+
+============================== 23 passed in 0.66s ==============================
+make: Entering directory '/module'
+make[1]: Entering directory '/module/build'
+  Using .. as source for kernel
+  GEN     ./Makefile
+  CC      src/deck/api/deck_analog.o
+  CC      src/deck/api/deck_constants.o
+  CC      src/deck/api/deck_digital.o
+  CC      src/deck/api/deck_spi3.o
+  CC      src/deck/api/deck_spi.o
+  CC      src/deck/api/deckctrl_gpio.o
+  LD      src/deck/api/built-in.o
+  CC      src/deck/backends/deck_backend_onewire.o
+  CC      src/deck/backends/deck_backend_deckctrl.o
+  LD      src/deck/backends/built-in.o
+  CC      src/deck/core/deck_drivers.o
+  CC      src/deck/core/deck_discovery.o
+  CC      src/deck/core/deck_info.o
+  CC      src/deck/core/deck_memory.o
+  CC      src/deck/core/deck.o
+  CC      src/deck/core/deck_test.o
+  CC      src/deck/core/deckctrl_dfu_memory.o
+  CC      src/deck/core/deck_supervisor.o
+  LD      src/deck/core/built-in.o
+  CC      src/deck/drivers/src/test/exptest.o
+  CC      src/deck/drivers/src/test/exptestCfBl.o
+  CC      src/deck/drivers/src/test/exptestRR.o
+  CC      src/deck/drivers/src/test/exptestBolt11.o
+  CC      src/deck/drivers/src/test/radiotest.o
+  LD      src/deck/drivers/src/test/built-in.o
+  CC      src/deck/drivers/src/flowdeck_v1v2.o
+  CC      src/deck/drivers/src/zranger.o
+  CC      src/deck/drivers/src/zranger2.o
+  CC      src/deck/drivers/src/rpm.o
+  CC      src/deck/drivers/src/color_led_deck.o
+  CC      src/deck/drivers/src/bccam_deck.o
+  CC      src/deck/drivers/src/bccam_uart_crc.o
+  CC      src/deck/drivers/src/bccam_uart_frame.o
+  CC      src/deck/drivers/src/bccam_uart_link.o
+  CC      src/deck/drivers/src/bccam_uart_rx_collector.o
+  CC      src/deck/drivers/src/bccam_uart_runtime.o
+  CC      src/deck/drivers/src/bccam_deck_controller.o
+  CC      src/deck/drivers/src/bccam_bootloader_uart_client.o
+  CC      src/deck/drivers/src/bccam_firmware_uart_client.o
+  CC      src/deck/drivers/src/bccam_uart_service.o
+  LD      src/deck/drivers/src/built-in.o
+  LD      src/deck/built-in.o
+  CC      src/drivers/bosch/src/bmi055_accel.o
+  CC      src/drivers/bosch/src/bmi055_gyro.o
+  CC      src/drivers/bosch/src/bmi088_accel.o
+  CC      src/drivers/bosch/src/bmi088_fifo.o
+  CC      src/drivers/bosch/src/bmi088_gyro.o
+  CC      src/drivers/bosch/src/bmi160.o
+  CC      src/drivers/bosch/src/bmm150.o
+  CC      src/drivers/bosch/src/bmp280.o
+  CC      src/drivers/bosch/src/bmp3.o
+  CC      src/drivers/bosch/src/bstdr_comm_support.o
+  LD      src/drivers/bosch/src/built-in.o
+  CC      src/drivers/esp32/src/esp_rom_bootloader.o
+  CC      src/drivers/esp32/src/esp_slip.o
+  LD      src/drivers/esp32/src/built-in.o
+  CC      src/drivers/src/ak8963.o
+  CC      src/drivers/src/cppm.o
+  CC      src/drivers/src/eeprom.o
+  CC      src/drivers/src/exti.o
+  CC      src/drivers/src/fatfs_sd.o
+  CC      src/drivers/src/i2cdev.o
+  CC      src/drivers/src/i2c_drv.o
+  CC      src/drivers/src/led.o
+  CC      src/drivers/src/lh_bootloader.o
+  CC      src/drivers/src/lps25h.o
+  CC      src/drivers/src/maxsonar.o
+  CC      src/drivers/src/motors.o
+  CC      src/drivers/src/mpu6050.o
+  CC      src/drivers/src/mpu6500.o
+  CC      src/drivers/src/ms5611.o
+  CC      src/drivers/src/nvic.o
+  CC      src/drivers/src/pca9685.o
+  CC      src/drivers/src/piezo.o
+  CC      src/drivers/src/pmw3901.o
+  CC      src/drivers/src/swd.o
+  CC      src/drivers/src/uart1.o
+  CC      src/drivers/src/uart2.o
+  CC      src/drivers/src/uart_syslink.o
+  CC      src/drivers/src/vl53l0x.o
+  CC      src/drivers/src/vl53l1x.o
+  CC      src/drivers/src/watchdog.o
+  CC      src/drivers/src/ws2812_cf2.o
+  LD      src/drivers/src/built-in.o
+  LD      src/drivers/built-in.o
+  CC      src/hal/src/amg8833.o
+  CC      src/hal/src/buzzer.o
+  CC      src/hal/src/freeRTOSdebug.o
+  CC      src/hal/src/ledseq.o
+  CC      src/hal/src/ow_syslink.o
+  CC      src/hal/src/pca9555.o
+  CC      src/hal/src/pca95x4.o
+  CC      src/hal/src/pm_stm32f4.o
+  CC      src/hal/src/proximity.o
+  CC      src/hal/src/radiolink.o
+  CC      src/hal/src/sensors_bmi088_bmp3xx.o
+  CC      src/hal/src/sensors_bmi088_i2c.o
+  CC      src/hal/src/sensors_mpu9250_lps25h.o
+  CC      src/hal/src/sensors.o
+  CC      src/hal/src/storage.o
+  CC      src/hal/src/syslink.o
+  CC      src/hal/src/usb_bsp.o
+  CC      src/hal/src/usbd_desc.o
+  CC      src/hal/src/usblink.o
+  CC      src/hal/src/usb.o
+  CC      src/hal/src/usec_time.o
+  LD      src/hal/src/built-in.o
+  LD      src/hal/built-in.o
+  CC      src/init/main.o
+  AS      src/init/startup_stm32f40xx.o
+  LD      src/init/built-in.o
+  CC      src/lib/CMSIS/STM32F4xx/Source/system_stm32f4xx.o
+  CC      src/lib/FatFS/ff.o
+  CC      src/lib/FatFS/ffunicode.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_adc.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dbgmcu.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_exti.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_gpio.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_i2c.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_iwdg.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_misc.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rcc.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spi.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_syscfg.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_tim.o
+  CC      src/lib/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_usart.o
+  CC      src/lib/STM32_USB_Device_Library/Core/src/usbd_core.o
+  CC      src/lib/STM32_USB_Device_Library/Core/src/usbd_ioreq.o
+  CC      src/lib/STM32_USB_Device_Library/Core/src/usbd_req.o
+  CC      src/lib/STM32_USB_OTG_Driver/src/usb_core.o
+  CC      src/lib/STM32_USB_OTG_Driver/src/usb_dcd_int.o
+  CC      src/lib/STM32_USB_OTG_Driver/src/usb_dcd.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api_calibration.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api_core.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api_debug.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api_preset_modes.o
+  CC      src/lib/vl53l1/core/src/vl53l1_api_strings.o
+  CC      src/lib/vl53l1/core/src/vl53l1_core.o
+  CC      src/lib/vl53l1/core/src/vl53l1_core_support.o
+  CC      src/lib/vl53l1/core/src/vl53l1_error_strings.o
+  CC      src/lib/vl53l1/core/src/vl53l1_register_funcs.o
+  CC      src/lib/vl53l1/core/src/vl53l1_silicon_core.o
+  CC      src/lib/vl53l1/core/src/vl53l1_wait.o
+  LD      src/lib/built-in.o
+  CC      src/modules/src/app_channel.o
+  CC      src/modules/src/bootloader.o
+  CC      src/modules/src/collision_avoidance.o
+  CC      src/modules/src/commander.o
+  CC      src/modules/src/comm.o
+  CC      src/modules/src/console.o
+  CC      src/modules/src/crtp_supervisor.o
+  CC      src/modules/src/crtp_commander_generic.o
+  CC      src/modules/src/crtp_commander_high_level.o
+  CC      src/modules/src/crtp_commander.o
+  CC      src/modules/src/crtp_commander_rpyt.o
+  CC      src/modules/src/crtp_localization_service.o
+  CC      src/modules/src/crtp.o
+  CC      src/modules/src/crtpservice.o
+  CC      src/modules/src/esp_deck_flasher.o
+  CC      src/modules/src/eventtrigger.o
+  CC      src/modules/src/extrx.o
+  CC      src/modules/src/health.o
+  CC      src/modules/src/kalman_supervisor.o
+  CC      src/modules/src/axis3fSubSampler.o
+  CC      src/modules/src/led_deck_controller.o
+  CC      src/modules/src/log.o
+  CC      src/modules/src/mem.o
+  CC      src/modules/src/crtp_mem.o
+  CC      src/modules/src/msp.o
+  CC      src/modules/src/param_logic.o
+  CC      src/modules/src/param_task.o
+  CC      src/modules/src/peer_localization.o
+  CC      src/modules/src/planner.o
+  CC      src/modules/src/platformservice.o
+  CC      src/modules/src/power_distribution_quadrotor.o
+  CC      src/modules/src/pptraj_compressed.o
+  CC      src/modules/src/pptraj.o
+  CC      src/modules/src/queuemonitor.o
+  CC      src/modules/src/range.o
+  CC      src/modules/src/sensfusion6.o
+  CC      src/modules/src/serial_4way_avrootloader.o
+  CC      src/modules/src/serial_4way.o
+  CC      src/modules/src/sound_cf2.o
+  CC      src/modules/src/stabilizer.o
+  CC      src/modules/src/static_mem.o
+  CC      src/modules/src/supervisor.o
+  CC      src/modules/src/supervisor_state_machine.o
+  CC      src/modules/src/sysload.o
+  CC      src/modules/src/system.o
+  CC      src/modules/src/vcp_esc_passthrough.o
+  CC      src/modules/src/worker.o
+  CC      src/modules/src/i2c_dfu.o
+  CC      src/modules/src/controller/attitude_pid_controller.o
+  CC      src/modules/src/controller/controller_indi.o
+  CC      src/modules/src/controller/controller_mellinger.o
+  CC      src/modules/src/controller/controller.o
+  CC      src/modules/src/controller/controller_pid.o
+  CC      src/modules/src/controller/controller_brescianini.o
+  CC      src/modules/src/controller/position_controller_indi.o
+  CC      src/modules/src/controller/position_controller_pid.o
+  CC      src/modules/src/controller/controller_lee.o
+  LD      src/modules/src/controller/built-in.o
+  CC      src/modules/src/cpx/cpx_external_router.o
+  CC      src/modules/src/cpx/cpx_internal_router.o
+  CC      src/modules/src/cpx/cpx_uart_transport.o
+  CC      src/modules/src/cpx/cpxlink.o
+  CC      src/modules/src/cpx/cpx.o
+  LD      src/modules/src/cpx/built-in.o
+  CC      src/modules/src/estimator/estimator_complementary.o
+  CC      src/modules/src/estimator/estimator_kalman.o
+  CC      src/modules/src/estimator/estimator_ukf.o
+  CC      src/modules/src/estimator/estimator.o
+  CC      src/modules/src/estimator/position_estimator_altitude.o
+  LD      src/modules/src/estimator/built-in.o
+  CC      src/modules/src/kalman_core/kalman_core.o
+  CC      src/modules/src/kalman_core/mm_absolute_height.o
+  CC      src/modules/src/kalman_core/mm_distance.o
+  CC      src/modules/src/kalman_core/mm_distance_robust.o
+  CC      src/modules/src/kalman_core/mm_flow.o
+  CC      src/modules/src/kalman_core/mm_pose.o
+  CC      src/modules/src/kalman_core/mm_position.o
+  CC      src/modules/src/kalman_core/mm_sweep_angles.o
+  CC      src/modules/src/kalman_core/mm_tdoa.o
+  CC      src/modules/src/kalman_core/mm_tdoa_robust.o
+  CC      src/modules/src/kalman_core/mm_tof.o
+  CC      src/modules/src/kalman_core/mm_yaw_error.o
+  LD      src/modules/src/kalman_core/built-in.o
+  LD      src/modules/src/lighthouse/built-in.o
+  CC      src/modules/src/outlierfilter/outlierFilterTdoa.o
+  CC      src/modules/src/outlierfilter/outlierFilterLighthouse.o
+  LD      src/modules/src/outlierfilter/built-in.o
+  CC      src/modules/src/p2pDTR/DTR_handlers.o
+  CC      src/modules/src/p2pDTR/DTR_p2p_interface.o
+  CC      src/modules/src/p2pDTR/queueing.o
+  CC      src/modules/src/p2pDTR/token_ring.o
+  LD      src/modules/src/p2pDTR/built-in.o
+  LD      src/modules/src/built-in.o
+  LD      src/modules/built-in.o
+  CC      src/platform/src/platform_cf2.o
+  CC      src/platform/src/platform.o
+  CC      src/platform/src/platform_stm32f4.o
+  CC      src/platform/src/platform_utils.o
+  LD      src/platform/src/built-in.o
+  LD      src/platform/built-in.o
+  CC      src/utils/src/cfassert.o
+  CC      src/utils/src/clockCorrectionEngine.o
+  CC      src/utils/src/configblockeeprom.o
+  CC      src/utils/src/cpuid.o
+  CC      src/utils/src/crc32.o
+  CC      src/utils/src/debug.o
+  CC      src/utils/src/eprintf.o
+  CC      src/utils/src/buf2buf.o
+  CC      src/utils/src/filter.o
+  CC      src/utils/src/FreeRTOS-openocd.o
+  CC      src/utils/src/num.o
+  CC      src/utils/src/rateSupervisor.o
+  CC      src/utils/src/sleepus.o
+  CC      src/utils/src/statsCnt.o
+  CC      src/utils/src/kve/kve.o
+  CC      src/utils/src/kve/kve_storage.o
+  LD      src/utils/src/kve/built-in.o
+  LD      src/utils/src/lighthouse/built-in.o
+  LD      src/utils/src/tdoa/built-in.o
+  CC      src/utils/src/abort.o
+  CC      src/utils/src/malloc.o
+  CC      src/utils/src/pid.o
+python3 ../tools/make/versionTemplate.py --crazyflie-base .. ../src/utils/src/version.vtpl src/utils/src/version_gen.c
+fatal: No names found, cannot describe anything.
+  CC      src/utils/src/version_gen.o
+  LD      src/utils/src/version.o
+  LD      src/utils/src/built-in.o
+  LD      src/utils/built-in.o
+  LD      src/built-in.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_abs_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_abs_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_abs_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_abs_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_add_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_add_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_add_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_add_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_dot_prod_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_dot_prod_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_dot_prod_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_dot_prod_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_mult_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_mult_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_mult_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_mult_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_negate_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_negate_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_negate_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_negate_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_offset_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_offset_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_offset_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_offset_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_scale_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_scale_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_scale_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_scale_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_shift_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_shift_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_shift_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_sub_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_sub_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_sub_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/BasicMathFunctions/arm_sub_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/CommonTables/arm_common_tables.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/CommonTables/arm_const_structs.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_conj_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_conj_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_conj_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_dot_prod_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_dot_prod_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_dot_prod_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_squared_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_squared_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mag_squared_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_cmplx_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_cmplx_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_cmplx_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_real_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_real_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ComplexMathFunctions/arm_cmplx_mult_real_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_reset_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_reset_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_pid_reset_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_cos_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_cos_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_cos_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_sin_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_sin_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_sin_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_sqrt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FastMathFunctions/arm_sqrt_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_32x64_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_32x64_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df1_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df2T_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df2T_f64.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df2T_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_df2T_init_f64.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_stereo_df2T_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_biquad_cascade_stereo_df2T_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_fast_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_opt_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_fast_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_opt_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_partial_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_conv_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_fast_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_opt_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_opt_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_correlate_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_decimate_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_init_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_interpolate_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_lattice_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_init_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_fir_sparse_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_iir_lattice_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_norm_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/FilteringFunctions/arm_lms_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_add_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_add_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_add_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_cmplx_mult_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_cmplx_mult_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_cmplx_mult_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_inverse_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_inverse_f64.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_mult_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_mult_fast_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_mult_fast_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_mult_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_mult_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_scale_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_scale_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_scale_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_sub_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_sub_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_sub_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_trans_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_trans_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/MatrixFunctions/arm_mat_trans_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_max_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_max_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_max_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_max_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_mean_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_mean_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_mean_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_mean_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_min_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_min_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_min_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_min_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_power_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_power_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_power_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_power_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_rms_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_rms_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_rms_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_std_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_std_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_std_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_var_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_var_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/StatisticsFunctions/arm_var_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_copy_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_copy_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_copy_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_copy_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_fill_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_fill_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_fill_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_fill_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_float_to_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_float_to_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_float_to_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q15_to_float.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q15_to_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q15_to_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q31_to_float.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q31_to_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q31_to_q7.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q7_to_float.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q7_to_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/SupportFunctions/arm_q7_to_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_bitreversal2.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_bitreversal.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix2_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix4_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_cfft_radix8_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_dct4_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_fast_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_fast_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_init_f32.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_init_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_init_q31.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_q15.o
+  CC      vendor/CMSIS/CMSIS/DSP/Source/TransformFunctions/arm_rfft_q31.o
+  CC      vendor/FreeRTOS/event_groups.o
+  CC      vendor/FreeRTOS/list.o
+  CC      vendor/FreeRTOS/portable/GCC/ARM_CM4F/port.o
+  CC      vendor/FreeRTOS/portable/MemMang/heap_4.o
+  CC      vendor/FreeRTOS/queue.o
+  CC      vendor/FreeRTOS/tasks.o
+  CC      vendor/FreeRTOS/timers.o
+  CC      vendor/FreeRTOS/stream_buffer.o
+  CC      vendor/libdw1000/src/libdw1000.o
+  CC      vendor/libdw1000/src/libdw1000Spi.o
+  LD      vendor/built-in.o
+  LD      app_api/built-in.o
+  LD      firmware
+  COPY  cf2.hex
+  COPY  cf2.bin
+Build for the cf2 platform!
+fatal: No names found, cannot describe anything.
+Build 0:54f31e243a0b (NA) [1;31mMODIFIED[m
+Version extracted from git
+Flash |  248552/1032192 (24%),  783640 free | text: 240668, data: 7884, ccmdata: 0
+RAM   |   83416/131072  (64%),   47656 free | bss: 75532, data: 7884
+CCM   |   47940/65536   (73%),   17596 free | ccmbss: 47940, ccmdata: 0
+make[1]: Leaving directory '/module/build'
+make: Leaving directory '/module'
+[94m310[0m parameters and [92m484[0m log vars in elf
+PASS: exact Crazyflie 2026.08 S3 source applied and UKF-enabled cf2 firmware built.

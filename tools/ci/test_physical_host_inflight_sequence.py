@@ -27,14 +27,15 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def canonical_ast() -> str:
+def canonical_ast(final_statement: dict[str, object] | None = None) -> str:
+    final = {"kind": "land"} if final_statement is None else final_statement
     return json.dumps(
         {
             "program": [
                 {"height_m": 0.8, "kind": "takeoff"},
                 {"angle_deg": -25, "kind": "turn"},
                 {"direction": "forward", "distance_m": 0.3, "kind": "move"},
-                {"kind": "land"},
+                final,
             ],
             "semantics": "webeeblocks-ast-v1",
             "version": 1,
@@ -125,7 +126,7 @@ def read_line(stream) -> dict[str, object]:
     return value
 
 
-def run_host_sequence() -> list[dict[str, object]]:
+def run_host_sequence(ast_binding: str | None = None) -> list[dict[str, object]]:
     caller_host, caller_peer = socket.socketpair()
     caller_stream = caller_peer.makefile("r", encoding="utf-8")
     browser_read, browser_write = os.pipe()
@@ -166,7 +167,7 @@ def run_host_sequence() -> list[dict[str, object]]:
             "op": "validate-run-context",
             "requestId": "validate-1",
             "profileId": "activity-1",
-            "astBinding": canonical_ast(),
+            "astBinding": canonical_ast() if ast_binding is None else ast_binding,
             "connectionEpoch": "epoch-before",
         },
     )
@@ -231,7 +232,7 @@ def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
     move_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-move"]
     turn_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-turn"]
     require(
-        turn_events == [("inflight-turn", -25, "epoch-after")],
+        turn_events == [("inflight-turn", -25.0, "epoch-after")],
         "caller substitution must not change the exact first authorized effect",
     )
     require(
@@ -254,13 +255,32 @@ def test_actual_host_uses_exact_program_sequence_after_takeoff() -> None:
     require(("yaw-close", "epoch-after") in base.EVENTS, "host teardown closes #260 observer")
 
 
+def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    malformed = canonical_ast({"kind": "land", "extra": True})
+    replies = run_host_sequence(malformed)
+
+    require(replies[0] == {"executionAuthority": False, "ok": True, "requestId": "validate-1"}, "validation remains diagnostic before activation")
+    require(replies[2]["ok"] is False, "malformed terminal must make exact activation unavailable")
+    require(
+        ("transport-send", "epoch-after") not in base.EVENTS,
+        "malformed terminal must be rejected by #295 before the takeoff effect",
+    )
+    require(
+        not any(isinstance(event, tuple) and event[0] in {"inflight-turn", "inflight-move"} for event in base.EVENTS),
+        "malformed terminal must never be skipped into an in-flight effect",
+    )
+
+
 def main() -> int:
     test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_uses_exact_program_sequence_after_takeoff()
+    test_actual_host_rejects_malformed_terminal_before_takeoff()
     print(
         "PASS actual physical host sequencing: validate/activation handoff is race-free; "
-        "successful takeoff hands the same run/epoch to exact-AST turn/move execution; "
-        "#260 yaw opens only for horizontal motion"
+        "successful takeoff hands the same run/epoch to shared #295 exact-AST turn/move execution; "
+        "#260 yaw opens only for horizontal motion; malformed landing boundaries fail before takeoff"
     )
     return 0
 

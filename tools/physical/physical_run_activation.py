@@ -4,11 +4,10 @@
 The running #283 host supplies the already host-validated profile/canonical-AST
 binding, its one live reset-aware #278 bridge, the distinct launcher-installed
 teacher socket and the shared #273 execution domain.  The generic takeoff
-lifecycle remains in ``production_takeoff_run``.  After that exact takeoff has
-causally completed, this adapter also owns the bounded #276 in-flight cursor:
-its SETPOINT_HL transport closes over the same host-owned bridge and derives each
-eligible move/turn from the exact #267 canonical AST rather than caller-selected
-motion data.
+lifecycle remains in ``production_takeoff_run``.  The exact canonical AST is
+validated against the integrated #295 sequencing boundary before any reset or
+flight effect; after the exact takeoff has causally completed, the same sequence
+owns each bounded #276 move/turn reservation and outcome.
 
 Importing this module performs no physical effect.
 """
@@ -18,8 +17,8 @@ from __future__ import annotations
 import socket
 
 from high_level_timing import HighLevelTimingPolicy
-from inflight_program_sequence import ExactInflightProgramSequence
-from physical_execution_domain import PhysicalExecutionDomain
+from physical_execution_domain import FLYING, PhysicalExecutionDomain
+from physical_program_sequence import PhysicalProgramSequence, PhysicalProgramSequenceError
 from post_reset_teacher_decision import PostResetTeacherDecisionChannel
 from powered_session_authority import (
     TrustedPoweredSessionFactory,
@@ -131,9 +130,10 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted run controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    motion parameters.  It derives only the next supported top-level move/turn
-    from the exact post-reset #267 binding and keeps the #276 positive provenance
-    path lexical to this adapter's host-owned bridge.
+    motion parameters.  It reserves only the next supported top-level move/turn
+    from the exact post-reset #267 binding through the integrated #295 sequence,
+    and keeps the #276 positive provenance path lexical to this adapter's
+    host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -145,6 +145,16 @@ def activate_validated_run(
         raise PhysicalRunActivationError("distinct trusted teacher socket is required")
     if assertion_timeout_seconds <= 0:
         raise PhysicalRunActivationError("current-program assertion timeout must be positive")
+
+    # Validate the complete exact-program envelope before any reset or physical
+    # effect. In particular this inherits #295's exact terminal {kind: land}
+    # boundary instead of maintaining a second, weaker parser in #276.
+    try:
+        sequence = PhysicalProgramSequence(staged_binding.ast_binding)
+    except PhysicalProgramSequenceError as exc:
+        raise PhysicalRunActivationError(
+            "teacher-bound physical program cannot enter exact sequencing"
+        ) from exc
 
     begin_replacement = getattr(bridge, "begin_post_reset_replacement", None)
     install_replacement = getattr(bridge, "install_post_reset_session", None)
@@ -307,6 +317,13 @@ def activate_validated_run(
             raise PhysicalRunActivationError(
                 "causal takeoff completed without an active physical run bundle"
             )
+    if sequence.ast_binding != active_run.teacher_authorization.binding.ast_binding:
+        try:
+            controller.shutdown()
+        finally:
+            raise PhysicalRunActivationError(
+                "post-takeoff teacher run no longer matches the exact sequenced AST"
+            )
 
     class _HostBoundInflightTransport(TrustedSetpointHlTransport):
         def _read_current_binding(self) -> PhysicalRunBinding:
@@ -321,7 +338,6 @@ def activate_validated_run(
                 raise SetpointHlTransportError(str(exc)) from exc
             return binding
 
-    sequence = ExactInflightProgramSequence(active_run.teacher_authorization.binding)
     timing_policy = HighLevelTimingPolicy()
 
     class _ActivatedRunController:
@@ -366,15 +382,75 @@ def activate_validated_run(
             self._yaw_reader = reader
             return reader
 
+        def _release_or_poison_sequence(self, claim: object, reason: str) -> None:
+            # Before-emission/definitive failures restore #273 to flying and are
+            # retryable without advancing. Any other phase means an effect may
+            # have crossed the boundary or completion certainty was lost; #295
+            # must become terminal rather than manufacturing a retry.
+            if active_run.execution_domain.phase == FLYING:
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(claim, reason)
+
         def execute_next_inflight(self):
             """Advance one exact AST move/turn; accepts no caller semantic data."""
-            effect_kind = sequence.next_effect_kind
-            yaw_reader = self._ensure_yaw_reader() if effect_kind == "move" else None
-            return sequence.execute_next(
-                self._ensure_transport(),
-                yaw_reader=yaw_reader,
-                timing_policy=timing_policy,
-            )
+            claim = sequence.reserve_next_motion()
+            motion = sequence.motion_for_claim(claim)
+            try:
+                transport = self._ensure_transport()
+                if motion.kind == "move":
+                    result = transport.send_horizontal_move(
+                        direction=motion.direction,
+                        distance_m=motion.distance_m,
+                        yaw_reader=self._ensure_yaw_reader(),
+                        timing_policy=timing_policy,
+                    )
+                elif motion.kind == "turn":
+                    result = transport.send_turn(
+                        angle_deg=motion.angle_deg,
+                        timing_policy=timing_policy,
+                    )
+                else:
+                    raise PhysicalRunActivationError(
+                        "reserved physical statement is outside the bounded #276 slice"
+                    )
+            except Exception:
+                self._release_or_poison_sequence(
+                    claim,
+                    "in-flight effect outcome is not definitively retryable",
+                )
+                raise
+
+            accepted = getattr(result, "accepted", None)
+            if accepted is True:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "accepted in-flight effect did not causally return to flying",
+                    )
+                    raise PhysicalRunActivationError(
+                        "accepted in-flight effect completion is not causally established"
+                    )
+                sequence.complete_motion(claim)
+            elif accepted is False:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "rejected in-flight effect did not restore the flying phase",
+                    )
+                    raise PhysicalRunActivationError(
+                        "definitive in-flight rejection did not restore physical state"
+                    )
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(
+                    claim,
+                    "trusted in-flight transport returned an indeterminate result",
+                )
+                raise PhysicalRunActivationError(
+                    "trusted in-flight transport returned no definitive acknowledgement"
+                )
+            return result
 
         def shutdown(self) -> None:
             yaw_error = None
