@@ -300,7 +300,10 @@ def materialize(
 
 def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
     repo_root = repo_root.resolve()
-    evidence_dir = evidence_dir.resolve()
+    lexical_evidence_dir = evidence_dir.absolute()
+    if lexical_evidence_dir.is_symlink():
+        raise EvidenceError("evidence directory symlink is forbidden")
+    evidence_dir = lexical_evidence_dir.resolve()
     if not evidence_dir.is_dir():
         raise EvidenceError(f"evidence directory does not exist: {evidence_dir}")
     try:
@@ -311,6 +314,15 @@ def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
     metadata_path = evidence_dir / "EVIDENCE.json"
     manifest_path = evidence_dir / "MANIFEST.sha256"
     attributes_path = evidence_dir / ".gitattributes"
+    bundled_profile_path = evidence_dir / "PROFILE.json"
+    for path, label in (
+        (metadata_path, "EVIDENCE.json"),
+        (manifest_path, "MANIFEST.sha256"),
+        (attributes_path, ".gitattributes"),
+        (bundled_profile_path, "PROFILE.json"),
+    ):
+        if path.is_symlink() or not path.is_file():
+            raise EvidenceError(f"{label} must be a real regular file")
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -388,13 +400,21 @@ def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
     expected_registry = (PROFILE_ROOT / f"{profile_id}.json").as_posix()
     if profile_meta["registry_path"] != expected_registry:
         raise EvidenceError("profile registry path binding mismatch")
+    registered_profile, registered_profile_sha, registered_profile_raw = load_profile(
+        repo_root, profile_id
+    )
     try:
-        bundled_profile_raw = (evidence_dir / "PROFILE.json").read_bytes()
+        bundled_profile_raw = bundled_profile_path.read_bytes()
         bundled_profile = json.loads(bundled_profile_raw.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise EvidenceError("bundled PROFILE.json is missing or invalid") from exc
     if sha256_bytes(bundled_profile_raw) != profile_meta["sha256"]:
         raise EvidenceError("bundled PROFILE.json digest mismatch")
+    if (
+        bundled_profile_raw != registered_profile_raw
+        or profile_meta["sha256"] != registered_profile_sha
+    ):
+        raise EvidenceError("bundled PROFILE.json does not match registered profile")
     if not isinstance(bundled_profile, dict):
         raise EvidenceError("bundled PROFILE.json must be an object")
     unknown = set(bundled_profile) - PROFILE_KEYS
@@ -423,7 +443,7 @@ def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
         or bundled_profile["max_total_bytes"] <= 0
     ):
         raise EvidenceError("bundled PROFILE.json contract mismatch")
-    profile = bundled_profile
+    profile = registered_profile
 
     try:
         attributes = attributes_path.read_text(encoding="utf-8")
@@ -463,8 +483,8 @@ def verify(*, repo_root: Path, evidence_dir: Path) -> dict[str, object]:
 
     raw_root = evidence_dir / "raw"
     actual_paths: list[str] = []
-    if not raw_root.is_dir():
-        raise EvidenceError("raw evidence directory is missing")
+    if raw_root.is_symlink() or not raw_root.is_dir():
+        raise EvidenceError("raw evidence directory must be a real directory")
     for path in raw_root.rglob("*"):
         if path.is_symlink():
             raise EvidenceError(f"raw evidence symlink is forbidden: {path}")
