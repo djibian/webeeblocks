@@ -338,11 +338,19 @@ justified by the current evidence.
   estimate from IMU/barometer evidence that excludes suspect ToF can bound
   `delta z` tightly enough that `delta h = delta z_ind - delta c` distinguishes
   terrain, true vertical motion and a mixed event
-- next proof: reanalyse the existing #180/#236/#251 archives before collecting
-  new physical data. Verify provenance/hashes and available columns, use the raw
-  barometer plus IMU/attitude when present, quantify uncertainty/latency, and
-  compare the same frozen calculation across stationary, terrain, vertical and
-  mixed controls with an independent metric reference where one exists
+- archived-input result: #292 made the retained #180/#236/#251 text accessible;
+  the [input audit](../experiments/crazyflie-ukf-surface-range/evidence/analysis-2026-09-11/README.md)
+  verifies all 94 retained files. No CSV contains continuous raw barometer or
+  accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
+  or measured mixed case is retained. Inactive/conditional diagnostics cannot
+  substitute for these inputs. The independent-displacement proof is UNPROVEN
+- next proof: prepare the missing acquisition and frozen offline calculation
+  support for one bounded props-off information checkpoint, using the existing
+  #251 firmware and unchanged parameters. Verify live log availability, timing,
+  independent metric reference and durable raw publication before requesting it;
+  then compare the same calculation across stationary, terrain, vertical and
+  mixed cases, with explicit uncertainty/latency. The firmware already declares
+  the missing sensor logs; an estimator patch is not justified to obtain them
 - falsification boundary: the current #70 review uses at most 5 cm displacement
   error and at most 1 s after transition end as bounded experimental criteria,
   not classifier thresholds or flight acceptance. A valid counterexample

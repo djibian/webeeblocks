@@ -1,0 +1,2101 @@
+{
+  "boundary": "Header presence is not signal validity, metric ground truth or acceptance. No imputation, estimator fitting, confidence interval or physical verdict.",
+  "checkpoints": [
+    {
+      "archive_digest_previously_published": false,
+      "checkpoint": 180,
+      "csv_files": 36,
+      "csv_inventory": [
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.distPred",
+            "sensorFilter.distMeas",
+            "sensorFilter.baroHeight",
+            "sensorFilter.innoChFlow_x",
+            "sensorFilter.innoChFlow_y",
+            "sensorFilter.innoChTof"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baroHeight": {
+              "distinct_values": 1,
+              "finite_samples": 1115,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/filter.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "event",
+            "cf_timestamp_ms_nearest",
+            "host_monotonic_s"
+          ],
+          "excluded_from_physical_verdict": false,
+          "markers": [
+            {
+              "cf_timestamp_ms_nearest": "92795",
+              "event": "START",
+              "host_monotonic_s": "1886.409487"
+            },
+            {
+              "cf_timestamp_ms_nearest": "115095",
+              "event": "END",
+              "host_monotonic_s": "1908.688841"
+            }
+          ],
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/markers.csv",
+          "rows": 2
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.deltaX",
+            "motion.deltaY",
+            "motion.shutter",
+            "motion.squal"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/motion_a.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.outlierCount",
+            "motion.motion",
+            "motion.std"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/motion_b.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "range.zrange",
+            "stabilizer.roll",
+            "stabilizer.pitch"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/range_attitude.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "stateEstimate.x",
+            "stateEstimate.y",
+            "stateEstimate.z",
+            "stateEstimate.vx",
+            "stateEstimate.vy",
+            "stateEstimate.vz"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/state.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.flowRange",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfClear"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22281.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_a.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfBefore",
+            "sensorFilter.surfAfter",
+            "sensorFilter.surfDelta",
+            "sensorFilter.surfSign"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_b.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfN",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfState",
+            "sensorFilter.surfReason"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 88,
+              "finite_samples": 1115,
+              "maximum": 0.032810211181640625,
+              "minimum": -0.4265098571777344
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 22280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-A/surface_c.csv",
+          "rows": 1115
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.distPred",
+            "sensorFilter.distMeas",
+            "sensorFilter.baroHeight",
+            "sensorFilter.innoChFlow_x",
+            "sensorFilter.innoChFlow_y",
+            "sensorFilter.innoChTof"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baroHeight": {
+              "distinct_values": 1,
+              "finite_samples": 1000,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 19980.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/filter.csv",
+          "rows": 1000
+        },
+        {
+          "columns": [
+            "event",
+            "cf_timestamp_ms_nearest",
+            "host_monotonic_s"
+          ],
+          "excluded_from_physical_verdict": false,
+          "markers": [
+            {
+              "cf_timestamp_ms_nearest": "132551",
+              "event": "START",
+              "host_monotonic_s": "1926.129531"
+            },
+            {
+              "cf_timestamp_ms_nearest": "152555",
+              "event": "END",
+              "host_monotonic_s": "1946.128638"
+            }
+          ],
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/markers.csv",
+          "rows": 2
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.deltaX",
+            "motion.deltaY",
+            "motion.shutter",
+            "motion.squal"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 19980.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/motion_a.csv",
+          "rows": 1000
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.outlierCount",
+            "motion.motion",
+            "motion.std"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 19980.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/motion_b.csv",
+          "rows": 1000
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "range.zrange",
+            "stabilizer.roll",
+            "stabilizer.pitch"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 20000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/range_attitude.csv",
+          "rows": 1001
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "stateEstimate.x",
+            "stateEstimate.y",
+            "stateEstimate.z",
+            "stateEstimate.vx",
+            "stateEstimate.vy",
+            "stateEstimate.vz"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 19980.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/state.csv",
+          "rows": 1000
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.flowRange",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfClear"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 20000.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_a.csv",
+          "rows": 1001
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfBefore",
+            "sensorFilter.surfAfter",
+            "sensorFilter.surfDelta",
+            "sensorFilter.surfSign"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 20000.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_b.csv",
+          "rows": 1001
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfN",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfState",
+            "sensorFilter.surfReason"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 172,
+              "finite_samples": 1001,
+              "maximum": 0.683502197265625,
+              "minimum": -0.8147354125976562
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 20000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-B/surface_c.csv",
+          "rows": 1001
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.distPred",
+            "sensorFilter.distMeas",
+            "sensorFilter.baroHeight",
+            "sensorFilter.innoChFlow_x",
+            "sensorFilter.innoChFlow_y",
+            "sensorFilter.innoChTof"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baroHeight": {
+              "distinct_values": 1,
+              "finite_samples": 1582,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31620.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/filter.csv",
+          "rows": 1582
+        },
+        {
+          "columns": [
+            "event",
+            "cf_timestamp_ms_nearest",
+            "host_monotonic_s"
+          ],
+          "excluded_from_physical_verdict": false,
+          "markers": [
+            {
+              "cf_timestamp_ms_nearest": "183748",
+              "event": "START",
+              "host_monotonic_s": "1977.290764"
+            },
+            {
+              "cf_timestamp_ms_nearest": "215395",
+              "event": "END",
+              "host_monotonic_s": "2008.922094"
+            }
+          ],
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/markers.csv",
+          "rows": 2
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.deltaX",
+            "motion.deltaY",
+            "motion.shutter",
+            "motion.squal"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/motion_a.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.outlierCount",
+            "motion.motion",
+            "motion.std"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/motion_b.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "range.zrange",
+            "stabilizer.roll",
+            "stabilizer.pitch"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/range_attitude.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "stateEstimate.x",
+            "stateEstimate.y",
+            "stateEstimate.z",
+            "stateEstimate.vx",
+            "stateEstimate.vy",
+            "stateEstimate.vz"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31620.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/state.csv",
+          "rows": 1582
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.flowRange",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfClear"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_a.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfBefore",
+            "sensorFilter.surfAfter",
+            "sensorFilter.surfDelta",
+            "sensorFilter.surfSign"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_b.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfN",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfState",
+            "sensorFilter.surfReason"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 167,
+              "finite_samples": 1583,
+              "maximum": 0.497589111328125,
+              "minimum": -0.5413398742675781
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 31640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/S3-C/surface_c.csv",
+          "rows": 1583
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.distPred",
+            "sensorFilter.distMeas",
+            "sensorFilter.baroHeight",
+            "sensorFilter.innoChFlow_x",
+            "sensorFilter.innoChFlow_y",
+            "sensorFilter.innoChTof"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baroHeight": {
+              "distinct_values": 1,
+              "finite_samples": 751,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/filter.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "event",
+            "cf_timestamp_ms_nearest",
+            "host_monotonic_s"
+          ],
+          "excluded_from_physical_verdict": false,
+          "markers": [
+            {
+              "cf_timestamp_ms_nearest": "62095",
+              "event": "START",
+              "host_monotonic_s": "1855.728856"
+            },
+            {
+              "cf_timestamp_ms_nearest": "77126",
+              "event": "END",
+              "host_monotonic_s": "1870.744344"
+            }
+          ],
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/markers.csv",
+          "rows": 2
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.deltaX",
+            "motion.deltaY",
+            "motion.shutter",
+            "motion.squal"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/motion_a.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "motion.outlierCount",
+            "motion.motion",
+            "motion.std"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/motion_b.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "range.zrange",
+            "stabilizer.roll",
+            "stabilizer.pitch"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/range_attitude.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "stateEstimate.x",
+            "stateEstimate.y",
+            "stateEstimate.z",
+            "stateEstimate.vx",
+            "stateEstimate.vy",
+            "stateEstimate.vz"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15020.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/state.csv",
+          "rows": 752
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.flowRange",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfClear"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_a.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfBefore",
+            "sensorFilter.surfAfter",
+            "sensorFilter.surfDelta",
+            "sensorFilter.surfSign"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_b.csv",
+          "rows": 751
+        },
+        {
+          "columns": [
+            "cf_timestamp_ms",
+            "host_monotonic_s",
+            "sensorFilter.surfN",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfState",
+            "sensorFilter.surfReason"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 751,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "cf_timestamp_ms",
+            "duration_ms": 15000.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-173b7c5-bundle/results-20ms/calibration/surface_c.csv",
+          "rows": 751
+        }
+      ],
+      "excluded_csv_files": 0,
+      "independent_displacement": "UNPROVEN",
+      "manifest_sha256": "4b9a6cfe64581fb36d533955cbcd47a9c526ae774f6b98d6c33c9cc89a123846",
+      "missing_observed_columns": {
+        "accelerometer": [
+          "acc.x",
+          "acc.y",
+          "acc.z"
+        ],
+        "attitude_diagnostic": [],
+        "barometer": [
+          "baro.asl",
+          "baro.pressure",
+          "baro.temp"
+        ],
+        "gyroscope": [
+          "gyro.x",
+          "gyro.y",
+          "gyro.z"
+        ]
+      },
+      "omissions": [],
+      "source_archive_sha256": "7b13d7d6e8cd69b1cfd95451f61af2063797bc2716b3648b625c27c8caac122d",
+      "source_issue_comment": "https://github.com/djibian/webeeblocks/issues/180#issuecomment-5586166222",
+      "source_json_sha256": "3d1b48bb2c17e1ea0331ac4a6ca3215fc1ca2519cf856e095fa55c02b5e80073",
+      "verified_files": 50
+    },
+    {
+      "archive_digest_previously_published": true,
+      "checkpoint": 236,
+      "csv_files": 14,
+      "csv_inventory": [
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 17900.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/excluded/S3_CORE_236-20260908T22-35-57.csv",
+          "rows": 896
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 874,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 17460.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/excluded/S3_DETECTOR_236-20260908T22-35-57.csv",
+          "rows": 874
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 21760.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-16-14.csv",
+          "rows": 1089
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 26680.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-20-53.csv",
+          "rows": 1335
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 22780.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-26-25.csv",
+          "rows": 1140
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19820.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-28-49.csv",
+          "rows": 992
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25120.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-38-15.csv",
+          "rows": 1257
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25880.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_CORE_236-20260908T22-43-38.csv",
+          "rows": 1295
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 1107,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 22120.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-16-15.csv",
+          "rows": 1107
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 79,
+              "finite_samples": 1329,
+              "maximum": 0.1093606948852539,
+              "minimum": -0.3991670608520508
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 26560.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-20-53.csv",
+          "rows": 1329
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 36,
+              "finite_samples": 1060,
+              "maximum": 0.1421680450439453,
+              "minimum": -0.21325397491455078
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 21180.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-26-25.csv",
+          "rows": 1060
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 990,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19780.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-28-50.csv",
+          "rows": 990
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 1227,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 24520.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-38-15.csv",
+          "rows": 1227
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 133,
+              "finite_samples": 1288,
+              "maximum": 0.5194635391235352,
+              "minimum": -0.22965764999389648
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25740.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/S3-8561ec3-checkpoint-236-evidence/valid/S3_DETECTOR_236-20260908T22-43-39.csv",
+          "rows": 1288
+        }
+      ],
+      "excluded_csv_files": 2,
+      "independent_displacement": "UNPROVEN",
+      "manifest_sha256": "998801f09180726585524caf883ec9a123efb34107ab0c0a6a9fe74dbd724c69",
+      "missing_observed_columns": {
+        "accelerometer": [
+          "acc.x",
+          "acc.y",
+          "acc.z"
+        ],
+        "attitude_diagnostic": [
+          "stabilizer.roll",
+          "stabilizer.pitch"
+        ],
+        "barometer": [
+          "baro.asl",
+          "baro.pressure",
+          "baro.temp"
+        ],
+        "gyroscope": [
+          "gyro.x",
+          "gyro.y",
+          "gyro.z"
+        ]
+      },
+      "omissions": [
+        {
+          "bytes": 104135,
+          "path": "S3-8561ec3-checkpoint-236-evidence/original/S3-8561ec3-results.tar.gz",
+          "reason": "non-UTF-8/binary",
+          "sha256": "46affd93964a358c10d9cc7344de41ad6af1f97d49012a1c030c5b9c80d38b44"
+        }
+      ],
+      "source_archive_sha256": "d47dd2b4e83e87c3fd8fa5576f720355a858879ac0d0c27550831dbcaaf1fccb",
+      "source_issue_comment": "https://github.com/djibian/webeeblocks/issues/236#issuecomment-5591721995",
+      "source_json_sha256": "f234a08fc0f4e4b67ff4bbcee163bd38ed00a161ad99ca939bef6bffb9cbb225",
+      "verified_files": 16
+    },
+    {
+      "archive_digest_previously_published": true,
+      "checkpoint": 251,
+      "csv_files": 26,
+      "csv_inventory": [
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 26120.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/S3_CORE_236-20260909T15-32-57.csv",
+          "rows": 1307
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 178,
+              "finite_samples": 1311,
+              "maximum": 0.39643287658691406,
+              "minimum": -0.2651996612548828
+            }
+          },
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 26200.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/S3_DETECTOR_236-20260909T15-32-57.csv",
+          "rows": 1311
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAgeD",
+            "sensorFilter.baroLagD",
+            "sensorFilter.baroSeenD",
+            "sensorFilter.tofAgeD",
+            "sensorFilter.vzDec"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25840.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/X3_DECISION-20260909T15-32-59.csv",
+          "rows": 1293
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge0",
+            "sensorFilter.baroLag0",
+            "sensorFilter.baroSeen0",
+            "sensorFilter.tofAge0",
+            "sensorFilter.vz0"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25380.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/X3_ENTRY-20260909T15-32-59.csv",
+          "rows": 1270
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baro0",
+            "sensorFilter.baroDDec",
+            "sensorFilter.baroDec",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baro0": {
+              "distinct_values": 1,
+              "finite_samples": 1262,
+              "maximum": 0.5212669372558594,
+              "minimum": 0.5212669372558594
+            },
+            "sensorFilter.baroDec": {
+              "distinct_values": 1,
+              "finite_samples": 1262,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25220.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/X3_EVIDENCE-20260909T15-33-00.csv",
+          "rows": 1262
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge",
+            "sensorFilter.baroLag",
+            "sensorFilter.baroSeen",
+            "sensorFilter.lateElig",
+            "sensorFilter.tofAge"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.lateElig": {
+              "distinct_values": 1,
+              "finite_samples": 1271,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": true,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 25400.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/00_precheck_excluded/X3_NOW-20260909T15-33-01.csv",
+          "rows": 1271
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 18480.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/01_calibration_valid/S3_CORE_236-20260909T15-43-16.csv",
+          "rows": 925
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 1,
+              "finite_samples": 907,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 18120.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/01_calibration_valid/S3_DETECTOR_236-20260909T15-43-17.csv",
+          "rows": 907
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 18600.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/S3_CORE_236-20260909T17-14-00.csv",
+          "rows": 931
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfOffset",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 129,
+              "finite_samples": 888,
+              "maximum": 0.30074214935302734,
+              "minimum": -0.2023172378540039
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 17740.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/S3_DETECTOR_236-20260909T17-14-01.csv",
+          "rows": 888
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAgeD",
+            "sensorFilter.baroLagD",
+            "sensorFilter.baroSeenD",
+            "sensorFilter.tofAgeD",
+            "sensorFilter.vzDec"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 16100.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/X3_DECISION-20260909T17-14-02.csv",
+          "rows": 806
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge0",
+            "sensorFilter.baroLag0",
+            "sensorFilter.baroSeen0",
+            "sensorFilter.tofAge0",
+            "sensorFilter.vz0"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 15240.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/X3_ENTRY-20260909T17-14-03.csv",
+          "rows": 763
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baro0",
+            "sensorFilter.baroDDec",
+            "sensorFilter.baroDec",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baro0": {
+              "distinct_values": 3,
+              "finite_samples": 715,
+              "maximum": 0.7462234497070312,
+              "minimum": 0.0
+            },
+            "sensorFilter.baroDec": {
+              "distinct_values": 1,
+              "finite_samples": 715,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 14280.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/X3_EVIDENCE-20260909T17-14-03.csv",
+          "rows": 715
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge",
+            "sensorFilter.baroLag",
+            "sensorFilter.baroSeen",
+            "sensorFilter.lateElig",
+            "sensorFilter.tofAge"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.lateElig": {
+              "distinct_values": 1,
+              "finite_samples": 664,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 13260.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A1/X3_NOW-20260909T17-14-04.csv",
+          "rows": 664
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 16700.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/S3_CORE_236-20260909T17-24-24.csv",
+          "rows": 836
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfClear",
+            "sensorFilter.surfN",
+            "sensorFilter.surfOffset"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 116,
+              "finite_samples": 840,
+              "maximum": 0.17771053314208984,
+              "minimum": -0.33628368377685547
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 16780.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/S3_DETECTOR_236-20260909T17-24-24.csv",
+          "rows": 840
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAgeD",
+            "sensorFilter.baroLagD",
+            "sensorFilter.baroSeenD",
+            "sensorFilter.tofAgeD",
+            "sensorFilter.vzDec"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 16640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/X3_DECISION-20260909T17-24-25.csv",
+          "rows": 833
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge0",
+            "sensorFilter.baroLag0",
+            "sensorFilter.baroSeen0",
+            "sensorFilter.tofAge0",
+            "sensorFilter.vz0"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 16940.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/X3_ENTRY-20260909T17-24-26.csv",
+          "rows": 848
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baro0",
+            "sensorFilter.baroDDec",
+            "sensorFilter.baroDec",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baro0": {
+              "distinct_values": 3,
+              "finite_samples": 867,
+              "maximum": 0.0,
+              "minimum": -0.16376972198486328
+            },
+            "sensorFilter.baroDec": {
+              "distinct_values": 1,
+              "finite_samples": 867,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 17320.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/X3_EVIDENCE-20260909T17-24-26.csv",
+          "rows": 867
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge",
+            "sensorFilter.baroLag",
+            "sensorFilter.baroSeen",
+            "sensorFilter.lateElig",
+            "sensorFilter.tofAge"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.lateElig": {
+              "distinct_values": 1,
+              "finite_samples": 873,
+              "maximum": 0.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 17440.0,
+            "max_step_ms": 21.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A2/X3_NOW-20260909T17-24-26.csv",
+          "rows": 873
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "range.zrange",
+            "sensorFilter.innoChTof",
+            "stateEstimate.vz",
+            "stateEstimate.z"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 21060.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/S3_CORE_236-20260909T17-30-49.csv",
+          "rows": 1054
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.flowLocal",
+            "sensorFilter.surfBaroD",
+            "sensorFilter.surfCand",
+            "sensorFilter.surfCandInn",
+            "sensorFilter.surfClear",
+            "sensorFilter.surfN",
+            "sensorFilter.surfOffset"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.surfBaroD": {
+              "distinct_values": 146,
+              "finite_samples": 1053,
+              "maximum": 0.2187213897705078,
+              "minimum": -0.47025108337402344
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 21040.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/S3_DETECTOR_236-20260909T17-30-50.csv",
+          "rows": 1053
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAgeD",
+            "sensorFilter.baroLagD",
+            "sensorFilter.baroSeenD",
+            "sensorFilter.tofAgeD",
+            "sensorFilter.vzDec"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19880.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/X3_DECISION-20260909T17-30-50.csv",
+          "rows": 995
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge0",
+            "sensorFilter.baroLag0",
+            "sensorFilter.baroSeen0",
+            "sensorFilter.tofAge0",
+            "sensorFilter.vz0"
+          ],
+          "diagnostic_probes": {},
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19680.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/X3_ENTRY-20260909T17-30-51.csv",
+          "rows": 985
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baro0",
+            "sensorFilter.baroDDec",
+            "sensorFilter.baroDec",
+            "sensorFilter.surfReason",
+            "sensorFilter.surfState"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.baro0": {
+              "distinct_values": 3,
+              "finite_samples": 983,
+              "maximum": 0.0,
+              "minimum": -0.12953853607177734
+            },
+            "sensorFilter.baroDec": {
+              "distinct_values": 47,
+              "finite_samples": 983,
+              "maximum": 0.08918285369873047,
+              "minimum": -0.45488643646240234
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19640.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/X3_EVIDENCE-20260909T17-30-51.csv",
+          "rows": 983
+        },
+        {
+          "columns": [
+            "Timestamp",
+            "sensorFilter.baroAge",
+            "sensorFilter.baroLag",
+            "sensorFilter.baroSeen",
+            "sensorFilter.lateElig",
+            "sensorFilter.tofAge"
+          ],
+          "diagnostic_probes": {
+            "sensorFilter.lateElig": {
+              "distinct_values": 2,
+              "finite_samples": 981,
+              "maximum": 1.0,
+              "minimum": 0.0
+            }
+          },
+          "excluded_from_physical_verdict": false,
+          "log_clock": {
+            "boundary": "log timestamps, not per-sensor producer timestamps",
+            "column": "Timestamp",
+            "duration_ms": 19600.0,
+            "max_step_ms": 20.0,
+            "median_step_ms": 20.0,
+            "nonincreasing_steps": 0
+          },
+          "nonfinite_cells": 0,
+          "path": "raw/A3/X3_NOW-20260909T17-30-52.csv",
+          "rows": 981
+        }
+      ],
+      "excluded_csv_files": 6,
+      "independent_displacement": "UNPROVEN",
+      "manifest_sha256": "da74bf84fd73e4c4c6438ef53eaf48c9abd38721a5682c37e20eee0c6da89a9b",
+      "missing_observed_columns": {
+        "accelerometer": [
+          "acc.x",
+          "acc.y",
+          "acc.z"
+        ],
+        "attitude_diagnostic": [
+          "stabilizer.roll",
+          "stabilizer.pitch"
+        ],
+        "barometer": [
+          "baro.asl",
+          "baro.pressure",
+          "baro.temp"
+        ],
+        "gyroscope": [
+          "gyro.x",
+          "gyro.y",
+          "gyro.z"
+        ]
+      },
+      "omissions": [],
+      "source_archive_sha256": "996a79be8783de18ad26e8687322cc9ef7ff2bda1fa8331f4320f3389dd00ba7",
+      "source_issue_comment": "https://github.com/djibian/webeeblocks/issues/251#issuecomment-5604542710",
+      "source_json_sha256": "a8876546abf12d168ac41b1290cf5fcb7ee743c7946fb542606db61f2923d64f",
+      "verified_files": 28
+    }
+  ],
+  "schema": "webeeblocks.x3.archived-input-inventory.v1",
+  "scope": "retained text import from #292; original binary archives not re-fetched"
+}

@@ -4,6 +4,12 @@ Byte-for-byte UTF-8 copies of the owner-attached checkpoint archives, accessible
 through ordinary Git clones and GitHub file reads. No attachment download is
 needed to inspect the retained CSV data.
 
+The [11 September input audit](analysis-2026-09-11/README.md) verifies all 94
+retained files and establishes the next #70 boundary: continuous raw barometer,
+accelerometer/gyroscope samples and an independent metric reference are absent.
+The independent-displacement question is UNPROVEN from these archives; the
+inactive/conditional barometer diagnostics must not substitute for those inputs.
+
 | Checkpoint | Text files | CSV files | Archive SHA-256 provenance |
 | --- | ---: | ---: | --- |
 | [#180](https://github.com/djibian/webeeblocks/issues/180) | 50 | 36 | Observed digest; no prior archive digest was published |
