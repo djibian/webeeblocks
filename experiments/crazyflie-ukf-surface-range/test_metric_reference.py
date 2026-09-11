@@ -5,6 +5,7 @@ import copy
 from fractions import Fraction
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -180,6 +181,17 @@ class FileTests(unittest.TestCase):
             self.write()
             with self.assertRaises(ValueError):
                 subject.run(self.path)
+
+    def test_hard_link_cannot_alias_barometer_as_external_reference(self):
+        alias = self.root / "reference-hardlink.txt"
+        os.link(self.root / "barometer.csv", alias)
+        self.spec["sources"][1].update(
+            path=alias.name,
+            sha256=hashlib.sha256(alias.read_bytes()).hexdigest(),
+        )
+        self.write()
+        with self.assertRaisesRegex(ValueError, "one file cannot act as two independent sources"):
+            subject.run(self.path)
 
     def test_duplicate_json_and_wrong_capture_are_rejected(self):
         self.write()
