@@ -12,6 +12,7 @@ from fractions import Fraction
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 
@@ -200,11 +201,13 @@ def run(path):
         target = (root / relative).resolve()
         if relative.is_absolute() or ".." in relative.parts or not target.is_relative_to(root) or not target.is_file():
             raise ValueError("source must be a retained file inside the specification directory")
-        if target in identities:
-            raise ValueError("one file cannot act as two independent sources")
-        identities.add(target)
         digest = hashlib.sha256()
         with target.open("rb") as stream:
+            stat_result = os.fstat(stream.fileno())
+            identity = (stat_result.st_dev, stat_result.st_ino)
+            if identity in identities:
+                raise ValueError("one file cannot act as two independent sources")
+            identities.add(identity)
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
         if not isinstance(source["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", source["sha256"]) or digest.hexdigest() != source["sha256"]:
