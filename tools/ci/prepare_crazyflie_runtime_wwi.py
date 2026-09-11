@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -140,3 +142,12 @@ script = r'''
 
 html_path.write_text(html + '\n' + script, encoding='utf-8')
 print('Prepared Blockly Robot Window runtime WWI harness.')
+
+# Research-only qualification requested by #87. Ordinary product evidence above
+# and the remainder of the existing CI job are unchanged. Never merge this hook.
+if os.environ.get('GITHUB_HEAD_REF') == 'research/firefox-qt-provider-qualification':
+    subprocess.run(
+        ['bash', str(ROOT / 'tools/ci/run_firefox_qt_provider_qualification.sh')],
+        cwd=ROOT,
+        check=True,
+    )
