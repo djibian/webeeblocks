@@ -1,0 +1,29 @@
+debconf: delaying package configuration, since apt-utils is not installed
+debconf: delaying package configuration, since apt-utils is not installed
+WARNING: It is not recommended to run Webots as root.
+WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+INFO: crazyflie_l_course: Starting controller: /workspace/controllers/crazyflie_l_course/crazyflie_l_course runtime
+WARNING: Unsupported file type '/robot_windows/blockly/google-blockly-31ee4ea/media/click.mp3'
+WARNING: Unsupported file type '/robot_windows/blockly/google-blockly-31ee4ea/media/disconnect.wav'
+WARNING: Unsupported file type '/robot_windows/blockly/google-blockly-31ee4ea/media/delete.mp3'
+WEBEEBLOCKS_MISSION_V1 WAITING
+WEBEEBLOCKS_MISSION_V1 VALIDATED count=5
+WEBEEBLOCKS_CF_MISSION_STARTED commands=5 x=0.000000 y=0.000000 z=0.014980 yaw=0.000000
+WEBEEBLOCKS_CF_L_RESULT status=success gates=2 endpoint_error_xy=0.006519 yaw_error_deg=0.699400 total_s=26.208
+WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=26.208
+WEBEEBLOCKS_MISSION_V1 DONE_SENT
+WEBEEBLOCKS_DONE_ACK_TRACE t=29.504000 phase=wait_begin payload=NULL
+WEBEEBLOCKS_DONE_ACK_TRACE t=29.504000 phase=before_step payload=NULL
+WEBEEBLOCKS_DONE_ACK_TRACE t=29.536000 phase=after_step payload=WEBEEBLOCKS_MISSION_V1 DONE_ACK
+WEBEEBLOCKS_MISSION_V1 DONE_ACK_RECEIVED
+WEBEEBLOCKS_MISSION_V1 RUNTIME_READY_SENT
+WEBEEBLOCKS_MISSION_V1 WAITING

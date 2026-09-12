@@ -1,0 +1,436 @@
+55f0cbcfe000-55f0cbd04000 r--p 00000000 103:01 8781210                   /home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe
+55f0cbd04000-55f0cbd36000 r-xp 00006000 103:01 8781210                   /home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe
+55f0cbd36000-55f0cbd4f000 r--p 00038000 103:01 8781210                   /home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe
+55f0cbd50000-55f0cbd51000 r--p 00051000 103:01 8781210                   /home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe
+55f0cbd51000-55f0cbd52000 rw-p 00052000 103:01 8781210                   /home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe
+55f0d3e95000-55f0d41c3000 rw-p 00000000 00:00 0                          [heap]
+7f4180000000-7f4180021000 rw-p 00000000 00:00 0 
+7f4180021000-7f4184000000 ---p 00000000 00:00 0 
+7f4184000000-7f4184021000 rw-p 00000000 00:00 0 
+7f4184021000-7f4188000000 ---p 00000000 00:00 0 
+7f4188000000-7f4188021000 rw-p 00000000 00:00 0 
+7f4188021000-7f418c000000 ---p 00000000 00:00 0 
+7f418c000000-7f418c021000 rw-p 00000000 00:00 0 
+7f418c021000-7f4190000000 ---p 00000000 00:00 0 
+7f4191ffe000-7f4191fff000 ---p 00000000 00:00 0 
+7f4191fff000-7f4192fff000 rw-p 00000000 00:00 0 
+7f4192fff000-7f4193000000 ---p 00000000 00:00 0 
+7f4193000000-7f4194000000 rw-p 00000000 00:00 0 
+7f4194000000-7f4194021000 rw-p 00000000 00:00 0 
+7f4194021000-7f4198000000 ---p 00000000 00:00 0 
+7f4198000000-7f4198021000 rw-p 00000000 00:00 0 
+7f4198021000-7f419c000000 ---p 00000000 00:00 0 
+7f419cffd000-7f419cffe000 ---p 00000000 00:00 0 
+7f419cffe000-7f419dffe000 rw-p 00000000 00:00 0 
+7f419dffe000-7f419dfff000 ---p 00000000 00:00 0 
+7f419dfff000-7f419efff000 rw-p 00000000 00:00 0 
+7f419efff000-7f419f000000 ---p 00000000 00:00 0 
+7f419f000000-7f41a0000000 rw-p 00000000 00:00 0 
+7f41a0000000-7f41a0021000 rw-p 00000000 00:00 0 
+7f41a0021000-7f41a4000000 ---p 00000000 00:00 0 
+7f41a485d000-7f41a4959000 rw-p 00000000 00:00 0 
+7f41a4a55000-7f41a4b51000 rw-s 00000000 00:01 18                         /memfd:xorg (deleted)
+7f41a4b51000-7f41a4bfe000 r--p 00000000 103:01 1033205                   /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+7f41a4bfe000-7f41a4bff000 ---p 00000000 00:00 0 
+7f41a4bff000-7f41a5bff000 rw-p 00000000 00:00 0 
+7f41a5bff000-7f41a5c00000 ---p 00000000 00:00 0 
+7f41a5c00000-7f41a6c00000 rw-p 00000000 00:00 0 
+7f41a6c00000-7f41a6c05000 r-xp 00000000 103:01 8776556                   /home/runner/work/_temp/webots/lib/webots/libxcb-cursor.so.0
+7f41a6c05000-7f41a6e04000 ---p 00005000 103:01 8776556                   /home/runner/work/_temp/webots/lib/webots/libxcb-cursor.so.0
+7f41a6e04000-7f41a6e05000 r--p 00004000 103:01 8776556                   /home/runner/work/_temp/webots/lib/webots/libxcb-cursor.so.0
+7f41a6e05000-7f41a6e06000 rw-p 00005000 103:01 8776556                   /home/runner/work/_temp/webots/lib/webots/libxcb-cursor.so.0
+7f41a6e17000-7f41a6e1d000 r--p 00000000 103:01 8776570                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/imageformats/libqjpeg.so
+7f41a6e1d000-7f41a6e74000 r-xp 00006000 103:01 8776570                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/imageformats/libqjpeg.so
+7f41a6e74000-7f41a6ea4000 r--p 0005d000 103:01 8776570                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/imageformats/libqjpeg.so
+7f41a6ea4000-7f41a6ea5000 r--p 0008c000 103:01 8776570                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/imageformats/libqjpeg.so
+7f41a6ea5000-7f41a6ea6000 rw-p 0008d000 103:01 8776570                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/imageformats/libqjpeg.so
+7f41a6ea6000-7f41a6f5f000 r--p 00000000 103:01 1033206                   /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+7f41a6f5f000-7f41a6f86000 r--p 00000000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a6f86000-7f41a6fd5000 r-xp 00027000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a6fd5000-7f41a6ffb000 r--p 00076000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a6ffb000-7f41a6ffc000 ---p 0009c000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a6ffc000-7f41a6ffe000 r--p 0009c000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a6ffe000-7f41a7000000 rw-p 0009e000 103:01 8776492                   /home/runner/work/_temp/webots/lib/webots/libQt6OpenGL.so.6
+7f41a7000000-7f41a72e9000 r--p 00000000 103:01 6146                      /usr/lib/locale/locale-archive
+7f41a7318000-7f41a733b000 r--s 00000000 103:01 33256                     /usr/share/mime/mime.cache
+7f41a733b000-7f41a7342000 r--s 00000000 103:01 1105472                   /var/cache/fontconfig/88acea0b-6494-4959-b661-6fa468616c13-le64.cache-7
+7f41a7342000-7f41a734a000 r--s 00000000 103:01 1055500                   /var/cache/fontconfig/03a88781-cf11-436d-b789-10f5f55f1ea6-le64.cache-7
+7f41a734a000-7f41a7356000 r--s 00000000 103:01 1105491                   /var/cache/fontconfig/e97d39aa-9f09-40e6-9348-2996e9fefd7b-le64.cache-7
+7f41a7356000-7f41a7359000 r--p 00000000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a7359000-7f41a735b000 r-xp 00003000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a735b000-7f41a735c000 r--p 00005000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a735c000-7f41a735d000 ---p 00006000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a735d000-7f41a735e000 r--p 00006000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a735e000-7f41a735f000 rw-p 00007000 103:01 98035                     /usr/lib/x86_64-linux-gnu/libxcb-util.so.1.0.0
+7f41a735f000-7f41a7360000 r--p 00000000 103:01 78402                     /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7f41a7360000-7f41a7361000 r-xp 00001000 103:01 78402                     /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7f41a7361000-7f41a7362000 r--p 00002000 103:01 78402                     /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7f41a7362000-7f41a7363000 r--p 00002000 103:01 78402                     /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7f41a7363000-7f41a7364000 rw-p 00003000 103:01 78402                     /usr/lib/x86_64-linux-gnu/libX11-xcb.so.1.0.0
+7f41a7364000-7f41a736e000 r--p 00000000 103:01 97943                     /usr/lib/x86_64-linux-gnu/libxcb-xkb.so.1.0.0
+7f41a736e000-7f41a737b000 r-xp 0000a000 103:01 97943                     /usr/lib/x86_64-linux-gnu/libxcb-xkb.so.1.0.0
+7f41a737b000-7f41a7380000 r--p 00017000 103:01 97943                     /usr/lib/x86_64-linux-gnu/libxcb-xkb.so.1.0.0
+7f41a7380000-7f41a7381000 r--p 0001b000 103:01 97943                     /usr/lib/x86_64-linux-gnu/libxcb-xkb.so.1.0.0
+7f41a7381000-7f41a7382000 rw-p 0001c000 103:01 97943                     /usr/lib/x86_64-linux-gnu/libxcb-xkb.so.1.0.0
+7f41a7382000-7f41a7383000 r--p 00000000 103:01 98200                     /usr/lib/x86_64-linux-gnu/libxcb-shape.so.0.0.0
+7f41a7383000-7f41a7384000 r-xp 00001000 103:01 98200                     /usr/lib/x86_64-linux-gnu/libxcb-shape.so.0.0.0
+7f41a7384000-7f41a7385000 r--p 00002000 103:01 98200                     /usr/lib/x86_64-linux-gnu/libxcb-shape.so.0.0.0
+7f41a7385000-7f41a7386000 r--p 00002000 103:01 98200                     /usr/lib/x86_64-linux-gnu/libxcb-shape.so.0.0.0
+7f41a7386000-7f41a7387000 rw-p 00003000 103:01 98200                     /usr/lib/x86_64-linux-gnu/libxcb-shape.so.0.0.0
+7f41a7387000-7f41a738c000 r--p 00000000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a738c000-7f41a7391000 r-xp 00005000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a7391000-7f41a7393000 r--p 0000a000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a7393000-7f41a7394000 ---p 0000c000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a7394000-7f41a7395000 r--p 0000c000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a7395000-7f41a7396000 rw-p 0000d000 103:01 30407                     /usr/lib/x86_64-linux-gnu/libxcb-render.so.0.0.0
+7f41a7396000-7f41a7399000 r--p 00000000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a7399000-7f41a739c000 r-xp 00003000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a739c000-7f41a739d000 r--p 00006000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a739d000-7f41a739e000 ---p 00007000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a739e000-7f41a739f000 r--p 00007000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a739f000-7f41a73a0000 rw-p 00008000 103:01 78462                     /usr/lib/x86_64-linux-gnu/libxcb-xfixes.so.0.0.0
+7f41a73a0000-7f41a73a3000 r--p 00000000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73a3000-7f41a73a6000 r-xp 00003000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73a6000-7f41a73a7000 r--p 00006000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73a7000-7f41a73a8000 ---p 00007000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73a8000-7f41a73a9000 r--p 00007000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73a9000-7f41a73aa000 rw-p 00008000 103:01 78450                     /usr/lib/x86_64-linux-gnu/libxcb-sync.so.1.0.0
+7f41a73aa000-7f41a73ab000 r--p 00000000 103:01 30413                     /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7f41a73ab000-7f41a73ac000 r-xp 00001000 103:01 30413                     /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7f41a73ac000-7f41a73ad000 r--p 00002000 103:01 30413                     /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7f41a73ad000-7f41a73ae000 r--p 00002000 103:01 30413                     /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7f41a73ae000-7f41a73af000 rw-p 00003000 103:01 30413                     /usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.0.0
+7f41a73af000-7f41a73b1000 r--p 00000000 103:01 8776561                   /home/runner/work/_temp/webots/lib/webots/libxcb-render-util.so.0
+7f41a73b1000-7f41a73b3000 r-xp 00002000 103:01 8776561                   /home/runner/work/_temp/webots/lib/webots/libxcb-render-util.so.0
+7f41a73b3000-7f41a73b4000 r--p 00004000 103:01 8776561                   /home/runner/work/_temp/webots/lib/webots/libxcb-render-util.so.0
+7f41a73b4000-7f41a73b5000 r--p 00004000 103:01 8776561                   /home/runner/work/_temp/webots/lib/webots/libxcb-render-util.so.0
+7f41a73b5000-7f41a73b6000 rw-p 00005000 103:01 8776561                   /home/runner/work/_temp/webots/lib/webots/libxcb-render-util.so.0
+7f41a73b6000-7f41a73bd000 r--p 00000000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73bd000-7f41a73c3000 r-xp 00007000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73c3000-7f41a73c6000 r--p 0000d000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73c6000-7f41a73c7000 ---p 00010000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73c7000-7f41a73c8000 r--p 00010000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73c8000-7f41a73c9000 rw-p 00011000 103:01 8776560                   /home/runner/work/_temp/webots/lib/webots/libxcb-randr.so.0
+7f41a73c9000-7f41a73ca000 r--p 00000000 103:01 8776559                   /home/runner/work/_temp/webots/lib/webots/libxcb-keysyms.so.1
+7f41a73ca000-7f41a73cb000 r-xp 00001000 103:01 8776559                   /home/runner/work/_temp/webots/lib/webots/libxcb-keysyms.so.1
+7f41a73cb000-7f41a73cc000 r--p 00002000 103:01 8776559                   /home/runner/work/_temp/webots/lib/webots/libxcb-keysyms.so.1
+7f41a73cc000-7f41a73cd000 r--p 00002000 103:01 8776559                   /home/runner/work/_temp/webots/lib/webots/libxcb-keysyms.so.1
+7f41a73cd000-7f41a73ce000 rw-p 00003000 103:01 8776559                   /home/runner/work/_temp/webots/lib/webots/libxcb-keysyms.so.1
+7f41a73ce000-7f41a73cf000 r--p 00000000 103:01 8776558                   /home/runner/work/_temp/webots/lib/webots/libxcb-image.so.0
+7f41a73cf000-7f41a73d1000 r-xp 00001000 103:01 8776558                   /home/runner/work/_temp/webots/lib/webots/libxcb-image.so.0
+7f41a73d1000-7f41a73d2000 r--p 00003000 103:01 8776558                   /home/runner/work/_temp/webots/lib/webots/libxcb-image.so.0
+7f41a73d2000-7f41a73d3000 r--p 00003000 103:01 8776558                   /home/runner/work/_temp/webots/lib/webots/libxcb-image.so.0
+7f41a73d3000-7f41a73d4000 rw-p 00004000 103:01 8776558                   /home/runner/work/_temp/webots/lib/webots/libxcb-image.so.0
+7f41a73d4000-7f41a73d6000 r--p 00000000 103:01 8776557                   /home/runner/work/_temp/webots/lib/webots/libxcb-icccm.so.4
+7f41a73d6000-7f41a73d8000 r-xp 00002000 103:01 8776557                   /home/runner/work/_temp/webots/lib/webots/libxcb-icccm.so.4
+7f41a73d8000-7f41a73d9000 r--p 00004000 103:01 8776557                   /home/runner/work/_temp/webots/lib/webots/libxcb-icccm.so.4
+7f41a73d9000-7f41a73da000 r--p 00004000 103:01 8776557                   /home/runner/work/_temp/webots/lib/webots/libxcb-icccm.so.4
+7f41a73da000-7f41a73db000 rw-p 00005000 103:01 8776557                   /home/runner/work/_temp/webots/lib/webots/libxcb-icccm.so.4
+7f41a73db000-7f41a7402000 r--p 00000000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a7402000-7f41a7468000 r-xp 00027000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a7468000-7f41a7484000 r--p 0008d000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a7484000-7f41a7485000 ---p 000a9000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a7485000-7f41a7489000 r--p 000a9000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a7489000-7f41a748c000 rw-p 000ad000 103:01 8776516                   /home/runner/work/_temp/webots/lib/webots/libQt6XcbQpa.so.6
+7f41a748c000-7f41a748d000 rw-p 00000000 00:00 0 
+7f41a748d000-7f41a74e4000 r--p 00000000 103:01 6137                      /usr/lib/locale/C.utf8/LC_CTYPE
+7f41a74e4000-7f41a74e8000 r--p 00000000 103:01 3592                      /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.32.1
+7f41a74e8000-7f41a74fe000 r-xp 00004000 103:01 3592                      /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.32.1
+7f41a74fe000-7f41a7508000 r--p 0001a000 103:01 3592                      /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.32.1
+7f41a7508000-7f41a7509000 r--p 00023000 103:01 3592                      /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.32.1
+7f41a7509000-7f41a750a000 rw-p 00024000 103:01 3592                      /usr/lib/x86_64-linux-gnu/libgpg-error.so.0.32.1
+7f41a750a000-7f41a7519000 r--p 00000000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a7519000-7f41a7601000 r-xp 0000f000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a7601000-7f41a763f000 r--p 000f7000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a763f000-7f41a7640000 ---p 00135000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a7640000-7f41a7643000 r--p 00135000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a7643000-7f41a7649000 rw-p 00138000 103:01 1975                      /usr/lib/x86_64-linux-gnu/libgcrypt.so.20.3.4
+7f41a7649000-7f41a764a000 rw-p 00000000 00:00 0 
+7f41a764a000-7f41a764c000 r--p 00000000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a764c000-7f41a7665000 r-xp 00002000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a7665000-7f41a7667000 r--p 0001b000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a7667000-7f41a7668000 ---p 0001d000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a7668000-7f41a7669000 r--p 0001d000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a7669000-7f41a766a000 rw-p 0001e000 103:01 3877                      /usr/lib/x86_64-linux-gnu/liblz4.so.1.9.3
+7f41a766a000-7f41a7674000 r--p 00000000 103:01 4750                      /usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8
+7f41a7674000-7f41a7726000 r-xp 0000a000 103:01 4750                      /usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8
+7f41a7726000-7f41a7737000 r--p 000bc000 103:01 4750                      /usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8
+7f41a7737000-7f41a7738000 r--p 000cc000 103:01 4750                      /usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8
+7f41a7738000-7f41a7739000 rw-p 000cd000 103:01 4750                      /usr/lib/x86_64-linux-gnu/libzstd.so.1.4.8
+7f41a7739000-7f41a774c000 r--p 00000000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a774c000-7f41a77cb000 r-xp 00013000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a77cb000-7f41a77f6000 r--p 00092000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a77f6000-7f41a77f7000 ---p 000bd000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a77f7000-7f41a77fe000 r--p 000bd000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a77fe000-7f41a77ff000 rw-p 000c4000 103:01 3889                      /usr/lib/x86_64-linux-gnu/libsystemd.so.0.32.0
+7f41a77ff000-7f41a7800000 rw-p 00000000 00:00 0 
+7f41a7800000-7f41a8fe3000 r--p 00000000 103:01 8776532                   /home/runner/work/_temp/webots/lib/webots/libicudata.so.56
+7f41a8fe3000-7f41a91e2000 ---p 017e3000 103:01 8776532                   /home/runner/work/_temp/webots/lib/webots/libicudata.so.56
+7f41a91e2000-7f41a91e3000 r--p 017e2000 103:01 8776532                   /home/runner/work/_temp/webots/lib/webots/libicudata.so.56
+7f41a91e7000-7f41a91ea000 r--p 00000000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91ea000-7f41a91ee000 r-xp 00003000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91ee000-7f41a91ef000 r--p 00007000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91ef000-7f41a91f0000 ---p 00008000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91f0000-7f41a91f1000 r--p 00008000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91f1000-7f41a91f2000 rw-p 00009000 103:01 97985                     /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0.0.0
+7f41a91f7000-7f41a91fb000 r--p 00000000 103:01 8776572                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
+7f41a91fb000-7f41a91fd000 r-xp 00004000 103:01 8776572                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
+7f41a91fd000-7f41a91fe000 r--p 00006000 103:01 8776572                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
+7f41a91fe000-7f41a91ff000 r--p 00006000 103:01 8776572                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
+7f41a91ff000-7f41a9200000 rw-p 00007000 103:01 8776572                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so
+7f41a9200000-7f41a93a5000 r-xp 00000000 103:01 8776538                   /home/runner/work/_temp/webots/lib/webots/libicuuc.so.56
+7f41a93a5000-7f41a95a5000 ---p 001a5000 103:01 8776538                   /home/runner/work/_temp/webots/lib/webots/libicuuc.so.56
+7f41a95a5000-7f41a95b5000 r--p 001a5000 103:01 8776538                   /home/runner/work/_temp/webots/lib/webots/libicuuc.so.56
+7f41a95b5000-7f41a95b6000 rw-p 001b5000 103:01 8776538                   /home/runner/work/_temp/webots/lib/webots/libicuuc.so.56
+7f41a95b6000-7f41a95b8000 rw-p 00000000 00:00 0 
+7f41a95bc000-7f41a95bf000 r--p 00000000 103:01 8776577                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforms/libqxcb.so
+7f41a95bf000-7f41a95c0000 r-xp 00003000 103:01 8776577                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforms/libqxcb.so
+7f41a95c0000-7f41a95c1000 r--p 00004000 103:01 8776577                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforms/libqxcb.so
+7f41a95c1000-7f41a95c2000 r--p 00004000 103:01 8776577                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforms/libqxcb.so
+7f41a95c2000-7f41a95c3000 rw-p 00005000 103:01 8776577                   /home/runner/work/_temp/webots/lib/webots/qt/plugins/platforms/libqxcb.so
+7f41a95c3000-7f41a95c8000 rw-p 00000000 00:00 0 
+7f41a95c8000-7f41a95ca000 r--p 00000000 103:01 4851                      /usr/lib/x86_64-linux-gnu/libmd.so.0.0.5
+7f41a95ca000-7f41a95d1000 r-xp 00002000 103:01 4851                      /usr/lib/x86_64-linux-gnu/libmd.so.0.0.5
+7f41a95d1000-7f41a95d3000 r--p 00009000 103:01 4851                      /usr/lib/x86_64-linux-gnu/libmd.so.0.0.5
+7f41a95d3000-7f41a95d4000 r--p 0000a000 103:01 4851                      /usr/lib/x86_64-linux-gnu/libmd.so.0.0.5
+7f41a95d4000-7f41a95d5000 rw-p 0000b000 103:01 4851                      /usr/lib/x86_64-linux-gnu/libmd.so.0.0.5
+7f41a95d5000-7f41a95d8000 r--p 00000000 103:01 3577                      /usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5
+7f41a95d8000-7f41a95f3000 r-xp 00003000 103:01 3577                      /usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5
+7f41a95f3000-7f41a95fe000 r--p 0001e000 103:01 3577                      /usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5
+7f41a95fe000-7f41a95ff000 r--p 00028000 103:01 3577                      /usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5
+7f41a95ff000-7f41a9600000 rw-p 00029000 103:01 3577                      /usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5
+7f41a9600000-7f41a9889000 r-xp 00000000 103:01 8776535                   /home/runner/work/_temp/webots/lib/webots/libicui18n.so.56
+7f41a9889000-7f41a9a88000 ---p 00289000 103:01 8776535                   /home/runner/work/_temp/webots/lib/webots/libicui18n.so.56
+7f41a9a88000-7f41a9a96000 r--p 00288000 103:01 8776535                   /home/runner/work/_temp/webots/lib/webots/libicui18n.so.56
+7f41a9a96000-7f41a9a98000 rw-p 00296000 103:01 8776535                   /home/runner/work/_temp/webots/lib/webots/libicui18n.so.56
+7f41a9a98000-7f41a9a99000 rw-p 00000000 00:00 0 
+7f41a9a99000-7f41a9a9a000 r--s 00000000 103:01 84706                     /usr/share/icons/hicolor/icon-theme.cache
+7f41a9a9a000-7f41a9aa0000 rw-p 00000000 00:00 0 
+7f41a9aa0000-7f41a9aa3000 r--p 00000000 103:01 4691                      /usr/lib/x86_64-linux-gnu/libcap.so.2.44
+7f41a9aa3000-7f41a9aa7000 r-xp 00003000 103:01 4691                      /usr/lib/x86_64-linux-gnu/libcap.so.2.44
+7f41a9aa7000-7f41a9aa9000 r--p 00007000 103:01 4691                      /usr/lib/x86_64-linux-gnu/libcap.so.2.44
+7f41a9aa9000-7f41a9aaa000 r--p 00008000 103:01 4691                      /usr/lib/x86_64-linux-gnu/libcap.so.2.44
+7f41a9aaa000-7f41a9aab000 rw-p 00009000 103:01 4691                      /usr/lib/x86_64-linux-gnu/libcap.so.2.44
+7f41a9aab000-7f41a9aaf000 r--p 00000000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9aaf000-7f41a9abc000 r-xp 00004000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9abc000-7f41a9abf000 r--p 00011000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9abf000-7f41a9ac0000 ---p 00014000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9ac0000-7f41a9ac1000 r--p 00014000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9ac1000-7f41a9ac2000 rw-p 00015000 103:01 4786                      /usr/lib/x86_64-linux-gnu/libbsd.so.0.11.5
+7f41a9ac2000-7f41a9ac3000 rw-p 00000000 00:00 0 
+7f41a9ac3000-7f41a9ac4000 r--p 00000000 103:01 5745                      /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.0.9
+7f41a9ac4000-7f41a9ac5000 r-xp 00001000 103:01 5745                      /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.0.9
+7f41a9ac5000-7f41a9ae4000 r--p 00002000 103:01 5745                      /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.0.9
+7f41a9ae4000-7f41a9ae5000 r--p 00020000 103:01 5745                      /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.0.9
+7f41a9ae5000-7f41a9ae6000 rw-p 00021000 103:01 5745                      /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.0.9
+7f41a9ae6000-7f41a9ae7000 r--p 00000000 103:01 5746                      /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.0.9
+7f41a9ae7000-7f41a9aef000 r-xp 00001000 103:01 5746                      /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.0.9
+7f41a9aef000-7f41a9af2000 r--p 00009000 103:01 5746                      /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.0.9
+7f41a9af2000-7f41a9af3000 r--p 0000b000 103:01 5746                      /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.0.9
+7f41a9af3000-7f41a9af4000 rw-p 0000c000 103:01 5746                      /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.0.9
+7f41a9af4000-7f41a9aff000 r--p 00000000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9aff000-7f41a9b2d000 r-xp 0000b000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9b2d000-7f41a9b3f000 r--p 00039000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9b3f000-7f41a9b40000 ---p 0004b000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9b40000-7f41a9b41000 r--p 0004b000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9b41000-7f41a9b42000 rw-p 0004c000 103:01 4701                      /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.13
+7f41a9b42000-7f41a9b44000 r--p 00000000 103:01 3929                      /usr/lib/x86_64-linux-gnu/libpcre.so.3.13.3
+7f41a9b44000-7f41a9b99000 r-xp 00002000 103:01 3929                      /usr/lib/x86_64-linux-gnu/libpcre.so.3.13.3
+7f41a9b99000-7f41a9bb6000 r--p 00057000 103:01 3929                      /usr/lib/x86_64-linux-gnu/libpcre.so.3.13.3
+7f41a9bb6000-7f41a9bb7000 r--p 00073000 103:01 3929                      /usr/lib/x86_64-linux-gnu/libpcre.so.3.13.3
+7f41a9bb7000-7f41a9bb8000 rw-p 00074000 103:01 3929                      /usr/lib/x86_64-linux-gnu/libpcre.so.3.13.3
+7f41a9bb8000-7f41a9bf8000 r--p 00000000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9bf8000-7f41a9c37000 r-xp 00040000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9c37000-7f41a9c4a000 r--p 0007f000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9c4a000-7f41a9c4b000 ---p 00092000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9c4b000-7f41a9c67000 r--p 00092000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9c67000-7f41a9c68000 rw-p 000ae000 103:01 78612                     /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0.0.0
+7f41a9c68000-7f41a9c70000 rw-p 00000000 00:00 0 
+7f41a9c70000-7f41a9c7d000 r--p 00000000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9c7d000-7f41a9d06000 r-xp 0000d000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9d06000-7f41a9d2f000 r--p 00096000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9d2f000-7f41a9d30000 ---p 000bf000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9d30000-7f41a9d37000 r--p 000bf000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9d37000-7f41a9d38000 rw-p 000c6000 103:01 8776529                   /home/runner/work/_temp/webots/lib/webots/libfreetype.so.6
+7f41a9d38000-7f41a9d5a000 r--p 00000000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9d5a000-7f41a9dda000 r-xp 00022000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9dda000-7f41a9df9000 r--p 000a2000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9df9000-7f41a9dfa000 ---p 000c1000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9dfa000-7f41a9dfd000 r--p 000c1000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9dfd000-7f41a9e00000 rw-p 000c4000 103:01 8776483                   /home/runner/work/_temp/webots/lib/webots/libQt6DBus.so.6
+7f41a9e00000-7f41a9e28000 r--p 00000000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41a9e28000-7f41a9fbd000 r-xp 00028000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41a9fbd000-7f41aa015000 r--p 001bd000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41aa015000-7f41aa016000 ---p 00215000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41aa016000-7f41aa01a000 r--p 00215000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41aa01a000-7f41aa01c000 rw-p 00219000 103:01 4978                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7f41aa01c000-7f41aa029000 rw-p 00000000 00:00 0 
+7f41aa029000-7f41aa02a000 r--s 00000000 103:01 1035377                   /var/cache/fontconfig/614092b0-1279-4229-b535-544259419f08-le64.cache-7
+7f41aa02a000-7f41aa02b000 r--p 00000000 103:01 6142                      /usr/lib/locale/C.utf8/LC_NUMERIC
+7f41aa02b000-7f41aa02f000 rw-p 00000000 00:00 0 
+7f41aa02f000-7f41aa034000 r--p 00000000 103:01 8776548                   /home/runner/work/_temp/webots/lib/webots/libpng16.so.16
+7f41aa034000-7f41aa05d000 r-xp 00005000 103:01 8776548                   /home/runner/work/_temp/webots/lib/webots/libpng16.so.16
+7f41aa05d000-7f41aa068000 r--p 0002e000 103:01 8776548                   /home/runner/work/_temp/webots/lib/webots/libpng16.so.16
+7f41aa068000-7f41aa069000 r--p 00038000 103:01 8776548                   /home/runner/work/_temp/webots/lib/webots/libpng16.so.16
+7f41aa069000-7f41aa06a000 rw-p 00039000 103:01 8776548                   /home/runner/work/_temp/webots/lib/webots/libpng16.so.16
+7f41aa06a000-7f41aa075000 r--p 00000000 103:01 5510                      /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7f41aa075000-7f41aa089000 r-xp 0000b000 103:01 5510                      /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7f41aa089000-7f41aa092000 r--p 0001f000 103:01 5510                      /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7f41aa092000-7f41aa093000 r--p 00027000 103:01 5510                      /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7f41aa093000-7f41aa094000 rw-p 00028000 103:01 5510                      /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+7f41aa094000-7f41aa098000 r--p 00000000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa098000-7f41aa0b7000 r-xp 00004000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa0b7000-7f41aa0c1000 r--p 00023000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa0c1000-7f41aa0c2000 ---p 0002d000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa0c2000-7f41aa0c4000 r--p 0002d000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa0c4000-7f41aa0c5000 rw-p 0002f000 103:01 4711                      /usr/lib/x86_64-linux-gnu/libexpat.so.1.8.7
+7f41aa0c5000-7f41aa0e2000 r--p 00000000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa0e2000-7f41aa172000 r-xp 0001d000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa172000-7f41aa1fc000 r--p 000ad000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa1fc000-7f41aa1fd000 ---p 00137000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa1fd000-7f41aa1fe000 r--p 00137000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa1fe000-7f41aa1ff000 rw-p 00138000 103:01 4773                      /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4
+7f41aa1ff000-7f41aa200000 rw-p 00000000 00:00 0 
+7f41aa200000-7f41aa29a000 r--p 00000000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa29a000-7f41aa3ab000 r-xp 0009a000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa3ab000-7f41aa41a000 r--p 001ab000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa41a000-7f41aa41b000 ---p 0021a000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa41b000-7f41aa426000 r--p 0021a000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa426000-7f41aa429000 rw-p 00225000 103:01 4973                      /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.30
+7f41aa429000-7f41aa42c000 rw-p 00000000 00:00 0 
+7f41aa42c000-7f41aa42d000 r--p 00000000 103:01 6145                      /usr/lib/locale/C.utf8/LC_TIME
+7f41aa42d000-7f41aa431000 rw-p 00000000 00:00 0 
+7f41aa431000-7f41aa433000 r--p 00000000 103:01 5004                      /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7f41aa433000-7f41aa435000 r-xp 00002000 103:01 5004                      /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7f41aa435000-7f41aa437000 r--p 00004000 103:01 5004                      /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7f41aa437000-7f41aa438000 r--p 00005000 103:01 5004                      /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7f41aa438000-7f41aa439000 rw-p 00006000 103:01 5004                      /usr/lib/x86_64-linux-gnu/libXdmcp.so.6.0.0
+7f41aa439000-7f41aa43b000 r--p 00000000 103:01 1702                      /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7f41aa43b000-7f41aa43f000 r-xp 00002000 103:01 1702                      /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7f41aa43f000-7f41aa440000 r--p 00006000 103:01 1702                      /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7f41aa440000-7f41aa441000 r--p 00006000 103:01 1702                      /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7f41aa441000-7f41aa442000 rw-p 00007000 103:01 1702                      /usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0
+7f41aa442000-7f41aa445000 r--p 00000000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa445000-7f41aa460000 r-xp 00003000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa460000-7f41aa463000 r--p 0001e000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa463000-7f41aa464000 ---p 00021000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa464000-7f41aa465000 r--p 00021000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa465000-7f41aa466000 rw-p 00022000 103:01 78626                     /usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+7f41aa466000-7f41aa476000 rw-p 00000000 00:00 0 
+7f41aa476000-7f41aa48f000 r--p 00000000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa48f000-7f41aa51b000 r-xp 00019000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa51b000-7f41aa5b0000 r--p 000a5000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa5b0000-7f41aa5b1000 ---p 0013a000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa5b1000-7f41aa5b2000 r--p 0013a000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa5b2000-7f41aa5b6000 rw-p 0013b000 103:01 5722                      /usr/lib/x86_64-linux-gnu/libX11.so.6.4.0
+7f41aa5b6000-7f41aa5bd000 r--p 00000000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa5bd000-7f41aa5e6000 r-xp 00007000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa5e6000-7f41aa5fc000 r--p 00030000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa5fc000-7f41aa5fd000 ---p 00046000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa5fd000-7f41aa5ff000 r--p 00046000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa5ff000-7f41aa600000 rw-p 00048000 103:01 8776528                   /home/runner/work/_temp/webots/lib/webots/libfontconfig.so.1
+7f41aa600000-7f41aa6ab000 r--p 00000000 103:01 8776480                   /home/runner/work/_temp/webots/lib/webots/libQt6Core.so.6
+7f41aa6ab000-7f41aaa66000 r-xp 000ab000 103:01 8776480                   /home/runner/work/_temp/webots/lib/webots/libQt6Core.so.6
+7f41aaa66000-7f41aac79000 r--p 00466000 103:01 8776480                   /home/runner/work/_temp/webots/lib/webots/libQt6Core.so.6
+7f41aac79000-7f41aac88000 r--p 00678000 103:01 8776480                   /home/runner/work/_temp/webots/lib/webots/libQt6Core.so.6
+7f41aac88000-7f41aac8d000 rw-p 00687000 103:01 8776480                   /home/runner/work/_temp/webots/lib/webots/libQt6Core.so.6
+7f41aac8d000-7f41aac91000 rw-p 00000000 00:00 0 
+7f41aac91000-7f41aac92000 r--p 00000000 103:01 6136                      /usr/lib/locale/C.utf8/LC_COLLATE
+7f41aac92000-7f41aaca0000 r--p 00000000 103:01 4981                      /usr/lib/x86_64-linux-gnu/libm.so.6
+7f41aaca0000-7f41aad1c000 r-xp 0000e000 103:01 4981                      /usr/lib/x86_64-linux-gnu/libm.so.6
+7f41aad1c000-7f41aad77000 r--p 0008a000 103:01 4981                      /usr/lib/x86_64-linux-gnu/libm.so.6
+7f41aad77000-7f41aad78000 r--p 000e4000 103:01 4981                      /usr/lib/x86_64-linux-gnu/libm.so.6
+7f41aad78000-7f41aad79000 rw-p 000e5000 103:01 4981                      /usr/lib/x86_64-linux-gnu/libm.so.6
+7f41aad79000-7f41aadbc000 r--p 00000000 103:01 78638                     /usr/lib/x86_64-linux-gnu/libGL.so.1.7.0
+7f41aadbc000-7f41aaddb000 r-xp 00043000 103:01 78638                     /usr/lib/x86_64-linux-gnu/libGL.so.1.7.0
+7f41aaddb000-7f41aadf0000 r--p 00062000 103:01 78638                     /usr/lib/x86_64-linux-gnu/libGL.so.1.7.0
+7f41aadf0000-7f41aadfe000 r--p 00076000 103:01 78638                     /usr/lib/x86_64-linux-gnu/libGL.so.1.7.0
+7f41aadfe000-7f41aadff000 rw-p 00084000 103:01 78638                     /usr/lib/x86_64-linux-gnu/libGL.so.1.7.0
+7f41aadff000-7f41aae00000 rw-p 00000000 00:00 0 
+7f41aae00000-7f41aaf17000 r--p 00000000 103:01 8776486                   /home/runner/work/_temp/webots/lib/webots/libQt6Gui.so.6
+7f41aaf17000-7f41ab612000 r-xp 00117000 103:01 8776486                   /home/runner/work/_temp/webots/lib/webots/libQt6Gui.so.6
+7f41ab612000-7f41ab7a3000 r--p 00812000 103:01 8776486                   /home/runner/work/_temp/webots/lib/webots/libQt6Gui.so.6
+7f41ab7a3000-7f41ab7bb000 r--p 009a2000 103:01 8776486                   /home/runner/work/_temp/webots/lib/webots/libQt6Gui.so.6
+7f41ab7bb000-7f41ab7c8000 rw-p 009ba000 103:01 8776486                   /home/runner/work/_temp/webots/lib/webots/libQt6Gui.so.6
+7f41ab7c8000-7f41ab7d7000 rw-p 00000000 00:00 0 
+7f41ab7d7000-7f41ab7d8000 r--p 00000000 103:01 4998                      /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7f41ab7d8000-7f41ab7da000 r-xp 00001000 103:01 4998                      /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7f41ab7da000-7f41ab7db000 r--p 00003000 103:01 4998                      /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7f41ab7db000-7f41ab7dc000 r--p 00003000 103:01 4998                      /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7f41ab7dc000-7f41ab7dd000 rw-p 00004000 103:01 4998                      /usr/lib/x86_64-linux-gnu/libXau.so.6.0.0
+7f41ab7dd000-7f41ab7df000 rw-p 00000000 00:00 0 
+7f41ab7df000-7f41ab7e0000 r--p 00000000 103:01 4992                      /usr/lib/x86_64-linux-gnu/librt.so.1
+7f41ab7e0000-7f41ab7e1000 r-xp 00001000 103:01 4992                      /usr/lib/x86_64-linux-gnu/librt.so.1
+7f41ab7e1000-7f41ab7e2000 r--p 00002000 103:01 4992                      /usr/lib/x86_64-linux-gnu/librt.so.1
+7f41ab7e2000-7f41ab7e3000 r--p 00002000 103:01 4992                      /usr/lib/x86_64-linux-gnu/librt.so.1
+7f41ab7e3000-7f41ab7e4000 rw-p 00003000 103:01 4992                      /usr/lib/x86_64-linux-gnu/librt.so.1
+7f41ab7e4000-7f41ab7e6000 r--p 00000000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab7e6000-7f41ab7f7000 r-xp 00002000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab7f7000-7f41ab7fd000 r--p 00013000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab7fd000-7f41ab7fe000 ---p 00019000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab7fe000-7f41ab7ff000 r--p 00019000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab7ff000-7f41ab800000 rw-p 0001a000 103:01 3863                      /usr/lib/x86_64-linux-gnu/libz.so.1.2.11
+7f41ab800000-7f41ab96d000 r--p 00000000 103:01 8776513                   /home/runner/work/_temp/webots/lib/webots/libQt6Widgets.so.6
+7f41ab96d000-7f41abd87000 r-xp 0016d000 103:01 8776513                   /home/runner/work/_temp/webots/lib/webots/libQt6Widgets.so.6
+7f41abd87000-7f41abef3000 r--p 00587000 103:01 8776513                   /home/runner/work/_temp/webots/lib/webots/libQt6Widgets.so.6
+7f41abef3000-7f41abf27000 r--p 006f2000 103:01 8776513                   /home/runner/work/_temp/webots/lib/webots/libQt6Widgets.so.6
+7f41abf27000-7f41abf37000 rw-p 00726000 103:01 8776513                   /home/runner/work/_temp/webots/lib/webots/libQt6Widgets.so.6
+7f41abf37000-7f41abf38000 rw-p 00000000 00:00 0 
+7f41abf38000-7f41abf3c000 rw-p 00000000 00:00 0 
+7f41abf3c000-7f41abf3d000 r--p 00000000 103:01 4776                      /usr/lib/x86_64-linux-gnu/libgthread-2.0.so.0.7200.4
+7f41abf3d000-7f41abf3e000 r-xp 00001000 103:01 4776                      /usr/lib/x86_64-linux-gnu/libgthread-2.0.so.0.7200.4
+7f41abf3e000-7f41abf3f000 r--p 00002000 103:01 4776                      /usr/lib/x86_64-linux-gnu/libgthread-2.0.so.0.7200.4
+7f41abf3f000-7f41abf40000 r--p 00002000 103:01 4776                      /usr/lib/x86_64-linux-gnu/libgthread-2.0.so.0.7200.4
+7f41abf40000-7f41abf41000 rw-p 00003000 103:01 4776                      /usr/lib/x86_64-linux-gnu/libgthread-2.0.so.0.7200.4
+7f41abf41000-7f41abf43000 rw-p 00000000 00:00 0 
+7f41abf43000-7f41abf44000 r--p 00000000 103:01 4980                      /usr/lib/x86_64-linux-gnu/libdl.so.2
+7f41abf44000-7f41abf45000 r-xp 00001000 103:01 4980                      /usr/lib/x86_64-linux-gnu/libdl.so.2
+7f41abf45000-7f41abf46000 r--p 00002000 103:01 4980                      /usr/lib/x86_64-linux-gnu/libdl.so.2
+7f41abf46000-7f41abf47000 r--p 00002000 103:01 4980                      /usr/lib/x86_64-linux-gnu/libdl.so.2
+7f41abf47000-7f41abf48000 rw-p 00003000 103:01 4980                      /usr/lib/x86_64-linux-gnu/libdl.so.2
+7f41abf48000-7f41abf4b000 r--p 00000000 103:01 98016                     /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7f41abf4b000-7f41abf55000 r-xp 00003000 103:01 98016                     /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7f41abf55000-7f41abf59000 r--p 0000d000 103:01 98016                     /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7f41abf59000-7f41abf5a000 r--p 00010000 103:01 98016                     /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7f41abf5a000-7f41abf5b000 rw-p 00011000 103:01 98016                     /usr/lib/x86_64-linux-gnu/libEGL.so.1.1.0
+7f41abf5b000-7f41abf5d000 rw-p 00000000 00:00 0 
+7f41abf5d000-7f41abf5e000 r--p 00000000 103:01 4990                      /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7f41abf5e000-7f41abf5f000 r-xp 00001000 103:01 4990                      /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7f41abf5f000-7f41abf60000 r--p 00002000 103:01 4990                      /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7f41abf60000-7f41abf61000 r--p 00002000 103:01 4990                      /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7f41abf61000-7f41abf62000 rw-p 00003000 103:01 4990                      /usr/lib/x86_64-linux-gnu/libpthread.so.0
+7f41abf62000-7f41abf66000 r--p 00000000 103:01 30554                     /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0
+7f41abf66000-7f41abf85000 r-xp 00004000 103:01 30554                     /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0
+7f41abf85000-7f41abfa6000 r--p 00023000 103:01 30554                     /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0
+7f41abfa6000-7f41abfa8000 r--p 00043000 103:01 30554                     /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0
+7f41abfa8000-7f41abfa9000 rw-p 00045000 103:01 30554                     /usr/lib/x86_64-linux-gnu/libxkbcommon.so.0.0.0
+7f41abfa9000-7f41abfac000 r--p 00000000 103:01 4974                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7f41abfac000-7f41abfc3000 r-xp 00003000 103:01 4974                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7f41abfc3000-7f41abfc7000 r--p 0001a000 103:01 4974                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7f41abfc7000-7f41abfc8000 r--p 0001d000 103:01 4974                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7f41abfc8000-7f41abfc9000 rw-p 0001e000 103:01 4974                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7f41abfc9000-7f41abfcb000 rw-p 00000000 00:00 0 
+7f41abfcb000-7f41abfcc000 r--p 00000000 103:01 6140                      /usr/lib/locale/C.utf8/LC_MONETARY
+7f41abfcc000-7f41abfcd000 r--p 00000000 103:01 6134                      /usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES
+7f41abfcd000-7f41abfce000 r--p 00000000 103:01 6143                      /usr/lib/locale/C.utf8/LC_PAPER
+7f41abfce000-7f41abfcf000 r--p 00000000 103:01 6141                      /usr/lib/locale/C.utf8/LC_NAME
+7f41abfcf000-7f41abfd0000 r--p 00000000 103:01 6135                      /usr/lib/locale/C.utf8/LC_ADDRESS
+7f41abfd0000-7f41abfd1000 r--p 00000000 103:01 6144                      /usr/lib/locale/C.utf8/LC_TELEPHONE
+7f41abfd1000-7f41abfd2000 r--p 00000000 103:01 6139                      /usr/lib/locale/C.utf8/LC_MEASUREMENT
+7f41abfd2000-7f41abfd9000 r--s 00000000 103:01 3856                      /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache
+7f41abfd9000-7f41abfeb000 r--p 00000000 103:01 8775776                   /home/runner/work/_temp/webots/lib/controller/libController.so
+7f41abfeb000-7f41ac045000 r-xp 00012000 103:01 8775776                   /home/runner/work/_temp/webots/lib/controller/libController.so
+7f41ac045000-7f41ac061000 r--p 0006c000 103:01 8775776                   /home/runner/work/_temp/webots/lib/controller/libController.so
+7f41ac061000-7f41ac062000 r--p 00087000 103:01 8775776                   /home/runner/work/_temp/webots/lib/controller/libController.so
+7f41ac062000-7f41ac063000 rw-p 00088000 103:01 8775776                   /home/runner/work/_temp/webots/lib/controller/libController.so
+7f41ac063000-7f41ac066000 rw-p 00000000 00:00 0 
+7f41ac066000-7f41ac068000 r--p 00000000 103:01 4972                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7f41ac068000-7f41ac092000 r-xp 00002000 103:01 4972                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7f41ac092000-7f41ac09d000 r--p 0002c000 103:01 4972                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7f41ac09d000-7f41ac09e000 r--p 00000000 103:01 6138                      /usr/lib/locale/C.utf8/LC_IDENTIFICATION
+7f41ac09e000-7f41ac0a0000 r--p 00037000 103:01 4972                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7f41ac0a0000-7f41ac0a2000 rw-p 00039000 103:01 4972                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffdef807000-7ffdef829000 rw-p 00000000 00:00 0                          [stack]
+7ffdef9a8000-7ffdef9ac000 r--p 00000000 00:00 0                          [vvar]
+7ffdef9ac000-7ffdef9ae000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]

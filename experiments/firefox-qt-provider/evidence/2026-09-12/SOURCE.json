@@ -1,0 +1,163 @@
+{
+  "repository": "djibian/webeeblocks",
+  "candidate_sha": "e8aecd14e7988a6772d780062f8cf83060657dff",
+  "pull_request": 317,
+  "workflow_run": 34672121094,
+  "run_attempt": 1,
+  "job": 103495351811,
+  "artifact_id": 10291545764,
+  "archive_sha256": "2623c757872cc2789d30d86275087f8f4c99508c7bf432015c2829ebc6f7a8a0",
+  "archive_bytes": 214812,
+  "raw_files": [
+    {
+      "path": "raw/crazyflie-done-ack-trace.txt",
+      "bytes": 154,
+      "sha256": "30dc405379e6a0b4d45fa7ebb538b29e0b3d210e55d28d0512885b0c1ac02cb8"
+    },
+    {
+      "path": "raw/crazyflie-l-course-result.txt",
+      "bytes": 282,
+      "sha256": "bb669528aabdfcf46f46146529ed613bb79f441fad0ac65455856a91bf7537a8"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/browser-events.jsonl",
+      "bytes": 32265,
+      "sha256": "8a5016fc3c07bacb8dd33a84d5be6a4f584ecf3c3e8d9cfd0a38839804198791"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/browser-launch.log",
+      "bytes": 105,
+      "sha256": "d4b56a929d55827cfc0172340f368d512e18e3e108e4bc81185679c0b0dbae8d"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/build.log",
+      "bytes": 183,
+      "sha256": "7e68be991510debf04fb1304da2d6a700473f9dc8c915f18f63fc6a55d4c1b59"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/controller-after.sha256",
+      "bytes": 116,
+      "sha256": "c7743eb46dad581774ad3dd82800be7be378ccf3c00e41fafab1ed0aebe28d2a"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/controller-before.sha256",
+      "bytes": 116,
+      "sha256": "c7743eb46dad581774ad3dd82800be7be378ccf3c00e41fafab1ed0aebe28d2a"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/exit-code.txt",
+      "bytes": 4,
+      "sha256": "ca2ebdf97d7469496b1f4b78958f9dc8447efdcb623953fee7b6996b762f6fff"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/build.sha256",
+      "bytes": 1289,
+      "sha256": "348ee6c61fd68642bd848f470394e07f0be2e9fb2ad531f84371cecfd74c5c5b"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/compiler.txt",
+      "bytes": 246,
+      "sha256": "9eaf9b7f4b11c2e84e2478c2ceb0e4f48f4ba88565bcfc832b3bce49847dda6d"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/continuity-observed.ack",
+      "bytes": 36,
+      "sha256": "ebf5e5b692f60f95a939044f2603f6729eed14ab950c0bf3a3f6249fa17a2f29"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/controller-continuity.log",
+      "bytes": 984,
+      "sha256": "794473edad059c2fc783b88c90cfd5bd5c6875cad8109bcaf47e1de1d613e043"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/controller-maps.txt",
+      "bytes": 49731,
+      "sha256": "c37f35e7d57eb30dd1ff04b4af3bc52189fa7c96c6fb8b69b224ed5cb0cedd28"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/controller.pid",
+      "bytes": 5,
+      "sha256": "dc00dbc33715cce24bae0c7d9a609a673e0d37a969f844ad57270bf4ad8a030e"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/dialog.png",
+      "bytes": 26355,
+      "sha256": "cd9cb2a4524ff388893f4af9cb4b505cda640998530071cd32ca6122b9da280d"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/dynamic.txt",
+      "bytes": 1904,
+      "sha256": "bb88af1a63c04d4200a5d7257f4636ff35476f288fb1f84b381caa98f462fbb8"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/frozen-blobs.txt",
+      "bytes": 123,
+      "sha256": "9199d635ae48d4d4baf560dd2d107bcf5ccdc5d30d819d6121c6cc4eaa7ceccf"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/ldd.txt",
+      "bytes": 3739,
+      "sha256": "6c24130a96c7e0ad0496d6f9a62f591e9d62d7810208af5a59bbd984423484cf"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/link.map",
+      "bytes": 1802932,
+      "sha256": "a252b2a2fa417a933249beee48db536298cafdfea3dcc10ed586ac67ef0061ec"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/pre-shutdown-observation.json",
+      "bytes": 1184,
+      "sha256": "76da410497b020b02ad401a12c336c833f89c42345c12725c4e11c246e8e49f5"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/preparation.log",
+      "bytes": 52121,
+      "sha256": "58b66de076780e99a6331b68df4554ea86b917532f29e53f8541977e32f6b4d8"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/provider-original.cpp",
+      "bytes": 3851,
+      "sha256": "fde2793c1d5f7f2490b1de34192abdfff6139f14e893a9bcf126b4420a605235"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/provider-qualified.cpp",
+      "bytes": 3918,
+      "sha256": "5b21735adc6b87d2f1e1cbd613a0e277d54e6bd3e2e11c491f1c4b6ff636dcda"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/relocations.txt",
+      "bytes": 43102,
+      "sha256": "814ec31cb8a3241d123ca2d6889109bd7aac5c1b76071cfd63a8fe0c56663965"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/result.json",
+      "bytes": 2407,
+      "sha256": "50070d3a8fa2a335d4e3821d3f64f44d03a3e14a2c35a2f1a62b569efad0073a"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/static-proof.json",
+      "bytes": 370,
+      "sha256": "0a7893db047290533622ee8ea37fc5e9b75b104ff3c4d27d8fe3e7655f20fa85"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/symbols.txt",
+      "bytes": 835256,
+      "sha256": "b2c5d26e404731f4f7274741b51c42379c5fe9f8f8690d53b25e2f8504b68959"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/webots.log",
+      "bytes": 2574,
+      "sha256": "a887957a6161b8863958361730ba6b3a99a07813f69dd007c7beef48d5a17321"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/firefox-qt-provider-continuity/x11-witness.json",
+      "bytes": 192,
+      "sha256": "cb20855cd2a0b6a6aa4c8571815a2bbb57c8d13b43481b2e1bf9022dda8bd69a"
+    },
+    {
+      "path": "raw/crazyflie-runtime-wwi/webots.log",
+      "bytes": 2014,
+      "sha256": "0804db5c3111645827dda700924f6d61f3bc576eb788ad232d4d77d40b30ef86"
+    }
+  ]
+}

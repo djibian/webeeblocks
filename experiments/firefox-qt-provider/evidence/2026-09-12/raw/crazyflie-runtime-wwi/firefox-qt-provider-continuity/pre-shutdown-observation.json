@@ -1,0 +1,40 @@
+{
+  "continuity": {
+    "loop_after": 0.256,
+    "loop_before": 0.0,
+    "pre_shutdown_ready": true,
+    "records": [
+      "event=CONTROLLER_STARTED pid=3645",
+      "event=WB_INIT_RETURN time=0.000000",
+      "event=PROVIDER_CALLED",
+      "event=PROVIDER_RETURNED",
+      "event=LOOP_BEGIN time=0.000000",
+      "event=STEP n=1 result=0 time=0.032000",
+      "event=STEP n=2 result=0 time=0.064000",
+      "event=STEP n=3 result=0 time=0.096000",
+      "event=STEP n=4 result=0 time=0.128000",
+      "event=STEP n=5 result=0 time=0.160000",
+      "event=STEP n=6 result=0 time=0.192000",
+      "event=STEP n=7 result=0 time=0.224000",
+      "event=STEP n=8 result=0 time=0.256000",
+      "event=LOOP_END before=0.000000 after=0.256000",
+      "event=CAPABILITIES operationsReady=false",
+      "event=PROVIDER_DESTROYED",
+      "event=PRE_SHUTDOWN_READY"
+    ],
+    "step_times": [
+      0.032,
+      0.064,
+      0.096,
+      0.128,
+      0.16,
+      0.192,
+      0.224,
+      0.256
+    ]
+  },
+  "host_monotonic_s": 123.399561299,
+  "journal_sha256": "fe106309425f4b84e58215cf667e614ff16a662a5d83927267c4e1e52c0098e4",
+  "observed_while_webots_alive": true,
+  "webots_pid": 3619
+}

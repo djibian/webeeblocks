@@ -1,0 +1,235 @@
+{"seq":0,"wall_ms":1789186152016,"performance_ms":4097.799999999988,"event":"READY","detail":"WAITING"}
+{"seq":1,"wall_ms":1789186152190,"performance_ms":4271,"event":"MISSION","detail":"WEBEEBLOCKS_MISSION_V1|TAKEOFF 1.0000000000000000|FORWARD 1.0000000000000000|TURN 1.5707963267948966|FORWARD 1.0000000000000000|LAND 0.0000000000000000"}
+{"seq":2,"wall_ms":1789186152311,"performance_ms":4392,"event":"TX_NEGATIVE_VERSION","detail":"WEBEEBLOCKS_MISSION_V0|TAKEOFF 1"}
+{"seq":3,"wall_ms":1789186152492,"performance_ms":4573.299999999988,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR VERSION"}
+{"seq":4,"wall_ms":1789186152494,"performance_ms":4575,"event":"TX_NEGATIVE_COMMAND","detail":"WEBEEBLOCKS_MISSION_V1|TAKEOFF 1|SPIN 1|LAND 0"}
+{"seq":5,"wall_ms":1789186152500,"performance_ms":4581,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR COMMAND"}
+{"seq":6,"wall_ms":1789186152523,"performance_ms":4604.600000000006,"event":"TX_NEGATIVE_PARAMETER","detail":"WEBEEBLOCKS_MISSION_V1|TAKEOFF 1|FORWARD 0.05|LAND 0"}
+{"seq":7,"wall_ms":1789186152687,"performance_ms":4768.799999999988,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR PARAMETER"}
+{"seq":8,"wall_ms":1789186152706,"performance_ms":4786.899999999994,"event":"TX_NEGATIVE_SEQUENCE","detail":"WEBEEBLOCKS_MISSION_V1|FORWARD 1|TURN 1.5707963267948966|LAND 0"}
+{"seq":9,"wall_ms":1789186152883,"performance_ms":4964.600000000006,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR SEQUENCE"}
+{"seq":10,"wall_ms":1789186152887,"performance_ms":4968.200000000012,"event":"TX_NEGATIVE_TOO_LONG","detail":"WEBEEBLOCKS_MISSION_V1|TAKEOFF 1|FORWARD 1|TURN 1.5707963267948966|FORWARD 1|TURN 1.5707963267948966|FORWARD 1|LAND 0"}
+{"seq":11,"wall_ms":1789186152891,"performance_ms":4972.299999999988,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR TOO_LONG"}
+{"seq":12,"wall_ms":1789186152915,"performance_ms":4996.600000000006,"event":"SUBMIT_CLICK","detail":"WAITING"}
+{"seq":13,"wall_ms":1789186152923,"performance_ms":5004.700000000012,"event":"STATE_AFTER_SUBMIT","detail":"PENDING"}
+{"seq":14,"wall_ms":1789186153083,"performance_ms":5164.399999999994,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ACK"}
+{"seq":15,"wall_ms":1789186153104,"performance_ms":5185.299999999988,"event":"STATE_AFTER_ACK","detail":"RUNNING"}
+{"seq":16,"wall_ms":1789186153109,"performance_ms":5190.700000000012,"event":"SECOND_SUBMIT_CLICK","detail":"RUNNING"}
+{"seq":17,"wall_ms":1789186153116,"performance_ms":5197.799999999988,"event":"SECOND_SUBMIT_BLOCKED_LOCAL","detail":"RUNNING"}
+{"seq":18,"wall_ms":1789186153122,"performance_ms":5203.600000000006,"event":"BUSY_PROBE_SEND","detail":"runtime transport direct"}
+{"seq":19,"wall_ms":1789186153125,"performance_ms":5206,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 START"}
+{"seq":20,"wall_ms":1789186153125,"performance_ms":5206.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.032"}
+{"seq":21,"wall_ms":1789186153125,"performance_ms":5206.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.160"}
+{"seq":22,"wall_ms":1789186153287,"performance_ms":5368.299999999988,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 ERR BUSY"}
+{"seq":23,"wall_ms":1789186153287,"performance_ms":5368.299999999988,"event":"STATE_AFTER_BUSY","detail":"RUNNING"}
+{"seq":24,"wall_ms":1789186153330,"performance_ms":5411.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.288"}
+{"seq":25,"wall_ms":1789186153331,"performance_ms":5412.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.416"}
+{"seq":26,"wall_ms":1789186153491,"performance_ms":5572.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.544"}
+{"seq":27,"wall_ms":1789186153500,"performance_ms":5581,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.672"}
+{"seq":28,"wall_ms":1789186153694,"performance_ms":5775.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.800"}
+{"seq":29,"wall_ms":1789186153702,"performance_ms":5783.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=0.928"}
+{"seq":30,"wall_ms":1789186153893,"performance_ms":5974,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.056"}
+{"seq":31,"wall_ms":1789186153901,"performance_ms":5982.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.184"}
+{"seq":32,"wall_ms":1789186154088,"performance_ms":6169,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.312"}
+{"seq":33,"wall_ms":1789186154093,"performance_ms":6174,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.440"}
+{"seq":34,"wall_ms":1789186154283,"performance_ms":6364.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.568"}
+{"seq":35,"wall_ms":1789186154292,"performance_ms":6373.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.696"}
+{"seq":36,"wall_ms":1789186154672,"performance_ms":6753.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.824"}
+{"seq":37,"wall_ms":1789186154680,"performance_ms":6761.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=1.952"}
+{"seq":38,"wall_ms":1789186154872,"performance_ms":6953.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.080"}
+{"seq":39,"wall_ms":1789186154880,"performance_ms":6961.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.208"}
+{"seq":40,"wall_ms":1789186155074,"performance_ms":7155.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.336"}
+{"seq":41,"wall_ms":1789186155083,"performance_ms":7163.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.464"}
+{"seq":42,"wall_ms":1789186155277,"performance_ms":7358.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.592"}
+{"seq":43,"wall_ms":1789186155286,"performance_ms":7367.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.720"}
+{"seq":44,"wall_ms":1789186155476,"performance_ms":7557.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.848"}
+{"seq":45,"wall_ms":1789186155485,"performance_ms":7566.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=2.976"}
+{"seq":46,"wall_ms":1789186155673,"performance_ms":7754.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.104"}
+{"seq":47,"wall_ms":1789186155682,"performance_ms":7763,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.232"}
+{"seq":48,"wall_ms":1789186155866,"performance_ms":7947.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.360"}
+{"seq":49,"wall_ms":1789186155874,"performance_ms":7955.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.488"}
+{"seq":50,"wall_ms":1789186156045,"performance_ms":8126.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.616"}
+{"seq":51,"wall_ms":1789186156054,"performance_ms":8134.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.744"}
+{"seq":52,"wall_ms":1789186156227,"performance_ms":8308,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=3.872"}
+{"seq":53,"wall_ms":1789186156235,"performance_ms":8316.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.000"}
+{"seq":54,"wall_ms":1789186156405,"performance_ms":8486.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.128"}
+{"seq":55,"wall_ms":1789186156413,"performance_ms":8494.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.256"}
+{"seq":56,"wall_ms":1789186156581,"performance_ms":8662,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.384"}
+{"seq":57,"wall_ms":1789186156589,"performance_ms":8670.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.512"}
+{"seq":58,"wall_ms":1789186156760,"performance_ms":8841.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.640"}
+{"seq":59,"wall_ms":1789186156768,"performance_ms":8849.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.768"}
+{"seq":60,"wall_ms":1789186156941,"performance_ms":9022.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=4.896"}
+{"seq":61,"wall_ms":1789186156949,"performance_ms":9030.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.024"}
+{"seq":62,"wall_ms":1789186157118,"performance_ms":9199.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.152"}
+{"seq":63,"wall_ms":1789186157127,"performance_ms":9208,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.280"}
+{"seq":64,"wall_ms":1789186157300,"performance_ms":9381.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.408"}
+{"seq":65,"wall_ms":1789186157308,"performance_ms":9389.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.536"}
+{"seq":66,"wall_ms":1789186157481,"performance_ms":9562.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.664"}
+{"seq":67,"wall_ms":1789186157490,"performance_ms":9571.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.792"}
+{"seq":68,"wall_ms":1789186157669,"performance_ms":9750,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=5.920"}
+{"seq":69,"wall_ms":1789186157677,"performance_ms":9758.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.048"}
+{"seq":70,"wall_ms":1789186157853,"performance_ms":9934.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.176"}
+{"seq":71,"wall_ms":1789186157862,"performance_ms":9942.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.304"}
+{"seq":72,"wall_ms":1789186158045,"performance_ms":10126.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.432"}
+{"seq":73,"wall_ms":1789186158054,"performance_ms":10135.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.560"}
+{"seq":74,"wall_ms":1789186158231,"performance_ms":10312.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.688"}
+{"seq":75,"wall_ms":1789186158240,"performance_ms":10321.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.816"}
+{"seq":76,"wall_ms":1789186158412,"performance_ms":10493.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=6.944"}
+{"seq":77,"wall_ms":1789186158421,"performance_ms":10502.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.072"}
+{"seq":78,"wall_ms":1789186158593,"performance_ms":10674.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.200"}
+{"seq":79,"wall_ms":1789186158602,"performance_ms":10682.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.328"}
+{"seq":80,"wall_ms":1789186158775,"performance_ms":10856,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.456"}
+{"seq":81,"wall_ms":1789186158783,"performance_ms":10864.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.584"}
+{"seq":82,"wall_ms":1789186158953,"performance_ms":11034.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.712"}
+{"seq":83,"wall_ms":1789186158962,"performance_ms":11043.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.840"}
+{"seq":84,"wall_ms":1789186159139,"performance_ms":11220.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=7.968"}
+{"seq":85,"wall_ms":1789186159148,"performance_ms":11229.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.096"}
+{"seq":86,"wall_ms":1789186159319,"performance_ms":11400.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.224"}
+{"seq":87,"wall_ms":1789186159323,"performance_ms":11404.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.352"}
+{"seq":88,"wall_ms":1789186159496,"performance_ms":11577.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.480"}
+{"seq":89,"wall_ms":1789186159504,"performance_ms":11585.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.608"}
+{"seq":90,"wall_ms":1789186159676,"performance_ms":11757.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.736"}
+{"seq":91,"wall_ms":1789186159685,"performance_ms":11766.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.864"}
+{"seq":92,"wall_ms":1789186159860,"performance_ms":11941.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=8.992"}
+{"seq":93,"wall_ms":1789186159868,"performance_ms":11949.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.120"}
+{"seq":94,"wall_ms":1789186160068,"performance_ms":12149.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.248"}
+{"seq":95,"wall_ms":1789186160077,"performance_ms":12157.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.376"}
+{"seq":96,"wall_ms":1789186160299,"performance_ms":12380.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.504"}
+{"seq":97,"wall_ms":1789186160308,"performance_ms":12389.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.632"}
+{"seq":98,"wall_ms":1789186160516,"performance_ms":12597.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.760"}
+{"seq":99,"wall_ms":1789186160525,"performance_ms":12606.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=9.888"}
+{"seq":100,"wall_ms":1789186160761,"performance_ms":12842.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.016"}
+{"seq":101,"wall_ms":1789186160769,"performance_ms":12850.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.144"}
+{"seq":102,"wall_ms":1789186160956,"performance_ms":13037.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.272"}
+{"seq":103,"wall_ms":1789186160961,"performance_ms":13042.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.400"}
+{"seq":104,"wall_ms":1789186161173,"performance_ms":13254,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.528"}
+{"seq":105,"wall_ms":1789186161181,"performance_ms":13262.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.656"}
+{"seq":106,"wall_ms":1789186161367,"performance_ms":13448.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.784"}
+{"seq":107,"wall_ms":1789186161376,"performance_ms":13457.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=10.912"}
+{"seq":108,"wall_ms":1789186161549,"performance_ms":13630.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.040"}
+{"seq":109,"wall_ms":1789186161558,"performance_ms":13639.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.168"}
+{"seq":110,"wall_ms":1789186161727,"performance_ms":13808.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.296"}
+{"seq":111,"wall_ms":1789186161736,"performance_ms":13817.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.424"}
+{"seq":112,"wall_ms":1789186161907,"performance_ms":13988.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.552"}
+{"seq":113,"wall_ms":1789186161916,"performance_ms":13997.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.680"}
+{"seq":114,"wall_ms":1789186162091,"performance_ms":14172.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.808"}
+{"seq":115,"wall_ms":1789186162100,"performance_ms":14181.200000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=11.936"}
+{"seq":116,"wall_ms":1789186162270,"performance_ms":14351.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.064"}
+{"seq":117,"wall_ms":1789186162279,"performance_ms":14360.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.192"}
+{"seq":118,"wall_ms":1789186162448,"performance_ms":14529.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.320"}
+{"seq":119,"wall_ms":1789186162457,"performance_ms":14538,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.448"}
+{"seq":120,"wall_ms":1789186162624,"performance_ms":14705.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.576"}
+{"seq":121,"wall_ms":1789186162633,"performance_ms":14714.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.704"}
+{"seq":122,"wall_ms":1789186162805,"performance_ms":14886.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.832"}
+{"seq":123,"wall_ms":1789186162814,"performance_ms":14895.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=12.960"}
+{"seq":124,"wall_ms":1789186162983,"performance_ms":15064.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.088"}
+{"seq":125,"wall_ms":1789186162992,"performance_ms":15073.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.216"}
+{"seq":126,"wall_ms":1789186163167,"performance_ms":15248.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.344"}
+{"seq":127,"wall_ms":1789186163176,"performance_ms":15257.700000000012,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.472"}
+{"seq":128,"wall_ms":1789186163355,"performance_ms":15436.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.600"}
+{"seq":129,"wall_ms":1789186163360,"performance_ms":15441.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.728"}
+{"seq":130,"wall_ms":1789186163527,"performance_ms":15608.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.856"}
+{"seq":131,"wall_ms":1789186163536,"performance_ms":15617.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=13.984"}
+{"seq":132,"wall_ms":1789186163715,"performance_ms":15796.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.112"}
+{"seq":133,"wall_ms":1789186163724,"performance_ms":15804.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.240"}
+{"seq":134,"wall_ms":1789186163895,"performance_ms":15976.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.368"}
+{"seq":135,"wall_ms":1789186163904,"performance_ms":15985.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.496"}
+{"seq":136,"wall_ms":1789186164083,"performance_ms":16164.299999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.624"}
+{"seq":137,"wall_ms":1789186164091,"performance_ms":16172.799999999988,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.752"}
+{"seq":138,"wall_ms":1789186164258,"performance_ms":16339.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=14.880"}
+{"seq":139,"wall_ms":1789186164267,"performance_ms":16347.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.008"}
+{"seq":140,"wall_ms":1789186164441,"performance_ms":16522,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.136"}
+{"seq":141,"wall_ms":1789186164449,"performance_ms":16530.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.264"}
+{"seq":142,"wall_ms":1789186164620,"performance_ms":16701.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.392"}
+{"seq":143,"wall_ms":1789186164629,"performance_ms":16710.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.520"}
+{"seq":144,"wall_ms":1789186164804,"performance_ms":16885.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.648"}
+{"seq":145,"wall_ms":1789186164813,"performance_ms":16894.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.776"}
+{"seq":146,"wall_ms":1789186164984,"performance_ms":17065.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=15.904"}
+{"seq":147,"wall_ms":1789186164993,"performance_ms":17074.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.032"}
+{"seq":148,"wall_ms":1789186165165,"performance_ms":17246.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.160"}
+{"seq":149,"wall_ms":1789186165173,"performance_ms":17254.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.288"}
+{"seq":150,"wall_ms":1789186165346,"performance_ms":17427.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.416"}
+{"seq":151,"wall_ms":1789186165354,"performance_ms":17435.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.544"}
+{"seq":152,"wall_ms":1789186165529,"performance_ms":17610.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.672"}
+{"seq":153,"wall_ms":1789186165537,"performance_ms":17618.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.800"}
+{"seq":154,"wall_ms":1789186165710,"performance_ms":17791.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=16.928"}
+{"seq":155,"wall_ms":1789186165718,"performance_ms":17799.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.056"}
+{"seq":156,"wall_ms":1789186165884,"performance_ms":17964.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.184"}
+{"seq":157,"wall_ms":1789186165893,"performance_ms":17974.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.312"}
+{"seq":158,"wall_ms":1789186166057,"performance_ms":18138.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.440"}
+{"seq":159,"wall_ms":1789186166062,"performance_ms":18143.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.568"}
+{"seq":160,"wall_ms":1789186166228,"performance_ms":18309,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.696"}
+{"seq":161,"wall_ms":1789186166236,"performance_ms":18317.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.824"}
+{"seq":162,"wall_ms":1789186166403,"performance_ms":18484.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=17.952"}
+{"seq":163,"wall_ms":1789186166411,"performance_ms":18492.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.080"}
+{"seq":164,"wall_ms":1789186166578,"performance_ms":18659.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.208"}
+{"seq":165,"wall_ms":1789186166587,"performance_ms":18668.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.336"}
+{"seq":166,"wall_ms":1789186166751,"performance_ms":18832.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.464"}
+{"seq":167,"wall_ms":1789186166760,"performance_ms":18841.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.592"}
+{"seq":168,"wall_ms":1789186166924,"performance_ms":19005.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.720"}
+{"seq":169,"wall_ms":1789186166933,"performance_ms":19014.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.848"}
+{"seq":170,"wall_ms":1789186167100,"performance_ms":19181.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=18.976"}
+{"seq":171,"wall_ms":1789186167109,"performance_ms":19190.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.104"}
+{"seq":172,"wall_ms":1789186167276,"performance_ms":19357.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.232"}
+{"seq":173,"wall_ms":1789186167285,"performance_ms":19366.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.360"}
+{"seq":174,"wall_ms":1789186167452,"performance_ms":19533.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.488"}
+{"seq":175,"wall_ms":1789186167460,"performance_ms":19541.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.616"}
+{"seq":176,"wall_ms":1789186167628,"performance_ms":19709.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.744"}
+{"seq":177,"wall_ms":1789186167637,"performance_ms":19718.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=19.872"}
+{"seq":178,"wall_ms":1789186167802,"performance_ms":19883.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.000"}
+{"seq":179,"wall_ms":1789186167811,"performance_ms":19892.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.128"}
+{"seq":180,"wall_ms":1789186167975,"performance_ms":20056.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.256"}
+{"seq":181,"wall_ms":1789186167983,"performance_ms":20064.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.384"}
+{"seq":182,"wall_ms":1789186168148,"performance_ms":20229.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.512"}
+{"seq":183,"wall_ms":1789186168157,"performance_ms":20238.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.640"}
+{"seq":184,"wall_ms":1789186168325,"performance_ms":20406.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.768"}
+{"seq":185,"wall_ms":1789186168333,"performance_ms":20414.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=20.896"}
+{"seq":186,"wall_ms":1789186168499,"performance_ms":20580,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.024"}
+{"seq":187,"wall_ms":1789186168507,"performance_ms":20588.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.152"}
+{"seq":188,"wall_ms":1789186168670,"performance_ms":20751.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.280"}
+{"seq":189,"wall_ms":1789186168679,"performance_ms":20760,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.408"}
+{"seq":190,"wall_ms":1789186168843,"performance_ms":20924.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.536"}
+{"seq":191,"wall_ms":1789186168851,"performance_ms":20932.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.664"}
+{"seq":192,"wall_ms":1789186169018,"performance_ms":21099.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.792"}
+{"seq":193,"wall_ms":1789186169027,"performance_ms":21108.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=21.920"}
+{"seq":194,"wall_ms":1789186169192,"performance_ms":21273.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.048"}
+{"seq":195,"wall_ms":1789186169200,"performance_ms":21281.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.176"}
+{"seq":196,"wall_ms":1789186169363,"performance_ms":21444,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.304"}
+{"seq":197,"wall_ms":1789186169371,"performance_ms":21452.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.432"}
+{"seq":198,"wall_ms":1789186169544,"performance_ms":21625.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.560"}
+{"seq":199,"wall_ms":1789186169552,"performance_ms":21633.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.688"}
+{"seq":200,"wall_ms":1789186169716,"performance_ms":21797.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.816"}
+{"seq":201,"wall_ms":1789186169725,"performance_ms":21806.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=22.944"}
+{"seq":202,"wall_ms":1789186169887,"performance_ms":21968.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.072"}
+{"seq":203,"wall_ms":1789186169896,"performance_ms":21977.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.200"}
+{"seq":204,"wall_ms":1789186170069,"performance_ms":22150.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.328"}
+{"seq":205,"wall_ms":1789186170078,"performance_ms":22159.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.456"}
+{"seq":206,"wall_ms":1789186170237,"performance_ms":22318.70000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.584"}
+{"seq":207,"wall_ms":1789186170246,"performance_ms":22327.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.712"}
+{"seq":208,"wall_ms":1789186170410,"performance_ms":22491.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.840"}
+{"seq":209,"wall_ms":1789186170419,"performance_ms":22500.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=23.968"}
+{"seq":210,"wall_ms":1789186170587,"performance_ms":22668.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.096"}
+{"seq":211,"wall_ms":1789186170596,"performance_ms":22677.29999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.224"}
+{"seq":212,"wall_ms":1789186170769,"performance_ms":22850,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.352"}
+{"seq":213,"wall_ms":1789186170777,"performance_ms":22858.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.480"}
+{"seq":214,"wall_ms":1789186170956,"performance_ms":23037.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.608"}
+{"seq":215,"wall_ms":1789186170965,"performance_ms":23046,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.736"}
+{"seq":216,"wall_ms":1789186171142,"performance_ms":23223.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.864"}
+{"seq":217,"wall_ms":1789186171151,"performance_ms":23232.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=24.992"}
+{"seq":218,"wall_ms":1789186171337,"performance_ms":23418.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.120"}
+{"seq":219,"wall_ms":1789186171345,"performance_ms":23426.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.248"}
+{"seq":220,"wall_ms":1789186171531,"performance_ms":23612.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.376"}
+{"seq":221,"wall_ms":1789186171540,"performance_ms":23621.20000000001,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.504"}
+{"seq":222,"wall_ms":1789186171720,"performance_ms":23800.899999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.632"}
+{"seq":223,"wall_ms":1789186171728,"performance_ms":23809.600000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.760"}
+{"seq":224,"wall_ms":1789186171911,"performance_ms":23992.5,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=25.888"}
+{"seq":225,"wall_ms":1789186171920,"performance_ms":24001.100000000006,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=26.016"}
+{"seq":226,"wall_ms":1789186172099,"performance_ms":24180.79999999999,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 TICK elapsed=26.144"}
+{"seq":227,"wall_ms":1789186172105,"performance_ms":24186.399999999994,"event":"RX","detail":"WEBEEBLOCKS_CHALLENGE_V1 RESULT SUCCESS elapsed=26.208"}
+{"seq":228,"wall_ms":1789186172105,"performance_ms":24186.70000000001,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 DONE"}
+{"seq":229,"wall_ms":1789186172105,"performance_ms":24186.70000000001,"event":"STATE_AFTER_DONE","detail":"RECOVERING"}
+{"seq":230,"wall_ms":1789186172105,"performance_ms":24186.70000000001,"event":"DONE_ACK_SEND_CALL","detail":"RECOVERING"}
+{"seq":231,"wall_ms":1789186172105,"performance_ms":24186.79999999999,"event":"DONE_ACK_SEND_RETURN","detail":"RECOVERING"}
+{"seq":232,"wall_ms":1789186172105,"performance_ms":24186.79999999999,"event":"DONE_ACK_SENT","detail":"RECOVERING"}
+{"seq":233,"wall_ms":1789186172287,"performance_ms":24368,"event":"RX","detail":"WEBEEBLOCKS_MISSION_V1 RUNTIME_READY"}
+{"seq":234,"wall_ms":1789186172287,"performance_ms":24368.899999999994,"event":"STATE_AFTER_RUNTIME_READY","detail":"WAITING"}

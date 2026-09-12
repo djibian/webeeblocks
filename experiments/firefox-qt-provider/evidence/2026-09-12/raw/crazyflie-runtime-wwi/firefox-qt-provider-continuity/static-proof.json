@@ -1,0 +1,9 @@
+{
+  "binary_sha256": "e1ce1f822659e1a5b084354ba56ed193c0a3923805215b3f0cb5db8aa8780dc8",
+  "bundled_qt_and_controller_resolved": true,
+  "candidate_sha": "e8aecd14e7988a6772d780062f8cf83060657dff",
+  "github_event_sha": "d232105d8bdff20a8dea82fb1a66ca53d5413a5c",
+  "qt_copy_relocations": [],
+  "required_provider_roots_retained": true,
+  "runtime_paths_added": false
+}

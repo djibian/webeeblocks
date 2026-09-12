@@ -1,0 +1,1 @@
+WEBEEBLOCKS_CF_L_RESULT status=success gates=2 g1_lateral=-0.000000 g1_altitude_error=0.003819 g1_time=12.351 g2_lateral=0.002078 g2_altitude_error=0.000022 g2_time=21.379 endpoint_error_xy=0.006519 yaw_error_deg=0.699400 altitude_min=-0.022264 altitude_max=1.757126 total_s=26.208

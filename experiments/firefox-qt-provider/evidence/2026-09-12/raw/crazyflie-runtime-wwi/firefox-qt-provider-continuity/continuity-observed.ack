@@ -1,0 +1,1 @@
+continuity observed before shutdown

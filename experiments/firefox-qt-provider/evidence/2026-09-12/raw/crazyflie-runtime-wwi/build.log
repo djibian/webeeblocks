@@ -1,0 +1,6 @@
+# updating pid_controller.d
+# updating crazyflie_l_course.d
+# compiling crazyflie_l_course.c
+# compiling pid_controller.c
+# linking crazyflie_l_course
+# copying to crazyflie_l_course

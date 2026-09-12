@@ -1,0 +1,75 @@
+{
+  "display": ":99",
+  "error": null,
+  "full_firefox_parity": "UNPROVEN",
+  "pre_shutdown_observation": {
+    "continuity": {
+      "loop_after": 0.256,
+      "loop_before": 0.0,
+      "pre_shutdown_ready": true,
+      "records": [
+        "event=CONTROLLER_STARTED pid=3645",
+        "event=WB_INIT_RETURN time=0.000000",
+        "event=PROVIDER_CALLED",
+        "event=PROVIDER_RETURNED",
+        "event=LOOP_BEGIN time=0.000000",
+        "event=STEP n=1 result=0 time=0.032000",
+        "event=STEP n=2 result=0 time=0.064000",
+        "event=STEP n=3 result=0 time=0.096000",
+        "event=STEP n=4 result=0 time=0.128000",
+        "event=STEP n=5 result=0 time=0.160000",
+        "event=STEP n=6 result=0 time=0.192000",
+        "event=STEP n=7 result=0 time=0.224000",
+        "event=STEP n=8 result=0 time=0.256000",
+        "event=LOOP_END before=0.000000 after=0.256000",
+        "event=CAPABILITIES operationsReady=false",
+        "event=PROVIDER_DESTROYED",
+        "event=PRE_SHUTDOWN_READY"
+      ],
+      "step_times": [
+        0.032,
+        0.064,
+        0.096,
+        0.128,
+        0.16,
+        0.192,
+        0.224,
+        0.256
+      ]
+    },
+    "host_monotonic_s": 123.399561299,
+    "journal_sha256": "fe106309425f4b84e58215cf667e614ff16a662a5d83927267c4e1e52c0098e4",
+    "observed_while_webots_alive": true,
+    "webots_pid": 3619
+  },
+  "process_proof": {
+    "binary": "/home/runner/work/_temp/q87-provider-project/controllers/qt_provider_probe/qt_provider_probe",
+    "pid": 3645,
+    "webots_ancestor_pid": 3619
+  },
+  "project_files_unchanged": true,
+  "qpa_override": null,
+  "result": "PASS",
+  "scope": "Qt provider display/cancel plus controller-owned pre-shutdown continuity",
+  "shutdown_ack_observed": true,
+  "static_proof": {
+    "binary_sha256": "e1ce1f822659e1a5b084354ba56ed193c0a3923805215b3f0cb5db8aa8780dc8",
+    "bundled_qt_and_controller_resolved": true,
+    "candidate_sha": "e8aecd14e7988a6772d780062f8cf83060657dff",
+    "github_event_sha": "d232105d8bdff20a8dea82fb1a66ca53d5413a5c",
+    "qt_copy_relocations": [],
+    "required_provider_roots_retained": true,
+    "runtime_paths_added": false
+  },
+  "webots_exit": 0,
+  "x11_witness": {
+    "cancel": "XTEST_ESCAPE",
+    "focus_verified": true,
+    "height": 412,
+    "host_monotonic_s": 122.992462984,
+    "map_state": "IsViewable",
+    "pid": 3645,
+    "width": 624,
+    "window": 6291463
+  }
+}
