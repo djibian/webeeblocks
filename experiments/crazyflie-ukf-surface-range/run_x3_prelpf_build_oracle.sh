@@ -8,6 +8,7 @@ EXPECTED_SENSOR_BLOB=b183285c999335ca258b5131b1a835473473c078
 S3_ORACLE="$ROOT/experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh"
 OBSERVER="$ROOT/experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py"
 OBSERVER_TEST="$ROOT/experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py"
+OTP_PROVENANCE_TEST="$ROOT/experiments/crazyflie-ukf-surface-range/test_probe_x3_platform_otp.py"
 
 test -d "$UPSTREAM/.git"
 test "$(git -C "$UPSTREAM" rev-parse HEAD)" = "$EXPECTED_COMMIT"
@@ -15,6 +16,7 @@ test "$(git -C "$UPSTREAM" hash-object src/hal/src/sensors_bmi088_bmp3xx.c)" = "
 test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/estimator_ukf.c src/hal/src/sensors_bmi088_bmp3xx.c)"
 
 python3 "$OBSERVER_TEST"
+python3 "$OTP_PROVENANCE_TEST"
 
 # Reuse the exact canonical S3 configuration, but only inside this dedicated
 # diagnostic checkout. The trusted s3-props-off workflow/artifact path is never
