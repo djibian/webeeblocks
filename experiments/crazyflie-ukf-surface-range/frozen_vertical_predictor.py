@@ -295,8 +295,7 @@ def imu_segment(imu, start, end, prep):
     # sensitivity envelope. This is conditional on the declared timing/error
     # bounds and does not turn log time into sensor producer time.
     v0 = prep["bounds"]["initial_velocity_error_m_s"]
-    max_acc = max(max(abs(row[2]), abs(row[3])) for row in samples
-                  if outer_start <= row[0] <= outer_end)
+    max_acc = max(max(abs(row[2]), abs(row[3])) for row in samples)
     duration_max = outer_end - outer_start
     start_shift = (start[1] - start[0]) + te
     end_shift = (end[1] - end[0]) + te
