@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import json
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -18,6 +17,7 @@ from dynamic_physical_backend import (  # noqa: E402
 )
 from physical_execution_domain import FLYING, INACTIVE  # noqa: E402
 from shared_interpreter_host import BoundSharedInterpreter  # noqa: E402
+import takeoff_command  # noqa: E402
 
 
 EVENTS: list[object] = []
@@ -29,15 +29,12 @@ def require(condition: bool, message: str) -> None:
 
 
 def canonical(program: list[dict[str, object]]) -> str:
-    return json.dumps(
+    return takeoff_command._canonical_json(
         {
             "program": program,
             "semantics": "webeeblocks-ast-v1",
             "version": 1,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
+        }
     )
 
 
