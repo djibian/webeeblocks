@@ -79,12 +79,11 @@
     var id = this.nextId++;
     var suffix = args && args.length ? ' ' + args.join(' ') : '';
     return new Promise(function(resolve, reject) {
-      // Bound only the non-side-effecting readiness handshake. Open and Save As
-      // are user-paced, while Save may legitimately block on slow local/network
-      // storage. The protocol has no cancellation acknowledgement: timing out a
-      // file operation could detach the browser from an operation that later
-      // commits, leaving the manager's target state inconsistent with disk.
-      var bounded = operation === 'CAPABILITIES';
+      // Bound non-file effects only. Open and Save As are user-paced, while Save
+      // may legitimately block on slow local/network storage. RELEASE abandons
+      // an opaque session capability only, so a lost acknowledgement may be
+      // treated as best-effort cleanup without ambiguity about file contents.
+      var bounded = operation === 'CAPABILITIES' || operation === 'RELEASE';
       var timer = bounded ? setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
@@ -141,6 +140,11 @@
         pending.resolve(JSON.parse(capabilities[1]));
         return true;
       }
+      if (pending.operation === 'RELEASE') {
+        if (payload !== 'RELEASE OK') throw new BrokerError('INVALID_RESPONSE');
+        pending.resolve(null);
+        return true;
+      }
       if (pending.operation === 'OPEN') {
         var opened = payload.match(/^OPEN OK ([A-Za-z0-9_-]{1,128}) ([A-Za-z0-9+/=]+) ([A-Za-z0-9+/=]+)$/);
         if (!opened) throw new BrokerError('INVALID_RESPONSE');
@@ -174,6 +178,19 @@
       return Promise.reject(new BrokerError('TARGET_UNAVAILABLE'));
     return this.waitUntilReady().then(function() {
       return self._request('SAVE', [target.reference, encodeText(text)]);
+    });
+  };
+
+  WwiProjectFileTransport.prototype.release = function(target) {
+    var self = this;
+    if (!target || target.kind !== 'wwi' || !TOKEN.test(target.reference || ''))
+      return Promise.reject(new BrokerError('TARGET_UNAVAILABLE'));
+    return this.waitUntilReady().then(function(capabilities) {
+      // Older brokers did not expose explicit reference release. Treat their
+      // absence as a compatibility no-op; current brokers advertise and honor
+      // this session-lifetime cleanup capability.
+      if (!capabilities.referenceRelease) return;
+      return self._request('RELEASE', [target.reference]);
     });
   };
 
