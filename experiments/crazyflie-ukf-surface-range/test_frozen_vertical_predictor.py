@@ -152,6 +152,29 @@ class PredictorTests(unittest.TestCase):
                            event["barometer"]["before_median_time_s"][0])
         self.assertFalse(result["sensor_producer_timing_validated"])
 
+    def test_timing_envelope_includes_off_grid_bracketing_acceleration(self):
+        prep = {"bounds": {"specific_force_error_g": 0.0,
+                           "max_body_z_tilt_deg": 0.0,
+                           "initial_velocity_error_m_s": 0.0,
+                           "sensor_time_error_s": 0.005},
+                "zero_specific_force_interval_g": [1.0, 1.0],
+                "nominal_zero_specific_force_g": 1.0}
+        imu = []
+        for i in range(53):
+            t = 0.99 + 0.02 * i
+            az = 11.0 if i == 0 else 1.0
+            imu.append((t, 100.0 + t, (0.0, 0.0, az)))
+        start = (1.005, 1.005)
+        end = (2.005, 2.005)
+        segment = predictor.imu_segment(imu, start, end, prep)
+        outer_start, outer_end = segment["admissible_device_s"]
+        samples = predictor.projected_samples(imu, outer_start, outer_end, prep)
+        _nominal, shifted, _points = predictor.integrate_projected(samples, outer_start, outer_end, prep)
+
+        self.assertAlmostEqual(segment["max_abs_vertical_accel_bound_m_s2"], 10.0 * predictor.G)
+        self.assertLessEqual(segment["delta_z_interval_m"][0], shifted[0])
+        self.assertGreaterEqual(segment["delta_z_interval_m"][1], shifted[1])
+
     def test_full_file_entry_binds_exact_sources_and_rejects_pose_input(self):
         baro, imu, pose, spec, reference = fixture()
         with tempfile.TemporaryDirectory() as directory:
