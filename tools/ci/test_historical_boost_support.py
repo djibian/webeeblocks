@@ -3,19 +3,51 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-PREPARER_PATH = ROOT / "tools/ci/prepare_historical_boost.py"
-BUILDER_PATH = ROOT / "tools/ci/build_historical_blockly_sidecar.sh"
+CI = ROOT / "tools/ci"
+PREPARER_PATH = CI / "prepare_historical_boost.py"
+FETCHER_PATH = CI / "fetch_historical_boost_archive.py"
+BUILDER_PATH = CI / "build_historical_blockly_sidecar.sh"
+ACTION_PATH = ROOT / ".github/actions/historical-boost-support/action.yml"
+CI_GATE_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 WEBOTS_WORKFLOW = ROOT / ".github/workflows/ci-webots.yml"
 
 spec = importlib.util.spec_from_file_location("prepare_historical_boost", PREPARER_PATH)
 assert spec is not None and spec.loader is not None
 subject = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(subject)
+sys.modules["prepare_historical_boost"] = subject
+
+fetch_spec = importlib.util.spec_from_file_location(
+    "fetch_historical_boost_archive", FETCHER_PATH
+)
+assert fetch_spec is not None and fetch_spec.loader is not None
+fetcher = importlib.util.module_from_spec(fetch_spec)
+fetch_spec.loader.exec_module(fetcher)
+
+
+class _FakeResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+        self._sent = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self, size: int) -> bytes:
+        del size
+        if self._sent:
+            return b""
+        self._sent = True
+        return self._payload
 
 
 class HistoricalBoostSupportTests(unittest.TestCase):
@@ -27,6 +59,11 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             "4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78",
         )
         self.assertEqual(subject.BOOST_VERSION, 107400)
+        self.assertEqual(
+            fetcher.PACKAGE_URL,
+            "https://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/"
+            "libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb",
+        )
 
     def test_missing_archive_fails_closed_without_network_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -104,6 +141,66 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 "fresh-verified-tree\n",
             )
 
+    def test_cache_fill_does_not_use_network_when_exact_archive_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / subject.PACKAGE_NAME
+            output.write_bytes(b"already verified")
+            with mock.patch.object(fetcher, "verify_archive") as verify, mock.patch.object(
+                fetcher, "urlopen"
+            ) as urlopen:
+                result = fetcher.fetch(output)
+            self.assertEqual(result, output.resolve())
+            verify.assert_called_once_with(output.resolve())
+            urlopen.assert_not_called()
+
+    def test_cache_fill_verifies_temporary_bytes_before_atomic_exposure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / subject.PACKAGE_NAME
+            payload = b"candidate exact archive bytes"
+            verified: list[Path] = []
+
+            def verify(path: Path) -> None:
+                verified.append(Path(path))
+                self.assertEqual(Path(path).read_bytes(), payload)
+
+            with mock.patch.object(fetcher, "verify_archive", side_effect=verify), mock.patch.object(
+                fetcher, "urlopen", return_value=_FakeResponse(payload)
+            ) as urlopen:
+                result = fetcher.fetch(output)
+
+            self.assertEqual(result, output.resolve())
+            self.assertEqual(output.read_bytes(), payload)
+            self.assertEqual(len(verified), 2)
+            self.assertNotEqual(verified[0], output.resolve())
+            self.assertEqual(verified[1], output.resolve())
+            urlopen.assert_called_once_with(fetcher.PACKAGE_URL, timeout=60)
+
+    def test_failed_cache_fill_never_exposes_unverified_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / subject.PACKAGE_NAME
+            with mock.patch.object(
+                fetcher,
+                "verify_archive",
+                side_effect=subject.SupportError("injected digest mismatch"),
+            ), mock.patch.object(
+                fetcher, "urlopen", return_value=_FakeResponse(b"bad archive")
+            ):
+                with self.assertRaisesRegex(subject.SupportError, "digest mismatch"):
+                    fetcher.fetch(output)
+            self.assertFalse(output.exists())
+            self.assertEqual(list(Path(temp).glob(output.name + ".download.*")), [])
+
+    def test_cache_action_is_exact_and_apt_free(self) -> None:
+        text = ACTION_PATH.read_text(encoding="utf-8")
+        self.assertIn("uses: actions/cache@v4", text)
+        self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", text)
+        self.assertIn(subject.PACKAGE_SHA256, text)
+        self.assertIn("steps.boost-cache.outputs.cache-hit != 'true'", text)
+        self.assertIn("python3 tools/ci/fetch_historical_boost_archive.py", text)
+        self.assertIn("from prepare_historical_boost import PACKAGE_NAME, verify_archive", text)
+        self.assertNotIn("apt-get", text)
+        self.assertNotIn("apt ", text)
+
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")
         self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", text)
@@ -116,6 +213,10 @@ class HistoricalBoostSupportTests(unittest.TestCase):
         self.assertNotIn("apt ", text)
         self.assertNotIn("curl ", text)
         self.assertNotIn("wget ", text)
+
+    def test_support_contract_runs_in_canonical_selector_job(self) -> None:
+        text = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("python3 tools/ci/test_historical_boost_support.py", text)
 
     def test_affected_historical_jobs_use_only_pinned_boost_builder(self) -> None:
         text = WEBOTS_WORKFLOW.read_text(encoding="utf-8")
@@ -134,6 +235,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 invocation = "bash tools/ci/build_historical_blockly_sidecar.sh"
                 if with_supervisor:
                     invocation += " --with-supervisor"
+                self.assertIn("uses: ./.github/actions/historical-boost-support", block)
                 self.assertIn(invocation, block)
                 self.assertNotIn("libboost-dev", block)
                 self.assertNotIn("apt-get update", block)
