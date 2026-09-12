@@ -79,16 +79,17 @@
     var id = this.nextId++;
     var suffix = args && args.length ? ' ' + args.join(' ') : '';
     return new Promise(function(resolve, reject) {
-      // Native Open/Save As dialogs are explicitly user-paced. Do not let the
-      // short broker/readiness timeout detach the browser from a dialog which
-      // may legitimately remain open for minutes. Non-interactive operations
-      // (capabilities and same-file Save) stay bounded and fail closed.
-      var interactive = operation === 'OPEN' || operation === 'SAVE_AS';
-      var timer = interactive ? null : setTimeout(function() {
+      // Bound only the non-side-effecting readiness handshake. Open and Save As
+      // are user-paced, while Save may legitimately block on slow local/network
+      // storage. The protocol has no cancellation acknowledgement: timing out a
+      // file operation could detach the browser from an operation that later
+      // commits, leaving the manager's target state inconsistent with disk.
+      var bounded = operation === 'CAPABILITIES';
+      var timer = bounded ? setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
         reject(new BrokerError('TIMEOUT'));
-      }, self.timeoutMs);
+      }, self.timeoutMs) : null;
       self.pending[id] = {operation: operation, resolve: resolve, reject: reject, timer: timer};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + operation + suffix);

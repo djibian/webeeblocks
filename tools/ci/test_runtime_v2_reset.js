@@ -66,7 +66,7 @@ async function testBackendResetContract() {
   await assert.rejects(() => physical.resetSimulation(), /simulation reset unavailable/);
 }
 
-async function testInteractiveProjectDialogsOutliveBrokerTimeout() {
+async function testProjectFileOperationsOutliveReadinessTimeout() {
   const sent = [];
   const transport = new WwiProjectFileTransport(
     {send: message => sent.push(String(message))},
@@ -90,7 +90,7 @@ async function testInteractiveProjectDialogsOutliveBrokerTimeout() {
   await Promise.resolve();
   id = requestId();
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert(transport.pending[id], 'interactive Open expired on the ordinary broker timeout');
+  assert(transport.pending[id], 'Open expired on the readiness timeout');
   transport.handleMessage(
     `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} OPEN OK delayed_open ${WwiProjectFileTransport.encodeText('delayed.wbb')} ${WwiProjectFileTransport.encodeText('{"ok":1}')}`
   );
@@ -101,18 +101,30 @@ async function testInteractiveProjectDialogsOutliveBrokerTimeout() {
   await Promise.resolve();
   id = requestId();
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert(transport.pending[id], 'interactive Save As expired on the ordinary broker timeout');
+  assert(transport.pending[id], 'Save As expired on the readiness timeout');
   transport.handleMessage(
     `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE_AS OK delayed_save ${WwiProjectFileTransport.encodeText('delayed.wbb')}`
   );
   const saved = await pending;
   assert.strictEqual(saved.handle.reference, 'delayed_save');
 
+  pending = transport.save(saved.handle, saved.name, '{"ok":3}');
+  await Promise.resolve();
+  id = requestId();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert(transport.pending[id], 'same-file Save expired after its disk effect could have committed');
+  transport.handleMessage(
+    `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE OK delayed_save ${WwiProjectFileTransport.encodeText('delayed.wbb')}`
+  );
+  const resaved = await pending;
+  assert.strictEqual(resaved.handle.reference, 'delayed_save');
+
+  const unavailable = new WwiProjectFileTransport({send: () => {}}, {timeoutMs: 5});
   await assert.rejects(
-    transport.save(saved.handle, saved.name, '{"ok":3}'),
+    unavailable.waitUntilReady(),
     error => error && error.code === 'TIMEOUT'
   );
-  assert.strictEqual(Object.keys(transport.pending).length, 0, 'timed-out same-file Save stayed pending');
+  assert.strictEqual(Object.keys(unavailable.pending).length, 0, 'readiness timeout stayed pending');
 }
 
 async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
@@ -228,10 +240,10 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendResetContract();
-  await testInteractiveProjectDialogsOutliveBrokerTimeout();
+  await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testNativeResetTimeoutSourceContract();
-  console.log('PASS: reset cancels stale requests, project dialogs remain user-paced, same-file Save stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
+  console.log('PASS: reset cancels stale requests, project-file effects stay attached while readiness stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
 })().catch(error => {
   console.error(error.stack || error);
   process.exit(1);
