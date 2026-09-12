@@ -29,13 +29,15 @@ PARAMETERS = {
     "ukf.baroNoise": 6.25, "ukf.surfaceOffsetS3": 1,
 }
 # Every variable is fetched as a 32-bit float: at most 24 of 26 payload bytes.
-# A log timestamp is NOT a per-sensor producer timestamp. No synchronized IMU
-# integration claim follows from this choice of log periods.
+# A log timestamp is NOT a per-sensor producer timestamp. The existing
+# stabilizer.intToOut diagnostic is retained only as a non-atomic sensor-to-output
+# latency observation; it does not timestamp the acc/gyro row. No synchronized
+# IMU integration claim follows from this choice of log periods.
 BLOCKS = {
     "barometer": (20, ("baro.asl", "baro.pressure", "baro.temp")),
     "imu": (10, ("acc.x", "acc.y", "acc.z", "gyro.x", "gyro.y", "gyro.z")),
     "pose": (20, ("range.zrange", "stabilizer.roll", "stabilizer.pitch",
-                  "stateEstimate.z", "stateEstimate.vz")),
+                  "stateEstimate.z", "stateEstimate.vz", "stabilizer.intToOut")),
     "detector": (20, ("sensorFilter.surfState", "sensorFilter.surfReason",
                       "sensorFilter.surfOffset", "sensorFilter.surfBaroD",
                       "sensorFilter.flowLocal", "sensorFilter.lateElig")),
