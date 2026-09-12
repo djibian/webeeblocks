@@ -41,6 +41,31 @@ def reset_ok(
     return marker
 
 
+def establish_flying(execution: domain.PhysicalExecutionDomain) -> None:
+    reset_ok(execution)
+    with execution.effect_transaction(lambda: None) as takeoff:
+        takeoff.mark_emitted()
+        permit = takeoff.mark_accepted()
+    execution.complete_accepted_effect(
+        permit,
+        domain.FLYING,
+        lambda: True,
+    )
+    require(execution.phase == domain.FLYING, "fixture established flying")
+
+
+def land_inactive(execution: domain.PhysicalExecutionDomain) -> None:
+    with execution.effect_transaction(lambda: None) as landing:
+        landing.mark_emitted()
+        permit = landing.mark_accepted()
+    execution.complete_accepted_effect(
+        permit,
+        domain.INACTIVE,
+        lambda: True,
+    )
+    require(execution.phase == domain.INACTIVE, "fixture restored inactive")
+
+
 def test_new_process_requires_reset_establishment() -> None:
     execution = domain.PhysicalExecutionDomain()
     require(
@@ -448,6 +473,135 @@ def test_independent_handles_share_process_wide_exclusion() -> None:
     )
 
 
+def test_observation_is_flying_only_phase_neutral_and_precondition_bound() -> None:
+    execution = domain.PhysicalExecutionDomain()
+    reset_ok(execution)
+    expect_error(
+        lambda: execution.observation_transaction(lambda: None).__enter__(),
+        "requires causally established flying",
+    )
+    require(
+        execution.phase == domain.INACTIVE,
+        "ineligible observation must not alter inactive phase",
+    )
+
+    with execution.effect_transaction(lambda: None) as takeoff:
+        takeoff.mark_emitted()
+        permit = takeoff.mark_accepted()
+    execution.complete_accepted_effect(permit, domain.FLYING, lambda: True)
+
+    calls: list[str] = []
+    try:
+        with execution.observation_transaction(
+            lambda: calls.append("first"),
+            lambda: (_ for _ in ()).throw(RuntimeError("stale epoch")),
+            lambda: calls.append("late"),
+        ):
+            raise AssertionError("failed observation precondition reached body")
+    except RuntimeError as exc:
+        require("stale epoch" in str(exc), "observation preserves precondition failure")
+    require(calls == ["first"], "observation stops at first failed precondition")
+    require(execution.phase == domain.FLYING, "failed observation remains phase-neutral")
+
+    calls.clear()
+    with execution.observation_transaction(
+        lambda: calls.append("epoch"),
+        lambda: calls.append("watchdog"),
+    ):
+        require(execution.phase == domain.FLYING, "observation body sees stable flying")
+        calls.append("read")
+        expect_error(
+            lambda: execution.effect_transaction(lambda: None).__enter__(),
+            "exclusion is already active",
+        )
+    require(
+        calls == ["epoch", "watchdog", "read"],
+        "observation preconditions and read preserve exact order",
+    )
+    require(execution.phase == domain.FLYING, "successful observation remains phase-neutral")
+    land_inactive(execution)
+
+
+def test_observation_blocks_independent_effect_and_reset_sections() -> None:
+    observation_execution = domain.PhysicalExecutionDomain()
+    effect_execution = domain.PhysicalExecutionDomain()
+    reset_execution = domain.PhysicalExecutionDomain()
+    establish_flying(observation_execution)
+
+    observation_entered = Event()
+    release_observation = Event()
+    effect_entered = Event()
+    reset_callback_entered = Event()
+    failures: list[BaseException] = []
+
+    def held_observation():
+        try:
+            with observation_execution.observation_transaction(lambda: None):
+                observation_entered.set()
+                require(
+                    release_observation.wait(1.0),
+                    "test observation release signal",
+                )
+        except BaseException as exc:
+            failures.append(exc)
+
+    def effect_attempt():
+        try:
+            with effect_execution.effect_transaction(lambda: None):
+                effect_entered.set()
+        except BaseException as exc:
+            failures.append(exc)
+
+    def reset_attempt():
+        try:
+            reset_execution.run_reset_establishment(
+                lambda: (reset_callback_entered.set(), object())[1]
+            )
+        except domain.PhysicalExecutionDomainError as exc:
+            require("blocked" in str(exc), "post-observation flying reset fails by phase")
+        except BaseException as exc:
+            failures.append(exc)
+
+    observation_thread = Thread(target=held_observation)
+    observation_thread.start()
+    require(observation_entered.wait(1.0), "observation owns process-wide exclusion")
+
+    effect_thread = Thread(target=effect_attempt)
+    reset_thread = Thread(target=reset_attempt)
+    effect_thread.start()
+    reset_thread.start()
+    require(
+        not effect_entered.wait(0.05),
+        "independent effect cannot enter while observation owns exclusion",
+    )
+    require(
+        not reset_callback_entered.wait(0.05),
+        "independent reset callback cannot enter while observation owns exclusion",
+    )
+
+    release_observation.set()
+    observation_thread.join(1.0)
+    effect_thread.join(1.0)
+    reset_thread.join(1.0)
+    require(
+        not observation_thread.is_alive()
+        and not effect_thread.is_alive()
+        and not reset_thread.is_alive(),
+        "observation/execution concurrency fixture completed",
+    )
+    require(not failures, f"observation exclusion fixture failed: {failures!r}")
+    require(effect_entered.is_set(), "effect may enter after observation releases exclusion")
+    require(
+        not reset_callback_entered.is_set(),
+        "flying-state reset remains ineligible after observation",
+    )
+    require(
+        observation_execution.phase == domain.FLYING,
+        "observation plus unemitted effect preserve established flying",
+    )
+    land_inactive(observation_execution)
+
+
 def test_no_physical_effect_or_browser_surface() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     for forbidden in (
@@ -479,10 +633,12 @@ def main() -> int:
     test_completion_uncertainty_forces_recovery()
     test_reset_and_effect_boundary_are_mutually_exclusive()
     test_independent_handles_share_process_wide_exclusion()
+    test_observation_is_flying_only_phase_neutral_and_precondition_bound()
+    test_observation_blocks_independent_effect_and_reset_sections()
     test_no_physical_effect_or_browser_surface()
     print(
-        "PASS trusted physical reset/effect exclusion is process-local, fail-closed "
-        "and emits no physical effect"
+        "PASS trusted physical reset/effect/observation exclusion is process-local, "
+        "fail-closed, phase-neutral for fresh observations and emits no physical effect"
     )
     return 0
 
