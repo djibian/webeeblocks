@@ -126,10 +126,16 @@ if __name__ == "__main__":
                     while not staged_ready.wait(0.05):
                         if host_stopping.is_set():
                             return
-                    if host_stopping.is_set():
-                        return
 
                     with lifecycle_lock:
+                        # Caller EOF may stop ordinary IPC immediately after a
+                        # successful validation reply. Once that validation has
+                        # staged the exact trusted candidate, the non-authority
+                        # caller must not be able to cancel the distinct teacher
+                        # transaction merely by closing its channel. Conversely,
+                        # shutdown with no staged candidate remains effect-free.
+                        if not activation_state["started"]:
+                            return
                         binding = staged_state["binding"]
                         if type(binding) is not PhysicalRunBinding:
                             raise RuntimeError(
