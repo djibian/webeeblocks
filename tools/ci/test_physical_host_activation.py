@@ -266,6 +266,8 @@ class FakeAuthorizer:
 
 
 class FakeTeacherChannel:
+    decision_reached = Event()
+
     def __init__(self, teacher_socket: socket.socket, epoch_reader) -> None:
         self.teacher_socket = teacher_socket
         self.epoch_reader = epoch_reader
@@ -275,6 +277,7 @@ class FakeTeacherChannel:
         require(type(authorizer) is FakeAuthorizer, "exact teacher authorizer")
         require(binding.connection_epoch == self.epoch_reader(), "teacher decision new epoch")
         EVENTS.append(("teacher-decision", binding.connection_epoch))
+        self.decision_reached.set()
         return FakeAuthorization(binding)
 
     def close(self) -> None:
@@ -374,6 +377,7 @@ def install_fakes() -> None:
 
 
 def run_host(*, teacher_enabled: bool) -> dict[str, object]:
+    FakeTeacherChannel.decision_reached.clear()
     caller_host, caller_peer = socket.socketpair()
     browser_read, browser_write = os.pipe()
     teacher_peer = None
@@ -425,6 +429,11 @@ def run_host(*, teacher_enabled: bool) -> dict[str, object]:
     caller_peer.sendall((json.dumps(request, separators=(",", ":")) + "\n").encode())
     response = json.loads(caller_peer.makefile("r", encoding="utf-8").readline())
     require(response == {"executionAuthority": False, "ok": True, "requestId": "request-1"}, "caller reply remains diagnostic")
+    if teacher_enabled:
+        require(
+            FakeTeacherChannel.decision_reached.wait(timeout=1.0),
+            "trusted activation did not reach the post-reset teacher decision",
+        )
     caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "production host runner must terminate after caller EOF")
