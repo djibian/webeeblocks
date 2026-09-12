@@ -219,14 +219,17 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     host.base.EVENTS.clear()
     install_fakes()
     original = FakeColorTransport.send_color
+    attempts = {"count": 0}
 
     def ambiguous(self, *, color):
+        attempts["count"] += 1
         binding = self._read_current_binding()
         host.base.EVENTS.append(
             ("inflight-light-ambiguous", color, binding.connection_epoch)
         )
-        self.execution_domain.phase = physical_execution_domain.RECOVERY_REQUIRED
-        raise RuntimeError("injected ambiguous Color LED effect")
+        with self.execution_domain.effect_transaction(lambda: None) as effect:
+            effect.mark_emitted()
+            raise RuntimeError("injected ambiguous Color LED effect")
 
     FakeColorTransport.send_color = ambiguous
     try:
@@ -237,6 +240,19 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     require(
         replies[2]["ok"] is False and replies[3]["ok"] is False,
         "ambiguous light effect and every later step fail closed",
+    )
+    require(
+        attempts["count"] == 1,
+        "terminal ambiguity must not retry the same Color LED effect",
+    )
+    ambiguous_events = [
+        event
+        for event in host.base.EVENTS
+        if isinstance(event, tuple) and event[0] == "inflight-light-ambiguous"
+    ]
+    require(
+        ambiguous_events == [("inflight-light-ambiguous", "red", "epoch-after")],
+        "exactly one ambiguous red effect must reach the transport boundary",
     )
     require(
         not any(
