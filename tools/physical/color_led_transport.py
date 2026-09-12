@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import struct
-from threading import Event, Lock
+from threading import Event, Lock, RLock
 from time import monotonic
 from typing import Callable
 
@@ -520,17 +520,25 @@ class TrustedBottomColorLedTransport:
         param_id_prefix: bytes,
         event: Event,
         reply_box: list[bytes | None],
+        freshness_lock: RLock,
+        armed: Event,
     ) -> Callable[[object], None]:
         def callback(packet: object) -> None:
-            try:
-                data = bytes(getattr(packet, "data"))
-            except Exception:
-                return
-            if data[:2] != param_id_prefix:
-                return
-            if reply_box[0] is None:
-                reply_box[0] = data
-                event.set()
+            # The listener must exist before send so an immediate cflib callback
+            # cannot be missed, but no packet observed before the current send
+            # enters its transaction-local emission critical section is fresh.
+            with freshness_lock:
+                if not armed.is_set():
+                    return
+                try:
+                    data = bytes(getattr(packet, "data"))
+                except Exception:
+                    return
+                if data[:2] != param_id_prefix:
+                    return
+                if reply_box[0] is None:
+                    reply_box[0] = data
+                    event.set()
 
         self._add_header_callback(callback, _PARAM_PORT, channel)
         return callback
@@ -547,16 +555,26 @@ class TrustedBottomColorLedTransport:
         request = _param_read_request(param_id)
         packet = self._make_packet(_PARAM_READ_CHANNEL, request)
         event = Event()
+        armed = Event()
+        freshness_lock = RLock()
         reply_box: list[bytes | None] = [None]
         callback = self._listen_for_param(
             _PARAM_READ_CHANNEL,
             request,
             event,
             reply_box,
+            freshness_lock,
+            armed,
         )
         primary_error: Exception | None = None
         try:
-            self._send_packet(packet)
+            # Hold the same re-entrant lock used by the callback while arming and
+            # invoking send_packet. A synchronous callback on this thread remains
+            # possible, while a stale callback from another thread cannot cross
+            # the freshness boundary before the current send has been invoked.
+            with freshness_lock:
+                armed.set()
+                self._send_packet(packet)
             reply = self._wait_for_packet(
                 event,
                 lambda: reply_box[0],
@@ -589,6 +607,8 @@ class TrustedBottomColorLedTransport:
         request = _param_write_request(param_id, wrgb)
         packet = self._make_packet(_PARAM_WRITE_CHANNEL, request)
         event = Event()
+        armed = Event()
+        freshness_lock = RLock()
         reply_box: list[bytes | None] = [None]
         permit = None
 
@@ -598,7 +618,10 @@ class TrustedBottomColorLedTransport:
                 acknowledgement.param_id_prefix,
                 event,
                 reply_box,
+                freshness_lock,
+                armed,
             )
+            listener_active = True
             primary_error: Exception | None = None
             try:
                 with self._execution.effect_transaction(
@@ -608,23 +631,33 @@ class TrustedBottomColorLedTransport:
                 ) as effect:
                     effect.mark_emitted()
                     acknowledgement.mark_emitted()
-                    self._send_packet(packet)
+                    with freshness_lock:
+                        armed.set()
+                        self._send_packet(packet)
                     reply = self._wait_for_packet(
                         event,
                         lambda: reply_box[0],
                         context="Color LED PARAM acknowledgement",
                     )
                     acknowledgement.resolve_reply(reply)
+
+                    # Listener cleanup is still fallible. It must complete before
+                    # mark_accepted() mints the only completion permit; otherwise
+                    # an exception could strand the process in AWAITING_COMPLETION
+                    # with no caller able to recover that permit.
+                    self._remove_listener(callback, _PARAM_WRITE_CHANNEL)
+                    listener_active = False
                     permit = effect.mark_accepted()
             except Exception as exc:
                 primary_error = exc
                 raise
             finally:
-                try:
-                    self._remove_listener(callback, _PARAM_WRITE_CHANNEL)
-                except Exception:
-                    if primary_error is None:
-                        raise
+                if listener_active:
+                    try:
+                        self._remove_listener(callback, _PARAM_WRITE_CHANNEL)
+                    except Exception:
+                        if primary_error is None:
+                            raise
 
         if permit is None:
             raise ColorLedTransportError("Color LED accepted-effect permit is unavailable")
