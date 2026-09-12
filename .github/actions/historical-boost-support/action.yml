@@ -1,22 +1,16 @@
 name: Historical Boost support archive
-description: Restore or fill the exact verified Jammy Boost 1.74 archive used by historical Webots CI.
+description: Restore the exact pre-provisioned Jammy Boost 1.74 archive used by historical Webots CI.
 
 runs:
   using: composite
   steps:
-    - name: Restore exact historical Boost archive
+    - name: Restore exact pre-provisioned historical Boost archive
       id: boost-cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
         key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
-
-    - name: Fill exact archive on cache miss
-      if: steps.boost-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        set -euo pipefail
-        python3 tools/ci/fetch_historical_boost_archive.py
+        fail-on-cache-miss: true
 
     - name: Verify exact restored archive
       shell: bash
@@ -29,5 +23,5 @@ runs:
         from prepare_historical_boost import PACKAGE_NAME, verify_archive
         archive = Path('.ci-support') / PACKAGE_NAME
         verify_archive(archive)
-        print(f'PASS exact historical Boost archive: {archive}')
+        print(f'PASS exact pre-provisioned historical Boost archive: {archive}')
         PY

@@ -1,0 +1,55 @@
+name: Seed historical Boost support cache
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - work/303-hermetic-historical-boost
+    paths:
+      - .github/workflows/seed-historical-boost-cache.yml
+      - .github/actions/historical-boost-support/action.yml
+      - tools/ci/fetch_historical_boost_archive.py
+      - tools/ci/prepare_historical_boost.py
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore existing exact support cache
+        id: boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+
+      - name: Fetch exact archive only for cache provisioning
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        run: python3 tools/ci/fetch_historical_boost_archive.py
+
+      - name: Verify exact provisioned archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'tools/ci')
+          from prepare_historical_boost import PACKAGE_NAME, verify_archive
+          archive = Path('.ci-support') / PACKAGE_NAME
+          verify_archive(archive)
+          print(f'PASS exact historical Boost seed archive: {archive}')
+          PY
+
+      - name: Save verified support cache
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78

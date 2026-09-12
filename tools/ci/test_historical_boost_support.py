@@ -14,6 +14,7 @@ PREPARER_PATH = CI / "prepare_historical_boost.py"
 FETCHER_PATH = CI / "fetch_historical_boost_archive.py"
 BUILDER_PATH = CI / "build_historical_blockly_sidecar.sh"
 ACTION_PATH = ROOT / ".github/actions/historical-boost-support/action.yml"
+SEED_WORKFLOW = ROOT / ".github/workflows/seed-historical-boost-cache.yml"
 CI_GATE_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 WEBOTS_WORKFLOW = ROOT / ".github/workflows/ci-webots.yml"
 
@@ -29,6 +30,11 @@ fetch_spec = importlib.util.spec_from_file_location(
 assert fetch_spec is not None and fetch_spec.loader is not None
 fetcher = importlib.util.module_from_spec(fetch_spec)
 fetch_spec.loader.exec_module(fetcher)
+
+CACHE_KEY = (
+    "historical-boost-jammy-amd64-1.74.0-14ubuntu3-"
+    "4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78"
+)
 
 
 class _FakeResponse:
@@ -141,7 +147,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 "fresh-verified-tree\n",
             )
 
-    def test_cache_fill_does_not_use_network_when_exact_archive_exists(self) -> None:
+    def test_seed_fetcher_avoids_network_when_exact_archive_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / subject.PACKAGE_NAME
             output.write_bytes(b"already verified")
@@ -153,7 +159,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             verify.assert_called_once_with(output.resolve())
             urlopen.assert_not_called()
 
-    def test_cache_fill_verifies_temporary_bytes_before_atomic_exposure(self) -> None:
+    def test_seed_fetcher_verifies_before_atomic_exposure(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / subject.PACKAGE_NAME
             payload = b"candidate exact archive bytes"
@@ -175,7 +181,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             self.assertEqual(verified[1], output.resolve())
             urlopen.assert_called_once_with(fetcher.PACKAGE_URL, timeout=60)
 
-    def test_failed_cache_fill_never_exposes_unverified_bytes(self) -> None:
+    def test_failed_seed_fetch_never_exposes_unverified_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / subject.PACKAGE_NAME
             with mock.patch.object(
@@ -190,16 +196,38 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             self.assertFalse(output.exists())
             self.assertEqual(list(Path(temp).glob(output.name + ".download.*")), [])
 
-    def test_cache_action_is_exact_and_apt_free(self) -> None:
+    def test_canonical_cache_action_is_restore_only_and_fail_closed(self) -> None:
         text = ACTION_PATH.read_text(encoding="utf-8")
-        self.assertIn("uses: actions/cache@v4", text)
+        self.assertIn("uses: actions/cache/restore@v4", text)
         self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", text)
-        self.assertIn(subject.PACKAGE_SHA256, text)
+        self.assertIn(f"key: {CACHE_KEY}", text)
+        self.assertIn("fail-on-cache-miss: true", text)
+        self.assertIn("from prepare_historical_boost import PACKAGE_NAME, verify_archive", text)
+        for forbidden in (
+            "actions/cache@v4",
+            "fetch_historical_boost_archive.py",
+            "archive.ubuntu.com",
+            "urlopen",
+            "apt-get",
+            "curl ",
+            "wget ",
+        ):
+            self.assertNotIn(forbidden, text)
+
+    def test_seed_workflow_is_separate_verified_preprovisioning(self) -> None:
+        text = SEED_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", text)
+        self.assertIn("- main", text)
+        self.assertIn("- work/303-hermetic-historical-boost", text)
+        self.assertIn("uses: actions/cache/restore@v4", text)
         self.assertIn("steps.boost-cache.outputs.cache-hit != 'true'", text)
         self.assertIn("python3 tools/ci/fetch_historical_boost_archive.py", text)
         self.assertIn("from prepare_historical_boost import PACKAGE_NAME, verify_archive", text)
-        self.assertNotIn("apt-get", text)
-        self.assertNotIn("apt ", text)
+        self.assertIn("uses: actions/cache/save@v4", text)
+        self.assertIn(f"key: {CACHE_KEY}", text)
+        canonical = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn("fetch_historical_boost_archive.py", canonical)
+        self.assertNotIn("seed-historical-boost-cache", canonical)
 
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")
@@ -209,10 +237,8 @@ class HistoricalBoostSupportTests(unittest.TestCase):
         self.assertIn("CPLUS_INCLUDE_PATH=/opt/webeeblocks-boost/include", text)
         self.assertIn("--with-supervisor", text)
         self.assertIn("WEBEEBLOCKS_BUILD_SUPERVISOR", text)
-        self.assertNotIn("apt-get", text)
-        self.assertNotIn("apt ", text)
-        self.assertNotIn("curl ", text)
-        self.assertNotIn("wget ", text)
+        for forbidden in ("apt-get", "apt ", "curl ", "wget "):
+            self.assertNotIn(forbidden, text)
 
     def test_support_contract_runs_in_canonical_selector_job(self) -> None:
         text = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
