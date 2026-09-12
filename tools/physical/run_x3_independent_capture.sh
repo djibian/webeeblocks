@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CALLER_PWD="$(pwd)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EXPECTED_FIRMWARE_SHA256="67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
 EXPECTED_CFLIB_COMMIT="45fdb784c9d13074c42835f3b5ac1d12133bf873"
@@ -30,7 +31,7 @@ VERIFY_ONLY=0
 URI=""
 CHECKPOINT_URL=""
 REQUEST_SHA=""
-SECONDS=""
+DURATION_SECONDS=""
 OUTPUT=""
 
 if [ "$#" -eq 1 ] && [ "$1" = "--verify-environment" ]; then
@@ -55,7 +56,7 @@ else
         ;;
       --seconds)
         [ "$#" -ge 2 ] || usage
-        SECONDS="$2"
+        DURATION_SECONDS="$2"
         shift 2
         ;;
       --output)
@@ -67,7 +68,11 @@ else
     esac
   done
   [ -n "$URI" ] && [ -n "$CHECKPOINT_URL" ] && [ -n "$REQUEST_SHA" ] && \
-    [ -n "$SECONDS" ] && [ -n "$OUTPUT" ] || usage
+    [ -n "$DURATION_SECONDS" ] && [ -n "$OUTPUT" ] || usage
+  case "$OUTPUT" in
+    /*) ;;
+    *) OUTPUT="$CALLER_PWD/$OUTPUT" ;;
+  esac
 fi
 
 cd "$HERE"
@@ -80,7 +85,12 @@ grep -Fxq "cflib_tree=$EXPECTED_CFLIB_TREE" PROVENANCE.txt
 grep -Fxq "cflib_subtree=$EXPECTED_CFLIB_SUBTREE" PROVENANCE.txt
 grep -Fxq 'runtime=ubuntu-22.04-python-3.10-x86_64' PROVENANCE.txt
 grep -Fxq "firmware_bin_sha256=$EXPECTED_FIRMWARE_SHA256" PROVENANCE.txt
-grep -Eq '^repository_target_sha=[0-9a-f]{40}$' PROVENANCE.txt
+mapfile -t TARGET_LINES < <(sed -n 's/^repository_target_sha=//p' PROVENANCE.txt)
+if [ "${#TARGET_LINES[@]}" -ne 1 ] || ! [[ "${TARGET_LINES[0]}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "FAIL: exactly one valid repository_target_sha is required" >&2
+  exit 2
+fi
+BUNDLE_TARGET_SHA="${TARGET_LINES[0]}"
 
 test -s "$HERE/cf2.bin"
 test "$(sha256sum "$HERE/cf2.bin" | awk '{print $1}')" = "$EXPECTED_FIRMWARE_SHA256"
@@ -156,14 +166,18 @@ if [ "$VERIFY_ONLY" -eq 1 ]; then
   exit 0
 fi
 
-case "$SECONDS" in
+case "$DURATION_SECONDS" in
   ''|*[!0-9]*) usage ;;
 esac
-if [ "$SECONDS" -lt 30 ] || [ "$SECONDS" -gt 300 ]; then
+if [ "$DURATION_SECONDS" -lt 30 ] || [ "$DURATION_SECONDS" -gt 300 ]; then
   usage
 fi
 if ! [[ "$REQUEST_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   usage
+fi
+if [ "$REQUEST_SHA" != "$BUNDLE_TARGET_SHA" ]; then
+  echo "FAIL: request SHA does not match bundled repository target" >&2
+  exit 2
 fi
 if ! [[ "$CHECKPOINT_URL" =~ ^https://github.com/djibian/webeeblocks/issues/[1-9][0-9]*$ ]]; then
   usage
@@ -179,6 +193,6 @@ python3 -S "$HERE/capture_independent_inputs.py" \
   --request-sha "$REQUEST_SHA" \
   --firmware-bin "$HERE/cf2.bin" \
   --output "$OUTPUT" \
-  --seconds "$SECONDS" \
+  --seconds "$DURATION_SECONDS" \
   --props-removed \
   --installed-bin-confirmed
