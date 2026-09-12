@@ -1,5 +1,6 @@
 #include "file_broker_c.h"
 
+#include <webots/plugins/robot_window/default.h>
 #include <webots/robot.h>
 
 #include <cstdio>
