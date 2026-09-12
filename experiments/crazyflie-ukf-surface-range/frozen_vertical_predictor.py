@@ -132,6 +132,7 @@ def preparation(barometer, imu, spec, reference):
     if tilt >= 90:
         raise ValueError("tilt bound must stay below 90 deg for the body-Z cone model")
     v0_error = nonnegative(bounds["initial_velocity_error_m_s"], "initial velocity error")
+    intersample_error = nonnegative(bounds["intersample_acceleration_error_m_s2"], "intersample acceleration error")
     baro_error = nonnegative(bounds["barometer_displacement_error_m"], "barometer displacement error")
     sensor_time_error = nonnegative(bounds["sensor_time_error_s"], "sensor time error")
     delivery_latency = nonnegative(bounds["delivery_latency_error_s"], "delivery latency error")
@@ -165,6 +166,7 @@ def preparation(barometer, imu, spec, reference):
             "bounds": {"specific_force_error_g": sf_error,
                        "max_body_z_tilt_deg": tilt,
                        "initial_velocity_error_m_s": v0_error,
+                       "intersample_acceleration_error_m_s2": intersample_error,
                        "barometer_displacement_error_m": baro_error,
                        "sensor_time_error_s": sensor_time_error,
                        "delivery_latency_error_s": delivery_latency}}
@@ -301,12 +303,15 @@ def imu_segment(imu, start, end, prep):
     end_shift = (end[1] - end[0]) + te
     shift = start_shift + end_shift
     timing_error = v0 * shift + max_acc * duration_max * shift + 0.5 * max_acc * shift * shift
-    bounded = [bounded[0] - timing_error, bounded[1] + timing_error]
+    intersample_error = 0.5 * prep["bounds"]["intersample_acceleration_error_m_s2"] * duration_max * duration_max
+    bounded = [bounded[0] - timing_error - intersample_error,
+               bounded[1] + timing_error + intersample_error]
     return {"anchor_device_s": [anchor_start, anchor_end],
             "admissible_device_s": [outer_start, outer_end],
             "nominal_delta_z_m": nominal,
             "delta_z_interval_m": bounded,
             "timing_sensitivity_error_m": timing_error,
+            "intersample_displacement_error_m": intersample_error,
             "max_abs_vertical_accel_bound_m_s2": max_acc,
             "initial_velocity_interval_m_s": [-v0, v0]}
 
@@ -344,7 +349,8 @@ def analyze(barometer, imu, spec, reference):
         baro = barometer_prediction(barometer, start, end, prep)
         inertial = imu_segment(imu, start, end, prep)
         common = intersect(baro["delta_z_interval_m"], inertial["delta_z_interval_m"])
-        latency = (POST_DELAY_S + WINDOW_S
+        latency = (end[1] - end[0]
+                   + POST_DELAY_S + WINDOW_S
                    + 2 * prep["bounds"]["sensor_time_error_s"]
                    + prep["bounds"]["delivery_latency_error_s"])
         width = None if common is None else common[1] - common[0]
@@ -366,7 +372,7 @@ def analyze(barometer, imu, spec, reference):
             "independent_displacement_verdict": "UNPROVEN",
             "physical_verdict": None,
             "scope": "offline barometer+raw-accelerometer vehicle-Z replay; ToF, estimator attitude/state and S3 excluded",
-            "limits": ["Declared deterministic error/tilt bounds are inputs, not measurements or confidence intervals.",
+            "limits": ["Declared deterministic error/tilt/intersample bounds are inputs, not measurements or confidence intervals.",
                        "Crazyflie log timestamps are not per-sensor producer timestamps.",
                        "The 5 cm half-width and 1 s latency booleans are conditional budget checks, never PASS/FAIL.",
                        "No terrain delta, XY behavior, motorized behavior or flight authority is established."]}
