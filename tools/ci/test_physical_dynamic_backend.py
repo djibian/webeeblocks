@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import inspect
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -138,8 +139,9 @@ class Rejected:
 
 
 class FakeTransport:
-    def __init__(self, domain: FakeDomain) -> None:
+    def __init__(self, domain: FakeDomain, initial_nominal_altitude_m: float = 0.8) -> None:
         self.domain = domain
+        self.initial_nominal_altitude_m = initial_nominal_altitude_m
         self.reject_next = False
 
     def _result(self):
@@ -220,12 +222,18 @@ def representative_program() -> list[dict[str, object]]:
     ]
 
 
-def make_backend(*, range_value: float = 0.4, fail_read: bool = False, fail_close: bool = False):
+def make_backend(
+    *,
+    range_value: float = 0.4,
+    fail_read: bool = False,
+    fail_close: bool = False,
+    transport_initial_altitude_m: float = 0.8,
+):
     exact = canonical(representative_program())
     domain = FakeDomain()
     run = FakeRun(exact, domain)
     epoch = {"value": "epoch-live"}
-    transport = FakeTransport(domain)
+    transport = FakeTransport(domain, transport_initial_altitude_m)
     color = FakeColorTransport()
     timing = FakeTimingPolicy()
 
@@ -249,7 +257,6 @@ def make_backend(*, range_value: float = 0.4, fail_read: bool = False, fail_clos
 
     backend = TrustedDynamicPhysicalBackend(
         ast_binding=exact,
-        initial_takeoff_height_m=0.8,
         active_run=run,
         connection_epoch_reader=lambda: epoch["value"],
         assert_current_program=current_program,
@@ -310,6 +317,7 @@ def test_takeoff_is_verification_only_and_cannot_repeat() -> None:
     backend, domain, _run, _epoch, _transport, _color, _timing = make_backend()
     backend.takeoff(0.8)
     require(domain.phase == FLYING, "verification-only takeoff changed physical phase")
+    require(backend.initial_takeoff_height_m == 0.8, "takeoff verification height did not come from exact preflight")
     require(not any(event == "land" or (isinstance(event, tuple) and event and event[0] in {"move", "turn", "vertical"}) for event in EVENTS), "takeoff verification emitted a downstream action")
     try:
         backend.takeoff(0.8)
@@ -317,6 +325,29 @@ def test_takeoff_is_verification_only_and_cannot_repeat() -> None:
         require("repeated bound takeoff" in str(exc), "repeat takeoff failed for wrong reason")
     else:
         raise AssertionError("shared interpreter could repeat causal takeoff")
+
+
+def test_initial_altitude_has_no_auxiliary_authority_root() -> None:
+    EVENTS.clear()
+    signature = inspect.signature(TrustedDynamicPhysicalBackend)
+    require(
+        "initial_takeoff_height_m" not in signature.parameters,
+        "dynamic backend still accepts an independent initial takeoff height",
+    )
+    try:
+        make_backend(transport_initial_altitude_m=0.6)
+    except DynamicPhysicalBackendError as exc:
+        require("altitude differs" in str(exc), "split dynamic landing root failed for wrong reason")
+    else:
+        raise AssertionError("mismatched dynamic landing altitude survived composition")
+    require(
+        not any(
+            event == "land"
+            or (isinstance(event, tuple) and event and event[0] in {"move", "turn", "vertical", "range-read"})
+            for event in EVENTS
+        ),
+        "altitude-root mismatch was discovered only after interpreter progression",
+    )
 
 
 def test_stale_epoch_and_unavailable_range_fail_before_progression() -> None:
@@ -380,12 +411,13 @@ def main() -> int:
     test_real_shared_interpreter_drives_fresh_range_and_existing_consumers()
     test_range_observation_is_exclusion_held_and_reasserted_around_sample()
     test_takeoff_is_verification_only_and_cannot_repeat()
+    test_initial_altitude_has_no_auxiliary_authority_root()
     test_stale_epoch_and_unavailable_range_fail_before_progression()
     test_observer_teardown_uncertainty_and_action_rejection_fail_closed()
     test_no_caller_sensor_or_effect_surface_is_introduced()
     print(
-        "PASS dynamic physical backend: shared interpreter demand -> exclusion-held fresh range "
-        "data -> existing trusted action consumers, with one causal takeoff and terminal landing"
+        "PASS dynamic physical backend: canonical shared-interpreter demand -> exclusion-held fresh "
+        "range data -> existing trusted action consumers, with preflight-derived single altitude root"
     )
     return 0
 
