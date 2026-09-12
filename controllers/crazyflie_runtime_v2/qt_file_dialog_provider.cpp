@@ -2,7 +2,6 @@
 #include "file_broker_c.h"
 
 #include <QtCore/QCoreApplication>
-#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QHash>
@@ -27,16 +26,8 @@ public:
     std::strcpy(mProgramName.data(), "webeeblocks-file-broker");
     mArgv[0] = mProgramName.data();
     mArgv[1] = nullptr;
-    if (!QCoreApplication::instance()) {
-      const QString webotsHome = qEnvironmentVariable("WEBOTS_HOME");
-      if (webotsHome.isEmpty())
-        throw std::runtime_error("WEBOTS_HOME is unavailable for the Qt file broker");
-      const QString pluginPath = QDir(webotsHome).filePath(QStringLiteral("lib/webots/qt/plugins"));
-      if (!QDir(pluginPath).exists())
-        throw std::runtime_error("Webots Qt plugin directory is unavailable");
-      QApplication::addLibraryPath(pluginPath);
+    if (!QCoreApplication::instance())
       mApplication = std::make_unique<QApplication>(mArgc, mArgv.data());
-    }
     if (!qobject_cast<QApplication *>(QCoreApplication::instance()))
       throw std::runtime_error("Qt application is not a QApplication");
   }
