@@ -112,11 +112,11 @@ class X3PreLpfObserverContractTests(unittest.TestCase):
         transformed = self.transformed()
         self.assertRegex(
             transformed,
-            r"taskENTER_CRITICAL\(\);\n\s+x3AccObserverSnapshot\.accPreLpf = sensorData\.acc;.*?taskEXIT_CRITICAL\(\);\n\n\s+applyAxis3fLpf",
+            r"(?s)taskENTER_CRITICAL\(\);\n\s+x3AccObserverSnapshot\.accPreLpf = sensorData\.acc;.*?taskEXIT_CRITICAL\(\);\n\n\s+applyAxis3fLpf",
         )
         self.assertRegex(
             transformed,
-            r"taskENTER_CRITICAL\(\);\n\s+x3BaroObserverSnapshot\.baro = \*baro388;.*?taskEXIT_CRITICAL\(\);\n\n\s+measurement\.type = MeasurementTypeBarometer;",
+            r"(?s)taskENTER_CRITICAL\(\);\n\s+x3BaroObserverSnapshot\.baro = \*baro388;.*?taskEXIT_CRITICAL\(\);\n\n\s+measurement\.type = MeasurementTypeBarometer;",
         )
 
 
