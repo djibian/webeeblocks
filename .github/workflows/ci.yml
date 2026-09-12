@@ -51,7 +51,7 @@ jobs:
           --draft "${{ github.event.pull_request.draft || false }}"
           --github-output "$GITHUB_OUTPUT"
       - name: Select X3 pre-LPF firmware diagnostic
-        id: x3-prelpf-scope
+        id: x3_prelpf_scope
         env:
           X3_EVENT: ${{ github.event_name }}
           X3_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -63,7 +63,7 @@ jobs:
           --head "${X3_HEAD_SHA:-$GITHUB_SHA}"
           --github-output "$GITHUB_OUTPUT"
       - name: Checkout pinned Crazyflie firmware for X3 pre-LPF diagnostic
-        if: steps.x3-prelpf-scope.outputs.run == 'true'
+        if: steps.x3_prelpf_scope.outputs.run == 'true'
         uses: actions/checkout@v4
         with:
           repository: bitcraze/crazyflie-firmware
@@ -72,7 +72,7 @@ jobs:
           submodules: recursive
           fetch-depth: 1
       - name: Build X3 pre-LPF snapshot diagnostic
-        if: steps.x3-prelpf-scope.outputs.run == 'true'
+        if: steps.x3_prelpf_scope.outputs.run == 'true'
         shell: bash
         run: |
           mkdir -p ci-artifacts/x3-prelpf-snapshot
@@ -88,7 +88,7 @@ jobs:
           sha256sum .ci-crazyflie-firmware-x3-prelpf/build/cf2.bin \
             > ci-artifacts/x3-prelpf-snapshot/cf2.bin.sha256
       - name: Upload X3 pre-LPF build evidence
-        if: ${{ always() && steps.x3-prelpf-scope.outputs.run == 'true' }}
+        if: ${{ always() && steps.x3_prelpf_scope.outputs.run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: experimental-x3-prelpf-snapshot-2026-08
