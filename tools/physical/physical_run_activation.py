@@ -7,8 +7,8 @@ teacher socket and the shared #273 execution domain. The generic takeoff
 lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
 validated against the integrated sequencing boundary before any reset or flight
 effect; after exact takeoff has causally completed, the same sequence owns each
-bounded move/turn, no-effect wait/set_speed state and the one terminal controlled
-landing.
+bounded horizontal/vertical move, turn, no-effect wait/set_speed state and the
+one terminal controlled landing.
 
 Importing this module performs no physical effect.
 """
@@ -226,10 +226,10 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    semantic parameters. It reserves only the next exact top-level move/turn,
-    no-effect wait/set_speed state or terminal land from the post-reset #267
-    binding and keeps every positive provenance/effect path lexical to this
-    adapter's host-owned bridge.
+    semantic parameters. It reserves only the next exact top-level horizontal or
+    vertical move, turn, no-effect wait/set_speed state or terminal land from the
+    post-reset #267 binding and keeps every positive provenance/effect path
+    lexical to this adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -600,6 +600,12 @@ def activate_validated_run(
                         direction=motion.direction,
                         distance_m=motion.distance_m,
                         yaw_reader=self._ensure_yaw_reader(),
+                        timing_policy=timing_policy,
+                    )
+                elif motion is not None and motion.kind == "vertical":
+                    result = transport.send_vertical_move(
+                        direction=motion.direction,
+                        distance_m=motion.distance_m,
                         timing_policy=timing_policy,
                     )
                 elif motion is not None and motion.kind == "turn":

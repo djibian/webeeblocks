@@ -9,19 +9,19 @@ currently supported physical program envelope through
 
 The resulting request is the pinned Crazyflie firmware
 ``COMMAND_LAND_WITH_VELOCITY`` packet (command 10). The bounded physical slice
-supports no vertical motion between takeoff and land, so landing descends by the
-exact teacher-bound absolute takeoff height relative to the current high-level
-setpoint. With command 9's absolute takeoff contract and no intervening vertical
-effects, this deterministically targets the estimator-zero landing level without
-exposing an independent caller-selected landing height. The command preserves
-current yaw and uses the firmware's explicit safe-default 0.5 m/s landing
-velocity.
+tracks every accepted vertical statement from the exact teacher-bound program as
+a host-owned nominal world-Z state. Landing therefore descends by the exact final
+nominal altitude derived from that immutable AST, rather than assuming the
+original takeoff height still describes the aircraft after vertical effects.
+This deterministically targets the estimator-zero landing level without exposing
+an independent caller-selected landing height. The command preserves current yaw
+and uses the firmware's explicit safe-default 0.5 m/s landing velocity.
 
 No caller-supplied height, velocity, yaw, raw packet bytes, teacher decision,
-session object or other effect authority is accepted here. A later trusted
-physical-host consumer must still compose this pure request with
-#267/#266/#262/#257/#264/#272/#271/#273 and fresh #278/#249 provenance
-immediately before emission.
+session object or other effect authority is accepted here. A trusted physical-
+host consumer must still compose this pure request with the existing teacher,
+powered-session, watchdog, supervisor, SafeLink, acknowledgement, execution-
+domain and fresh current-program provenance immediately before emission.
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ from dataclasses import dataclass
 import struct
 
 import physical_program_sequence
-import takeoff_command
 
 LAND_WITH_VELOCITY_COMMAND = 10
 LAND_GROUP_MASK = 0
@@ -55,17 +54,14 @@ def derive_bound_landing_command(ast_binding: object) -> BoundLandingCommand:
     """Derive command 10 solely from the exact supported canonical AST."""
     try:
         sequence = physical_program_sequence.PhysicalProgramSequence(ast_binding)
-        takeoff = takeoff_command.derive_bound_takeoff_command(sequence.ast_binding)
-    except (
-        physical_program_sequence.PhysicalProgramSequenceError,
-        takeoff_command.TakeoffCommandError,
-    ) as exc:
+        descent_m = sequence.planned_terminal_altitude_m
+    except physical_program_sequence.PhysicalProgramSequenceError as exc:
         raise LandingCommandError(str(exc)) from exc
 
     request = _LAND_PACKET.pack(
         LAND_WITH_VELOCITY_COMMAND,
         LAND_GROUP_MASK,
-        takeoff.height_m,
+        descent_m,
         True,  # relative downward distance; firmware LAND semantics define + as down
         0.0,  # ignored because current yaw is explicitly preserved
         True,
@@ -73,6 +69,6 @@ def derive_bound_landing_command(ast_binding: object) -> BoundLandingCommand:
     )
     return BoundLandingCommand(
         ast_binding=sequence.ast_binding,
-        descent_m=takeoff.height_m,
+        descent_m=descent_m,
         request=request,
     )
