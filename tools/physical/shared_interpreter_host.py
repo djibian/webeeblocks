@@ -7,7 +7,7 @@ Node process loads the repository's existing ``interpreter.js`` and can request
 only the fixed backend methods below over a private stdio protocol.
 
 This adapter is deliberately not physical composition by itself: it owns no
-Crazyflie session, observer, commander or effect authority. A later trusted host
+Crazyflie session, observer or effect-transport authority. A later trusted host
 must bind ``readRange`` to the fresh range observer and bind each action method to
 its already-authorized consumer while re-establishing current-program provenance.
 """
