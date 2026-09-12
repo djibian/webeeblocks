@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import threading
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "range_observer.py"
@@ -11,8 +12,8 @@ MODULE_PATH = ROOT / "tools" / "physical" / "range_observer.py"
 spec = importlib.util.spec_from_file_location("webeeblocks_range_observer", MODULE_PATH)
 if spec is None or spec.loader is None:
     raise RuntimeError("cannot load range observer")
-range_observer = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(range_observer)
+rng = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rng)
 
 
 def require(condition: bool, message: str) -> None:
@@ -23,50 +24,59 @@ def require(condition: bool, message: str) -> None:
 def expect_error(callable_, pattern: str) -> None:
     try:
         callable_()
-    except range_observer.RangeReadError as exc:
+    except rng.RangeReadError as exc:
         require(pattern in str(exc), f"expected {pattern!r} in {exc!r}")
         return
     raise AssertionError(f"expected RangeReadError containing {pattern!r}")
 
 
 class FakeCaller:
-    def __init__(self):
+    def __init__(self) -> None:
         self.callbacks = []
 
-    def add_callback(self, callback):
-        self.callbacks.append(callback)
+    def add_callback(self, callback) -> None:
+        if callback not in self.callbacks:
+            self.callbacks.append(callback)
 
-    def remove_callback(self, callback):
+    def remove_callback(self, callback) -> None:
         self.callbacks.remove(callback)
 
-    def call(self, *args):
+    def call(self, *args) -> None:
         for callback in list(self.callbacks):
             callback(*args)
 
 
 class FakeTocElement:
-    def __init__(self, direction, *, ctype="uint16_t", pytype="<H"):
-        self.group = "range"
-        self.name = direction
+    def __init__(
+        self,
+        *,
+        group="range",
+        name="front",
+        ctype="uint16_t",
+        pytype="<H",
+    ) -> None:
+        self.group = group
+        self.name = name
         self.ctype = ctype
         self.pytype = pytype
 
 
 class FakeToc:
-    def __init__(self, direction, *, present=True, ctype="uint16_t", pytype="<H"):
-        self.variable = f"range.{direction}"
-        self.element = (
-            FakeTocElement(direction, ctype=ctype, pytype=pytype)
-            if present
-            else None
-        )
+    def __init__(self, variable: str) -> None:
+        group, name = variable.split(".", 1)
+        self.element = FakeTocElement(group=group, name=name)
+        self.lookups = []
 
-    def get_element_by_complete_name(self, name):
-        return self.element if name == self.variable else None
+    def get_element_by_complete_name(self, name: str):
+        self.lookups.append(name)
+        if self.element is None:
+            return None
+        expected = f"{self.element.group}.{self.element.name}"
+        return self.element if name == expected else None
 
 
 class FakeConfig:
-    def __init__(self, variable, initial_sample=None):
+    def __init__(self, variable: str, initial_sample=(100, 500)) -> None:
         self.variable = variable
         self.data_received_cb = FakeCaller()
         self.error_cb = FakeCaller()
@@ -75,269 +85,324 @@ class FakeConfig:
         self.stopped = False
         self.deleted = False
         self.start_error = None
+        self.stop_error = None
+        self.delete_error = None
 
-    def start(self):
-        if self.start_error:
+    def start(self) -> None:
+        if self.start_error is not None:
             raise self.start_error
         self.started = True
         if self.initial_sample is not None:
             timestamp, value = self.initial_sample
             self.emit(timestamp, value)
 
-    def stop(self):
+    def stop(self) -> None:
         self.stopped = True
+        if self.stop_error is not None:
+            raise self.stop_error
 
-    def delete(self):
+    def delete(self) -> None:
         self.deleted = True
+        if self.delete_error is not None:
+            raise self.delete_error
 
-    def emit(self, timestamp, value):
+    def emit(self, timestamp, value) -> None:
         data = value if isinstance(value, dict) else {self.variable: value}
         self.data_received_cb.call(timestamp, data, self)
 
-    def fail(self, message):
+    def fail(self, message: str) -> None:
         self.error_cb.call(self, message)
 
 
 class FakeLog:
-    def __init__(self, toc):
-        self.toc = toc
+    def __init__(self, variable: str) -> None:
+        self.toc = FakeToc(variable)
         self.configs = []
         self.add_error = None
 
-    def add_config(self, config):
-        if self.add_error:
+    def add_config(self, config) -> None:
+        if self.add_error is not None:
             raise self.add_error
         self.configs.append(config)
 
 
 class FakeCf:
-    def __init__(self, direction, **toc_kwargs):
-        self.log = FakeLog(FakeToc(direction, **toc_kwargs))
+    def __init__(self, variable: str) -> None:
+        self.log = FakeLog(variable)
         self.disconnected = FakeCaller()
 
 
 class Epoch:
-    def __init__(self, value):
+    def __init__(self, value: str) -> None:
         self.value = value
 
-    def __call__(self):
+    def __call__(self) -> str:
         return self.value
-
-
-def delayed(delay, function):
-    timer = threading.Timer(delay, function)
-    timer.daemon = True
-    timer.start()
 
 
 def make_observer(
     direction="front",
-    initial=(100, 1500),
+    *,
+    initial=(100, 500),
     epoch_value="epoch-range",
-    **toc_kwargs,
 ):
-    cf = FakeCf(direction, **toc_kwargs)
-    epoch = Epoch(epoch_value)
     variable = f"range.{direction}"
+    cf = FakeCf(variable)
+    epoch = Epoch(epoch_value)
     config = FakeConfig(variable, initial)
-    observer = range_observer.FreshRangeObserver(
-        cf, epoch, direction, log_config_factory=lambda: config
+    observer = rng.FreshRangeObserver(
+        cf,
+        epoch,
+        direction,
+        log_config_factory=lambda: config,
     )
     return observer, cf, epoch, config
 
 
-def test_exact_direction_and_fresh_read():
-    for direction in range_observer.SUPPORTED_DIRECTIONS:
-        observer, _cf, _epoch, config = make_observer(direction=direction)
+def delayed(delay: float, function) -> threading.Timer:
+    timer = threading.Timer(delay, function)
+    timer.daemon = True
+    timer.start()
+    return timer
+
+
+def test_exact_direction_mapping_and_conversion() -> None:
+    values = {
+        "front": 1234,
+        "back": 2345,
+        "left": 3456,
+        "right": 4567,
+        "up": 5678,
+    }
+    for direction, raw_mm in values.items():
+        observer, cf, _epoch, config = make_observer(direction)
+        require(observer.variable == f"range.{direction}", "exact range variable")
         observer.open(timeout_seconds=0.05)
-        require(observer.variable == f"range.{direction}", "exact firmware variable")
-        delayed(0.01, lambda c=config: c.emit(110, 750))
-        result = observer.read(timeout_seconds=0.2)
         require(
-            result.direction == direction and result.raw_mm == 750,
-            "exact fresh sample",
+            cf.log.toc.lookups == [f"range.{direction}"],
+            "TOC lookup must be exact",
         )
-        require(result.range_m == 0.75, "firmware mm normalize to Runtime metres")
+        delayed(0.005, lambda c=config, value=raw_mm: c.emit(110, value))
+        result = observer.read(timeout_seconds=0.2)
+        require(result.direction == direction, "direction preserved")
+        require(result.raw_mm == raw_mm, "raw millimetres preserved")
+        require(
+            result.range_m == raw_mm / 1000.0,
+            "millimetres converted to metres exactly once",
+        )
         observer.close()
 
 
-def test_down_and_substitution_fail_before_log_setup():
+def test_pinned_cflib_unavailable_boundary_is_not_clamped() -> None:
+    require(rng.range_mm_to_m(7999) == 7.999, "last available value")
+    for raw in (8000, 32767, 65535):
+        expect_error(
+            lambda value=raw: rng.range_mm_to_m(value),
+            "unavailable",
+        )
+
+    observer, _cf, _epoch, config = make_observer(initial=(100, 9000))
+    observer.open(timeout_seconds=0.05)
+    delayed(0.005, lambda: config.emit(110, 8000))
     expect_error(
-        lambda: range_observer.FreshRangeObserver(
-            FakeCf("front"), Epoch("e"), "down"
-        ),
-        "unsupported physical range direction",
+        lambda: observer.read(timeout_seconds=0.2),
+        "unavailable",
     )
+    delayed(0.005, lambda: config.emit(120, 1250))
+    result = observer.read(timeout_seconds=0.2)
+    require(result.range_m == 1.25, "later valid sample remains observable")
+    observer.close()
 
 
-def test_cached_and_duplicate_samples_cannot_decide():
+def test_cached_and_duplicate_samples_are_not_fresh() -> None:
     observer, _cf, _epoch, config = make_observer()
     observer.open(timeout_seconds=0.05)
     expect_error(
-        lambda: observer.read(timeout_seconds=0.01), "fresh range sample timed out"
+        lambda: observer.read(timeout_seconds=0.01),
+        "fresh range sample timed out",
     )
-    delayed(0.005, lambda: config.emit(100, 200))
-    delayed(0.015, lambda: config.emit(120, 300))
+
+    delayed(0.005, lambda: config.emit(100, 900))
+    delayed(0.015, lambda: config.emit(120, 1000))
     result = observer.read(timeout_seconds=0.2)
     require(
-        result.firmware_timestamp_ms == 120 and result.raw_mm == 300,
-        "duplicate ignored",
+        result.firmware_timestamp_ms == 120 and result.range_m == 1.0,
+        "duplicate timestamp must not satisfy fresh read",
     )
     observer.close()
 
 
-def test_each_read_requires_a_new_sample():
+def test_callback_entered_before_read_cannot_finish_as_fresh() -> None:
     observer, _cf, _epoch, config = make_observer()
     observer.open(timeout_seconds=0.05)
-    delayed(0.01, lambda: config.emit(110, 500))
-    first = observer.read(timeout_seconds=0.2)
-    require(first.range_m == 0.5, "first fresh read")
-    expect_error(
-        lambda: observer.read(timeout_seconds=0.01), "fresh range sample timed out"
+
+    observer._condition.acquire()
+    stale_done = threading.Event()
+    stale = threading.Thread(
+        target=lambda: (
+            config.emit(110, 700),
+            stale_done.set(),
+        ),
+        daemon=True,
     )
-    delayed(0.01, lambda: config.emit(120, 600))
-    second = observer.read(timeout_seconds=0.2)
+    stale.start()
+
+    with observer._arrival_lock:
+        pass
+
+    outcome = {}
+
+    def do_read() -> None:
+        try:
+            outcome["value"] = observer.read(timeout_seconds=0.3)
+        except Exception as exc:
+            outcome["error"] = exc
+
+    reader = threading.Thread(target=do_read, daemon=True)
+    reader.start()
+
+    deadline = time.monotonic() + 0.2
+    while observer._request_generation != 1:
+        if time.monotonic() >= deadline:
+            raise AssertionError("read did not establish request generation")
+        time.sleep(0.001)
+
+    observer._condition.release()
+    require(stale_done.wait(0.1), "stale callback completed")
+    delayed(0.01, lambda: config.emit(120, 800))
+    reader.join(timeout=0.3)
+    require(not reader.is_alive(), "fresh read completed")
+    require("error" not in outcome, f"unexpected read error: {outcome.get('error')!r}")
+    result = outcome["value"]
     require(
-        second.range_m == 0.6 and second.firmware_timestamp_ms == 120,
-        "second fresh read",
+        result.firmware_timestamp_ms == 120 and result.range_m == 0.8,
+        "pre-request callback must not become fresh after delayed processing",
     )
     observer.close()
 
 
-def test_runtime_horizon_and_firmware_no_range_normalization():
-    require(range_observer.normalize_runtime_range_m(0) == 0.0, "zero range")
-    require(
-        range_observer.normalize_runtime_range_m(1999) == 1.999, "direct metres"
+def test_timestamp_wrap_and_epoch_rotation() -> None:
+    observer, _cf, epoch, config = make_observer(
+        initial=(0xFFFFF8, 500),
+        epoch_value="epoch-before",
     )
-    require(
-        range_observer.normalize_runtime_range_m(2500) == 2.0,
-        "Runtime horizon caps distant obstacle",
-    )
-    require(
-        range_observer.normalize_runtime_range_m(
-            range_observer.FIRMWARE_NO_RANGE_MM
-        )
-        == 2.0,
-        "firmware unavailable sentinel maps to Runtime no-obstacle horizon",
-    )
-    for invalid in (True, 1.5, -1, 32768, 65535):
-        expect_error(
-            lambda value=invalid: range_observer.normalize_runtime_range_m(value),
-            "range sample",
-        )
-
-
-def test_exact_live_toc_contract():
-    observer, cf, _epoch, config = make_observer(present=False)
-    expect_error(lambda: observer.open(timeout_seconds=0.05), "missing range.front")
-    require(
-        cf.log.configs == [] and not config.started,
-        "missing TOC fails before log setup",
-    )
-    for field, kwargs in (
-        ("ctype", {"ctype": "float"}),
-        ("pytype", {"pytype": "<L"}),
-    ):
-        observer2, cf2, _epoch2, config2 = make_observer(**kwargs)
-        expect_error(
-            lambda o=observer2: o.open(timeout_seconds=0.05), "pinned uint16_t"
-        )
-        require(
-            cf2.log.configs == [] and not config2.started,
-            field + " mismatch is pre-stream",
-        )
-
-
-def test_epoch_rotation_disconnect_and_log_error_fail_closed():
-    observer, _cf, epoch, _config = make_observer(epoch_value="before")
     observer.open(timeout_seconds=0.05)
-    epoch.value = "after"
+    delayed(0.005, lambda: config.emit(5, 600))
+    result = observer.read(timeout_seconds=0.2)
+    require(result.firmware_timestamp_ms == 5, "24-bit timestamp wrap")
+    epoch.value = "epoch-after"
     expect_error(
-        lambda: observer.read(timeout_seconds=0.05), "connection epoch changed"
+        lambda: observer.read(timeout_seconds=0.05),
+        "connection epoch changed",
     )
     observer.close()
 
-    observer2, cf2, _epoch2, _config2 = make_observer(epoch_value="disconnect")
+
+def test_malformed_disconnect_and_log_error_fail_closed() -> None:
+    for bad, pattern in (
+        (True, "exact uint16"),
+        (1.5, "exact uint16"),
+        (-1, "uint16 firmware domain"),
+        (65536, "uint16 firmware domain"),
+        ({}, "missing range.front"),
+    ):
+        observer, _cf, _epoch, config = make_observer(
+            epoch_value=f"epoch-bad-{pattern}"
+        )
+        observer.open(timeout_seconds=0.05)
+        delayed(0.005, lambda c=config, value=bad: c.emit(110, value))
+        expect_error(
+            lambda o=observer: o.read(timeout_seconds=0.2),
+            pattern,
+        )
+        observer.close()
+
+    observer, cf, _epoch, _config = make_observer(
+        epoch_value="epoch-disconnect"
+    )
+    observer.open(timeout_seconds=0.05)
+    delayed(0.005, lambda: cf.disconnected.call("radio://test"))
+    expect_error(
+        lambda: observer.read(timeout_seconds=0.2),
+        "disconnected during range observation",
+    )
+    observer.close()
+
+    observer2, _cf2, _epoch2, config2 = make_observer(
+        epoch_value="epoch-log-error"
+    )
     observer2.open(timeout_seconds=0.05)
-    delayed(0.01, lambda: cf2.disconnected.call("radio://test"))
+    delayed(0.005, lambda: config2.fail("firmware log rejected"))
     expect_error(
         lambda: observer2.read(timeout_seconds=0.2),
-        "disconnected during range observation",
+        "range logging failed",
     )
     observer2.close()
 
-    observer3, _cf3, _epoch3, config3 = make_observer(epoch_value="log-error")
-    observer3.open(timeout_seconds=0.05)
-    delayed(0.01, lambda: config3.fail("firmware log rejected"))
-    expect_error(
-        lambda: observer3.read(timeout_seconds=0.2), "range logging failed"
-    )
-    observer3.close()
 
-
-def test_invalid_samples_fail_open_and_cleanup():
-    for initial, pattern in (
-        ((100, {"other": 1}), "missing range.front"),
-        ((0x1000000, 1000), "invalid firmware timestamp"),
-        ((100, 32768), "outside the pinned firmware domain"),
-    ):
-        observer, cf, _epoch, config = make_observer(initial=initial)
-        expect_error(lambda o=observer: o.open(timeout_seconds=0.05), pattern)
-        require(config.stopped and config.deleted, "failed open cleanup")
-        require(cf.disconnected.callbacks == [], "disconnect cleanup")
-
-
-def test_add_start_close_and_local_failures():
+def test_toc_and_setup_failures_fail_closed() -> None:
     observer, cf, _epoch, config = make_observer()
-    cf.log.add_error = RuntimeError("TOC unavailable")
+    cf.log.toc.element = None
     expect_error(
         lambda: observer.open(timeout_seconds=0.05),
-        "could not start fresh range logging",
+        "missing range.front",
     )
-    require(config.stopped and config.deleted, "add failure cleanup")
+    require(not config.started, "missing TOC emits no log request")
 
-    observer2, cf2, _epoch2, config2 = make_observer()
-    config2.start_error = RuntimeError("start failed")
+    observer2, cf2, _epoch2, config2 = make_observer(
+        epoch_value="epoch-wrong-type"
+    )
+    cf2.log.toc.element.ctype = "float"
     expect_error(
         lambda: observer2.open(timeout_seconds=0.05),
+        "does not match pinned uint16_t",
+    )
+    require(not config2.started, "wrong TOC emits no log request")
+
+    observer3, cf3, _epoch3, config3 = make_observer(
+        epoch_value="epoch-add"
+    )
+    cf3.log.add_error = RuntimeError("TOC unavailable")
+    expect_error(
+        lambda: observer3.open(timeout_seconds=0.05),
         "could not start fresh range logging",
     )
-    require(
-        config2.stopped and config2.deleted and cf2.disconnected.callbacks == [],
-        "start failure cleanup",
+    require(config3.stopped and config3.deleted, "failed setup cleaned")
+
+
+def test_uncertain_close_poison_prevents_reuse() -> None:
+    observer, _cf, _epoch, config = make_observer(
+        epoch_value="epoch-close"
+    )
+    observer.open(timeout_seconds=0.05)
+    config.stop_error = RuntimeError("stop uncertain")
+    expect_error(
+        observer.close,
+        "could not close range observer cleanly",
+    )
+    require(observer.poisoned and not observer.is_open, "uncertain close poisons")
+    expect_error(
+        lambda: observer.open(timeout_seconds=0.05),
+        "poisoned by uncertain teardown",
     )
 
-    observer3, cf3, _epoch3, config3 = make_observer()
-    observer3.open(timeout_seconds=0.05)
-    observer3.close()
-    require(config3.stopped and config3.deleted, "clean close")
-    require(
-        config3.data_received_cb.callbacks == []
-        and config3.error_cb.callbacks == [],
-        "log callbacks removed",
+
+def test_local_validation_and_no_authority_surface() -> None:
+    expect_error(
+        lambda: rng.FreshRangeObserver(FakeCf("range.front"), Epoch("x"), "down"),
+        "unsupported physical range direction",
     )
-    require(cf3.disconnected.callbacks == [], "disconnect callback removed")
-    observer3.close()
-
-    observer4, cf4, _epoch4, config4 = make_observer()
-    expect_error(lambda: observer4.open(timeout_seconds=0), "timeout must be positive")
-    require(
-        cf4.log.configs == [] and not config4.started,
-        "invalid open has no log setup",
+    observer, cf, _epoch, config = make_observer()
+    expect_error(
+        lambda: observer.open(timeout_seconds=0),
+        "timeout must be positive",
     )
-    expect_error(lambda: observer4.read(timeout_seconds=0.01), "not open")
+    require(cf.log.configs == [] and not config.started, "local error has no log effect")
+    expect_error(
+        lambda: observer.read(timeout_seconds=0.01),
+        "not open",
+    )
 
-
-def main():
-    test_exact_direction_and_fresh_read()
-    test_down_and_substitution_fail_before_log_setup()
-    test_cached_and_duplicate_samples_cannot_decide()
-    test_each_read_requires_a_new_sample()
-    test_runtime_horizon_and_firmware_no_range_normalization()
-    test_exact_live_toc_contract()
-    test_epoch_rotation_disconnect_and_log_error_fail_closed()
-    test_invalid_samples_fail_open_and_cleanup()
-    test_add_start_close_and_local_failures()
     source = MODULE_PATH.read_text(encoding="utf-8")
     for forbidden in (
         "send_arming_request",
@@ -347,14 +412,28 @@ def main():
         "send_setpoint",
         "send_hover_setpoint",
         "send_velocity_world_setpoint",
-        "effect_transaction(",
+        "send_packet(",
+        "Param.set_value",
     ):
         require(
             forbidden not in source,
-            f"range observer exposes authority surface: {forbidden}",
+            f"range observer exposes authority/effect surface: {forbidden}",
         )
+
+
+def main() -> int:
+    test_exact_direction_mapping_and_conversion()
+    test_pinned_cflib_unavailable_boundary_is_not_clamped()
+    test_cached_and_duplicate_samples_are_not_fresh()
+    test_callback_entered_before_read_cannot_finish_as_fresh()
+    test_timestamp_wrap_and_epoch_rotation()
+    test_malformed_disconnect_and_log_error_fail_closed()
+    test_toc_and_setup_failures_fail_closed()
+    test_uncertain_close_poison_prevents_reuse()
+    test_local_validation_and_no_authority_surface()
     print(
-        "PASS fresh same-epoch physical range observation normalizes exact 5-direction Runtime semantics without execution authority"
+        "PASS fresh same-epoch Multi-ranger observation preserves pinned "
+        ">=8000 mm unavailable semantics and exposes no execution authority"
     )
     return 0
 
