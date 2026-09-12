@@ -1,0 +1,69 @@
+name: Provision historical Boost cache
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/provision-historical-boost.yml
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    name: Provision exact Boost 1.74 archive
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Restore exact repository cache
+        id: boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+
+      - name: Acquire exact archive outside canonical acceptance
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-support
+          archive=.ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          temporary="${archive}.download.$$"
+          trap 'rm -f "$temporary"' EXIT
+          curl \
+            --fail \
+            --location \
+            --proto '=https' \
+            --tlsv1.2 \
+            --retry 3 \
+            --retry-delay 2 \
+            --connect-timeout 15 \
+            --max-time 90 \
+            --output "$temporary" \
+            https://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          test "$(stat -c '%s' "$temporary")" = 9608510
+          echo '4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78  '"$temporary" | sha256sum --check --strict
+          mv "$temporary" "$archive"
+          trap - EXIT
+
+      - name: Verify exact provisioned archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=.ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          test -f "$archive"
+          test "$(stat -c '%s' "$archive")" = 9608510
+          echo '4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78  '"$archive" | sha256sum --check --strict
+
+      - name: Save exact repository cache
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
