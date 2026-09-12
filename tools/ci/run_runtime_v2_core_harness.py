@@ -125,6 +125,10 @@ def main():
     if physical_dynamic_preflight_test.returncode:
         print('FAIL conservative dynamic physical pre-takeoff envelope',file=sys.stderr);print(physical_dynamic_preflight_test.stdout,file=sys.stderr);print(physical_dynamic_preflight_test.stderr,file=sys.stderr);return physical_dynamic_preflight_test.returncode
     print(physical_dynamic_preflight_test.stdout.strip())
+    physical_shared_interpreter_test=subprocess.run([sys.executable,'tools/ci/test_physical_shared_interpreter.py'],text=True,capture_output=True)
+    if physical_shared_interpreter_test.returncode:
+        print('FAIL trusted shared Runtime interpreter physical core',file=sys.stderr);print(physical_shared_interpreter_test.stdout,file=sys.stderr);print(physical_shared_interpreter_test.stderr,file=sys.stderr);return physical_shared_interpreter_test.returncode
+    print(physical_shared_interpreter_test.stdout.strip())
     physical_color_led_transport_test=subprocess.run([sys.executable,'tools/ci/test_physical_color_led_transport.py'],text=True,capture_output=True)
     if physical_color_led_transport_test.returncode:
         print('FAIL trusted one-shot bottom Color LED transport',file=sys.stderr);print(physical_color_led_transport_test.stdout,file=sys.stderr);print(physical_color_led_transport_test.stderr,file=sys.stderr);return physical_color_led_transport_test.returncode
