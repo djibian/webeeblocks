@@ -23,6 +23,7 @@ import time
 
 FIRMWARE_TARGET = "6562ad827bf0c8bf2c9b609edad36f3e15652133"
 FIRMWARE_BIN_SHA256 = "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
+TEST_PROFILE = "x3-independent-props-off"
 PARAMETERS = {
     "stabilizer.estimator": 3, "ukf.qualityGateTof": 20,
     "ukf.baroNoise": 6.25, "ukf.surfaceOffsetS3": 1,
@@ -173,7 +174,7 @@ def record(args) -> int:
     write_json_once(args.output / "capture-start.json", {
         "schema": "webeeblocks.x3.sensor-capture.v1",
         "checkpoint_url": args.checkpoint_url, "request_sha": args.request_sha,
-        "test_profile": "s3-props-off", "purpose": "checkpoint",
+        "test_profile": TEST_PROFILE, "purpose": "checkpoint",
         "tested_firmware_source_sha": FIRMWARE_TARGET,
         "verified_local_firmware_bin_sha256": FIRMWARE_BIN_SHA256,
         "installed_firmware_identity": "operator-confirmed; not remote attestation",
@@ -271,6 +272,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.describe:
         print(json.dumps({"blocks": BLOCKS, "parameters": PARAMETERS,
+                          "test_profile": TEST_PROFILE,
                           "firmware_target": FIRMWARE_TARGET,
                           "firmware_bin_sha256": FIRMWARE_BIN_SHA256}, indent=2))
         return 0
