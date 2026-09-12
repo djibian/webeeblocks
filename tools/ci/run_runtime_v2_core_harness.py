@@ -121,6 +121,10 @@ def main():
     if physical_program_sequence_test.returncode:
         print('FAIL exact physical program sequencing',file=sys.stderr);print(physical_program_sequence_test.stdout,file=sys.stderr);print(physical_program_sequence_test.stderr,file=sys.stderr);return physical_program_sequence_test.returncode
     print(physical_program_sequence_test.stdout.strip())
+    physical_dynamic_preflight_test=subprocess.run([sys.executable,'tools/ci/test_physical_dynamic_preflight.py'],text=True,capture_output=True)
+    if physical_dynamic_preflight_test.returncode:
+        print('FAIL conservative dynamic physical pre-takeoff envelope',file=sys.stderr);print(physical_dynamic_preflight_test.stdout,file=sys.stderr);print(physical_dynamic_preflight_test.stderr,file=sys.stderr);return physical_dynamic_preflight_test.returncode
+    print(physical_dynamic_preflight_test.stdout.strip())
     physical_color_led_transport_test=subprocess.run([sys.executable,'tools/ci/test_physical_color_led_transport.py'],text=True,capture_output=True)
     if physical_color_led_transport_test.returncode:
         print('FAIL trusted one-shot bottom Color LED transport',file=sys.stderr);print(physical_color_led_transport_test.stdout,file=sys.stderr);print(physical_color_led_transport_test.stderr,file=sys.stderr);return physical_color_led_transport_test.returncode
