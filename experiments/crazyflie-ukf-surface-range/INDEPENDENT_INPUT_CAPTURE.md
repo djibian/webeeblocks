@@ -23,20 +23,27 @@ This is explicitly not remote firmware attestation. No flash is performed.
 | --- | ---: | --- | ---: |
 | `barometer` | 20 ms | `baro.asl`, `pressure`, `temp` | 12 bytes |
 | `imu` | 10 ms | `acc.x/y/z`, `gyro.x/y/z` | 24 bytes |
-| `pose` | 20 ms | downward range, roll/pitch, UKF Z/VZ | 20 bytes |
+| `pose` | 20 ms | downward range, roll/pitch, UKF Z/VZ, `stabilizer.intToOut` | 24 bytes |
 | `detector` | 20 ms | S3 state/reason/offset/barometer delta, local Flow flag, late eligibility | 24 bytes |
 
 Every field is fetched as a float; each block fits cflib's 26-byte log payload.
 Units remain the pinned firmware units: barometer altitude in m, pressure in
 mbar, temperature in Celsius; accelerometer in g; filtered gyro in degrees/s;
-downward range in mm; roll/pitch in degrees; UKF Z in m and VZ in m/s. Diagnostic
-UKF outputs must not become independent displacement inputs.
+downward range in mm; roll/pitch in degrees; UKF Z in m and VZ in m/s.
+`stabilizer.intToOut` is the pinned firmware's microsecond latency from the IMU
+interrupt timestamp carried by the stabilizer's current `sensorData` to the end
+of that stabilizer iteration. Diagnostic UKF outputs and this latency diagnostic
+must not become independent displacement inputs.
 
 Both the 24-bit device log timestamp and host monotonic receipt time are retained
 for every row. Log time does not identify a sensor's producer time, and fetching
 acceleration/gyro in one block does not prove simultaneous sensor acquisition.
-The chosen cadence is an acquisition configuration, not proof that inertial
-integration or a 5 cm / 1 s bound is achievable. No missing row is interpolated.
+The `intToOut` value is read later by the log worker from shared state and is not
+atomically paired with the pose or IMU row; it characterizes the firmware's
+internal sensor-to-output path but does not validate `sensor_time_error_s` or
+supply a producer timestamp. The chosen cadence is an acquisition configuration,
+not proof that inertial integration or a 5 cm / 1 s bound is achievable. No
+missing row is interpolated.
 
 ## Machine checks and output
 
@@ -100,7 +107,9 @@ component alone. The remaining checkpoint preparation is narrower:
 - Pre-register and justify the deterministic error, tilt, initial-velocity,
   intersample-acceleration, sensor-time, barometer and delivery-latency bounds
   consumed by [the frozen vertical predictor](FROZEN_VERTICAL_PREDICTOR.md).
-  Outcome data must never be used to narrow these bounds.
+  Outcome data must never be used to narrow these bounds. The retained
+  `stabilizer.intToOut` diagnostic can falsify assumptions about the internal
+  sensor-to-output path but cannot by itself validate sensor producer timing.
 - Package and validate the exact cflib runtime, exact #251 firmware file, capture
   script, reference/predictor support and executable physical procedure in the
   trusted checkpoint preparation. The collector's module hashes identify two
@@ -115,6 +124,6 @@ boundary. No estimator or controller change follows from successful acquisition.
 
 ## Inspected API sources
 
-- [Firmware log names/units](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/modules/src/stabilizer.c).
+- [Firmware log names/units](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/modules/src/stabilizer.c), including the existing `stabilizer.intToOut` sensor-to-output diagnostic.
 - [Pinned cflib LogConfig/TOC/log lifecycle](https://github.com/bitcraze/crazyflie-lib-python/blob/45fdb784c9d13074c42835f3b5ac1d12133bf873/cflib/crazyflie/log.py).
 - [Pinned cflib asynchronous connection/parameter-ready and close lifecycle](https://github.com/bitcraze/crazyflie-lib-python/blob/45fdb784c9d13074c42835f3b5ac1d12133bf873/cflib/crazyflie/__init__.py).
