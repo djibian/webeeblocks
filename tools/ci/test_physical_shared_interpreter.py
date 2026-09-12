@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import struct
 import sys
 import tempfile
 
@@ -10,8 +11,14 @@ PHYSICAL = ROOT / "tools" / "physical"
 if str(PHYSICAL) not in sys.path:
     sys.path.insert(0, str(PHYSICAL))
 
+import landing_command
 import takeoff_command
-from physical_dynamic_preflight import DynamicPhysicalPreflightError
+from physical_dynamic_preflight import (
+    DynamicPhysicalPreflightError,
+    validate_bound_dynamic_program,
+)
+import runtime_nominal_altitude
+from runtime_nominal_altitude import RuntimeNominalAltitude, RuntimeNominalAltitudeError
 import shared_interpreter_host as subject
 from shared_interpreter_host import BoundSharedInterpreter, SharedInterpreterHostError
 
@@ -92,6 +99,32 @@ def representative_ast() -> dict[str, object]:
                 },
                 "then": [{"kind": "set_light", "color": "green"}],
                 "else": [],
+            },
+            {"kind": "land"},
+        ],
+    }
+
+
+def dynamic_vertical_ast() -> dict[str, object]:
+    return {
+        "version": 1,
+        "semantics": "webeeblocks-ast-v1",
+        "program": [
+            {"kind": "takeoff", "height_m": 0.8},
+            {
+                "kind": "if",
+                "condition": {
+                    "kind": "compare",
+                    "op": "LT",
+                    "left": {"kind": "range", "direction": "front", "unit": "m"},
+                    "right": {"kind": "number", "value": 1},
+                },
+                "then": [
+                    {"kind": "vertical", "direction": "up", "distance_m": 0.3}
+                ],
+                "else": [
+                    {"kind": "vertical", "direction": "down", "distance_m": 0.2}
+                ],
             },
             {"kind": "land"},
         ],
@@ -237,6 +270,72 @@ def test_range_data_and_backend_failure_fail_closed() -> None:
     )
 
 
+def test_runtime_altitude_follows_only_completed_selected_vertical_effects() -> None:
+    exact = binding(dynamic_vertical_ast())
+    safety = validate_bound_dynamic_program(exact)
+    require(safety.initial_altitude_m == 0.8, "dynamic initial altitude changed")
+    require(abs(safety.terminal_min_altitude_m - 0.6) < 1e-9, "dynamic lower terminal bound changed")
+    require(abs(safety.terminal_max_altitude_m - 1.1) < 1e-9, "dynamic upper terminal bound changed")
+
+    upper = RuntimeNominalAltitude(safety)
+    require(upper.altitude_m == 0.8, "runtime altitude must start at proven takeoff height")
+    require(
+        upper.record_vertical_completion("up", 0.3) == 1.1,
+        "completed selected upward effect did not advance runtime altitude",
+    )
+    upper_evidence = upper.landing_evidence()
+    require(
+        upper_evidence.ast_binding == exact and upper_evidence.altitude_m == 1.1,
+        "upper branch landing evidence lost exact binding/altitude",
+    )
+    upper_command = landing_command.derive_runtime_landing_command(upper_evidence)
+    unpacked = struct.unpack("<BBf?f?f", upper_command.request)
+    require(unpacked[0] == 10 and unpacked[1] == 0, "runtime landing command identity changed")
+    require(
+        abs(unpacked[2] - 1.1) < 1e-6 and unpacked[3] is True,
+        "runtime landing did not use selected upper world-Z as relative descent",
+    )
+    require(unpacked[5] is True and abs(unpacked[6] - 0.5) < 1e-6, "landing policy changed")
+
+    lower = RuntimeNominalAltitude(safety)
+    require(
+        lower.record_vertical_completion("down", 0.2) == 0.6000000000000001,
+        "completed selected downward effect did not advance runtime altitude",
+    )
+    lower_command = landing_command.derive_runtime_landing_command(
+        lower.landing_evidence()
+    )
+    require(
+        abs(lower_command.descent_m - 0.6) < 1e-9,
+        "lower branch landing descent ignored completed runtime altitude",
+    )
+
+    unchanged = RuntimeNominalAltitude(safety)
+    try:
+        unchanged.record_vertical_completion("up", 1.0)
+    except RuntimeNominalAltitudeError as exc:
+        require("safety envelope" in str(exc), "unsafe completion failed for wrong reason")
+    else:
+        raise AssertionError("runtime altitude may not escape proven envelope")
+    require(
+        unchanged.altitude_m == 0.8,
+        "failed/unsafe vertical completion must leave runtime altitude unchanged",
+    )
+
+    try:
+        runtime_nominal_altitude.RuntimeLandingAltitudeEvidence(
+            exact,
+            0.8,
+            0.6,
+            1.1,
+            _mint_key=object(),
+        )
+    except RuntimeNominalAltitudeError as exc:
+        require("only be minted" in str(exc), "forged landing evidence failed for wrong reason")
+    else:
+        raise AssertionError("runtime landing altitude evidence must be host-minted")
+
+
 def _run_with_fake_worker(source: str, backend: FakeBackend, timeout: float = 0.5) -> str:
     original_worker = subject._WORKER
     original_timeout = subject._PROTOCOL_IDLE_TIMEOUT_SECONDS
@@ -291,12 +390,14 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
     interpreter_source = (
         ROOT / "plugins/robot_windows/blockly/webeeblocks/interpreter.js"
     ).read_text(encoding="utf-8")
+    altitude_source = (PHYSICAL / "runtime_nominal_altitude.py").read_text(encoding="utf-8")
     require("interpreter.js" in worker_source, "worker does not load product interpreter")
     require("Interpreter.run(ast, backend)" in worker_source, "worker bypasses shared run()")
     for forbidden in ("case 'if'", "case 'repeat'", "statement.kind", "expression.kind"):
         require(forbidden not in worker_source, f"worker duplicates evaluator: {forbidden}")
     for forbidden in ("cflib", "send_packet", "setpoint", "commander"):
         require(forbidden not in host_source.lower(), f"adapter leaked physical authority: {forbidden}")
+        require(forbidden not in altitude_source.lower(), f"altitude state leaked physical authority: {forbidden}")
     for forbidden in ("--ast", "--direction", "--value", "--branch", "--iteration"):
         require(forbidden not in host_source + worker_source, f"caller semantic option: {forbidden}")
     require("module.exports = factory()" in interpreter_source, "shared interpreter lost CommonJS")
@@ -307,11 +408,12 @@ def main() -> int:
     test_real_shared_interpreter_owns_control_flow_and_sensor_demand()
     test_dynamic_safety_and_language_validation_precede_backend_use()
     test_range_data_and_backend_failure_fail_closed()
+    test_runtime_altitude_follows_only_completed_selected_vertical_effects()
     test_private_protocol_rejects_substitution_and_silence()
     test_surface_contains_no_second_language_engine_or_caller_semantics()
     print(
         "PASS exact teacher-bound AST executes through the existing shared Runtime interpreter "
-        "with host-owned control flow/sensor demand and a fail-closed private backend protocol"
+        "with host-owned control flow/sensor demand and branch-selected runtime landing altitude"
     )
     return 0
 
