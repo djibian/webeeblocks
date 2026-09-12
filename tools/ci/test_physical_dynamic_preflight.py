@@ -10,6 +10,7 @@ PHYSICAL = ROOT / "tools/physical"
 if str(PHYSICAL) not in sys.path:
     sys.path.insert(0, str(PHYSICAL))
 
+import takeoff_command  # noqa: E402
 from physical_dynamic_preflight import (  # noqa: E402
     DynamicPhysicalPreflightError,
     validate_bound_dynamic_program,
@@ -22,15 +23,12 @@ def require(condition: bool, message: str) -> None:
 
 
 def canonical(program: list[dict[str, object]]) -> str:
-    return json.dumps(
+    return takeoff_command._canonical_json(
         {
             "version": 1,
             "semantics": "webeeblocks-ast-v1",
             "program": program,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
+        }
     )
 
 
