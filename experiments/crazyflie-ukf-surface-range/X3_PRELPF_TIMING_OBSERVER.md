@@ -1,8 +1,8 @@
 # X3 logging-only independent-input observer
 
-This Lab-only observer narrows one provenance gap in #70. It is applied to exact
+This Lab-only observer narrows one provenance gap in #70. It targets exact
 Crazyflie firmware `2026.08@54f31e243a0b28b67efef5ba20dbb6d9890a5478`
-on top of the existing S3/discriminator/timing-observer build path. It changes no
+on top of the existing S3/discriminator/timing-observer source path. It changes no
 estimator/controller equation, ToF/Flow behavior, S3 threshold or persistence,
 parameter, Runtime behavior, checkpoint profile or motor authority.
 
@@ -76,22 +76,36 @@ property, not a producer-time claim.
 The deterministic observer contract test exercises the applicator's exact
 transformation, pre-LPF placement, packet-timestamp latch wiring, all callback-to-
 latch field bindings, fail-closed partial-application behavior and 24/25-byte
-payload budgets. The pinned firmware build remains the compilation oracle for the
-resulting C path.
+payload budgets.
 
-## Build oracle
+## Build-oracle isolation
 
-`run_s3_build_oracle.sh` verifies the exact upstream sensor blob, runs the
-observer contract test, applies this observer after the existing
-S3/discriminator/timing overlays, checks the pre-LPF placement and expected log
-declarations, and builds a UKF-enabled CF2 firmware in the pinned Bitcraze
-builder.
+`run_s3_build_oracle.sh` preserves the existing checkpoint artifact workspace as
+the authority boundary. It first performs the canonical S3/discriminator/timing
+build in the original pinned Crazyflie checkout exactly as before. It records the
+resulting canonical `cf2.bin` and `cf2.elf` hashes and verifies that the pinned
+`sensors_bmi088_bmp3xx.c` source is still byte-identical and unmodified.
 
-This composed CI build is a compile oracle for the logging-only overlay. It does
-not replace the exact #251 physical artifact, enable `x3-independent-props-off`,
-request a checkpoint, validate live log throughput, or establish any frozen-
-predictor bound. Any future physical use would require a separately identified
-instrumented firmware artifact and compatible trusted checkpoint provenance.
+Only **after** that canonical build completes, the oracle copies the built
+Crazyflie workspace to a temporary diagnostic directory. The X3 observer
+contract test and applicator run only in that copied directory; the diagnostic
+copy is rebuilt there and the linked ELF must contain the observer callbacks.
+The diagnostic binary must differ from the canonical binary, while final
+postconditions require the original canonical `cf2.bin`, `cf2.elf` and sensor
+source hashes to remain unchanged. The temporary copy is then removed.
+
+This isolation is deliberate because `.github/workflows/ci-webots.yml` packages
+only the original checkout as `experimental-s3-surface-offset-2026-08`, and the
+enabled `s3-props-off` human-checkpoint profile is bound to that existing artifact
+identity. The observer diagnostic must never become that checkpoint firmware as a
+side effect of this compile proof.
+
+The isolated diagnostic rebuild is therefore only a CI compilation oracle. It is
+not uploaded under the existing checkpoint artifact identity, does not replace
+the exact #251 physical artifact, enable `x3-independent-props-off`, request a
+checkpoint, validate live log throughput, or establish any frozen-predictor
+bound. Any future physical use requires a separately identified instrumented
+firmware artifact and compatible trusted checkpoint provenance.
 
 ## Proof boundary
 
