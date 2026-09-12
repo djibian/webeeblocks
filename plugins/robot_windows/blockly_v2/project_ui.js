@@ -5,6 +5,8 @@
   var busy = false;
   var supported = false;
   var runtimeLocked = false;
+  var handlersWired = false;
+  var brokerProbeStarted = false;
 
   function fileState(text, error) {
     var target = document.getElementById('projectFileState');
@@ -78,20 +80,8 @@
     return WebeeBlocksProjectFiles.normalizeName(base);
   }
 
-  window.addEventListener('webeeblocks-runtime-v2', function(event) {
-    var state = event && event.detail ? event.detail.state : null;
-    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
-  });
-
-  window.addEventListener('load', function() {
-    if (!workspace || !runtimeProfile) {
-      fileState('Fichiers projet indisponibles', true);
-      renderButtons();
-      return;
-    }
-
-    var transport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
-    manager = WebeeBlocksProjectFiles.createManager({
+  function createManager(transport) {
+    return WebeeBlocksProjectFiles.createManager({
       Blockly: Blockly,
       profiles: WebeeBlocksActivityProfiles,
       activitiesDocument: WebeeBlocksActivities.DOCUMENT,
@@ -103,22 +93,18 @@
       setProfile: applyProfile,
       transport: transport
     });
-    window.WebeeBlocksProjectManager = manager;
-    supported = manager.nativeFileSystemAccess;
-    document.body.dataset.projectFileMode = supported ? 'native' : 'unavailable';
+  }
+
+  function publishMode(mode, nativeFileSystemAccess) {
+    document.body.dataset.projectFileMode = mode;
     window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
-      detail: {nativeFileSystemAccess: supported, mode: supported ? 'native' : 'unavailable'}
+      detail: {nativeFileSystemAccess: nativeFileSystemAccess === true, mode: mode}
     }));
+  }
 
-    if (!supported) {
-      fileState('Gestion des fichiers projet : utilisez Google Chrome', true);
-      renderButtons();
-      return;
-    }
-
-    fileState('Aucun fichier projet sélectionné', false);
-    renderButtons();
-
+  function wireHandlers() {
+    if (handlersWired) return;
+    handlersWired = true;
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
@@ -147,5 +133,55 @@
         fileState('Projet : ' + result.name, false);
       });
     });
+  }
+
+  function activateTransport(transport, mode, nativeFileSystemAccess) {
+    manager = createManager(transport);
+    window.WebeeBlocksProjectManager = manager;
+    supported = true;
+    publishMode(mode, nativeFileSystemAccess);
+    fileState('Aucun fichier projet sélectionné', false);
+    wireHandlers();
+    renderButtons();
+  }
+
+  async function tryWwiBroker() {
+    if (brokerProbeStarted || supported || !robotWindow || typeof robotWindow.send !== 'function') return;
+    brokerProbeStarted = true;
+    try {
+      var transport = WebeeBlocksFileBrokerTransport.create(robotWindow, {probeTimeoutMs: 2000});
+      await transport.probe();
+      activateTransport(transport, 'wwi-native-broker', false);
+    } catch (error) {
+      supported = false;
+      publishMode('unavailable', false);
+      fileState('Gestion native des fichiers projet indisponible dans ce navigateur', true);
+      renderButtons();
+    }
+  }
+
+  window.addEventListener('webeeblocks-runtime-v2', function(event) {
+    var state = event && event.detail ? event.detail.state : null;
+    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+    if (!supported) tryWwiBroker();
+  });
+
+  window.addEventListener('load', function() {
+    if (!workspace || !runtimeProfile) {
+      fileState('Fichiers projet indisponibles', true);
+      renderButtons();
+      return;
+    }
+
+    var browserTransport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
+    if (browserTransport.nativeFileSystemAccess) {
+      activateTransport(browserTransport, 'browser-native', true);
+      return;
+    }
+
+    publishMode('probing-native-broker', false);
+    fileState('Recherche du gestionnaire natif de fichiers…', false);
+    renderButtons();
+    tryWwiBroker();
   });
 })();
