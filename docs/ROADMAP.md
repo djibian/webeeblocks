@@ -464,37 +464,31 @@ justified by the current evidence.
 ### FF — Firefox same-file project semantics
 
 - parent: #87
-- retained architecture: a native Qt file broker through the existing local
-  Webots/WWI path, as selected by the bounded post-C26 decision on #87
-- established causal result: C26 isolated executable COPY data interposition
-  relative to GOT binding in the pinned minimal Qt closure; do not reopen C8–C26
-- real-provider result: the single #301 qualification compiled the actual
-  provider as PIC, verified no Qt COPY relocation, and observed official Webots
-  launch, QApplication initialization, a displayed QFileDialog, real cancellation
-  and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
-  do not establish completion of the controller loop: its aggregate eight-step
-  marker and controller exit status are absent, so continuation remains UNPROVEN
-- continuity prerequisite established: the subsequent bounded #317 measurement
-  repair on exact candidate `e8aecd14e7988a6772d780062f8cf83060657dff`
-  received an [owner PASS](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5643382930).
-  Its controller-owned journal, observed before shutdown while Webots remained
-  alive, proves eight successful steps, 0.256 s of progression, a local broker
-  capabilities response and provider destruction after real dialog cancellation.
-  The [complete retained evidence](https://github.com/djibian/webeeblocks/tree/44abcebfe0a399a488a77c4ddb5d418ce0920c2a/experiments/firefox-qt-provider/evidence/2026-09-12)
-  preserves the original archive and all 30 raw files. #317 is closed without
-  merge; this establishes dialog/controller coexistence, not a browser/WWI
-  file-operation round trip. The older #301 result remains UNPROVEN for its own
-  candidate
-- next product boundary: implement the native broker and existing project-manager
-  transport through local WWI, with browser-held opaque session references,
-  validation before adopting an opened target, confirmed writes before adopting
-  Save As, same-file Save and neutral cancellation/errors. The continuity
-  prerequisite no longer blocks this implementation. Do not integrate the
-  research harness or restart a causal discriminator chain
-- product boundary: the native broker must preserve direct same-file Open,
-  Save As and Save semantics; full Firefox parity and Windows qualification
-  remain unproven. The supported Chromium path remains independent of #87
-- keep deferred while higher-value work remains executable.
+- integrated architecture: #319 supplies the native Qt6 file broker through the
+  existing local Webots/WWI path when the File System Access API is unavailable;
+  the Chromium path remains unchanged. Browser-side code exchanges only file
+  bytes, bounded basenames and opaque broker references, never arbitrary native
+  paths
+- lifecycle boundary: #329 releases or replaces native broker targets across
+  project/session transitions. Open adopts a target only after complete project
+  validation, Save As only after an atomic native write, Save reuses the exact
+  opaque current target, and cancellation/error leaves workspace and target
+  neutral
+- Linux Firefox qualification: #328 passed the real Firefox 155 + Webots R2025a
+  broker path with native dialogs, same-file Save, Open/Save As cancellation,
+  fail-closed invalid-project handling and no duplicate-copy fallback. This
+  establishes the supported Linux Firefox path; it does not qualify Windows
+- Windows prerequisite: #334 integrated the supported Windows-native runtime and
+  packaging boundary as `0593ed990f495b5c6bd5f08945010748c0d34b7e`
+- remaining product proof: only the real low-end Windows 11 + Webots R2025a +
+  Firefox qualification remains. Its exact procedure and artifact provenance are
+  retained by #338. Do not add another machine implementation slice merely to
+  substitute for that real Windows evidence; a FAIL should repair the exact
+  observed defect
+- product boundary: Firefox same-file parity is established on Linux but remains
+  unqualified on Windows until #338 resolves positively (or becomes legitimately
+  `NOT_NEEDED` under the human-boundary contract). Chrome remains independently
+  supported meanwhile.
 
 ### R — final real-flight activity
 
