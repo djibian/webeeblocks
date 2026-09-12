@@ -4,12 +4,14 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 struct FakeState {
   std::string lastName;
   std::string lastBytes;
   std::string lastReference;
+  std::vector<std::string> releasedReferences;
   bool cancelOpen = false;
   bool missingTarget = false;
 };
@@ -35,6 +37,9 @@ public:
       return {webeeblocks::FileOperationStatus::Error, "", "", "TARGET_UNAVAILABLE"};
     return {webeeblocks::FileOperationStatus::Ok, reference, "élève.wbb", ""};
   }
+  void release(const std::string &reference) override {
+    state_->releasedReferences.push_back(reference);
+  }
 private:
   FakeState *state_;
 };
@@ -56,6 +61,7 @@ int main() {
   const auto capabilities = send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 1 CAPABILITIES");
   assert(capabilities.find("\"operationsReady\":true") != std::string::npos);
   assert(capabilities.find("\"sameFileSave\":true") != std::string::npos);
+  assert(capabilities.find("\"referenceRelease\":true") != std::string::npos);
 
   const auto opened = send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 2 OPEN");
   assert(opened.find("RESPONSE 2 OPEN OK opaque_open_1 ") != std::string::npos);
@@ -72,23 +78,32 @@ int main() {
   assert(state.lastReference == "opaque_saveas_2");
   assert(state.lastBytes == "{\"ok\":1}\n");
 
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 5 RELEASE opaque_open_1") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 5 RELEASE OK");
+  assert(state.releasedReferences.size() == 1);
+  assert(state.releasedReferences.back() == "opaque_open_1");
+
   // A browser-supplied path is rejected at the protocol boundary; the provider
   // can receive only a basename proposal and an opaque reference.
-  const auto pathInjection = send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 5 SAVE_AS L3RtcC9ldmlsLndiYg== " + bytes64);
-  assert(pathInjection == "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 5 ERR INVALID_REQUEST");
+  const auto pathInjection = send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 6 SAVE_AS L3RtcC9ldmlsLndiYg== " + bytes64);
+  assert(pathInjection == "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 6 ERR INVALID_REQUEST");
 
   state.cancelOpen = true;
-  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 6 OPEN") ==
-         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 6 OPEN CANCELLED");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 7 OPEN") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 7 OPEN CANCELLED");
   state.cancelOpen = false;
 
   state.missingTarget = true;
-  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 7 SAVE opaque_saveas_2 " + bytes64) ==
-         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 7 ERR TARGET_UNAVAILABLE");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 8 SAVE opaque_saveas_2 " + bytes64) ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 8 ERR TARGET_UNAVAILABLE");
 
-  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 8 SAVE ../escape " + bytes64) ==
-         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 8 ERR INVALID_REQUEST");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 9 SAVE ../escape " + bytes64) ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 9 ERR INVALID_REQUEST");
+  const auto releaseCount = state.releasedReferences.size();
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 10 RELEASE ../escape") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 10 ERR INVALID_REQUEST");
+  assert(state.releasedReferences.size() == releaseCount);
 
-  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/cancel/errors/no-browser-path\n";
+  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path\n";
   return 0;
 }

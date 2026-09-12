@@ -169,7 +169,7 @@ bool FileBroker::handleMessage(const char *message, std::string *response) {
     const std::string provider = safeProviderName(mProvider->name());
     *response = responsePrefix(id) +
       "CAPABILITIES {\"protocol\":1,\"provider\":\"" + provider +
-      "\",\"providerInjectable\":true,\"operationsReady\":true,\"sameFileSave\":true,\"canonicalExtension\":\".wbb\"}";
+      "\",\"providerInjectable\":true,\"operationsReady\":true,\"sameFileSave\":true,\"referenceRelease\":true,\"canonicalExtension\":\".wbb\"}";
     return true;
   }
   if (operation == "OPEN" && parts.size() == 2) {
@@ -201,6 +201,15 @@ bool FileBroker::handleMessage(const char *message, std::string *response) {
       return true;
     }
     *response = saveResponse(id, "SAVE", mProvider->save(parts[2], bytes));
+    return true;
+  }
+  if (operation == "RELEASE" && parts.size() == 3) {
+    if (!safeToken(parts[2])) {
+      *response = operationError(id, "INVALID_REQUEST");
+      return true;
+    }
+    mProvider->release(parts[2]);
+    *response = responsePrefix(id) + "RELEASE OK";
     return true;
   }
 

@@ -114,6 +114,11 @@ public:
     return {webeeblocks::FileOperationStatus::Ok, reference, after.fileName().toUtf8().toStdString(), ""};
   }
 
+  void release(const std::string &reference) override {
+    const QString key = QString::fromLatin1(reference.data(), static_cast<int>(reference.size()));
+    mReferences.remove(key);
+  }
+
 private:
   static webeeblocks::OpenFileResult openError(const std::string &code) {
     return {webeeblocks::FileOperationStatus::Error, "", "", "", code};
