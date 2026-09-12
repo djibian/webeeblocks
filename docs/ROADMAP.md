@@ -443,10 +443,23 @@ justified by the current evidence.
   and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
   do not establish completion of the controller loop: its aggregate eight-step
   marker and controller exit status are absent, so continuation remains UNPROVEN
-- remaining prerequisite: establish coexistence of the dialog with the
-  controller/WWI lifecycle before product implementation. The single authorized
-  qualification is recorded; this result does not authorize another causal
-  discriminator chain
+- continuity prerequisite established: the subsequent bounded #317 measurement
+  repair on exact candidate `e8aecd14e7988a6772d780062f8cf83060657dff`
+  received an [owner PASS](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5643382930).
+  Its controller-owned journal, observed before shutdown while Webots remained
+  alive, proves eight successful steps, 0.256 s of progression, a local broker
+  capabilities response and provider destruction after real dialog cancellation.
+  The [complete retained evidence](https://github.com/djibian/webeeblocks/tree/44abcebfe0a399a488a77c4ddb5d418ce0920c2a/experiments/firefox-qt-provider/evidence/2026-09-12)
+  preserves the original archive and all 30 raw files. #317 is closed without
+  merge; this establishes dialog/controller coexistence, not a browser/WWI
+  file-operation round trip. The older #301 result remains UNPROVEN for its own
+  candidate
+- next product boundary: implement the native broker and existing project-manager
+  transport through local WWI, with browser-held opaque session references,
+  validation before adopting an opened target, confirmed writes before adopting
+  Save As, same-file Save and neutral cancellation/errors. The continuity
+  prerequisite no longer blocks this implementation. Do not integrate the
+  research harness or restart a causal discriminator chain
 - product boundary: the native broker must preserve direct same-file Open,
   Save As and Save semantics; full Firefox parity and Windows qualification
   remain unproven. The supported Chromium path remains independent of #87
