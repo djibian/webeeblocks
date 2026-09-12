@@ -56,6 +56,7 @@ def fixture(errors=False):
             "declared_bounds": {"specific_force_error_g": .002 if errors else .0005,
                                 "max_body_z_tilt_deg": .2 if errors else .05,
                                 "initial_velocity_error_m_s": .005 if errors else .001,
+                                "intersample_acceleration_error_m_s2": .02 if errors else 0.0,
                                 "barometer_displacement_error_m": .01 if errors else .005,
                                 "sensor_time_error_s": .005 if errors else 0,
                                 "delivery_latency_error_s": .05 if errors else 0}}
@@ -156,6 +157,7 @@ class PredictorTests(unittest.TestCase):
         prep = {"bounds": {"specific_force_error_g": 0.0,
                            "max_body_z_tilt_deg": 0.0,
                            "initial_velocity_error_m_s": 0.0,
+                           "intersample_acceleration_error_m_s2": 0.0,
                            "sensor_time_error_s": 0.005},
                 "zero_specific_force_interval_g": [1.0, 1.0],
                 "nominal_zero_specific_force_g": 1.0}
@@ -174,6 +176,36 @@ class PredictorTests(unittest.TestCase):
         self.assertAlmostEqual(segment["max_abs_vertical_accel_bound_m_s2"], 10.0 * predictor.G)
         self.assertLessEqual(segment["delta_z_interval_m"][0], shifted[0])
         self.assertGreaterEqual(segment["delta_z_interval_m"][1], shifted[1])
+
+    def test_intersample_bound_encloses_motion_hidden_between_identical_rows(self):
+        bound = 4.0
+        prep = {"bounds": {"specific_force_error_g": 0.0,
+                           "max_body_z_tilt_deg": 0.0,
+                           "initial_velocity_error_m_s": 0.0,
+                           "intersample_acceleration_error_m_s2": bound,
+                           "sensor_time_error_s": 0.0},
+                "zero_specific_force_interval_g": [1.0, 1.0],
+                "nominal_zero_specific_force_g": 1.0}
+        imu = [(i * 0.02, 100.0 + i * 0.02, (0.0, 0.0, 1.0)) for i in range(51)]
+        segment = predictor.imu_segment(imu, (0.0, 0.0), (1.0, 1.0), prep)
+        hidden_motion = 0.5 * bound
+
+        self.assertAlmostEqual(segment["nominal_delta_z_m"], 0.0)
+        self.assertAlmostEqual(segment["intersample_displacement_error_m"], hidden_motion)
+        self.assertLessEqual(segment["delta_z_interval_m"][0], -hidden_motion)
+        self.assertGreaterEqual(segment["delta_z_interval_m"][1], hidden_motion)
+
+    def test_end_interval_width_is_included_in_latency_budget(self):
+        baro, imu, _pose, spec, reference = fixture(errors=True)
+        base = predictor.analyze(*predictor.read_sources(baro, imu), spec, reference)["events"][0]
+        widened = copy.deepcopy(reference)
+        widened["events"][0]["end_device_s"] = [35.0, 35.21]
+        event = predictor.analyze(*predictor.read_sources(baro, imu), spec, widened)["events"][0]
+
+        self.assertEqual(base["conditional_latency_upper_s"], .81)
+        self.assertTrue(base["conditional_latency_within_1s"])
+        self.assertAlmostEqual(event["conditional_latency_upper_s"], 1.02)
+        self.assertFalse(event["conditional_latency_within_1s"])
 
     def test_metric_reference_validation_flags_require_json_booleans(self):
         baro, imu, _pose, spec, reference = fixture()
