@@ -27,7 +27,7 @@ Status vocabulary:
 | Horizontal movement | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_move` → `move(direction, distance)` with forward/back/left/right AST vocabulary | Current WWI backend advertises and executes forward/back/left/right | Exact-AST preflight plus trusted host-owned one-shot SETPOINT_HL effect execution is integrated for the exact next teacher-bound horizontal move after causal takeoff. Fresh current-program provenance, yaw, SafeLink, acknowledgement and causal completion remain required. No real-device qualification is claimed | Progression 1: forward; progression 3: forward/left; broader reactive profile declares four directions | **covered** in simulation; **deterministic physical path integrated; real-device unproven** |
 | Vertical movement | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_vertical` → `vertical(up/down, distance)` | Current WWI backend advertises and executes up/down with horizontal-position/yaw hold and bounded altitude targets | Exact-AST vertical/capability preflight is integrated, but the trusted physical effect sequence does not yet consume student vertical moves | Broad reactive profile only | **covered** in simulation; **physical unproven** |
 | Yaw turn | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_turn` → `turn(angle)` | Current WWI backend advertises and executes bounded signed yaw turns while holding position/altitude | Exact-AST preflight plus trusted host-owned one-shot SETPOINT_HL effect execution is integrated for the exact next teacher-bound yaw turn after causal takeoff, with the same authority, acknowledgement and completion boundaries as horizontal motion. No real-device qualification is claimed | Broad reactive profile only | **covered** in simulation; **deterministic physical path integrated; real-device unproven** |
-| Wait / pacing | Generic Runtime timing semantic; no dedicated hardware source | `webeeblocks_v2_wait` → `wait(seconds)` | Current WWI backend advertises and executes bounded waits while holding position, altitude and yaw; real-Webots CI checks requested simulated duration and hold tolerances | Exact-AST action/capability preflight is integrated; no current trusted physical sequence/effect evidence establishes student wait execution | Broad reactive profile only | **covered** in simulation; **physical unproven** |
+| Wait / pacing | Generic Runtime timing semantic; no dedicated hardware source | `webeeblocks_v2_wait` → `wait(seconds)` | Current WWI backend advertises and executes bounded waits while holding position, altitude and yaw; real-Webots CI checks requested simulated duration and hold tolerances | Exact-AST action/capability preflight is integrated. Integrated #316 admits exact teacher-bound `wait(seconds)` only inside the established takeoff/land envelope with its 0.1–5.0 s semantic bounds validated before takeoff. The ordinary host caller cannot supply duration, cursor or completion; host-monotonic pacing emits no cflib/CRTP/SETPOINT_HL, commander, reset or acknowledgement effect, keeps the powered session/watchdog and connection epoch live, re-establishes current-program provenance before and after the wait, and advances the exact action cursor only after completion. This is fake/injected-hardware proof, not real-device qualification | Broad reactive profile only | **covered** in simulation; **deterministic physical path integrated; real-device unproven** |
 | Speed selection | Crazyflie 2.1 airframe / flight control | `webeeblocks_v2_speed` → `set_speed(speed)` | Webots Runtime v2 applies a bounded 0.1–0.35 m/s limit to subsequent horizontal `move` actions only; RESET restores the proven 0.35 m/s default; real-Webots CI compares slow/fast traversal causally | Exact-AST action/capability preflight is integrated; no current trusted physical sequence/effect evidence establishes the student `set_speed` semantic as a physical operation | Broad reactive profile only | **covered** in simulation inside the existing proven horizontal envelope; **physical unproven** |
 | Multi-ranger directional distance | Multi-ranger deck | `webeeblocks_v2_range` → `range(direction)`; AST vocabulary has front/back/left/right/up | Current WWI backend advertises and reads front/back/left/right/up through dedicated Webots sensors | Exact-AST range/capability preflight is integrated and optional deck requirements are intent-dependent; a student physical range-value execution/observation path is not yet proven | Progression 3 exposes front; broad reactive profile declares front/back/left/right/up | **covered** in simulation for the generic directional range vocabulary; **physical unproven** |
 | Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **infrastructure only / justified student-vocabulary exclusion** at current evidence; reopen only for a concrete pupil-facing downward-clearance objective |
@@ -65,27 +65,30 @@ powered-session, teacher, watchdog, SafeLink, acknowledgement, effect-exclusion,
 current-program and completion trust chain. Integrated #295 binds the exact
 teacher-authorized program sequence. #276 then consumes the exact next horizontal
 move or yaw turn through one no-retry SETPOINT_HL effect after causal takeoff,
-and #305/#308 extend that same host-owned sequence through exact terminal
-controlled landing and fresh non-flying completion.
+#305/#308 extend that same host-owned sequence through exact terminal controlled
+landing and fresh non-flying completion, and #316 admits exact teacher-bound
+bounded waits as a no-effect host-monotonic sequence step while preserving the
+same powered-session/watchdog/epoch and current-program provenance.
 
 The currently integrated deterministic physical execution envelope is therefore:
 trusted reset/postconditions and reconnect-sensitive preflight -> exact-run teacher
 authorization -> watchdog activation/liveness -> causal takeoff -> zero or more
-exact teacher-bound horizontal move/yaw-turn effects -> exact terminal controlled
-landing -> fresh same-epoch finished/non-flying/high-level-inactive completion.
-Every effect reconstructs the required host-owned authority/provenance at its
-boundary; caller-selected motion parameters or caller-returned provenance do not
-become authority. Ambiguous acknowledgement, transport, completion or lifecycle
-state remains fail-closed rather than authorizing a retry.
+exact teacher-bound horizontal move/yaw-turn effects or bounded no-effect waits ->
+exact terminal controlled landing -> fresh same-epoch
+finished/non-flying/high-level-inactive completion. Every effect boundary and wait
+step reconstructs the required host-owned authority/provenance; caller-selected
+motion parameters, wait duration/cursor/completion or caller-returned provenance
+do not become authority. Ambiguous acknowledgement, transport, completion or
+lifecycle state remains fail-closed rather than authorizing a retry.
 
 That result is deterministic fake/injected-hardware integration evidence only.
 It does **not** qualify real flight, and it does not implicitly prove the physical
-execution of other simulation capabilities. Vertical movement, wait/pacing,
-student speed selection, student Multi-ranger value consumption and bottom Color
-LED effects remain physically unproven until their own integrated evidence says
-otherwise. The available real-device evidence from the superseded #226 checkpoint
-established only bounded hardware identity/presence observations and cannot be
-reused as execution qualification.
+execution of other simulation capabilities. Vertical movement, student speed
+selection, student Multi-ranger value consumption and bottom Color LED effects
+remain physically unproven until their own integrated evidence says otherwise.
+The available real-device evidence from the superseded #226 checkpoint established
+only bounded hardware identity/presence observations and cannot be reused as
+execution qualification.
 
 #70 remains the separate Lab path for world-altitude behavior over surface-height
 discontinuities. Its estimator evidence must not be promoted into #157 execution
@@ -95,10 +98,10 @@ by the final real-flight activity.
 
 The substantive remaining #157 boundary is broader physical capability
 continuity/qualification beyond the supported takeoff + horizontal move/turn +
-terminal-land deterministic envelope. Add the smallest missing physical consumer
-only for a concrete pedagogical capability, preserve the existing trusted-host
-and fail-closed boundaries, and keep real-device qualification separate from
-deterministic composition proof.
+bounded no-effect wait + terminal-land deterministic envelope. Add the smallest
+missing physical consumer only for a concrete pedagogical capability, preserve
+the existing trusted-host and fail-closed boundaries, and keep real-device
+qualification separate from deterministic composition proof.
 
 Do not turn source availability, Lab firmware experiments, preflight
 compatibility, simulation coverage or deterministic host regressions into a
