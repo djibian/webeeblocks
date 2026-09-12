@@ -23,18 +23,21 @@ import time
 
 FIRMWARE_TARGET = "6562ad827bf0c8bf2c9b609edad36f3e15652133"
 FIRMWARE_BIN_SHA256 = "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
+TEST_PROFILE = "x3-independent-props-off"
 PARAMETERS = {
     "stabilizer.estimator": 3, "ukf.qualityGateTof": 20,
     "ukf.baroNoise": 6.25, "ukf.surfaceOffsetS3": 1,
 }
 # Every variable is fetched as a 32-bit float: at most 24 of 26 payload bytes.
-# A log timestamp is NOT a per-sensor producer timestamp. No synchronized IMU
-# integration claim follows from this choice of log periods.
+# A log timestamp is NOT a per-sensor producer timestamp. The existing
+# stabilizer.intToOut diagnostic is retained only as a non-atomic sensor-to-output
+# latency observation; it does not timestamp the acc/gyro row. No synchronized
+# IMU integration claim follows from this choice of log periods.
 BLOCKS = {
     "barometer": (20, ("baro.asl", "baro.pressure", "baro.temp")),
     "imu": (10, ("acc.x", "acc.y", "acc.z", "gyro.x", "gyro.y", "gyro.z")),
     "pose": (20, ("range.zrange", "stabilizer.roll", "stabilizer.pitch",
-                  "stateEstimate.z", "stateEstimate.vz")),
+                  "stateEstimate.z", "stateEstimate.vz", "stabilizer.intToOut")),
     "detector": (20, ("sensorFilter.surfState", "sensorFilter.surfReason",
                       "sensorFilter.surfOffset", "sensorFilter.surfBaroD",
                       "sensorFilter.flowLocal", "sensorFilter.lateElig")),
@@ -173,7 +176,7 @@ def record(args) -> int:
     write_json_once(args.output / "capture-start.json", {
         "schema": "webeeblocks.x3.sensor-capture.v1",
         "checkpoint_url": args.checkpoint_url, "request_sha": args.request_sha,
-        "test_profile": "s3-props-off", "purpose": "checkpoint",
+        "test_profile": TEST_PROFILE, "purpose": "checkpoint",
         "tested_firmware_source_sha": FIRMWARE_TARGET,
         "verified_local_firmware_bin_sha256": FIRMWARE_BIN_SHA256,
         "installed_firmware_identity": "operator-confirmed; not remote attestation",
@@ -271,6 +274,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.describe:
         print(json.dumps({"blocks": BLOCKS, "parameters": PARAMETERS,
+                          "test_profile": TEST_PROFILE,
                           "firmware_target": FIRMWARE_TARGET,
                           "firmware_bin_sha256": FIRMWARE_BIN_SHA256}, indent=2))
         return 0

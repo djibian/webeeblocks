@@ -406,6 +406,32 @@ def test_horizontal_move_consumes_fresh_yaw() -> None:
         fixture.close()
 
 
+def test_vertical_move_uses_world_z_and_fixed_host_timing() -> None:
+    for direction, distance_m, expected_z in (("up", 0.3, 0.3), ("down", 0.2, -0.2)):
+        cf = FakeCrazyflie(reply_status=0)
+        fixture = Fixture("vertical-" + direction, cf)
+        try:
+            policy = timing.HighLevelTimingPolicy(0.1)
+            result = fixture.transport.send_vertical_move(
+                direction=direction,
+                distance_m=distance_m,
+                timing_policy=policy,
+            )
+            require(result.accepted, "vertical command accepted")
+            command, group, relative, linear, x, y, z, angle, duration = unpack_go_to(cf)
+            require((command, group, relative, linear) == (12, 0, 1, 0), "exact vertical GO_TO_2 header")
+            require(isclose(x, 0.0) and isclose(y, 0.0), "vertical move has no horizontal translation")
+            require(isclose(z, expected_z, rel_tol=1e-6), "vertical move uses signed relative world Z")
+            require(isclose(angle, 0.0), "vertical move preserves yaw")
+            require(
+                isclose(duration, policy.vertical_move_duration(distance_m), rel_tol=1e-6),
+                "vertical duration uses fixed host policy",
+            )
+            require(fixture.domain.phase == execution.FLYING, "vertical completion restores flying")
+        finally:
+            fixture.close()
+
+
 def test_browser_binding_change_blocks_before_effect() -> None:
     cf = FakeCrazyflie(reply_status=0)
     fixture = Fixture("binding", cf)
@@ -552,6 +578,7 @@ def main() -> int:
     test_direct_core_has_no_positive_provenance_path()
     test_turn_uses_exact_go_to_and_causal_completion()
     test_horizontal_move_consumes_fresh_yaw()
+    test_vertical_move_uses_world_z_and_fixed_host_timing()
     test_browser_binding_change_blocks_before_effect()
     test_definitive_rejection_is_one_shot()
     test_timeout_is_ambiguous_and_never_retried()

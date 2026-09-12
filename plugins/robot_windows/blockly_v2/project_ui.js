@@ -5,6 +5,7 @@
   var busy = false;
   var supported = false;
   var runtimeLocked = false;
+  var brokerTransport = null;
 
   function fileState(text, error) {
     var target = document.getElementById('projectFileState');
@@ -78,47 +79,54 @@
     return WebeeBlocksProjectFiles.normalizeName(base);
   }
 
-  window.addEventListener('webeeblocks-runtime-v2', function(event) {
-    var state = event && event.detail ? event.detail.state : null;
-    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
-  });
-
-  window.addEventListener('load', function() {
-    if (!workspace || !runtimeProfile) {
-      fileState('Fichiers projet indisponibles', true);
-      renderButtons();
-      return;
-    }
-
-    var transport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
-    manager = WebeeBlocksProjectFiles.createManager({
-      Blockly: Blockly,
-      profiles: WebeeBlocksActivityProfiles,
-      activitiesDocument: WebeeBlocksActivities.DOCUMENT,
-      blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
-      semanticAst: WebeeBlocksSemanticAst,
-      activityContract: WebeeBlocksActivityContract,
-      workspace: workspace,
-      getProfile: function() { return runtimeProfile; },
-      setProfile: applyProfile,
-      transport: transport
+  function waitForRobotWindow(timeoutMs) {
+    return new Promise(function(resolve, reject) {
+      var deadline = Date.now() + timeoutMs;
+      function poll() {
+        if (typeof robotWindow !== 'undefined' && robotWindow && typeof robotWindow.send === 'function' && typeof robotWindow.receive === 'function') {
+          resolve(robotWindow);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          reject(new Error('Robot Window transport unavailable for project files'));
+          return;
+        }
+        setTimeout(poll, 25);
+      }
+      poll();
     });
-    window.WebeeBlocksProjectManager = manager;
-    supported = manager.nativeFileSystemAccess;
-    document.body.dataset.projectFileMode = supported ? 'native' : 'unavailable';
-    window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
-      detail: {nativeFileSystemAccess: supported, mode: supported ? 'native' : 'unavailable'}
-    }));
+  }
 
-    if (!supported) {
-      fileState('Gestion des fichiers projet : utilisez Google Chrome', true);
-      renderButtons();
-      return;
+  async function createDirectTransport() {
+    var browserTransport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
+    if (browserTransport.nativeFileSystemAccess) {
+      browserTransport.mode = 'browser-native';
+      return browserTransport;
     }
 
-    fileState('Aucun fichier projet sélectionné', false);
-    renderButtons();
+    await import('../blockly/webeeblocks/project_file_wwi_transport.js?rev=20260912-2');
+    if (typeof window.WebeeBlocksProjectFileWwiTransport !== 'function')
+      throw new Error('Project file WWI transport module unavailable');
+    var directRobotWindow = await waitForRobotWindow(5000);
+    brokerTransport = new window.WebeeBlocksProjectFileWwiTransport(directRobotWindow, {timeoutMs: 5000});
 
+    // RobotWindow has one receive callback. Runtime v2 keeps ownership of the
+    // existing handler; the broker consumes only its own prefixed responses and
+    // forwards every other message unchanged.
+    var runtimeReceive = directRobotWindow.receive;
+    directRobotWindow.receive = function(value) {
+      if (brokerTransport && brokerTransport.handleMessage(value)) {
+        window.dispatchEvent(new CustomEvent('webeeblocks-wwi', {detail: value}));
+        return;
+      }
+      return runtimeReceive.call(directRobotWindow, value);
+    };
+    await brokerTransport.waitUntilReady();
+    window.WebeeBlocksProjectTransport = brokerTransport;
+    return brokerTransport;
+  }
+
+  function bindProjectButtons() {
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
@@ -146,6 +154,65 @@
         var result = await manager.save();
         fileState('Projet : ' + result.name, false);
       });
+    });
+  }
+
+  window.addEventListener('webeeblocks-runtime-v2', function(event) {
+    var state = event && event.detail ? event.detail.state : null;
+    setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+  });
+
+  window.addEventListener('load', function() {
+    (async function() {
+      if (!workspace || !runtimeProfile) {
+        fileState('Fichiers projet indisponibles', true);
+        renderButtons();
+        return;
+      }
+
+      var transport;
+      try {
+        transport = await createDirectTransport();
+      } catch (error) {
+        diagnostic('initialisation', error);
+        fileState('Gestion des fichiers projet indisponible dans ce navigateur', true);
+        document.body.dataset.projectFileMode = 'unavailable';
+        renderButtons();
+        return;
+      }
+
+      manager = WebeeBlocksProjectFiles.createManager({
+        Blockly: Blockly,
+        profiles: WebeeBlocksActivityProfiles,
+        activitiesDocument: WebeeBlocksActivities.DOCUMENT,
+        blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
+        semanticAst: WebeeBlocksSemanticAst,
+        activityContract: WebeeBlocksActivityContract,
+        workspace: workspace,
+        getProfile: function() { return runtimeProfile; },
+        setProfile: applyProfile,
+        transport: transport
+      });
+      window.WebeeBlocksProjectManager = manager;
+      supported = manager.nativeFileSystemAccess;
+      document.body.dataset.projectFileMode = transport.mode || 'native';
+      window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
+        detail: {nativeFileSystemAccess: supported, mode: document.body.dataset.projectFileMode}
+      }));
+
+      if (!supported) {
+        fileState('Gestion des fichiers projet indisponible dans ce navigateur', true);
+        renderButtons();
+        return;
+      }
+
+      fileState('Aucun fichier projet sélectionné', false);
+      bindProjectButtons();
+      renderButtons();
+    })().catch(function(error) {
+      diagnostic('initialisation', error);
+      fileState('Gestion des fichiers projet indisponible dans ce navigateur', true);
+      renderButtons();
     });
   });
 })();

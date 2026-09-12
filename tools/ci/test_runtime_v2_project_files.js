@@ -9,6 +9,7 @@ const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeb
 const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'));
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
+const WwiProjectFileTransport = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js'));
 
 Blockly.defineBlocksWithJsonArray([
   {type:'webeeblocks_v2_takeoff', message0:'takeoff %1', args0:[{type:'field_number',name:'HEIGHT',value:1,min:0.2,max:1.5,precision:0.1}], previousStatement:null,nextStatement:null},
@@ -163,8 +164,64 @@ async function exerciseBrowserBoundary() {
   assert(!ProjectFiles.createBrowserTransport.toString().includes("createElement('input')"), 'input upload fallback must not exist');
 }
 
+async function exerciseWwiBoundary() {
+  const sent = [];
+  const robotWindow = {send(message) { sent.push(String(message)); }};
+  const transport = new WwiProjectFileTransport(robotWindow, {timeoutMs:1000});
+  assert.strictEqual(transport.nativeFileSystemAccess, true);
+  assert.strictEqual(transport.mode, 'wwi-native');
+
+  function requestId() {
+    const match = sent.at(-1).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) /);
+    assert(match, sent.at(-1));
+    return match[1];
+  }
+
+  let pending = transport.waitUntilReady();
+  let id = requestId();
+  assert(transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} CAPABILITIES {"protocol":1,"provider":"qt6-native-dialog","operationsReady":true,"sameFileSave":true,"canonicalExtension":".wbb"}`));
+  await pending;
+
+  const openedText = '{"format":"webeeblocks-project"}\n';
+  pending = transport.open();
+  await Promise.resolve();
+  id = requestId();
+  transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} OPEN OK opaque_open_1 ${WwiProjectFileTransport.encodeText('élève.wbb')} ${WwiProjectFileTransport.encodeText(openedText)}`);
+  const opened = await pending;
+  assert.deepStrictEqual(opened.handle, {kind:'wwi',reference:'opaque_open_1'});
+  assert.strictEqual(opened.name, 'élève.wbb');
+  assert.strictEqual(opened.text, openedText);
+
+  pending = transport.saveAs('élève.wbb', '{"ok":2}\n');
+  await Promise.resolve();
+  id = requestId();
+  assert(sent.at(-1).includes(' SAVE_AS '));
+  assert(!sent.at(-1).includes('{"ok":2}'), 'WWI request leaked raw project bytes');
+  transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE_AS OK opaque_saveas_2 ${WwiProjectFileTransport.encodeText('élève.wbb')}`);
+  const saved = await pending;
+  assert.deepStrictEqual(saved.handle, {kind:'wwi',reference:'opaque_saveas_2'});
+
+  pending = transport.save(saved.handle, saved.name, '{"ok":3}\n');
+  await Promise.resolve();
+  id = requestId();
+  assert(sent.at(-1).includes(' SAVE opaque_saveas_2 '), 'Save did not reuse opaque same-file reference');
+  transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE OK opaque_saveas_2 ${WwiProjectFileTransport.encodeText('élève.wbb')}`);
+  const resaved = await pending;
+  assert.deepStrictEqual(resaved.handle, saved.handle);
+
+  pending = transport.open();
+  await Promise.resolve();
+  id = requestId();
+  transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} OPEN CANCELLED`);
+  await assert.rejects(pending, error => error && error.name === 'AbortError');
+
+  await assert.rejects(transport.save({kind:'wwi',reference:'../path'}, 'x.wbb', '{}'), error => error && error.code === 'TARGET_UNAVAILABLE');
+  assert.strictEqual(transport.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'), false, 'broker consumed runtime traffic');
+}
+
 (async function() {
   await exerciseBrowserBoundary();
+  await exerciseWwiBoundary();
   assert.strictEqual(ProjectFiles.EXTENSION, '.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve'), 'eleve.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve.webeeblocks.json'), 'eleve.wbb');
@@ -258,7 +315,9 @@ async function exerciseBrowserBoundary() {
   const uiSource = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
   assert(uiSource.includes("error.name === 'AbortError'"), 'UI must treat native cancellation neutrally');
   assert(uiSource.includes('!manager.hasCurrentTarget()'), 'UI must disable Save without a current handle');
-  assert(uiSource.includes('utilisez Google Chrome'), 'unsupported-browser message must be explicit');
+  assert(uiSource.includes('createDirectTransport'), 'UI must select a direct browser-or-WWI transport');
+  assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
+  assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
-  console.log('PASS project-files: Chrome .wbb/options/same-handle/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
+  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
 })().catch(error => { console.error(error); process.exit(1); });

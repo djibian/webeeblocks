@@ -230,6 +230,19 @@ def run_host(*, teacher_mode: str | None) -> dict[str, object]:
         },
         "caller reply must remain diagnostic/non-authority",
     )
+
+    # Teacher-enabled cases must let the host's activation worker consume the
+    # staged binding and complete the one-shot proposal/decision exchange before
+    # caller EOF can trigger host teardown. This is a causal test synchronization
+    # point, not a delay: a missing proposal still fails the existing bounded join.
+    if teacher_worker is not None:
+        teacher_worker.join(timeout=1.0)
+        require(not teacher_worker.is_alive(), "teacher peer did not finish one-shot exchange")
+        require(
+            "error" not in teacher_result,
+            "teacher peer failed: " + repr(teacher_result.get("error")),
+        )
+
     caller_peer.shutdown(socket.SHUT_WR)
 
     worker.join(timeout=3.0)
@@ -238,14 +251,6 @@ def run_host(*, teacher_mode: str | None) -> dict[str, object]:
         "error" not in outcome,
         "actual production host runner failed: " + repr(outcome.get("error")),
     )
-
-    if teacher_worker is not None:
-        teacher_worker.join(timeout=1.0)
-        require(not teacher_worker.is_alive(), "teacher peer did not finish one-shot exchange")
-        require(
-            "error" not in teacher_result,
-            "teacher peer failed: " + repr(teacher_result.get("error")),
-        )
 
     caller_peer.close()
     if teacher_peer is not None:

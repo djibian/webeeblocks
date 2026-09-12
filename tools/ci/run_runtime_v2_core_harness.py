@@ -61,6 +61,10 @@ def main():
     if physical_yaw_test.returncode:
         print('FAIL fresh physical yaw observation',file=sys.stderr);print(physical_yaw_test.stdout,file=sys.stderr);print(physical_yaw_test.stderr,file=sys.stderr);return physical_yaw_test.returncode
     print(physical_yaw_test.stdout.strip())
+    physical_range_test=subprocess.run([sys.executable,'tools/ci/test_physical_range_observer.py'],text=True,capture_output=True)
+    if physical_range_test.returncode:
+        print('FAIL fresh physical directional range observation',file=sys.stderr);print(physical_range_test.stdout,file=sys.stderr);print(physical_range_test.stderr,file=sys.stderr);return physical_range_test.returncode
+    print(physical_range_test.stdout.strip())
     physical_watchdog_test=subprocess.run([sys.executable,'tools/ci/test_physical_watchdog_liveness.py'],text=True,capture_output=True)
     if physical_watchdog_test.returncode:
         print('FAIL physical watchdog activation/liveness guard',file=sys.stderr);print(physical_watchdog_test.stdout,file=sys.stderr);print(physical_watchdog_test.stderr,file=sys.stderr);return physical_watchdog_test.returncode
@@ -117,6 +121,10 @@ def main():
     if physical_program_sequence_test.returncode:
         print('FAIL exact physical program sequencing',file=sys.stderr);print(physical_program_sequence_test.stdout,file=sys.stderr);print(physical_program_sequence_test.stderr,file=sys.stderr);return physical_program_sequence_test.returncode
     print(physical_program_sequence_test.stdout.strip())
+    physical_color_led_transport_test=subprocess.run([sys.executable,'tools/ci/test_physical_color_led_transport.py'],text=True,capture_output=True)
+    if physical_color_led_transport_test.returncode:
+        print('FAIL trusted one-shot bottom Color LED transport',file=sys.stderr);print(physical_color_led_transport_test.stdout,file=sys.stderr);print(physical_color_led_transport_test.stderr,file=sys.stderr);return physical_color_led_transport_test.returncode
+    print(physical_color_led_transport_test.stdout.strip())
     physical_takeoff_command_test=subprocess.run([sys.executable,'tools/ci/test_physical_takeoff_command.py'],text=True,capture_output=True)
     if physical_takeoff_command_test.returncode:
         print('FAIL exact-bound physical takeoff command semantics',file=sys.stderr);print(physical_takeoff_command_test.stdout,file=sys.stderr);print(physical_takeoff_command_test.stderr,file=sys.stderr);return physical_takeoff_command_test.returncode
@@ -137,6 +145,10 @@ def main():
     if physical_host_inflight_test.returncode:
         print('FAIL actual physical-host exact-program in-flight composition',file=sys.stderr);print(physical_host_inflight_test.stdout,file=sys.stderr);print(physical_host_inflight_test.stderr,file=sys.stderr);return physical_host_inflight_test.returncode
     print(physical_host_inflight_test.stdout.strip())
+    physical_host_color_led_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_color_led_sequence.py'],text=True,capture_output=True)
+    if physical_host_color_led_test.returncode:
+        print('FAIL actual physical-host exact bottom Color LED composition',file=sys.stderr);print(physical_host_color_led_test.stdout,file=sys.stderr);print(physical_host_color_led_test.stderr,file=sys.stderr);return physical_host_color_led_test.returncode
+    print(physical_host_color_led_test.stdout.strip())
     browser=browser_binary()
     with socketserver.TCPServer(('127.0.0.1',0),QuietHandler) as server:
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'

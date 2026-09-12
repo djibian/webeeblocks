@@ -25,7 +25,7 @@
     if (!sameJson(actual, wanted)) fail(path + ' has unsupported fields: ' + actual.join(', '));
   }
   function requireString(value, path) {
-    if (typeof value !== 'string' || value.trim() === '') fail(path + ' must be a non-empty string');
+    if (typeof value !== 'string' || !value.trim()) fail(path + ' must be a non-empty string');
   }
   function requireDependencies(options) {
     ['Blockly', 'profiles', 'activitiesDocument', 'blockCatalog', 'semanticAst', 'activityContract'].forEach(function(key) {
@@ -206,7 +206,8 @@
         requireNative();
         await writeHandle(target, text);
         return {handle: target, name: preserveSelectedName(target.name || name), mode: 'native'};
-      }
+      },
+      async release() {}
     };
   }
 
@@ -238,6 +239,11 @@
       options.Blockly.serialization.workspaces.load(saved.workspace, options.workspace);
       options.activityContract.applyFieldBounds(saved.profile, options.workspace);
     }
+    async function releaseTarget(handle) {
+      if (!handle || typeof options.transport.release !== 'function') return;
+      try { await options.transport.release(handle); }
+      catch (error) { console.warn('WebeeBlocks project target release failed', error); }
+    }
     function applyValidated(validated) {
       var before = snapshot();
       applying = true;
@@ -261,17 +267,37 @@
     return {
       async open() {
         var opened = await options.transport.open();
-        var validated = validateProjectText(opened.text, options.getProfile(), dependencies());
-        applyValidated(validated);
-        targetHandle = opened.handle || null;
-        targetName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+        var nextHandle = opened.handle || null;
+        var validated;
+        var nextName;
+        try {
+          validated = validateProjectText(opened.text, options.getProfile(), dependencies());
+          applyValidated(validated);
+          nextName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+        } catch (error) {
+          if (nextHandle && nextHandle !== targetHandle) await releaseTarget(nextHandle);
+          throw error;
+        }
+        var previousHandle = targetHandle;
+        targetHandle = nextHandle;
+        targetName = nextName;
+        if (previousHandle && previousHandle !== targetHandle) await releaseTarget(previousHandle);
         return {name: targetName, ast: validated.ast, mode: opened.mode || null};
       },
       async saveAs(name) {
         var proposal = normalizeName(name || targetName || options.getProfile().id);
         var result = await options.transport.saveAs(proposal, currentBytes());
-        targetHandle = result.handle || null;
-        targetName = preserveSelectedName(result.name || proposal);
+        var nextHandle = result.handle || null;
+        var nextName;
+        try { nextName = preserveSelectedName(result.name || proposal); }
+        catch (error) {
+          if (nextHandle && nextHandle !== targetHandle) await releaseTarget(nextHandle);
+          throw error;
+        }
+        var previousHandle = targetHandle;
+        targetHandle = nextHandle;
+        targetName = nextName;
+        if (previousHandle && previousHandle !== targetHandle) await releaseTarget(previousHandle);
         return {name: targetName, mode: result.mode || null};
       },
       async save() {

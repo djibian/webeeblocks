@@ -7,15 +7,23 @@ teacher socket and the shared #273 execution domain. The generic takeoff
 lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
 validated against the integrated sequencing boundary before any reset or flight
 effect; after exact takeoff has causally completed, the same sequence owns each
-bounded move/turn and the one terminal controlled landing.
+bounded horizontal/vertical move, turn, bottom Color LED effect, no-effect
+wait/set_speed state and the one terminal controlled landing.
 
 Importing this module performs no physical effect.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from math import isfinite
 import socket
+from time import monotonic, sleep
 
+from color_led_transport import (
+    ColorLedTransportError,
+    TrustedBottomColorLedTransport,
+)
 from controlled_landing_transport import (
     ControlledLandingTransportError,
     TrustedControlledLandingTransport,
@@ -35,9 +43,98 @@ from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
 from yaw_observer import FreshYawObserver
 
+_WAIT_SLICE_SECONDS = 0.05
+
 
 class PhysicalRunActivationError(RuntimeError):
     """Fail-closed error for trusted production run activation composition."""
+
+
+@dataclass(frozen=True, slots=True)
+class _NoEffectStepResult:
+    """Internal success marker for an exact program step that emitted no command."""
+
+    accepted: bool = True
+    emitted: bool = False
+
+
+def _monotonic_value(clock) -> float:
+    try:
+        value = float(clock())
+    except Exception as exc:
+        raise PhysicalRunActivationError("physical wait monotonic clock is unavailable") from exc
+    if not isfinite(value):
+        raise PhysicalRunActivationError("physical wait monotonic clock is invalid")
+    return value
+
+
+def _require_exact_epoch(
+    connection_epoch_reader,
+    bound_epoch: str,
+    *,
+    context: str,
+) -> None:
+    try:
+        current = connection_epoch_reader()
+    except Exception as exc:
+        raise PhysicalRunActivationError(context + " connection epoch is unavailable") from exc
+    if current != bound_epoch:
+        raise PhysicalRunActivationError("connection epoch changed during " + context)
+
+
+def _execute_exact_wait(
+    seconds: float,
+    watchdog_guard: object,
+    connection_epoch_reader,
+    bound_epoch: str,
+    *,
+    clock=monotonic,
+    sleeper=sleep,
+) -> None:
+    """Consume host time only; emit no Crazyflie command and mint no authority."""
+    if not isinstance(seconds, float) or not isfinite(seconds) or seconds <= 0:
+        raise PhysicalRunActivationError("exact physical wait duration is invalid")
+    assert_live = getattr(watchdog_guard, "assert_live", None)
+    if not callable(assert_live):
+        raise PhysicalRunActivationError("physical wait requires live watchdog guard")
+    if not callable(connection_epoch_reader) or not isinstance(bound_epoch, str) or not bound_epoch:
+        raise PhysicalRunActivationError("physical wait requires exact connection epoch")
+    if not callable(clock) or not callable(sleeper):
+        raise PhysicalRunActivationError("physical wait timing primitives are unavailable")
+
+    assert_live()
+    _require_exact_epoch(
+        connection_epoch_reader,
+        bound_epoch,
+        context="exact physical wait",
+    )
+    started = _monotonic_value(clock)
+    deadline = started + seconds
+    now = started
+
+    while now < deadline:
+        assert_live()
+        _require_exact_epoch(
+            connection_epoch_reader,
+            bound_epoch,
+            context="exact physical wait",
+        )
+        delay = min(_WAIT_SLICE_SECONDS, deadline - now)
+        try:
+            sleeper(delay)
+        except Exception as exc:
+            raise PhysicalRunActivationError("physical wait sleeper failed") from exc
+        later = _monotonic_value(clock)
+        if later <= now:
+            raise PhysicalRunActivationError("physical wait monotonic clock did not advance")
+        now = later
+
+    assert_live()
+    _require_exact_epoch(
+        connection_epoch_reader,
+        bound_epoch,
+        context="exact physical wait",
+    )
 
 
 def _live_crazyflie(session: object) -> object:
@@ -133,8 +230,9 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    semantic parameters. It reserves only the next exact top-level move/turn or
-    terminal land from the post-reset #267 binding and keeps every positive
+    semantic parameters. It reserves only the next exact top-level horizontal or
+    vertical move, turn, bottom Color LED effect, no-effect wait/set_speed state
+    or terminal land from the post-reset #267 binding and keeps every positive
     provenance/effect path lexical to this adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
@@ -337,14 +435,28 @@ def activate_validated_run(
                 raise ControlledLandingTransportError(str(exc)) from exc
             return binding
 
+    class _HostBoundColorLedTransport(TrustedBottomColorLedTransport):
+        def _read_current_binding(self) -> PhysicalRunBinding:
+            binding = self.teacher_binding
+            try:
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except PhysicalRunActivationError as exc:
+                raise ColorLedTransportError(str(exc)) from exc
+            return binding
+
     timing_policy = HighLevelTimingPolicy()
 
     class _ActivatedRunController:
-        __slots__ = ("_yaw_reader", "_transport")
+        __slots__ = ("_yaw_reader", "_transport", "_color_transport")
 
         def __init__(self) -> None:
             self._yaw_reader = None
             self._transport = None
+            self._color_transport = None
 
         @property
         def active_run(self):
@@ -371,6 +483,25 @@ def activate_validated_run(
             self._transport = transport
             return transport
 
+        def _ensure_color_transport(self):
+            if self._color_transport is not None:
+                return self._color_transport
+            transport = _HostBoundColorLedTransport(
+                crazyflie=active_run.crazyflie,
+                execution_domain=active_run.execution_domain,
+                safelink_guard=active_run.safelink_guard,
+                teacher_authorization=active_run.teacher_authorization,
+                powered_session=active_run.powered_session,
+                watchdog_guard=active_run.watchdog_guard,
+                connection_epoch_reader=session.read_connection_epoch,
+            )
+            if transport.bound_connection_epoch != session.read_connection_epoch():
+                raise PhysicalRunActivationError(
+                    "Color LED effect transport is not bound to the exact active host epoch"
+                )
+            self._color_transport = transport
+            return transport
+
         def _ensure_yaw_reader(self):
             if self._yaw_reader is not None:
                 return self._yaw_reader
@@ -388,15 +519,159 @@ def activate_validated_run(
             else:
                 sequence.mark_ambiguous(claim, reason)
 
-        def execute_next_inflight(self):
-            """Advance one exact AST effect; accepts no caller semantic data."""
-            terminal_landing = False
+        def _execute_wait(self):
+            claim = sequence.reserve_next_wait()
+            wait_step = sequence.wait_for_claim(claim)
+            binding = active_run.teacher_authorization.binding
             try:
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "exact wait requires causally established flying state"
+                    )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+                _execute_exact_wait(
+                    wait_step.seconds,
+                    active_run.watchdog_guard,
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                )
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "physical state changed during no-effect exact wait"
+                    )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except Exception:
+                sequence.fail_wait(
+                    claim,
+                    "exact wait did not complete under the live trusted run binding",
+                )
+                raise
+            sequence.complete_wait(claim)
+            return _NoEffectStepResult()
+
+        def _execute_speed(self):
+            claim = sequence.reserve_next_speed()
+            speed_step = sequence.speed_for_claim(claim)
+            binding = active_run.teacher_authorization.binding
+            assert_live = getattr(active_run.watchdog_guard, "assert_live", None)
+            try:
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "exact set_speed requires causally established flying state"
+                    )
+                if not callable(assert_live):
+                    raise PhysicalRunActivationError(
+                        "exact set_speed requires live watchdog guard"
+                    )
+                assert_live()
+                _require_exact_epoch(
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                    context="exact physical set_speed",
+                )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+
+                # This is host-local run state only. It emits no command and the
+                # same policy object is later consumed by exact horizontal moves.
+                timing_policy.set_horizontal_speed(speed_step.speed_m_s)
+
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "physical state changed during no-effect exact set_speed"
+                    )
+                assert_live()
+                _require_exact_epoch(
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                    context="exact physical set_speed",
+                )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except Exception:
+                sequence.fail_speed(
+                    claim,
+                    "exact set_speed did not complete under the live trusted run binding",
+                )
+                raise
+            sequence.complete_speed(claim)
+            return _NoEffectStepResult()
+
+        def _execute_light(self):
+            claim = sequence.reserve_next_light()
+            light_step = sequence.light_for_claim(claim)
+            try:
+                result = self._ensure_color_transport().send_color(
+                    color=light_step.color
+                )
+            except Exception:
+                self._release_or_poison_sequence(
+                    claim,
+                    "bottom Color LED effect outcome is not definitively retryable",
+                )
+                raise
+
+            accepted = getattr(result, "accepted", None)
+            if accepted is True:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "accepted bottom Color LED effect did not causally return to flying",
+                    )
+                    raise PhysicalRunActivationError(
+                        "accepted bottom Color LED completion is not causally established"
+                    )
+                sequence.complete_light(claim)
+            elif accepted is False:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "rejected bottom Color LED effect did not restore the flying phase",
+                    )
+                    raise PhysicalRunActivationError(
+                        "definitive bottom Color LED rejection did not restore physical state"
+                    )
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(
+                    claim,
+                    "trusted bottom Color LED transport returned an indeterminate result",
+                )
+                raise PhysicalRunActivationError(
+                    "trusted bottom Color LED transport returned no definitive acknowledgement"
+                )
+            return result
+
+        def execute_next_inflight(self):
+            """Advance one exact AST step; accepts no caller semantic data."""
+            step_kind = sequence.next_step_kind
+            if step_kind == "wait":
+                return self._execute_wait()
+            if step_kind == "set_speed":
+                return self._execute_speed()
+            if step_kind == "set_light":
+                return self._execute_light()
+
+            terminal_landing = step_kind == "land"
+            if terminal_landing:
                 claim = sequence.reserve_terminal_landing()
                 sequence.landing_for_claim(claim)
-                terminal_landing = True
                 motion = None
-            except PhysicalProgramSequenceError:
+            else:
                 claim = sequence.reserve_next_motion()
                 motion = sequence.motion_for_claim(claim)
 
@@ -409,6 +684,12 @@ def activate_validated_run(
                         direction=motion.direction,
                         distance_m=motion.distance_m,
                         yaw_reader=self._ensure_yaw_reader(),
+                        timing_policy=timing_policy,
+                    )
+                elif motion is not None and motion.kind == "vertical":
+                    result = transport.send_vertical_move(
+                        direction=motion.direction,
+                        distance_m=motion.distance_m,
                         timing_policy=timing_policy,
                     )
                 elif motion is not None and motion.kind == "turn":

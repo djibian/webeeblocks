@@ -58,6 +58,30 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
 
+    def test_native_firefox_broker_dependency_closure_is_fail_closed(self) -> None:
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        release_check = (
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "foreach ($qtDll in @('Qt6Core.dll', 'Qt6Widgets.dll'))",
+            packager,
+        )
+        self.assertNotIn(
+            "foreach ($qtDll in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll'))",
+            packager,
+        )
+        self.assertIn("$widgetsImports = (& $objdump -p $qtWidgets | Out-String)", packager)
+        self.assertIn("Qt6Gui\\.dll", packager)
+        self.assertIn("platforms\\qwindows.dll", packager)
+        self.assertIn(
+            "QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins",
+            packager,
+        )
+        self.assertIn("msys64\\mingw64\\bin\\cpp", release_check)
+
     def test_classroom_ui_loads_packaged_fixes(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         self.assertIn('href="classroom_fixes.css"', html)

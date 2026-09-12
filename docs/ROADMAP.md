@@ -59,26 +59,34 @@ trusted powered-session/reset implementation consumed by #262, and integrated
 #283/#280 establishes the trusted physical-host composition root: the one live
 Crazyflie/session and #278 bridge/responder stay inside that host while the
 ordinary caller/UI sends only bounded non-authority run-context requests.
-Integrated #276 now supplies the first ordinary co-located one-shot SETPOINT_HL
-effect consumer for exact teacher-bound horizontal move/yaw effects, and
-#295/#305/#308 extend that same host-owned sequence through exact terminal
-controlled landing and fresh non-flying completion. The supported deterministic
-physical envelope is therefore causal takeoff -> zero or more exact horizontal
-move/turn effects -> terminal controlled land, under the integrated teacher,
-session, watchdog, supervisor, SafeLink, acknowledgement, exclusion and
-current-program trust chain. This is deterministic fake/injected-hardware
-integration evidence, not real-flight qualification. The substantive remaining
-#157 boundary is broader physical capability continuity and representative
-real-device qualification beyond that envelope. The existing browser-held
-capability/preflight bearer remains non-authority: the #267 teacher decision
-belongs to a distinct trusted host-side control path that the student/browser
-runtime cannot mint or invoke, and effect methods must not be added under that
-read-only bearer merely for reuse. Stock brushed Crazyflie 2.1 auto-arms when
-pre-flight checks pass and can return to ReadyToFly after a normal landing/reset
-cycle, so post-landing disarm is not a persistent safety gate and teacher
-authorization must not be modeled as merely approving a host arming packet. Do
-not invent additional simulation vocabulary merely to keep #157 active. A new
-simulation slice needs a concrete pedagogical need or contradictory evidence.
+Integrated #276 supplies the ordinary co-located one-shot SETPOINT_HL effect
+consumer for exact teacher-bound horizontal move/yaw effects, #295/#305/#308
+extend that same host-owned sequence through exact terminal controlled landing
+and fresh non-flying completion, #316 admits exact bounded teacher-bound waits as
+host-monotonic no-effect sequence steps, #322/#320 consumes exact `set_speed` as
+per-run no-effect state for later horizontal timing, #333 consumes exact
+teacher-bound vertical up/down effects with eager cumulative 0.2–1.5 m nominal-
+altitude validation and terminal landing descent derived from the completed final
+nominal altitude, and #341 consumes exact teacher-bound bottom Color LED effects
+through one-shot PARAM writes with same-epoch freshness and exact readback. The
+supported deterministic physical envelope is therefore causal takeoff -> zero or
+more exact horizontal move/turn/vertical/bottom-light effects, interleaved with
+bounded no-effect wait/set-speed state transitions -> terminal controlled land,
+under the integrated teacher, session, watchdog, supervisor, SafeLink,
+acknowledgement, exclusion and current-program trust chain. This is deterministic
+fake/injected-hardware integration evidence, not real-flight qualification. The
+substantive remaining #157 boundary is student physical Multi-ranger value
+consumption plus representative real-device qualification beyond that envelope.
+The existing browser-held capability/preflight bearer remains non-authority: the
+#267 teacher decision belongs to a distinct trusted host-side control path that
+the student/browser runtime cannot mint or invoke, and effect methods must not be
+added under that read-only bearer merely for reuse. Stock brushed Crazyflie 2.1
+auto-arms when pre-flight checks pass and can return to ReadyToFly after a normal
+landing/reset cycle, so post-landing disarm is not a persistent safety gate and
+teacher authorization must not be modeled as merely approving a host arming
+packet. Do not invent additional simulation vocabulary merely to keep #157
+active. A new simulation slice needs a concrete pedagogical need or contradictory
+evidence.
 
 Research / later work:
 
@@ -306,24 +314,31 @@ justified by the current evidence.
   only after all prior exact motions complete, reconstruct current-program
   provenance after blocking pre-land reads and require fresh #264 same-epoch
   finished/non-flying/high-level-inactive completion before the shared execution
-  domain becomes inactive. Unknown acknowledgement/effect/completion outcome
-  remains fail-closed and cannot authorize retry or reset
-- remaining boundary: broader physical capability continuity and representative
-  real-device qualification beyond the currently supported deterministic takeoff
-  + horizontal move/turn + terminal-land envelope. Vertical movement, wait/speed
-  semantics, student physical range consumption and bottom Color LED effects are
-  not established merely by preflight support. Any next physical consumer must
-  reuse the existing trusted-host boundaries rather than recreate authority.
-  The #262/#266 powered-session identity remains distinct from the Crazyradio
-  connection epoch: ambiguous activation/maintenance, a missed keepalive
-  deadline, epoch loss or otherwise lost lifecycle certainty is terminal across
-  ordinary reconnect. Reuse requires #266 trusted STM+deck reset/postcondition
-  establishment, then a new connection epoch and complete capability/preflight/
-  safety re-observation before fresh #262 authority can exist. On stock auto-
-  arming firmware, post-landing disarm is not a persistent lockout; every later
-  physical run still requires a new #267 teacher authorization. The deterministic
-  envelope is not a real-flight qualification and authorizes no motorized
-  checkpoint
+  domain becomes inactive. #316 adds exact bounded host-monotonic waits as no-
+  effect sequence steps; #322/#320 adds exact per-run no-effect `set_speed` state
+  for subsequent horizontal timing; #333 adds exact relative-world-Z vertical
+  effects with complete nominal-altitude path validation before flight and final
+  landing descent derived from the completed nominal altitude; and #341 adds the
+  exact next teacher-bound bottom Color LED effect through a one-shot PARAM write,
+  a unique absent-id receive freshness fence, exact write echo and same-epoch
+  exact-value readback before restoring `FLYING`. Unknown acknowledgement/effect/
+  completion outcome remains fail-closed and cannot authorize retry or reset
+- remaining boundary: student physical Multi-ranger value consumption and
+  representative real-device qualification beyond the currently supported
+  deterministic takeoff + horizontal move/turn/vertical/bottom-light + bounded
+  no-effect wait/set-speed + terminal-land envelope. Bottom Color LED now has a
+  deterministic trusted-host path, but remains real-device unqualified. Any next
+  physical consumer must reuse the existing trusted-host boundaries rather than
+  recreate authority. The #262/#266 powered-session identity remains distinct
+  from the Crazyradio connection epoch: ambiguous activation/maintenance, a
+  missed keepalive deadline, epoch loss or otherwise lost lifecycle certainty is
+  terminal across ordinary reconnect. Reuse requires #266 trusted STM+deck
+  reset/postcondition establishment, then a new connection epoch and complete
+  capability/preflight/safety re-observation before fresh #262 authority can
+  exist. On stock auto-arming firmware, post-landing disarm is not a persistent
+  lockout; every later physical run still requires a new #267 teacher
+  authorization. The deterministic envelope is not a real-flight qualification
+  and authorizes no motorized checkpoint
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -346,23 +361,40 @@ justified by the current evidence.
   the [input audit](../experiments/crazyflie-ukf-surface-range/evidence/analysis-2026-09-11/README.md)
   verifies all 94 retained files. No CSV contains continuous raw barometer or
   accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
-  or measured mixed case is retained. Inactive/conditional diagnostics cannot
-  substitute for these inputs. The independent-displacement proof is UNPROVEN
-- next proof: prepare the missing acquisition and frozen offline calculation
-  support for one bounded props-off information checkpoint, using the existing
-  #251 firmware and unchanged parameters. Verify live log availability, timing,
-  independent metric reference and durable raw publication before requesting it;
-  then compare the same calculation across stationary, terrain, vertical and
-  mixed cases, with explicit uncertainty/latency. The firmware already declares
-  the missing sensor logs; an estimator patch is not justified to obtain them
+  or measured mixed case is retained. Those archives therefore cannot establish
+  the independent-displacement proof
+- integrated support result: current `main` now contains the independent raw
+  input capture, frozen pressure probe, conditional metric-reference path,
+  frozen vertical predictor, durable evidence publication/provenance and
+  checkpoint-support tooling. It also retains the diagnostic
+  `stabilizer.intToOut`, exact BMP3 chip identity and the logging-only X3
+  pre-LPF observer with coherent complete-group snapshots plus MCU read windows.
+  Missing acquisition/calculation tooling is no longer the blocker
+- timing/provenance boundary: the log-worker timestamp is not sensor producer
+  time, and the X3 observer's `readBeg/readEnd` values bound CPU register reads,
+  not sensor-internal production/filter time. #342 further establishes that the
+  electrical source of `sensorData.interruptTimestamp` is UNPROVEN: the pinned
+  firmware configures gyro DRDY on BMI088 INT3 while the published Crazyflie 2.1
+  Rev.B schematic routes STM32 PC14 / `INT_GYR` to BMI088 INT2 and leaves INT3
+  unconnected. Do not promote either timestamp into producer time
+- remaining proof: justify deterministic provenance for every frozen-predictor
+  uncertainty bound, especially specific-force/tilt/initial-velocity error,
+  intersample acceleration, barometer displacement/filter uncertainty,
+  `sensor_time_error_s` and delivery latency. Nominal ODR and manufacturer
+  typical/RMS specifications are not deterministic bounds. The exact metric
+  reference, synchronization and raw-publication procedure must also be frozen
+  before any physical result can become authoritative
+- next checkpoint boundary: request at most one bounded props-off information
+  checkpoint only after the exact still-missing machine-unavailable information,
+  instrumented artifact/profile and deterministic offline method are identified.
+  That checkpoint should fill only those gaps and compare the same frozen
+  calculation across stationary, terrain, true-vertical and mixed cases; do not
+  repeat generic S3-A/B/C trials
 - falsification boundary: the current #70 review uses at most 5 cm displacement
   error and at most 1 s after transition end as bounded experimental criteria,
   not classifier thresholds or flight acceptance. A valid counterexample
-  refutes that candidate; missing raw inputs/reference makes the result UNPROVEN
-  rather than grounds for tuning around the evidence
-- if the archived evidence is insufficient, prepare only one bounded props-off
-  checkpoint that fills the exact missing signal/reference and exercises the
-  revised decision path; do not repeat generic S3-A/B/C trials
+  refutes that candidate; missing or unjustified bounds/reference makes the
+  result UNPROVEN rather than grounds for tuning around the evidence
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
   thresholds/persistence, delete the late veto to rescue S3, add `rangeUp` or a
   full `z/f/r` estimator by default, or perform motorized real flight as an agent
@@ -383,11 +415,16 @@ justified by the current evidence.
   the trusted powered-session, teacher, watchdog, SafeLink, acknowledgement,
   reset/effect-exclusion, current-program and completion domains. #295 binds the
   exact supported program sequence; #276 supplies one-shot horizontal move/yaw
-  effects after causal takeoff; #305/#308 compose exact terminal controlled
-  landing and fresh non-flying completion. The browser-facing surface remains
-  non-authority with `executionAuthority:false`, and the cflib close path retains
-  its safety-zero transport setpoint. This established subset is deterministic
-  fake/injected-hardware integration evidence, not real-flight qualification
+  effects after causal takeoff; #316 adds bounded no-effect waits; #322/#320 adds
+  exact per-run no-effect horizontal-speed state; #333 adds bounded relative-
+  world-Z vertical effects with trusted nominal-altitude progression; #341 adds
+  exact bottom Color LED effects through one-shot PARAM write plus same-epoch
+  freshness/readback; and #305/#308 compose exact terminal controlled landing
+  from the final trusted altitude plus fresh non-flying completion. The browser-
+  facing surface remains non-authority with `executionAuthority:false`, and the
+  cflib close path retains its safety-zero transport setpoint. This established
+  subset is deterministic fake/injected-hardware integration evidence, not real-
+  flight qualification
 - bounded real-device evidence from superseded checkpoint #226 confirms the
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
@@ -395,33 +432,33 @@ justified by the current evidence.
 - depends: broader physical capability continuity and representative real-device
   qualification. The trusted host already owns the live session, #278 responder,
   exact #267 teacher binding, #262/#266 powered-session/watchdog lifecycle and
-  #276/#308 effect substrate; new physical capability slices must consume those
-  boundaries rather than expose caller-held provenance or add effect methods to
-  the read-only browser capability bearer. Vertical movement, wait/speed
-  semantics, student physical range consumption and bottom Color LED effects
-  remain unproven until separate integrated evidence establishes them. Stock
-  auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
-  so a host disarm request is not a durable post-mission lockout. The pinned
-  watchdog has no disable/reset command after first activation, so its trusted
-  keepalive lifecycle spans the reusable powered physical session; simply
-  stopping keepalives after a normal land would eventually enter the latching
-  emergency-stop/locked state and require reboot. Powered-session watchdog
-  certainty survives guard replacement and Crazyradio reconnect: reconnect/new
-  epoch invalidates connection evidence but does not reset firmware watchdog
-  state. After ambiguous activation/maintenance, a missed keepalive deadline,
-  locked state or other lifecycle uncertainty, ordinary authority stays
-  fail-closed until explicit STM+deck reset is separately proven, followed by a
-  new connection epoch and complete re-preflight. That reset is a motor-cut
-  recovery boundary, not a normal abort action, and must never be triggered
-  opportunistically while physical flight may still be active
+  #276/#308/#341 effect substrate; new physical capability slices must consume
+  those boundaries rather than expose caller-held provenance or add effect methods
+  to the read-only browser capability bearer. Student physical range consumption
+  remains unproven; bottom Color LED has deterministic host integration but no
+  real-device qualification. Stock auto-arming can return the vehicle to
+  ReadyToFly after the landing/reset cycle, so a host disarm request is not a
+  durable post-mission lockout. The pinned watchdog has no disable/reset command
+  after first activation, so its trusted keepalive lifecycle spans the reusable
+  powered physical session; simply stopping keepalives after a normal land would
+  eventually enter the latching emergency-stop/locked state and require reboot.
+  Powered-session watchdog certainty survives guard replacement and Crazyradio
+  reconnect: reconnect/new epoch invalidates connection evidence but does not
+  reset firmware watchdog state. After ambiguous activation/maintenance, a
+  missed keepalive deadline, locked state or other lifecycle uncertainty,
+  ordinary authority stays fail-closed until explicit STM+deck reset is
+  separately proven, followed by a new connection epoch and complete re-
+  preflight. That reset is a motor-cut recovery boundary, not a normal abort
+  action, and must never be triggered opportunistically while physical flight
+  may still be active
 - proof direction: preserve backend-neutral AST continuity and extend the
-  integrated trusted SETPOINT_HL/host sequence only for the next demonstrated
-  pedagogical capability. Reuse #256/#268 semantics/timing and one fresh same-
-  epoch #260 yaw sample where applicable; use #257 as the exclusive authoritative
-  supervisor GET_STATE issuer, #271 for application acknowledgement and #279 for
-  accepted-effect completion. Timeout/malformed/disconnect or otherwise unknown
-  effect outcome remains ambiguous and must not trigger automatic command resend.
-  Keep immediate emergency stop and high-level commander stop exceptional because
+  integrated trusted host sequence only for the next demonstrated pedagogical
+  capability. Reuse #256/#268 semantics/timing and one fresh same-epoch #260 yaw
+  sample where applicable; use #257 as the exclusive authoritative supervisor
+  GET_STATE issuer, #271 for application acknowledgement and #279 for accepted-
+  effect completion. Timeout/malformed/disconnect or otherwise unknown effect
+  outcome remains ambiguous and must not trigger automatic command resend. Keep
+  immediate emergency stop and high-level commander stop exceptional because
   both can cut motors in flight; normal completion remains the integrated
   controlled high-level land through #308 while #262 stays live across the
   reusable powered session. Every later flight-capable run still requires fresh
@@ -443,10 +480,23 @@ justified by the current evidence.
   and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
   do not establish completion of the controller loop: its aggregate eight-step
   marker and controller exit status are absent, so continuation remains UNPROVEN
-- remaining prerequisite: establish coexistence of the dialog with the
-  controller/WWI lifecycle before product implementation. The single authorized
-  qualification is recorded; this result does not authorize another causal
-  discriminator chain
+- continuity prerequisite established: the subsequent bounded #317 measurement
+  repair on exact candidate `e8aecd14e7988a6772d780062f8cf83060657dff`
+  received an [owner PASS](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5643382930).
+  Its controller-owned journal, observed before shutdown while Webots remained
+  alive, proves eight successful steps, 0.256 s of progression, a local broker
+  capabilities response and provider destruction after real dialog cancellation.
+  The [complete retained evidence](https://github.com/djibian/webeeblocks/tree/44abcebfe0a399a488a77c4ddb5d418ce0920c2a/experiments/firefox-qt-provider/evidence/2026-09-12)
+  preserves the original archive and all 30 raw files. #317 is closed without
+  merge; this establishes dialog/controller coexistence, not a browser/WWI
+  file-operation round trip. The older #301 result remains UNPROVEN for its own
+  candidate
+- next product boundary: implement the native broker and existing project-manager
+  transport through local WWI, with browser-held opaque session references,
+  validation before adopting an opened target, confirmed writes before adopting
+  Save As, same-file Save and neutral cancellation/errors. The continuity
+  prerequisite no longer blocks this implementation. Do not integrate the
+  research harness or restart a causal discriminator chain
 - product boundary: the native broker must preserve direct same-file Open,
   Save As and Save semantics; full Firefox parity and Windows qualification
   remain unproven. The supported Chromium path remains independent of #87

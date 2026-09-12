@@ -15,13 +15,15 @@ epoch.  The production host performs one fresh #278/#249 profile/AST/epoch
 assertion from its lexical bridge inside the effect transaction immediately
 before the remaining fresh safety checks.
 
-Only already-flying relative GO_TO_2 horizontal moves and yaw turns are exposed.
-There is no TAKEOFF_2, LAND_2, vertical, STOP, trajectory/spiral, raw-byte or
-generic send API.  Horizontal geometry uses #256 plus one fresh #260 yaw sample;
-durations use #268.  One plain ``Crazyflie.send_packet(packet)`` call is made
-with no application retry.  Positive acknowledgement yields the private #279
-completion permit, consumed only after causally fresh #257 completion evidence.
-Unknown acknowledgement/effect/completion outcome remains fail-closed.
+Only already-flying relative GO_TO_2 horizontal moves, bounded world-Z vertical
+moves and yaw turns are exposed. There is no TAKEOFF_2, LAND_2, STOP,
+trajectory/spiral, raw-byte or generic send API. Horizontal geometry uses #256
+plus one fresh #260 yaw sample; vertical geometry uses #256 directly; durations
+use the fixed host policies in #268/current physical timing. One plain
+``Crazyflie.send_packet(packet)`` call is made with no application retry.
+Positive acknowledgement yields the private #279 completion permit, consumed
+only after causally fresh #257 completion evidence. Unknown acknowledgement,
+effect or completion outcome remains fail-closed.
 """
 
 from __future__ import annotations
@@ -437,7 +439,6 @@ class TrustedSetpointHlTransport:
         result: high_level_ack.HighLevelAckResult | None = None
         completion_permit: physical_execution_domain.AcceptedEffectCompletionPermit | None = None
         planned_duration: float | None = None
-
         with self._execution.effect_transaction(self._assert_current_authority) as effect:
             request = _validate_request(builder())
             planned_duration = _request_duration(request)
@@ -543,6 +544,26 @@ class TrustedSetpointHlTransport:
             return _go_to_request(
                 target,
                 timing_policy.horizontal_move_duration(distance_m),
+            )
+
+        return self._send_go_to_once(build, reply_timeout_seconds=reply_timeout_seconds)
+
+    def send_vertical_move(
+        self,
+        *,
+        direction: str,
+        distance_m: object,
+        timing_policy: high_level_timing.HighLevelTimingPolicy,
+        reply_timeout_seconds: float = _DEFAULT_REPLY_TIMEOUT_SECONDS,
+    ) -> high_level_ack.HighLevelAckResult:
+        if type(timing_policy) is not high_level_timing.HighLevelTimingPolicy:
+            raise SetpointHlTransportError("exact HighLevelTimingPolicy is required")
+
+        def build() -> bytes:
+            target = high_level_semantics.vertical_move(direction, distance_m)
+            return _go_to_request(
+                target,
+                timing_policy.vertical_move_duration(distance_m),
             )
 
         return self._send_go_to_once(build, reply_timeout_seconds=reply_timeout_seconds)
