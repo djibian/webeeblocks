@@ -100,7 +100,7 @@
   async function createDirectTransport() {
     var browserTransport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
     if (browserTransport.nativeFileSystemAccess) {
-      browserTransport.mode = 'browser-native';
+      browserTransport.mode = 'native';
       return browserTransport;
     }
 
