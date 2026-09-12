@@ -3,19 +3,24 @@
 
 This module is the process-local composition seam between the already integrated
 host-owned shared Runtime interpreter and the existing trusted physical
-primitives.  It does not expose caller IPC and it does not interpret Blockly or
+primitives. It does not expose caller IPC and it does not interpret Blockly or
 AST control flow itself.
 
 The causal takeoff has already been completed by ``ProductionTakeoffRunController``
-before this backend is used.  The interpreter's first ``takeoff(height)`` call is
-therefore verification-only and emits no second command.  Later action callbacks
-consume the already established trusted transports.  ``readRange(direction)``
-opens the exact ``FreshRangeObserver`` selected by the shared interpreter only
-while the process-wide physical observation exclusion is held, and requires
-current-program, teacher, watchdog and reconnect-sensitive epoch provenance both
-before and after the fresh sample.
+before this backend is used. The interpreter's first ``takeoff(height)`` call is
+therefore verification-only and emits no second command. The verification height
+is derived here from the same exact canonical AST through the integrated dynamic
+preflight; it is never accepted as an independent host semantic input. The
+in-flight transport must expose the same AST-derived initial nominal altitude, so
+takeoff verification and runtime landing cannot acquire split altitude roots.
 
-Sensor values remain finite non-authority data.  This class never turns a range
+Later action callbacks consume the already established trusted transports.
+``readRange(direction)`` opens the exact ``FreshRangeObserver`` selected by the
+shared interpreter only while the process-wide physical observation exclusion is
+held, and requires current-program, teacher, watchdog and reconnect-sensitive
+epoch provenance both before and after the fresh sample.
+
+Sensor values remain finite non-authority data. This class never turns a range
 value, branch result or worker message into physical authority; every selected
 action still crosses the independently established downstream transport.
 """
@@ -25,6 +30,10 @@ from __future__ import annotations
 from math import isfinite
 from typing import Callable
 
+from physical_dynamic_preflight import (
+    DynamicPhysicalPreflightError,
+    validate_bound_dynamic_program,
+)
 from physical_execution_domain import FLYING, INACTIVE
 from range_observer import FreshRangeObserver, SUPPORTED_DIRECTIONS
 from yaw_observer import FreshYawObserver
@@ -50,7 +59,6 @@ class TrustedDynamicPhysicalBackend:
         self,
         *,
         ast_binding: str,
-        initial_takeoff_height_m: float,
         active_run: object,
         connection_epoch_reader: Callable[[], str],
         assert_current_program: Callable[[], object],
@@ -63,9 +71,17 @@ class TrustedDynamicPhysicalBackend:
     ) -> None:
         if not isinstance(ast_binding, str) or not ast_binding.strip() or ast_binding != ast_binding.strip():
             raise DynamicPhysicalBackendError("exact canonical AST binding is required")
-        height = _finite(initial_takeoff_height_m, "initial takeoff height")
+        try:
+            safety = validate_bound_dynamic_program(ast_binding)
+        except DynamicPhysicalPreflightError as exc:
+            raise DynamicPhysicalBackendError(
+                "exact dynamic physical preflight evidence is unavailable"
+            ) from exc
+        height = _finite(safety.initial_altitude_m, "preflight-proven takeoff height")
         if height <= 0:
-            raise DynamicPhysicalBackendError("initial takeoff height must be positive")
+            raise DynamicPhysicalBackendError("preflight-proven takeoff height must be positive")
+        if safety.ast_binding != ast_binding:
+            raise DynamicPhysicalBackendError("dynamic preflight changed the exact AST binding")
         if not callable(connection_epoch_reader):
             raise DynamicPhysicalBackendError("connection epoch reader is required")
         if not callable(assert_current_program):
@@ -93,6 +109,15 @@ class TrustedDynamicPhysicalBackend:
                 "active run does not match the exact bound interpreter program"
             )
 
+        transport_initial = _finite(
+            getattr(inflight_transport, "initial_nominal_altitude_m", None),
+            "dynamic landing transport initial nominal altitude",
+        )
+        if transport_initial != height:
+            raise DynamicPhysicalBackendError(
+                "dynamic landing transport altitude differs from exact preflight-proven takeoff"
+            )
+
         self._ast_binding = ast_binding
         self._initial_height = height
         self._active_run = active_run
@@ -118,6 +143,11 @@ class TrustedDynamicPhysicalBackend:
     @property
     def bound_connection_epoch(self) -> str:
         return self._bound_epoch
+
+    @property
+    def initial_takeoff_height_m(self) -> float:
+        """Exact preflight-derived height retained only as verification evidence."""
+        return self._initial_height
 
     def _read_epoch(self) -> str:
         try:
