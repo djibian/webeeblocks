@@ -227,12 +227,13 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
         host.base.EVENTS.append(
             ("inflight-light-ambiguous", color, binding.connection_epoch)
         )
-        # The production execution domain moves to recovery-required after an
-        # emitted unresolved effect. This host-composition fake models that
-        # established postcondition directly; the execution-domain lifecycle is
-        # covered independently by its dedicated deterministic contract tests.
-        self.execution_domain.phase = physical_execution_domain.RECOVERY_REQUIRED
-        raise RuntimeError("injected ambiguous Color LED effect")
+        # Drive the exact process-wide lifecycle through the same emitted-but-
+        # unresolved boundary as production. Leaving the transaction by
+        # exception must make the domain recovery-required before the host
+        # decides whether the sequence claim is retryable or terminal.
+        with self.execution_domain.effect_transaction(lambda: None) as effect:
+            effect.mark_emitted()
+            raise RuntimeError("injected ambiguous Color LED effect")
 
     FakeColorTransport.send_color = ambiguous
     try:
@@ -247,6 +248,11 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     require(
         attempts["count"] == 1,
         "terminal ambiguity must not retry the same Color LED effect",
+    )
+    require(
+        host.base.activation._ACTIVE_RUN.execution_domain.phase
+        == physical_execution_domain.RECOVERY_REQUIRED,
+        "emitted unresolved light must leave the exact process-wide domain recovery-required",
     )
     ambiguous_events = [
         event
