@@ -9,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 PREPARER_PATH = ROOT / "tools/ci/prepare_historical_boost.py"
 BUILDER_PATH = ROOT / "tools/ci/build_historical_blockly_sidecar.sh"
+WEBOTS_WORKFLOW = ROOT / ".github/workflows/ci-webots.yml"
 
 spec = importlib.util.spec_from_file_location("prepare_historical_boost", PREPARER_PATH)
 assert spec is not None and spec.loader is not None
@@ -51,10 +52,33 @@ class HistoricalBoostSupportTests(unittest.TestCase):
         self.assertIn("--network none", text)
         self.assertIn("/opt/webeeblocks-boost/include:ro", text)
         self.assertIn("CPLUS_INCLUDE_PATH=/opt/webeeblocks-boost/include", text)
+        self.assertIn("--with-supervisor", text)
+        self.assertIn("WEBEEBLOCKS_BUILD_SUPERVISOR", text)
         self.assertNotIn("apt-get", text)
         self.assertNotIn("apt ", text)
         self.assertNotIn("curl ", text)
         self.assertNotIn("wget ", text)
+
+    def test_affected_historical_jobs_use_only_pinned_boost_builder(self) -> None:
+        text = WEBOTS_WORKFLOW.read_text(encoding="utf-8")
+        boundaries = (
+            ("historical-blockly-ui", "encoders-historical", False),
+            ("encoders-historical", "gyro-gps-historical", True),
+            ("gyro-gps-historical", "light-sensor-historical", True),
+            ("light-sensor-historical", "sensor-probing-historical", True),
+            ("sensor-probing-historical", "robot-window-roundtrip", True),
+        )
+        for job, next_job, with_supervisor in boundaries:
+            with self.subTest(job=job):
+                block = text.split(f"\n  {job}:\n", 1)[1].split(
+                    f"\n  {next_job}:\n", 1
+                )[0]
+                invocation = "bash tools/ci/build_historical_blockly_sidecar.sh"
+                if with_supervisor:
+                    invocation += " --with-supervisor"
+                self.assertIn(invocation, block)
+                self.assertNotIn("libboost-dev", block)
+                self.assertNotIn("apt-get update", block)
 
     def test_linux_sidecar_remains_header_only_boost(self) -> None:
         makefile = (ROOT / "controllers/supervisor/blocklyServer/Makefile").read_text(encoding="utf-8")
