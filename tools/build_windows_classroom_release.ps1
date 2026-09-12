@@ -95,10 +95,28 @@ $imports = (& $objdump -p $controllerBinary | Out-String)
 if ($LASTEXITCODE -ne 0) {
   throw 'Could not inspect the Windows controller import table.'
 }
-foreach ($qtDll in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll')) {
+# The broker itself must directly bind Core and Widgets. Qt6Gui is an indirect
+# dependency of Qt6Widgets in the pinned Webots closure, so requiring Qt6Gui as
+# a direct executable import would reject a correctly linked PE.
+foreach ($qtDll in @('Qt6Core.dll', 'Qt6Widgets.dll')) {
   if ($imports -notmatch ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($qtDll) + '\s*$')) {
     throw "Windows controller is missing native Firefox broker dependency: $qtDll"
   }
+}
+$qtBinRoot = Join-Path $webotsRoot 'msys64\mingw64\bin'
+$qtGui = Join-Path $qtBinRoot 'Qt6Gui.dll'
+$qtWidgets = Join-Path $qtBinRoot 'Qt6Widgets.dll'
+foreach ($qtRuntime in @($qtGui, $qtWidgets)) {
+  if (-not (Test-Path -LiteralPath $qtRuntime -PathType Leaf)) {
+    throw "Webots R2025a Qt runtime dependency is missing: $qtRuntime"
+  }
+}
+$widgetsImports = (& $objdump -p $qtWidgets | Out-String)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Could not inspect the pinned Qt6Widgets dependency closure.'
+}
+if ($widgetsImports -notmatch '(?im)^\s*DLL Name:\s*Qt6Gui\.dll\s*$') {
+  throw 'Pinned Webots Qt6Widgets no longer depends on Qt6Gui.dll as expected.'
 }
 $qtPluginRoot = Join-Path $webotsRoot 'msys64\mingw64\share\qt6\plugins'
 $qwindows = Join-Path $qtPluginRoot 'platforms\qwindows.dll'
