@@ -3,29 +3,30 @@
 
 The #287 takeoff consumer derives its effect from the first statement in the
 exact teacher-authorized canonical AST. Later effects and no-effect semantic
-steps must preserve that property: a bounded caller-selected motion, wait,
-speed state or landing request is not equivalent to the next statement of the
-authorized program.
+steps must preserve that property: a bounded caller-selected motion, light,
+wait, speed state or landing request is not equivalent to the next statement of
+the authorized program.
 
 This module provides the small non-effect state machine needed by the physical
 host. It starts only after a caller has already established the first takeoff
 statement by other trusted means, eagerly validates the complete currently
-supported envelope (horizontal/vertical move, turn, wait and set_speed
-statements followed by one exact terminal land), reserves exactly the next
-statement, and advances only after the trusted consumer reports definitive
-completion. A rejected/unemitted physical effect may be released without
-advancing; an ambiguous emitted outcome makes the sequence terminal. Failed
-exact wait/speed no-effect steps are terminal without being classified as
+supported envelope (horizontal/vertical move, turn, bottom Color LED set_light,
+wait and set_speed statements followed by one exact terminal land), reserves
+exactly the next statement, and advances only after the trusted consumer reports
+definitive completion. A rejected/unemitted physical effect may be released
+without advancing; an ambiguous emitted outcome makes the sequence terminal.
+Failed exact wait/speed no-effect steps are terminal without being classified as
 emitted physical effects.
 
 Vertical statements additionally maintain a host-owned nominal world-Z state.
 The complete nominal altitude path is checked before reset/takeoff and every
 intermediate altitude must stay inside the established 0.2--1.5 m envelope.
-The runtime altitude state advances only after definitive vertical completion.
+Light, wait, speed, horizontal and turn statements are altitude-neutral. The
+runtime altitude state advances only after definitive vertical completion.
 
-It emits no CRTP command and accepts no caller-selected motion, wait duration,
-speed, altitude, program index, landing parameter, completion proof or authority
-object.
+It emits no CRTP command and accepts no caller-selected motion, color, wait
+duration, speed, altitude, program index, landing parameter, completion proof or
+authority object.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ MIN_WAIT_SECONDS = 0.1
 MAX_WAIT_SECONDS = 5.0
 MIN_NOMINAL_ALTITUDE_M = 0.2
 MAX_NOMINAL_ALTITUDE_M = 1.5
+LIGHT_COLORS = ("off", "red", "green", "blue", "yellow", "white")
 
 
 class PhysicalProgramSequenceError(RuntimeError):
@@ -70,6 +72,12 @@ class SequencedSpeed:
 
 
 @dataclass(frozen=True, slots=True)
+class SequencedLight:
+    index: int
+    color: str
+
+
+@dataclass(frozen=True, slots=True)
 class SequencedTerminalLanding:
     index: int
 
@@ -93,6 +101,13 @@ class _SpeedClaim:
 
     def __init__(self, speed: SequencedSpeed) -> None:
         self.speed = speed
+
+
+class _LightClaim:
+    __slots__ = ("light",)
+
+    def __init__(self, light: SequencedLight) -> None:
+        self.light = light
 
 
 class _LandingClaim:
@@ -137,6 +152,8 @@ class PhysicalProgramSequence:
                 self._wait_at(index)
             elif kind == "set_speed":
                 self._speed_at(index)
+            elif kind == "set_light":
+                self._light_at(index)
             else:
                 motion = self._motion_at(index)
                 if motion.kind == "vertical":
@@ -149,7 +166,9 @@ class PhysicalProgramSequence:
         self._planned_terminal_altitude_m = planned_altitude
         self._nominal_altitude_m = float(takeoff.height_m)
         self._next_index = 1
-        self._pending: _MotionClaim | _WaitClaim | _SpeedClaim | _LandingClaim | None = None
+        self._pending: (
+            _MotionClaim | _WaitClaim | _SpeedClaim | _LightClaim | _LandingClaim | None
+        ) = None
         self._terminal_reason: str | None = None
         self._lock = Lock()
 
@@ -206,12 +225,18 @@ class PhysicalProgramSequence:
                     "physical program sequence is terminal: " + self._terminal_reason
                 )
             if self._pending is not None:
-                raise PhysicalProgramSequenceError("physical program already has a pending step")
+                raise PhysicalProgramSequenceError(
+                    "physical program already has a pending step"
+                )
             if self._next_index >= len(self._program):
                 return None
             statement = self._program[self._next_index]
-            if not isinstance(statement, dict) or not isinstance(statement.get("kind"), str):
-                raise PhysicalProgramSequenceError("next physical statement is malformed")
+            if not isinstance(statement, dict) or not isinstance(
+                statement.get("kind"), str
+            ):
+                raise PhysicalProgramSequenceError(
+                    "next physical statement is malformed"
+                )
             return statement["kind"]
 
     @property
@@ -252,7 +277,9 @@ class PhysicalProgramSequence:
                 direction = statement["direction"]
                 distance = statement["distance_m"]
                 if not isinstance(direction, str):
-                    raise PhysicalProgramSequenceError("next move direction is malformed")
+                    raise PhysicalProgramSequenceError(
+                        "next move direction is malformed"
+                    )
                 high_level_semantics.body_relative_move(direction, distance, 0.0)
                 return SequencedInflightMotion(
                     index=index,
@@ -270,7 +297,9 @@ class PhysicalProgramSequence:
                 direction = statement["direction"]
                 distance = statement["distance_m"]
                 if not isinstance(direction, str):
-                    raise PhysicalProgramSequenceError("next vertical direction is malformed")
+                    raise PhysicalProgramSequenceError(
+                        "next vertical direction is malformed"
+                    )
                 high_level_semantics.vertical_move(direction, distance)
                 return SequencedInflightMotion(
                     index=index,
@@ -294,7 +323,11 @@ class PhysicalProgramSequence:
                     distance_m=None,
                     angle_deg=float(angle),
                 )
-        except (TypeError, ValueError, high_level_semantics.HighLevelSemanticError) as exc:
+        except (
+            TypeError,
+            ValueError,
+            high_level_semantics.HighLevelSemanticError,
+        ) as exc:
             raise PhysicalProgramSequenceError(
                 "next in-flight motion violates integrated #256 semantics"
             ) from exc
@@ -305,20 +338,28 @@ class PhysicalProgramSequence:
 
     def _wait_at(self, index: int) -> SequencedWait:
         if index >= len(self._program) - 1:
-            raise PhysicalProgramSequenceError("no wait remains before the final landing boundary")
+            raise PhysicalProgramSequenceError(
+                "no wait remains before the final landing boundary"
+            )
         statement = self._program[index]
         if not isinstance(statement, dict) or set(statement) != {"kind", "seconds"}:
             raise PhysicalProgramSequenceError(
                 "next wait statement contains unsupported fields"
             )
         if statement.get("kind") != "wait":
-            raise PhysicalProgramSequenceError("next exact AST statement is not a wait")
+            raise PhysicalProgramSequenceError(
+                "next exact AST statement is not a wait"
+            )
         seconds = statement["seconds"]
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
-            raise PhysicalProgramSequenceError("next wait seconds must be finite")
+            raise PhysicalProgramSequenceError(
+                "next wait seconds must be finite"
+            )
         parsed = float(seconds)
         if not isfinite(parsed):
-            raise PhysicalProgramSequenceError("next wait seconds must be finite")
+            raise PhysicalProgramSequenceError(
+                "next wait seconds must be finite"
+            )
         if parsed < MIN_WAIT_SECONDS or parsed > MAX_WAIT_SECONDS:
             raise PhysicalProgramSequenceError(
                 "next wait seconds violate established Runtime v2 bounds"
@@ -341,10 +382,14 @@ class PhysicalProgramSequence:
             )
         speed = statement["speed_m_s"]
         if isinstance(speed, bool) or not isinstance(speed, (int, float)):
-            raise PhysicalProgramSequenceError("next set_speed speed_m_s must be finite")
+            raise PhysicalProgramSequenceError(
+                "next set_speed speed_m_s must be finite"
+            )
         parsed = float(speed)
         if not isfinite(parsed):
-            raise PhysicalProgramSequenceError("next set_speed speed_m_s must be finite")
+            raise PhysicalProgramSequenceError(
+                "next set_speed speed_m_s must be finite"
+            )
         if (
             parsed < high_level_timing.MIN_HORIZONTAL_SPEED_M_S
             or parsed > high_level_timing.MAX_HORIZONTAL_SPEED_M_S
@@ -354,13 +399,36 @@ class PhysicalProgramSequence:
             )
         return SequencedSpeed(index=index, speed_m_s=parsed)
 
+    def _light_at(self, index: int) -> SequencedLight:
+        if index >= len(self._program) - 1:
+            raise PhysicalProgramSequenceError(
+                "no set_light remains before the final landing boundary"
+            )
+        statement = self._program[index]
+        if not isinstance(statement, dict) or set(statement) != {"kind", "color"}:
+            raise PhysicalProgramSequenceError(
+                "next set_light statement contains unsupported fields"
+            )
+        if statement.get("kind") != "set_light":
+            raise PhysicalProgramSequenceError(
+                "next exact AST statement is not a set_light effect"
+            )
+        color = statement["color"]
+        if not isinstance(color, str) or color not in LIGHT_COLORS:
+            raise PhysicalProgramSequenceError(
+                "next set_light color violates established Runtime v2 palette"
+            )
+        return SequencedLight(index=index, color=color)
+
     def _check_reservable(self) -> None:
         if self._terminal_reason is not None:
             raise PhysicalProgramSequenceError(
                 "physical program sequence is terminal: " + self._terminal_reason
             )
         if self._pending is not None:
-            raise PhysicalProgramSequenceError("physical program already has a pending step")
+            raise PhysicalProgramSequenceError(
+                "physical program already has a pending step"
+            )
 
     def reserve_next_motion(self) -> object:
         with self._lock:
@@ -478,6 +546,34 @@ class PhysicalProgramSequence:
             self._terminal_reason = reason.strip()
             self._pending = None
 
+    def reserve_next_light(self) -> object:
+        with self._lock:
+            self._check_reservable()
+            claim = _LightClaim(self._light_at(self._next_index))
+            self._pending = claim
+            return claim
+
+    def light_for_claim(self, claim: object) -> SequencedLight:
+        with self._lock:
+            if claim is not self._pending or not isinstance(claim, _LightClaim):
+                raise PhysicalProgramSequenceError(
+                    "exact pending physical-program set_light claim is required"
+                )
+            return claim.light
+
+    def complete_light(self, claim: object) -> None:
+        with self._lock:
+            if claim is not self._pending or not isinstance(claim, _LightClaim):
+                raise PhysicalProgramSequenceError(
+                    "exact pending physical-program set_light claim is required"
+                )
+            if claim.light.index != self._next_index:
+                raise PhysicalProgramSequenceError(
+                    "pending physical-program set_light claim no longer matches the cursor"
+                )
+            self._next_index += 1
+            self._pending = None
+
     def reserve_terminal_landing(self) -> object:
         with self._lock:
             self._check_reservable()
@@ -530,7 +626,7 @@ class PhysicalProgramSequence:
     def release_unemitted(self, claim: object) -> None:
         with self._lock:
             if claim is not self._pending or not isinstance(
-                claim, (_MotionClaim, _LandingClaim)
+                claim, (_MotionClaim, _LightClaim, _LandingClaim)
             ):
                 raise PhysicalProgramSequenceError(
                     "exact pending physical-program effect claim is required"
@@ -544,7 +640,7 @@ class PhysicalProgramSequence:
             )
         with self._lock:
             if claim is not self._pending or not isinstance(
-                claim, (_MotionClaim, _LandingClaim)
+                claim, (_MotionClaim, _LightClaim, _LandingClaim)
             ):
                 raise PhysicalProgramSequenceError(
                     "exact pending physical-program effect claim is required"
