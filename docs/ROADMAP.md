@@ -357,23 +357,40 @@ justified by the current evidence.
   the [input audit](../experiments/crazyflie-ukf-surface-range/evidence/analysis-2026-09-11/README.md)
   verifies all 94 retained files. No CSV contains continuous raw barometer or
   accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
-  or measured mixed case is retained. Inactive/conditional diagnostics cannot
-  substitute for these inputs. The independent-displacement proof is UNPROVEN
-- next proof: prepare the missing acquisition and frozen offline calculation
-  support for one bounded props-off information checkpoint, using the existing
-  #251 firmware and unchanged parameters. Verify live log availability, timing,
-  independent metric reference and durable raw publication before requesting it;
-  then compare the same calculation across stationary, terrain, vertical and
-  mixed cases, with explicit uncertainty/latency. The firmware already declares
-  the missing sensor logs; an estimator patch is not justified to obtain them
+  or measured mixed case is retained. Those archives therefore cannot establish
+  the independent-displacement proof
+- integrated support result: current `main` now contains the independent raw
+  input capture, frozen pressure probe, conditional metric-reference path,
+  frozen vertical predictor, durable evidence publication/provenance and
+  checkpoint-support tooling. It also retains the diagnostic
+  `stabilizer.intToOut`, exact BMP3 chip identity and the logging-only X3
+  pre-LPF observer with coherent complete-group snapshots plus MCU read windows.
+  Missing acquisition/calculation tooling is no longer the blocker
+- timing/provenance boundary: the log-worker timestamp is not sensor producer
+  time, and the X3 observer's `readBeg/readEnd` values bound CPU register reads,
+  not sensor-internal production/filter time. #342 further establishes that the
+  electrical source of `sensorData.interruptTimestamp` is UNPROVEN: the pinned
+  firmware configures gyro DRDY on BMI088 INT3 while the published Crazyflie 2.1
+  Rev.B schematic routes STM32 PC14 / `INT_GYR` to BMI088 INT2 and leaves INT3
+  unconnected. Do not promote either timestamp into producer time
+- remaining proof: justify deterministic provenance for every frozen-predictor
+  uncertainty bound, especially specific-force/tilt/initial-velocity error,
+  intersample acceleration, barometer displacement/filter uncertainty,
+  `sensor_time_error_s` and delivery latency. Nominal ODR and manufacturer
+  typical/RMS specifications are not deterministic bounds. The exact metric
+  reference, synchronization and raw-publication procedure must also be frozen
+  before any physical result can become authoritative
+- next checkpoint boundary: request at most one bounded props-off information
+  checkpoint only after the exact still-missing machine-unavailable information,
+  instrumented artifact/profile and deterministic offline method are identified.
+  That checkpoint should fill only those gaps and compare the same frozen
+  calculation across stationary, terrain, true-vertical and mixed cases; do not
+  repeat generic S3-A/B/C trials
 - falsification boundary: the current #70 review uses at most 5 cm displacement
   error and at most 1 s after transition end as bounded experimental criteria,
   not classifier thresholds or flight acceptance. A valid counterexample
-  refutes that candidate; missing raw inputs/reference makes the result UNPROVEN
-  rather than grounds for tuning around the evidence
-- if the archived evidence is insufficient, prepare only one bounded props-off
-  checkpoint that fills the exact missing signal/reference and exercises the
-  revised decision path; do not repeat generic S3-A/B/C trials
+  refutes that candidate; missing or unjustified bounds/reference makes the
+  result UNPROVEN rather than grounds for tuning around the evidence
 - safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
   thresholds/persistence, delete the late veto to rescue S3, add `rangeUp` or a
   full `z/f/r` estimator by default, or perform motorized real flight as an agent
