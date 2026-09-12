@@ -175,6 +175,18 @@ class PredictorTests(unittest.TestCase):
         self.assertLessEqual(segment["delta_z_interval_m"][0], shifted[0])
         self.assertGreaterEqual(segment["delta_z_interval_m"][1], shifted[1])
 
+    def test_metric_reference_validation_flags_require_json_booleans(self):
+        baro, imu, _pose, spec, reference = fixture()
+        streams = predictor.read_sources(baro, imu)
+        malformed = copy.deepcopy(reference)
+        malformed["physical_reference_validated"] = "false"
+        with self.assertRaisesRegex(ValueError, "validation flags"):
+            predictor.analyze(*streams, spec, malformed)
+        malformed = copy.deepcopy(reference)
+        malformed["affine_clock_validated"] = 1
+        with self.assertRaisesRegex(ValueError, "validation flags"):
+            predictor.analyze(*streams, spec, malformed)
+
     def test_full_file_entry_binds_exact_sources_and_rejects_pose_input(self):
         baro, imu, pose, spec, reference = fixture()
         with tempfile.TemporaryDirectory() as directory:
