@@ -128,7 +128,7 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
     WebeeBlocksSemanticAst: {},
     WebeeBlocksActivityContract: {applyFieldBounds() {}},
     WebeeBlocksProjectFiles: {
-      createBrowserTransport: () => ({}),
+      createBrowserTransport: () => ({nativeFileSystemAccess: true, mode: 'browser-native'}),
       createManager: () => manager,
       normalizeName: name => name
     },
@@ -142,6 +142,10 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   assert.strictEqual(typeof loadHandler, 'function');
   assert.strictEqual(typeof runtimeStatusHandler, 'function');
   loadHandler();
+  // Project-file transport selection is asynchronous now that Firefox may
+  // negotiate the local WWI broker. Let the established browser-native path
+  // finish initialization before exercising the reset interlock.
+  await new Promise(resolve => setTimeout(resolve, 0));
   assert.strictEqual(typeof openHandler, 'function');
 
   runtimeStatusHandler({detail: {state: 'RÉINITIALISATION'}});
