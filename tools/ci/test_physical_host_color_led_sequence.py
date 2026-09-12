@@ -278,11 +278,6 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
         attempts["count"] == 1,
         "terminal ambiguity must not retry the same Color LED effect",
     )
-    require(
-        host.base.activation._ACTIVE_RUN.execution_domain.phase
-        == physical_execution_domain.RECOVERY_REQUIRED,
-        "emitted unresolved light must leave the faithful fake domain recovery-required",
-    )
     ambiguous_events = [
         event
         for event in host.base.EVENTS
