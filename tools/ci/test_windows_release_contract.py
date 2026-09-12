@@ -48,6 +48,10 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "textures/fast_helix.png",
             "MANIFEST.sha256",
             "Compression.ZipFile]::CreateFromDirectory",
+            "msys64\\mingw64\\bin\\g++.exe",
+            "msys64\\mingw64\\share\\qt6\\plugins\\platforms\\qwindows.dll",
+            "[environment variables for Windows]",
+            'QT_PLUGIN_PATH = "$(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins"',
         ):
             self.assertIn(required, packager)
         self.assertIn("$worldText -match '\"(?:https?|webots)://'", packager)
@@ -57,6 +61,22 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\usr\\bin\\make.exe", packager)
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
+
+    def test_windows_controller_builds_the_native_qt_file_broker(self) -> None:
+        makefile = (
+            ROOT / "controllers" / "crazyflie_runtime_v2" / "Makefile"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ifeq ($(OS),Windows_NT)", makefile)
+        self.assertIn(
+            "CXX_SOURCES = file_broker.cpp qt_file_dialog_provider.cpp file_broker_runtime.cpp",
+            makefile,
+        )
+        self.assertIn("-include file_broker_interpose.h", makefile)
+        self.assertIn(
+            'DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets',
+            makefile,
+        )
+        self.assertIn('QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt', makefile)
 
     def test_classroom_ui_loads_packaged_fixes(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
