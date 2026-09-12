@@ -70,8 +70,11 @@ $version = (Get-Content -LiteralPath (Join-Path $testRoot 'plugins\robot_windows
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
 
 $runtimeIni = Get-Content -LiteralPath (Join-Path $testRoot 'controllers\crazyflie_runtime_v2\runtime.ini') -Raw
-Assert-Release ($runtimeIni -match '(?m)^\[environment variables with paths\]\r?$') 'Controller runtime.ini lacks the path-aware environment section.'
-Assert-Release ($runtimeIni -match '(?m)^WEBOTS_LIBRARY_PATH\s*=\s*\$\(WEBOTS_HOME\)/lib/controller:\$\(WEBOTS_HOME\)/msys64/mingw64/bin\r?$') 'Controller runtime.ini does not bind the prebuilt executable to Webots R2025a libraries.'
+Assert-Release ($runtimeIni -match '(?m)^\[environment variables for Windows\]\r?$') 'Controller runtime.ini lacks the Windows environment section.'
+Assert-Release ($runtimeIni -match '(?m)^WEBOTS_LIBRARY_PATH\s*=\s*"\$\(WEBOTS_HOME\)/lib/controller;\$\(WEBOTS_HOME\)/msys64/mingw64/bin"\r?$') 'Controller runtime.ini does not bind the prebuilt executable to Webots R2025a libraries.'
+Assert-Release ($runtimeIni -match '(?m)^QT_PLUGIN_PATH\s*=\s*"\$\(WEBOTS_HOME\)/msys64/mingw64/share/qt6/plugins"\r?$') 'Controller runtime.ini does not bind the native broker to the Webots R2025a Qt plugins.'
+$qwindows = Join-Path $WebotsHome 'msys64\mingw64\share\qt6\plugins\platforms\qwindows.dll'
+Assert-Release (Test-Path -LiteralPath $qwindows -PathType Leaf) 'Webots R2025a qwindows platform plugin is unavailable.'
 
 $forbidden = @(Get-ChildItem -LiteralPath $testRoot -Recurse -Force | Where-Object {
   $_.Name -in @('node_modules', 'package.json', 'package-lock.json', 'Makefile') -or
@@ -107,11 +110,12 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
 if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed.' }
 
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
-# Prove the diagnosed product boundary directly instead: the executable extracted
-# from the exact ZIP must load with only the two Webots runtime directories that
-# runtime.ini declares (plus Windows system DLL locations), enter libController,
-# and reach its deterministic IPC connection path. A missing runtime DLL fails
-# before this marker and therefore cannot pass this oracle.
+# Prove the diagnosed loader boundary directly instead: the executable extracted
+# from the exact ZIP must load with only the two Webots runtime library directories
+# declared by runtime.ini (plus Windows system DLL locations), enter libController,
+# and reach its deterministic IPC connection path. The Qt platform plugin is
+# separately required above for the lazy native-dialog provider. A missing runtime
+# DLL fails before this marker and therefore cannot pass this oracle.
 $controllerStdout = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stdout.log'
 $controllerStderr = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stderr.log'
 Remove-Item -LiteralPath $controllerStdout, $controllerStderr -Force -ErrorAction SilentlyContinue
