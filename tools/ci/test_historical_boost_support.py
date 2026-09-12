@@ -14,7 +14,6 @@ PREPARER_PATH = CI / "prepare_historical_boost.py"
 FETCHER_PATH = CI / "fetch_historical_boost_archive.py"
 BUILDER_PATH = CI / "build_historical_blockly_sidecar.sh"
 ACTION_PATH = ROOT / ".github/actions/historical-boost-support/action.yml"
-SEED_WORKFLOW = ROOT / ".github/workflows/seed-historical-boost-cache.yml"
 CI_GATE_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 WEBOTS_WORKFLOW = ROOT / ".github/workflows/ci-webots.yml"
 
@@ -214,20 +213,21 @@ class HistoricalBoostSupportTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, text)
 
-    def test_seed_workflow_is_separate_verified_preprovisioning(self) -> None:
-        text = SEED_WORKFLOW.read_text(encoding="utf-8")
+    def test_existing_non_pr_ci_maintenance_path_preprovisions_cache(self) -> None:
+        text = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("schedule:", text)
         self.assertIn("workflow_dispatch:", text)
-        self.assertIn("- main", text)
-        self.assertIn("- work/303-hermetic-historical-boost", text)
         self.assertIn("uses: actions/cache/restore@v4", text)
-        self.assertIn("steps.boost-cache.outputs.cache-hit != 'true'", text)
+        self.assertIn("id: historical-boost-cache", text)
         self.assertIn("python3 tools/ci/fetch_historical_boost_archive.py", text)
         self.assertIn("from prepare_historical_boost import PACKAGE_NAME, verify_archive", text)
         self.assertIn("uses: actions/cache/save@v4", text)
         self.assertIn(f"key: {CACHE_KEY}", text)
-        canonical = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
-        self.assertNotIn("fetch_historical_boost_archive.py", canonical)
-        self.assertNotIn("seed-historical-boost-cache", canonical)
+        acquire = text.split("- name: Acquire exact historical Boost archive for maintenance runs", 1)[1].split("- name: Verify exact historical Boost archive for maintenance runs", 1)[0]
+        save = text.split("- name: Save exact historical Boost cache for maintenance runs", 1)[1].split("- name: Verify selector and repository contracts", 1)[0]
+        for block in (acquire, save):
+            self.assertIn("github.event_name != 'pull_request'", block)
+            self.assertIn("steps.historical-boost-cache.outputs.cache-hit != 'true'", block)
 
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")
