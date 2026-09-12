@@ -7,6 +7,7 @@ EXPECTED_FIRMWARE_SHA256="67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3ab
 EXPECTED_CFLIB_COMMIT="45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE="a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE="750e850390753de14019f0e1f55d4fbc44317699"
+EXPECTED_TEST_PROFILE="x3-independent-props-off"
 
 usage() {
   cat >&2 <<'EOF'
@@ -171,8 +172,19 @@ for module in (libusb_package, importlib_resources, numpy, usb):
 print("PASS: exact offline X3 cflib runtime closure is isolated")
 PY
 
-PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
-  python3 -S "$HERE/capture_independent_inputs.py" --describe >/dev/null
+DESCRIBE_JSON="$(PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
+  python3 -S "$HERE/capture_independent_inputs.py" --describe)"
+python3 - "$DESCRIBE_JSON" "$EXPECTED_TEST_PROFILE" <<'PY'
+import json
+import sys
+
+described = json.loads(sys.argv[1])
+expected = sys.argv[2]
+if described.get("test_profile") != expected:
+    raise SystemExit(
+        f"FAIL: collector test_profile must be {expected!r}, got {described.get('test_profile')!r}"
+    )
+PY
 
 if [ "$VERIFY_ONLY" -eq 1 ]; then
   echo "PASS: X3 capture bundle verified without hardware"
