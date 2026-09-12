@@ -15,6 +15,7 @@ from physical_dynamic_preflight import (  # noqa: E402
     DynamicPhysicalPreflightError,
     validate_bound_dynamic_program,
 )
+import test_physical_shared_interpreter_session as shared_interpreter_test  # noqa: E402
 
 
 def require(condition: bool, message: str) -> None:
@@ -271,6 +272,7 @@ def main() -> int:
     test_all_existing_action_bounds_apply_inside_dynamic_control_flow()
     test_control_flow_metadata_cannot_hide_unsupported_fields()
     test_noncanonical_or_malformed_binding_fails_closed()
+    shared_interpreter_test.main()
     print(
         "PASS dynamic physical preflight: every reachable control-flow path "
         "stays inside integrated action and altitude bounds before effect"
