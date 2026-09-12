@@ -16,9 +16,11 @@ serializes motion and obtains fresh supervisor trajectory-completion evidence
 before planning the next motion, so each planned segment starts from the
 rest-to-rest boundary this factor describes.
 
-Vertical, takeoff and landing durations are intentionally absent: Runtime v2 has
-no student vertical/takeoff/landing speed semantic, so those remain separate
-host safety-policy decisions rather than being silently coupled to set_speed.
+Vertical motion has no student speed semantic. Its smooth GO_TO duration is a
+fixed host safety policy using the firmware/cflib-established 0.5 m/s default as
+a conservative peak ceiling; it is deliberately independent of run-local
+horizontal set_speed. Takeoff and landing keep their separate command-9/10
+semantics and are not routed through this policy.
 """
 
 from __future__ import annotations
@@ -30,9 +32,12 @@ DEFAULT_HORIZONTAL_SPEED_M_S = 0.35
 MIN_HORIZONTAL_SPEED_M_S = 0.10
 MAX_HORIZONTAL_SPEED_M_S = 0.35
 MAX_YAW_RATE_RAD_S = 0.70
+MAX_VERTICAL_SPEED_M_S = 0.50
 
 MIN_MOVE_DISTANCE_M = 0.10
 MAX_MOVE_DISTANCE_M = 2.00
+MIN_VERTICAL_DISTANCE_M = 0.10
+MAX_VERTICAL_DISTANCE_M = 0.80
 MIN_TURN_DEG = 1.0
 MAX_TURN_DEG = 179.0
 
@@ -93,6 +98,16 @@ class HighLevelTimingPolicy:
             MAX_MOVE_DISTANCE_M,
         )
         return REST_TO_REST_PEAK_FACTOR * distance / self._horizontal_speed_m_s
+
+    def vertical_move_duration(self, distance_m: object) -> float:
+        """Fixed host-policy duration keeping smooth vertical peak at/below 0.5 m/s."""
+        distance = _bounded(
+            distance_m,
+            "distance_m",
+            MIN_VERTICAL_DISTANCE_M,
+            MAX_VERTICAL_DISTANCE_M,
+        )
+        return REST_TO_REST_PEAK_FACTOR * distance / MAX_VERTICAL_SPEED_M_S
 
     def turn_duration(self, angle_deg: object) -> float:
         """Duration preserving Runtime v2's established 0.7 rad/s yaw-rate ceiling."""

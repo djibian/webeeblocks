@@ -71,6 +71,18 @@ def wait_ast(seconds: object = 0.4) -> str:
     )
 
 
+def vertical_ast() -> str:
+    return canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "vertical", "direction": "up", "distance_m": 0.3},
+            {"kind": "move", "direction": "forward", "distance_m": 0.2},
+            {"kind": "vertical", "direction": "down", "distance_m": 0.2},
+            {"kind": "land"},
+        ]
+    )
+
+
 def advance_to_landing(domain: sequence.PhysicalProgramSequence) -> None:
     first = domain.reserve_next_motion()
     domain.complete_motion(first)
@@ -128,6 +140,64 @@ def test_exact_order_and_claim_identity() -> None:
     require(domain.completed, "exact program completes only after terminal landing completion")
     require(domain.next_step_kind is None, "completed program exposes no next step")
     expect_error(domain.reserve_terminal_landing, "not the next")
+
+
+def test_exact_vertical_sequence_tracks_only_completed_nominal_altitude() -> None:
+    domain = sequence.PhysicalProgramSequence(vertical_ast())
+    require(abs(domain.nominal_altitude_m - 0.8) < 1e-9, "nominal altitude starts at exact takeoff height")
+    require(abs(domain.planned_terminal_altitude_m - 0.9) < 1e-9, "whole-program vertical path derives exact final altitude")
+    require(domain.next_step_kind == "vertical", "first vertical statement remains exact next kind")
+
+    first = domain.reserve_next_motion()
+    vertical_up = domain.motion_for_claim(first)
+    require(
+        vertical_up == sequence.SequencedInflightMotion(1, "vertical", "up", 0.3, None),
+        "vertical claim must preserve exact AST direction and distance",
+    )
+    domain.release_unemitted(first)
+    require(abs(domain.nominal_altitude_m - 0.8) < 1e-9, "rejected vertical effect cannot change nominal altitude")
+    require(domain.next_index == 1, "rejected vertical effect cannot advance exact cursor")
+
+    first = domain.reserve_next_motion()
+    domain.complete_motion(first)
+    require(abs(domain.nominal_altitude_m - 1.1) < 1e-9, "completed climb advances host-owned nominal altitude")
+
+    horizontal = domain.reserve_next_motion()
+    require(domain.motion_for_claim(horizontal).kind == "move", "horizontal step remains exact")
+    domain.complete_motion(horizontal)
+    require(abs(domain.nominal_altitude_m - 1.1) < 1e-9, "horizontal completion is altitude-neutral")
+
+    descent = domain.reserve_next_motion()
+    require(
+        domain.motion_for_claim(descent) == sequence.SequencedInflightMotion(3, "vertical", "down", 0.2, None),
+        "descent must preserve exact AST direction and distance",
+    )
+    domain.complete_motion(descent)
+    require(abs(domain.nominal_altitude_m - 0.9) < 1e-9, "completed descent updates exact nominal altitude")
+    require(domain.next_step_kind == "land", "vertical sequence reaches exact terminal landing")
+
+
+def test_vertical_cumulative_bounds_are_rejected_before_flight() -> None:
+    source = SEMANTIC_AST.read_text(encoding="utf-8")
+    require(
+        "vertical_m:{min:0.1,max:0.8}" in source,
+        "authoritative semantic AST vertical envelope changed without physical contract update",
+    )
+    require(sequence.MIN_NOMINAL_ALTITUDE_M == 0.2, "physical nominal altitude minimum matches Runtime v2")
+    require(sequence.MAX_NOMINAL_ALTITUDE_M == 1.5, "physical nominal altitude maximum matches Runtime v2")
+
+    for direction, distance_m in (("up", 0.8), ("down", 0.7)):
+        ast = canonical(
+            [
+                {"kind": "takeoff", "height_m": 0.8},
+                {"kind": "vertical", "direction": direction, "distance_m": distance_m},
+                {"kind": "land"},
+            ]
+        )
+        expect_error(
+            lambda ast=ast: sequence.PhysicalProgramSequence(ast),
+            "nominal physical altitude",
+        )
 
 
 def test_exact_wait_is_no_effect_sequence_step() -> None:
@@ -215,7 +285,8 @@ def test_ambiguous_motion_or_landing_is_terminal() -> None:
 def test_complete_envelope_is_validated_before_flight() -> None:
     for statement in (
         {"kind": "land"},
-        {"kind": "vertical", "direction": "up", "distance_m": 0.2},
+        {"kind": "vertical", "direction": "up", "distance_m": 0.9},
+        {"kind": "vertical", "direction": "sideways", "distance_m": 0.2},
         {"kind": "move", "direction": "forward", "distance_m": 0.3, "extra": True},
         {"kind": "move", "direction": "forward", "distance_m": 20},
         {"kind": "turn", "angle_deg": 0},
@@ -274,7 +345,7 @@ def test_exact_bound_command_10_landing_semantics() -> None:
     binding = sample_ast()
     command = landing.derive_bound_landing_command(binding)
     require(command.ast_binding == binding, "landing command preserves exact AST binding")
-    require(command.descent_m == 0.8, "landing descent derives exact bound takeoff height")
+    require(command.descent_m == 0.8, "altitude-neutral program lands from exact final nominal height")
     require(
         len(command.request) == struct.calcsize("<BBf?f?f"),
         "command 10 packet size matches pinned firmware layout",
@@ -282,11 +353,16 @@ def test_exact_bound_command_10_landing_semantics() -> None:
     fields = struct.unpack("<BBf?f?f", command.request)
     require(fields[0] == 10, "command id is LAND_WITH_VELOCITY")
     require(fields[1] == 0, "landing group mask is zero")
-    require(abs(fields[2] - 0.8) < 1e-6, "relative descent is exact takeoff height")
+    require(abs(fields[2] - 0.8) < 1e-6, "relative descent is exact final nominal altitude")
     require(fields[3] is True, "landing height is relative and positive downward")
     require(fields[4] == 0.0, "ignored yaw payload stays neutral")
     require(fields[5] is True, "current yaw is preserved")
     require(abs(fields[6] - 0.5) < 1e-6, "explicit landing velocity is 0.5 m/s")
+
+    vertical = landing.derive_bound_landing_command(vertical_ast())
+    require(abs(vertical.descent_m - 0.9) < 1e-9, "terminal descent follows exact cumulative vertical program")
+    vertical_fields = struct.unpack("<BBf?f?f", vertical.request)
+    require(abs(vertical_fields[2] - 0.9) < 1e-6, "command 10 carries exact final nominal altitude")
 
     boundary_only = canonical(
         [
@@ -305,14 +381,14 @@ def test_exact_bound_command_10_landing_semantics() -> None:
 
 
 def test_landing_command_fails_closed_on_unsupported_envelope() -> None:
-    unsupported = canonical(
+    out_of_bounds = canonical(
         [
             {"kind": "takeoff", "height_m": 0.8},
-            {"kind": "vertical", "direction": "down", "distance_m": 0.2},
+            {"kind": "vertical", "direction": "down", "distance_m": 0.7},
             {"kind": "land"},
         ]
     )
-    expect_landing_error(unsupported, "next")
+    expect_landing_error(out_of_bounds, "nominal physical altitude")
 
     malformed_final = canonical(
         [
@@ -354,6 +430,8 @@ def test_landing_command_has_no_effect_or_caller_parameter_surface() -> None:
 
 def main() -> int:
     test_exact_order_and_claim_identity()
+    test_exact_vertical_sequence_tracks_only_completed_nominal_altitude()
+    test_vertical_cumulative_bounds_are_rejected_before_flight()
     test_exact_wait_is_no_effect_sequence_step()
     test_failed_wait_is_terminal_without_completion()
     test_caller_cannot_select_motion_wait_index_or_landing()
@@ -365,9 +443,9 @@ def main() -> int:
     test_landing_command_fails_closed_on_unsupported_envelope()
     test_landing_command_has_no_effect_or_caller_parameter_surface()
     print(
-        "PASS exact physical-program sequencing validates the complete supported envelope, "
-        "preserves exact no-effect wait pacing and terminal landing order, and derives "
-        "pinned command 10 solely from the teacher-bound canonical AST"
+        "PASS exact physical-program sequencing validates bounded cumulative vertical state, "
+        "preserves exact no-effect pacing and terminal landing order, and derives pinned "
+        "command 10 solely from the teacher-bound canonical AST"
     )
     return 0
 
