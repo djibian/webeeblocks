@@ -5,14 +5,20 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 UPSTREAM="${1:-$ROOT/.ci-crazyflie-firmware}"
 EXPECTED_COMMIT=54f31e243a0b28b67efef5ba20dbb6d9890a5478
 EXPECTED_BLOB=57c0e8405c07b63a29538019895ed17d0a379440
+EXPECTED_SENSOR_BLOB=b183285c999335ca258b5131b1a835473473c078
 APPLICATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py"
 DISCRIMINATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py"
 TIMING_OBSERVER="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py"
+INPUT_OBSERVER="$ROOT/experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py"
+INPUT_OBSERVER_TEST="$ROOT/experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py"
 
 test -d "$UPSTREAM/.git"
 test "$(git -C "$UPSTREAM" rev-parse HEAD)" = "$EXPECTED_COMMIT"
 test "$(git -C "$UPSTREAM" hash-object src/modules/src/estimator/estimator_ukf.c)" = "$EXPECTED_BLOB"
-test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/estimator_ukf.c)"
+test "$(git -C "$UPSTREAM" hash-object src/hal/src/sensors_bmi088_bmp3xx.c)" = "$EXPECTED_SENSOR_BLOB"
+test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/estimator_ukf.c src/hal/src/sensors_bmi088_bmp3xx.c)"
+
+python3 "$INPUT_OBSERVER_TEST"
 
 (
   cd "$UPSTREAM"
@@ -22,6 +28,8 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   python3 "$DISCRIMINATOR"
   python3 "$TIMING_OBSERVER" --check
   python3 "$TIMING_OBSERVER"
+  python3 "$INPUT_OBSERVER" --check
+  python3 "$INPUT_OBSERVER"
   git diff --check
   grep -Fq 'static uint8_t surfaceOffsetS3 = 0;' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, surfOffset, &surfaceOffset)' src/modules/src/estimator/estimator_ukf.c
@@ -44,6 +52,19 @@ test -z "$(git -C "$UPSTREAM" status --porcelain -- src/modules/src/estimator/es
   grep -Fq 'LOG_ADD(LOG_UINT32, tofAge, &surfaceTofAgeMs)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_UINT32, baroLag0, &surfaceBaroLagAtSuspect)' src/modules/src/estimator/estimator_ukf.c
   grep -Fq 'LOG_ADD(LOG_FLOAT, vzDec, &surfaceVzAtDecision)' src/modules/src/estimator/estimator_ukf.c
+
+  grep -Fq 'LOG_GROUP_START(x3AccObs)' src/hal/src/sensors_bmi088_bmp3xx.c
+  grep -Fq 'LOG_ADD_BY_FUNCTION(LOG_UINT32, readBeg, &x3AccLogReadStart)' src/hal/src/sensors_bmi088_bmp3xx.c
+  grep -Fq 'LOG_GROUP_START(x3BaroObs)' src/hal/src/sensors_bmi088_bmp3xx.c
+  grep -Fq 'LOG_ADD_BY_FUNCTION(LOG_UINT8, chipId, &x3BaroLogChipId)' src/hal/src/sensors_bmi088_bmp3xx.c
+  grep -Fq 'x3AccObserverSnapshot.accPreLpf = sensorData.acc;' src/hal/src/sensors_bmi088_bmp3xx.c
+  python3 - <<'PY'
+from pathlib import Path
+text = Path("src/hal/src/sensors_bmi088_bmp3xx.c").read_text()
+snapshot = text.index("x3AccObserverSnapshot.accPreLpf = sensorData.acc;")
+lpf = text.index("applyAxis3fLpf((lpf2pData*)(&accLpf), &sensorData.acc);", snapshot)
+assert snapshot < lpf
+PY
 
   docker run --rm -v "$PWD:/module" bitcraze/builder bash -lc '
     set -euo pipefail
@@ -84,6 +105,7 @@ EOF
   test -s build/cf2.elf
   test -s build/cf2.bin
   find build -type f -name 'estimator_ukf.o' -size +0c -print -quit | grep -q .
+  find build -type f -name 'sensors_bmi088_bmp3xx.o' -size +0c -print -quit | grep -q .
 )
 
-printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and reset-safe timing observer applied and UKF-enabled cf2 firmware built."
+printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus existing discriminator/timing overlay and logging-only X3 pre-LPF/read-window observer compiled in the UKF-enabled cf2 build; this is a compile oracle, not #251 physical-artifact provenance."
