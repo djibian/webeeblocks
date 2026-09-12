@@ -8,21 +8,23 @@ session and the integrated #278 bridge/responder relationship.
 
 The ordinary caller/UI is outside this process. Run-context validation requests
 remain diagnostic/non-authority. After the distinct launcher-installed teacher
-capability has established one exact #293 run, ordinary IPC may also request a
-parameter-free ``execute-next-inflight`` step. That request carries no motion
-semantics or authority: ``activate_validated_run()`` derives the next eligible
-move/turn from the exact #267 canonical AST and keeps the #276 effect/provenance
-objects inside the trusted process. A positive reply is still non-authority data.
+capability has established one exact run, ordinary IPC may also request a
+parameter-free ``execute-next-inflight`` operation. That request carries no
+motion, sensor, branch or expression semantics or authority: trusted dispatch
+keeps flat programs on the exact static sequence and routes dynamic programs
+through the exact teacher-bound shared Runtime interpreter. A positive reply is
+still non-authority data.
 
 Browser bootstrap is a distinct one-way composition channel. Its responder
 credential is written there once and never returned on ordinary caller IPC. The
 teacher socket is distinct from both channels and is consumed only inside the
 one-shot production activation path; ordinary caller data cannot supply, replace
-or write that trusted decision channel. The #276 transport belongs inside this
-same process so fresh #249 and all identity-sensitive #257/#260/#262/#266/#267/
-#271/#272/#273 objects share the one live Crazyflie/session/connection epoch.
-Starting the host, validating a run without the trusted teacher capability, or
-requesting an in-flight step before successful activation remains effect-free.
+or write that trusted decision channel. The physical transports and observers
+belong inside this same process so current-program, teacher, powered-session,
+watchdog, acknowledgement and reconnect-sensitive epoch identity stay lexical to
+one trusted host. Starting the host, validating a run without the trusted teacher
+capability, or requesting execution before successful activation remains
+effect-free.
 """
 
 if __name__ == "__main__":
@@ -41,7 +43,7 @@ if __name__ == "__main__":
             sys.path.insert(0, str(physical))
 
         from physical_execution_domain import PhysicalExecutionDomain
-        from physical_run_activation import activate_validated_run
+        from physical_run_dispatch import activate_validated_run
         from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
         from serve_reference_capabilities import CapabilityBridgeError
@@ -72,7 +74,7 @@ if __name__ == "__main__":
             default=None,
             help=(
                 "distinct launcher-installed teacher capability; its presence enables "
-                "one post-reset host-first #290 decision for a freshly validated candidate"
+                "one post-reset host-first decision for a freshly validated candidate"
             ),
         )
         args = parser.parse_args()
