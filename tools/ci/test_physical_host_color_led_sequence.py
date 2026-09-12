@@ -249,9 +249,11 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     install_fakes()
     original = FakeColorTransport.send_color
     attempts = {"count": 0}
+    observed_domains: list[object] = []
 
     def ambiguous(self, *, color):
         attempts["count"] += 1
+        observed_domains.append(self.execution_domain)
         binding = self._read_current_binding()
         host.base.EVENTS.append(
             ("inflight-light-ambiguous", color, binding.connection_epoch)
@@ -277,6 +279,11 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     require(
         attempts["count"] == 1,
         "terminal ambiguity must not retry the same Color LED effect",
+    )
+    require(
+        len(observed_domains) == 1
+        and observed_domains[0].phase == physical_execution_domain.RECOVERY_REQUIRED,
+        "emitted unresolved light must leave the faithful fake domain recovery-required",
     )
     ambiguous_events = [
         event
