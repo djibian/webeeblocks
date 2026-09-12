@@ -83,6 +83,17 @@ def vertical_ast() -> str:
     )
 
 
+def light_ast() -> str:
+    return canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {"kind": "set_light", "color": "red"},
+            {"kind": "set_light", "color": "off"},
+            {"kind": "land"},
+        ]
+    )
+
+
 def advance_to_landing(domain: sequence.PhysicalProgramSequence) -> None:
     first = domain.reserve_next_motion()
     domain.complete_motion(first)
@@ -177,6 +188,84 @@ def test_exact_vertical_sequence_tracks_only_completed_nominal_altitude() -> Non
     require(domain.next_step_kind == "land", "vertical sequence reaches exact terminal landing")
 
 
+def test_exact_light_sequence_is_effectful_and_altitude_neutral() -> None:
+    domain = sequence.PhysicalProgramSequence(light_ast())
+    require(domain.next_step_kind == "set_light", "exact set_light must remain visible as next step")
+    require(domain.planned_terminal_altitude_m == 0.8, "light effects are altitude-neutral")
+
+    first = domain.reserve_next_light()
+    require(
+        domain.light_for_claim(first) == sequence.SequencedLight(1, "red"),
+        "first light effect must preserve exact AST color and index",
+    )
+    expect_error(domain.reserve_next_light, "pending")
+    expect_error(lambda: domain.light_for_claim(object()), "set_light claim")
+
+    domain.release_unemitted(first)
+    require(domain.next_index == 1, "unemitted/rejected light effect cannot advance cursor")
+    retry = domain.reserve_next_light()
+    require(
+        domain.light_for_claim(retry) == sequence.SequencedLight(1, "red"),
+        "released light statement must remain exact next effect",
+    )
+    domain.complete_light(retry)
+    require(domain.next_index == 2, "definitive light completion advances exactly once")
+    require(domain.nominal_altitude_m == 0.8, "completed light effect is altitude-neutral")
+
+    second = domain.reserve_next_light()
+    require(
+        domain.light_for_claim(second) == sequence.SequencedLight(2, "off"),
+        "second exact light color must remain teacher-bound",
+    )
+    domain.complete_light(second)
+    require(domain.next_step_kind == "land", "completed exact light effects expose terminal landing")
+    landing_claim = domain.reserve_terminal_landing()
+    domain.complete_landing(landing_claim)
+    require(domain.completed, "light program completes only after exact terminal landing")
+
+
+def test_light_palette_and_shape_are_validated_before_flight() -> None:
+    source = SEMANTIC_AST.read_text(encoding="utf-8")
+    for color in sequence.LIGHT_COLORS:
+        require(
+            f"'{color}'" in source,
+            "authoritative semantic AST light palette changed without physical contract update",
+        )
+        ast = canonical(
+            [
+                {"kind": "takeoff", "height_m": 0.8},
+                {"kind": "set_light", "color": color},
+                {"kind": "land"},
+            ]
+        )
+        domain = sequence.PhysicalProgramSequence(ast)
+        claim = domain.reserve_next_light()
+        require(domain.light_for_claim(claim).color == color, "exact palette color must round-trip")
+
+    for statement in (
+        {"kind": "set_light", "color": "purple"},
+        {"kind": "set_light", "color": 1},
+        {"kind": "set_light", "color": "red", "extra": True},
+    ):
+        ast = canonical(
+            [
+                {"kind": "takeoff", "height_m": 0.8},
+                statement,
+                {"kind": "land"},
+            ]
+        )
+        expect_error(lambda ast=ast: sequence.PhysicalProgramSequence(ast), "set_light")
+
+
+def test_ambiguous_light_is_terminal() -> None:
+    domain = sequence.PhysicalProgramSequence(light_ast())
+    claim = domain.reserve_next_light()
+    domain.mark_ambiguous(claim, "Color LED acknowledgement/readback became uncertain")
+    require(domain.terminal, "ambiguous emitted light effect must make sequencing terminal")
+    require(domain.next_index == 1, "ambiguous light effect cannot manufacture completion")
+    expect_error(domain.reserve_next_light, "terminal")
+
+
 def test_vertical_cumulative_bounds_are_rejected_before_flight() -> None:
     source = SEMANTIC_AST.read_text(encoding="utf-8")
     require(
@@ -249,6 +338,14 @@ def test_caller_cannot_select_motion_wait_index_or_landing() -> None:
     else:
         raise AssertionError("caller-selected wait duration unexpectedly entered sequencing API")
 
+    light_domain = sequence.PhysicalProgramSequence(light_ast())
+    try:
+        light_domain.reserve_next_light("blue")
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("caller-selected light color unexpectedly entered sequencing API")
+
     try:
         domain.reserve_terminal_landing({"height_m": 0.1})
     except TypeError:
@@ -293,6 +390,8 @@ def test_complete_envelope_is_validated_before_flight() -> None:
         {"kind": "wait", "seconds": 0},
         {"kind": "wait", "seconds": 5.1},
         {"kind": "wait", "seconds": 0.4, "extra": True},
+        {"kind": "set_light", "color": "purple"},
+        {"kind": "set_light", "color": "red", "extra": True},
         {"kind": "repeat", "count": 2, "body": []},
     ):
         ast = canonical(
@@ -378,6 +477,10 @@ def test_exact_bound_command_10_landing_semantics() -> None:
         landing.derive_bound_landing_command(wait_ast()).descent_m == 0.8,
         "no-effect wait remains inside exact landing command envelope",
     )
+    require(
+        landing.derive_bound_landing_command(light_ast()).descent_m == 0.8,
+        "bottom Color LED effects remain altitude-neutral for terminal landing",
+    )
 
 
 def test_landing_command_fails_closed_on_unsupported_envelope() -> None:
@@ -431,6 +534,9 @@ def test_landing_command_has_no_effect_or_caller_parameter_surface() -> None:
 def main() -> int:
     test_exact_order_and_claim_identity()
     test_exact_vertical_sequence_tracks_only_completed_nominal_altitude()
+    test_exact_light_sequence_is_effectful_and_altitude_neutral()
+    test_light_palette_and_shape_are_validated_before_flight()
+    test_ambiguous_light_is_terminal()
     test_vertical_cumulative_bounds_are_rejected_before_flight()
     test_exact_wait_is_no_effect_sequence_step()
     test_failed_wait_is_terminal_without_completion()
@@ -444,8 +550,8 @@ def main() -> int:
     test_landing_command_has_no_effect_or_caller_parameter_surface()
     print(
         "PASS exact physical-program sequencing validates bounded cumulative vertical state, "
-        "preserves exact no-effect pacing and terminal landing order, and derives pinned "
-        "command 10 solely from the teacher-bound canonical AST"
+        "preserves exact bottom Color LED effects, no-effect pacing and terminal landing order, "
+        "and derives pinned command 10 solely from the teacher-bound canonical AST"
     )
     return 0
 
