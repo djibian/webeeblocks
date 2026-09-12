@@ -6,6 +6,12 @@ caller-selected direction, value, branch, iteration or action parameter. A child
 Node process loads the repository's existing ``interpreter.js`` and can request
 only the fixed backend methods below over a private stdio protocol.
 
+``validate_bound_shared_program()`` reuses that same product interpreter's
+``validateProgram()`` contract in a validation-only worker mode. It performs no
+backend call and therefore lets the trusted physical host reject deterministic
+shared-language invalidity before any causal physical effect without growing a
+second evaluator in Python.
+
 This adapter is deliberately not physical composition by itself: it owns no
 Crazyflie session, observer or effect-transport authority. A later trusted host
 must bind ``readRange`` to the fresh range observer and bind each action method to
@@ -382,3 +388,62 @@ class BoundSharedInterpreter:
                 return SharedInterpreterResult(remaining, dict(variables))
         finally:
             self._terminate(process)
+
+
+def validate_bound_shared_program(ast_binding: str) -> ReachablePhysicalEnvelope:
+    """Validate one exact bound AST through the shared product interpreter only.
+
+    The conservative physical envelope is reconstructed first, then the existing
+    JavaScript ``Interpreter.validateProgram()`` contract runs in a backend-free
+    worker mode. No range value is read, no branch is evaluated and no physical
+    consumer can be called. The returned envelope is therefore pre-effect safety
+    evidence bound to the same exact canonical AST.
+    """
+
+    safety = validate_bound_dynamic_program(ast_binding)
+    if not _WORKER.is_file():
+        raise SharedInterpreterHostError("shared interpreter worker is unavailable")
+    try:
+        process = subprocess.Popen(
+            ["node", str(_WORKER)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+        )
+    except (OSError, ValueError) as exc:
+        raise SharedInterpreterHostError(
+            "could not start shared interpreter validation"
+        ) from exc
+    if process.stdout is None:
+        BoundSharedInterpreter._terminate(process)
+        raise SharedInterpreterHostError(
+            "shared interpreter validation output is unavailable"
+        )
+
+    pump = _LinePump(process.stdout)
+    try:
+        BoundSharedInterpreter._write(
+            process,
+            {"op": "validate-bound-program", "astBinding": ast_binding},
+        )
+        message = BoundSharedInterpreter._read(pump)
+        if message != {"type": "validated", "ok": True}:
+            raise SharedInterpreterHostError(
+                "shared interpreter language validation failed closed"
+            )
+        try:
+            exit_code = process.wait(timeout=_PROTOCOL_IDLE_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as exc:
+            raise SharedInterpreterHostError(
+                "shared interpreter validation did not terminate"
+            ) from exc
+        if exit_code != 0:
+            raise SharedInterpreterHostError(
+                "shared interpreter validation exited unsuccessfully"
+            )
+        return safety
+    finally:
+        BoundSharedInterpreter._terminate(process)
