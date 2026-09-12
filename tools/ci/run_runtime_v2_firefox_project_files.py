@@ -40,6 +40,13 @@ sleep 0.5
 xvfb-run -a bash -lc '\''
   set -euo pipefail
   artifact=/workspace/ci-artifacts/runtime-v2-project-files/firefox
+  webots_bin=$(readlink -f "$(command -v webots)")
+  webots_home=$(dirname "$webots_bin")
+  qt_plugins="$webots_home/lib/webots/qt/plugins"
+  test -f "$qt_plugins/platforms/libqxcb.so"
+  export WEBOTS_HOME="$webots_home"
+  export QT_PLUGIN_PATH="$qt_plugins"
+  printf "%s\\n" "$QT_PLUGIN_PATH" > "$artifact/qt-plugin-path.txt"
   python3 /workspace/tools/ci/firefox_project_dialog_driver.py --root "$artifact" --timeout 80 \\
     > "$artifact/dialog-driver.log" 2>&1 &
   driver=$!
