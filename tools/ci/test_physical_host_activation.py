@@ -31,6 +31,7 @@ import watchdog_liveness  # noqa: E402
 
 
 EVENTS: list[object] = []
+ACTIVATION_ENTERED = Event()
 
 
 def require(condition: bool, message: str) -> None:
@@ -169,6 +170,7 @@ class FakeBridge:
         )
         self.pending_epoch = previous_epoch
         EVENTS.append(("bridge-begin", previous_epoch))
+        ACTIVATION_ENTERED.set()
         return previous_epoch
 
     def install_post_reset_session(self, session: FakeSession) -> str:
@@ -374,6 +376,7 @@ def install_fakes() -> None:
 
 
 def run_host(*, teacher_enabled: bool) -> dict[str, object]:
+    ACTIVATION_ENTERED.clear()
     caller_host, caller_peer = socket.socketpair()
     browser_read, browser_write = os.pipe()
     teacher_peer = None
@@ -425,6 +428,11 @@ def run_host(*, teacher_enabled: bool) -> dict[str, object]:
     caller_peer.sendall((json.dumps(request, separators=(",", ":")) + "\n").encode())
     response = json.loads(caller_peer.makefile("r", encoding="utf-8").readline())
     require(response == {"executionAuthority": False, "ok": True, "requestId": "request-1"}, "caller reply remains diagnostic")
+    if teacher_enabled:
+        require(
+            ACTIVATION_ENTERED.wait(timeout=1.0),
+            "trusted activation must enter reset cutover before test caller EOF",
+        )
     caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "production host runner must terminate after caller EOF")
