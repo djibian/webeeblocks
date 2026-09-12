@@ -280,6 +280,7 @@ LOG_ADD_BY_FUNCTION(LOG_UINT8, chipId, &x3BaroLogChipId)
 LOG_GROUP_STOP(x3BaroObs)
 
 #ifdef GYRO_ADD_RAW_AND_VARIANCE_LOG_VALUES
+// X3 applied-state marker keeps LOG_NEW disjoint from the stock LOG_OLD anchor.
 LOG_GROUP_START(gyro)
 """
 
