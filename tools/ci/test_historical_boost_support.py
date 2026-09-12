@@ -26,7 +26,22 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             "4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78",
         )
         self.assertEqual(subject.BOOST_VERSION, 107400)
-        self.assertIn("archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/", subject.PACKAGE_URL)
+
+    def test_missing_archive_fails_closed_without_network_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "boost-1.74"
+            with self.assertRaisesRegex(subject.SupportError, "archive is missing"):
+                subject.prepare(output)
+        source = PREPARER_PATH.read_text(encoding="utf-8")
+        for forbidden in (
+            "urllib",
+            "urlopen",
+            "archive.ubuntu.com",
+            "http://",
+            "https://",
+            "apt-get",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_bad_archive_fails_closed_without_package_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
