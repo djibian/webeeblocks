@@ -8,6 +8,7 @@ certified by this arithmetic. No reference value comes from UKF/S3 telemetry.
 from __future__ import annotations
 
 import argparse
+from decimal import Decimal
 from fractions import Fraction
 import hashlib
 import json
@@ -20,11 +21,15 @@ from frozen_pressure_probe import KINDS, read_barometer
 
 
 def number(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal, Fraction)):
         raise ValueError("numeric bound required")
-    if not math.isfinite(value):
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("finite bound required")
+        return Fraction(str(value))
+    if isinstance(value, Decimal) and not value.is_finite():
         raise ValueError("finite bound required")
-    return Fraction(str(value))
+    return Fraction(value)
 
 
 def interval(value):
@@ -188,9 +193,17 @@ def unique_object(pairs):
     return result
 
 
+def reject_json_constant(value):
+    raise ValueError(f"non-finite JSON number {value} is not allowed")
+
+
 def run(path):
     raw_spec = path.read_bytes()
-    spec = json.loads(raw_spec, object_pairs_hook=unique_object)
+    # Keep decimal tokens exact at the file boundary. Parsing them through binary
+    # float before Fraction arithmetic can erase contradictory synchronization
+    # observations or collapse small metric displacements to zero.
+    spec = json.loads(raw_spec, object_pairs_hook=unique_object,
+                      parse_float=Decimal, parse_constant=reject_json_constant)
     root = path.parent.resolve()
     sources, identities, reference_ids = {}, set(), set()
     for source in spec["sources"]:
