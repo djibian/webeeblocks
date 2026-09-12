@@ -108,10 +108,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed.' }
 
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
-# from the exact ZIP must load with only the two Webots runtime directories that
-# runtime.ini declares (plus Windows system DLL locations), enter libController,
-# and reach its deterministic IPC connection path. A missing runtime DLL fails
-# before this marker and therefore cannot pass this oracle.
+# from the exact ZIP must load with the Webots controller libraries, the MinGW
+# C++ runtime directory inherited from the official R2025a launcher, and the
+# Qt/MSYS2 bin directory declared by runtime.ini (plus Windows system DLL
+# locations), enter libController, and reach its deterministic IPC connection
+# path. A missing runtime DLL fails before this marker and therefore cannot pass
+# this oracle.
 $controllerStdout = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stdout.log'
 $controllerStderr = Join-Path $env:RUNNER_TEMP 'webeeblocks-packaged-controller.stderr.log'
 Remove-Item -LiteralPath $controllerStdout, $controllerStderr -Force -ErrorAction SilentlyContinue
@@ -124,6 +126,7 @@ try {
   $env:WEBOTS_CONTROLLER_URL = 'ipc://65535'
   $env:PATH = @(
     (Join-Path $WebotsHome 'lib\controller'),
+    (Join-Path $WebotsHome 'msys64\mingw64\bin\cpp'),
     (Join-Path $WebotsHome 'msys64\mingw64\bin'),
     (Join-Path $env:SystemRoot 'System32'),
     $env:SystemRoot
