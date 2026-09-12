@@ -7,14 +7,17 @@ teacher socket and the shared #273 execution domain. The generic takeoff
 lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
 validated against the integrated sequencing boundary before any reset or flight
 effect; after exact takeoff has causally completed, the same sequence owns each
-bounded move/turn and the one terminal controlled landing.
+bounded move/turn, no-effect wait and the one terminal controlled landing.
 
 Importing this module performs no physical effect.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from math import isfinite
 import socket
+from time import monotonic, sleep
 
 from controlled_landing_transport import (
     ControlledLandingTransportError,
@@ -35,9 +38,81 @@ from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
 from yaw_observer import FreshYawObserver
 
+_WAIT_SLICE_SECONDS = 0.05
+
 
 class PhysicalRunActivationError(RuntimeError):
     """Fail-closed error for trusted production run activation composition."""
+
+
+@dataclass(frozen=True, slots=True)
+class _NoEffectStepResult:
+    """Internal success marker for an exact program step that emitted no command."""
+
+    accepted: bool = True
+    emitted: bool = False
+
+
+def _monotonic_value(clock) -> float:
+    try:
+        value = float(clock())
+    except Exception as exc:
+        raise PhysicalRunActivationError("physical wait monotonic clock is unavailable") from exc
+    if not isfinite(value):
+        raise PhysicalRunActivationError("physical wait monotonic clock is invalid")
+    return value
+
+
+def _require_exact_epoch(connection_epoch_reader, bound_epoch: str) -> None:
+    try:
+        current = connection_epoch_reader()
+    except Exception as exc:
+        raise PhysicalRunActivationError("physical wait connection epoch is unavailable") from exc
+    if current != bound_epoch:
+        raise PhysicalRunActivationError("connection epoch changed during exact physical wait")
+
+
+def _execute_exact_wait(
+    seconds: float,
+    watchdog_guard: object,
+    connection_epoch_reader,
+    bound_epoch: str,
+    *,
+    clock=monotonic,
+    sleeper=sleep,
+) -> None:
+    """Consume host time only; emit no Crazyflie command and mint no authority."""
+    if not isinstance(seconds, float) or not isfinite(seconds) or seconds <= 0:
+        raise PhysicalRunActivationError("exact physical wait duration is invalid")
+    assert_live = getattr(watchdog_guard, "assert_live", None)
+    if not callable(assert_live):
+        raise PhysicalRunActivationError("physical wait requires live watchdog guard")
+    if not callable(connection_epoch_reader) or not isinstance(bound_epoch, str) or not bound_epoch:
+        raise PhysicalRunActivationError("physical wait requires exact connection epoch")
+    if not callable(clock) or not callable(sleeper):
+        raise PhysicalRunActivationError("physical wait timing primitives are unavailable")
+
+    assert_live()
+    _require_exact_epoch(connection_epoch_reader, bound_epoch)
+    started = _monotonic_value(clock)
+    deadline = started + seconds
+    now = started
+
+    while now < deadline:
+        assert_live()
+        _require_exact_epoch(connection_epoch_reader, bound_epoch)
+        delay = min(_WAIT_SLICE_SECONDS, deadline - now)
+        try:
+            sleeper(delay)
+        except Exception as exc:
+            raise PhysicalRunActivationError("physical wait sleeper failed") from exc
+        later = _monotonic_value(clock)
+        if later <= now:
+            raise PhysicalRunActivationError("physical wait monotonic clock did not advance")
+        now = later
+
+    assert_live()
+    _require_exact_epoch(connection_epoch_reader, bound_epoch)
 
 
 def _live_crazyflie(session: object) -> object:
@@ -133,9 +208,10 @@ def activate_validated_run(
     """Activate one exact host-validated run and return its trusted controller.
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
-    semantic parameters. It reserves only the next exact top-level move/turn or
-    terminal land from the post-reset #267 binding and keeps every positive
-    provenance/effect path lexical to this adapter's host-owned bridge.
+    semantic parameters. It reserves only the next exact top-level move/turn,
+    no-effect wait or terminal land from the post-reset #267 binding and keeps
+    every positive provenance/effect path lexical to this adapter's host-owned
+    bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -388,15 +464,56 @@ def activate_validated_run(
             else:
                 sequence.mark_ambiguous(claim, reason)
 
-        def execute_next_inflight(self):
-            """Advance one exact AST effect; accepts no caller semantic data."""
-            terminal_landing = False
+        def _execute_wait(self):
+            claim = sequence.reserve_next_wait()
+            wait_step = sequence.wait_for_claim(claim)
+            binding = active_run.teacher_authorization.binding
             try:
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "exact wait requires causally established flying state"
+                    )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+                _execute_exact_wait(
+                    wait_step.seconds,
+                    active_run.watchdog_guard,
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                )
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "physical state changed during no-effect exact wait"
+                    )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except Exception:
+                sequence.fail_wait(
+                    claim,
+                    "exact wait did not complete under the live trusted run binding",
+                )
+                raise
+            sequence.complete_wait(claim)
+            return _NoEffectStepResult()
+
+        def execute_next_inflight(self):
+            """Advance one exact AST step; accepts no caller semantic data."""
+            step_kind = sequence.next_step_kind
+            if step_kind == "wait":
+                return self._execute_wait()
+
+            terminal_landing = step_kind == "land"
+            if terminal_landing:
                 claim = sequence.reserve_terminal_landing()
                 sequence.landing_for_claim(claim)
-                terminal_landing = True
                 motion = None
-            except PhysicalProgramSequenceError:
+            else:
                 claim = sequence.reserve_next_motion()
                 motion = sequence.motion_for_claim(claim)
 
