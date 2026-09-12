@@ -52,10 +52,15 @@ if ([string]::IsNullOrWhiteSpace($WebotsHome)) {
 $webotsRoot = (Resolve-Path -LiteralPath $WebotsHome).Path
 $make = Join-Path $webotsRoot 'msys64\usr\bin\make.exe'
 $gcc = Join-Path $webotsRoot 'msys64\mingw64\bin\gcc.exe'
-foreach ($requiredTool in @($make, $gcc)) {
+$gxx = Join-Path $webotsRoot 'msys64\mingw64\bin\g++.exe'
+$qwindows = Join-Path $webotsRoot 'msys64\mingw64\share\qt6\plugins\platforms\qwindows.dll'
+foreach ($requiredTool in @($make, $gcc, $gxx)) {
   if (-not (Test-Path -LiteralPath $requiredTool -PathType Leaf)) {
     throw "Webots R2025a MSYS2 tool is missing: $requiredTool"
   }
+}
+if (-not (Test-Path -LiteralPath $qwindows -PathType Leaf)) {
+  throw "Webots R2025a Qt platform plugin is missing: $qwindows"
 }
 
 & (Join-Path $PSScriptRoot 'prepare_runtime_v2.ps1')
@@ -127,8 +132,9 @@ Copy-RequiredFile `
 $packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
 Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
 $runtimeIni = @'
-[environment variables with paths]
-WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw64/bin
+[environment variables for Windows]
+WEBOTS_LIBRARY_PATH = "$(WEBOTS_HOME)/lib/controller;$(WEBOTS_HOME)/msys64/mingw64/bin"
+QT_PLUGIN_PATH = "$(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins"
 '@
 Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
 
