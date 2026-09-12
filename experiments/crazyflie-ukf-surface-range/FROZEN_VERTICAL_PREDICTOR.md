@@ -38,6 +38,7 @@ The input schema is `webeeblocks.x3.vertical-predictor-input.v1`:
     "specific_force_error_g": 0.0,
     "max_body_z_tilt_deg": 0.0,
     "initial_velocity_error_m_s": 0.0,
+    "intersample_acceleration_error_m_s2": 0.0,
     "barometer_displacement_error_m": 0.0,
     "sensor_time_error_s": 0.0,
     "delivery_latency_error_s": 0.0
@@ -50,6 +51,8 @@ physical bounds**. Every bound must be justified and frozen before a confirmatio
 capture; event outcomes must never be used to narrow it. The result always keeps
 `declared_bounds_validated:false` and `sensor_producer_timing_validated:false`.
 A controller or human verdict must validate the bound provenance separately.
+The metric-reference validation flags are accepted only as actual JSON booleans;
+malformed truthy values fail closed rather than being coerced into validation.
 
 The supplied metric-reference result must be
 `webeeblocks.x3.metric-reference-result.v1 / COMPUTED_CONDITIONAL`, and its
@@ -87,11 +90,22 @@ event interval, then the resulting acceleration envelope is integrated from an
 initial velocity interval
 `[-initial_velocity_error_m_s, +initial_velocity_error_m_s]`.
 
+Retained rows alone do not prove the continuous acceleration between samples.
+`intersample_acceleration_error_m_s2` is therefore an external deterministic
+bound on the absolute difference, at every instant in the admissible replay span,
+between the actual world-vertical acceleration and the piecewise-linear bounded
+acceleration reconstructed from retained rows. For an admissible span of duration
+`T`, the inertial displacement interval is widened by
+`0.5 * intersample_acceleration_error_m_s2 * T²` on both sides. This is deliberately
+conservative and remains conditional on the declared intersample bound being
+valid; the capture gap limit alone is not treated as such a bound.
+
 For uncertain event/log timing, the integration anchor is the **lower supplied
 endpoint**, never a hidden midpoint. A conservative timing-sensitivity allowance
 covers the remaining start/end interval and declared sensor-time error using the
-maximum acceleration envelope over the admissible span. This is conditional
-arithmetic, not proof that Crazyflie log timestamps are sensor-producer times.
+maximum acceleration envelope over the admissible span, including rows needed to
+bracket off-grid admissible boundaries. This is conditional arithmetic, not proof
+that Crazyflie log timestamps are sensor-producer times.
 
 This deliberately does not integrate estimator attitude or `stateEstimate.vz`.
 A later candidate may use a more informative raw-gyro/attitude model only if its
@@ -109,8 +123,10 @@ The result reports two preregistered budget checks only:
 
 - `conditional_half_width_within_5cm`: the overlapping interval has half-width at
   most 5 cm, conditional on all declared bounds being valid;
-- `conditional_latency_within_1s`: the fixed B+ endpoint (0.75 s after the
-  transition) plus declared timing/delivery allowances is at most 1 s.
+- `conditional_latency_within_1s`: relative to the earliest admissible event end,
+  the upper latency includes the complete retained event-end interval width, the
+  fixed B+ acquisition endpoint (`POST_DELAY_S + WINDOW_S = 0.75 s`), both declared
+  sensor-time allowances and the declared delivery allowance, and is at most 1 s.
 
 These are **not** physical PASS/FAIL. In particular, interval half-width is not an
 error measurement against the external metric reference, and the latency is not
@@ -129,18 +145,20 @@ The file entry point hash-binds all three inputs, refuses path escape and existi
 output overwrite, aligns IMU to the first barometer Crazyflie log timestamp, and
 fails closed on malformed/non-finite data, clock reversal, barometer gaps over
 40 ms or IMU gaps over 50 ms. The synthetic controls verify signed replay,
-conditional-bound widening, sensor disagreement, interval timing without
-midpoint selection, source/digest binding and rejection of optimistic/invalid
-inputs. They are component tests, not physical evidence.
+conditional-bound widening, sensor disagreement, negative-prefix clock alignment,
+interval timing without midpoint selection, off-grid timing brackets, malformed
+validation flags, intersample displacement allowance, widened-end latency,
+source/digest binding and rejection of optimistic/invalid inputs. They are
+component tests, not physical evidence.
 
 ## Remaining boundary
 
 This component freezes the sensor predictor mechanics but does **not** validate
-its declared bounds, physical-reference annotations, affine clock assumption or
-sensor-producer timing. It also does not estimate terrain Δh, validate the mixed
-case against a physical reference, publish raw physical evidence, prepare a human
-checkpoint, flash firmware, retune #251, alter Runtime/controller behavior or
-authorize motorized testing.
+its declared error, tilt, intersample or timing bounds, physical-reference
+annotations, affine clock assumption or sensor-producer timing. It also does not
+estimate terrain Δh, validate the mixed case against a physical reference, publish
+raw physical evidence, prepare a human checkpoint, flash firmware, retune #251,
+alter Runtime/controller behavior or authorize motorized testing.
 
 Before a new `TEST_REQUIRED` can be justified, the exact props-off support must
 bind this predictor to the retained acquisition/reference inputs, pre-register
