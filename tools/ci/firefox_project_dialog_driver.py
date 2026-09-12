@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes as C
+import json
 from pathlib import Path
 import time
 
@@ -133,16 +134,39 @@ def wait_closed(driver, title, window, deadline):
     raise RuntimeError(f"dialog did not close: {title}")
 
 
+def prepare_invalid_projects(roundtrip: Path, malformed: Path, unsupported: Path, unknown: Path):
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if roundtrip.exists() and roundtrip.stat().st_size:
+            break
+        time.sleep(0.05)
+    else:
+        raise RuntimeError("roundtrip.wbb was not written by Save As")
+    payload = json.loads(roundtrip.read_text(encoding="utf-8"))
+    malformed.write_text("{bad json", encoding="utf-8")
+    bad_version = json.loads(json.dumps(payload))
+    bad_version["version"] = 999
+    unsupported.write_text(json.dumps(bad_version, separators=(",", ":")), encoding="utf-8")
+    bad_activity = json.loads(json.dumps(payload))
+    bad_activity["activity"]["id"] = "unknown-profile"
+    unknown.write_text(json.dumps(bad_activity, separators=(",", ":")), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True)
     parser.add_argument('--timeout', type=float, default=75.0)
     args = parser.parse_args()
     root = Path(args.root)
-    roundtrip = str((root / 'roundtrip.wbb').resolve())
-    malformed = str((root / 'malformed.wbb').resolve())
-    unsupported = str((root / 'unsupported.wbb').resolve())
-    unknown = str((root / 'unknown-activity.wbb').resolve())
+    root.mkdir(parents=True, exist_ok=True)
+    roundtrip_path = (root / 'roundtrip.wbb').resolve()
+    malformed_path = (root / 'malformed.wbb').resolve()
+    unsupported_path = (root / 'unsupported.wbb').resolve()
+    unknown_path = (root / 'unknown-activity.wbb').resolve()
+    roundtrip = str(roundtrip_path)
+    malformed = str(malformed_path)
+    unsupported = str(unsupported_path)
+    unknown = str(unknown_path)
     for value in (roundtrip, malformed, unsupported, unknown):
         if '_' in value or any(c.isupper() for c in value):
             raise RuntimeError('test path must remain lowercase ASCII without underscore')
@@ -166,6 +190,9 @@ def main():
             driver.cancel(window)
         wait_closed(driver, title, window, overall)
         print(f'DIALOG_STEP_OK {index} {action} {title}', flush=True)
+        if index == 4:
+            prepare_invalid_projects(roundtrip_path, malformed_path, unsupported_path, unknown_path)
+            print('INVALID_PROJECT_FIXTURES_READY', flush=True)
     print('FIREFOX_DIALOG_PLAN_COMPLETE', flush=True)
     return 0
 
