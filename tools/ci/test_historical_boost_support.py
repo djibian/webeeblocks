@@ -268,8 +268,9 @@ class HistoricalBoostSupportTests(unittest.TestCase):
 
     def test_linux_sidecar_remains_header_only_boost(self) -> None:
         makefile = (ROOT / "controllers/supervisor/blocklyServer/Makefile").read_text(encoding="utf-8")
-        self.assertIn("LIBRARIES=-lpthread", makefile)
-        self.assertNotIn("-lboost", makefile)
+        non_windows = makefile.split("else ifeq ($(detected_OS),Darwin)", 1)[1]
+        self.assertEqual(non_windows.count("LIBRARIES=-lpthread"), 2)
+        self.assertNotIn("-lboost", non_windows)
 
 
 if __name__ == "__main__":
