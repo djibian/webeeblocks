@@ -153,9 +153,12 @@ class AcquisitionTests(unittest.TestCase):
 
     def test_complete_acquisition_is_not_a_physical_verdict(self):
         code, result = self.fake_record()
+        start = json.loads((self.root / "capture" / "capture-start.json").read_text())
         self.assertEqual(code, 0)
         self.assertEqual(result["capture_status"], "CAPTURED")
         self.assertIsNone(result["physical_verdict"])
+        self.assertEqual(start["test_profile"], capture.TEST_PROFILE)
+        self.assertEqual(start["test_profile"], "x3-independent-props-off")
         self.assertTrue(all(s["rows"] > 100 for s in result["streams"].values()))
         self.assertEqual(len(list((self.root / "capture").glob("*.csv"))), 4)
 
