@@ -40,6 +40,7 @@ jobs:
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
           python3 tools/ci/test_evidence_publication.py
+          python3 tools/ci/test_historical_boost_support.py
       - name: Select required suites
         id: scope
         run: >-
