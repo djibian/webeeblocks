@@ -79,6 +79,19 @@ EOF
     grep -q "^CONFIG_ESTIMATOR_UKF_ENABLE=y$" build/.config
     grep -q "^CONFIG_ESTIMATOR_UKF=y$" build/.config
     ./tools/build/build UNIT_TEST_STYLE=min
+
+    symbol_count="$(arm-none-eabi-nm -S --defined-only build/cf2.elf | grep -Ec "[[:space:]]bmp3_chip_id$")"
+    test "$symbol_count" -eq 1
+    symbol="$(arm-none-eabi-nm -S --defined-only build/cf2.elf | grep -E "[[:space:]]bmp3_chip_id$")"
+    read -r address size type name <<<"$symbol"
+    test "$name" = "bmp3_chip_id"
+    test "$size" = "00000001"
+    case "$type" in
+      B|b|D|d) ;;
+      *) echo "unexpected bmp3_chip_id symbol type: $type" >&2; exit 1 ;;
+    esac
+    printf "X3_BMP3_CHIP_ID_SYMBOL address=0x%s size=0x%s type=%s name=%s\n" \
+      "$address" "$size" "$type" "$name"
   '
 
   test -s build/cf2.elf
