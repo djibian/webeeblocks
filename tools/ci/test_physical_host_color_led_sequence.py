@@ -82,6 +82,35 @@ class FakeColorTransport:
         return SimpleNamespace(accepted=True, status=0, color=color)
 
 
+class _FakeAmbiguousEffectTransaction:
+    """Faithful emitted-unresolved lifecycle for the host-composition fake domain."""
+
+    def __init__(self, domain: object) -> None:
+        self._domain = domain
+        self._emitted = False
+
+    def __enter__(self):
+        require(
+            type(self._domain) is host.base.FakeExecutionDomain,
+            "ambiguity regression must use the host activation fake execution domain",
+        )
+        require(
+            self._domain.phase == physical_execution_domain.FLYING,
+            "ambiguous fake effect must start from established flying",
+        )
+        return self
+
+    def mark_emitted(self) -> None:
+        require(not self._emitted, "ambiguous fake effect may be emitted only once")
+        self._domain.phase = physical_execution_domain.EFFECT_UNRESOLVED
+        self._emitted = True
+
+    def __exit__(self, exc_type, exc, traceback) -> bool:
+        if self._emitted and self._domain.phase == physical_execution_domain.EFFECT_UNRESOLVED:
+            self._domain.phase = physical_execution_domain.RECOVERY_REQUIRED
+        return False
+
+
 def install_fakes() -> None:
     host.install_fakes()
     host.base.activation.TrustedBottomColorLedTransport = FakeColorTransport
@@ -227,11 +256,11 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
         host.base.EVENTS.append(
             ("inflight-light-ambiguous", color, binding.connection_epoch)
         )
-        # Drive the exact process-wide lifecycle through the same emitted-but-
-        # unresolved boundary as production. Leaving the transaction by
-        # exception must make the domain recovery-required before the host
-        # decides whether the sequence claim is retryable or terminal.
-        with self.execution_domain.effect_transaction(lambda: None) as effect:
+        # Host composition deliberately uses FakeExecutionDomain. Model the
+        # production emitted-unresolved close rule inside a faithful local fake
+        # transaction rather than calling an API that this test double does not
+        # implement or pretending its mutable phase is the production property.
+        with _FakeAmbiguousEffectTransaction(self.execution_domain) as effect:
             effect.mark_emitted()
             raise RuntimeError("injected ambiguous Color LED effect")
 
@@ -252,7 +281,7 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
     require(
         host.base.activation._ACTIVE_RUN.execution_domain.phase
         == physical_execution_domain.RECOVERY_REQUIRED,
-        "emitted unresolved light must leave the exact process-wide domain recovery-required",
+        "emitted unresolved light must leave the faithful fake domain recovery-required",
     )
     ambiguous_events = [
         event
