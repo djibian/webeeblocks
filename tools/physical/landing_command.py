@@ -4,18 +4,22 @@
 This module is deliberately non-authority and emits no CRTP packet. It consumes
 only the exact canonical ``astBinding`` already bound by the trusted physical
 host and derives the one terminal ``land`` statement after validating the whole
-currently supported physical program envelope through
-:class:`physical_program_sequence.PhysicalProgramSequence`.
+currently supported physical program envelope.
+
+For the original flat deterministic slice, ``PhysicalProgramSequence`` remains
+the exact source of the planned terminal altitude. Dynamic control-flow programs
+are also admissible when the conservative pre-takeoff envelope proves that every
+reachable branch has the same terminal nominal altitude. In that path-invariant
+case the landing distance is still derived solely from the immutable teacher-
+bound AST; no runtime sensor value, branch choice or caller-supplied altitude can
+select the landing command. A branch-dependent terminal altitude remains fail
+closed until the trusted host owns completed runtime altitude progression.
 
 The resulting request is the pinned Crazyflie firmware
-``COMMAND_LAND_WITH_VELOCITY`` packet (command 10). The bounded physical slice
-tracks every accepted vertical statement from the exact teacher-bound program as
-a host-owned nominal world-Z state. Landing therefore descends by the exact final
-nominal altitude derived from that immutable AST, rather than assuming the
-original takeoff height still describes the aircraft after vertical effects.
-This deterministically targets the estimator-zero landing level without exposing
-an independent caller-selected landing height. The command preserves current yaw
-and uses the firmware's explicit safe-default 0.5 m/s landing velocity.
+``COMMAND_LAND_WITH_VELOCITY`` packet (command 10). It descends by the exact
+AST-derived terminal nominal altitude, targets the estimator-zero landing level,
+preserves current yaw and uses the firmware's explicit safe-default 0.5 m/s
+landing velocity.
 
 No caller-supplied height, velocity, yaw, raw packet bytes, teacher decision,
 session object or other effect authority is accepted here. A trusted physical-
@@ -29,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import struct
 
+import physical_dynamic_preflight
 import physical_program_sequence
 
 LAND_WITH_VELOCITY_COMMAND = 10
@@ -50,13 +55,32 @@ class BoundLandingCommand:
     request: bytes
 
 
-def derive_bound_landing_command(ast_binding: object) -> BoundLandingCommand:
-    """Derive command 10 solely from the exact supported canonical AST."""
+def _derive_terminal_altitude(ast_binding: object) -> tuple[str, float]:
+    """Return an AST-only terminal altitude, never a runtime-selected value."""
     try:
         sequence = physical_program_sequence.PhysicalProgramSequence(ast_binding)
-        descent_m = sequence.planned_terminal_altitude_m
-    except physical_program_sequence.PhysicalProgramSequenceError as exc:
-        raise LandingCommandError(str(exc)) from exc
+    except physical_program_sequence.PhysicalProgramSequenceError:
+        try:
+            envelope = physical_dynamic_preflight.validate_bound_dynamic_program(
+                ast_binding
+            )
+        except physical_dynamic_preflight.DynamicPhysicalPreflightError as exc:
+            raise LandingCommandError(str(exc)) from exc
+
+        low = envelope.terminal_min_altitude_m
+        high = envelope.terminal_max_altitude_m
+        if low != high:
+            raise LandingCommandError(
+                "dynamic physical program has branch-dependent terminal nominal altitude"
+            )
+        return envelope.ast_binding, low
+
+    return sequence.ast_binding, sequence.planned_terminal_altitude_m
+
+
+def derive_bound_landing_command(ast_binding: object) -> BoundLandingCommand:
+    """Derive command 10 solely from the exact supported canonical AST."""
+    canonical_binding, descent_m = _derive_terminal_altitude(ast_binding)
 
     request = _LAND_PACKET.pack(
         LAND_WITH_VELOCITY_COMMAND,
@@ -68,7 +92,7 @@ def derive_bound_landing_command(ast_binding: object) -> BoundLandingCommand:
         LAND_VELOCITY_M_S,
     )
     return BoundLandingCommand(
-        ast_binding=sequence.ast_binding,
+        ast_binding=canonical_binding,
         descent_m=descent_m,
         request=request,
     )
