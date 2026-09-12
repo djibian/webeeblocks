@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event, Thread
 from types import SimpleNamespace
 import struct
 import sys
@@ -51,6 +52,42 @@ class Packet:
         self.port = port
         self.channel = channel
         self.data = bytearray(data)
+
+
+class CallbackBus:
+    def __init__(self) -> None:
+        self.callbacks: list = []
+
+    def add_callback(self, callback) -> None:
+        if callback not in self.callbacks:
+            self.callbacks.append(callback)
+
+    def remove_callback(self, callback) -> None:
+        if callback in self.callbacks:
+            self.callbacks.remove(callback)
+
+    def call(self, value) -> None:
+        for callback in tuple(self.callbacks):
+            callback(value)
+
+
+class GateLock:
+    """Deterministically hold callback processing after entry freshness capture."""
+
+    def __init__(self) -> None:
+        self.entered = Event()
+        self.release = Event()
+
+    def __enter__(self):
+        self.entered.set()
+        require(
+            self.release.wait(1.0),
+            "threaded stale callback was not released",
+        )
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> bool:
+        return False
 
 
 class Platform:
@@ -115,6 +152,7 @@ class FakeCrazyflie:
         self.param = SimpleNamespace(
             toc=ParamToc(ParamElement() if element is None else element)
         )
+        self.packet_sent = CallbackBus()
         self.write_reply = write_reply
         self.read_reply = read_reply
         self.stale_write_value = stale_write_value
@@ -150,7 +188,7 @@ class FakeCrazyflie:
         elif channel == 1 and self.stale_read_value is not None:
             callback(
                 Packet(
-                    struct.pack("<HB L", ident, 0, self.stale_read_value),
+                    struct.pack("<HBL", ident, 0, self.stale_read_value),
                     port=port,
                     channel=channel,
                 )
@@ -179,17 +217,21 @@ class FakeCrazyflie:
         if packet.channel == 2:
             require(len(data) == 6, "write request must be exact uint32 PARAM write")
             self.current_value = struct.unpack("<L", data[2:6])[0]
-            if self.write_reply:
-                self._emit_header(Packet(data, port=packet.port, channel=packet.channel))
         elif packet.channel == 1:
             require(len(data) == 2, "read request must carry only exact parameter id")
-            if self.read_reply:
-                reply = data + bytes((0,)) + struct.pack("<L", self.current_value)
-                self._emit_header(
-                    Packet(reply, port=packet.port, channel=packet.channel)
-                )
         else:
             raise AssertionError("unexpected PARAM channel")
+
+        # Match pinned cflib: packet_sent is called only after link.send_packet()
+        # returns and before an independently delivered incoming PARAM callback is
+        # accepted by this deterministic fake.
+        self.packet_sent.call(packet)
+
+        if packet.channel == 2 and self.write_reply:
+            self._emit_header(Packet(data, port=packet.port, channel=packet.channel))
+        elif packet.channel == 1 and self.read_reply:
+            reply = data + bytes((0,)) + struct.pack("<L", self.current_value)
+            self._emit_header(Packet(reply, port=packet.port, channel=packet.channel))
 
 
 def packet_factory(channel: int, data: bytes):
@@ -205,7 +247,13 @@ def unique(label: str) -> str:
     return f"color-{label}-{_counter}"
 
 
-def state(*, blocking_fault=False, is_flying=True, hl_control_active=True, hl_traj_finished=True):
+def state(
+    *,
+    blocking_fault=False,
+    is_flying=True,
+    hl_control_active=True,
+    hl_traj_finished=True,
+):
     return SimpleNamespace(
         bitfield=0,
         blocking_fault=blocking_fault,
@@ -368,6 +416,64 @@ def test_success_is_one_write_then_fresh_readback_without_retry() -> None:
         fixture.close()
 
 
+def _prove_callback_started_before_send_stays_stale(*, channel: int) -> None:
+    is_write = channel == 2
+    cf = FakeCrazyflie(write_reply=not is_write, read_reply=is_write)
+    fixture = Fixture("threaded-write" if is_write else "threaded-read", cf)
+    try:
+        if is_write:
+            request = struct.pack("<HL", 0x1234, 0x00FF0000)
+            stale_reply = request
+        else:
+            request = struct.pack("<H", 0x1234)
+            stale_reply = request + bytes((0,)) + struct.pack("<L", 0x00FF0000)
+            cf.current_value = 0x00FF0000
+        packet = packet_factory(channel, request)
+        event = Event()
+        reply_box: list[bytes | None] = [None]
+        gate = GateLock()
+        listener = fixture.transport._listen_for_param(
+            channel,
+            request[:2],
+            packet,
+            event,
+            reply_box,
+            gate,
+        )
+        worker = Thread(
+            target=listener.header_callback,
+            args=(Packet(stale_reply, port=0x02, channel=channel),),
+            daemon=True,
+        )
+        worker.start()
+        require(
+            gate.entered.wait(1.0),
+            "stale callback must enter before the current send",
+        )
+
+        # This exact send advances packet_sent only after the stale callback has
+        # already snapshotted freshness=False. The callback resumes afterwards.
+        cf.send_packet(packet)
+        gate.release.set()
+        worker.join(timeout=1.0)
+        require(not worker.is_alive(), "stale callback must finish deterministically")
+        require(
+            not event.is_set() and reply_box[0] is None,
+            "pre-send callback must not become fresh after packet_sent",
+        )
+        fixture.transport._remove_listener(listener)
+    finally:
+        fixture.close()
+
+
+def test_threaded_pre_emission_write_reply_cannot_authorize_effect() -> None:
+    _prove_callback_started_before_send_stays_stale(channel=2)
+
+
+def test_threaded_pre_emission_read_reply_cannot_prove_completion() -> None:
+    _prove_callback_started_before_send_stays_stale(channel=1)
+
+
 def test_pre_emission_matching_write_reply_cannot_authorize_effect() -> None:
     cf = FakeCrazyflie(
         write_reply=False,
@@ -406,6 +512,28 @@ def test_pre_emission_matching_read_reply_cannot_prove_completion() -> None:
         require(
             fixture.domain.phase == execution.RECOVERY_REQUIRED,
             "missing fresh readback after accepted write requires recovery",
+        )
+    finally:
+        fixture.close()
+
+
+def test_ambiguous_readback_poison_blocks_same_epoch_reuse() -> None:
+    cf = FakeCrazyflie(write_reply=True, read_reply=False)
+    fixture = Fixture("read-poison", cf)
+    try:
+        expect_error(
+            lambda: fixture.transport.send_color(color="red"),
+            execution.PhysicalExecutionDomainError,
+            "fresh effect-completion proof failed",
+        )
+        require(
+            fixture.domain.phase == execution.RECOVERY_REQUIRED,
+            "ambiguous readback must require physical recovery",
+        )
+        expect_error(
+            lambda: HostBoundColorTransport(**fixture.kwargs),
+            color.ColorLedTransportError,
+            "poisoned",
         )
     finally:
         fixture.close()
@@ -472,15 +600,18 @@ def test_toc_identity_and_type_fail_before_effect() -> None:
 def main() -> int:
     test_exact_palette_mapping()
     test_success_is_one_write_then_fresh_readback_without_retry()
+    test_threaded_pre_emission_write_reply_cannot_authorize_effect()
+    test_threaded_pre_emission_read_reply_cannot_prove_completion()
     test_pre_emission_matching_write_reply_cannot_authorize_effect()
     test_pre_emission_matching_read_reply_cannot_prove_completion()
+    test_ambiguous_readback_poison_blocks_same_epoch_reuse()
     test_write_listener_cleanup_failure_cannot_strand_completion_permit()
     test_direct_importable_core_has_no_positive_provenance_path()
     test_toc_identity_and_type_fail_before_effect()
     print(
         "PASS trusted bottom Color LED transport keeps exact palette/TOC authority, "
-        "uses one no-retry write plus causal readback, rejects pre-emission stale replies, "
-        "and cannot strand an accepted-effect completion permit"
+        "uses one no-retry write plus causal readback, classifies callback freshness at exact packet_sent, "
+        "poisons ambiguous same-epoch readback, and cannot strand an accepted-effect completion permit"
     )
     return 0
 
