@@ -8,6 +8,12 @@ EXPECTED_BLOB=57c0e8405c07b63a29538019895ed17d0a379440
 APPLICATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py"
 DISCRIMINATOR="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py"
 TIMING_OBSERVER="$ROOT/experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py"
+VERTICAL_PREDICTOR_TEST="$ROOT/experiments/crazyflie-ukf-surface-range/test_frozen_vertical_predictor.py"
+
+# Changes anywhere under this experiment select the S3 oracle. Keep the new
+# offline X3 predictor's executable contract inside that same selected evidence
+# path so a green exact-candidate CI actually exercises the added calculation.
+python3 "$VERTICAL_PREDICTOR_TEST"
 
 test -d "$UPSTREAM/.git"
 test "$(git -C "$UPSTREAM" rev-parse HEAD)" = "$EXPECTED_COMMIT"
@@ -86,4 +92,4 @@ EOF
   find build -type f -name 'estimator_ukf.o' -size +0c -print -quit | grep -q .
 )
 
-printf '%s\n' "PASS: exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and reset-safe timing observer applied and UKF-enabled cf2 firmware built."
+printf '%s\n' "PASS: X3 vertical replay controls passed; exact Crazyflie 2026.08 S3 source plus VZ/BARO/BOTH discriminator and reset-safe timing observer applied and UKF-enabled cf2 firmware built."
