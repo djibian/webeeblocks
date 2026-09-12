@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 PREPARER_PATH = ROOT / "tools/ci/prepare_historical_boost.py"
@@ -60,6 +61,48 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 subject.verify_tree(root)
             header.write_text("#define BOOST_VERSION 107400\n", encoding="utf-8")
             subject.verify_tree(root)
+
+    def test_existing_tree_is_rebuilt_from_verified_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = root / subject.PACKAGE_NAME
+            archive.write_bytes(b"test archive")
+            output = root / "boost-1.74"
+            boost = output / "usr/include/boost"
+            boost.mkdir(parents=True)
+            (boost / "version.hpp").write_text(
+                "#define BOOST_VERSION 107400\n", encoding="utf-8"
+            )
+            stale = boost / "asio/version.hpp"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("stale-tree-bytes\n", encoding="utf-8")
+
+            def fake_extract(command, *, check):
+                self.assertTrue(check)
+                self.assertEqual(command[:2], ["dpkg-deb", "-x"])
+                prepared = Path(command[3])
+                fresh = prepared / "usr/include/boost"
+                fresh.mkdir(parents=True, exist_ok=True)
+                (fresh / "version.hpp").write_text(
+                    "#define BOOST_VERSION 107400\n", encoding="utf-8"
+                )
+                replacement = fresh / "asio/version.hpp"
+                replacement.parent.mkdir(parents=True, exist_ok=True)
+                replacement.write_text("fresh-verified-tree\n", encoding="utf-8")
+                return mock.Mock(returncode=0)
+
+            with mock.patch.object(subject, "verify_archive") as verify_archive, mock.patch.object(
+                subject.subprocess, "run", side_effect=fake_extract
+            ) as extract:
+                result = subject.prepare(output, archive)
+
+            verify_archive.assert_called_once_with(archive.resolve())
+            extract.assert_called_once()
+            self.assertEqual(result, output.resolve())
+            self.assertEqual(
+                (output / "usr/include/boost/asio/version.hpp").read_text(encoding="utf-8"),
+                "fresh-verified-tree\n",
+            )
 
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")

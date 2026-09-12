@@ -2,10 +2,10 @@
 """Prepare the exact Boost 1.74 header closure used by historical Webots CI.
 
 This helper deliberately does not use apt metadata, ambient package resolution or
-network download fallback.  It accepts only one already-provisioned exact Ubuntu
+network download fallback. It accepts only one already-provisioned exact Ubuntu
 Jammy archive, verifies byte size and SHA-256, extracts it with dpkg-deb, and
-verifies the Boost version header before exposing it to the pinned Webots R2025a
-build container.  A missing support archive fails closed.
+reconstructs the exposed support tree from that verified archive before every
+use. A missing support archive fails closed.
 """
 
 from __future__ import annotations
@@ -54,24 +54,43 @@ def verify_tree(root: Path) -> None:
         raise SupportError("extracted Boost version is not exactly 1.74.0")
 
 
+def _replace_tree(output: Path, prepared: Path) -> None:
+    """Expose only the freshly extracted tree, restoring the prior tree on failure."""
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        raise SupportError("Boost support output is not a replaceable directory")
+
+    previous: Path | None = None
+    if output.exists():
+        previous = Path(
+            tempfile.mkdtemp(prefix=output.name + ".previous.", dir=output.parent)
+        )
+        previous.rmdir()
+        output.replace(previous)
+    try:
+        prepared.replace(output)
+    except Exception:
+        if previous is not None and previous.exists() and not output.exists():
+            previous.replace(output)
+        raise
+    if previous is not None and previous.exists():
+        shutil.rmtree(previous)
+
+
 def prepare(output: Path, archive: Path | None = None) -> Path:
     output = output.resolve()
     package = archive.resolve() if archive is not None else output.parent / PACKAGE_NAME
     verify_archive(package)
 
-    if output.exists():
-        verify_tree(output)
-        return output
-
     output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix=output.name + ".", dir=output.parent))
+    temporary = Path(tempfile.mkdtemp(prefix=output.name + ".fresh.", dir=output.parent))
     try:
         subprocess.run(["dpkg-deb", "-x", str(package), str(temporary)], check=True)
         verify_tree(temporary)
-        temporary.replace(output)
+        _replace_tree(output, temporary)
     finally:
         if temporary.exists():
             shutil.rmtree(temporary)
+    verify_tree(output)
     return output
 
 
