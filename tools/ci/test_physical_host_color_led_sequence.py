@@ -227,9 +227,12 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
         host.base.EVENTS.append(
             ("inflight-light-ambiguous", color, binding.connection_epoch)
         )
-        with self.execution_domain.effect_transaction(lambda: None) as effect:
-            effect.mark_emitted()
-            raise RuntimeError("injected ambiguous Color LED effect")
+        # The production execution domain moves to recovery-required after an
+        # emitted unresolved effect. This host-composition fake models that
+        # established postcondition directly; the execution-domain lifecycle is
+        # covered independently by its dedicated deterministic contract tests.
+        self.execution_domain.phase = physical_execution_domain.RECOVERY_REQUIRED
+        raise RuntimeError("injected ambiguous Color LED effect")
 
     FakeColorTransport.send_color = ambiguous
     try:
