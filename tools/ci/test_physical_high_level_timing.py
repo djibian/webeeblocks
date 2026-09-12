@@ -41,13 +41,17 @@ duration = policy.horizontal_move_duration(0.5)
 close(duration, (35.0 / 16.0) * 5.0)
 close(timing.REST_TO_REST_PEAK_FACTOR * 0.5 / duration, 0.1)
 
-vertical_duration = policy.vertical_move_duration(0.5)
-close(
-    timing.REST_TO_REST_PEAK_FACTOR * 0.5 / vertical_duration,
-    timing.MAX_VERTICAL_SPEED_M_S,
-)
+vertical_durations: dict[float, float] = {}
+for distance in (0.1, 0.5, 0.8):
+    vertical_duration = policy.vertical_move_duration(distance)
+    vertical_durations[distance] = vertical_duration
+    close(
+        timing.REST_TO_REST_PEAK_FACTOR * distance / vertical_duration,
+        timing.MAX_VERTICAL_SPEED_M_S,
+    )
 policy.set_horizontal_speed(0.35)
-close(policy.vertical_move_duration(0.5), vertical_duration)
+for distance, vertical_duration in vertical_durations.items():
+    close(policy.vertical_move_duration(distance), vertical_duration)
 
 turn_90 = policy.turn_duration(90.0)
 close(
