@@ -31,6 +31,7 @@ public:
   virtual OpenFileResult open() = 0;
   virtual SaveFileResult saveAs(const std::string &suggestedName, const std::string &bytes) = 0;
   virtual SaveFileResult save(const std::string &reference, const std::string &bytes) = 0;
+  virtual void release(const std::string &reference) = 0;
 };
 
 std::unique_ptr<FileDialogProvider> createQtFileDialogProvider();
