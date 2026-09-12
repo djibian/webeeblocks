@@ -10,6 +10,7 @@ PHYSICAL = ROOT / "tools/physical"
 if str(PHYSICAL) not in sys.path:
     sys.path.insert(0, str(PHYSICAL))
 
+import landing_command  # noqa: E402
 import takeoff_command  # noqa: E402
 from physical_dynamic_preflight import (  # noqa: E402
     DynamicPhysicalPreflightError,
@@ -39,6 +40,15 @@ def expect_error(program: list[dict[str, object]], pattern: str) -> None:
         require(pattern in str(exc), f"expected {pattern!r} in {str(exc)!r}")
         return
     raise AssertionError("expected DynamicPhysicalPreflightError containing " + repr(pattern))
+
+
+def expect_landing_error(program: list[dict[str, object]], pattern: str) -> None:
+    try:
+        landing_command.derive_bound_landing_command(canonical(program))
+    except landing_command.LandingCommandError as exc:
+        require(pattern in str(exc), f"expected {pattern!r} in {str(exc)!r}")
+        return
+    raise AssertionError("expected LandingCommandError containing " + repr(pattern))
 
 
 def number(value: float) -> dict[str, object]:
@@ -89,6 +99,30 @@ def representative_dynamic_program() -> list[dict[str, object]]:
     ]
 
 
+def path_invariant_dynamic_program() -> list[dict[str, object]]:
+    ref = variable("front", "front")
+    return [
+        {"kind": "takeoff", "height_m": 0.8},
+        {
+            "kind": "set_variable",
+            "variable": ref,
+            "value": {"kind": "range", "direction": "front", "unit": "m"},
+        },
+        {
+            "kind": "if",
+            "condition": {
+                "kind": "compare",
+                "op": "LT",
+                "left": {"kind": "variable_get", "variable": ref},
+                "right": number(1.0),
+            },
+            "then": [{"kind": "move", "direction": "left", "distance_m": 0.2}],
+            "else": [{"kind": "turn", "angle_deg": 45.0}],
+        },
+        {"kind": "land"},
+    ]
+
+
 def test_representative_dynamic_program_is_proven_conservatively() -> None:
     binding = canonical(representative_dynamic_program())
     envelope = validate_bound_dynamic_program(binding)
@@ -100,6 +134,38 @@ def test_representative_dynamic_program_is_proven_conservatively() -> None:
         abs(envelope.terminal_min_altitude_m - 0.7) < 1e-12
         and envelope.terminal_max_altitude_m == 1.0,
         "terminal reachable altitude interval is wrong",
+    )
+
+
+def test_path_invariant_dynamic_landing_remains_ast_derived() -> None:
+    binding = canonical(path_invariant_dynamic_program())
+    command = landing_command.derive_bound_landing_command(binding)
+    require(command.ast_binding == binding, "dynamic landing lost exact AST provenance")
+    require(command.descent_m == 0.8, "altitude-neutral dynamic branches changed landing descent")
+
+    balanced = canonical(
+        [
+            {"kind": "takeoff", "height_m": 0.8},
+            {
+                "kind": "if",
+                "condition": number(1.0),
+                "then": [{"kind": "vertical", "direction": "up", "distance_m": 0.2}],
+                "else": [{"kind": "vertical", "direction": "up", "distance_m": 0.2}],
+            },
+            {"kind": "land"},
+        ]
+    )
+    balanced_command = landing_command.derive_bound_landing_command(balanced)
+    require(
+        balanced_command.descent_m == 1.0,
+        "equal terminal dynamic branches must derive their shared AST-only altitude",
+    )
+
+
+def test_branch_dependent_dynamic_landing_fails_closed() -> None:
+    expect_landing_error(
+        representative_dynamic_program(),
+        "branch-dependent terminal nominal altitude",
     )
 
 
@@ -265,6 +331,8 @@ def test_noncanonical_or_malformed_binding_fails_closed() -> None:
 
 def main() -> int:
     test_representative_dynamic_program_is_proven_conservatively()
+    test_path_invariant_dynamic_landing_remains_ast_derived()
+    test_branch_dependent_dynamic_landing_fails_closed()
     test_any_unsafe_if_branch_rejects_before_effect()
     test_repeat_expands_the_full_altitude_path()
     test_nested_flight_boundaries_and_unknown_statements_fail_closed()
@@ -273,7 +341,8 @@ def main() -> int:
     test_noncanonical_or_malformed_binding_fails_closed()
     print(
         "PASS dynamic physical preflight: every reachable control-flow path "
-        "stays inside integrated action and altitude bounds before effect"
+        "stays inside integrated action and altitude bounds before effect; path-invariant "
+        "dynamic terminal landing remains AST-derived and branch-dependent altitude fails closed"
     )
     return 0
 
