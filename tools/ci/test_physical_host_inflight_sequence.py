@@ -301,7 +301,7 @@ def test_exact_wait_pacer_uses_monotonic_slices_and_no_effect_surface() -> None:
         clock=clock,
         sleeper=clock.sleep,
     )
-    require(sum(clock.sleeps) >= 0.12, "wait cannot complete before full exact duration")
+    require(clock.value >= 10.0 + 0.12, "wait cannot complete before its monotonic deadline")
     require(all(0 < value <= 0.05 for value in clock.sleeps), "wait checks liveness in bounded slices")
     require(guard.assertions >= 3, "watchdog liveness is checked throughout exact wait")
 
