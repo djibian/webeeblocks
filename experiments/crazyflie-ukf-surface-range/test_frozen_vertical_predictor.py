@@ -108,6 +108,20 @@ class PredictorTests(unittest.TestCase):
         self.assertIsNone(event["conditional_delta_z_interval_m"])
         self.assertFalse(event["conditional_half_width_within_5cm"])
 
+    def test_imu_prefix_before_barometer_origin_uses_signed_modular_alignment(self):
+        baro, imu, _pose, _spec, _reference = fixture()
+        text = imu.decode().splitlines()
+        rows = [text[0]]
+        for line in text[1:]:
+            fields = line.split(',')
+            fields[0] = str((int(fields[0]) - 10) % predictor.MODULUS)
+            rows.append(','.join(fields))
+        lead_imu = ('\n'.join(rows) + '\n').encode()
+        _barometer, aligned_imu = predictor.read_sources(baro, lead_imu)
+        self.assertAlmostEqual(aligned_imu[0][0], -0.01)
+        self.assertAlmostEqual(aligned_imu[1][0], 0.0)
+        self.assertTrue(all(left[0] < right[0] for left, right in zip(aligned_imu, aligned_imu[1:])))
+
     def test_calibration_and_event_constraints_reject_optimism(self):
         baro, imu, _pose, spec, reference = fixture()
         streams = predictor.read_sources(baro, imu)

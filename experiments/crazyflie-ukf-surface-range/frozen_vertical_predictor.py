@@ -58,7 +58,7 @@ def unwrap_rows(raw: bytes, required: tuple[str, ...], origin_stamp: int | None 
     if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames) or not required_headers <= set(reader.fieldnames):
         raise ValueError("required capture columns missing")
     parsed = []
-    previous_stamp = previous_host = None
+    previous_stamp = previous_host = previous_elapsed_ms = None
     for row in reader:
         if None in row or any(value is None for value in row.values()):
             raise ValueError("malformed CSV row")
@@ -78,11 +78,14 @@ def unwrap_rows(raw: bytes, required: tuple[str, ...], origin_stamp: int | None 
                 raise ValueError("capture gap exceeds frozen replay limit")
         if origin_stamp is None:
             origin_stamp = stamp
-        elapsed_ms = (stamp - origin_stamp) % MODULUS
-        if elapsed_ms >= MODULUS // 2:
+        elapsed_mod_ms = (stamp - origin_stamp) % MODULUS
+        if elapsed_mod_ms == MODULUS // 2:
+            raise ValueError("source cannot be aligned to the barometer clock origin")
+        elapsed_ms = elapsed_mod_ms if elapsed_mod_ms < MODULUS // 2 else elapsed_mod_ms - MODULUS
+        if previous_elapsed_ms is not None and elapsed_ms <= previous_elapsed_ms:
             raise ValueError("source cannot be aligned to the barometer clock origin")
         parsed.append((elapsed_ms / 1000.0, host, values))
-        previous_stamp, previous_host = stamp, host
+        previous_stamp, previous_host, previous_elapsed_ms = stamp, host, elapsed_ms
     if not parsed:
         raise ValueError("empty required capture stream")
     return origin_stamp, parsed
