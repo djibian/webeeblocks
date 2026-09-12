@@ -243,7 +243,9 @@ def test_wait_bounds_match_authoritative_semantic_ast() -> None:
     require(sequence.MIN_WAIT_SECONDS == 0.1, "physical wait minimum must match Runtime v2")
     require(sequence.MAX_WAIT_SECONDS == 5.0, "physical wait maximum must match Runtime v2")
     sequence.PhysicalProgramSequence(wait_ast(sequence.MIN_WAIT_SECONDS))
-    sequence.PhysicalProgramSequence(wait_ast(sequence.MAX_WAIT_SECONDS))
+    # JSON.stringify serializes the integer-valued Number 5.0 as 5; keep this
+    # fixture byte-canonical while exercising the exact same maximum bound.
+    sequence.PhysicalProgramSequence(wait_ast(int(sequence.MAX_WAIT_SECONDS)))
 
 
 def test_exact_canonical_ast_and_flight_boundaries_are_required() -> None:
