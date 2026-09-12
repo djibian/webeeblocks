@@ -1,24 +1,34 @@
 #!/usr/bin/env python3
 """Trusted one-shot bottom Color LED effect for the physical Crazyflie.
 
-This module is a deliberately narrow physical-effect surface for issue #340.
+This module is the deliberately narrow physical-effect surface for issue #340.
 It accepts only the existing backend-neutral ``set_light(color)`` palette and
-writes only the exact bottom Color LED parameter ``colorLedBot.wrgb8888``.
-There is no generic parameter-write API and no browser/caller-selected parameter
-name, id or packed value.
+writes only the exact bottom Color LED parameter ``colorLedBot.wrgb8888``. There
+is no generic parameter-write API and no browser/caller-selected parameter name,
+id or packed value.
 
-The normal cflib ``Param.set_value()`` path is intentionally not used here: it
-queues writes through the generic parameter updater and may ask ``send_packet``
-to resend while waiting for an expected reply. The trusted path instead emits
-one direct PARAM write after live SafeLink, teacher, powered-session, watchdog,
-current-program and process-wide effect-exclusion checks. The exact pinned cflib
-``packet_sent`` callback establishes the post-link-send receive boundary: a
-PARAM callback snapshots that exact packet's sent state at callback entry, before
-it can block on reply processing. A protocol-v2 valid write must then echo the
-exact two-byte parameter id plus value. Any post-send uncertainty poisons the
-whole Color-LED PARAM connection epoch. A positive write acknowledgement is
-completed only by a fresh direct PARAM read of the same exact id/value on the
-same live run.
+The normal cflib ``Param.set_value()`` path is intentionally not used: it queues
+writes through the generic parameter updater and may use ``expected_reply``
+resends. The trusted path emits exactly one direct PARAM write for the selected
+light effect.
+
+Pinned Crazyradio/cflib does not expose an on-air transmit callback:
+``Crazyflie.packet_sent`` fires after the radio driver has only queued a packet
+for a later exchange. Freshness therefore uses a causal PARAM receive fence
+instead. Before every effect, while the Color-LED PARAM epoch lock is held, the
+host reads a never-before-requested unused parameter id and requires the exact
+firmware ``ENOENT`` response. On the pinned radio, firmware PARAM task and CRTP
+TX FIFO paths, that unique response is causally downstream of all older PARAM
+replies. Only after the fence completes may the exact target write listener be
+installed. This prevents a delayed same-id reply from an older transaction from
+becoming authority merely because the current request has been queued locally.
+The fence id is never reused in the same connection epoch.
+
+A valid protocol-v2 write then echoes the exact two-byte parameter id plus value.
+After that exact acknowledgement, a direct same-id read must return the intended
+WRGB value before the execution domain returns to ``FLYING``. Fence, write or
+readback uncertainty poisons Color-LED PARAM freshness for the whole connection
+epoch, so the exact run cannot successfully retry through delayed evidence.
 
 The class owns no current-program source. As with the SETPOINT_HL transport, the
 base ``_read_current_binding`` hook fails closed and production must supply a
@@ -28,9 +38,10 @@ host-local lexical subclass that closes over the one trusted physical bridge.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import errno
 import math
 import struct
-from threading import Event, Lock, RLock
+from threading import Event, Lock
 from time import monotonic
 from typing import Callable
 
@@ -49,6 +60,7 @@ _PARAM_PYTYPE = "<L"
 _WRITE_REQUEST_SIZE = 6
 _READ_REQUEST_SIZE = 2
 _READ_REPLY_SIZE = 7
+_FENCE_REPLY_SIZE = 3
 _DEFAULT_REPLY_TIMEOUT_SECONDS = 0.2
 _WAIT_SLICE_SECONDS = 0.01
 
@@ -64,6 +76,7 @@ _COLOR_TO_WRGB = {
 _ACK_STATE_LOCK = Lock()
 _ACK_POISONED_EPOCHS: dict[str, str] = {}
 _ACK_LOCKS: dict[str, Lock] = {}
+_FENCE_USED_IDS: dict[str, set[int]] = {}
 
 
 class ColorLedTransportError(RuntimeError):
@@ -126,8 +139,29 @@ def _ack_lock(epoch: str) -> Lock:
         return lock
 
 
+def _reserve_fence_id(epoch: str, lookup_by_id: Callable[[int], object]) -> int:
+    """Reserve one absent parameter id that has never been requested this epoch."""
+    with _ACK_STATE_LOCK:
+        used = _FENCE_USED_IDS.setdefault(epoch, set())
+        for candidate in range(0xFFFF, -1, -1):
+            if candidate in used:
+                continue
+            try:
+                element = lookup_by_id(candidate)
+            except Exception as exc:
+                raise ColorLedTransportError(
+                    "live parameter TOC id lookup failed for freshness fence"
+                ) from exc
+            if element is None:
+                used.add(candidate)
+                return candidate
+    raise ColorLedTransportError(
+        "no unused parameter id is available for Color LED freshness fence"
+    )
+
+
 class _ColorParamAckDomain:
-    """Pure exact-reply freshness/serialization for one connection epoch."""
+    """Exact-reply serialization and poison state for one connection epoch."""
 
     def __init__(self, connection_epoch_reader: Callable[[], str]) -> None:
         self._reader = _require_callable(
@@ -274,7 +308,6 @@ class ColorLedEffectResult:
 @dataclass(frozen=True, slots=True)
 class _ParamListener:
     header_callback: Callable[[object], None]
-    sent_callback: Callable[[object], None]
     channel: int
 
 
@@ -320,7 +353,7 @@ def _default_packet_factory(channel: int, data: bytes) -> object:
 
 
 class TrustedBottomColorLedTransport:
-    """Exact teacher-bound bottom Color LED effect with one-shot PARAM write."""
+    """Exact teacher-bound bottom Color LED effect with one direct PARAM write."""
 
     def __init__(
         self,
@@ -366,6 +399,11 @@ class TrustedBottomColorLedTransport:
             is not watchdog_liveness.EmergencyWatchdogLivenessGuard
         ):
             raise ColorLedTransportError("exact active watchdog guard is required")
+        uri = getattr(crazyflie, "link_uri", None)
+        if not isinstance(uri, str) or not uri.startswith("radio://"):
+            raise ColorLedTransportError(
+                "Color LED causal PARAM fence requires the pinned radio:// transport"
+            )
 
         self._cf = crazyflie
         self._execution = execution_domain
@@ -393,15 +431,6 @@ class TrustedBottomColorLedTransport:
         self._remove_header_callback = _require_callable(
             getattr(crazyflie, "remove_header_callback", None),
             "Crazyflie remove_header_callback",
-        )
-        packet_sent = getattr(crazyflie, "packet_sent", None)
-        self._add_packet_sent_callback = _require_callable(
-            getattr(packet_sent, "add_callback", None),
-            "Crazyflie packet_sent.add_callback",
-        )
-        self._remove_packet_sent_callback = _require_callable(
-            getattr(packet_sent, "remove_callback", None),
-            "Crazyflie packet_sent.remove_callback",
         )
 
         epoch = _read_epoch(self._epoch_reader)
@@ -522,6 +551,13 @@ class TrustedBottomColorLedTransport:
     def _assert_completion_authority(self) -> None:
         self._assert_run_binding(require_flying=False)
 
+    def _live_toc(self) -> object:
+        param = getattr(self._cf, "param", None)
+        toc = getattr(param, "toc", None)
+        if toc is None:
+            raise ColorLedTransportError("live parameter TOC is unavailable")
+        return toc
+
     def _resolve_parameter_id(self) -> int:
         platform = getattr(self._cf, "platform", None)
         getter = getattr(platform, "get_protocol_version", None)
@@ -538,8 +574,7 @@ class TrustedBottomColorLedTransport:
                 "Color LED effect requires CRTP parameter protocol v2"
             )
 
-        param = getattr(self._cf, "param", None)
-        toc = getattr(param, "toc", None)
+        toc = self._live_toc()
         lookup = getattr(toc, "get_element_by_complete_name", None)
         if not callable(lookup):
             raise ColorLedTransportError("live parameter TOC is unavailable")
@@ -587,6 +622,15 @@ class TrustedBottomColorLedTransport:
                 "bottom Color LED parameter identity changed"
             )
 
+    def _reserve_fence_param_id(self) -> int:
+        toc = self._live_toc()
+        lookup = getattr(toc, "get_element_by_id", None)
+        if not callable(lookup):
+            raise ColorLedTransportError(
+                "live parameter TOC id lookup is unavailable for freshness fence"
+            )
+        return _reserve_fence_id(self._bound_connection_epoch, lookup)
+
     def _make_packet(self, channel: int, data: bytes) -> object:
         packet = self._packet_factory(channel, data)
         if getattr(packet, "port", None) != _PARAM_PORT:
@@ -632,55 +676,24 @@ class TrustedBottomColorLedTransport:
         self,
         channel: int,
         param_id_prefix: bytes,
-        packet: object,
         event: Event,
         reply_box: list[bytes | None],
-        processing_lock: object,
     ) -> _ParamListener:
-        sent = Event()
-
-        def sent_callback(sent_packet: object) -> None:
-            # Pinned cflib invokes packet_sent with the exact packet object only
-            # after link.send_packet(pk). This is the local post-emission marker.
-            if sent_packet is packet:
-                sent.set()
-
         def header_callback(reply_packet: object) -> None:
-            # Snapshot freshness *at callback entry*, before this callback can
-            # block behind the send-side processing lock. A callback that began
-            # before packet_sent can therefore never become fresh merely because
-            # it resumes after the current send.
-            fresh_at_entry = sent.is_set()
-            with processing_lock:
-                if not fresh_at_entry:
-                    return
-                try:
-                    data = bytes(getattr(reply_packet, "data"))
-                except Exception:
-                    return
-                if data[:2] != param_id_prefix:
-                    return
-                if reply_box[0] is None:
-                    reply_box[0] = data
-                    event.set()
-
-        self._add_packet_sent_callback(sent_callback)
-        try:
-            self._add_header_callback(header_callback, _PARAM_PORT, channel)
-        except Exception:
             try:
-                self._remove_packet_sent_callback(sent_callback)
+                data = bytes(getattr(reply_packet, "data"))
             except Exception:
-                pass
-            raise
-        return _ParamListener(
-            header_callback=header_callback,
-            sent_callback=sent_callback,
-            channel=channel,
-        )
+                return
+            if data[:2] != param_id_prefix:
+                return
+            if reply_box[0] is None:
+                reply_box[0] = data
+                event.set()
+
+        self._add_header_callback(header_callback, _PARAM_PORT, channel)
+        return _ParamListener(header_callback=header_callback, channel=channel)
 
     def _remove_listener(self, listener: _ParamListener) -> None:
-        first_error: Exception | None = None
         try:
             self._remove_header_callback(
                 listener.header_callback,
@@ -688,16 +701,62 @@ class TrustedBottomColorLedTransport:
                 listener.channel,
             )
         except Exception as exc:
-            first_error = exc
-        try:
-            self._remove_packet_sent_callback(listener.sent_callback)
-        except Exception as exc:
-            if first_error is None:
-                first_error = exc
-        if first_error is not None:
             raise ColorLedTransportError(
-                "could not remove Color LED PARAM freshness callbacks"
-            ) from first_error
+                "could not remove Color LED PARAM reply callback"
+            ) from exc
+
+    def _establish_receive_fence(self, target_param_id: int) -> None:
+        listener: _ParamListener | None = None
+        try:
+            self._assert_current_authority()
+            self._safelink.assert_ready()
+            self._assert_exact_parameter(target_param_id)
+            fence_id = self._reserve_fence_param_id()
+            if fence_id == target_param_id:
+                raise ColorLedTransportError(
+                    "Color LED freshness fence reused the target parameter id"
+                )
+            request = _param_read_request(fence_id)
+            packet = self._make_packet(_PARAM_READ_CHANNEL, request)
+            event = Event()
+            reply_box: list[bytes | None] = [None]
+            listener = self._listen_for_param(
+                _PARAM_READ_CHANNEL,
+                request,
+                event,
+                reply_box,
+            )
+            self._send_packet(packet)
+            reply = self._wait_for_packet(
+                event,
+                lambda: reply_box[0],
+                context="Color LED PARAM freshness fence",
+            )
+            expected = request + bytes((errno.ENOENT,))
+            if len(reply) != _FENCE_REPLY_SIZE or reply != expected:
+                raise ColorLedTransportError(
+                    "Color LED PARAM freshness fence reply is not exact ENOENT"
+                )
+            self._assert_current_authority()
+            self._safelink.assert_ready()
+            self._assert_exact_parameter(target_param_id)
+            self._remove_listener(listener)
+            listener = None
+        except Exception as exc:
+            _poison_ack_epoch(
+                self._bound_connection_epoch,
+                "Color LED receive fence became ambiguous: " + str(exc),
+            )
+            if listener is not None:
+                try:
+                    self._remove_listener(listener)
+                except Exception:
+                    pass
+            if isinstance(exc, ColorLedTransportError):
+                raise
+            raise ColorLedTransportError(
+                "Color LED PARAM freshness fence failed"
+            ) from exc
 
     def _prove_readback(self, param_id: int, expected_wrgb: int) -> bool:
         listener: _ParamListener | None = None
@@ -707,23 +766,14 @@ class TrustedBottomColorLedTransport:
             request = _param_read_request(param_id)
             packet = self._make_packet(_PARAM_READ_CHANNEL, request)
             event = Event()
-            processing_lock = RLock()
             reply_box: list[bytes | None] = [None]
             listener = self._listen_for_param(
                 _PARAM_READ_CHANNEL,
                 request,
-                packet,
                 event,
                 reply_box,
-                processing_lock,
             )
-
-            # The listener is registered before send, but it accepts a reply only
-            # if pinned cflib has already emitted this exact packet and invoked
-            # packet_sent. Holding processing_lock makes the cross-thread race
-            # deterministic: entry freshness is captured before any later block.
-            with processing_lock:
-                self._send_packet(packet)
+            self._send_packet(packet)
             reply = self._wait_for_packet(
                 event,
                 lambda: reply_box[0],
@@ -748,10 +798,6 @@ class TrustedBottomColorLedTransport:
             listener = None
             return True
         except Exception as exc:
-            # Once the write has been positively acknowledged, any uncertain,
-            # malformed or missing causal readback invalidates PARAM freshness for
-            # the whole epoch. Recovery may proceed, but this same epoch can never
-            # authorize another Color LED effect and consume a delayed old reply.
             _poison_ack_epoch(
                 self._bound_connection_epoch,
                 "Color LED readback became ambiguous: " + str(exc),
@@ -769,21 +815,16 @@ class TrustedBottomColorLedTransport:
         param_id = self._resolve_parameter_id()
         request = _param_write_request(param_id, wrgb)
         packet = self._make_packet(_PARAM_WRITE_CHANNEL, request)
-        event = Event()
-        processing_lock = RLock()
-        reply_box: list[bytes | None] = [None]
         permit = None
 
         with self._ack.transaction(request) as acknowledgement:
-            listener = self._listen_for_param(
-                _PARAM_WRITE_CHANNEL,
-                acknowledgement.param_id_prefix,
-                packet,
-                event,
-                reply_box,
-                processing_lock,
-            )
-            listener_active = True
+            # This unique invalid-id read is the causal receive boundary. It is
+            # intentionally outside the physical effect transaction: the fence
+            # is read-only, while ambiguity still poisons this exact PARAM epoch.
+            self._establish_receive_fence(param_id)
+
+            listener: _ParamListener | None = None
+            listener_active = False
             primary_error: Exception | None = None
             try:
                 with self._execution.effect_transaction(
@@ -791,10 +832,18 @@ class TrustedBottomColorLedTransport:
                     self._safelink.assert_ready,
                     lambda: self._assert_exact_parameter(param_id),
                 ) as effect:
+                    event = Event()
+                    reply_box: list[bytes | None] = [None]
+                    listener = self._listen_for_param(
+                        _PARAM_WRITE_CHANNEL,
+                        acknowledgement.param_id_prefix,
+                        event,
+                        reply_box,
+                    )
+                    listener_active = True
                     effect.mark_emitted()
                     acknowledgement.mark_emitted()
-                    with processing_lock:
-                        self._send_packet(packet)
+                    self._send_packet(packet)
                     reply = self._wait_for_packet(
                         event,
                         lambda: reply_box[0],
@@ -802,10 +851,8 @@ class TrustedBottomColorLedTransport:
                     )
                     acknowledgement.resolve_reply(reply)
 
-                    # All fallible listener cleanup precedes mark_accepted(). If
-                    # cleanup fails, the emitted effect exits unresolved and the
-                    # execution domain moves to RECOVERY_REQUIRED rather than
-                    # stranding the unique completion permit.
+                    # All fallible write-listener cleanup precedes acceptance so
+                    # cleanup failure cannot lose the unique completion permit.
                     self._remove_listener(listener)
                     listener_active = False
                     permit = effect.mark_accepted()
@@ -818,7 +865,7 @@ class TrustedBottomColorLedTransport:
                     )
                 raise
             finally:
-                if listener_active:
+                if listener_active and listener is not None:
                     try:
                         self._remove_listener(listener)
                     except Exception as cleanup_exc:
@@ -830,15 +877,16 @@ class TrustedBottomColorLedTransport:
                             )
                             raise
 
-        if permit is None:
-            raise ColorLedTransportError(
-                "Color LED accepted-effect permit is unavailable"
+            if permit is None:
+                raise ColorLedTransportError(
+                    "Color LED accepted-effect permit is unavailable"
+                )
+            self._execution.complete_accepted_effect(
+                permit,
+                physical_execution_domain.FLYING,
+                lambda: self._prove_readback(param_id, wrgb),
             )
-        self._execution.complete_accepted_effect(
-            permit,
-            physical_execution_domain.FLYING,
-            lambda: self._prove_readback(param_id, wrgb),
-        )
+
         return ColorLedEffectResult(
             accepted=True,
             status=0,
