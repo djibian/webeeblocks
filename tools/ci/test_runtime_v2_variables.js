@@ -8,6 +8,7 @@ const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblo
 const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activities.js'));
 const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'));
 const Interpreter = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
+const PhysicalDynamicPreflight = require(path.join(ROOT, 'tools/physical/physical_dynamic_preflight.js'));
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ExecutionObserver = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/execution_observer.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
@@ -61,6 +62,47 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   arithmetic.getInput('A').connection.connect(left.outputConnection);arithmetic.getInput('B').connection.connect(right.outputConnection);
   return arithmetic;
 }
+function dynamicPhysicalProgram(){
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:[
+      {kind:'takeoff',height_m:0.5},
+      {kind:'set_variable',variable:{id:'r',name:'r'},value:{kind:'range',direction:'front',unit:'m'}},
+      {kind:'repeat',count:2,body:[
+        {kind:'if',condition:{kind:'logic',op:'AND',left:{kind:'compare',op:'LT',left:{kind:'variable_get',variable:{id:'r',name:'r'}},right:{kind:'number',value:0.5}},right:{kind:'compare',op:'GT',left:{kind:'range',direction:'left',unit:'m'},right:{kind:'number',value:0.2}}},then:[{kind:'vertical',direction:'up',distance_m:0.1}],else:[{kind:'vertical',direction:'down',distance_m:0.1}]}
+      ]},
+      {kind:'land'}
+    ]
+  };
+}
+function testPhysicalDynamicPreflight(){
+  const proof=PhysicalDynamicPreflight.validatePhysicalProgram(dynamicPhysicalProgram());
+  assert.strictEqual(proof.initialAltitudeM,0.5,'dynamic physical preflight lost exact takeoff altitude');
+  assert(Math.abs(proof.terminalAltitudeMinM-0.3)<1e-12,'all-branch minimum altitude was not conservatively propagated');
+  assert(Math.abs(proof.terminalAltitudeMaxM-0.7)<1e-12,'all-branch maximum altitude was not conservatively propagated');
+  assert.strictEqual(proof.executionAuthority,false,'static physical proof must never mint execution authority');
+
+  const unsafeBranch=dynamicPhysicalProgram();
+  unsafeBranch.program[0].height_m=0.3;
+  unsafeBranch.program[2]={kind:'if',condition:{kind:'compare',op:'LT',left:{kind:'range',direction:'front',unit:'m'},right:{kind:'number',value:0.5}},then:[{kind:'vertical',direction:'down',distance_m:0.2}],else:[{kind:'wait',seconds:0.1}]};
+  assert.throws(()=>PhysicalDynamicPreflight.validatePhysicalProgram(unsafeBranch),/nominal-altitude envelope/,'one unsafe sensor-selected branch must reject before takeoff');
+
+  const unsafeRepeat={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.5},{kind:'repeat',count:4,body:[{kind:'vertical',direction:'up',distance_m:0.3}]},{kind:'land'}]};
+  assert.throws(()=>PhysicalDynamicPreflight.validatePhysicalProgram(unsafeRepeat),/nominal-altitude envelope/,'repeat accumulation must be proven across every iteration');
+
+  const extraField=dynamicPhysicalProgram();
+  extraField.program[2].body[0].then=[{kind:'move',direction:'forward',distance_m:0.3,callerDistance_m:0.2}];
+  assert.throws(()=>PhysicalDynamicPreflight.validatePhysicalProgram(extraField),/unsupported fields/,'physical preflight accepted caller-shaped extra semantics');
+
+  const outOfBoundsMove=dynamicPhysicalProgram();
+  outOfBoundsMove.program[2].body[0].then=[{kind:'move',direction:'forward',distance_m:2.1}];
+  assert.throws(()=>PhysicalDynamicPreflight.validatePhysicalProgram(outOfBoundsMove),/move distance_m violates established physical bounds/,'dynamic branch bypassed physical action bounds');
+
+  const unsupportedRange=dynamicPhysicalProgram();
+  unsupportedRange.program[1].value={kind:'range',direction:'down',unit:'m'};
+  assert.throws(()=>PhysicalDynamicPreflight.validatePhysicalProgram(unsupportedRange),/unsupported range expression/,'physical preflight did not delegate language validity to the shared interpreter');
+}
 
 (async function(){
   const p4=Profiles.resolveById(Activities.DOCUMENT,'progression-combined-decisions-v1',Activities.BLOCK_CATALOG),p5=profile();
@@ -108,6 +150,7 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
     error=>error&&error.code==='PROGRAM_INVALID'&&/division by zero/.test(error.message)&&/division par zéro/.test(error.studentDetail),
     'division by zero must fail with a correctable student outcome'
   );
+  testPhysicalDynamicPreflight();
   arithmeticWorkspace.dispose();
-  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
+  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> conservative dynamic physical path preflight -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
