@@ -79,7 +79,12 @@
     var id = this.nextId++;
     var suffix = args && args.length ? ' ' + args.join(' ') : '';
     return new Promise(function(resolve, reject) {
-      var timer = setTimeout(function() {
+      // Native Open/Save As dialogs are explicitly user-paced. Do not let the
+      // short broker/readiness timeout detach the browser from a dialog which
+      // may legitimately remain open for minutes. Non-interactive operations
+      // (capabilities and same-file Save) stay bounded and fail closed.
+      var interactive = operation === 'OPEN' || operation === 'SAVE_AS';
+      var timer = interactive ? null : setTimeout(function() {
         if (!self.pending[id]) return;
         delete self.pending[id];
         reject(new BrokerError('TIMEOUT'));
