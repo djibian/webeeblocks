@@ -50,6 +50,62 @@ jobs:
           --base-ref "${{ github.base_ref }}"
           --draft "${{ github.event.pull_request.draft || false }}"
           --github-output "$GITHUB_OUTPUT"
+      - name: Select bounded X3 observer diagnostic
+        id: x3-scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=false
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            while IFS= read -r path; do
+              case "$path" in
+                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
+                  run=true
+                  break
+                  ;;
+              esac
+            done < <(git diff --name-only --no-renames "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "X3_PRELPF_BUILD=$run"
+      - name: Checkout pinned Crazyflie firmware for X3 observer
+        if: steps.x3-scope.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-firmware
+          ref: 54f31e243a0b28b67efef5ba20dbb6d9890a5478
+          path: .x3-crazyflie-firmware
+          submodules: recursive
+          fetch-depth: 1
+      - name: Build isolated X3 observer diagnostic
+        if: steps.x3-scope.outputs.run == 'true'
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/x3-prelpf-observer
+          set -o pipefail
+          bash experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh .x3-crazyflie-firmware \
+            2>&1 | tee ci-artifacts/x3-prelpf-observer/build-oracle.log
+      - name: Record X3 observer diagnostic evidence
+        if: ${{ always() && steps.x3-scope.outputs.run == 'true' }}
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/x3-prelpf-observer
+          git -C .x3-crazyflie-firmware rev-parse HEAD > ci-artifacts/x3-prelpf-observer/upstream-sha.txt
+          git -C .x3-crazyflie-firmware diff -- src/modules/src/estimator/estimator_ukf.c > ci-artifacts/x3-prelpf-observer/estimator_ukf.patch || true
+          git -C .x3-crazyflie-firmware diff -- src/hal/src/sensors_bmi088_bmp3xx.c > ci-artifacts/x3-prelpf-observer/sensors_bmi088_bmp3xx.patch || true
+          if [ -f .x3-crazyflie-firmware/build/cf2.elf ]; then
+            sha256sum .x3-crazyflie-firmware/build/cf2.elf > ci-artifacts/x3-prelpf-observer/cf2.elf.sha256
+          fi
+          if [ -f .x3-crazyflie-firmware/build/cf2.bin ]; then
+            sha256sum .x3-crazyflie-firmware/build/cf2.bin > ci-artifacts/x3-prelpf-observer/cf2.bin.sha256
+          fi
+      - name: Upload X3 observer diagnostic evidence
+        if: ${{ always() && steps.x3-scope.outputs.run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: x3-prelpf-observer-build-evidence-2026-08
+          path: ci-artifacts/x3-prelpf-observer/
+          if-no-files-found: error
 
   runtime:
     name: Runtime suite
