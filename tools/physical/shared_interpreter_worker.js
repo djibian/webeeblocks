@@ -73,12 +73,20 @@ async function rpc(method, args) {
     if (process.argv.length !== 2)
       throw new Error('shared interpreter worker accepts no arguments');
     const startup = JSON.parse(readLineSync());
-    if (!exactKeys(startup, ['op', 'astBinding']) || startup.op !== 'run-bound-program')
+    if (
+      !exactKeys(startup, ['op', 'astBinding']) ||
+      (startup.op !== 'run-bound-program' && startup.op !== 'validate-bound-program')
+    )
       throw new Error('malformed shared interpreter startup');
     if (typeof startup.astBinding !== 'string' || !startup.astBinding.trim() || startup.astBinding !== startup.astBinding.trim())
       throw new Error('exact AST binding is unavailable');
     const ast = JSON.parse(startup.astBinding);
     Interpreter.validateProgram(ast);
+
+    if (startup.op === 'validate-bound-program') {
+      send({type: 'validated', ok: true});
+      return;
+    }
 
     const backend = {
       takeoff: (height) => rpc('takeoff', [height]),
