@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Restore exact historical Boost cache for maintenance runs
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
         id: historical-boost-cache
         uses: actions/cache/restore@v4
         with:
@@ -39,11 +39,11 @@ jobs:
           key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
 
       - name: Acquire exact historical Boost archive for maintenance runs
-        if: github.event_name != 'pull_request' && steps.historical-boost-cache.outputs.cache-hit != 'true'
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
         run: python3 tools/ci/fetch_historical_boost_archive.py
 
       - name: Verify exact historical Boost archive for maintenance runs
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
         shell: bash
         run: |
           set -euo pipefail
@@ -58,7 +58,7 @@ jobs:
           PY
 
       - name: Save exact historical Boost cache for maintenance runs
-        if: github.event_name != 'pull_request' && steps.historical-boost-cache.outputs.cache-hit != 'true'
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
