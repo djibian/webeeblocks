@@ -19,6 +19,12 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(result.webots)
         self.assertFalse(result.full)
 
+    def test_physical_host_activation_regression_routes_to_runtime(self) -> None:
+        result = select(["tools/ci/test_physical_host_activation.py"])
+        self.assertTrue(result.runtime)
+        self.assertFalse(result.webots)
+        self.assertFalse(result.full)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)

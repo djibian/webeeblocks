@@ -30,17 +30,26 @@ Every field is fetched as a float; each block fits cflib's 26-byte log payload.
 Units remain the pinned firmware units: barometer altitude in m, pressure in
 mbar, temperature in Celsius; accelerometer in g; filtered gyro in degrees/s;
 downward range in mm; roll/pitch in degrees; UKF Z in m and VZ in m/s.
-`stabilizer.intToOut` is the pinned firmware's microsecond latency from the IMU
-interrupt timestamp carried by the stabilizer's current `sensorData` to the end
-of that stabilizer iteration. Diagnostic UKF outputs and this latency diagnostic
-must not become independent displacement inputs.
+`stabilizer.intToOut` is a difference of two values from the pinned firmware's
+`usecTimestamp()` clock, from the interrupt timestamp carried by the stabilizer's
+current `sensorData` to the end of that stabilizer iteration. The pinned
+`2026.08@54f31e...` TIM7 prescaler has a known 84/85 nominal-rate defect documented
+in [X3_PRELPF_TIMING_OBSERVER.md](X3_PRELPF_TIMING_OBSERVER.md) and upstream PR
+[bitcraze/crazyflie-firmware#1684](https://github.com/bitcraze/crazyflie-firmware/pull/1684),
+which is based on that exact firmware commit. Consequently the raw `intToOut`
+number is not a true elapsed-microsecond measurement as stored; the deterministic
+prescaler correction alone is `raw * 85 / 84`, before separate oscillator and
+sensor/interrupt provenance uncertainty. Diagnostic UKF outputs and this latency
+diagnostic must not become independent displacement inputs.
 
 Both the 24-bit device log timestamp and host monotonic receipt time are retained
-for every row. Log time does not identify a sensor's producer time, and fetching
-acceleration/gyro in one block does not prove simultaneous sensor acquisition.
-The `intToOut` value is read later by the log worker from shared state and is not
-atomically paired with the pose or IMU row; it characterizes the firmware's
-internal sensor-to-output path but does not validate `sensor_time_error_s` or
+for every row. The wireless log timestamp uses a different FreeRTOS-based clock
+path and is not corrected by the TIM7 85/84 rule. Log time does not identify a
+sensor's producer time, and fetching acceleration/gyro in one block does not prove
+simultaneous sensor acquisition. The `intToOut` value is read later by the log
+worker from shared state and is not atomically paired with the pose or IMU row; it
+characterizes the firmware's internal sensor-to-output path only after preserving
+its distinct clock semantics and still does not validate `sensor_time_error_s` or
 supply a producer timestamp. The chosen cadence is an acquisition configuration,
 not proof that inertial integration or a 5 cm / 1 s bound is achievable. No
 missing row is interpolated.
@@ -125,5 +134,6 @@ boundary. No estimator or controller change follows from successful acquisition.
 ## Inspected API sources
 
 - [Firmware log names/units](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/modules/src/stabilizer.c), including the existing `stabilizer.intToOut` sensor-to-output diagnostic.
+- [Pinned `usecTimestamp()` timer configuration](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/hal/src/usec_time.c) and upstream exact-base correction/review in [bitcraze/crazyflie-firmware#1684](https://github.com/bitcraze/crazyflie-firmware/pull/1684).
 - [Pinned cflib LogConfig/TOC/log lifecycle](https://github.com/bitcraze/crazyflie-lib-python/blob/45fdb784c9d13074c42835f3b5ac1d12133bf873/cflib/crazyflie/log.py).
 - [Pinned cflib asynchronous connection/parameter-ready and close lifecycle](https://github.com/bitcraze/crazyflie-lib-python/blob/45fdb784c9d13074c42835f3b5ac1d12133bf873/cflib/crazyflie/__init__.py).

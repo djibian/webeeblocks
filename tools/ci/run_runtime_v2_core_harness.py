@@ -121,6 +121,26 @@ def main():
     if physical_program_sequence_test.returncode:
         print('FAIL exact physical program sequencing',file=sys.stderr);print(physical_program_sequence_test.stdout,file=sys.stderr);print(physical_program_sequence_test.stderr,file=sys.stderr);return physical_program_sequence_test.returncode
     print(physical_program_sequence_test.stdout.strip())
+    physical_dynamic_preflight_test=subprocess.run([sys.executable,'tools/ci/test_physical_dynamic_preflight.py'],text=True,capture_output=True)
+    if physical_dynamic_preflight_test.returncode:
+        print('FAIL conservative dynamic physical pre-takeoff envelope',file=sys.stderr);print(physical_dynamic_preflight_test.stdout,file=sys.stderr);print(physical_dynamic_preflight_test.stderr,file=sys.stderr);return physical_dynamic_preflight_test.returncode
+    print(physical_dynamic_preflight_test.stdout.strip())
+    physical_shared_interpreter_test=subprocess.run([sys.executable,'tools/ci/test_physical_shared_interpreter.py'],text=True,capture_output=True)
+    if physical_shared_interpreter_test.returncode:
+        print('FAIL trusted shared Runtime interpreter physical core',file=sys.stderr);print(physical_shared_interpreter_test.stdout,file=sys.stderr);print(physical_shared_interpreter_test.stderr,file=sys.stderr);return physical_shared_interpreter_test.returncode
+    print(physical_shared_interpreter_test.stdout.strip())
+    dynamic_backend_test=subprocess.run([sys.executable,'tools/ci/test_physical_dynamic_backend.py'],text=True,capture_output=True)
+    if dynamic_backend_test.returncode:
+        print('FAIL trusted dynamic physical backend composition',file=sys.stderr);print(dynamic_backend_test.stdout,file=sys.stderr);print(dynamic_backend_test.stderr,file=sys.stderr);return dynamic_backend_test.returncode
+    print(dynamic_backend_test.stdout.strip())
+    dynamic_run_test=subprocess.run([sys.executable,'tools/ci/test_dynamic_physical_run.py'],text=True,capture_output=True)
+    if dynamic_run_test.returncode:
+        print('FAIL one-shot bound dynamic physical run owner',file=sys.stderr);print(dynamic_run_test.stdout,file=sys.stderr);print(dynamic_run_test.stderr,file=sys.stderr);return dynamic_run_test.returncode
+    print(dynamic_run_test.stdout.strip())
+    dynamic_landing_test=subprocess.run([sys.executable,'tools/ci/test_dynamic_controlled_landing_transport.py'],text=True,capture_output=True)
+    if dynamic_landing_test.returncode:
+        print('FAIL dynamic runtime-altitude controlled landing',file=sys.stderr);print(dynamic_landing_test.stdout,file=sys.stderr);print(dynamic_landing_test.stderr,file=sys.stderr);return dynamic_landing_test.returncode
+    print(dynamic_landing_test.stdout.strip())
     physical_color_led_transport_test=subprocess.run([sys.executable,'tools/ci/test_physical_color_led_transport.py'],text=True,capture_output=True)
     if physical_color_led_transport_test.returncode:
         print('FAIL trusted one-shot bottom Color LED transport',file=sys.stderr);print(physical_color_led_transport_test.stdout,file=sys.stderr);print(physical_color_led_transport_test.stderr,file=sys.stderr);return physical_color_led_transport_test.returncode
