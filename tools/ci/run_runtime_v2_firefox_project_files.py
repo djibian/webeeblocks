@@ -11,14 +11,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 HTML = ROOT / "plugins/robot_windows/blockly_v2/blockly_v2.html"
-ARTIFACT = ROOT / "ci-artifacts/runtime-v2-firefox-project-files"
+ARTIFACT = ROOT / "ci-artifacts/runtime-v2-project-files/firefox"
 FIREFOX_URL = "https://ftp.mozilla.org/pub/firefox/releases/155.0/linux-x86_64/en-US/firefox-155.0.tar.xz"
 FIREFOX_SHA256 = "fd9ec3f5f113d0825ca0bd1ab3c0756fbc40241034eefce6743be953bcca7473"
 
 
 def docker_script() -> str:
     return f'''set -euo pipefail
-artifact=/workspace/ci-artifacts/runtime-v2-firefox-project-files
+artifact=/workspace/ci-artifacts/runtime-v2-project-files/firefox
 mkdir -p "$artifact" /root/.config/Cyberbotics
 apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \\
@@ -39,7 +39,7 @@ trap 'kill "$server" 2>/dev/null || true' EXIT
 sleep 0.5
 xvfb-run -a bash -lc '\''
   set -euo pipefail
-  artifact=/workspace/ci-artifacts/runtime-v2-firefox-project-files
+  artifact=/workspace/ci-artifacts/runtime-v2-project-files/firefox
   python3 /workspace/tools/ci/firefox_project_dialog_driver.py --root "$artifact" --timeout 80 \\
     > "$artifact/dialog-driver.log" 2>&1 &
   driver=$!
@@ -106,7 +106,7 @@ def run_scenario() -> None:
             "docker", "run", "--rm",
             "-e", "LIBGL_ALWAYS_SOFTWARE=true",
             "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
-            "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-firefox-project-files",
+            "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-project-files/firefox",
             "-e", "WEBEEBLOCKS_FIREFOX_BIN=/tmp/firefox/firefox",
             "-v", f"{ROOT}:/workspace",
             "-w", "/workspace",
