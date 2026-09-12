@@ -321,6 +321,10 @@ def analyze(barometer, imu, spec, reference):
         raise ValueError("unknown vertical-predictor schema")
     if reference.get("schema") != "webeeblocks.x3.metric-reference-result.v1" or reference.get("status") != "COMPUTED_CONDITIONAL":
         raise ValueError("exact conditional metric-reference result required")
+    physical_reference_validated = reference.get("physical_reference_validated", False)
+    affine_clock_validated = reference.get("affine_clock_validated", False)
+    if not isinstance(physical_reference_validated, bool) or not isinstance(affine_clock_validated, bool):
+        raise ValueError("metric-reference validation flags must be booleans")
     prep = preparation(barometer, imu, spec, reference)
     events = reference.get("events")
     if not isinstance(events, list) or not events:
@@ -357,8 +361,8 @@ def analyze(barometer, imu, spec, reference):
     return {"schema": "webeeblocks.x3.vertical-predictor-result.v1",
             "status": "COMPUTED_CONDITIONAL", "preparation": prep, "events": results,
             "declared_bounds_validated": False, "sensor_producer_timing_validated": False,
-            "physical_reference_validated": bool(reference.get("physical_reference_validated", False)),
-            "affine_clock_validated": bool(reference.get("affine_clock_validated", False)),
+            "physical_reference_validated": physical_reference_validated,
+            "affine_clock_validated": affine_clock_validated,
             "independent_displacement_verdict": "UNPROVEN",
             "physical_verdict": None,
             "scope": "offline barometer+raw-accelerometer vehicle-Z replay; ToF, estimator attitude/state and S3 excluded",
