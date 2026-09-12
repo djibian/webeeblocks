@@ -33,7 +33,7 @@ Status vocabulary:
 | Flow Deck V2 downward range | Flow Deck V2 | No `down` value exists in the current student range AST vocabulary | Downward ranging/flow is robot infrastructure rather than a student-visible Runtime v2 range direction | #70 contains physical research evidence, but not a proven student backend | Hardware prerequisite is named in profiles; no dedicated student block | **infrastructure only / justified student-vocabulary exclusion** at current evidence; reopen only for a concrete pupil-facing downward-clearance objective |
 | Flow Deck V2 optical flow / stabilization | Flow Deck V2 | No direct student primitive by design | Used as simulation/flight infrastructure, not as an algorithm block | Physical behavior belongs to backend/safety validation | Implicit hardware requirement | **infrastructure only**; do not expose estimator/flow internals without a pedagogical need |
 | Multi-ranger upward range | Multi-ranger deck | Generic AST already admits `up` | Current WWI backend advertises and reads `up` through a dedicated upward Webots distance sensor | Exact-AST range/capability preflight is integrated and checks `up` only when the submitted program requires it; student physical range-value execution remains unproven | Broad reactive profile declares `up` | **covered** in simulation; **physical unproven** |
-| Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | `webeeblocks_v2_light` → `set_light(color)` with a bounded generic palette | Runtime v2 exposes the action through WWI on an attached bottom-deck envelope with side-visible diffuser and LED-driven nearby halo; fixed top/three-quarter/side R2025a render evidence is integrated | Integrated #341 consumes the exact teacher-bound `set_light(color)` statement through the trusted host. It accepts only the six-color Runtime palette, resolves the exact live writable `colorLedBot.wrgb8888` uint32 parameter, establishes a never-reused absent-id ENOENT receive fence before installing the target listener, emits one direct no-`expected_reply` PARAM write, requires the exact write echo plus same-epoch readback, and makes fence/write/readback ambiguity recovery-required. Caller-selected color/value/parameter/id/cursor/completion data remains outside the effect boundary. No real-device qualification is claimed | Broad reactive profile only | **covered** in simulation; **deterministic physical path integrated; real-device unproven** |
+| Bottom Color LED Deck light/color | Bottom-mounted Color LED Deck | `webeeblocks_v2_light` → `set_light(color)` with a bounded generic palette | Runtime v2 exposes the action through WWI on an attached bottom-deck envelope with side-visible diffuser and LED-driven nearby halo; fixed top/three-quarter/side R2025a render evidence is integrated | Exact-AST preflight requires the LED capability only when the submitted program uses `set_light`; no trusted student physical LED effect path is integrated | Broad reactive profile only | **covered** in simulation for the generic light/color intent; **physical unproven** |
 | Estimator diagnostics / tuning | Crazyflie 2.1 firmware/estimator infrastructure, informed by attached deck sensors | No student vocabulary | Internal only | #70 Lab/research only | None | **infrastructure only** by product rule |
 
 ## Conclusions for #157
@@ -68,33 +68,30 @@ move or yaw turn through one no-retry SETPOINT_HL effect after causal takeoff,
 #305/#308 extend that same host-owned sequence through exact terminal controlled
 landing and fresh non-flying completion, #316 admits exact teacher-bound bounded
 waits as no-effect host-monotonic sequence steps, #322/#320 adds exact per-run
-horizontal speed state without emitting a physical effect, #333 adds bounded
+horizontal speed state without emitting a physical effect, and #333 adds bounded
 relative-world-Z vertical effects with eager nominal-altitude validation and
-terminal landing descent derived from the completed final nominal altitude, and
-#341 adds the exact bottom Color LED effect through a one-write causal PARAM
-fence/echo/readback boundary while preserving the same host-owned authority and
-fail-closed recovery rules.
+terminal landing descent derived from the completed final nominal altitude.
 
 The currently integrated deterministic physical execution envelope is therefore:
 trusted reset/postconditions and reconnect-sensitive preflight -> exact-run teacher
 authorization -> watchdog activation/liveness -> causal takeoff -> zero or more
-exact teacher-bound horizontal move/yaw-turn/vertical/bottom-Color-LED effects,
-bounded no-effect waits, or no-effect `set_speed` state transitions -> exact
-terminal controlled landing from the trusted final nominal altitude -> fresh
-same-epoch finished/non-flying/high-level-inactive completion. Every effect
-boundary and no-effect step reconstructs the required host-owned authority/
-provenance; caller-selected motion/light parameters, speed/wait values, cursor/
-completion or caller-returned provenance do not become authority. Ambiguous
-acknowledgement, transport, completion or lifecycle state remains fail-closed
-rather than authorizing a retry.
+exact teacher-bound horizontal move/yaw-turn/vertical effects, bounded no-effect
+waits, or no-effect `set_speed` state transitions -> exact terminal controlled
+landing from the trusted final nominal altitude -> fresh same-epoch
+finished/non-flying/high-level-inactive completion. Every effect boundary and
+no-effect step reconstructs the required host-owned authority/provenance;
+caller-selected motion parameters, speed/wait values, cursor/completion or
+caller-returned provenance do not become authority. Ambiguous acknowledgement,
+transport, completion or lifecycle state remains fail-closed rather than
+authorizing a retry.
 
 That result is deterministic fake/injected-hardware integration evidence only.
 It does **not** qualify real flight, and it does not implicitly prove the physical
 execution of other simulation capabilities. Student Multi-ranger value
-consumption remains physically unproven until its own integrated evidence says
-otherwise. The available real-device evidence from the superseded #226 checkpoint
-established only bounded hardware identity/presence observations and cannot be
-reused as execution qualification.
+consumption and bottom Color LED effects remain physically unproven until their
+own integrated evidence says otherwise. The available real-device evidence from
+the superseded #226 checkpoint established only bounded hardware identity/presence
+observations and cannot be reused as execution qualification.
 
 #70 remains the separate Lab path for world-altitude behavior over surface-height
 discontinuities. Its estimator evidence must not be promoted into #157 execution
@@ -104,10 +101,10 @@ by the final real-flight activity.
 
 The substantive remaining #157 boundary is broader physical capability
 continuity/qualification beyond the supported takeoff + horizontal move/turn +
-vertical + bottom Color LED + bounded no-effect wait/set-speed state + terminal-
-land deterministic envelope. Add the smallest missing physical consumer only for
-a concrete pedagogical capability, preserve the existing trusted-host and fail-
-closed boundaries, and keep real-device qualification separate from deterministic
+vertical + bounded no-effect wait/set-speed state + terminal-land deterministic
+envelope. Add the smallest missing physical consumer only for a concrete
+pedagogical capability, preserve the existing trusted-host and fail-closed
+boundaries, and keep real-device qualification separate from deterministic
 composition proof.
 
 Do not turn source availability, Lab firmware experiments, preflight
