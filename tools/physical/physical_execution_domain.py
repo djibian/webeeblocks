@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Process-local reset/effect exclusion for the trusted Crazyflie host path.
+"""Process-local reset/effect/observation exclusion for the trusted Crazyflie host path.
 
 This module is deliberately a no-effect prerequisite. It owns one
 process-wide lifecycle, shared by every `PhysicalExecutionDomain` handle, needed
 to compose the already established physical safety primitives without allowing
-reset and flight-capable command emission to race through independently
-constructed handles.
+reset, fresh physical observation and flight-capable command emission to race
+through independently constructed handles.
 
 A fresh process starts in ``recovery-required``. It may not emit a physical
 effect until the caller has completed the trusted #266 reset-establishment
 transaction under :meth:`run_reset_establishment`. That transaction's own
 fresh flight-inactive gate therefore executes while this domain holds the same
-exclusion used by every later effect boundary.
+exclusion used by every later effect or observation boundary.
 
 An effect transaction holds that exclusion across all supplied immediate
 preconditions and the caller's emission/acknowledgement boundary. Once emission
@@ -21,6 +21,13 @@ stable phase. A positive acknowledgement moves to ``awaiting-completion`` and mi
 opaque one-shot completion permit. No reset or later effect is eligible until
 the trusted consumer presents that exact permit together with a fresh completion
 proof establishing either ``flying`` or ``inactive``.
+
+A physical observation transaction is deliberately different: it is eligible
+only from causally established ``flying``, shares the exact same process-wide
+exclusion, runs its immediate trusted preconditions under that exclusion and
+never changes lifecycle phase or mints effect/completion authority. It exists so
+a fresh sensor read cannot race reset/effect transitions without being falsely
+classified as a physical effect.
 
 The module imports no cflib/CRTP command API and emits no packet. The later
 trusted transport must compose exact preflight, #267 teacher binding, #266/#262
@@ -155,6 +162,54 @@ class PhysicalExecutionDomain:
             return result
         finally:
             self._leave_section("reset")
+
+    def observation_transaction(
+        self,
+        *immediate_preconditions: Callable[[], object],
+    ) -> "PhysicalObservationTransaction":
+        """Create one exclusion-held, phase-neutral trusted sensor observation.
+
+        Observation preconditions are assertion-style trusted-host callables and
+        run only after the same process-wide exclusion used by reset/effects is
+        held. The observation itself is eligible only while the established run
+        is ``flying``. It has no emission/acknowledgement/completion lifecycle and
+        therefore cannot mint or substitute physical execution authority.
+        """
+        checks = tuple(
+            _require_callable(check, "physical observation precondition")
+            for check in immediate_preconditions
+        )
+        if not checks:
+            raise PhysicalExecutionDomainError(
+                "at least one immediate physical observation precondition is required"
+            )
+        return PhysicalObservationTransaction(self, checks)
+
+    def _begin_observation(
+        self,
+        checks: tuple[Callable[[], object], ...],
+    ) -> None:
+        self._enter_section("observation")
+        try:
+            if _PROCESS_STATE.phase != FLYING:
+                raise PhysicalExecutionDomainError(
+                    "physical observation requires causally established flying state"
+                )
+            for check in checks:
+                check()
+        except Exception:
+            self._leave_section("observation")
+            raise
+
+    def _close_observation(self) -> None:
+        if _PROCESS_STATE.phase != FLYING:
+            try:
+                raise PhysicalExecutionDomainError(
+                    "physical execution phase changed during observation"
+                )
+            finally:
+                self._leave_section("observation")
+        self._leave_section("observation")
 
     def effect_transaction(
         self,
@@ -302,6 +357,42 @@ class PhysicalExecutionDomain:
             _PROCESS_STATE.phase = next_phase
         finally:
             self._leave_section("completion")
+
+
+class PhysicalObservationTransaction:
+    """One process-wide exclusion-held physical observation with no effect state."""
+
+    def __init__(
+        self,
+        domain: PhysicalExecutionDomain,
+        checks: tuple[Callable[[], object], ...],
+    ) -> None:
+        self._domain = domain
+        self._checks = checks
+        self._entered = False
+        self._closed = False
+
+    def __enter__(self) -> "PhysicalObservationTransaction":
+        if self._entered or self._closed:
+            raise PhysicalExecutionDomainError(
+                "physical observation transaction cannot be re-entered"
+            )
+        self._domain._begin_observation(self._checks)
+        self._entered = True
+        return self
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if not self._entered:
+            self._closed = True
+            return
+        self._domain._close_observation()
+        self._closed = True
+
+    def __exit__(self, exc_type, exc, traceback) -> bool:
+        self.close()
+        return False
 
 
 class PhysicalEffectTransaction:
