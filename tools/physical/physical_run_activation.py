@@ -7,7 +7,8 @@ teacher socket and the shared #273 execution domain. The generic takeoff
 lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
 validated against the integrated sequencing boundary before any reset or flight
 effect; after exact takeoff has causally completed, the same sequence owns each
-bounded move/turn, no-effect wait and the one terminal controlled landing.
+bounded move/turn, no-effect wait/set_speed state and the one terminal controlled
+landing.
 
 Importing this module performs no physical effect.
 """
@@ -63,13 +64,18 @@ def _monotonic_value(clock) -> float:
     return value
 
 
-def _require_exact_epoch(connection_epoch_reader, bound_epoch: str) -> None:
+def _require_exact_epoch(
+    connection_epoch_reader,
+    bound_epoch: str,
+    *,
+    context: str,
+) -> None:
     try:
         current = connection_epoch_reader()
     except Exception as exc:
-        raise PhysicalRunActivationError("physical wait connection epoch is unavailable") from exc
+        raise PhysicalRunActivationError(context + " connection epoch is unavailable") from exc
     if current != bound_epoch:
-        raise PhysicalRunActivationError("connection epoch changed during exact physical wait")
+        raise PhysicalRunActivationError("connection epoch changed during " + context)
 
 
 def _execute_exact_wait(
@@ -93,14 +99,22 @@ def _execute_exact_wait(
         raise PhysicalRunActivationError("physical wait timing primitives are unavailable")
 
     assert_live()
-    _require_exact_epoch(connection_epoch_reader, bound_epoch)
+    _require_exact_epoch(
+        connection_epoch_reader,
+        bound_epoch,
+        context="exact physical wait",
+    )
     started = _monotonic_value(clock)
     deadline = started + seconds
     now = started
 
     while now < deadline:
         assert_live()
-        _require_exact_epoch(connection_epoch_reader, bound_epoch)
+        _require_exact_epoch(
+            connection_epoch_reader,
+            bound_epoch,
+            context="exact physical wait",
+        )
         delay = min(_WAIT_SLICE_SECONDS, deadline - now)
         try:
             sleeper(delay)
@@ -112,7 +126,11 @@ def _execute_exact_wait(
         now = later
 
     assert_live()
-    _require_exact_epoch(connection_epoch_reader, bound_epoch)
+    _require_exact_epoch(
+        connection_epoch_reader,
+        bound_epoch,
+        context="exact physical wait",
+    )
 
 
 def _live_crazyflie(session: object) -> object:
@@ -209,9 +227,9 @@ def activate_validated_run(
 
     ``execute_next_inflight()`` on the returned process-local object accepts no
     semantic parameters. It reserves only the next exact top-level move/turn,
-    no-effect wait or terminal land from the post-reset #267 binding and keeps
-    every positive provenance/effect path lexical to this adapter's host-owned
-    bridge.
+    no-effect wait/set_speed state or terminal land from the post-reset #267
+    binding and keeps every positive provenance/effect path lexical to this
+    adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -502,11 +520,67 @@ def activate_validated_run(
             sequence.complete_wait(claim)
             return _NoEffectStepResult()
 
+        def _execute_speed(self):
+            claim = sequence.reserve_next_speed()
+            speed_step = sequence.speed_for_claim(claim)
+            binding = active_run.teacher_authorization.binding
+            assert_live = getattr(active_run.watchdog_guard, "assert_live", None)
+            try:
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "exact set_speed requires causally established flying state"
+                    )
+                if not callable(assert_live):
+                    raise PhysicalRunActivationError(
+                        "exact set_speed requires live watchdog guard"
+                    )
+                assert_live()
+                _require_exact_epoch(
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                    context="exact physical set_speed",
+                )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+
+                # This is host-local run state only. It emits no command and the
+                # same policy object is later consumed by exact horizontal moves.
+                timing_policy.set_horizontal_speed(speed_step.speed_m_s)
+
+                if active_run.execution_domain.phase != FLYING:
+                    raise PhysicalRunActivationError(
+                        "physical state changed during no-effect exact set_speed"
+                    )
+                assert_live()
+                _require_exact_epoch(
+                    session.read_connection_epoch,
+                    active_run.powered_session.connection_epoch,
+                    context="exact physical set_speed",
+                )
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except Exception:
+                sequence.fail_speed(
+                    claim,
+                    "exact set_speed did not complete under the live trusted run binding",
+                )
+                raise
+            sequence.complete_speed(claim)
+            return _NoEffectStepResult()
+
         def execute_next_inflight(self):
             """Advance one exact AST step; accepts no caller semantic data."""
             step_kind = sequence.next_step_kind
             if step_kind == "wait":
                 return self._execute_wait()
+            if step_kind == "set_speed":
+                return self._execute_speed()
 
             terminal_landing = step_kind == "land"
             if terminal_landing:
