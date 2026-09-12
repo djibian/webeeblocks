@@ -15,6 +15,8 @@ sys.path.insert(0, str(PHYSICAL))
 import dynamic_controlled_landing_transport as subject  # noqa: E402
 import high_level_timing as timing  # noqa: E402
 import serve_reference_capabilities as capability_bridge  # noqa: E402
+import takeoff_command  # noqa: E402
+import teacher_run_authorization as teacher  # noqa: E402
 import test_physical_controlled_landing_transport as landing_test  # noqa: E402
 import test_physical_setpoint_hl_transport as base  # noqa: E402
 
@@ -22,6 +24,19 @@ import test_physical_setpoint_hl_transport as base  # noqa: E402
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
+
+
+def canonical_ast(takeoff_height_m: float) -> str:
+    return takeoff_command._canonical_json(
+        {
+            "program": [
+                {"height_m": takeoff_height_m, "kind": "takeoff"},
+                {"kind": "land"},
+            ],
+            "semantics": "webeeblocks-ast-v1",
+            "version": 1,
+        }
+    )
 
 
 class TestHostBoundDynamicTransport(subject.TrustedDynamicControlledLandingTransport):
@@ -61,12 +76,22 @@ class TestHostBoundDynamicTransport(subject.TrustedDynamicControlledLandingTrans
         return binding
 
 
-def make_fixture(label: str, *, initial_altitude: float = 0.8, reply_status: int | None = 0):
+def make_fixture(label: str, *, takeoff_height_m: float = 0.8, reply_status: int | None = 0):
     cf = base.FakeCrazyflie(reply_status=reply_status)
     fixture = base.Fixture(label, cf)
+    binding = teacher.PhysicalRunBinding(
+        profile_id="activity-dynamic-landing",
+        ast_binding=canonical_ast(takeoff_height_m),
+        connection_epoch=fixture.epoch(),
+    )
+    authorizer = teacher.TrustedTeacherAuthorizer()
+    authorization = authorizer.authorize_run(binding, lambda _binding: True)
+    fixture.binding = binding
+    fixture.current_binding = binding
+    fixture.authorization = authorization
+    fixture.kwargs["teacher_authorization"] = authorization
     transport = TestHostBoundDynamicTransport(
         bridge=fixture.bridge,
-        initial_nominal_altitude_m=initial_altitude,
         connection_epoch_reader=fixture.epoch,
         **fixture.kwargs,
     )
@@ -77,6 +102,21 @@ def unpack_last_land(fixture):
     require(fixture.cf.send_calls, "dynamic landing must emit one terminal packet")
     data = bytes(fixture.cf.send_calls[-1][0][0].data)
     return struct.unpack("<BBf?f?f", data)
+
+
+def test_initial_altitude_is_derived_only_from_exact_teacher_ast() -> None:
+    fixture, transport = make_fixture("dynamic-root", takeoff_height_m=0.8)
+    try:
+        require(
+            transport.initial_nominal_altitude_m == 0.8,
+            "dynamic landing root did not derive exact teacher-bound takeoff height",
+        )
+        require(
+            transport.nominal_altitude_m == 0.8,
+            "runtime nominal altitude did not start at exact preflight-proven takeoff",
+        )
+    finally:
+        fixture.close()
 
 
 def test_vertical_completion_advances_runtime_nominal_altitude() -> None:
@@ -112,7 +152,7 @@ def test_rejected_or_out_of_bounds_vertical_does_not_advance_state() -> None:
     finally:
         fixture.close()
 
-    fixture, transport = make_fixture("dynamic-bound", initial_altitude=1.4)
+    fixture, transport = make_fixture("dynamic-bound", takeoff_height_m=1.4)
     try:
         try:
             transport.send_vertical_move(
@@ -168,12 +208,13 @@ def test_terminal_landing_uses_completed_dynamic_path_altitude() -> None:
 
 
 def main() -> int:
+    test_initial_altitude_is_derived_only_from_exact_teacher_ast()
     test_vertical_completion_advances_runtime_nominal_altitude()
     test_rejected_or_out_of_bounds_vertical_does_not_advance_state()
     test_terminal_landing_uses_completed_dynamic_path_altitude()
     print(
-        "PASS dynamic controlled landing: selected vertical completion owns nominal Z, "
-        "rejection/bounds do not advance it, terminal command-10 uses completed runtime altitude"
+        "PASS dynamic controlled landing: exact teacher AST owns initial Z, selected vertical "
+        "completion owns runtime Z, terminal command-10 uses completed runtime altitude"
     )
     return 0
 
