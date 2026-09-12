@@ -103,8 +103,10 @@ def test_physical_speed_bounds_are_stricter_than_generic_ast() -> None:
     require(sequence.high_level_timing.MIN_HORIZONTAL_SPEED_M_S == 0.10, "physical minimum drifted")
     require(sequence.high_level_timing.MAX_HORIZONTAL_SPEED_M_S == 0.35, "physical maximum drifted")
 
-    for value in (0.09, 0.36, 0.60, True, "0.2", float("nan"), float("inf")):
+    for value in (0.09, 0.36, 0.60, True, "0.2"):
         expect_sequence_error(speed_ast(value, include_turn=False), "set_speed")
+    for value in (float("nan"), float("inf")):
+        expect_sequence_error(speed_ast(value, include_turn=False), "non-finite")
 
     malformed = canonical(
         [
