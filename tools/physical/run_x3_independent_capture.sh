@@ -17,12 +17,14 @@ Usage:
     --checkpoint-url https://github.com/djibian/webeeblocks/issues/<N> \
     --request-sha <40-char-sha> \
     --seconds <30..300> \
-    --output <new-directory>
+    --output <new-directory> \
+    --props-removed \
+    --installed-bin-confirmed
 
 This runner only records props-off X3 evidence through the bundled collector.
 It never flashes firmware, changes estimator parameters, publishes evidence, or
-performs a motorized action. The operator must have already removed the props and
-installed the exact bundled cf2.bin named by the checkpoint procedure.
+performs a motorized action. The operator must explicitly confirm that the props
+are removed and that the exact bundled cf2.bin has already been installed.
 EOF
   exit 2
 }
@@ -33,6 +35,8 @@ CHECKPOINT_URL=""
 REQUEST_SHA=""
 DURATION_SECONDS=""
 OUTPUT=""
+PROPS_REMOVED=0
+INSTALLED_BIN_CONFIRMED=0
 
 if [ "$#" -eq 1 ] && [ "$1" = "--verify-environment" ]; then
   VERIFY_ONLY=1
@@ -64,11 +68,20 @@ else
         OUTPUT="$2"
         shift 2
         ;;
+      --props-removed)
+        PROPS_REMOVED=1
+        shift
+        ;;
+      --installed-bin-confirmed)
+        INSTALLED_BIN_CONFIRMED=1
+        shift
+        ;;
       *) usage ;;
     esac
   done
   [ -n "$URI" ] && [ -n "$CHECKPOINT_URL" ] && [ -n "$REQUEST_SHA" ] && \
     [ -n "$DURATION_SECONDS" ] && [ -n "$OUTPUT" ] || usage
+  [ "$PROPS_REMOVED" -eq 1 ] && [ "$INSTALLED_BIN_CONFIRMED" -eq 1 ] || usage
   case "$OUTPUT" in
     /*) ;;
     *) OUTPUT="$CALLER_PWD/$OUTPUT" ;;
