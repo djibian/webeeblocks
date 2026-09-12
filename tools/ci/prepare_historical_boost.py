@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Prepare the exact Boost 1.74 header closure used by historical Webots CI.
 
-This helper deliberately does not use apt metadata or ambient package resolution.
-It downloads one exact Ubuntu Jammy archive, verifies byte size and SHA-256,
-extracts it with dpkg-deb, and verifies the Boost version header before exposing
-it to the pinned Webots R2025a build container.
+This helper deliberately does not use apt metadata, ambient package resolution or
+network download fallback.  It accepts only one already-provisioned exact Ubuntu
+Jammy archive, verifies byte size and SHA-256, extracts it with dpkg-deb, and
+verifies the Boost version header before exposing it to the pinned Webots R2025a
+build container.  A missing support archive fails closed.
 """
 
 from __future__ import annotations
@@ -16,12 +17,8 @@ import re
 import shutil
 import subprocess
 import tempfile
-import urllib.request
 
 PACKAGE_NAME = "libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb"
-PACKAGE_URL = (
-    "https://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/" + PACKAGE_NAME
-)
 PACKAGE_SIZE = 9_608_510
 PACKAGE_SHA256 = "4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78"
 BOOST_VERSION = 107400
@@ -57,24 +54,9 @@ def verify_tree(root: Path) -> None:
         raise SupportError("extracted Boost version is not exactly 1.74.0")
 
 
-def download_archive(destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as stream:
-        temporary = Path(stream.name)
-    try:
-        with urllib.request.urlopen(PACKAGE_URL, timeout=60) as response, temporary.open("wb") as output:
-            shutil.copyfileobj(response, output)
-        verify_archive(temporary)
-        temporary.replace(destination)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def prepare(output: Path, archive: Path | None = None) -> Path:
     output = output.resolve()
     package = archive.resolve() if archive is not None else output.parent / PACKAGE_NAME
-    if archive is None and not package.exists():
-        download_archive(package)
     verify_archive(package)
 
     if output.exists():
