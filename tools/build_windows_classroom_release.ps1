@@ -85,6 +85,27 @@ if (-not (Test-Path -LiteralPath $controllerBinary -PathType Leaf) -or (Get-Item
   throw 'The official Webots Windows build produced no controller executable.'
 }
 
+# Firefox on Windows must use the same local Qt/WWI broker semantics as Linux,
+# built from the Qt closure shipped by the exact Webots R2025a installation.
+$objdump = Join-Path $webotsRoot 'msys64\mingw64\bin\objdump.exe'
+if (-not (Test-Path -LiteralPath $objdump -PathType Leaf)) {
+  throw "Webots R2025a objdump is missing: $objdump"
+}
+$imports = (& $objdump -p $controllerBinary | Out-String)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Could not inspect the Windows controller import table.'
+}
+foreach ($qtDll in @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll')) {
+  if ($imports -notmatch ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($qtDll) + '\s*$')) {
+    throw "Windows controller is missing native Firefox broker dependency: $qtDll"
+  }
+}
+$qtPluginRoot = Join-Path $webotsRoot 'msys64\mingw64\share\qt6\plugins'
+$qwindows = Join-Path $qtPluginRoot 'platforms\qwindows.dll'
+if (-not (Test-Path -LiteralPath $qwindows -PathType Leaf)) {
+  throw "Webots R2025a Qt Windows platform plugin is missing: $qwindows"
+}
+
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 if (Test-Path -LiteralPath $packageDir) {
   Remove-Item -LiteralPath $packageDir -Recurse -Force
@@ -129,6 +150,7 @@ Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie
 $runtimeIni = @'
 [environment variables with paths]
 WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/controller:$(WEBOTS_HOME)/msys64/mingw64/bin
+QT_PLUGIN_PATH = $(WEBOTS_HOME)/msys64/mingw64/share/qt6/plugins
 '@
 Write-Utf8NoBom (Join-Path $packagedControllerDir 'runtime.ini') (($runtimeIni.TrimEnd()) + "`n")
 
