@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+const WwiProjectFileTransport = require('../../plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js');
 
 async function testBackendResetContract() {
   const sent = [];
@@ -63,6 +64,67 @@ async function testBackendResetContract() {
   const physical = new WwiBackend({send: () => {}}, {timeoutMs: 1000});
   assert.notStrictEqual(physical.capabilities.simulationReset, true);
   await assert.rejects(() => physical.resetSimulation(), /simulation reset unavailable/);
+}
+
+async function testProjectFileOperationsOutliveReadinessTimeout() {
+  const sent = [];
+  const transport = new WwiProjectFileTransport(
+    {send: message => sent.push(String(message))},
+    {timeoutMs: 5}
+  );
+
+  function requestId() {
+    const match = sent.at(-1).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) /);
+    assert(match, sent.at(-1));
+    return Number(match[1]);
+  }
+
+  let pending = transport.waitUntilReady();
+  let id = requestId();
+  transport.handleMessage(
+    `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} CAPABILITIES {"protocol":1,"provider":"qt6-native-dialog","operationsReady":true,"sameFileSave":true,"canonicalExtension":".wbb"}`
+  );
+  await pending;
+
+  pending = transport.open();
+  await Promise.resolve();
+  id = requestId();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert(transport.pending[id], 'Open expired on the readiness timeout');
+  transport.handleMessage(
+    `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} OPEN OK delayed_open ${WwiProjectFileTransport.encodeText('delayed.wbb')} ${WwiProjectFileTransport.encodeText('{"ok":1}')}`
+  );
+  const opened = await pending;
+  assert.strictEqual(opened.handle.reference, 'delayed_open');
+
+  pending = transport.saveAs('delayed.wbb', '{"ok":2}');
+  await Promise.resolve();
+  id = requestId();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert(transport.pending[id], 'Save As expired on the readiness timeout');
+  transport.handleMessage(
+    `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE_AS OK delayed_save ${WwiProjectFileTransport.encodeText('delayed.wbb')}`
+  );
+  const saved = await pending;
+  assert.strictEqual(saved.handle.reference, 'delayed_save');
+
+  pending = transport.save(saved.handle, saved.name, '{"ok":3}');
+  await Promise.resolve();
+  id = requestId();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert(transport.pending[id], 'same-file Save expired after its disk effect could have committed');
+  transport.handleMessage(
+    `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} SAVE OK delayed_save ${WwiProjectFileTransport.encodeText('delayed.wbb')}`
+  );
+  const resaved = await pending;
+  assert.strictEqual(resaved.handle.reference, 'delayed_save');
+
+  const unavailable = new WwiProjectFileTransport({send: () => {}}, {timeoutMs: 5});
+  await assert.rejects(
+    unavailable.waitUntilReady(),
+    error => error && error.code === 'TIMEOUT'
+  );
+  assert.strictEqual(Object.keys(unavailable.pending).length, 0, 'readiness timeout stayed pending');
 }
 
 async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
@@ -128,7 +190,7 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
     WebeeBlocksSemanticAst: {},
     WebeeBlocksActivityContract: {applyFieldBounds() {}},
     WebeeBlocksProjectFiles: {
-      createBrowserTransport: () => ({}),
+      createBrowserTransport: () => ({nativeFileSystemAccess: true, mode: 'browser-native'}),
       createManager: () => manager,
       normalizeName: name => name
     },
@@ -142,6 +204,10 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   assert.strictEqual(typeof loadHandler, 'function');
   assert.strictEqual(typeof runtimeStatusHandler, 'function');
   loadHandler();
+  // Project-file transport selection is asynchronous now that Firefox may
+  // negotiate the local WWI broker. Let the established browser-native path
+  // finish initialization before exercising the reset interlock.
+  await new Promise(resolve => setTimeout(resolve, 0));
   assert.strictEqual(typeof openHandler, 'function');
 
   runtimeStatusHandler({detail: {state: 'RÉINITIALISATION'}});
@@ -174,9 +240,10 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendResetContract();
+  await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
   testNativeResetTimeoutSourceContract();
-  console.log('PASS: reset cancels stale requests, stays retryable, locks Blockly/Open while pending, preserves project reset gating, and remains simulation-only.');
+  console.log('PASS: reset cancels stale requests, project-file effects stay attached while readiness stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
 })().catch(error => {
   console.error(error.stack || error);
   process.exit(1);
