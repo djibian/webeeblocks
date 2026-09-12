@@ -87,6 +87,9 @@ The following checkpoint preparation still remains:
 - Prepare the measured stationary/terrain/vertical/mixed procedure, synchronized
   reference and event boundaries. A 30 s calibration and both signs of each
   physical case are retained; the same analysis path must process every case.
+  The [conditional reference processor](METRIC_REFERENCE.md) preserves external
+  annotations and clock/metric intervals; its arithmetic does not validate the
+  physical measurements, clock assumptions or actual synchronization.
 - Package and validate the exact runtime and supports in the trusted checkpoint
   preparation. The collector's module hashes identify two observed modules;
   they are deliberately not presented as a complete dependency lock. The live
