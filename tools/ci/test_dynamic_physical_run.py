@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 import sys
 
@@ -11,8 +12,6 @@ if str(PHYSICAL) not in sys.path:
     sys.path.insert(0, str(PHYSICAL))
 
 import dynamic_physical_run as subject  # noqa: E402
-import test_dynamic_run_activation as activation_test  # noqa: E402
-import test_physical_dynamic_run_activation as host_activation_test  # noqa: E402
 
 
 def require(condition: bool, message: str) -> None:
@@ -105,15 +104,32 @@ def test_interpreter_failure_is_fail_closed_but_cleanup_remains_explicit() -> No
         subject.BoundSharedInterpreter = original_interpreter
 
 
+def run_production_regression(relative_path: str, label: str) -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / relative_path)],
+        text=True,
+        capture_output=True,
+    )
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.returncode:
+        if result.stderr.strip():
+            print(result.stderr.strip(), file=sys.stderr)
+        raise AssertionError(label)
+
+
 def main() -> int:
     test_exact_backend_and_one_shot_execution()
     test_interpreter_failure_is_fail_closed_but_cleanup_remains_explicit()
-    require(
-        activation_test.main() == 0,
+    # These production-host regressions install broad fake trusted-host surfaces.
+    # Run each in a fresh interpreter so one oracle cannot leak monkeypatch state
+    # into the next and manufacture a false product-path failure.
+    run_production_regression(
+        "tools/ci/test_dynamic_run_activation.py",
         "production dynamic activation/dispatch regression must pass",
     )
-    require(
-        host_activation_test.main() == 0,
+    run_production_regression(
+        "tools/ci/test_physical_dynamic_run_activation.py",
         "production dynamic host range/recovery regression must pass",
     )
     print(
