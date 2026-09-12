@@ -22,7 +22,7 @@ artifact=/workspace/ci-artifacts/runtime-v2-project-files/firefox
 mkdir -p "$artifact" /root/.config/Cyberbotics
 apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \\
-  wget ca-certificates libgtk-3-0 libdbus-glib-1-2 libasound2 libxtst6 >/dev/null
+  wget ca-certificates xz-utils libgtk-3-0 libdbus-glib-1-2 libasound2 libxtst6 >/dev/null
 wget -q -O /tmp/firefox.tar.xz {FIREFOX_URL}
 echo "{FIREFOX_SHA256}  /tmp/firefox.tar.xz" | sha256sum -c -
 tar -xJf /tmp/firefox.tar.xz -C /tmp
