@@ -6,6 +6,7 @@
   var supported = false;
   var runtimeLocked = false;
   var handlersWired = false;
+  var brokerFallbackAllowed = false;
   var brokerProbeStarted = false;
 
   function fileState(text, error) {
@@ -146,7 +147,7 @@
   }
 
   async function tryWwiBroker() {
-    if (brokerProbeStarted || supported || !robotWindow || typeof robotWindow.send !== 'function') return;
+    if (!brokerFallbackAllowed || brokerProbeStarted || supported || !robotWindow || typeof robotWindow.send !== 'function') return;
     brokerProbeStarted = true;
     try {
       var transport = WebeeBlocksFileBrokerTransport.create(robotWindow, {probeTimeoutMs: 2000});
@@ -155,7 +156,7 @@
     } catch (error) {
       supported = false;
       publishMode('unavailable', false);
-      fileState('Gestion native des fichiers projet indisponible dans ce navigateur', true);
+      fileState('Gestion native des fichiers projet indisponible — utilisez Google Chrome', true);
       renderButtons();
     }
   }
@@ -163,7 +164,7 @@
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
     setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
-    if (!supported) tryWwiBroker();
+    if (brokerFallbackAllowed && !supported) tryWwiBroker();
   });
 
   window.addEventListener('load', function() {
@@ -179,6 +180,7 @@
       return;
     }
 
+    brokerFallbackAllowed = true;
     publishMode('probing-native-broker', false);
     fileState('Recherche du gestionnaire natif de fichiers…', false);
     renderButtons();
