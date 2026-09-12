@@ -59,7 +59,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             while IFS= read -r path; do
               case "$path" in
-                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
+                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/X3_ACCEL_DRDY_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/apply_x3_accel_drdy_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/test_x3_accel_drdy_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
                   run=true
                   break
                   ;;
@@ -93,6 +93,9 @@ jobs:
           git -C .x3-crazyflie-firmware rev-parse HEAD > ci-artifacts/x3-prelpf-observer/upstream-sha.txt
           git -C .x3-crazyflie-firmware diff -- src/modules/src/estimator/estimator_ukf.c > ci-artifacts/x3-prelpf-observer/estimator_ukf.patch || true
           git -C .x3-crazyflie-firmware diff -- src/hal/src/sensors_bmi088_bmp3xx.c > ci-artifacts/x3-prelpf-observer/sensors_bmi088_bmp3xx.patch || true
+          if [ -f .x3-crazyflie-firmware/build/.config ]; then
+            cp .x3-crazyflie-firmware/build/.config ci-artifacts/x3-prelpf-observer/diagnostic.config
+          fi
           if [ -f .x3-crazyflie-firmware/build/cf2.elf ]; then
             sha256sum .x3-crazyflie-firmware/build/cf2.elf > ci-artifacts/x3-prelpf-observer/cf2.elf.sha256
           fi
