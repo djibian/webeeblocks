@@ -2,10 +2,14 @@
 set -euo pipefail
 
 root="$(pwd)"
-evidence="$root/ci-artifacts/crazyflie-runtime-wwi/firefox-qt-provider"
+evidence="$root/ci-artifacts/crazyflie-runtime-wwi/firefox-qt-provider-continuity"
 mkdir -p "$evidence"
 exec > >(tee "$evidence/preparation.log") 2>&1
-trap 'code=$?; if [ "$code" -ne 0 ] && [ ! -f "$evidence/result.json" ]; then printf "{\"result\":\"UNPROVEN\",\"reason\":\"preparation or harness incomplete\",\"exit_code\":%s}\n" "$code" > "$evidence/result.json"; fi' EXIT
+trap 'code=$?; if [ "$code" -ne 0 ] && [ ! -f "$evidence/result.json" ]; then printf "{\"result\":\"UNPROVEN\",\"reason\":\"preparation or continuity harness incomplete\",\"exit_code\":%s}\n" "$code" > "$evidence/result.json"; fi' EXIT
+
+python3 -m py_compile tools/ci/firefox_qt_provider/qualify.py tools/ci/firefox_qt_provider/continuity.py
+python3 tools/ci/firefox_qt_provider/test_qualification.py
+python3 tools/ci/firefox_qt_provider/test_continuity.py
 
 recipe="$RUNNER_TEMP/q87-linux-runtime-dependencies.sh"
 curl --fail --location --retry 3 --output "$recipe" \
@@ -57,8 +61,10 @@ sha256sum "$controller/qt_provider_probe" "$controller/file_broker.cpp" "$contro
 g++ --version > "$evidence/compiler.txt"
 python3 tools/ci/firefox_qt_provider/qualify.py inspect "$project" "$evidence" "$webots"
 
-# One real provider qualification. No standalone/copy-relocation crash arms.
+# One bounded measurement re-evaluation of the already observed real provider.
+# The controller cannot request Webots shutdown until the external harness has
+# durably read the complete controller-owned continuity journal.
 env WEBOTS_HOME="$webots" QT_PLUGIN_PATH="$webots/lib/webots/qt/plugins" \
   LIBGL_ALWAYS_SOFTWARE=true Q87_EVIDENCE="$evidence" Q87_FILES="$project/files" \
   timeout -k 5s 60s xvfb-run -a \
-  python3 tools/ci/firefox_qt_provider/qualify.py run "$project" "$evidence" "$webots"
+  python3 tools/ci/firefox_qt_provider/continuity.py "$project" "$evidence" "$webots"

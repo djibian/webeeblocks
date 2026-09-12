@@ -1,0 +1,15 @@
+{
+  "allowed_globs": [
+    "**/*.csv",
+    "**/*.txt",
+    "**/*.json",
+    "**/*.log"
+  ],
+  "max_files": 256,
+  "max_total_bytes": 25000000,
+  "profile": "physical-csv-text-v1",
+  "required_globs": [
+    "**/*.csv"
+  ],
+  "schema": 1
+}

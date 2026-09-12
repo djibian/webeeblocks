@@ -38,43 +38,47 @@ yaw; it imports no cflib command surface and emits no physical effect. Integrate
 the reconnect-sensitive connection epoch: reads are serialized across that epoch,
 exact-framed, preserve the raw bitfield including deck fault, and poison ambiguous
 freshness/transport until reconnect. Integrated #260 now also establishes the
-non-authority accepted-yaw observer for the future #256 horizontal transform: it
-streams firmware `stateEstimate.yaw`, binds the stream to that same reconnect-
-sensitive epoch, rejects cached/duplicate/stale/non-finite samples and converts a
-strictly later post-call sample from degrees to radians exactly once. Integrated
-#264 adds the non-authority controlled-landing completion observer, binding one
-fresh pre-land high-level-flight baseline to one later same-epoch finished,
-non-flying, high-level-inactive #257 result. Integrated #262 adds the independent
-host-side emergency-watchdog liveness safety primitive: it consumes an external
-powered-session authority, causally fences activation through #257, immediately
+non-authority accepted-yaw observer for the #256 horizontal transform: it streams
+firmware `stateEstimate.yaw`, binds the stream to that same reconnect-sensitive
+epoch, rejects cached/duplicate/stale/non-finite samples and converts a strictly
+later post-call sample from degrees to radians exactly once. Integrated #264 adds
+the non-authority controlled-landing completion observer, binding one fresh
+pre-land high-level-flight baseline to one later same-epoch finished, non-flying,
+high-level-inactive #257 result. Integrated #262 adds the independent host-side
+emergency-watchdog liveness safety primitive: it consumes an external powered-
+session authority, causally fences activation through #257, immediately
 re-anchors the keepalive deadline, maintains liveness continuously and makes
 ambiguity or lost lifecycle certainty terminal until separately proven reset.
 The browser-facing capability surface remains non-authority with
 `executionAuthority:false`; #262 is host safety infrastructure and exposes no
 student/browser flight authority. The underlying cflib SyncCrazyflie close path
 still emits its documented safety-zero commander setpoint, so this is not a claim
-that the transport emits no command packet. Integrated #266 now supplies the concrete trusted powered-session/reset
-implementation consumed by #262, and integrated #267 supplies the host-only
-exact-run teacher-authorization binding. Integrated #283/#280 now establishes the
-trusted physical-host composition root: the one live Crazyflie/session and #278
-bridge/responder stay inside that host, the ordinary caller/UI sends only bounded
-non-authority run-context requests, and the later #276 effect transport is
-co-located inside the same trusted process so fresh #249 provenance can be
-consumed on the exact live connection epoch. The substantive remaining product
-boundary therefore starts after those validated semantics, observations and
-safety/authority prerequisites: the separately authorized physical effect
-consumer and proof of safe real execution continuity. The existing browser-held
+that the transport emits no command packet. Integrated #266 supplies the concrete
+trusted powered-session/reset implementation consumed by #262, and integrated
+#267 supplies the host-only exact-run teacher-authorization binding. Integrated
+#283/#280 establishes the trusted physical-host composition root: the one live
+Crazyflie/session and #278 bridge/responder stay inside that host while the
+ordinary caller/UI sends only bounded non-authority run-context requests.
+Integrated #276 now supplies the first ordinary co-located one-shot SETPOINT_HL
+effect consumer for exact teacher-bound horizontal move/yaw effects, and
+#295/#305/#308 extend that same host-owned sequence through exact terminal
+controlled landing and fresh non-flying completion. The supported deterministic
+physical envelope is therefore causal takeoff -> zero or more exact horizontal
+move/turn effects -> terminal controlled land, under the integrated teacher,
+session, watchdog, supervisor, SafeLink, acknowledgement, exclusion and
+current-program trust chain. This is deterministic fake/injected-hardware
+integration evidence, not real-flight qualification. The substantive remaining
+#157 boundary is broader physical capability continuity and representative
+real-device qualification beyond that envelope. The existing browser-held
 capability/preflight bearer remains non-authority: the #267 teacher decision
 belongs to a distinct trusted host-side control path that the student/browser
 runtime cannot mint or invoke, and effect methods must not be added under that
-read-only bearer merely for reuse. Stock brushed
-Crazyflie 2.1 auto-arms when pre-flight checks pass and
-can return to ReadyToFly after a normal landing/reset cycle, so post-landing
-disarm is not a persistent safety gate and teacher authorization must not be
-modeled as merely approving a host arming packet. Do not invent
-additional simulation vocabulary
-merely to keep #157 active. A new simulation slice needs a concrete pedagogical
-need or contradictory evidence.
+read-only bearer merely for reuse. Stock brushed Crazyflie 2.1 auto-arms when
+pre-flight checks pass and can return to ReadyToFly after a normal landing/reset
+cycle, so post-landing disarm is not a persistent safety gate and teacher
+authorization must not be modeled as merely approving a host arming packet. Do
+not invent additional simulation vocabulary merely to keep #157 active. A new
+simulation slice needs a concrete pedagogical need or contradictory evidence.
 
 Research / later work:
 
@@ -256,15 +260,15 @@ justified by the current evidence.
   production physical submission path to that live session, preserving the exact
   current activity profile and semantic workspace AST across preflight; and
   integrated #278 adds a fresh host-initiated one-shot profile/AST/epoch
-  re-assertion channel from the production browser path. Integrated #283/#280 now
+  re-assertion channel from the production browser path. Integrated #283/#280
   establishes the production composition root around that channel: the trusted
   physical-host process owns the exact live session plus #278 bridge/responder,
   browser responder bootstrap remains a distinct trusted channel, and the
   ordinary caller/UI remains outside on bounded non-authority run-context IPC.
-  The later #276 transport is co-located inside that trusted host TCB and must
-  perform the fresh #249 assertion internally immediately before an effect; no
-  public/importable mint, binder or client may turn caller-selected bridge,
-  session, socket or token state into effect provenance. Integrated #256 then
+  Integrated #276 is co-located inside that trusted host TCB and performs fresh
+  #278/#249 current-program assertion internally before each supported ordinary
+  effect; no public/importable mint, binder or client turns caller-selected
+  bridge, session, socket or token state into effect provenance. Integrated #256
   codifies the physical body-relative horizontal -> world-frame transform plus
   relative world-Z/yaw as a pure semantic adapter, without importing cflib or
   emitting any command.
@@ -281,10 +285,10 @@ justified by the current evidence.
   baselines, blocking faults, epoch loss and late completion. Integrated #262
   adds the host-only emergency-watchdog liveness primitive with exact Crazyflie/
   epoch binding, same-port activation fence, immediate post-fence keepalive,
-  continuous host-gap enforcement and an abstract externally supplied
-  powered-session authority that cannot be minted by reconnect or process
-  reconstruction. The browser-facing slices preserve `executionAuthority:false`;
-  #262 exposes no WebeeBlocks motor/arming or student/browser command API
+  continuous host-gap enforcement and an abstract externally supplied powered-
+  session authority that cannot be minted by reconnect or process reconstruction.
+  The browser-facing slices preserve `executionAuthority:false`; #262 exposes no
+  WebeeBlocks motor/arming or student/browser command API
 - real-device checkpoint #226 was authoritatively closed `NOT_NEEDED` after the
   live-preflight product decision superseded the fixed all-reference-decks gate.
   Its bounded partial observation still established exact Crazyflie 2.1
@@ -293,33 +297,33 @@ justified by the current evidence.
   this is historical capability evidence, not a reusable execution preflight
 - the normal cflib close path still emits its safety-zero commander setpoint, so
   transport-level packet emission is not claimed read-only
-- remaining boundary: the validated pre-effect assertion, fresh supervisor/yaw
-  observations, watchdog safety primitive, controlled-completion observer,
-  concrete trusted powered-session/reset authority (#266), exact-run host-only
-  teacher authorization (#267), pure HighLevel trajectory timing policy (#268),
-  process-wide HighLevel acknowledgement-freshness domain (#271), live SafeLink
-  duplicate-suppression precondition (#272), process-wide reset/effect
-  exclusion lifecycle (#273), and exact accepted-effect completion permit (#279)
-  are integrated. #280 is integrated by #283 and no longer blocks #276. The
-  remaining boundary is the first separately authorized physical effect consumer
-  itself: #276 must be co-located inside the #283 trusted physical-host process,
-  perform fresh #278/#249 current-program assertion internally immediately before
-  each effect without accepting caller-returned provenance, and compose the
-  exact-bound preflight with #257/#260/#256/#268, consume #266
-  to establish the powered session, keep #262 live across that reusable session,
-  require the exact #267 run binding and #272 SafeLink evidence immediately
-  before each flight-capable effect, execute inside #273, enter #271 before one
-  plain one-shot SETPOINT_HL send with no application retry, and require fresh
-  #257/#264 completion afterward. Unknown acknowledgement/effect outcome remains
-  fail-closed and cannot authorize retry or reset. The #262/#266 powered-session
-  identity remains distinct from the Crazyradio connection epoch: ambiguous
-  activation/maintenance, a missed keepalive deadline, epoch loss or otherwise
-  lost lifecycle certainty is terminal across ordinary reconnect. Reuse requires
-  the #266 trusted STM+deck reset/postcondition establishment, then a new
-  connection epoch and complete capability/preflight/safety re-observation
-  before a fresh external #262 authority can exist. On stock auto-arming
-  firmware, post-landing disarm is not a persistent lockout; a later physical
-  run still requires a new #267 teacher authorization
+- established deterministic physical envelope: #266/#267/#268/#271/#272/#273/
+  #278/#279/#283 plus #257/#260/#262/#264 are integrated safety, authority,
+  observation and effect-lifecycle prerequisites. #295 binds the complete exact
+  supported physical program sequence. #276 consumes the exact next teacher-bound
+  horizontal move or yaw turn through one plain no-retry SETPOINT_HL effect after
+  causal takeoff; #305/#308 consume the exact terminal land through command 10
+  only after all prior exact motions complete, reconstruct current-program
+  provenance after blocking pre-land reads and require fresh #264 same-epoch
+  finished/non-flying/high-level-inactive completion before the shared execution
+  domain becomes inactive. Unknown acknowledgement/effect/completion outcome
+  remains fail-closed and cannot authorize retry or reset
+- remaining boundary: broader physical capability continuity and representative
+  real-device qualification beyond the currently supported deterministic takeoff
+  + horizontal move/turn + terminal-land envelope. Vertical movement, wait/speed
+  semantics, student physical range consumption and bottom Color LED effects are
+  not established merely by preflight support. Any next physical consumer must
+  reuse the existing trusted-host boundaries rather than recreate authority.
+  The #262/#266 powered-session identity remains distinct from the Crazyradio
+  connection epoch: ambiguous activation/maintenance, a missed keepalive
+  deadline, epoch loss or otherwise lost lifecycle certainty is terminal across
+  ordinary reconnect. Reuse requires #266 trusted STM+deck reset/postcondition
+  establishment, then a new connection epoch and complete capability/preflight/
+  safety re-observation before fresh #262 authority can exist. On stock auto-
+  arming firmware, post-landing disarm is not a persistent lockout; every later
+  physical run still requires a new #267 teacher authorization. The deterministic
+  envelope is not a real-flight qualification and authorizes no motorized
+  checkpoint
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
@@ -371,108 +375,81 @@ justified by the current evidence.
 ### P — physical backend capability and safety
 
 - parents: physical-backend product work and #70 evidence
-- established prerequisite: #193/#196 plus #238/#241/#243/#244 provide the
-  non-authority Crazyradio/deck evidence path, exact-airframe proof, exact-AST
-  capability derivation/binding, fresh descriptor acquisition and reconnect
-  invalidation; #246 supplies the concrete host-side live session that owns the
-  reconnect-sensitive epoch and current descriptor reads; and #249 integrates
-  the production physical submission bridge that binds and immediately re-asserts
-  the current profile/semantic AST with that live epoch; #256 establishes the
-  pure no-effect body/world, world-Z and relative-yaw semantic adapter intended
-  for later direct HighLevelCommander consumption; #257 establishes a fresh
-  fail-closed raw supervisor observer bound to that reconnect-sensitive epoch,
-  including deck-fault handling and epoch-wide ambiguity poisoning; #260
-  establishes the non-authority fresh `stateEstimate.yaw` observer bound to the
-  same epoch for later #256 horizontal-transform input; #264 establishes
-  controlled normal-completion evidence from one fresh high-level-flight baseline
-  to one later fresh finished/non-flying #257 state; and #262 establishes the
-  independent host-side watchdog activation/liveness primitive with its external
-  powered-session authority contract. The browser-facing surface remains
-  non-authority with `executionAuthority:false`; the cflib close path retains
-  its safety-zero transport setpoint
+- established prerequisite and deterministic subset: #193/#196 plus
+  #238/#241/#243/#244/#246/#249 establish exact-airframe, live capability,
+  exact-AST binding and reconnect-sensitive current-program provenance; #256,
+  #257 and #260 establish the pure movement transform and fresh supervisor/yaw
+  observations; #262/#264/#266/#267/#268/#271/#272/#273/#278/#279/#283 provide
+  the trusted powered-session, teacher, watchdog, SafeLink, acknowledgement,
+  reset/effect-exclusion, current-program and completion domains. #295 binds the
+  exact supported program sequence; #276 supplies one-shot horizontal move/yaw
+  effects after causal takeoff; #305/#308 compose exact terminal controlled
+  landing and fresh non-flying completion. The browser-facing surface remains
+  non-authority with `executionAuthority:false`, and the cflib close path retains
+  its safety-zero transport setpoint. This established subset is deterministic
+  fake/injected-hardware integration evidence, not real-flight qualification
 - bounded real-device evidence from superseded checkpoint #226 confirms the
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: separately authorized physical effect consumption and proof of
-  physical execution continuity. Integrated #283/#280 now supplies the trusted
-  physical-host boundary around #278: one host process owns the live session,
-  bridge/responder and later physical effect transport; browser bootstrap remains
-  distinct, while the ordinary caller/UI has only bounded non-authority run-context
-  IPC. The fresh #249 assertion therefore remains inside the trusted host and is
-  consumed immediately before a co-located effect rather than crossing back as
-  caller-held provenance. Integrated #266 now satisfies #262's concrete trusted
-  powered-session/reset authority boundary, and integrated #267 now supplies the
-  exact-run host-only teacher-authorization binding that every flight-capable
-  effect must re-check. The existing browser-held capability/preflight bearer
-  remains non-authority; the #267 teacher path is distinct and unavailable to the
-  student/browser runtime, and the read-only capability bridge must not gain
-  effect methods merely to reuse that bearer. This boundary deliberately does
-  not treat arbitrary code already inside the trusted physical-host TCB as an
-  adversarial Python principal; Python privacy naming is not a sandbox, while
-  ambient production import surfaces that expose bridge/session/responder or a
-  caller-selectable mint/binder/client remain forbidden. Integrated #268
-  additionally supplies the pure horizontal/yaw HighLevel timing policy needed
-  by the later serialized effect consumer. #262, #264, #266, #267 and #268 are
-  safety/authority/semantic prerequisites; none alone establishes the physical
-  effect consumer or real-flight proof. Stock
+- depends: broader physical capability continuity and representative real-device
+  qualification. The trusted host already owns the live session, #278 responder,
+  exact #267 teacher binding, #262/#266 powered-session/watchdog lifecycle and
+  #276/#308 effect substrate; new physical capability slices must consume those
+  boundaries rather than expose caller-held provenance or add effect methods to
+  the read-only browser capability bearer. Vertical movement, wait/speed
+  semantics, student physical range consumption and bottom Color LED effects
+  remain unproven until separate integrated evidence establishes them. Stock
   auto-arming can return the vehicle to ReadyToFly after the landing/reset cycle,
   so a host disarm request is not a durable post-mission lockout. The pinned
   watchdog has no disable/reset command after first activation, so its trusted
-  keepalive lifecycle must span the reusable powered physical session; simply
+  keepalive lifecycle spans the reusable powered physical session; simply
   stopping keepalives after a normal land would eventually enter the latching
-  emergency-stop/locked state and require reboot. Its one-way keepalive command
-  also has no application-level reply: the current bounded activation-proof
-  direction is to enqueue the keepalive and then require a successful #257 fresh
-  GET_STATE read on the same unchanged connection epoch/supervisor port, relying
-  on the documented same-port ordering as a causal fence. Powered-session
-  watchdog certainty must survive guard replacement and Crazyradio reconnect:
-  reconnect/new epoch invalidates connection evidence but does not reset firmware
-  watchdog state. After ambiguous activation/maintenance, a missed keepalive
-  deadline, locked state or other lifecycle uncertainty, ordinary authority stays
-  fail-closed until an explicit STM+deck power-cycle/reboot is separately proven,
-  followed by reconnect/new epoch and complete re-preflight. That power-cycle is
-  a motor-cut recovery boundary, not a normal abort action, and must never be
-  triggered opportunistically while physical flight may still be active. The
-  integrated #266 now supplies the concrete trusted powered-session/reset
-  authority for this recovery boundary: explicit STM+deck reset establishment
-  plus a new connection epoch and fresh capability/preflight/safety
-  postconditions are required before #262 can receive fresh lifecycle authority.
-  Do not assume a host arming packet is the teacher gate: stock brushed Crazyflie
-  2.1 auto-arms when pre-flight checks pass
-- proof direction: preserve backend-neutral AST continuity and consume the
-  integrated #256 pure semantic adapter plus #268 timing from a later direct
-  `HighLevelCommander` effect substrate rather than the `MotionCommander` /
-  `PositionHlCommander` helpers. The accepted-yaw observation itself is now
-  established by #260; a later authority layer must consume one fresh same-epoch
-  #260 sample immediately before the #256 horizontal transform and preserve the
-  exact preflight/session binding across that observation/transform. For the
-  command transport, use the stock SETPOINT_HL firmware application reply as the
-  acceptance result instead of treating cflib's immediate helper return as an
-  acknowledgement; timeout/malformed/disconnect is an ambiguous effect outcome
-  and must not trigger automatic command resend. After positive acknowledgement,
-  consume the integrated #257 fresh supervisor observer to bound command
-  completion by high-level trajectory state plus timeout/locked/crashed/deck-fault
-  checks. That observer must be the exclusive authoritative issuer of supervisor
-  GET_STATE requests on the connection epoch; do not invoke cflib `Supervisor`
-  getters in parallel or as a second safety oracle because they bypass #257's
-  epoch-wide serialization/ambiguity guard. Add only the minimum teacher-authorized physical
-  execution authority after the live capability and safety gates are independently
-  established, keeping that authority outside the existing browser capability
-  credential/domain. Keep immediate emergency stop and high-level commander stop
-  exceptional because both can cut motors in flight; normal completion/voluntary
-  abort must issue a controlled high-level land and await integrated #264 while
-  integrated #262 remains live through the reusable powered session. A later
-  flight-capable effect still requires fresh teacher authorization even if stock
-  auto-arming returns the vehicle to ReadyToFly
+  emergency-stop/locked state and require reboot. Powered-session watchdog
+  certainty survives guard replacement and Crazyradio reconnect: reconnect/new
+  epoch invalidates connection evidence but does not reset firmware watchdog
+  state. After ambiguous activation/maintenance, a missed keepalive deadline,
+  locked state or other lifecycle uncertainty, ordinary authority stays
+  fail-closed until explicit STM+deck reset is separately proven, followed by a
+  new connection epoch and complete re-preflight. That reset is a motor-cut
+  recovery boundary, not a normal abort action, and must never be triggered
+  opportunistically while physical flight may still be active
+- proof direction: preserve backend-neutral AST continuity and extend the
+  integrated trusted SETPOINT_HL/host sequence only for the next demonstrated
+  pedagogical capability. Reuse #256/#268 semantics/timing and one fresh same-
+  epoch #260 yaw sample where applicable; use #257 as the exclusive authoritative
+  supervisor GET_STATE issuer, #271 for application acknowledgement and #279 for
+  accepted-effect completion. Timeout/malformed/disconnect or otherwise unknown
+  effect outcome remains ambiguous and must not trigger automatic command resend.
+  Keep immediate emergency stop and high-level commander stop exceptional because
+  both can cut motors in flight; normal completion remains the integrated
+  controlled high-level land through #308 while #262 stays live across the
+  reusable powered session. Every later flight-capable run still requires fresh
+  #267 teacher authorization even if stock auto-arming returns ReadyToFly. A
+  representative motorized qualification is a later explicit checkpoint, not an
+  implication of deterministic host composition
 - expand only when this becomes near-term work.
 
 ### FF — Firefox same-file project semantics
 
 - parent: #87
-- depends: preserved native-bridge/browser evidence
-- proof direction: causal diagnosis first, implementation only after a viable
-  same-file path is proven
+- retained architecture: a native Qt file broker through the existing local
+  Webots/WWI path, as selected by the bounded post-C26 decision on #87
+- established causal result: C26 isolated executable COPY data interposition
+  relative to GOT binding in the pinned minimal Qt closure; do not reopen C8–C26
+- real-provider result: the single #301 qualification compiled the actual
+  provider as PIC, verified no Qt COPY relocation, and observed official Webots
+  launch, QApplication initialization, a displayed QFileDialog, real cancellation
+  and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
+  do not establish completion of the controller loop: its aggregate eight-step
+  marker and controller exit status are absent, so continuation remains UNPROVEN
+- remaining prerequisite: establish coexistence of the dialog with the
+  controller/WWI lifecycle before product implementation. The single authorized
+  qualification is recorded; this result does not authorize another causal
+  discriminator chain
+- product boundary: the native broker must preserve direct same-file Open,
+  Save As and Save semantics; full Firefox parity and Windows qualification
+  remain unproven. The supported Chromium path remains independent of #87
 - keep deferred while higher-value work remains executable.
 
 ### R — final real-flight activity

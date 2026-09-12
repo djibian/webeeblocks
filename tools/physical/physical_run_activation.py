@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
-"""Trusted #287 host adapter for one production causal takeoff activation.
+"""Trusted host adapter for one production causal physical run activation.
 
-This module is not a caller protocol. The running #283 physical host supplies the
-already host-validated profile/canonical-AST binding, its one live read-only
-session/bridge, the distinct launcher-installed teacher socket and the shared
-#273 execution domain. The generic production lifecycle lives in
-``production_takeoff_run``; this adapter supplies only the host-local seams that
-must remain lexical to the trusted process:
+The running #283 host supplies the already host-validated profile/canonical-AST
+binding, its one live reset-aware #278 bridge, the distinct launcher-installed
+teacher socket and the shared #273 execution domain. The generic takeoff
+lifecycle remains in ``production_takeoff_run``. The exact canonical AST is
+validated against the integrated sequencing boundary before any reset or flight
+effect; after exact takeoff has causally completed, the same sequence owns each
+bounded move/turn and the one terminal controlled landing.
 
-- keep the same ``PostResetCapabilityHttpBridge`` URL/tokens while explicitly
-  fencing its read-only view before #266 closes the old session and reinstalling
-  that view only after a genuinely new post-reset epoch is live;
-- unwrap the raw post-reset Crazyflie object only inside the trusted host TCB;
-- perform every positive #278/#249 current-program assertion through the same
-  host-owned bridge;
-- construct #290 and the host-bound #289 transport without exposing those
-  authorities to ordinary caller/browser IPC.
-
-The ordinary caller never supplies reset safety, the new connection epoch,
-teacher authority, provenance, a Crazyflie object, command bytes or takeoff
-height. Importing this module performs no physical effect.
+Importing this module performs no physical effect.
 """
 
 from __future__ import annotations
 
 import socket
 
-from physical_execution_domain import PhysicalExecutionDomain
+from controlled_landing_transport import (
+    ControlledLandingTransportError,
+    TrustedControlledLandingTransport,
+)
+from high_level_timing import HighLevelTimingPolicy
+from physical_execution_domain import FLYING, INACTIVE, PhysicalExecutionDomain
+from physical_program_sequence import PhysicalProgramSequence, PhysicalProgramSequenceError
 from post_reset_teacher_decision import PostResetTeacherDecisionChannel
 from powered_session_authority import (
     TrustedPoweredSessionFactory,
@@ -37,6 +33,7 @@ from serve_reference_capabilities import CurrentProgramPreflightEvidence
 from supervisor_state import FreshSupervisorStateReader
 from takeoff_transport import TakeoffTransportError, TrustedTakeoffTransport
 from teacher_run_authorization import PhysicalRunBinding, TrustedTeacherAuthorizer
+from yaw_observer import FreshYawObserver
 
 
 class PhysicalRunActivationError(RuntimeError):
@@ -44,13 +41,7 @@ class PhysicalRunActivationError(RuntimeError):
 
 
 def _live_crazyflie(session: object) -> object:
-    """Return the raw live cflib Crazyflie only inside the trusted host TCB.
-
-    ``ReadOnlyCapabilitySession`` intentionally exposes no public effect surface.
-    Python object privacy is not the #280 security boundary; process separation
-    is. Trusted composition may unwrap its own live ``SyncCrazyflie`` while the
-    raw object remains entirely absent from caller/browser IPC.
-    """
+    """Return the raw live cflib Crazyflie only inside the trusted host TCB."""
     scf = getattr(session, "_scf", None)
     if scf is None:
         raise PhysicalRunActivationError("trusted host has no live Crazyflie session")
@@ -138,13 +129,13 @@ def activate_validated_run(
     staged_binding: PhysicalRunBinding,
     execution_domain: PhysicalExecutionDomain,
     assertion_timeout_seconds: float = 1.0,
-) -> ProductionTakeoffRunController:
-    """Activate one exact host-validated run through the real production lifecycle.
+):
+    """Activate one exact host-validated run and return its trusted controller.
 
-    The returned controller owns the successful process-local run authorities so
-    the host can terminate them deliberately during teardown. ``staged_binding``
-    is non-authority data captured only after the host itself completed #278/#249
-    on the pre-reset epoch.
+    ``execute_next_inflight()`` on the returned process-local object accepts no
+    semantic parameters. It reserves only the next exact top-level move/turn or
+    terminal land from the post-reset #267 binding and keeps every positive
+    provenance/effect path lexical to this adapter's host-owned bridge.
     """
     if not isinstance(uri, str) or not uri.startswith("radio://"):
         raise PhysicalRunActivationError("physical activation requires explicit radio:// URI")
@@ -156,6 +147,13 @@ def activate_validated_run(
         raise PhysicalRunActivationError("distinct trusted teacher socket is required")
     if assertion_timeout_seconds <= 0:
         raise PhysicalRunActivationError("current-program assertion timeout must be positive")
+
+    try:
+        sequence = PhysicalProgramSequence(staged_binding.ast_binding)
+    except PhysicalProgramSequenceError as exc:
+        raise PhysicalRunActivationError(
+            "teacher-bound physical program cannot enter exact sequencing"
+        ) from exc
 
     begin_replacement = getattr(bridge, "begin_post_reset_replacement", None)
     install_replacement = getattr(bridge, "install_post_reset_session", None)
@@ -172,7 +170,6 @@ def activate_validated_run(
     if current_epoch != previous_epoch:
         raise PhysicalRunActivationError("staged run belongs to a stale pre-reset epoch")
 
-    # Reconstruct current-program truth immediately before preparing the reset.
     _assert_current_program(
         bridge,
         staged_binding,
@@ -185,13 +182,9 @@ def activate_validated_run(
     )
 
     def require_flight_known_inactive() -> bool:
-        # #266 invokes this under #273 immediately before invalidation/reset.
         return _require_flight_inactive(pre_reset_reader)
 
     def invalidate_prior_evidence() -> None:
-        # Linearize the externally readable #278 view before closing the old
-        # cflib session. Once this succeeds there is intentionally no rollback to
-        # pre-reset evidence if close/reset/reconnect later becomes ambiguous.
         begin_replacement(previous_epoch)
         session.close()
 
@@ -283,8 +276,6 @@ def activate_validated_run(
     )
 
     class _HostBoundInitialFlightTransport(TrustedTakeoffTransport):
-        """Positive current-program provenance stays lexical to this host adapter."""
-
         def _read_current_binding(self) -> PhysicalRunBinding:
             binding = self.teacher_binding
             try:
@@ -315,7 +306,180 @@ def activate_validated_run(
             previous_connection_epoch=previous_epoch,
         )
     finally:
-        # #290 is one-shot; the receipt, not the transport socket, is the durable
-        # process-local authority after a successful decision.
         decision_channel.close()
-    return controller
+
+    active_run = controller.active_run
+    if active_run is None:
+        try:
+            controller.shutdown()
+        finally:
+            raise PhysicalRunActivationError(
+                "causal takeoff completed without an active physical run bundle"
+            )
+    if sequence.ast_binding != active_run.teacher_authorization.binding.ast_binding:
+        try:
+            controller.shutdown()
+        finally:
+            raise PhysicalRunActivationError(
+                "post-takeoff teacher run no longer matches the exact sequenced AST"
+            )
+
+    class _HostBoundInflightTransport(TrustedControlledLandingTransport):
+        def _read_current_binding(self) -> PhysicalRunBinding:
+            binding = self.teacher_binding
+            try:
+                _assert_current_program(
+                    bridge,
+                    binding,
+                    timeout_seconds=assertion_timeout_seconds,
+                )
+            except PhysicalRunActivationError as exc:
+                raise ControlledLandingTransportError(str(exc)) from exc
+            return binding
+
+    timing_policy = HighLevelTimingPolicy()
+
+    class _ActivatedRunController:
+        __slots__ = ("_yaw_reader", "_transport")
+
+        def __init__(self) -> None:
+            self._yaw_reader = None
+            self._transport = None
+
+        @property
+        def active_run(self):
+            return controller.active_run
+
+        def _ensure_transport(self):
+            if self._transport is not None:
+                return self._transport
+            transport = _HostBoundInflightTransport(
+                crazyflie=active_run.crazyflie,
+                execution_domain=active_run.execution_domain,
+                acknowledgement_domain=active_run.acknowledgement_domain,
+                safelink_guard=active_run.safelink_guard,
+                teacher_authorization=active_run.teacher_authorization,
+                powered_session=active_run.powered_session,
+                watchdog_guard=active_run.watchdog_guard,
+                supervisor_reader=active_run.supervisor_reader,
+                connection_epoch_reader=session.read_connection_epoch,
+            )
+            if transport.bound_connection_epoch != session.read_connection_epoch():
+                raise PhysicalRunActivationError(
+                    "physical effect transport is not bound to the exact active host epoch"
+                )
+            self._transport = transport
+            return transport
+
+        def _ensure_yaw_reader(self):
+            if self._yaw_reader is not None:
+                return self._yaw_reader
+            reader = FreshYawObserver(
+                active_run.crazyflie,
+                session.read_connection_epoch,
+            )
+            reader.open()
+            self._yaw_reader = reader
+            return reader
+
+        def _release_or_poison_sequence(self, claim: object, reason: str) -> None:
+            if active_run.execution_domain.phase == FLYING:
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(claim, reason)
+
+        def execute_next_inflight(self):
+            """Advance one exact AST effect; accepts no caller semantic data."""
+            terminal_landing = False
+            try:
+                claim = sequence.reserve_terminal_landing()
+                sequence.landing_for_claim(claim)
+                terminal_landing = True
+                motion = None
+            except PhysicalProgramSequenceError:
+                claim = sequence.reserve_next_motion()
+                motion = sequence.motion_for_claim(claim)
+
+            try:
+                transport = self._ensure_transport()
+                if terminal_landing:
+                    result = transport.send_controlled_landing()
+                elif motion is not None and motion.kind == "move":
+                    result = transport.send_horizontal_move(
+                        direction=motion.direction,
+                        distance_m=motion.distance_m,
+                        yaw_reader=self._ensure_yaw_reader(),
+                        timing_policy=timing_policy,
+                    )
+                elif motion is not None and motion.kind == "turn":
+                    result = transport.send_turn(
+                        angle_deg=motion.angle_deg,
+                        timing_policy=timing_policy,
+                    )
+                else:
+                    raise PhysicalRunActivationError(
+                        "reserved physical statement is outside the bounded effect slice"
+                    )
+            except Exception:
+                self._release_or_poison_sequence(
+                    claim,
+                    "physical effect outcome is not definitively retryable",
+                )
+                raise
+
+            accepted = getattr(result, "accepted", None)
+            if accepted is True:
+                if terminal_landing:
+                    if active_run.execution_domain.phase != INACTIVE:
+                        sequence.mark_ambiguous(
+                            claim,
+                            "accepted terminal landing did not causally establish inactive",
+                        )
+                        raise PhysicalRunActivationError(
+                            "accepted terminal landing completion is not causally established"
+                        )
+                    sequence.complete_landing(claim)
+                else:
+                    if active_run.execution_domain.phase != FLYING:
+                        sequence.mark_ambiguous(
+                            claim,
+                            "accepted in-flight effect did not causally return to flying",
+                        )
+                        raise PhysicalRunActivationError(
+                            "accepted in-flight effect completion is not causally established"
+                        )
+                    sequence.complete_motion(claim)
+            elif accepted is False:
+                if active_run.execution_domain.phase != FLYING:
+                    sequence.mark_ambiguous(
+                        claim,
+                        "rejected physical effect did not restore the flying phase",
+                    )
+                    raise PhysicalRunActivationError(
+                        "definitive physical rejection did not restore physical state"
+                    )
+                sequence.release_unemitted(claim)
+            else:
+                sequence.mark_ambiguous(
+                    claim,
+                    "trusted physical transport returned an indeterminate result",
+                )
+                raise PhysicalRunActivationError(
+                    "trusted physical transport returned no definitive acknowledgement"
+                )
+            return result
+
+        def shutdown(self) -> None:
+            yaw_error = None
+            if self._yaw_reader is not None:
+                try:
+                    self._yaw_reader.close()
+                except Exception as exc:
+                    yaw_error = exc
+            controller.shutdown()
+            if yaw_error is not None:
+                raise PhysicalRunActivationError(
+                    "could not close in-flight yaw observer cleanly"
+                ) from yaw_error
+
+    return _ActivatedRunController()

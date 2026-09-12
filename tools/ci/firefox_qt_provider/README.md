@@ -1,65 +1,43 @@
-# One Qt provider qualification for #87
+# Firefox Qt provider continuity qualification for #87
 
-Research only. Do not merge this harness. The architecture decision in
-[#87](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5607115679)
-requests one qualification of the useful provider, not more C8–C26 reductions.
+Research only. Do not merge this harness. It repairs the observation boundary of
+closed PR #301; it is not a restart of the C8–C26 causal-discriminator series and
+it does not implement Open, Save As or Save.
 
-The existing `crazyflie-runtime-wwi` preparation calls this harness only on
-`research/firefox-qt-provider-qualification`. It adds no workflow or dependency
-on another candidate, changes no CI selection/oracle/timeout, and preserves the
-ordinary job's product checks. Its evidence is included by the existing always-on
-`crazyflie-runtime-wwi-r2025a` artifact upload. A green synthetic oracle test is not
-a live qualification.
+The preserved #301 result already proves that the real PIC-built Qt provider can
+start under official Webots R2025a, expose a real `QFileDialog`, receive an XTEST
+Escape cancellation and return from the provider without the historical Qt COPY
+relocation crash. What remained UNPROVEN was controller continuation because the
+old oracle depended on aggregate stdout after eight steps and on markers emitted
+after Webots shutdown had already been requested.
 
-The harness reproduces the pinned R2025a desktop archive and official runtime
-recipe used in the preserved controls. It downloads the exact C10 provider and
-`runtime.ini`, verifies all four Git blobs, and adds only a research dialog hook
-to a temporary copy. Both C++ units are compiled `-fPIC`, then linked as PIE.
-The executable must contain the real factory, `QCoreApplication::instance()`,
-qobject/metaobject paths and called dialog hook; `readelf` must show no Qt COPY
-relocation and no added RPATH/RUNPATH. Linked and live libraries must resolve to
-the Webots bundle. There is no standalone arm, dummy provider, debugger, system Qt,
-QPA/DISPLAY switch or project-file operation.
-
-One minimal supervisor/controller is launched by official Webots under the
-preserved Xvfb/software-rendering environment. It calls `wb_robot_init()`, invokes
-the real provider and enters `QFileDialog::exec()`. A Qt timer captures the exposed
-window as PNG. An independent Xlib/XTEST observer verifies the exact controller
-executable and its ancestry under the launched Webots process, the window's title,
-`_NET_WM_PID`, `IsViewable` geometry and focus before sending one Escape press and
-release. It never calls `reject()` or fabricates an accepted dialog result.
-
-After `Rejected`, the controller must return from the provider, execute eight
-real Webots steps (0.256 s of simulation time), receive the preserved broker's
-capabilities response with `operationsReady:false`, destroy the provider and
-complete. This proves a return to the controller loop; it does **not** claim a
-browser WWI round-trip or Open/Save/Save As implementation. The isolated directory
-sentinel and file inventory must remain unchanged.
+This re-evaluation keeps the same frozen provider, official runtime, PIC/no-COPY
+static checks, Xvfb/QPA boundary, exact process ancestry and real X11 cancellation.
+The only measurement change is a controller-owned journal in the evidence
+directory. The controller synchronously records and `fdatasync()`s its return from
+`wb_robot_init()`, provider call/return, each of eight `wb_robot_step(32)` results
+and simulation times, the capabilities response, provider destruction and a
+`PRE_SHUTDOWN_READY` marker. It then continues stepping and **cannot call**
+`wb_supervisor_simulation_quit(0)` until the external harness has read and
+validated that journal while Webots is still alive and has created a durable
+acknowledgement file.
 
 Pre-registered interpretation:
 
-- PASS: all static/provenance preconditions, Qt screenshot, independently bound
-  X11 exposure/cancellation and ordered controller return evidence hold, Webots
-  exits normally and the test-file inventory is unchanged.
-- FAIL: with the qualified executable and real provider reached, a fatal failure
-  occurs; or a complete observed sequence demonstrates changed project files,
-  unsuccessful completion or no actual simulation advancement.
-- UNPROVEN: preparation, launch, runtime identity or indispensable observations
-  are missing/ambiguous. A missing frame or malformed observer is never a pass.
+- **PASS**: all #301 static/runtime/dialog identity conditions hold, the real dialog
+  is exposed and cancelled, the controller-owned journal is read while Webots is
+  alive and proves eight ordered successful 32 ms steps (0.256 s total), the
+  expected `operationsReady:false` capabilities response and provider destruction,
+  the project-file inventory is unchanged, and the subsequent Webots shutdown is
+  normal.
+- **FAIL**: after the qualified real provider is reached, a fatal error occurs, or
+  complete observations refute unchanged project files, successful pre-shutdown
+  continuation, or normal Webots shutdown.
+- **UNPROVEN**: any indispensable static identity, X11 witness, live process
+  identity, controller-journal record or pre-shutdown observation is missing or
+  ambiguous.
 
-The 15 s dialog deadline and 45 s launch bound are diagnostic limits, not product
-latency claims. Preserve whatever result this single qualification produces and
-stop; do not start another causal-discriminator chain or silently retune it.
-Full Firefox same-file semantics and Windows compatibility remain unproven even
-if this provider qualification succeeds.
-
-Local checks:
-
-```sh
-python3 tools/ci/firefox_qt_provider/test_qualification.py
-bash -n tools/ci/run_firefox_qt_provider_qualification.sh
-```
-
-API references: [Qt 6.5 QFileDialog](https://doc.qt.io/qt-6.5/qfiledialog.html),
-[QWindow exposure](https://doc.qt.io/qt-6.5/qwindow.html#isExposed),
-[XTEST](https://xorg.freedesktop.org/archive/X11R7.7/doc/libXtst/xtestlib.html).
+A PASS establishes only the remaining provider/controller continuity prerequisite.
+It does not establish browser WWI round-trip semantics, project-file operations,
+full Firefox parity or Windows support. After the result is preserved on #87,
+close the research PR without merge; do not start another causal reduction chain.

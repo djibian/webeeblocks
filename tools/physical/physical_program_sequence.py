@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""Exact-AST sequencing state for trusted physical in-flight effects.
+"""Exact-AST sequencing state for trusted physical flight effects.
 
-The #287 takeoff consumer deliberately derives its effect from the first
-statement in the exact teacher-authorized canonical AST. Later physical effects
-must preserve that property: a bounded caller-selected motion is not equivalent
+The #287 takeoff consumer derives its effect from the first statement in the
+exact teacher-authorized canonical AST. Later effects must preserve that
+property: a bounded caller-selected motion or landing request is not equivalent
 to the next statement of the authorized program.
 
-This module provides the small non-effect state machine needed by #276. It
-starts only after a caller has already established the first takeoff statement by
-other trusted means, reserves exactly the next top-level move/turn statement,
-and advances only after the trusted effect consumer reports definitive causal
-completion. A rejected/unemitted attempt may be released without advancing;
-an ambiguous emitted outcome makes the sequence terminal.
+This module provides the small non-effect state machine needed by the physical
+host. It starts only after a caller has already established the first takeoff
+statement by other trusted means, eagerly validates the complete currently
+supported envelope (move/turn statements followed by one exact terminal land),
+reserves exactly the next statement, and advances only after the trusted effect
+consumer reports definitive causal completion. A rejected/unemitted attempt may
+be released without advancing; an ambiguous emitted outcome makes the sequence
+terminal.
 
 It emits no CRTP command and accepts no caller-selected motion, program index,
-completion proof or authority object.
+landing parameter, completion proof or authority object.
 """
 
 from __future__ import annotations
@@ -41,11 +43,25 @@ class SequencedInflightMotion:
     angle_deg: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class SequencedTerminalLanding:
+    """The one exact terminal landing boundary of the immutable canonical AST."""
+
+    index: int
+
+
 class _MotionClaim:
     __slots__ = ("motion",)
 
     def __init__(self, motion: SequencedInflightMotion) -> None:
         self.motion = motion
+
+
+class _LandingClaim:
+    __slots__ = ("landing",)
+
+    def __init__(self, landing: SequencedTerminalLanding) -> None:
+        self.landing = landing
 
 
 class PhysicalProgramSequence:
@@ -73,10 +89,19 @@ class PhysicalProgramSequence:
             raise PhysicalProgramSequenceError(
                 "physical AST must end with the exact landing statement"
             )
+
         self._ast_binding = ast_binding
         self._program = tuple(program)
+
+        # This production slice supports only horizontal move / turn between the
+        # exact takeoff and terminal landing boundaries. Validate the complete
+        # envelope before reset/takeoff, rather than discovering an unsupported
+        # statement only after the aircraft is already flying.
+        for index in range(1, len(self._program) - 1):
+            self._motion_at(index)
+
         self._next_index = 1
-        self._pending: _MotionClaim | None = None
+        self._pending: _MotionClaim | _LandingClaim | None = None
         self._terminal_reason: str | None = None
         self._lock = Lock()
 
@@ -98,6 +123,15 @@ class PhysicalProgramSequence:
     def terminal_reason(self) -> str | None:
         with self._lock:
             return self._terminal_reason
+
+    @property
+    def completed(self) -> bool:
+        with self._lock:
+            return (
+                self._terminal_reason is None
+                and self._pending is None
+                and self._next_index == len(self._program)
+            )
 
     def _motion_at(self, index: int) -> SequencedInflightMotion:
         if index >= len(self._program) - 1:
@@ -165,7 +199,7 @@ class PhysicalProgramSequence:
             ) from exc
 
         raise PhysicalProgramSequenceError(
-            "next exact AST statement is not a #276 horizontal/turn effect"
+            "next exact AST statement is not a supported horizontal/turn effect"
         )
 
     def reserve_next_motion(self) -> object:
@@ -177,7 +211,7 @@ class PhysicalProgramSequence:
                 )
             if self._pending is not None:
                 raise PhysicalProgramSequenceError(
-                    "physical program already has a pending in-flight effect"
+                    "physical program already has a pending effect"
                 )
             motion = self._motion_at(self._next_index)
             claim = _MotionClaim(motion)
@@ -188,7 +222,7 @@ class PhysicalProgramSequence:
         with self._lock:
             if claim is not self._pending or not isinstance(claim, _MotionClaim):
                 raise PhysicalProgramSequenceError(
-                    "exact pending physical-program claim is required"
+                    "exact pending physical-program motion claim is required"
                 )
             return claim.motion
 
@@ -197,19 +231,75 @@ class PhysicalProgramSequence:
         with self._lock:
             if claim is not self._pending or not isinstance(claim, _MotionClaim):
                 raise PhysicalProgramSequenceError(
-                    "exact pending physical-program claim is required"
+                    "exact pending physical-program motion claim is required"
                 )
             if claim.motion.index != self._next_index:
                 raise PhysicalProgramSequenceError(
-                    "pending physical-program claim no longer matches the cursor"
+                    "pending physical-program motion claim no longer matches the cursor"
+                )
+            self._next_index += 1
+            self._pending = None
+
+    def reserve_terminal_landing(self) -> object:
+        """Reserve the exact final land only when all prior motions completed."""
+        with self._lock:
+            if self._terminal_reason is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program sequence is terminal: " + self._terminal_reason
+                )
+            if self._pending is not None:
+                raise PhysicalProgramSequenceError(
+                    "physical program already has a pending effect"
+                )
+            final_index = len(self._program) - 1
+            if self._next_index != final_index:
+                raise PhysicalProgramSequenceError(
+                    "terminal landing is not the next exact physical statement"
+                )
+            statement = self._program[final_index]
+            if (
+                not isinstance(statement, dict)
+                or set(statement) != {"kind"}
+                or statement.get("kind") != "land"
+            ):
+                raise PhysicalProgramSequenceError(
+                    "exact terminal landing statement is unavailable"
+                )
+            claim = _LandingClaim(SequencedTerminalLanding(final_index))
+            self._pending = claim
+            return claim
+
+    def landing_for_claim(self, claim: object) -> SequencedTerminalLanding:
+        with self._lock:
+            if claim is not self._pending or not isinstance(claim, _LandingClaim):
+                raise PhysicalProgramSequenceError(
+                    "exact pending physical-program landing claim is required"
+                )
+            return claim.landing
+
+    def complete_landing(self, claim: object) -> None:
+        """Advance past the exact terminal land only after causal completion."""
+        with self._lock:
+            if claim is not self._pending or not isinstance(claim, _LandingClaim):
+                raise PhysicalProgramSequenceError(
+                    "exact pending physical-program landing claim is required"
+                )
+            if (
+                claim.landing.index != self._next_index
+                or self._next_index != len(self._program) - 1
+            ):
+                raise PhysicalProgramSequenceError(
+                    "pending terminal landing claim no longer matches the cursor"
                 )
             self._next_index += 1
             self._pending = None
 
     def release_unemitted(self, claim: object) -> None:
-        """Release a definitively unemitted/rejected motion without advancing."""
+        """Release one definitively unemitted/rejected effect without advancing."""
         with self._lock:
-            if claim is not self._pending or not isinstance(claim, _MotionClaim):
+            if claim is not self._pending or not isinstance(
+                claim, (_MotionClaim, _LandingClaim)
+            ):
                 raise PhysicalProgramSequenceError(
                     "exact pending physical-program claim is required"
                 )
@@ -222,7 +312,9 @@ class PhysicalProgramSequence:
                 "ambiguous physical-program outcome requires a reason"
             )
         with self._lock:
-            if claim is not self._pending or not isinstance(claim, _MotionClaim):
+            if claim is not self._pending or not isinstance(
+                claim, (_MotionClaim, _LandingClaim)
+            ):
                 raise PhysicalProgramSequenceError(
                     "exact pending physical-program claim is required"
                 )
