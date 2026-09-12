@@ -2,18 +2,19 @@
 """Trusted controlled landing for shared-interpreter dynamic physical programs.
 
 The integrated static physical sequence can derive terminal descent from the whole
-flat AST before takeoff.  A dynamic program cannot: the exact branch/repeat path
-is selected later by the existing shared Runtime interpreter from fresh sensor
-data.  This transport therefore retains one host-local nominal world-Z value and
-advances it only after a definitively accepted vertical effect.  Terminal landing
-uses that completed runtime state while preserving the existing teacher/current-
-program, powered-session, watchdog, supervisor, SafeLink, acknowledgement and
-fresh completion authority chain.
+flat AST before takeoff. A dynamic program cannot: the exact branch/repeat path is
+selected later by the existing shared Runtime interpreter from fresh sensor data.
+This transport therefore retains one host-local nominal world-Z value and advances
+it only after a definitively accepted vertical effect. Terminal landing uses that
+completed runtime state while preserving the existing teacher/current-program,
+powered-session, watchdog, supervisor, SafeLink, acknowledgement and fresh
+completion authority chain.
 
-No caller-facing altitude or landing-command surface is added.  The nominal
-altitude is constructed inside the trusted host from the preflight-proven initial
-takeoff height and interpreter-selected vertical effects that already traversed
-the established physical transport.
+No independent initial-altitude input exists. The transport derives its initial
+nominal altitude from the exact teacher-bound canonical AST through the integrated
+conservative dynamic preflight. This makes the runtime landing root the same
+preflight-proven takeoff height used by the bound dynamic backend; a later host
+composition can reject any disagreement before the shared interpreter progresses.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ import high_level_ack
 import high_level_semantics
 import high_level_timing
 import landing_command
+import physical_dynamic_preflight
 import physical_execution_domain
 import physical_program_sequence
 import setpoint_hl_transport
@@ -62,9 +64,29 @@ class TrustedDynamicControlledLandingTransport(
 ):
     """Existing trusted effect transport plus runtime-selected nominal altitude."""
 
-    def __init__(self, *, initial_nominal_altitude_m: object, **kwargs) -> None:
-        self._nominal_altitude_m = _nominal_altitude(initial_nominal_altitude_m)
+    def __init__(self, **kwargs) -> None:
+        authorization = kwargs.get("teacher_authorization")
+        binding = getattr(authorization, "binding", None)
+        ast_binding = getattr(binding, "ast_binding", None)
+        try:
+            safety = physical_dynamic_preflight.validate_bound_dynamic_program(ast_binding)
+        except physical_dynamic_preflight.DynamicPhysicalPreflightError as exc:
+            raise DynamicControlledLandingTransportError(
+                "exact dynamic preflight cannot establish initial landing altitude"
+            ) from exc
+        if safety.ast_binding != ast_binding:
+            raise DynamicControlledLandingTransportError(
+                "dynamic landing preflight changed the exact teacher-bound AST"
+            )
+        initial = _nominal_altitude(safety.initial_altitude_m)
+        self._initial_nominal_altitude_m = initial
+        self._nominal_altitude_m = initial
         super().__init__(**kwargs)
+
+    @property
+    def initial_nominal_altitude_m(self) -> float:
+        """Exact teacher-AST/preflight-derived root for runtime altitude state."""
+        return self._initial_nominal_altitude_m
 
     @property
     def nominal_altitude_m(self) -> float:
