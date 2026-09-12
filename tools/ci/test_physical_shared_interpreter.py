@@ -176,6 +176,44 @@ def test_real_shared_interpreter_owns_control_flow_and_sensor_demand() -> None:
         raise AssertionError("bound shared interpreter reuse must fail closed")
 
 
+def test_validation_only_preflight_reuses_shared_language_contract_before_effect() -> None:
+    exact = binding(representative_ast())
+    safety = subject.validate_bound_shared_program(exact)
+    require(safety.ast_binding == exact, "validation-only preflight changed exact AST identity")
+
+    read_before_assignment = representative_ast()
+    read_before_assignment["program"][1] = {
+        "kind": "set_variable",
+        "variable": VARIABLE,
+        "value": {"kind": "variable_get", "variable": VARIABLE},
+    }
+    unsupported_arithmetic = representative_ast()
+    unsupported_arithmetic["program"][1] = {
+        "kind": "set_variable",
+        "variable": VARIABLE,
+        "value": {
+            "kind": "arithmetic",
+            "op": "POWER",
+            "left": {"kind": "number", "value": 2},
+            "right": {"kind": "number", "value": 3},
+        },
+    }
+
+    for invalid, label in (
+        (read_before_assignment, "read-before-assignment"),
+        (unsupported_arithmetic, "unsupported arithmetic"),
+    ):
+        try:
+            subject.validate_bound_shared_program(binding(invalid))
+        except SharedInterpreterHostError as exc:
+            require(
+                "language validation failed closed" in str(exc),
+                label + " failed for wrong reason",
+            )
+        else:
+            raise AssertionError(label + " reached a causal-effect-capable phase")
+
+
 def test_dynamic_safety_and_language_validation_precede_backend_use() -> None:
     unsafe = {
         "version": 1,
@@ -292,6 +330,8 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
         ROOT / "plugins/robot_windows/blockly/webeeblocks/interpreter.js"
     ).read_text(encoding="utf-8")
     require("interpreter.js" in worker_source, "worker does not load product interpreter")
+    require("Interpreter.validateProgram(ast)" in worker_source, "worker bypasses shared validation")
+    require("validate-bound-program" in host_source + worker_source, "pre-effect validation mode is unavailable")
     require("Interpreter.run(ast, backend)" in worker_source, "worker bypasses shared run()")
     for forbidden in ("case 'if'", "case 'repeat'", "statement.kind", "expression.kind"):
         require(forbidden not in worker_source, f"worker duplicates evaluator: {forbidden}")
@@ -305,13 +345,15 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
 
 def main() -> int:
     test_real_shared_interpreter_owns_control_flow_and_sensor_demand()
+    test_validation_only_preflight_reuses_shared_language_contract_before_effect()
     test_dynamic_safety_and_language_validation_precede_backend_use()
     test_range_data_and_backend_failure_fail_closed()
     test_private_protocol_rejects_substitution_and_silence()
     test_surface_contains_no_second_language_engine_or_caller_semantics()
     print(
         "PASS exact teacher-bound AST executes through the existing shared Runtime interpreter "
-        "with host-owned control flow/sensor demand and a fail-closed private backend protocol"
+        "with backend-free pre-effect language validation, host-owned control flow/sensor demand "
+        "and a fail-closed private backend protocol"
     )
     return 0
 

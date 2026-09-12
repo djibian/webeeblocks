@@ -31,6 +31,7 @@ import watchdog_liveness  # noqa: E402
 
 
 EVENTS: list[object] = []
+ACTIVATION_COMPLETED = Event()
 
 
 def require(condition: bool, message: str) -> None:
@@ -341,6 +342,7 @@ class FakeTransportBase:
         require(binding == self.teacher_binding, "fresh provenance exact teacher binding")
         EVENTS.append(("transport-send", binding.connection_epoch))
         self.execution_domain.phase = physical_execution_domain.FLYING
+        ACTIVATION_COMPLETED.set()
         return FakeAckResult()
 
 
@@ -374,6 +376,7 @@ def install_fakes() -> None:
 
 
 def run_host(*, teacher_enabled: bool) -> dict[str, object]:
+    ACTIVATION_COMPLETED.clear()
     caller_host, caller_peer = socket.socketpair()
     browser_read, browser_write = os.pipe()
     teacher_peer = None
@@ -425,6 +428,11 @@ def run_host(*, teacher_enabled: bool) -> dict[str, object]:
     caller_peer.sendall((json.dumps(request, separators=(",", ":")) + "\n").encode())
     response = json.loads(caller_peer.makefile("r", encoding="utf-8").readline())
     require(response == {"executionAuthority": False, "ok": True, "requestId": "request-1"}, "caller reply remains diagnostic")
+    if teacher_enabled:
+        require(
+            ACTIVATION_COMPLETED.wait(timeout=1.0),
+            "trusted activation must complete accepted fake takeoff before test caller EOF",
+        )
     caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "production host runner must terminate after caller EOF")
