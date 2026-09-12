@@ -31,7 +31,7 @@ import watchdog_liveness  # noqa: E402
 
 
 EVENTS: list[object] = []
-ACTIVATION_ENTERED = Event()
+ACTIVATION_COMPLETED = Event()
 
 
 def require(condition: bool, message: str) -> None:
@@ -170,7 +170,6 @@ class FakeBridge:
         )
         self.pending_epoch = previous_epoch
         EVENTS.append(("bridge-begin", previous_epoch))
-        ACTIVATION_ENTERED.set()
         return previous_epoch
 
     def install_post_reset_session(self, session: FakeSession) -> str:
@@ -343,6 +342,7 @@ class FakeTransportBase:
         require(binding == self.teacher_binding, "fresh provenance exact teacher binding")
         EVENTS.append(("transport-send", binding.connection_epoch))
         self.execution_domain.phase = physical_execution_domain.FLYING
+        ACTIVATION_COMPLETED.set()
         return FakeAckResult()
 
 
@@ -376,7 +376,7 @@ def install_fakes() -> None:
 
 
 def run_host(*, teacher_enabled: bool) -> dict[str, object]:
-    ACTIVATION_ENTERED.clear()
+    ACTIVATION_COMPLETED.clear()
     caller_host, caller_peer = socket.socketpair()
     browser_read, browser_write = os.pipe()
     teacher_peer = None
@@ -430,8 +430,8 @@ def run_host(*, teacher_enabled: bool) -> dict[str, object]:
     require(response == {"executionAuthority": False, "ok": True, "requestId": "request-1"}, "caller reply remains diagnostic")
     if teacher_enabled:
         require(
-            ACTIVATION_ENTERED.wait(timeout=1.0),
-            "trusted activation must enter reset cutover before test caller EOF",
+            ACTIVATION_COMPLETED.wait(timeout=1.0),
+            "trusted activation must complete accepted fake takeoff before test caller EOF",
         )
     caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
