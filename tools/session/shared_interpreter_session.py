@@ -27,6 +27,7 @@ from threading import Thread
 from typing import Callable
 
 import physical_dynamic_preflight
+import shared_interpreter_host
 import takeoff_command
 
 
@@ -82,12 +83,13 @@ class SharedInterpreterSession:
         try:
             parsed = takeoff_command._parse_ast_binding(ast_binding)
             envelope = physical_dynamic_preflight.validate_bound_dynamic_program(ast_binding)
+            shared_envelope = shared_interpreter_host.validate_bound_shared_program(ast_binding)
         except Exception as exc:
             raise SharedInterpreterSessionError(
                 "teacher-bound AST is not eligible for shared physical interpretation"
             ) from exc
-        if envelope.ast_binding != ast_binding:
-            raise SharedInterpreterSessionError("dynamic preflight changed exact ast binding identity")
+        if envelope.ast_binding != ast_binding or shared_envelope.ast_binding != ast_binding:
+            raise SharedInterpreterSessionError("preflight changed exact ast binding identity")
 
         root = Path(__file__).resolve().parents[2]
         worker = worker_path or (Path(__file__).resolve().parent / "shared_interpreter_worker.js")
@@ -114,7 +116,7 @@ class SharedInterpreterSession:
                 cwd=str(root),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 text=True,
                 encoding="utf-8",
                 bufsize=1,
