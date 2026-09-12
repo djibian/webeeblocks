@@ -268,9 +268,8 @@ class HistoricalBoostSupportTests(unittest.TestCase):
 
     def test_linux_sidecar_remains_header_only_boost(self) -> None:
         makefile = (ROOT / "controllers/supervisor/blocklyServer/Makefile").read_text(encoding="utf-8")
-        linux = makefile.split("else\n", 1)[1].split("endif", 1)[0]
-        self.assertIn("LIBRARIES=-lpthread", linux)
-        self.assertNotIn("-lboost", linux)
+        self.assertIn("LIBRARIES=-lpthread", makefile)
+        self.assertNotIn("-lboost", makefile)
 
 
 if __name__ == "__main__":
