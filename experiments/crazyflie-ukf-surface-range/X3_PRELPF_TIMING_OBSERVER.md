@@ -18,10 +18,10 @@ The applicator adds two log groups to `src/hal/src/sensors_bmi088_bmp3xx.c`.
 | --- | --- | --- |
 | `x/y/z` | float | aligned, gravity-corrected acceleration in the current firmware units, before its 30 Hz software LPF |
 | `seq` | uint32 | monotonically incremented firmware snapshot sequence |
-| `readBeg` | uint32 | low 32 bits of `usecTimestamp()` immediately before the accelerometer register read |
-| `readEnd` | uint32 | low 32 bits of `usecTimestamp()` immediately after that read returns |
+| `readBeg` | uint32 | low 32 bits of `usecTimestamp()` immediately before the accelerometer register read; on pinned 2026.08 this counter has the known TIM7 84/85 nominal-rate defect described below |
+| `readEnd` | uint32 | low 32 bits of `usecTimestamp()` immediately after that read returns; same clock semantics as `readBeg` |
 
-The log payload is 24 bytes. `readBeg/readEnd` bound a CPU-side register-read window. They are not accelerometer sample-production timestamps.
+The log payload is 24 bytes. `readBeg/readEnd` bound a CPU-side register-read window. They are not accelerometer sample-production timestamps and, on the pinned firmware, their raw deltas are not true elapsed microseconds without the clock-scale correction below.
 
 `x3BaroObs` is captured after `bmp3_get_sensor_data()` and `sensorsScaleBaro()`:
 
@@ -29,10 +29,23 @@ The log payload is 24 bytes. `readBeg/readEnd` bound a CPU-side register-read wi
 | --- | --- | --- |
 | `asl/pressure/temp` | float | one scaled barometer snapshot |
 | `seq` | uint32 | monotonically incremented firmware snapshot sequence |
-| `readBeg/readEnd` | uint32 | low 32 bits of CPU time around `bmp3_get_sensor_data()` |
+| `readBeg/readEnd` | uint32 | low 32 bits of the same `usecTimestamp()` counter around `bmp3_get_sensor_data()` |
 | `chipId` | uint8 | exact runtime `bmp3_chip_id` (BMP388 or BMP390 identity) |
 
 The log payload is 25 bytes. The CPU read window does not remove BMP3xx conversion, oversampling or IIR response uncertainty.
+
+## Pinned `usecTimestamp()` clock-scale erratum
+
+Upstream PR [bitcraze/crazyflie-firmware#1684](https://github.com/bitcraze/crazyflie-firmware/pull/1684) is based exactly on the firmware commit pinned here, `54f31e243a0b28b67efef5ba20dbb6d9890a5478`. That source programs TIM7 with
+`TIM_Prescaler = SystemCoreClock / (1000 * 1000) / 2`. On the CF2 timer clock this writes PSC=84, while the STM32 timer divides by PSC+1. The nominal `usecTimestamp()` counter therefore advances at `84/85` of the intended 1 MHz rate. PR #1684 repairs the one line by subtracting one from the programmed prescaler. Its exact current head `bb58cadfa348f903e4e8e6995a5557c42cd5754d` remains upstream/open as of 2026-09-12, but has two upstream approvals; one review independently quantified the old timing behavior and the expected Flow-deck/high-level-command consequences.
+
+For a modular interval formed from this counter on the unchanged pinned firmware, the deterministic prescaler correction alone is therefore:
+
+`nominal_real_interval = raw_usecTimestamp_delta * 85 / 84`
+
+This correction is only the digital divider ratio. It does not establish absolute clock accuracy: STM32 oscillator accuracy/drift remains separate, as do interrupt-source, sensor-producer, filter, bus-read and scheduling uncertainties. In particular, it does not rehabilitate `sensorData.interruptTimestamp` or justify a smaller `sensor_time_error_s`.
+
+The normal wireless log packet timestamp is a different clock path based on the FreeRTOS logging timestamp and is not converted by this rule. A later analysis must never compare these clocks as though they shared an already-proven common real-time scale or producer epoch merely because both are numeric timestamps.
 
 ## Row coherence
 
@@ -56,8 +69,8 @@ This diagnostic build proves compilation only. It does not replace the exact #25
 
 ## Proof boundary
 
-The low 32-bit microsecond timestamps wrap modulo 2^32; any later duration must be computed with unsigned modular subtraction rather than ordinary signed ordering.
+The low 32-bit `usecTimestamp()` counter wraps modulo 2^32; any later duration must first be computed with unsigned modular subtraction rather than ordinary signed ordering. On the pinned 2026.08 firmware, a raw modular delta must then account for the known 84/85 TIM7 rate defect before it is called a nominal elapsed microsecond interval. Oscillator accuracy and all sensor/producer timing uncertainty remain separate and are not removed by that deterministic correction.
 
-No numeric value for `sensor_time_error_s`, `specific_force_error_g`, `intersample_acceleration_error_m_s2`, `barometer_displacement_error_m` or `delivery_latency_error_s` follows from this observer. Manufacturer typical/RMS values and nominal ODR are not deterministic bounds.
+No numeric value for `sensor_time_error_s`, `specific_force_error_g`, `intersample_acceleration_error_m_s2`, `barometer_displacement_error_m` or `delivery_latency_error_s` follows from this observer or from the TIM7 prescaler correction. Manufacturer typical/RMS values and nominal ODR are not deterministic bounds.
 
 A later capture may use these fields only with their exact stated clock semantics. If the remaining producer/filter/physical-motion uncertainties cannot be pre-registered independently, the X3 independent-displacement result remains `UNPROVEN`. No `TEST_REQUIRED` or motorized action follows from integration.
