@@ -44,9 +44,8 @@ xvfb-run -a bash -lc '\''
   webots_home=$(dirname "$webots_bin")
   qt_plugins="$webots_home/lib/webots/qt/plugins"
   test -f "$qt_plugins/platforms/libqxcb.so"
-  export WEBOTS_HOME="$webots_home"
-  export QT_PLUGIN_PATH="$qt_plugins"
-  printf "%s\\n" "$QT_PLUGIN_PATH" > "$artifact/qt-plugin-path.txt"
+  unset QT_PLUGIN_PATH
+  printf "%s\\n" "$qt_plugins" > "$artifact/qt-plugin-path.txt"
   python3 /workspace/tools/ci/firefox_project_dialog_driver.py --root "$artifact" --timeout 80 \\
     > "$artifact/dialog-driver.log" 2>&1 &
   driver=$!
@@ -161,6 +160,9 @@ def validate() -> None:
     extras = sorted(path.name for path in ARTIFACT.glob("roundtrip*.wbb") if path.name != "roundtrip.wbb")
     if extras:
         raise AssertionError(f"unexpected duplicate Save files: {extras}")
+    webots_log = (ARTIFACT / "webots.log").read_text(encoding="utf-8", errors="replace")
+    if 'Could not find the Qt platform plugin "xcb"' in webots_log:
+        raise AssertionError("controller did not receive the product Qt plugin runtime environment")
     print("PASS: Firefox 155 -> real Webots Robot Window -> Qt/WWI Open/Save As/same-file Save/cancellation/fail-closed invalid Open")
 
 
