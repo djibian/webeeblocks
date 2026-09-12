@@ -1,38 +1,36 @@
 #!/usr/bin/env python3
-"""Fresh, non-authority directional range observation for the physical backend.
+"""Fresh, non-authority Multi-ranger observation for the physical backend.
 
-Issue #345 needs exact teacher-bound conditions to consume the same generic
-``range(direction)`` semantics that Runtime v2 already exposes in simulation.
-This module is deliberately narrower: it only establishes a fresh same-epoch
-physical observation for one already-supported student-facing direction. It
-contains no branch selection, caller IPC, motor command or execution authority.
+This module exposes exactly the existing student-facing directions
+``front/back/left/right/up`` as fresh same-connection-epoch observations. It
+contains no caller IPC, branch selection, generic log-variable API, command,
+parameter write, or execution authority.
 
-Pinned Crazyflie firmware exposes ``range.front/back/left/right/up`` as
-``LOG_UINT16`` millimetres. The Multi-ranger driver publishes ``32767`` when the
-VL53L1 measurement status is not accepted. Runtime v2 exposes metres with a
-2.0 m observable horizon, so values beyond that horizon (including the firmware
-no-range sentinel) normalize to exactly 2.0 m instead of leaking firmware-specific
-sentinel semantics into the backend-neutral program.
+Pinned firmware publishes the five values as ``LOG_UINT16`` millimetres. Pinned
+cflib's official ``Multiranger`` helper treats values >= 8000 mm as unavailable
+and otherwise converts millimetres to metres. We preserve that boundary exactly:
+an unavailable value never becomes a numeric student distance.
 
-Opening a stream establishes only a timestamp baseline. Every ``read()`` requires
-one strictly later firmware timestamp received after that call began on the same
-reconnect-sensitive connection epoch. Cached, duplicate, pre-read, malformed,
-missing or epoch-crossing observations therefore cannot decide a later condition.
+Opening establishes only a timestamp baseline. Every ``read()`` advances a
+host-local request generation before taking its baseline and accepts only a
+callback that entered at that generation with a strictly later firmware
+timestamp on the same reconnect-sensitive connection epoch. This prevents a
+pre-request callback that finishes late from becoming fresh evidence.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from math import isfinite
 from threading import Condition, Lock
 from time import monotonic
-from typing import Callable
+from typing import Callable, NamedTuple
 
 SUPPORTED_DIRECTIONS = ("front", "back", "left", "right", "up")
-_RANGE_VARIABLES = {direction: f"range.{direction}" for direction in SUPPORTED_DIRECTIONS}
+_RANGE_VARIABLES = {
+    direction: f"range.{direction}" for direction in SUPPORTED_DIRECTIONS
+}
 LOG_PERIOD_MS = 100
-FIRMWARE_NO_RANGE_MM = 32767
-RUNTIME_MAX_RANGE_M = 2.0
+CFLIB_UNAVAILABLE_MM = 8000
+_UINT16_MAX = 0xFFFF
 _TIMESTAMP_MASK = (1 << 24) - 1
 _TIMESTAMP_HALF_RANGE = 1 << 23
 
@@ -41,8 +39,7 @@ class RangeReadError(RuntimeError):
     """Fail-closed error for unavailable or stale physical range evidence."""
 
 
-@dataclass(frozen=True, slots=True)
-class RangeObservation:
+class RangeObservation(NamedTuple):
     connection_epoch: str
     firmware_timestamp_ms: int
     direction: str
@@ -55,18 +52,15 @@ def _timestamp_is_later(new_timestamp: int, old_timestamp: int) -> bool:
     return 0 < delta < _TIMESTAMP_HALF_RANGE
 
 
-def normalize_runtime_range_m(raw_mm: object) -> float:
-    """Normalize exact firmware millimetres to Runtime v2's metre horizon."""
+def range_mm_to_m(raw_mm: object) -> float:
+    """Apply the exact pinned cflib Multi-ranger availability/unit contract."""
     if isinstance(raw_mm, bool) or not isinstance(raw_mm, int):
         raise RangeReadError("range sample is not an exact uint16 millimetre value")
-    if raw_mm < 0 or raw_mm > FIRMWARE_NO_RANGE_MM:
-        raise RangeReadError("range sample is outside the pinned firmware domain")
-    if raw_mm == FIRMWARE_NO_RANGE_MM:
-        return RUNTIME_MAX_RANGE_M
-    value = raw_mm / 1000.0
-    if not isfinite(value) or value < 0.0:
-        raise RangeReadError("range sample cannot be normalized")
-    return min(value, RUNTIME_MAX_RANGE_M)
+    if raw_mm < 0 or raw_mm > _UINT16_MAX:
+        raise RangeReadError("range sample is outside the uint16 firmware domain")
+    if raw_mm >= CFLIB_UNAVAILABLE_MM:
+        raise RangeReadError("range sample is unavailable in pinned cflib semantics")
+    return raw_mm / 1000.0
 
 
 class FreshRangeObserver:
@@ -82,19 +76,24 @@ class FreshRangeObserver:
     ) -> None:
         if not isinstance(direction, str) or direction not in SUPPORTED_DIRECTIONS:
             raise RangeReadError("unsupported physical range direction")
+        if not callable(connection_epoch_reader):
+            raise RangeReadError("connection epoch reader is unavailable")
         self._cf = cf
         self._connection_epoch_reader = connection_epoch_reader
         self._direction = direction
         self._variable = _RANGE_VARIABLES[direction]
         self._log_config_factory = log_config_factory
         self._read_lock = Lock()
+        self._arrival_lock = Lock()
         self._condition = Condition(Lock())
         self._bound_connection_epoch: str | None = None
         self._config: object | None = None
         self._opened = False
         self._sequence = 0
-        self._latest: tuple[int, int] | None = None
+        self._request_generation = 0
+        self._latest: tuple[int, int, int] | None = None
         self._stream_error: RangeReadError | None = None
+        self._poisoned_reason: str | None = None
 
     @property
     def direction(self) -> str:
@@ -116,19 +115,41 @@ class FreshRangeObserver:
     def is_open(self) -> bool:
         return self._opened
 
+    @property
+    def poisoned(self) -> bool:
+        return self._poisoned_reason is not None
+
+    def _require_not_poisoned(self) -> None:
+        if self._poisoned_reason is not None:
+            raise RangeReadError(
+                "range observer is poisoned by uncertain teardown: "
+                + self._poisoned_reason
+            )
+
     def _read_epoch(self) -> str:
         try:
             epoch = self._connection_epoch_reader()
         except Exception as exc:
-            raise RangeReadError("connection epoch is unavailable for range observation") from exc
-        if not isinstance(epoch, str) or not epoch.strip() or epoch != epoch.strip():
+            raise RangeReadError(
+                "connection epoch is unavailable for range observation"
+            ) from exc
+        if (
+            not isinstance(epoch, str)
+            or not epoch.strip()
+            or epoch != epoch.strip()
+        ):
             raise RangeReadError("connection epoch is invalid for range observation")
         return epoch
 
     def _verify_epoch(self) -> str:
         current = self._read_epoch()
-        if self._bound_connection_epoch is not None and current != self._bound_connection_epoch:
-            raise RangeReadError("connection epoch changed during range observation")
+        if (
+            self._bound_connection_epoch is not None
+            and current != self._bound_connection_epoch
+        ):
+            raise RangeReadError(
+                "connection epoch changed during range observation"
+            )
         return current
 
     def _require_exact_toc_entry(self) -> None:
@@ -136,7 +157,9 @@ class FreshRangeObserver:
         toc = getattr(log, "toc", None)
         lookup = getattr(toc, "get_element_by_complete_name", None)
         if not callable(lookup):
-            raise RangeReadError("live log TOC is unavailable for range observation")
+            raise RangeReadError(
+                "live log TOC is unavailable for range observation"
+            )
         try:
             element = lookup(self._variable)
         except Exception as exc:
@@ -151,7 +174,8 @@ class FreshRangeObserver:
             or getattr(element, "pytype", None) != "<H"
         ):
             raise RangeReadError(
-                f"live log TOC entry {self._variable} does not match pinned uint16_t range semantics"
+                f"live log TOC entry {self._variable} does not match "
+                "pinned uint16_t range semantics"
             )
 
     def _make_config(self) -> object:
@@ -161,7 +185,10 @@ class FreshRangeObserver:
             from cflib.crazyflie.log import LogConfig
         except ImportError as exc:
             raise RangeReadError("cflib logging support is unavailable") from exc
-        config = LogConfig(f"WebeeBlocks fresh {self._direction} range", LOG_PERIOD_MS)
+        config = LogConfig(
+            f"WebeeBlocks fresh {self._direction} range",
+            LOG_PERIOD_MS,
+        )
         config.add_variable(self._variable, "uint16_t")
         return config
 
@@ -177,16 +204,41 @@ class FreshRangeObserver:
     def _on_disconnect(self, _uri: str) -> None:
         self._set_error("Crazyflie disconnected during range observation")
 
+    @staticmethod
+    def _validate_raw_mm(raw_mm: object) -> int:
+        if isinstance(raw_mm, bool) or not isinstance(raw_mm, int):
+            raise RangeReadError(
+                "range sample is not an exact uint16 millimetre value"
+            )
+        if raw_mm < 0 or raw_mm > _UINT16_MAX:
+            raise RangeReadError(
+                "range sample is outside the uint16 firmware domain"
+            )
+        return raw_mm
+
     def _on_data(self, timestamp: object, data: object, config: object) -> None:
+        # Capture request generation at callback entry, before any processing
+        # that may block behind the read-side condition lock.
+        with self._arrival_lock:
+            arrival_generation = self._request_generation
+
         if config is not self._config:
             return
         try:
-            if not isinstance(timestamp, int) or timestamp < 0 or timestamp > _TIMESTAMP_MASK:
-                raise RangeReadError("range sample has an invalid firmware timestamp")
+            if (
+                not isinstance(timestamp, int)
+                or isinstance(timestamp, bool)
+                or timestamp < 0
+                or timestamp > _TIMESTAMP_MASK
+            ):
+                raise RangeReadError(
+                    "range sample has an invalid firmware timestamp"
+                )
             if not isinstance(data, dict) or self._variable not in data:
-                raise RangeReadError(f"range sample is missing {self._variable}")
-            raw_mm = data[self._variable]
-            normalize_runtime_range_m(raw_mm)
+                raise RangeReadError(
+                    f"range sample is missing {self._variable}"
+                )
+            raw_mm = self._validate_raw_mm(data[self._variable])
         except RangeReadError as exc:
             self._set_error(str(exc))
             return
@@ -195,7 +247,11 @@ class FreshRangeObserver:
             if self._stream_error is not None:
                 return
             self._sequence += 1
-            self._latest = (timestamp, raw_mm)
+            self._latest = (
+                timestamp,
+                raw_mm,
+                arrival_generation,
+            )
             self._condition.notify_all()
 
     def _wait_for_sample(
@@ -203,6 +259,7 @@ class FreshRangeObserver:
         *,
         after_sequence: int,
         after_timestamp: int | None,
+        request_generation: int,
         timeout_seconds: float,
     ) -> tuple[int, int]:
         deadline = monotonic() + timeout_seconds
@@ -211,8 +268,14 @@ class FreshRangeObserver:
                 if self._stream_error is not None:
                     raise self._stream_error
                 if self._sequence > after_sequence and self._latest is not None:
-                    timestamp, raw_mm = self._latest
-                    if after_timestamp is None or _timestamp_is_later(timestamp, after_timestamp):
+                    timestamp, raw_mm, sample_generation = self._latest
+                    if (
+                        sample_generation == request_generation
+                        and (
+                            after_timestamp is None
+                            or _timestamp_is_later(timestamp, after_timestamp)
+                        )
+                    ):
                         return timestamp, raw_mm
                 remaining = deadline - monotonic()
                 if remaining <= 0:
@@ -225,12 +288,15 @@ class FreshRangeObserver:
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:
+            self._require_not_poisoned()
             if self._opened:
                 self._verify_epoch()
                 return
 
             self._bound_connection_epoch = self._read_epoch()
             self._require_exact_toc_entry()
+            with self._arrival_lock:
+                self._request_generation = 0
             with self._condition:
                 self._sequence = 0
                 self._latest = None
@@ -253,58 +319,62 @@ class FreshRangeObserver:
                 self._wait_for_sample(
                     after_sequence=0,
                     after_timestamp=None,
+                    request_generation=0,
                     timeout_seconds=timeout_seconds,
                 )
                 self._verify_epoch()
                 self._opened = True
-            except RangeReadError:
-                self._cleanup_failed_open(
-                    config,
-                    data_registered=data_registered,
-                    error_registered=error_registered,
-                    disconnect_registered=disconnect_registered,
-                )
-                raise
             except Exception as exc:
-                self._cleanup_failed_open(
+                cleanup_errors = self._cleanup(
                     config,
                     data_registered=data_registered,
                     error_registered=error_registered,
                     disconnect_registered=disconnect_registered,
                 )
-                raise RangeReadError(f"could not start fresh range logging: {exc}") from exc
+                if cleanup_errors:
+                    self._poisoned_reason = "; ".join(cleanup_errors)
+                if isinstance(exc, RangeReadError):
+                    raise
+                raise RangeReadError(
+                    f"could not start fresh range logging: {exc}"
+                ) from exc
 
-    def _cleanup_failed_open(
+    def _cleanup(
         self,
         config: object,
         *,
         data_registered: bool,
         error_registered: bool,
         disconnect_registered: bool,
-    ) -> None:
-        for action in (getattr(config, "stop", None), getattr(config, "delete", None)):
+    ) -> list[str]:
+        errors: list[str] = []
+        for label, action in (
+            ("stop", getattr(config, "stop", None)),
+            ("delete", getattr(config, "delete", None)),
+        ):
             if callable(action):
                 try:
                     action()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    errors.append(f"{label}: {exc}")
         if data_registered:
             try:
                 config.data_received_cb.remove_callback(self._on_data)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(f"data callback cleanup: {exc}")
         if error_registered:
             try:
                 config.error_cb.remove_callback(self._on_log_error)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(f"error callback cleanup: {exc}")
         if disconnect_registered:
             try:
                 self._cf.disconnected.remove_callback(self._on_disconnect)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(f"disconnect callback cleanup: {exc}")
         self._config = None
         self._opened = False
+        return errors
 
     def read(self, *, timeout_seconds: float = 0.7) -> RangeObservation:
         """Return one newly arrived post-call sample from the bound epoch."""
@@ -312,20 +382,35 @@ class FreshRangeObserver:
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:
-            if not self._opened or self._config is None or self._bound_connection_epoch is None:
+            self._require_not_poisoned()
+            if (
+                not self._opened
+                or self._config is None
+                or self._bound_connection_epoch is None
+            ):
                 raise RangeReadError("range observer is not open")
             self._verify_epoch()
-            with self._condition:
-                if self._stream_error is not None:
-                    raise self._stream_error
-                baseline_sequence = self._sequence
-                if self._latest is None:
-                    raise RangeReadError("range observer has no established baseline")
-                baseline_timestamp = self._latest[0]
+
+            # This lock order is shared with callback entry. A callback that
+            # already crossed entry before this generation increment retains the
+            # prior generation even if condition processing completes later.
+            with self._arrival_lock:
+                self._request_generation += 1
+                request_generation = self._request_generation
+                with self._condition:
+                    if self._stream_error is not None:
+                        raise self._stream_error
+                    baseline_sequence = self._sequence
+                    if self._latest is None:
+                        raise RangeReadError(
+                            "range observer has no established baseline"
+                        )
+                    baseline_timestamp = self._latest[0]
 
             timestamp, raw_mm = self._wait_for_sample(
                 after_sequence=baseline_sequence,
                 after_timestamp=baseline_timestamp,
+                request_generation=request_generation,
                 timeout_seconds=timeout_seconds,
             )
             epoch = self._verify_epoch()
@@ -334,34 +419,26 @@ class FreshRangeObserver:
                 firmware_timestamp_ms=timestamp,
                 direction=self._direction,
                 raw_mm=raw_mm,
-                range_m=normalize_runtime_range_m(raw_mm),
+                range_m=range_mm_to_m(raw_mm),
             )
 
     def close(self) -> None:
-        """Stop/delete the non-authority log stream and remove callbacks."""
+        """Stop/delete the stream; uncertain teardown poisons this observer."""
         with self._read_lock:
+            self._require_not_poisoned()
             config = self._config
             if config is None:
                 self._opened = False
                 return
-            errors: list[str] = []
-            for label, action in (("stop", config.stop), ("delete", config.delete)):
-                try:
-                    action()
-                except Exception as exc:
-                    errors.append(f"{label}: {exc}")
-            for callback_list, callback in (
-                (config.data_received_cb, self._on_data),
-                (config.error_cb, self._on_log_error),
-                (self._cf.disconnected, self._on_disconnect),
-            ):
-                try:
-                    callback_list.remove_callback(callback)
-                except Exception as exc:
-                    errors.append(f"callback cleanup: {exc}")
-            self._config = None
-            self._opened = False
+            errors = self._cleanup(
+                config,
+                data_registered=True,
+                error_registered=True,
+                disconnect_registered=True,
+            )
             if errors:
+                self._poisoned_reason = "; ".join(errors)
                 raise RangeReadError(
-                    "could not close range observer cleanly: " + "; ".join(errors)
+                    "could not close range observer cleanly: "
+                    + self._poisoned_reason
                 )
