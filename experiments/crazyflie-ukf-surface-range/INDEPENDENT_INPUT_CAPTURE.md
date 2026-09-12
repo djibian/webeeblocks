@@ -63,6 +63,14 @@ protocol wait bounds, not a hard process deadline for OS/USB/file operations.
 It writes no parameter, estimator reset or commander request. Normal
 cflib close retains its documented safety-zero setpoint behavior.
 
+The immutable `capture-start.json` records the evidence identity
+`x3-independent-props-off`. This name is deliberately distinct from the
+superseded `s3-props-off` human checkpoint: the X3 capture exists to test the
+independent IMU/barometer information path, not to repeat or validate the scalar
+S3 terrain classifier. The string is capture provenance only until the trusted
+human-checkpoint mechanism explicitly implements and enables a matching profile;
+it does not itself request `TEST_REQUIRED` or authorize physical action.
+
 Output includes four CSVs and immutable start/ready/result metadata. Startup
 samples stay in the raw files; `recording-ready.json` is a receipt-clock marker,
 not an independently measured physical event boundary. Missing/malformed values
@@ -78,26 +86,29 @@ result is incomplete/unknown. Existing output directories are never overwritten.
 
 ## Remaining prerequisites before TEST_REQUIRED
 
-This change is a complete acquisition component; no new test is requested here.
-The following checkpoint preparation still remains:
+The acquisition component, frozen pressure probe, conditional metric-reference
+processor, conditional vertical replay predictor and generic Git-backed evidence
+publication mechanism are now integrated. No new physical test follows from this
+component alone. The remaining checkpoint preparation is narrower:
 
-- Freeze and execute the offline pressure statistic/calculation and its tests,
-  including explicit handling of calibration drift, uncertainty and metric
-  reference validity. Do not tune it on new terrain outcomes.
 - Prepare the measured stationary/terrain/vertical/mixed procedure, synchronized
-  reference and event boundaries. A 30 s calibration and both signs of each
-  physical case are retained; the same analysis path must process every case.
-  The [conditional reference processor](METRIC_REFERENCE.md) preserves external
-  annotations and clock/metric intervals; its arithmetic does not validate the
-  physical measurements, clock assumptions or actual synchronization.
-- Package and validate the exact runtime and supports in the trusted checkpoint
-  preparation. The collector's module hashes identify two observed modules;
-  they are deliberately not presented as a complete dependency lock. The live
+  independent reference and event boundaries. A 30 s calibration and both signs
+  of each physical case are retained; the same analysis path must process every
+  case. The [conditional reference processor](METRIC_REFERENCE.md) preserves
+  external annotations and clock/metric intervals; its arithmetic does not
+  validate the physical measurements, clock assumptions or synchronization.
+- Pre-register and justify the deterministic error, tilt, initial-velocity,
+  intersample-acceleration, sensor-time, barometer and delivery-latency bounds
+  consumed by [the frozen vertical predictor](FROZEN_VERTICAL_PREDICTOR.md).
+  Outcome data must never be used to narrow these bounds.
+- Package and validate the exact cflib runtime, exact #251 firmware file, capture
+  script, reference/predictor support and executable physical procedure in the
+  trusted checkpoint preparation. The collector's module hashes identify two
+  observed modules; they are deliberately not a complete dependency lock. Live
   cadence/availability remains unproven until the bounded props-off capture.
-- Provide the generic Controller-readable raw-publication path from #296 when
-  available, or another already authorized durable project path. This collector
-  does not implement a second attachment/import mechanism and never deletes or
-  uploads raw files. A manually attached archive alone is not canonical evidence.
+- Use the integrated generic raw-publication path from #296 / `docs/TEST_EVIDENCE.md`
+  for the produced bounded CSV/JSON/text evidence. This collector never deletes
+  or uploads raw files, and a manual browser attachment is not canonical evidence.
 
 Preserve the local-range Flow split, all #251 parameters and the no-motorized
 boundary. No estimator or controller change follows from successful acquisition.
