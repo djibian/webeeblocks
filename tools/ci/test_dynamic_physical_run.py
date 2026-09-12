@@ -11,6 +11,8 @@ if str(PHYSICAL) not in sys.path:
     sys.path.insert(0, str(PHYSICAL))
 
 import dynamic_physical_run as subject  # noqa: E402
+import test_dynamic_run_activation as activation_test  # noqa: E402
+import test_physical_dynamic_run_activation as host_activation_test  # noqa: E402
 
 
 def require(condition: bool, message: str) -> None:
@@ -106,9 +108,17 @@ def test_interpreter_failure_is_fail_closed_but_cleanup_remains_explicit() -> No
 def main() -> int:
     test_exact_backend_and_one_shot_execution()
     test_interpreter_failure_is_fail_closed_but_cleanup_remains_explicit()
+    require(
+        activation_test.main() == 0,
+        "production dynamic activation/dispatch regression must pass",
+    )
+    require(
+        host_activation_test.main() == 0,
+        "production dynamic host range/recovery regression must pass",
+    )
     print(
         "PASS dynamic physical run owner: exact bound shared interpreter, one-shot execution, "
-        "fail-closed worker failure and explicit observer teardown"
+        "production activation/dispatch, fresh range host path and terminal recovery"
     )
     return 0
 
