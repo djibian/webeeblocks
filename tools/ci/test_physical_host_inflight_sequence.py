@@ -80,6 +80,23 @@ def wait_ast() -> str:
     )
 
 
+def vertical_ast() -> str:
+    return json.dumps(
+        {
+            "program": [
+                {"height_m": 0.8, "kind": "takeoff"},
+                {"direction": "up", "distance_m": 0.3, "kind": "vertical"},
+                {"direction": "down", "distance_m": 0.2, "kind": "vertical"},
+                {"kind": "land"},
+            ],
+            "semantics": "webeeblocks-ast-v1",
+            "version": 1,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 class FakeYawObserver:
     def __init__(self, crazyflie: object, epoch_reader) -> None:
         self.bound_crazyflie = crazyflie
@@ -137,6 +154,16 @@ class FakePhysicalTransportBase:
         binding = self._read_current_binding()
         require(binding == self.teacher_binding, "fresh #249 matches exact teacher run")
         base.EVENTS.append(("inflight-move", direction, distance_m, binding.connection_epoch))
+        return SimpleNamespace(accepted=True, status=0)
+
+    def send_vertical_move(self, *, direction, distance_m, timing_policy):
+        require(self._watchdog.active, "same-session watchdog remains live")
+        binding = self._read_current_binding()
+        require(binding == self.teacher_binding, "fresh #249 matches exact teacher run")
+        duration = timing_policy.vertical_move_duration(distance_m)
+        base.EVENTS.append(
+            ("inflight-vertical", direction, distance_m, duration, binding.connection_epoch)
+        )
         return SimpleNamespace(accepted=True, status=0)
 
     def send_turn(self, *, angle_deg, timing_policy):
@@ -240,7 +267,7 @@ def run_host_sequence(
     )
     replies = [read_line(caller_stream)]
 
-    # Any caller-selected step semantics, including a wait duration, are rejected.
+    # Any caller-selected step semantics, including altitude/index state, are rejected.
     send_line(
         caller_peer,
         {
@@ -248,6 +275,8 @@ def run_host_sequence(
             "requestId": "substitute-1",
             "direction": "right",
             "distanceM": 0.9,
+            "heightM": 1.2,
+            "index": 99,
             "seconds": 5.0,
         },
     )
@@ -389,6 +418,97 @@ def test_actual_host_completes_exact_program_with_terminal_landing() -> None:
     require(("yaw-close", "epoch-after") in base.EVENTS, "host teardown closes #260 observer")
 
 
+def test_actual_host_consumes_exact_vertical_program_parameter_free() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    replies = run_host_sequence(vertical_ast(), steps=3)
+
+    require(replies[1]["ok"] is False, "caller-selected vertical/altitude/index fields must be rejected")
+    require(replies[2] == {"executionAuthority": False, "ok": True, "requestId": "step-1"}, "exact climb executes")
+    require(replies[3] == {"executionAuthority": False, "ok": True, "requestId": "step-2"}, "exact descent executes")
+    require(replies[4] == {"executionAuthority": False, "ok": True, "requestId": "step-3"}, "vertical program lands")
+
+    vertical_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-vertical"]
+    land_events = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "terminal-land"]
+    require(len(vertical_events) == 2, "exact vertical program must emit exactly two vertical effects")
+    require(vertical_events[0][1:3] == ("up", 0.3), "first exact vertical effect is the bound climb")
+    require(vertical_events[1][1:3] == ("down", 0.2), "second exact vertical effect is the bound descent")
+    require(vertical_events[0][-1] == "epoch-after" and vertical_events[1][-1] == "epoch-after", "vertical effects stay on exact epoch")
+    require(land_events == [("terminal-land", "epoch-after")], "landing follows completed vertical effects once")
+    require(
+        not any(isinstance(event, tuple) and event[0] == "yaw-open" for event in base.EVENTS),
+        "world-Z-only vertical program must not create a yaw-observer dependency",
+    )
+
+    takeoff_index = base.EVENTS.index(("transport-send", "epoch-after"))
+    climb_index = base.EVENTS.index(vertical_events[0])
+    descent_index = base.EVENTS.index(vertical_events[1])
+    land_index = base.EVENTS.index(land_events[0])
+    require(
+        takeoff_index < climb_index < descent_index < land_index,
+        "takeoff, exact vertical effects and terminal land preserve canonical order",
+    )
+
+
+def test_rejected_vertical_effect_remains_exact_next_step() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    original = FakePhysicalTransportBase.send_vertical_move
+    attempts = {"count": 0}
+
+    def reject_once(self, *, direction, distance_m, timing_policy):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            binding = self._read_current_binding()
+            base.EVENTS.append(("inflight-vertical-rejected", direction, distance_m, binding.connection_epoch))
+            return SimpleNamespace(accepted=False, status=22)
+        return original(
+            self,
+            direction=direction,
+            distance_m=distance_m,
+            timing_policy=timing_policy,
+        )
+
+    FakePhysicalTransportBase.send_vertical_move = reject_once
+    try:
+        replies = run_host_sequence(vertical_ast(), steps=4)
+    finally:
+        FakePhysicalTransportBase.send_vertical_move = original
+
+    require(replies[2]["ok"] is False, "definitive vertical rejection is surfaced fail-closed")
+    require(replies[3]["ok"] is True, "next parameter-free request retries the same exact unemitted step")
+    require(replies[4]["ok"] is True and replies[5]["ok"] is True, "later descent and landing follow only after accepted climb")
+    accepted = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-vertical"]
+    rejected = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-vertical-rejected"]
+    require(rejected == [("inflight-vertical-rejected", "up", 0.3, "epoch-after")], "rejection is exact first climb")
+    require([event[1:3] for event in accepted] == [("up", 0.3), ("down", 0.2)], "rejected climb cannot be skipped")
+
+
+def test_ambiguous_vertical_effect_makes_host_sequence_terminal() -> None:
+    base.EVENTS.clear()
+    install_fakes()
+    original = FakePhysicalTransportBase.send_vertical_move
+
+    def ambiguous(self, *, direction, distance_m, timing_policy):
+        del timing_policy
+        binding = self._read_current_binding()
+        base.EVENTS.append(("inflight-vertical-ambiguous", direction, distance_m, binding.connection_epoch))
+        self.execution_domain.phase = base.physical_execution_domain.RECOVERY_REQUIRED
+        raise RuntimeError("injected ambiguous vertical effect")
+
+    FakePhysicalTransportBase.send_vertical_move = ambiguous
+    try:
+        replies = run_host_sequence(vertical_ast(), steps=2)
+    finally:
+        FakePhysicalTransportBase.send_vertical_move = original
+
+    require(replies[2]["ok"] is False and replies[3]["ok"] is False, "ambiguous vertical effect and every later step fail closed")
+    require(
+        not any(isinstance(event, tuple) and event[0] == "terminal-land" for event in base.EVENTS),
+        "ambiguous vertical effect cannot advance into terminal landing",
+    )
+
+
 def test_boundary_only_program_lands_without_opening_yaw() -> None:
     base.EVENTS.clear()
     install_fakes()
@@ -465,7 +585,7 @@ def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
     require(
         not any(
             isinstance(event, tuple)
-            and event[0] in {"inflight-turn", "inflight-move", "exact-wait", "terminal-land"}
+            and event[0] in {"inflight-turn", "inflight-move", "inflight-vertical", "exact-wait", "terminal-land"}
             for event in base.EVENTS
         ),
         "malformed terminal must never be skipped into a physical step",
@@ -480,14 +600,17 @@ def main() -> int:
     test_exact_wait_pacer_uses_monotonic_slices_and_no_effect_surface()
     test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_completes_exact_program_with_terminal_landing()
+    test_actual_host_consumes_exact_vertical_program_parameter_free()
+    test_rejected_vertical_effect_remains_exact_next_step()
+    test_ambiguous_vertical_effect_makes_host_sequence_terminal()
     test_boundary_only_program_lands_without_opening_yaw()
     test_actual_host_consumes_exact_wait_without_effect_transport()
     test_incomplete_host_wait_fails_closed_without_landing()
     test_actual_host_rejects_malformed_terminal_before_takeoff()
     print(
-        "PASS actual physical host sequencing: validated takeoff preserves exact ordered move/turn, "
-        "no-effect wait pacing and one terminal controlled landing; wait keeps watchdog/epoch/current-program "
-        "guards live without emitting a flight command, and incomplete waits fail closed"
+        "PASS actual physical host sequencing: validated takeoff preserves exact ordered horizontal/vertical motion, "
+        "no-effect wait pacing and one terminal controlled landing; caller-selected motion/altitude/index state is rejected, "
+        "and rejected or ambiguous vertical effects cannot skip the exact sequence"
     )
     return 0
 
