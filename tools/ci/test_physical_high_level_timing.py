@@ -64,6 +64,11 @@ assert "send_packet" not in source
 assert "takeoff_duration" not in source
 assert "landing_duration" not in source
 
+# Keep the new exact-AST set_speed production-shaped regression on the same
+# already-selected physical timing CI path without broadening workflow authority.
+import test_physical_set_speed_state as speed_state  # noqa: E402
+assert speed_state.main() == 0
+
 print(
     "PASS pure physical timing preserves horizontal speed/yaw-rate ceilings "
     "for serialized rest-to-rest HighLevelCommander trajectories"
