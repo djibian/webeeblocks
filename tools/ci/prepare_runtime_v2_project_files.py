@@ -128,7 +128,7 @@ harness = r'''
         if (String(Blockly.VERSION) !== '13.2.1') throw new Error('unexpected Blockly version ' + Blockly.VERSION);
         if (!document.getElementById('projectOpen') || !document.getElementById('projectSave') || !document.getElementById('projectSaveAs'))
           throw new Error('manual project buttons missing');
-        if (document.body.dataset.projectFileMode !== 'native') throw new Error('R2025a project file mode is not native');
+        if (document.body.dataset.projectFileMode !== 'browser-native') throw new Error('R2025a Chrome project file mode is not browser-native');
 
         loadXml(__FIXTURE__);
         const initialAst = currentAst();
