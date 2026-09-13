@@ -117,7 +117,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 "#define BOOST_VERSION 107400\n", encoding="utf-8"
             )
             stale = boost / "asio/version.hpp"
-            stale.parent.mkdir(parents=True, exist_ok=True)
+            stale.parent.mkdir(parents=True)
             stale.write_text("stale-tree-bytes\n", encoding="utf-8")
 
             def fake_extract(command, *, check):
