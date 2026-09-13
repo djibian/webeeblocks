@@ -145,7 +145,7 @@ DEF CRAZYFLIE Crazyflie {
   extensionSlot [
     # WEBEEBLOCKS_COLOR_LED_DECK_VISUAL_V1_BEGIN
     Pose {
-      translation 0 0 -0.006
+      translation 0 0 -0.002
       children [
         Shape {
           appearance PBRAppearance {
@@ -158,38 +158,38 @@ DEF CRAZYFLIE Crazyflie {
           }
         }
         Pose {
-          translation -0.0135 -0.0135 0.004
+          translation -0.0135 -0.0135 0.0015
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
-              geometry Box { size 0.0022 0.0022 0.0065 }
+              geometry Box { size 0.0022 0.0022 0.0015 }
             }
           ]
         }
         Pose {
-          translation -0.0135 0.0135 0.004
+          translation -0.0135 0.0135 0.0015
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
-              geometry Box { size 0.0022 0.0022 0.0065 }
+              geometry Box { size 0.0022 0.0022 0.0015 }
             }
           ]
         }
         Pose {
-          translation 0.0135 -0.0135 0.004
+          translation 0.0135 -0.0135 0.0015
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
-              geometry Box { size 0.0022 0.0022 0.0065 }
+              geometry Box { size 0.0022 0.0022 0.0015 }
             }
           ]
         }
         Pose {
-          translation 0.0135 0.0135 0.004
+          translation 0.0135 0.0135 0.0015
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
-              geometry Box { size 0.0022 0.0022 0.0065 }
+              geometry Box { size 0.0022 0.0022 0.0015 }
             }
           ]
         }
