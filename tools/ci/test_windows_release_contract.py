@@ -106,6 +106,28 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("$localResourceMatches = [regex]::Matches", packager)
         self.assertIn("Missing Robot Window HTML resource in release", packager)
 
+    def test_robot_window_cache_identity_is_content_addressed(self) -> None:
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Get-FileHash -LiteralPath $assetPath -Algorithm SHA256", packager)
+        self.assertIn('"?wb=$assetDigest"', packager)
+        self.assertIn(
+            '$robotWindowIdentity = "blockly_v2_$robotWindowDigest"', packager
+        )
+        self.assertIn(
+            "Move-Item -LiteralPath $blocklyTarget -Destination $finalRobotWindowRoot",
+            packager,
+        )
+        self.assertIn(
+            "Move-Item -LiteralPath $stagedRobotWindowHtml -Destination $finalRobotWindowHtml",
+            packager,
+        )
+        self.assertIn("$windowToken = 'window \"blockly_v2\"'", packager)
+        self.assertIn(
+            "Expected exactly one Runtime v2 Robot Window declaration", packager
+        )
+
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
         acceptance = (PACKAGING / "WINDOWS-ACCEPTANCE.md").read_text(
