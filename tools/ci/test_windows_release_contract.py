@@ -2,6 +2,7 @@
 """Static fail-closed contract for the Windows classroom release path."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -41,6 +42,8 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "& $make -C $controllerDir clean",
             "& $make -C $controllerDir",
             "crazyflie_runtime_v2.exe",
+            "classroom_fixes.css",
+            "classroom_fixes.js",
             "Expected exactly four pinned remote references",
             "../protos/Crazyflie.proto",
             "textures/fast_helix.png",
@@ -61,9 +64,10 @@ class WindowsReleaseContractTests(unittest.TestCase):
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
         ).read_text(encoding="utf-8")
+        release_check = (
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
 
-        # The document itself must be revalidated, while every subresource in the
-        # built archive receives a content-derived query key from its exact bytes.
         self.assertIn(
             '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">',
             html,
@@ -76,9 +80,6 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn('"?wb=$digest"', packager)
         self.assertIn("Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml", packager)
 
-        # Keep the root package boundary explicit: the two files missing from the
-        # failed #338 artifact are admitted, while build-only sibling helpers are
-        # not swept into the classroom ZIP by an extension-wide copy rule.
         runtime_root = (
             "blockly_v2.html",
             "execution_observer.css",
@@ -96,10 +97,59 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertNotIn("Get-ChildItem -LiteralPath $blocklySource -File", packager)
         self.assertNotIn("prepare_blockly_vendor.js", packager)
 
+        references = {
+            re.split(r"[?#]", match.group(1), maxsplit=1)[0]
+            for match in re.finditer(r'(?:src|href)="([^"]+)"', html)
+        }
+        direct_references = sorted(
+            reference for reference in references if "/" not in reference
+        )
+        self.assertGreater(len(direct_references), 0)
+        for reference in direct_references:
+            self.assertIn(f"'{reference}'", packager)
+
         self.assertIn('src="led_observability.js"', html)
         self.assertIn('src="physical_preflight_runtime.js"', html)
         self.assertTrue((BLOCKLY / "led_observability.js").is_file())
         self.assertTrue((BLOCKLY / "physical_preflight_runtime.js").is_file())
+
+        self.assertIn(
+            "$robotWindowsRoot = Join-Path $packageDir 'plugins\\robot_windows'",
+            packager,
+        )
+        self.assertIn(
+            "Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse",
+            packager,
+        )
+        self.assertIn(
+            '$robotWindowReleaseName = "blockly_v2_$($robotWindowDigest.Substring(0, 16))"',
+            packager,
+        )
+        self.assertIn(
+            "Move-Item -LiteralPath $blocklyTarget -Destination $robotWindowReleaseRoot",
+            packager,
+        )
+        self.assertIn(
+            "Expected exactly one Runtime v2 Robot Window identity in the source world",
+            packager,
+        )
+        self.assertIn(
+            "$worldText = $worldText.Replace($sourceRobotWindow, $packagedRobotWindow)",
+            packager,
+        )
+        self.assertIn("^blockly_v2_[0-9a-f]{16}$", release_check)
+        self.assertIn(
+            "Robot Window top-level cache identity is not derived from the packaged plugin bytes",
+            release_check,
+        )
+        self.assertIn(
+            "Packaged world does not select the content-addressed Robot Window",
+            release_check,
+        )
+        self.assertNotIn(
+            "'plugins\\robot_windows\\blockly_v2\\blockly_v2.html'",
+            release_check,
+        )
 
     def test_native_firefox_broker_dependency_closure_is_fail_closed(self) -> None:
         packager = (
