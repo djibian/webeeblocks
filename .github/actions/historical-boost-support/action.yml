@@ -1,5 +1,5 @@
 name: Historical Boost support archive
-description: Restore the exact pre-provisioned Jammy Boost 1.74 archive used by historical Webots CI.
+description: Restore the exact Jammy Boost 1.74 archive used by historical Webots CI, with a checkpoint-only verified acquisition fallback.
 
 runs:
   using: composite
@@ -10,9 +10,14 @@ runs:
       with:
         path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
         key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
-        fail-on-cache-miss: true
+        fail-on-cache-miss: ${{ github.event_name != 'issue_comment' }}
 
-    - name: Verify exact restored archive
+    - name: Acquire exact checkpoint historical Boost archive
+      if: github.event_name == 'issue_comment' && steps.boost-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: python3 tools/ci/fetch_historical_boost_archive.py
+
+    - name: Verify exact historical Boost archive
       shell: bash
       run: |
         set -euo pipefail
@@ -23,5 +28,5 @@ runs:
         from prepare_historical_boost import PACKAGE_NAME, verify_archive
         archive = Path('.ci-support') / PACKAGE_NAME
         verify_archive(archive)
-        print(f'PASS exact pre-provisioned historical Boost archive: {archive}')
+        print(f'PASS exact historical Boost archive: {archive}')
         PY
