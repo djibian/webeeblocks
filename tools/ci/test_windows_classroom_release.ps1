@@ -42,6 +42,16 @@ foreach ($line in $manifestEntries) {
   Assert-Release ($actual -eq $expected) "Checksum mismatch: $relative"
 }
 
+$packagedWorldPath = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
+Assert-Release (Test-Path -LiteralPath $packagedWorldPath -PathType Leaf) 'Missing packaged Runtime v2 world.'
+$packagedWorld = Get-Content -LiteralPath $packagedWorldPath -Raw
+$windowMatches = [regex]::Matches($packagedWorld, '(?m)^\s*window "([^"]+)"\s*$')
+Assert-Release ($windowMatches.Count -eq 1) 'Packaged world must declare exactly one Robot Window.'
+$robotWindowIdentity = $windowMatches[0].Groups[1].Value
+Assert-Release ($robotWindowIdentity -match '^blockly_v2_[0-9a-f]{16}$') "Unexpected content-addressed Robot Window identity: $robotWindowIdentity"
+$robotWindowRoot = Join-Path $testRoot "plugins\robot_windows\$robotWindowIdentity"
+$robotWindowHtml = Join-Path $robotWindowRoot "$robotWindowIdentity.html"
+
 $required = @(
   'Launch-WebeeBlocks.cmd',
   'Launch-WebeeBlocks.ps1',
@@ -49,10 +59,10 @@ $required = @(
   'WINDOWS-ACCEPTANCE.md',
   'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe',
   'controllers\crazyflie_runtime_v2\runtime.ini',
-  'plugins\robot_windows\blockly_v2\blockly_v2.html',
-  'plugins\robot_windows\blockly_v2\vendor\VERSION',
-  'plugins\robot_windows\blockly_v2\vendor\blockly_compressed.js',
-  'plugins\robot_windows\blockly_v2\webots\RobotWindow.js',
+  "plugins\robot_windows\$robotWindowIdentity\$robotWindowIdentity.html",
+  "plugins\robot_windows\$robotWindowIdentity\vendor\VERSION",
+  "plugins\robot_windows\$robotWindowIdentity\vendor\blockly_compressed.js",
+  "plugins\robot_windows\$robotWindowIdentity\webots\RobotWindow.js",
   'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js',
   'plugins\robot_windows\blockly\webeeblocks\project_files.js',
   'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js',
@@ -66,8 +76,41 @@ foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
 }
 
-$version = (Get-Content -LiteralPath (Join-Path $testRoot 'plugins\robot_windows\blockly_v2\vendor\VERSION') -Raw).Trim()
+$version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
+
+# Reconstruct exactly the digest used by the packager. The final HTML basename
+# is normalized back to blockly_v2.html because that was its canonical relative
+# path when the immutable plugin-tree identity was computed.
+$identityLines = Get-ChildItem -LiteralPath $robotWindowRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+  $relative = [System.IO.Path]::GetRelativePath($robotWindowRoot, $_.FullName).Replace('\', '/')
+  if ($relative -eq "$robotWindowIdentity.html") {
+    $relative = 'blockly_v2.html'
+  }
+  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  "$hash  $relative"
+}
+$identityPayload = [System.Text.UTF8Encoding]::new($false).GetBytes((($identityLines -join "`n") + "`n"))
+$identityHasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $identityBytes = $identityHasher.ComputeHash($identityPayload)
+}
+finally {
+  $identityHasher.Dispose()
+}
+$identityDigest = ([System.BitConverter]::ToString($identityBytes)).Replace('-', '').ToLowerInvariant().Substring(0, 16)
+Assert-Release ($robotWindowIdentity -eq "blockly_v2_$identityDigest") 'Robot Window path is not derived from its exact packaged plugin tree.'
+
+$htmlText = Get-Content -LiteralPath $robotWindowHtml -Raw
+$htmlReferences = [regex]::Matches($htmlText, '(?i)(?:src|href)="([^"]+)"')
+Assert-Release ($htmlReferences.Count -gt 0) 'Packaged Robot Window HTML exposes no resource references.'
+foreach ($match in $htmlReferences) {
+  $reference = $match.Groups[1].Value
+  if ($reference -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/|#)') {
+    continue
+  }
+  Assert-Release ($reference -match '\?wb=[0-9a-f]{16}$') "Robot Window resource is not content fingerprinted: $reference"
+}
 
 $runtimeIni = Get-Content -LiteralPath (Join-Path $testRoot 'controllers\crazyflie_runtime_v2\runtime.ini') -Raw
 Assert-Release ($runtimeIni -match '(?m)^\[environment variables with paths\]\r?$') 'Controller runtime.ini lacks the path-aware environment section.'
@@ -173,4 +216,4 @@ finally {
   $env:PATH = $oldPath
 }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
+Write-Host "PASS: Windows classroom archive is self-contained, checksummed, cache-isolated, path-safe, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
