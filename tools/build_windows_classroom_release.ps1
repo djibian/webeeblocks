@@ -212,6 +212,39 @@ $blocklyHtml = [regex]::Replace(
 )
 Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml
 
+# The Webots R2025a Robot Window HTTP server may cache the top-level HTML URL for
+# one hour. A new release must therefore change the top-level path itself, not
+# merely its child-resource query strings. Derive that path from every packaged
+# Robot Window/plugin runtime byte so nested imports cannot keep an old URL.
+$robotWindowsRoot = Join-Path $packageDir 'plugins\robot_windows'
+$robotWindowIdentityLines = Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+  $relative = [System.IO.Path]::GetRelativePath($robotWindowsRoot, $_.FullName).Replace('\', '/')
+  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  "$hash  $relative"
+}
+$robotWindowIdentity = (($robotWindowIdentityLines -join "`n") + "`n")
+$identityHasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $identityBytes = [System.Text.Encoding]::UTF8.GetBytes($robotWindowIdentity)
+  $identityHashBytes = $identityHasher.ComputeHash($identityBytes)
+}
+finally {
+  $identityHasher.Dispose()
+}
+$robotWindowDigest = -join ($identityHashBytes | ForEach-Object { $_.ToString('x2') })
+$robotWindowReleaseName = "blockly_v2_$($robotWindowDigest.Substring(0, 16))"
+$robotWindowReleaseRoot = Join-Path $robotWindowsRoot $robotWindowReleaseName
+if (Test-Path -LiteralPath $robotWindowReleaseRoot) {
+  throw "Content-addressed Robot Window target already exists: $robotWindowReleaseRoot"
+}
+Move-Item -LiteralPath $blocklyTarget -Destination $robotWindowReleaseRoot
+$robotWindowHtmlTarget = Join-Path $robotWindowReleaseRoot "$robotWindowReleaseName.html"
+Move-Item `
+  -LiteralPath (Join-Path $robotWindowReleaseRoot 'blockly_v2.html') `
+  -Destination $robotWindowHtmlTarget
+$blocklyTarget = $robotWindowReleaseRoot
+$blocklyHtmlPath = $robotWindowHtmlTarget
+
 $packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
 Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
 $runtimeIni = @'
@@ -274,6 +307,12 @@ Solid {
 }
 '@
 $worldText = $worldText.Replace('Floor { size 4 4 }', $floor.TrimEnd())
+$sourceRobotWindow = '  window "blockly_v2"'
+if (($worldText.Split($sourceRobotWindow).Count - 1) -ne 1) {
+  throw 'Expected exactly one Runtime v2 Robot Window identity in the source world.'
+}
+$packagedRobotWindow = '  window "' + $robotWindowReleaseName + '"'
+$worldText = $worldText.Replace($sourceRobotWindow, $packagedRobotWindow)
 if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
