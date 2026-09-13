@@ -96,6 +96,10 @@
           if (activeRequestId === null) {
             activeRequestId = requestId;
             await prepareExactCurrentProgram(requestId);
+            // The launcher preparation bridge is one-shot. Once that exact
+            // request is settled (success or fail-closed failure), further
+            // polling cannot produce a second preparation transaction.
+            return;
           } else if (activeRequestId !== requestId) {
             fail('launcher changed the one-shot preparation request');
           }
