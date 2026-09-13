@@ -2,6 +2,7 @@
 """Static fail-closed contract for the Windows classroom release path."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -86,6 +87,24 @@ class WindowsReleaseContractTests(unittest.TestCase):
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         self.assertIn('href="classroom_fixes.css"', html)
         self.assertIn('src="classroom_fixes.js"', html)
+
+    def test_packager_tracks_direct_html_resource_graph(self) -> None:
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        references = {
+            re.split(r"[?#]", match.group(1), maxsplit=1)[0]
+            for match in re.finditer(r'(?:src|href)="([^"]+)"', html)
+        }
+        direct_references = sorted(
+            reference for reference in references if "/" not in reference
+        )
+        self.assertGreater(len(direct_references), 0)
+        for reference in direct_references:
+            self.assertIn(f"'{reference}'", packager)
+        self.assertIn("$localResourceMatches = [regex]::Matches", packager)
+        self.assertIn("Missing Robot Window HTML resource in release", packager)
 
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
