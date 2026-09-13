@@ -190,6 +190,125 @@ def test_execution_request_count_uses_static_dynamic_host_boundary() -> None:
     require(launcher.execution_request_count(canonical_dynamic_ast()) == 1, "dynamic interpreter run must be one parameter-free request")
 
 
+class _FakeSocketResource:
+    def __init__(self) -> None:
+        self.closed = False
+        self.shutdown_calls = 0
+
+    def shutdown(self, _how: int) -> None:
+        self.shutdown_calls += 1
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeHostProcess:
+    def __init__(self) -> None:
+        self.wait_calls = 0
+
+    def wait(self, timeout: float | None = None) -> int:
+        del timeout
+        self.wait_calls += 1
+        return 0
+
+
+class _ShutdownFailingTeacher:
+    def __init__(self) -> None:
+        self.messages: list[bytes] = []
+        self.closed = False
+
+    def sendall(self, payload: bytes) -> None:
+        self.messages.append(bytes(payload))
+
+    def shutdown(self, _how: int) -> None:
+        raise OSError("synthetic half-close failure")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_startup_failure_cleans_resources_acquired_before_bootstrap_failure() -> None:
+    session = launcher.PhysicalQualificationSession(
+        uri="radio://0/80/2M/E7E7E7E7E7",
+        webots_executable="unused-webots",
+    )
+    host = _FakeHostProcess()
+    caller = _FakeSocketResource()
+    teacher = _FakeSocketResource()
+
+    def fail_after_host_acquired() -> dict[str, object]:
+        session._host = host
+        session._caller = caller
+        session._teacher = teacher
+        raise launcher.PhysicalQualificationLauncherError("synthetic malformed host bootstrap")
+
+    session._spawn_host = fail_after_host_acquired  # type: ignore[method-assign]
+    try:
+        session.start()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("malformed host bootstrap" in str(exc), "startup failure cause must survive cleanup")
+    else:
+        raise AssertionError("startup failure unexpectedly succeeded")
+
+    require(host.wait_calls == 1, "acquired trusted host must be reaped on startup failure")
+    require(caller.closed and teacher.closed, "acquired trusted sockets must close on startup failure")
+    require(
+        session._host is None and session._caller is None and session._teacher is None,
+        "failed startup must retain no trusted child/socket handles",
+    )
+    require(
+        session._bridge is None and session._ephemeral is None and session._webots is None,
+        "failed startup must retain no later-stage resources",
+    )
+
+
+def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> None:
+    session = launcher.PhysicalQualificationSession(
+        uri="radio://0/80/2M/E7E7E7E7E7",
+        webots_executable="unused-webots",
+    )
+    ast = canonical_static_ast()
+    prepared = launcher.PreparedProgram(
+        profile_id="activity-1",
+        ast_binding=ast,
+        connection_epoch="epoch-before",
+    )
+    proposal = {
+        "op": "teacher-run-binding-proposal",
+        "requestId": "teacher-1",
+        "challengeId": "challenge-1",
+        "profileId": "activity-1",
+        "astBinding": ast,
+        "connectionEpoch": "epoch-after",
+        "executionAuthority": False,
+    }
+    teacher = _ShutdownFailingTeacher()
+    session._prepared = prepared
+    session._teacher = teacher  # type: ignore[assignment]
+
+    try:
+        session.decide(proposal, approved=True)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("decision was sent" in str(exc), "half-close error must preserve sent-decision outcome")
+    else:
+        raise AssertionError("synthetic teacher half-close failure unexpectedly succeeded")
+
+    require(session._teacher_sealed is True, "successful send must irrevocably consume the teacher decision")
+    require(len(teacher.messages) == 1, "exactly one teacher decision may be transmitted")
+    sent = json.loads(teacher.messages[0].decode("utf-8"))
+    require(sent["approved"] is True, "first transmitted decision must preserve explicit approval")
+
+    try:
+        session.decide(proposal, approved=False)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("teacher decision retry unexpectedly remained available after successful send")
+    require(len(teacher.messages) == 1, "half-close uncertainty must never permit a second teacher decision")
+    session.close()
+    require(teacher.closed, "session cleanup must still close uncertain teacher channel")
+
+
 def _write_fake_host(path: Path, transcript: Path) -> None:
     path.write_text(
         '''#!/usr/bin/env python3
@@ -343,10 +462,12 @@ def main() -> int:
     test_ephemeral_robot_window_injects_only_non_authority_bootstrap()
     test_browser_helper_has_no_teacher_or_execution_channel()
     test_execution_request_count_uses_static_dynamic_host_boundary()
+    test_startup_failure_cleans_resources_acquired_before_bootstrap_failure()
+    test_teacher_decision_send_is_irrevocable_before_fallible_half_close()
     test_full_launcher_composes_real_window_distinct_teacher_and_parameter_free_execution()
     print(
         "PASS physical qualification launcher: real Robot Window bootstrap, distinct teacher channel, "
-        "exact host binding and parameter-free full-program execution"
+        "exact host binding, lifecycle fail-closed boundaries and parameter-free full-program execution"
     )
     return 0
 
