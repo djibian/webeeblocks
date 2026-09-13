@@ -30,40 +30,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Restore exact historical Boost cache for maintenance runs
-        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
-        id: historical-boost-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
-          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
-
-      - name: Acquire exact historical Boost archive for maintenance runs
-        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
-        run: python3 tools/ci/fetch_historical_boost_archive.py
-
-      - name: Verify exact historical Boost archive for maintenance runs
-        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import sys
-          sys.path.insert(0, 'tools/ci')
-          from prepare_historical_boost import PACKAGE_NAME, verify_archive
-          archive = Path('.ci-support') / PACKAGE_NAME
-          verify_archive(archive)
-          print(f'PASS exact historical Boost maintenance archive: {archive}')
-          PY
-
-      - name: Save exact historical Boost cache for maintenance runs
-        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
-          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
-
       - name: Restore exact physical qualification runtime support
         id: qualification-runtime-cache
         uses: actions/cache/restore@v4
@@ -129,6 +95,40 @@ jobs:
         with:
           path: .ci-support/qualification-runtime
           key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
+      - name: Restore exact historical Boost cache for maintenance runs
+        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
+        id: historical-boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+
+      - name: Acquire exact historical Boost archive for maintenance runs
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
+        run: python3 tools/ci/fetch_historical_boost_archive.py
+
+      - name: Verify exact historical Boost archive for maintenance runs
+        if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'tools/ci')
+          from prepare_historical_boost import PACKAGE_NAME, verify_archive
+          archive = Path('.ci-support') / PACKAGE_NAME
+          verify_archive(archive)
+          print(f'PASS exact historical Boost maintenance archive: {archive}')
+          PY
+
+      - name: Save exact historical Boost cache for maintenance runs
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.historical-boost-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
 
       - name: Verify selector and repository contracts
         run: |

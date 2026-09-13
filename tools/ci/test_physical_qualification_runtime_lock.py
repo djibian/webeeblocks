@@ -163,7 +163,7 @@ def main() -> int:
         require(required in workflow, f"missing qualification runtime CI support: {required}")
     require(workflow.count(maintenance) >= 3, "qualification support acquisition must stay maintenance-only")
     section = workflow.split("- name: Restore exact physical qualification runtime support", 1)[1].split(
-        "- name: Verify selector and repository contracts", 1
+        "- name: Restore exact historical Boost cache for maintenance runs", 1
     )[0]
     require("restore-keys:" not in section, "qualification runtime cache must be exact-key only")
     require(
