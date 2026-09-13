@@ -32,27 +32,14 @@ jobs:
 
       - name: Select physical qualification runtime support
         id: qualification-runtime-scope
-        shell: bash
-        run: |
-          set -euo pipefail
-          run=true
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            run=false
-            while IFS= read -r path; do
-              case "$path" in
-                tools/ci/test_physical_qualification_runtime_lock.py|tools/physical/qualification_runtime_lock.txt|tools/physical/*.py)
-                  run=true
-                  break
-                  ;;
-              esac
-            done < <(git diff --name-only --no-renames "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
-            if [ "$run" != "true" ] && git diff --unified=0 "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" -- .github/workflows/ci.yml | grep -Eq '^[+-].*(qualification-runtime|physical qualification runtime|qualification runtime support|qualification_runtime)'; then
-              run=true
-            fi
-          fi
-          echo "run=$run" >> "$GITHUB_OUTPUT"
-          echo "PHYSICAL_QUALIFICATION_RUNTIME=$run"
+        run: >-
+          python3 tools/ci/select_qualification_runtime_support.py
+          --event "${{ github.event_name }}"
+          --base "${{ github.event.pull_request.base.sha }}"
+          --head "${{ github.event.pull_request.head.sha || github.sha }}"
+          --github-output "$GITHUB_OUTPUT"
 
+      # BEGIN PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT
       - name: Restore exact physical qualification runtime support
         if: steps.qualification-runtime-scope.outputs.run == 'true'
         id: qualification-runtime-cache
@@ -119,6 +106,7 @@ jobs:
         with:
           path: .ci-support/qualification-runtime
           key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+      # END PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT
 
       - name: Restore exact historical Boost cache for maintenance runs
         if: github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)
@@ -186,7 +174,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             while IFS= read -r path; do
               case "$path" in
-                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
+                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
                   run=true
                   break
                   ;;

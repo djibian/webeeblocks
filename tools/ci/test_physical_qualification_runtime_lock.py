@@ -8,6 +8,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_qualification_runtime.py"
+SELECTOR_PATH = ROOT / "tools" / "ci" / "select_qualification_runtime_support.py"
 LOCK_PATH = ROOT / "tools" / "physical" / "qualification_runtime_lock.txt"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
 
@@ -17,6 +18,13 @@ if spec is None or spec.loader is None:
 verifier = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = verifier
 spec.loader.exec_module(verifier)
+
+selector_spec = importlib.util.spec_from_file_location("select_qualification_runtime_support", SELECTOR_PATH)
+if selector_spec is None or selector_spec.loader is None:
+    raise RuntimeError("cannot load qualification runtime selector")
+selector = importlib.util.module_from_spec(selector_spec)
+sys.modules[selector_spec.name] = selector
+selector_spec.loader.exec_module(selector)
 
 EXPECTED = {
     "pyusb==1.2.1": (
@@ -147,10 +155,9 @@ def main() -> int:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     maintenance = "github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)"
     for required in (
-        "id: qualification-runtime-scope",
-        "tools/physical/*.py",
-        "git diff --unified=0",
-        "qualification-runtime|physical qualification runtime|qualification runtime support|qualification_runtime",
+        "python3 tools/ci/select_qualification_runtime_support.py",
+        selector.START_MARKER,
+        selector.END_MARKER,
         "id: qualification-runtime-cache",
         "uses: actions/cache/restore@v4",
         "path: .ci-support/qualification-runtime",
@@ -166,20 +173,27 @@ def main() -> int:
     ):
         require(required in workflow, f"missing qualification runtime CI support: {required}")
     require(workflow.count(maintenance) >= 3, "qualification support acquisition must stay maintenance-only")
-    selector = workflow.split("- name: Select physical qualification runtime support", 1)[1].split(
-        "- name: Restore exact physical qualification runtime support", 1
-    )[0]
+
+    base = "before\n" + selector.START_MARKER + "\nrepository: bitcraze/crazyflie-lib-python\n" + selector.END_MARKER + "\nafter-one\n"
+    unrelated = "before changed\n" + selector.START_MARKER + "\nrepository: bitcraze/crazyflie-lib-python\n" + selector.END_MARKER + "\nafter-two\n"
+    provenance_change = "before\n" + selector.START_MARKER + "\nrepository: attacker/other-source\n" + selector.END_MARKER + "\nafter-one\n"
     require(
-        ".github/workflows/ci.yml|" not in selector,
-        "an unrelated CI workflow edit must not automatically depend on qualification cache support",
+        selector.workflow_support_changed(base, unrelated) is False,
+        "unrelated workflow edits outside the bounded support block must not select qualification support",
     )
     require(
-        "-- .github/workflows/ci.yml" in selector,
-        "qualification-specific CI edits must still opt into runtime support proof",
+        selector.workflow_support_changed(base, provenance_change) is True,
+        "keyword-free provenance edits inside the support block must select qualification support",
     )
-    section = workflow.split("- name: Select physical qualification runtime support", 1)[1].split(
-        "- name: Restore exact historical Boost cache for maintenance runs", 1
-    )[0]
+    require(
+        selector.workflow_support_changed(base, base.replace(selector.END_MARKER, "")) is True,
+        "missing structural markers must fail closed to qualification support",
+    )
+    require(selector.relevant_path("tools/physical/serve_physical_host.py"), "physical Python boundary must select support")
+    require(selector.relevant_path("tools/ci/select_qualification_runtime_support.py"), "selector edits must select support")
+    require(not selector.relevant_path("docs/ROADMAP.md"), "unrelated paths must not select support")
+
+    section = workflow.split(selector.START_MARKER, 1)[1].split(selector.END_MARKER, 1)[0]
     require("restore-keys:" not in section, "qualification runtime cache must be exact-key only")
     require(
         "steps.qualification-runtime-cache.outputs.cache-hit != 'true'" in section,
@@ -198,7 +212,7 @@ def main() -> int:
         "qualification runtime must be verified both before cache save and on canonical consumption",
     )
 
-    print("PASS: exact scoped physical qualification runtime lock, hermetic CI cache and isolated import contract")
+    print("PASS: exact structurally scoped physical qualification runtime lock, hermetic CI cache and isolated import contract")
     return 0
 
 
