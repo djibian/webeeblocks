@@ -228,7 +228,8 @@ $worldText = $worldText.Replace('Floor { size 4 4 }', $floor.TrimEnd())
 if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
-Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
+$packagedWorldPath = Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt'
+Write-Utf8NoBom $packagedWorldPath $worldText
 Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
@@ -261,6 +262,71 @@ foreach ($match in $localResourceMatches) {
     throw "Missing Robot Window HTML resource in release: $reference"
   }
 }
+
+# Webots R2025a serves Robot Window files with one-hour public caching. Rewrite
+# every direct local resource reference from the exact packaged bytes, then make
+# the Robot Window plugin directory and HTML basename content-addressed from the
+# complete packaged plugin tree. Because Webots builds the top-level URL from
+# <window>/<window>.html, every plugin byte change produces a new top-level path;
+# nested relative module imports inherit that fresh directory path as well.
+$assetPattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+$robotWindowHtml = [regex]::Replace(
+  $robotWindowHtml,
+  $assetPattern,
+  [System.Text.RegularExpressions.MatchEvaluator]{
+    param($match)
+    $url = $match.Groups['url'].Value
+    if ($url -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/|#)') {
+      return $match.Value
+    }
+    $assetRelative = ($url -split '[?#]', 2)[0]
+    if ([string]::IsNullOrWhiteSpace($assetRelative)) {
+      throw "Empty Robot Window resource reference: $url"
+    }
+    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $robotWindowRoot ($assetRelative.Replace('/', '\'))))
+    if (-not $assetPath.StartsWith($releaseRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Robot Window resource escapes release root: $assetRelative"
+    }
+    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+      throw "Missing Robot Window HTML resource in release: $assetRelative"
+    }
+    $assetDigest = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 16)
+    return $match.Groups['prefix'].Value + $assetRelative + "?wb=$assetDigest" + $match.Groups['suffix'].Value
+  }
+)
+Write-Utf8NoBom $robotWindowHtmlPath $robotWindowHtml
+
+$robotWindowIdentityLines = Get-ChildItem -LiteralPath $blocklyTarget -File -Recurse | Sort-Object FullName | ForEach-Object {
+  $relative = [System.IO.Path]::GetRelativePath($blocklyTarget, $_.FullName).Replace('\', '/')
+  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  "$hash  $relative"
+}
+$robotWindowIdentityPayload = [System.Text.UTF8Encoding]::new($false).GetBytes((($robotWindowIdentityLines -join "`n") + "`n"))
+$robotWindowHasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $robotWindowIdentityBytes = $robotWindowHasher.ComputeHash($robotWindowIdentityPayload)
+}
+finally {
+  $robotWindowHasher.Dispose()
+}
+$robotWindowDigest = ([System.BitConverter]::ToString($robotWindowIdentityBytes)).Replace('-', '').ToLowerInvariant().Substring(0, 16)
+$robotWindowIdentity = "blockly_v2_$robotWindowDigest"
+$robotWindowParent = Split-Path $blocklyTarget -Parent
+$finalRobotWindowRoot = Join-Path $robotWindowParent $robotWindowIdentity
+if (Test-Path -LiteralPath $finalRobotWindowRoot) {
+  throw "Content-addressed Robot Window target already exists: $robotWindowIdentity"
+}
+Move-Item -LiteralPath $blocklyTarget -Destination $finalRobotWindowRoot
+$stagedRobotWindowHtml = Join-Path $finalRobotWindowRoot 'blockly_v2.html'
+$finalRobotWindowHtml = Join-Path $finalRobotWindowRoot "$robotWindowIdentity.html"
+Move-Item -LiteralPath $stagedRobotWindowHtml -Destination $finalRobotWindowHtml
+
+$windowToken = 'window "blockly_v2"'
+if (($worldText.Split($windowToken).Count - 1) -ne 1) {
+  throw 'Expected exactly one Runtime v2 Robot Window declaration.'
+}
+$worldText = $worldText.Replace($windowToken, ('window "' + $robotWindowIdentity + '"'))
+Write-Utf8NoBom $packagedWorldPath $worldText
 
 $manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')
