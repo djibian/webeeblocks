@@ -113,6 +113,14 @@
     });
   }
 
+  function invalidateProgramBinding() {
+    if (bridge && typeof bridge.clear === 'function')
+      bridge.clear();
+    bridge = null;
+    boundProfile = null;
+    boundAstBinding = null;
+  }
+
   async function refreshCurrentProgramForChallenge() {
     try {
       return await assertCurrentProgram();
@@ -137,7 +145,10 @@
         boundAstBinding !== expectedAstBinding ||
         refreshed.astBinding !== expectedAstBinding
       ) {
-        clear();
+        // Invalidate only the stale exact-program ticket. The configured
+        // capability adapter and host challenge responder are non-authority
+        // session plumbing and must remain available for a later fresh preflight.
+        invalidateProgramBinding();
         fail('current program changed during fresh physical preflight');
       }
       return assertCurrentProgram();
@@ -306,11 +317,7 @@
 
   function clear() {
     responderGeneration += 1;
-    if (bridge && typeof bridge.clear === 'function')
-      bridge.clear();
-    bridge = null;
-    boundProfile = null;
-    boundAstBinding = null;
+    invalidateProgramBinding();
     responder = null;
     adapter = null;
   }
