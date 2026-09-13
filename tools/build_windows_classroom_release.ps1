@@ -141,7 +141,21 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js', 'classroom_fixes.css', 'classroom_fixes.js', 'led_observability.js', 'physical_preflight_runtime.js')) {
+# Keep the classroom archive bounded to the actual Runtime root dependency
+# closure. The fail-closed HTML resolver below catches any future referenced
+# root asset that is added to blockly_v2.html without being admitted here.
+foreach ($name in @(
+  'blockly_v2.html',
+  'execution_observer.css',
+  'main.css',
+  'main.js',
+  'project_files.css',
+  'project_ui.js',
+  'classroom_fixes.css',
+  'classroom_fixes.js',
+  'led_observability.js',
+  'physical_preflight_runtime.js'
+)) {
   Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
 }
 foreach ($directory in @('vendor', 'webots')) {
@@ -163,6 +177,74 @@ Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Objec
 Copy-RequiredFile `
   (Join-Path $repoRoot 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js') `
   (Join-Path $packageDir 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js')
+
+# Fail closed on every local HTML dependency and fingerprint the URL from the
+# exact bytes packaged in this archive. Webots reuses localhost Robot Window
+# paths between launches; content-addressed query keys prevent a browser from
+# reusing stale CSS/JS bytes for a new release while preserving offline loading.
+$blocklyHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
+$blocklyHtml = Get-Content -LiteralPath $blocklyHtmlPath -Raw
+$packagePrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
+$assetPattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+$blocklyHtml = [regex]::Replace(
+  $blocklyHtml,
+  $assetPattern,
+  [System.Text.RegularExpressions.MatchEvaluator]{
+    param($match)
+    $url = $match.Groups['url'].Value
+    if ($url -match '^(?:[a-z][a-z0-9+.-]*:|//|#)') {
+      throw "Robot Window release dependency must be local: $url"
+    }
+    $assetRelative = ($url -split '[?#]', 2)[0]
+    if ([string]::IsNullOrWhiteSpace($assetRelative)) {
+      throw "Robot Window release dependency is empty: $url"
+    }
+    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $blocklyTarget $assetRelative))
+    if (-not $assetPath.StartsWith($packagePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Robot Window release dependency escapes package root: $assetRelative"
+    }
+    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+      throw "Referenced Robot Window asset missing from release: $assetRelative"
+    }
+    $digest = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 16)
+    return $match.Groups['prefix'].Value + $assetRelative + "?wb=$digest" + $match.Groups['suffix'].Value
+  }
+)
+Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml
+
+# The Webots R2025a Robot Window HTTP server may cache the top-level HTML URL for
+# one hour. A new release must therefore change the top-level path itself, not
+# merely its child-resource query strings. Derive that path from every packaged
+# Robot Window/plugin runtime byte so nested imports cannot keep an old URL.
+$robotWindowsRoot = Join-Path $packageDir 'plugins\robot_windows'
+$robotWindowIdentityLines = Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+  $relative = [System.IO.Path]::GetRelativePath($robotWindowsRoot, $_.FullName).Replace('\', '/')
+  $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+  "$hash  $relative"
+}
+$robotWindowIdentity = (($robotWindowIdentityLines -join "`n") + "`n")
+$identityHasher = [System.Security.Cryptography.SHA256]::Create()
+try {
+  $identityBytes = [System.Text.Encoding]::UTF8.GetBytes($robotWindowIdentity)
+  $identityHashBytes = $identityHasher.ComputeHash($identityBytes)
+}
+finally {
+  $identityHasher.Dispose()
+}
+$robotWindowDigest = -join ($identityHashBytes | ForEach-Object { $_.ToString('x2') })
+$robotWindowReleaseName = "blockly_v2_$($robotWindowDigest.Substring(0, 16))"
+$robotWindowReleaseRoot = Join-Path $robotWindowsRoot $robotWindowReleaseName
+if (Test-Path -LiteralPath $robotWindowReleaseRoot) {
+  throw "Content-addressed Robot Window target already exists: $robotWindowReleaseRoot"
+}
+Move-Item -LiteralPath $blocklyTarget -Destination $robotWindowReleaseRoot
+$robotWindowHtmlTarget = Join-Path $robotWindowReleaseRoot "$robotWindowReleaseName.html"
+Move-Item `
+  -LiteralPath (Join-Path $robotWindowReleaseRoot 'blockly_v2.html') `
+  -Destination $robotWindowHtmlTarget
+$blocklyTarget = $robotWindowReleaseRoot
+$blocklyHtmlPath = $robotWindowHtmlTarget
+
 $packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
 Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
 $runtimeIni = @'
@@ -225,6 +307,12 @@ Solid {
 }
 '@
 $worldText = $worldText.Replace('Floor { size 4 4 }', $floor.TrimEnd())
+$sourceRobotWindow = '  window "blockly_v2"'
+if (($worldText.Split($sourceRobotWindow).Count - 1) -ne 1) {
+  throw 'Expected exactly one Runtime v2 Robot Window identity in the source world.'
+}
+$packagedRobotWindow = '  window "' + $robotWindowReleaseName + '"'
+$worldText = $worldText.Replace($sourceRobotWindow, $packagedRobotWindow)
 if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
@@ -232,35 +320,6 @@ Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $world
 Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
-
-# Treat blockly_v2.html as the authority for its initial local resource graph.
-# The package must fail closed if any relative src/href target is absent from the
-# exact directory that will be zipped. Query strings are cache revisions only.
-$robotWindowHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
-$robotWindowHtml = Get-Content -LiteralPath $robotWindowHtmlPath -Raw
-$robotWindowRoot = Split-Path $robotWindowHtmlPath -Parent
-$releaseRootPrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
-$localResourceMatches = [regex]::Matches($robotWindowHtml, '(?i)(?:src|href)="([^"]+)"')
-if ($localResourceMatches.Count -eq 0) {
-  throw 'Robot Window HTML exposes no local resource references.'
-}
-foreach ($match in $localResourceMatches) {
-  $reference = $match.Groups[1].Value
-  if ($reference -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/)') {
-    continue
-  }
-  $relativeReference = ($reference -split '[?#]', 2)[0]
-  if ([string]::IsNullOrWhiteSpace($relativeReference)) {
-    throw "Empty Robot Window resource reference: $reference"
-  }
-  $resourcePath = [System.IO.Path]::GetFullPath((Join-Path $robotWindowRoot ($relativeReference.Replace('/', '\'))))
-  if (-not $resourcePath.StartsWith($releaseRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Robot Window resource escapes release root: $reference"
-  }
-  if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
-    throw "Missing Robot Window HTML resource in release: $reference"
-  }
-}
 
 $manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')

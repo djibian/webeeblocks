@@ -59,6 +59,98 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
 
+    def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        release_check = (
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">',
+            html,
+        )
+        self.assertIn('<meta http-equiv="Pragma" content="no-cache">', html)
+        self.assertIn('<meta http-equiv="Expires" content="0">', html)
+        self.assertIn("$assetPattern = '(?<prefix>(?:src|href)=\")", packager)
+        self.assertIn("Referenced Robot Window asset missing from release", packager)
+        self.assertIn("Get-FileHash -LiteralPath $assetPath -Algorithm SHA256", packager)
+        self.assertIn('"?wb=$digest"', packager)
+        self.assertIn("Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml", packager)
+
+        runtime_root = (
+            "blockly_v2.html",
+            "execution_observer.css",
+            "main.css",
+            "main.js",
+            "project_files.css",
+            "project_ui.js",
+            "classroom_fixes.css",
+            "classroom_fixes.js",
+            "led_observability.js",
+            "physical_preflight_runtime.js",
+        )
+        for name in runtime_root:
+            self.assertIn(f"'{name}'", packager)
+        self.assertNotIn("Get-ChildItem -LiteralPath $blocklySource -File", packager)
+        self.assertNotIn("prepare_blockly_vendor.js", packager)
+
+        references = {
+            re.split(r"[?#]", match.group(1), maxsplit=1)[0]
+            for match in re.finditer(r'(?:src|href)="([^"]+)"', html)
+        }
+        direct_references = sorted(
+            reference for reference in references if "/" not in reference
+        )
+        self.assertGreater(len(direct_references), 0)
+        for reference in direct_references:
+            self.assertIn(f"'{reference}'", packager)
+
+        self.assertIn('src="led_observability.js"', html)
+        self.assertIn('src="physical_preflight_runtime.js"', html)
+        self.assertTrue((BLOCKLY / "led_observability.js").is_file())
+        self.assertTrue((BLOCKLY / "physical_preflight_runtime.js").is_file())
+
+        self.assertIn(
+            "$robotWindowsRoot = Join-Path $packageDir 'plugins\\robot_windows'",
+            packager,
+        )
+        self.assertIn(
+            "Get-ChildItem -LiteralPath $robotWindowsRoot -File -Recurse",
+            packager,
+        )
+        self.assertIn(
+            '$robotWindowReleaseName = "blockly_v2_$($robotWindowDigest.Substring(0, 16))"',
+            packager,
+        )
+        self.assertIn(
+            "Move-Item -LiteralPath $blocklyTarget -Destination $robotWindowReleaseRoot",
+            packager,
+        )
+        self.assertIn(
+            "Expected exactly one Runtime v2 Robot Window identity in the source world",
+            packager,
+        )
+        self.assertIn(
+            "$worldText = $worldText.Replace($sourceRobotWindow, $packagedRobotWindow)",
+            packager,
+        )
+        self.assertIn("^blockly_v2_[0-9a-f]{16}$", release_check)
+        self.assertIn(
+            "Robot Window top-level cache identity is not derived from the packaged plugin bytes",
+            release_check,
+        )
+        self.assertIn(
+            "Packaged world does not select the content-addressed Robot Window",
+            release_check,
+        )
+        self.assertNotIn(
+            "'plugins\\robot_windows\\blockly_v2\\blockly_v2.html'",
+            release_check,
+        )
+
     def test_native_firefox_broker_dependency_closure_is_fail_closed(self) -> None:
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
@@ -87,24 +179,6 @@ class WindowsReleaseContractTests(unittest.TestCase):
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
         self.assertIn('href="classroom_fixes.css"', html)
         self.assertIn('src="classroom_fixes.js"', html)
-
-    def test_packager_tracks_direct_html_resource_graph(self) -> None:
-        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
-        packager = (
-            ROOT / "tools" / "build_windows_classroom_release.ps1"
-        ).read_text(encoding="utf-8")
-        references = {
-            re.split(r"[?#]", match.group(1), maxsplit=1)[0]
-            for match in re.finditer(r'(?:src|href)="([^"]+)"', html)
-        }
-        direct_references = sorted(
-            reference for reference in references if "/" not in reference
-        )
-        self.assertGreater(len(direct_references), 0)
-        for reference in direct_references:
-            self.assertIn(f"'{reference}'", packager)
-        self.assertIn("$localResourceMatches = [regex]::Matches", packager)
-        self.assertIn("Missing Robot Window HTML resource in release", packager)
 
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
