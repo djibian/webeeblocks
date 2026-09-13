@@ -106,6 +106,38 @@ jobs:
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "PHYSICAL_QUALIFICATION_RUNTIME=$run"
+      - name: Restore exact physical qualification runtime wheels
+        if: steps.qualification-runtime-scope.outputs.run == 'true'
+        id: qualification-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/physical-qualification-wheels
+          key: physical-qualification-jammy-cp310-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+          fail-on-cache-miss: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+      - name: Acquire exact physical qualification runtime wheels for maintenance runs
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && steps.qualification-runtime-cache.outputs.cache-hit != 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository))
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse=.ci-support/physical-qualification-wheels
+          mkdir -p "$wheelhouse"
+          while IFS='|' read -r spec filename digest; do
+            case "$spec" in ''|'#'*) continue ;; esac
+            python3 -m pip download --disable-pip-version-check \
+              --no-deps --only-binary=:all: \
+              --platform manylinux2014_x86_64 \
+              --implementation cp --python-version 310 --abi cp310 \
+              --dest "$wheelhouse" "$spec"
+            test -f "$wheelhouse/$filename"
+            printf '%s  %s\n' "$digest" "$wheelhouse/$filename" | sha256sum -c -
+          done < tools/physical/qualification_runtime_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
+      - name: Save exact physical qualification runtime wheels for maintenance runs
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && steps.qualification-runtime-cache.outputs.cache-hit != 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository))
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/physical-qualification-wheels
+          key: physical-qualification-jammy-cp310-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
       - name: Checkout pinned cflib for physical qualification runtime
         if: steps.qualification-runtime-scope.outputs.run == 'true'
         uses: actions/checkout@v4
@@ -124,17 +156,11 @@ jobs:
           test "$(git -C .qualification-cflib rev-parse 'HEAD:cflib')" = "750e850390753de14019f0e1f55d4fbc44317699"
           python3 tools/ci/test_physical_qualification_runtime_closure.py --cflib-root .qualification-cflib
 
-          wheelhouse="$RUNNER_TEMP/physical-qualification-wheels"
-          mkdir -p "$wheelhouse"
+          wheelhouse=.ci-support/physical-qualification-wheels
           expected="$RUNNER_TEMP/physical-qualification-wheel-sha256.txt"
           : > "$expected"
           while IFS='|' read -r spec filename digest; do
             case "$spec" in ''|'#'*) continue ;; esac
-            python3 -m pip download --disable-pip-version-check \
-              --no-deps --only-binary=:all: \
-              --platform manylinux2014_x86_64 \
-              --implementation cp --python-version 310 --abi cp310 \
-              --dest "$wheelhouse" "$spec"
             test -f "$wheelhouse/$filename"
             printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
           done < tools/physical/qualification_runtime_lock.txt
