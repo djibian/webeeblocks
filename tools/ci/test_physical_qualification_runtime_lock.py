@@ -149,6 +149,8 @@ def main() -> int:
     for required in (
         "id: qualification-runtime-scope",
         "tools/physical/*.py",
+        "git diff --unified=0",
+        "qualification-runtime|physical qualification runtime|qualification runtime support|qualification_runtime",
         "id: qualification-runtime-cache",
         "uses: actions/cache/restore@v4",
         "path: .ci-support/qualification-runtime",
@@ -164,6 +166,17 @@ def main() -> int:
     ):
         require(required in workflow, f"missing qualification runtime CI support: {required}")
     require(workflow.count(maintenance) >= 3, "qualification support acquisition must stay maintenance-only")
+    selector = workflow.split("- name: Select physical qualification runtime support", 1)[1].split(
+        "- name: Restore exact physical qualification runtime support", 1
+    )[0]
+    require(
+        ".github/workflows/ci.yml|" not in selector,
+        "an unrelated CI workflow edit must not automatically depend on qualification cache support",
+    )
+    require(
+        "-- .github/workflows/ci.yml" in selector,
+        "qualification-specific CI edits must still opt into runtime support proof",
+    )
     section = workflow.split("- name: Select physical qualification runtime support", 1)[1].split(
         "- name: Restore exact historical Boost cache for maintenance runs", 1
     )[0]

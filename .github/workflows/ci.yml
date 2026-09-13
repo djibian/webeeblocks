@@ -40,12 +40,15 @@ jobs:
             run=false
             while IFS= read -r path; do
               case "$path" in
-                .github/workflows/ci.yml|tools/ci/test_physical_qualification_runtime_lock.py|tools/physical/qualification_runtime_lock.txt|tools/physical/*.py)
+                tools/ci/test_physical_qualification_runtime_lock.py|tools/physical/qualification_runtime_lock.txt|tools/physical/*.py)
                   run=true
                   break
                   ;;
               esac
             done < <(git diff --name-only --no-renames "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+            if [ "$run" != "true" ] && git diff --unified=0 "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" -- .github/workflows/ci.yml | grep -Eq '^[+-].*(qualification-runtime|physical qualification runtime|qualification runtime support|qualification_runtime)'; then
+              run=true
+            fi
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "PHYSICAL_QUALIFICATION_RUNTIME=$run"
