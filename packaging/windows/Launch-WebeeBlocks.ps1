@@ -195,7 +195,7 @@ function Convert-RobotWindowChildUrls {
           -not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
         throw "Dependance Robot Window absente du paquet : $assetRelative"
       }
-      $packageRelative = [System.IO.Path]::GetRelativePath($packageRoot, $assetPath).Replace('\', '/')
+      $packageRelative = $assetPath.Substring($packagePrefix.Length).Replace('\', '/')
       $queryIndex = $url.IndexOf('?')
       $query = if ($queryIndex -ge 0) { $url.Substring($queryIndex) } else { '' }
       return $match.Groups['prefix'].Value + "http://127.0.0.1:$Port/$packageRelative$query" + $match.Groups['suffix'].Value
@@ -289,7 +289,7 @@ if ($ValidateOnly) {
   $server = $null
   try {
     $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
-    $htmlRelative = [System.IO.Path]::GetRelativePath($PSScriptRoot, $robotWindow.Html)
+    $htmlRelative = "plugins\robot_windows\$($robotWindow.Name)\$($robotWindow.Name).html"
     Assert-LocalServerFile -Port $server.Port -RelativePath $htmlRelative -ExpectedContentType 'text/html'
     Assert-LocalServerFile -Port $server.Port -RelativePath (Join-Path "plugins\robot_windows\$($robotWindow.Name)" 'main.css') -ExpectedContentType 'text/css'
     Assert-LocalServerFile -Port $server.Port -RelativePath (Join-Path "plugins\robot_windows\$($robotWindow.Name)" 'vendor\msg\fr.js') -ExpectedContentType 'application/javascript'
