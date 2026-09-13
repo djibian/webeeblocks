@@ -16,6 +16,7 @@ BUILDER_PATH = CI / "build_historical_blockly_sidecar.sh"
 ACTION_PATH = ROOT / ".github/actions/historical-boost-support/action.yml"
 CI_GATE_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 WEBOTS_WORKFLOW = ROOT / ".github/workflows/ci-webots.yml"
+HUMAN_CHECKPOINT_WORKFLOW = ROOT / ".github/workflows/human-checkpoint.yml"
 
 spec = importlib.util.spec_from_file_location("prepare_historical_boost", PREPARER_PATH)
 assert spec is not None and spec.loader is not None
@@ -258,6 +259,30 @@ class HistoricalBoostSupportTests(unittest.TestCase):
         self.assertIn(miss_condition, save)
         self.assertNotIn("draft == false", acquire)
         self.assertNotIn("draft == false", save)
+
+    def test_human_checkpoint_preprovisions_exact_cache_before_webots(self) -> None:
+        text = HUMAN_CHECKPOINT_WORKFLOW.read_text(encoding="utf-8")
+        block = text.split("\n  historical-boost-support:\n", 1)[1].split(
+            "\n  runtime:\n", 1
+        )[0]
+        self.assertIn("needs: validate", block)
+        self.assertIn("uses: actions/cache/restore@v4", block)
+        self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", block)
+        self.assertIn(f"key: {CACHE_KEY}", block)
+        self.assertIn("python3 tools/ci/fetch_historical_boost_archive.py", block)
+        self.assertIn(
+            "from prepare_historical_boost import PACKAGE_NAME, verify_archive", block
+        )
+        self.assertIn("uses: actions/cache/save@v4", block)
+        self.assertEqual(
+            block.count("if: steps.historical-boost-cache.outputs.cache-hit != 'true'"),
+            2,
+        )
+        self.assertNotIn("fail-on-cache-miss: true", block)
+
+        webots = text.split("\n  webots:\n", 1)[1].split("\n  physical:\n", 1)[0]
+        self.assertIn("needs: [validate, historical-boost-support]", webots)
+        self.assertIn("target_sha: ${{ needs.validate.outputs.target_sha }}", webots)
 
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")
