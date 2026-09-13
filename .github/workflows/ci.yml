@@ -30,6 +30,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      # BEGIN PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT
       - name: Select physical qualification runtime support
         id: qualification-runtime-scope
         run: >-
@@ -39,7 +40,6 @@ jobs:
           --head "${{ github.event.pull_request.head.sha || github.sha }}"
           --github-output "$GITHUB_OUTPUT"
 
-      # BEGIN PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT
       - name: Restore exact physical qualification runtime support
         if: steps.qualification-runtime-scope.outputs.run == 'true'
         id: qualification-runtime-cache
@@ -174,7 +174,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             while IFS= read -r path; do
               case "$path" in
-                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
+                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
                   run=true
                   break
                   ;;
