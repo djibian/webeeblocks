@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
-          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0f06bac1de8d05b7a78
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
 
       - name: Verify selector and repository contracts
         run: |
