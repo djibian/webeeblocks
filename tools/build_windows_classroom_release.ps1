@@ -141,7 +141,7 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js', 'classroom_fixes.css', 'classroom_fixes.js')) {
+foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js', 'classroom_fixes.css', 'classroom_fixes.js', 'led_observability.js', 'physical_preflight_runtime.js')) {
   Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
 }
 foreach ($directory in @('vendor', 'webots')) {
@@ -232,6 +232,35 @@ Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $world
 Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
+
+# Treat blockly_v2.html as the authority for its initial local resource graph.
+# The package must fail closed if any relative src/href target is absent from the
+# exact directory that will be zipped. Query strings are cache revisions only.
+$robotWindowHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
+$robotWindowHtml = Get-Content -LiteralPath $robotWindowHtmlPath -Raw
+$robotWindowRoot = Split-Path $robotWindowHtmlPath -Parent
+$releaseRootPrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
+$localResourceMatches = [regex]::Matches($robotWindowHtml, '(?i)(?:src|href)="([^"]+)"')
+if ($localResourceMatches.Count -eq 0) {
+  throw 'Robot Window HTML exposes no local resource references.'
+}
+foreach ($match in $localResourceMatches) {
+  $reference = $match.Groups[1].Value
+  if ($reference -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/)') {
+    continue
+  }
+  $relativeReference = ($reference -split '[?#]', 2)[0]
+  if ([string]::IsNullOrWhiteSpace($relativeReference)) {
+    throw "Empty Robot Window resource reference: $reference"
+  }
+  $resourcePath = [System.IO.Path]::GetFullPath((Join-Path $robotWindowRoot ($relativeReference.Replace('/', '\'))))
+  if (-not $resourcePath.StartsWith($releaseRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Robot Window resource escapes release root: $reference"
+  }
+  if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
+    throw "Missing Robot Window HTML resource in release: $reference"
+  }
+}
 
 $manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')
