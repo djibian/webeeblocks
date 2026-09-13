@@ -152,7 +152,11 @@ def test_ephemeral_robot_window_injects_only_non_authority_bootstrap() -> None:
             host_bootstrap=bootstrap,
         )
         try:
-            html = (ephemeral.plugin_dir / "blockly_v2.html").read_text(encoding="utf-8")
+            entry = ephemeral.plugin_dir / (ephemeral.plugin_dir.name + ".html")
+            stale_entry = ephemeral.plugin_dir / "blockly_v2.html"
+            require(entry.is_file(), "ephemeral Robot Window must expose its exact Webots entry name")
+            require(not stale_entry.exists(), "ephemeral Robot Window must not retain the stale source entry name")
+            html = entry.read_text(encoding="utf-8")
             generated_world = ephemeral.world_path.read_text(encoding="utf-8")
             require("WebeeBlocksPhysicalQualificationConfig" in html, "physical config must enter actual Robot Window")
             require("physical_qualification_runtime.js" in html, "physical helper must enter actual Robot Window")
@@ -213,8 +217,17 @@ open(r''' + repr(str(transcript)) + ''','w',encoding='utf-8').write(json.dumps(e
 def _write_fake_webots(path: Path, observed_world: Path) -> None:
     path.write_text(
         '''#!/usr/bin/env python3
-import pathlib, sys, time
-pathlib.Path(r''' + repr(str(observed_world)) + ''').write_text(sys.argv[-1],encoding='utf-8')
+import pathlib, re, sys, time
+world = pathlib.Path(sys.argv[-1])
+text = world.read_text(encoding='utf-8')
+match = re.search(r'window "([^"]+)"', text)
+if match is None:
+ raise SystemExit(3)
+name = match.group(1)
+entry = world.parent.parent / 'plugins' / 'robot_windows' / name / (name + '.html')
+if not entry.is_file():
+ raise SystemExit(4)
+pathlib.Path(r''' + repr(str(observed_world)) + ''').write_text(str(world),encoding='utf-8')
 try:
  time.sleep(60)
 except KeyboardInterrupt:
