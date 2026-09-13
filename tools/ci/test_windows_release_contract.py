@@ -41,8 +41,6 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "& $make -C $controllerDir clean",
             "& $make -C $controllerDir",
             "crazyflie_runtime_v2.exe",
-            "classroom_fixes.css",
-            "classroom_fixes.js",
             "Expected exactly four pinned remote references",
             "../protos/Crazyflie.proto",
             "textures/fast_helix.png",
@@ -57,6 +55,36 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\usr\\bin\\make.exe", packager)
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
+
+    def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+
+        # The document itself must be revalidated, while every subresource in the
+        # built archive receives a content-derived query key from its exact bytes.
+        self.assertIn(
+            '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">',
+            html,
+        )
+        self.assertIn('<meta http-equiv="Pragma" content="no-cache">', html)
+        self.assertIn('<meta http-equiv="Expires" content="0">', html)
+        self.assertIn("Get-ChildItem -LiteralPath $blocklySource -File", packager)
+        self.assertIn("$_.Extension -in @('.html', '.css', '.js')", packager)
+        self.assertIn("$assetPattern = '(?<prefix>(?:src|href)=\")", packager)
+        self.assertIn("Referenced Robot Window asset missing from release", packager)
+        self.assertIn("Get-FileHash -LiteralPath $assetPath -Algorithm SHA256", packager)
+        self.assertIn('"?wb=$digest"', packager)
+        self.assertIn("Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml", packager)
+
+        # These were the two concrete 404s in the failed Windows artifact. They
+        # remain direct HTML dependencies and therefore must be picked up by the
+        # generic root-asset packaging rule above rather than a basename list.
+        self.assertIn('src="led_observability.js"', html)
+        self.assertIn('src="physical_preflight_runtime.js"', html)
+        self.assertTrue((BLOCKLY / "led_observability.js").is_file())
+        self.assertTrue((BLOCKLY / "physical_preflight_runtime.js").is_file())
 
     def test_native_firefox_broker_dependency_closure_is_fail_closed(self) -> None:
         packager = (
