@@ -262,9 +262,13 @@ class HistoricalBoostSupportTests(unittest.TestCase):
 
     def test_human_checkpoint_preprovisions_exact_cache_before_webots(self) -> None:
         text = HUMAN_CHECKPOINT_WORKFLOW.read_text(encoding="utf-8")
+        top_level = text.split("\njobs:\n", 1)[0]
         block = text.split("\n  historical-boost-support:\n", 1)[1].split(
             "\n  runtime:\n", 1
         )[0]
+        self.assertIn("actions: read", top_level)
+        self.assertNotIn("actions: write", top_level)
+        self.assertIn("cache-mode: write", block)
         self.assertIn("needs: validate", block)
         self.assertIn("uses: actions/cache/restore@v4", block)
         self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", block)
