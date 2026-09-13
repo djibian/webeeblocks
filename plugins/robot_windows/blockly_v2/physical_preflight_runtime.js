@@ -283,11 +283,17 @@
         invalidateProgramBinding();
       throw error;
     }
+    if (profileBinding(root.runtimeProfile) !== expectedProfileBinding) {
+      if (bridge === activeBridge)
+        invalidateProgramBinding();
+      else
+        activeBridge.clear();
+      fail('activity profile changed during physical re-assertion');
+    }
     if (
       bridge !== activeBridge ||
       boundProfile !== expectedProfileBinding ||
       boundAstBinding !== expectedAstBinding ||
-      profileBinding(root.runtimeProfile) !== expectedProfileBinding ||
       !result || !result.preflight ||
       result.preflight.astBinding !== expectedAstBinding
     ) {
@@ -295,7 +301,7 @@
         invalidateProgramBinding();
       else
         activeBridge.clear();
-      fail('activity profile or program changed during physical re-assertion');
+      fail('physical program binding changed during physical re-assertion');
     }
     return result;
   }
