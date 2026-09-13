@@ -28,6 +28,8 @@ permissions:
   actions: read
   issues: write
 
+cache-mode: read
+
 jobs:
   validate:
     name: Validate checkpoint request
@@ -132,6 +134,7 @@ jobs:
     needs: validate
     if: needs.validate.outputs.target_sha != ''
     runs-on: ubuntu-22.04
+    cache-mode: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -177,7 +180,6 @@ jobs:
     with:
       target_sha: ${{ needs.validate.outputs.target_sha }}
       full: true
-
   webots:
     name: Full Webots evidence
     needs: [validate, historical-boost-support]
