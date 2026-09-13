@@ -151,8 +151,11 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
   if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax failure in $($_.FullName)" }
 }
 
-& (Join-Path $testRoot 'Launch-WebeeBlocks.ps1') -ValidateOnly -WebotsHome $WebotsHome
-if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed.' }
+$windowsPowerShellMajor = (& powershell.exe -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.Major' | Out-String).Trim()
+Assert-Release ($LASTEXITCODE -eq 0 -and $windowsPowerShellMajor -eq '5') "Expected Windows PowerShell 5.1 for the packaged launcher, got major version '$windowsPowerShellMajor'."
+$launcher = Join-Path $testRoot 'Launch-WebeeBlocks.ps1'
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -WebotsHome $WebotsHome
+if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed under Windows PowerShell 5.1.' }
 
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
