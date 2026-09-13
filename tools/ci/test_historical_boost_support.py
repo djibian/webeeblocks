@@ -117,7 +117,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
                 "#define BOOST_VERSION 107400\n", encoding="utf-8"
             )
             stale = boost / "asio/version.hpp"
-            stale.parent.mkdir(parents=True)
+            stale.parent.mkdir(parents=True, exist_ok=True)
             stale.write_text("stale-tree-bytes\n", encoding="utf-8")
 
             def fake_extract(command, *, check):
@@ -262,10 +262,23 @@ class HistoricalBoostSupportTests(unittest.TestCase):
 
     def test_human_checkpoint_preprovisions_exact_cache_before_webots(self) -> None:
         text = HUMAN_CHECKPOINT_WORKFLOW.read_text(encoding="utf-8")
+        workflow_prefix = text.split("\njobs:\n", 1)[0]
+        self.assertIn("\ncache-mode: read\n", workflow_prefix)
+        self.assertNotIn("actions: write", text)
+        self.assertEqual(text.count("cache-mode: write"), 1)
+
+        validate = text.split("\n  validate:\n", 1)[1].split(
+            "\n  historical-boost-support:\n", 1
+        )[0]
+        self.assertIn("github.actor == 'djibian'", validate)
+
         block = text.split("\n  historical-boost-support:\n", 1)[1].split(
             "\n  runtime:\n", 1
         )[0]
         self.assertIn("needs: validate", block)
+        self.assertIn("if: needs.validate.outputs.target_sha != ''", block)
+        self.assertIn("cache-mode: write", block)
+        self.assertIn("ref: ${{ github.sha }}", block)
         self.assertIn("uses: actions/cache/restore@v4", block)
         self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", block)
         self.assertIn(f"key: {CACHE_KEY}", block)
