@@ -141,8 +141,13 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-foreach ($name in @('blockly_v2.html', 'execution_observer.css', 'main.css', 'main.js', 'project_files.css', 'project_ui.js', 'classroom_fixes.css', 'classroom_fixes.js')) {
-  Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
+# Runtime root assets are copied by type rather than a hand-maintained basename
+# list, so adding a new sibling script/stylesheet referenced by blockly_v2.html
+# cannot silently disappear from the Windows classroom archive.
+Get-ChildItem -LiteralPath $blocklySource -File | Where-Object {
+  $_.Extension -in @('.html', '.css', '.js')
+} | ForEach-Object {
+  Copy-RequiredFile $_.FullName (Join-Path $blocklyTarget $_.Name)
 }
 foreach ($directory in @('vendor', 'webots')) {
   $source = Join-Path $blocklySource $directory
@@ -163,6 +168,41 @@ Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Objec
 Copy-RequiredFile `
   (Join-Path $repoRoot 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js') `
   (Join-Path $packageDir 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js')
+
+# Fail closed on every local HTML dependency and fingerprint the URL from the
+# exact bytes packaged in this archive. Webots reuses localhost Robot Window
+# paths between launches; content-addressed query keys prevent a browser from
+# reusing stale CSS/JS bytes for a new release while preserving offline loading.
+$blocklyHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
+$blocklyHtml = Get-Content -LiteralPath $blocklyHtmlPath -Raw
+$packagePrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
+$assetPattern = '(?<prefix>\b(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+$blocklyHtml = [regex]::Replace(
+  $blocklyHtml,
+  $assetPattern,
+  [System.Text.RegularExpressions.MatchEvaluator]{
+    param($match)
+    $url = $match.Groups['url'].Value
+    if ($url -match '^(?:[a-z][a-z0-9+.-]*:|//|#)') {
+      throw "Robot Window release dependency must be local: $url"
+    }
+    $assetRelative = ($url -split '[?#]', 2)[0]
+    if ([string]::IsNullOrWhiteSpace($assetRelative)) {
+      throw "Robot Window release dependency is empty: $url"
+    }
+    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $blocklyTarget $assetRelative.Replace('/', '\')))
+    if (-not $assetPath.StartsWith($packagePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Robot Window release dependency escapes package root: $assetRelative"
+    }
+    if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+      throw "Referenced Robot Window asset missing from release: $assetRelative"
+    }
+    $digest = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 16)
+    return $match.Groups['prefix'].Value + $assetRelative + "?wb=$digest" + $match.Groups['suffix'].Value
+  }
+)
+Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml
+
 $packagedControllerDir = Join-Path $packageDir 'controllers\crazyflie_runtime_v2'
 Copy-RequiredFile $controllerBinary (Join-Path $packagedControllerDir 'crazyflie_runtime_v2.exe')
 $runtimeIni = @'
