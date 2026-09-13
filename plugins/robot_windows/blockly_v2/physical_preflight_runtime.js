@@ -14,6 +14,7 @@
   var adapter = null;
   var bridge = null;
   var boundProfile = null;
+  var boundAstBinding = null;
   var responder = null;
   var responderGeneration = 0;
 
@@ -112,6 +113,37 @@
     });
   }
 
+  async function refreshCurrentProgramForChallenge() {
+    try {
+      return await assertCurrentProgram();
+    } catch (firstError) {
+      // #266 deliberately rotates the live connection epoch after the exact
+      // pre-reset program has already been staged. A host challenge created
+      // after that cutover therefore cannot reuse the old preflight ticket.
+      // Re-run the complete non-authority preflight once against the fresh
+      // session, but accept the refresh only if the activity and canonical AST
+      // are still exactly the ones that were bound before the failed assertion.
+      // The host independently checks the same profile/AST and its new epoch.
+      var expectedProfileBinding = boundProfile;
+      var expectedAstBinding = boundAstBinding;
+      if (!bridge || expectedProfileBinding === null || expectedAstBinding === null)
+        throw firstError;
+      if (profileBinding(root.runtimeProfile) !== expectedProfileBinding)
+        throw firstError;
+
+      var refreshed = await preflightCurrentProgram();
+      if (
+        boundProfile !== expectedProfileBinding ||
+        boundAstBinding !== expectedAstBinding ||
+        refreshed.astBinding !== expectedAstBinding
+      ) {
+        clear();
+        fail('current program changed during fresh physical preflight');
+      }
+      return assertCurrentProgram();
+    }
+  }
+
   async function answerCurrentProgramChallenges(
     generation,
     activeAdapter,
@@ -150,7 +182,7 @@
         executionAuthority: false
       };
       try {
-        var result = await assertCurrentProgram();
+        var result = await refreshCurrentProgramForChallenge();
         if (
           adapter !== activeAdapter ||
           responder !== activeResponder ||
@@ -180,6 +212,7 @@
       bridge.clear();
     bridge = null;
     boundProfile = null;
+    boundAstBinding = null;
     responder = null;
     adapter = root.WebeeBlocksPhysicalCapabilityHttpAdapter.create(options || {});
     responder = createResponder(options || {});
@@ -207,6 +240,7 @@
     );
     bridge = activeBridge;
     boundProfile = null;
+    boundAstBinding = null;
     var result = await activeBridge.preflightWorkspace(root.workspace);
     if (
       bridge !== activeBridge ||
@@ -218,19 +252,22 @@
       fail('activity profile changed during physical preflight');
     }
     boundProfile = expectedProfileBinding;
+    boundAstBinding = requireText(result.astBinding, 'astBinding');
     return result;
   }
 
   async function assertCurrentProgram() {
     requireProductState();
-    if (!bridge || boundProfile === null)
+    if (!bridge || boundProfile === null || boundAstBinding === null)
       fail('physical preflight is required before re-assertion');
     var activeBridge = bridge;
     var expectedProfileBinding = boundProfile;
+    var expectedAstBinding = boundAstBinding;
     if (profileBinding(root.runtimeProfile) !== expectedProfileBinding) {
       activeBridge.clear();
       bridge = null;
       boundProfile = null;
+      boundAstBinding = null;
       fail('activity profile changed since physical preflight');
     }
     var result;
@@ -244,20 +281,25 @@
         activeBridge.clear();
         bridge = null;
         boundProfile = null;
+        boundAstBinding = null;
       }
       throw error;
     }
     if (
       bridge !== activeBridge ||
       boundProfile !== expectedProfileBinding ||
-      profileBinding(root.runtimeProfile) !== expectedProfileBinding
+      boundAstBinding !== expectedAstBinding ||
+      profileBinding(root.runtimeProfile) !== expectedProfileBinding ||
+      !result || !result.preflight ||
+      result.preflight.astBinding !== expectedAstBinding
     ) {
       activeBridge.clear();
       if (bridge === activeBridge) {
         bridge = null;
         boundProfile = null;
+        boundAstBinding = null;
       }
-      fail('activity profile changed during physical re-assertion');
+      fail('activity profile or program changed during physical re-assertion');
     }
     return result;
   }
@@ -268,6 +310,7 @@
       bridge.clear();
     bridge = null;
     boundProfile = null;
+    boundAstBinding = null;
     responder = null;
     adapter = null;
   }
