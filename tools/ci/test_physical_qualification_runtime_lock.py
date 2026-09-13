@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +14,7 @@ spec = importlib.util.spec_from_file_location("verify_qualification_runtime", VE
 if spec is None or spec.loader is None:
     raise RuntimeError("cannot load qualification runtime verifier")
 verifier = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = verifier
 spec.loader.exec_module(verifier)
 
 EXPECTED = {
