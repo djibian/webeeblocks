@@ -127,6 +127,48 @@ jobs:
               output.write(f'artifact_name={PROFILES[profile]}\n')
           PY
 
+  historical-boost-support:
+    name: Prime exact historical Boost support
+    needs: validate
+    if: needs.validate.outputs.target_sha != ''
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Restore exact historical Boost cache
+        id: historical-boost-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+
+      - name: Acquire exact historical Boost archive
+        if: steps.historical-boost-cache.outputs.cache-hit != 'true'
+        run: python3 tools/ci/fetch_historical_boost_archive.py
+
+      - name: Verify exact historical Boost archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'tools/ci')
+          from prepare_historical_boost import PACKAGE_NAME, verify_archive
+          archive = Path('.ci-support') / PACKAGE_NAME
+          verify_archive(archive)
+          print(f'PASS exact human-checkpoint historical Boost archive: {archive}')
+          PY
+
+      - name: Save exact historical Boost cache
+        if: steps.historical-boost-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+
   runtime:
     name: Full Runtime evidence
     needs: validate
@@ -138,7 +180,7 @@ jobs:
 
   webots:
     name: Full Webots evidence
-    needs: validate
+    needs: [validate, historical-boost-support]
     if: needs.validate.outputs.target_sha != ''
     uses: ./.github/workflows/ci-webots.yml
     with:
