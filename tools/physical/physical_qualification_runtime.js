@@ -62,8 +62,11 @@
 
   async function prepareExactCurrentProgram(requestId) {
     try {
-      var result = await root.WebeeBlocksPhysicalPreflight.preflightCurrentProgram();
-      if (!result || !result.preflight)
+      // preflightCurrentProgram() deliberately returns the direct immutable
+      // preflight result. Only assertCurrentProgram() wraps that ticket under
+      // `.preflight`, so qualification preparation must bind these fields here.
+      var preflight = await root.WebeeBlocksPhysicalPreflight.preflightCurrentProgram();
+      if (!preflight)
         fail('preflight result is unavailable');
       var profile = root.runtimeProfile;
       if (!profile || typeof profile.id !== 'string')
@@ -72,8 +75,8 @@
         requestId: requestId,
         ok: true,
         profileId: requireText(profile.id, 'profileId'),
-        astBinding: requireText(result.preflight.astBinding, 'astBinding'),
-        connectionEpoch: requireText(result.preflight.connectionEpoch, 'connectionEpoch'),
+        astBinding: requireText(preflight.astBinding, 'astBinding'),
+        connectionEpoch: requireText(preflight.connectionEpoch, 'connectionEpoch'),
         executionAuthority: false
       });
     } catch (error) {
