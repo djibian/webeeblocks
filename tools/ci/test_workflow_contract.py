@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED = {
-    "human-checkpoint.yml": {"validate", "runtime", "webots", "physical", "publish"},
+    "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -153,7 +153,7 @@ class WorkflowTests(unittest.TestCase):
     def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
         blocks = text.split("          python3 - <<'PY'\n")[1:]
-        self.assertEqual(len(blocks), 2)
+        self.assertEqual(len(blocks), 3)
         for block in blocks:
             body, separator, _ = block.partition("          PY\n")
             self.assertTrue(separator, "checkpoint Python heredoc is not closed at YAML scalar indentation")
