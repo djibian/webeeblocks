@@ -251,7 +251,6 @@ function program(distance) {
   assert.strictEqual(productAssertion.executionAuthority, false);
   assert.strictEqual(productAssertion.preflight.connectionEpoch, 'connection-product');
 
-
   // Production handoff answers a host-created challenge only by running the real
   // exact-current #249 re-assertion; the challenge does not carry expected data.
   const exactAssertionPromise = waitForAssertion();
@@ -264,7 +263,9 @@ function program(distance) {
   assert.strictEqual(exactAssertion.astBinding, productPreflight.astBinding);
   assert.strictEqual(exactAssertion.connectionEpoch, 'connection-product');
 
-  // A changed AST cannot be turned into a positive host assertion.
+  // A changed AST cannot be turned into a positive host assertion. The stale
+  // program binding is discarded, but the configured non-authority session stays
+  // available so a later explicit preflight can recover.
   currentAst = program(0.3);
   const astFailurePromise = waitForAssertion();
   enqueueChallenge('challenge-ast-change');
@@ -300,13 +301,21 @@ function program(distance) {
   );
   await productBridge.preflightCurrentProgram();
 
-  // Reconnect/epoch drift cannot produce a positive assertion for the old session.
+  // The trusted reset rotates only the connection epoch. If the profile and
+  // canonical AST are still exact, the challenge must bind one fresh preflight
+  // to that new epoch rather than accepting the stale pre-reset ticket.
   epoch = 'connection-product-changed';
-  const epochFailurePromise = waitForAssertion();
+  const epochRefreshPromise = waitForAssertion();
   enqueueChallenge('challenge-epoch-change');
-  const epochFailure = await epochFailurePromise;
-  assert.strictEqual(epochFailure.ok, false);
-  assert.strictEqual(epochFailure.executionAuthority, false);
+  const epochRefresh = await epochRefreshPromise;
+  assert.strictEqual(epochRefresh.challengeId, 'challenge-epoch-change');
+  assert.strictEqual(epochRefresh.ok, true);
+  assert.strictEqual(epochRefresh.executionAuthority, false);
+  assert.strictEqual(epochRefresh.profileId, global.runtimeProfile.id);
+  assert.strictEqual(epochRefresh.astBinding, productPreflight.astBinding);
+  assert.strictEqual(epochRefresh.connectionEpoch, 'connection-product-changed');
+  const refreshedAssertion = await productBridge.assertCurrentProgram();
+  assert.strictEqual(refreshedAssertion.preflight.connectionEpoch, 'connection-product-changed');
   epoch = 'connection-product';
   await productBridge.preflightCurrentProgram();
 
@@ -351,15 +360,74 @@ function program(distance) {
   );
   await productBridge.preflightCurrentProgram();
 
+  // Exercise the actual qualification browser helper instead of a fake browser
+  // POST. Its preparation contract consumes the direct preflight result shape.
+  productBridge.clear();
+  currentAst = program(0.2);
+  epoch = 'connection-helper';
+  const originalFetch = global.fetch;
+  const originalSetTimeout = global.setTimeout;
+  let helperPreparedResolve;
+  const helperPreparedPromise = new Promise(resolve => { helperPreparedResolve = resolve; });
+  global.fetch = async function(url, options) {
+    if (url === 'http://127.0.0.1:9876/v1/prepare-request') {
+      assert.strictEqual(options.method, 'GET');
+      assert.strictEqual(options.headers.Authorization, 'Bearer launcher-test-token');
+      return response({requestId: 'prepare-helper', executionAuthority: false});
+    }
+    if (url === 'http://127.0.0.1:9876/v1/prepared') {
+      assert.strictEqual(options.method, 'POST');
+      assert.strictEqual(options.headers.Authorization, 'Bearer launcher-test-token');
+      const payload = JSON.parse(options.body);
+      helperPreparedResolve(payload);
+      return response({ok: true, executionAuthority: false});
+    }
+    return fakeFetch(url, options);
+  };
+  // Freeze the helper after its first completed poll without leaving a real timer
+  // handle. The host challenge responder may also remain pending without authority.
+  global.setTimeout = function() { return 0; };
+  global.WebeeBlocksPhysicalQualificationConfig = {
+    launcherBaseUrl: 'http://127.0.0.1:9876',
+    launcherToken: 'launcher-test-token',
+    hostBootstrap: {
+      baseUrl: 'http://127.0.0.1:8765',
+      token: token,
+      preflightResponderToken: responderToken,
+      executionAuthority: false
+    },
+    executionAuthority: false
+  };
+  delete require.cache[require.resolve('../../tools/physical/physical_qualification_runtime.js')];
+  require('../../tools/physical/physical_qualification_runtime.js');
+  const helperPrepared = await Promise.race([
+    helperPreparedPromise,
+    new Promise((_, reject) => originalSetTimeout(
+      () => reject(new Error('qualification browser helper did not publish preparation')),
+      1000
+    ))
+  ]);
+  assert.deepStrictEqual(helperPrepared, {
+    requestId: 'prepare-helper',
+    ok: true,
+    profileId: global.runtimeProfile.id,
+    astBinding: productPreflight.astBinding,
+    connectionEpoch: 'connection-helper',
+    executionAuthority: false
+  });
+  productBridge.clear();
+  delete global.WebeeBlocksPhysicalQualificationConfig;
+  global.fetch = originalFetch;
+  global.setTimeout = originalSetTimeout;
+
   currentAst = program(0.4);
   await assert.rejects(
     () => productBridge.assertCurrentProgram(),
-    /workspace changed since physical preflight/,
-    'live student workspace mutation must invalidate production physical binding'
+    /physical preflight is required/,
+    'cleared product bridge must require a new physical preflight'
   );
-  productBridge.clear();
 
-  console.log('PASS non-authority physical submission bridge provides fresh host-initiated exact-current #249 evidence');
+  console.log('PASS non-authority physical submission bridge provides fresh host-initiated exact-current #249 evidence and qualification helper uses the direct preflight binding');
 })().catch(error => {
   console.error(error);
   process.exit(1);
