@@ -356,8 +356,8 @@ def prepare_ephemeral_robot_window(
     try:
         shutil.copytree(source_plugin, plugin_dir)
         shutil.copy2(helper_script, plugin_dir / "physical_qualification_runtime.js")
-        html_path = plugin_dir / "blockly_v2.html"
-        html = html_path.read_text(encoding="utf-8")
+        source_html_path = plugin_dir / "blockly_v2.html"
+        html = source_html_path.read_text(encoding="utf-8")
         marker = '<script src="physical_preflight_runtime.js"></script>'
         if html.count(marker) != 1:
             raise PhysicalQualificationLauncherError("Robot Window preflight insertion point is ambiguous")
@@ -373,7 +373,9 @@ def prepare_ephemeral_robot_window(
             + _html_safe_json(config)
             + ");</script>\n  <script src=\"physical_qualification_runtime.js\"></script>"
         )
+        html_path = plugin_dir / (plugin_name + ".html")
         html_path.write_text(html.replace(marker, injection, 1), encoding="utf-8")
+        source_html_path.unlink()
 
         world = source_world.read_text(encoding="utf-8")
         window_marker = 'window "blockly_v2"'
