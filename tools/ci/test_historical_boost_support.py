@@ -196,23 +196,35 @@ class HistoricalBoostSupportTests(unittest.TestCase):
             self.assertFalse(output.exists())
             self.assertEqual(list(Path(temp).glob(output.name + ".download.*")), [])
 
-    def test_canonical_cache_action_is_restore_only_and_fail_closed(self) -> None:
+    def test_canonical_cache_action_is_strict_except_for_checkpoint_support(self) -> None:
         text = ACTION_PATH.read_text(encoding="utf-8")
+        self.assertIn("id: boost-cache", text)
         self.assertIn("uses: actions/cache/restore@v4", text)
         self.assertIn(f"path: .ci-support/{subject.PACKAGE_NAME}", text)
         self.assertIn(f"key: {CACHE_KEY}", text)
-        self.assertIn("fail-on-cache-miss: true", text)
+        self.assertIn(
+            "fail-on-cache-miss: ${{ github.event_name != 'issue_comment' }}", text
+        )
+        self.assertIn("- name: Acquire exact checkpoint historical Boost archive", text)
+        self.assertIn(
+            "if: github.event_name == 'issue_comment' && steps.boost-cache.outputs.cache-hit != 'true'",
+            text,
+        )
+        self.assertIn("run: python3 tools/ci/fetch_historical_boost_archive.py", text)
         self.assertIn("from prepare_historical_boost import PACKAGE_NAME, verify_archive", text)
-        for forbidden in (
-            "actions/cache@v4",
-            "fetch_historical_boost_archive.py",
-            "archive.ubuntu.com",
-            "urlopen",
-            "apt-get",
-            "curl ",
-            "wget ",
-        ):
+        self.assertNotIn("actions/cache/save", text)
+        for forbidden in ("archive.ubuntu.com", "urlopen", "apt-get", "curl ", "wget "):
             self.assertNotIn(forbidden, text)
+
+        restore = text.split("- name: Restore exact pre-provisioned historical Boost archive", 1)[1].split(
+            "- name: Acquire exact checkpoint historical Boost archive", 1
+        )[0]
+        acquire = text.split("- name: Acquire exact checkpoint historical Boost archive", 1)[1].split(
+            "- name: Verify exact historical Boost archive", 1
+        )[0]
+        self.assertIn("github.event_name != 'issue_comment'", restore)
+        self.assertIn("github.event_name == 'issue_comment'", acquire)
+        self.assertIn("cache-hit != 'true'", acquire)
 
     def test_non_decision_paths_preprovision_cache_without_ready_fallback(self) -> None:
         text = CI_GATE_WORKFLOW.read_text(encoding="utf-8")
