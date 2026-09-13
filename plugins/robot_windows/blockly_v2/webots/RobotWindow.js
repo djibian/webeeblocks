@@ -6,10 +6,7 @@ import {getGETQueryValue} from './request_methods.js';
 export default class RobotWindow {
   constructor() {
     this.name = decodeURI(getGETQueryValue('name', 'undefined'));
-    const serverOverride = getGETQueryValue('webeeblocksWebSocketServer', '');
-    if (serverOverride)
-      this.wsServer = decodeURIComponent(serverOverride);
-    else if (window.location.href.includes('/~WEBOTS_HOME/'))
+    if (window.location.href.includes('/~WEBOTS_HOME/'))
       this.wsServer = window.location.href.substring(0, window.location.href.indexOf('/~WEBOTS_HOME/') + 1);
     else
       this.wsServer = window.location.href.substring(0, window.location.href.indexOf('/robot_windows/') + 1);

@@ -90,6 +90,8 @@ function Start-WebeeBlocksLocalServer {
     try {
       while ($true) {
         $client = $listener.AcceptTcpClient()
+        $stream = $null
+        $reader = $null
         try {
           $stream = $client.GetStream()
           $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
@@ -166,6 +168,40 @@ function Stop-WebeeBlocksLocalServer {
   if ($null -eq $Server) { return }
   Stop-Job -Job $Server.Job -ErrorAction SilentlyContinue
   Remove-Job -Job $Server.Job -Force -ErrorAction SilentlyContinue
+}
+
+function Convert-RobotWindowChildUrls {
+  param(
+    [string]$Html,
+    [string]$PluginRoot,
+    [int]$Port
+  )
+
+  $packageRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
+  $packagePrefix = $packageRoot + [System.IO.Path]::DirectorySeparatorChar
+  $pattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+  $rewritten = [regex]::Replace(
+    $Html,
+    $pattern,
+    [System.Text.RegularExpressions.MatchEvaluator]{
+      param($match)
+      $url = $match.Groups['url'].Value
+      if ($url -match '^(?:[a-z][a-z0-9+.-]*:|//|#)') {
+        throw "Dependance Robot Window non locale inattendue : $url"
+      }
+      $assetRelative = ($url -split '[?#]', 2)[0]
+      $assetPath = [System.IO.Path]::GetFullPath((Join-Path $PluginRoot $assetRelative))
+      if (-not $assetPath.StartsWith($packagePrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+          -not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+        throw "Dependance Robot Window absente du paquet : $assetRelative"
+      }
+      $packageRelative = [System.IO.Path]::GetRelativePath($packageRoot, $assetPath).Replace('\', '/')
+      $queryIndex = $url.IndexOf('?')
+      $query = if ($queryIndex -ge 0) { $url.Substring($queryIndex) } else { '' }
+      return $match.Groups['prefix'].Value + "http://127.0.0.1:$Port/$packageRelative$query" + $match.Groups['suffix'].Value
+    }
+  )
+  return $rewritten
 }
 
 function Assert-LocalServerFile {
@@ -258,6 +294,16 @@ if ($ValidateOnly) {
     Assert-LocalServerFile -Port $server.Port -RelativePath (Join-Path "plugins\robot_windows\$($robotWindow.Name)" 'main.css') -ExpectedContentType 'text/css'
     Assert-LocalServerFile -Port $server.Port -RelativePath (Join-Path "plugins\robot_windows\$($robotWindow.Name)" 'vendor\msg\fr.js') -ExpectedContentType 'application/javascript'
     Assert-LocalServerFile -Port $server.Port -RelativePath 'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js' -ExpectedContentType 'application/javascript'
+
+    $originalHtml = [System.IO.File]::ReadAllText($robotWindow.Html, [System.Text.Encoding]::UTF8)
+    $rewrittenHtml = Convert-RobotWindowChildUrls -Html $originalHtml -PluginRoot $robotWindow.Root -Port $server.Port
+    $references = [regex]::Matches($rewrittenHtml, '(?:src|href)="([^"]+)"')
+    if ($references.Count -lt 10) { throw 'La Robot Window re-ecrite contient trop peu de dependances pour valider le pont HTTP.' }
+    foreach ($reference in $references) {
+      if (-not $reference.Groups[1].Value.StartsWith("http://127.0.0.1:$($server.Port)/", [System.StringComparison]::Ordinal)) {
+        throw "Une dependance de demarrage contourne le serveur HTTP local : $($reference.Groups[1].Value)"
+      }
+    }
   }
   finally {
     Stop-WebeeBlocksLocalServer -Server $server
@@ -270,29 +316,13 @@ if ($world.Contains('"')) { throw 'Le chemin du monde contient un guillemet non 
 $worldArgument = '"' + $world + '"'
 $server = $null
 $originalHtml = $null
-$localHtml = Join-Path $robotWindow.Root '.webeeblocks-local.html'
 $webotsProcess = $null
 try {
   $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
   $originalHtml = [System.IO.File]::ReadAllText($robotWindow.Html, [System.Text.Encoding]::UTF8)
-  [System.IO.File]::WriteAllText($localHtml, $originalHtml, [System.Text.UTF8Encoding]::new($false))
-
-  $localRelative = [System.IO.Path]::GetRelativePath($PSScriptRoot, $localHtml).Replace('\', '/')
-  $redirectHtml = @"
-<!doctype html>
-<html><head><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store"></head><body>
-<script>
-(function() {
-  const original = new URL(window.location.href);
-  const target = new URL('http://127.0.0.1:$($server.Port)/$localRelative');
-  target.search = original.search;
-  target.searchParams.set('webeeblocksWebSocketServer', original.origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + '/');
-  window.location.replace(target.toString());
-})();
-</script>
-</body></html>
-"@
-  [System.IO.File]::WriteAllText($robotWindow.Html, $redirectHtml, [System.Text.UTF8Encoding]::new($false))
+  $proxiedHtml = Convert-RobotWindowChildUrls -Html $originalHtml -PluginRoot $robotWindow.Root -Port $server.Port
+  $proxiedHtml = $proxiedHtml.Replace('<head>', '<head><link rel="icon" href="data:,">')
+  [System.IO.File]::WriteAllText($robotWindow.Html, $proxiedHtml, [System.Text.UTF8Encoding]::new($false))
 
   $webotsProcess = Start-Process -FilePath $webots -ArgumentList @('--mode=realtime', $worldArgument) -WorkingDirectory $PSScriptRoot -PassThru
   Write-Host "WebeeBlocks demarre. La simulation et la fenetre Blockly vont s'initialiser automatiquement."
@@ -305,6 +335,5 @@ finally {
   if ($null -ne $originalHtml) {
     [System.IO.File]::WriteAllText($robotWindow.Html, $originalHtml, [System.Text.UTF8Encoding]::new($false))
   }
-  Remove-Item -LiteralPath $localHtml -Force -ErrorAction SilentlyContinue
   Stop-WebeeBlocksLocalServer -Server $server
 }
