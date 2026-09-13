@@ -141,13 +141,22 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
 
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
-# Runtime root assets are copied by type rather than a hand-maintained basename
-# list, so adding a new sibling script/stylesheet referenced by blockly_v2.html
-# cannot silently disappear from the Windows classroom archive.
-Get-ChildItem -LiteralPath $blocklySource -File | Where-Object {
-  $_.Extension -in @('.html', '.css', '.js')
-} | ForEach-Object {
-  Copy-RequiredFile $_.FullName (Join-Path $blocklyTarget $_.Name)
+# Keep the classroom archive bounded to the actual Runtime root dependency
+# closure. The fail-closed HTML resolver below catches any future referenced
+# root asset that is added to blockly_v2.html without being admitted here.
+foreach ($name in @(
+  'blockly_v2.html',
+  'execution_observer.css',
+  'main.css',
+  'main.js',
+  'project_files.css',
+  'project_ui.js',
+  'classroom_fixes.css',
+  'classroom_fixes.js',
+  'led_observability.js',
+  'physical_preflight_runtime.js'
+)) {
+  Copy-RequiredFile (Join-Path $blocklySource $name) (Join-Path $blocklyTarget $name)
 }
 foreach ($directory in @('vendor', 'webots')) {
   $source = Join-Path $blocklySource $directory
