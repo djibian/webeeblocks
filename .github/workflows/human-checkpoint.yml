@@ -132,6 +132,7 @@ jobs:
     needs: validate
     if: needs.validate.outputs.target_sha != ''
     runs-on: ubuntu-22.04
+    cache-mode: write
     steps:
       - uses: actions/checkout@v4
         with:
