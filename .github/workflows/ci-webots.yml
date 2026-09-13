@@ -255,8 +255,6 @@ jobs:
           endpoint = float(pairs['endpoint_error_xy'])
           yaw = float(pairs['yaw_error_deg'])
           total = float(pairs['total_s'])
-          # R2025a's 32 ms timestep makes a ±20 ms time oracle artificially tighter
-          # than one simulation step. Geometry/order/STOP remain the strong oracle.
           assert abs(g1 - 12.287) <= 0.10, g1
           assert abs(g2 - 21.315) <= 0.10, g2
           assert endpoint <= 0.02, endpoint
@@ -635,9 +633,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: crazyflie-l-course-r2025a
-          path: |
-            ci-artifacts/crazyflie-l-course/
-            ci-artifacts/crazyflie-l-course-result.txt
+          path: ci-artifacts/crazyflie-l-course/
           if-no-files-found: error
   parametric-blockly-obstacle:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
@@ -1174,8 +1170,6 @@ jobs:
             RESULT_COPY="ci-artifacts/crazyflie-repeatability/run-${run_id}-result.txt"
             RESULT_FILE="ci-artifacts/crazyflie-square-result.txt"
 
-            # Fail closed against stale output: every Webots process must create
-            # its own fresh persisted result.
             rm -f "$RESULT_FILE"
 
             set +e
@@ -1275,7 +1269,7 @@ jobs:
             echo "$code" > "ci-artifacts/crazyflie-handoff/${policy}-exit-code.txt"
             if [ "$code" -ne 0 ]; then
               echo "::error::${policy} Webots run exited with $code"
-              exit "$code"
+              exit 1
             fi
           done
 
@@ -1899,11 +1893,6 @@ jobs:
           if missing:
               raise SystemExit('Pinned Webots R2025a checkout is missing required PROTOs: ' + ', '.join(missing))
 
-          # RotationalMotor's default sound is a webots:// resource that Webots
-          # may resolve through raw.githubusercontent.com even when the pinned
-          # projects tree is mounted locally. The historical light-sensor
-          # behavior does not depend on audio, so override only the two Pioneer
-          # wheel motor sounds in the pinned CI copy before running --network none.
           pioneer = projects / 'robots/adept/pioneer3/protos/Pioneer3dx.proto'
           pioneer_original = pioneer.read_text(encoding='utf-8')
           seams = (
@@ -2337,8 +2326,6 @@ jobs:
           echo "$code" | tee ci-artifacts/webots-exit-code.txt
           echo "Webots exit code: $code"
 
-          # 124 = timeout normal.
-          # 137 = Webots had to be killed after the diagnostic window.
           if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
             echo "Webots remained alive for the diagnostic window."
             exit 0
@@ -2406,12 +2393,7 @@ jobs:
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
-              --stdout \
-              --stderr \
-              --batch \
-              --mode=fast \
-              /workspace/worlds/.ci-boxChallenge-local.wbt' \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/.ci-boxChallenge-local.wbt' \
             2>&1 | tee ci-artifacts/webots-box-challenge.log
 
           code=${PIPESTATUS[0]}
@@ -2478,12 +2460,7 @@ jobs:
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
             cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
-              --stdout \
-              --stderr \
-              --batch \
-              --mode=fast \
-              /workspace/worlds/ci_restart_smoke.wbt' \
+            bash -lc 'timeout -k 5s 30s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_restart_smoke.wbt' \
             2>&1 | tee ci-artifacts/webots-restart.log
 
           code=${PIPESTATUS[0]}
