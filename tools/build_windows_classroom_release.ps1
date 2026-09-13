@@ -176,7 +176,7 @@ Copy-RequiredFile `
 $blocklyHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
 $blocklyHtml = Get-Content -LiteralPath $blocklyHtmlPath -Raw
 $packagePrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
-$assetPattern = '(?<prefix>\b(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+$assetPattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
 $blocklyHtml = [regex]::Replace(
   $blocklyHtml,
   $assetPattern,
@@ -190,7 +190,7 @@ $blocklyHtml = [regex]::Replace(
     if ([string]::IsNullOrWhiteSpace($assetRelative)) {
       throw "Robot Window release dependency is empty: $url"
     }
-    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $blocklyTarget $assetRelative.Replace('/', '\')))
+    $assetPath = [System.IO.Path]::GetFullPath((Join-Path $blocklyTarget $assetRelative))
     if (-not $assetPath.StartsWith($packagePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
       throw "Robot Window release dependency escapes package root: $assetRelative"
     }
