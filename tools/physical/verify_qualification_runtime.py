@@ -193,6 +193,27 @@ print("PASS: qualification launcher and trusted-host imports use exact isolated 
 '''
 
 
+def _run_real_entrypoint_help(script: Path, env: dict[str, str]) -> None:
+    try:
+        result = subprocess.run(
+            [sys.executable, "-S", str(script), "--help"],
+            check=True,
+            text=True,
+            capture_output=True,
+            env=env,
+            cwd=REPO_ROOT,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = "" if not isinstance(exc, subprocess.CalledProcessError) else (exc.stdout + exc.stderr)
+        raise QualificationRuntimeError(
+            f"isolated production entrypoint import failed: {script.name}\n{detail}"
+        ) from exc
+    if "usage:" not in result.stdout.lower():
+        raise QualificationRuntimeError(
+            f"production entrypoint did not reach argparse help without effects: {script.name}"
+        )
+
+
 def verify_isolated_imports(cflib_root: Path, wheels: tuple[Path, ...]) -> None:
     with tempfile.TemporaryDirectory(prefix="webeeblocks-qualification-runtime-") as temp_text:
         temp = Path(temp_text)
@@ -251,7 +272,14 @@ def verify_isolated_imports(cflib_root: Path, wheels: tuple[Path, ...]) -> None:
         except (OSError, subprocess.CalledProcessError) as exc:
             detail = "" if not isinstance(exc, subprocess.CalledProcessError) else (exc.stdout + exc.stderr)
             raise QualificationRuntimeError("isolated qualification import proof failed\n" + detail) from exc
+
+        # Exercise the real executable import paths, not only a mirrored import list.
+        # Both entrypoints parse --help before creating any Webots process, Crazyradio
+        # session, teacher authority, parameter write or physical effect object.
+        _run_real_entrypoint_help(PHYSICAL_DIR / "launch_physical_qualification.py", env)
+        _run_real_entrypoint_help(PHYSICAL_DIR / "serve_physical_host.py", env)
         print(result.stdout.strip())
+        print("PASS: real qualification launcher/host entrypoints import under exact isolated closure")
 
 
 def main(argv: list[str] | None = None) -> int:
