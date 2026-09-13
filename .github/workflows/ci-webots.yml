@@ -1275,7 +1275,7 @@ jobs:
             echo "$code" > "ci-artifacts/crazyflie-handoff/${policy}-exit-code.txt"
             if [ "$code" -ne 0 ]; then
               echo "::error::${policy} Webots run exited with $code"
-              exit 1
+              exit "$code"
             fi
           done
 
@@ -1550,18 +1550,15 @@ jobs:
         with:
           ref: ${{ inputs.target_sha || github.sha }}
 
+      - name: Restore exact historical Boost support
+        uses: ./.github/actions/historical-boost-support
+
       - name: Pull official Webots R2025a image
         run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
 
       - name: Rebuild historical Blockly sidecar
         shell: bash
-        run: |
-          set -o pipefail
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace/controllers/supervisor/blocklyServer \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev && rm -f blocklyServer && make'
+        run: bash tools/ci/build_historical_blockly_sidecar.sh
 
       - name: Exercise real Blockly Save Submit Restore buttons
         run: python3 tools/ci/run_blockly_ui_sidecar_diagnostic.py
@@ -1575,6 +1572,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_sha || github.sha }}
+
+      - name: Restore exact historical Boost support
+        uses: ./.github/actions/historical-boost-support
 
       - name: Checkout pinned Webots R2025a projects
         uses: actions/checkout@v4
@@ -1609,21 +1609,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc '
-              set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
-              cd /workspace/controllers/supervisor/blocklyServer
-              rm -f blocklyServer
-              make
-              cd /workspace/controllers/supervisor
-              make clean
-              make
-            ' 2>&1 | tee ci-artifacts/encoders-build.log
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+            2>&1 | tee ci-artifacts/encoders-build.log
 
       - name: Execute historical encoder program in box challenge
         shell: bash
@@ -1711,6 +1698,9 @@ jobs:
         with:
           ref: ${{ inputs.target_sha || github.sha }}
 
+      - name: Restore exact historical Boost support
+        uses: ./.github/actions/historical-boost-support
+
       - name: Checkout pinned Webots R2025a projects
         uses: actions/checkout@v4
         with:
@@ -1746,21 +1736,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc '
-              set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
-              cd /workspace/controllers/supervisor/blocklyServer
-              rm -f blocklyServer
-              make
-              cd /workspace/controllers/supervisor
-              make clean
-              make
-            ' 2>&1 | tee ci-artifacts/gyro-gps-build.log
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+            2>&1 | tee ci-artifacts/gyro-gps-build.log
 
       - name: Execute historical Gyro GPS program in box challenge
         shell: bash
@@ -1848,6 +1825,9 @@ jobs:
         with:
           ref: ${{ inputs.target_sha || github.sha }}
 
+      - name: Restore exact historical Boost support
+        uses: ./.github/actions/historical-boost-support
+
       - name: Checkout pinned Webots R2025a projects
         uses: actions/checkout@v4
         with:
@@ -1876,21 +1856,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc '
-              set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
-              cd /workspace/controllers/supervisor/blocklyServer
-              rm -f blocklyServer
-              make
-              cd /workspace/controllers/supervisor
-              make clean
-              make
-            ' 2>&1 | tee ci-artifacts/light-sensor-build.log
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+            2>&1 | tee ci-artifacts/light-sensor-build.log
 
       - name: Prepare offline historical world
         shell: bash
@@ -2049,6 +2016,9 @@ jobs:
         with:
           ref: ${{ inputs.target_sha || github.sha }}
 
+      - name: Restore exact historical Boost support
+        uses: ./.github/actions/historical-boost-support
+
       - name: Checkout pinned Webots R2025a projects
         uses: actions/checkout@v4
         with:
@@ -2084,21 +2054,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
-            bash -lc '
-              set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev
-              cd /workspace/controllers/supervisor/blocklyServer
-              rm -f blocklyServer
-              make
-              cd /workspace/controllers/supervisor
-              make clean
-              make
-            ' 2>&1 | tee ci-artifacts/sensor-probing-build.log
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+            2>&1 | tee ci-artifacts/sensor-probing-build.log
 
       - name: Execute historical sensor probing program in empty world
         shell: bash
