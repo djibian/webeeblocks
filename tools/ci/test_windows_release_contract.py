@@ -103,8 +103,30 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertGreater(len(direct_references), 0)
         for reference in direct_references:
             self.assertIn(f"'{reference}'", packager)
-        self.assertIn("$localResourceMatches = [regex]::Matches", packager)
+        self.assertIn("$assetMatches = [regex]::Matches", packager)
         self.assertIn("Missing Robot Window HTML resource in release", packager)
+
+    def test_robot_window_release_resources_are_cache_isolated(self) -> None:
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">',
+            html,
+        )
+        self.assertIn('<meta http-equiv="Pragma" content="no-cache">', html)
+        self.assertIn('<meta http-equiv="Expires" content="0">', html)
+        self.assertIn("$assetPattern = '(?<prefix>(?:src|href)=\")", packager)
+        self.assertIn("Robot Window release dependency must be local", packager)
+        self.assertIn(
+            "Get-FileHash -LiteralPath $resourcePath -Algorithm SHA256", packager
+        )
+        self.assertIn('"?wb=$digest"', packager)
+        self.assertIn(
+            "Write-Utf8NoBom $robotWindowHtmlPath $robotWindowHtml", packager
+        )
 
     def test_student_boundary_is_explicit(self) -> None:
         readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
