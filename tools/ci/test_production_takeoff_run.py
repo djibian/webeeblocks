@@ -335,6 +335,25 @@ def test_physical_qualification_launcher_contract() -> None:
         "qualification launcher did not publish its exact PASS evidence",
     )
 
+    poll_result = subprocess.run(
+        ["node", "tools/ci/test_physical_qualification_poll.js"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if poll_result.returncode:
+        raise AssertionError(
+            "physical qualification browser polling regression failed\n"
+            + poll_result.stdout
+            + "\n"
+            + poll_result.stderr
+        )
+    require(
+        "PASS physical qualification browser preparation polls exactly once after success and fail-closed settlement"
+        in poll_result.stdout,
+        "qualification browser polling did not publish its exact PASS evidence",
+    )
+
 
 def main() -> int:
     test_real_controller_orders_post_reset_authority_before_takeoff()
