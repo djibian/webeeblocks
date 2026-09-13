@@ -9,6 +9,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_qualification_runtime.py"
 LOCK_PATH = ROOT / "tools" / "physical" / "qualification_runtime_lock.txt"
+WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
 
 spec = importlib.util.spec_from_file_location("verify_qualification_runtime", VERIFIER_PATH)
 if spec is None or spec.loader is None:
@@ -137,10 +138,48 @@ def main() -> int:
         '"--ignore-installed"',
         '"-S"',
         'env["PYTHONNOUSERSITE"] = "1"',
+        'PHYSICAL_DIR / "launch_physical_qualification.py"',
+        'PHYSICAL_DIR / "serve_physical_host.py"',
+        '"--help"',
     ):
         require(required in source, f"missing fail-closed isolation contract: {required}")
 
-    print("PASS: exact physical qualification runtime lock and offline isolation verifier contract")
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    maintenance = "github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)"
+    for required in (
+        "id: qualification-runtime-cache",
+        "uses: actions/cache/restore@v4",
+        "path: .ci-support/qualification-runtime",
+        "qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}",
+        "repository: bitcraze/crazyflie-lib-python",
+        "ref: 45fdb784c9d13074c42835f3b5ac1d12133bf873",
+        "persist-credentials: false",
+        "--no-deps --only-binary=:all:",
+        "test \"$(find \"$wheelhouse\" -maxdepth 1 -type f -name '*.whl' | wc -l)\" -eq 7",
+        "python3 tools/physical/verify_qualification_runtime.py \"$source\" \"$wheelhouse\"",
+        "uses: actions/cache/save@v4",
+        "python3 tools/ci/test_physical_qualification_runtime_lock.py",
+    ):
+        require(required in workflow, f"missing qualification runtime CI support: {required}")
+    require(workflow.count(maintenance) >= 3, "qualification support acquisition must stay maintenance-only")
+    section = workflow.split("- name: Restore exact physical qualification runtime support", 1)[1].split(
+        "- name: Verify selector and repository contracts", 1
+    )[0]
+    require("restore-keys:" not in section, "qualification runtime cache must be exact-key only")
+    require(
+        "steps.qualification-runtime-cache.outputs.cache-hit != 'true'" in section,
+        "qualification support acquisition must be cache-miss-only",
+    )
+    require(
+        "github.event.pull_request.draft == false" in section,
+        "Ready candidates must verify restored qualification support",
+    )
+    require(
+        section.count("python3 tools/physical/verify_qualification_runtime.py") == 2,
+        "qualification runtime must be verified both before cache save and on canonical consumption",
+    )
+
+    print("PASS: exact physical qualification runtime lock, hermetic CI cache and isolated import contract")
     return 0
 
 

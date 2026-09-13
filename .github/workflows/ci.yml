@@ -64,6 +64,72 @@ jobs:
           path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
           key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
 
+      - name: Restore exact physical qualification runtime support
+        id: qualification-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/qualification-runtime
+          key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
+      - name: Checkout pinned cflib for qualification runtime maintenance
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-lib-python
+          ref: 45fdb784c9d13074c42835f3b5ac1d12133bf873
+          path: .qualification-cflib-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prime exact physical qualification runtime support for maintenance runs
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          support=.ci-support/qualification-runtime
+          wheelhouse="$support/wheels"
+          source="$support/cflib-source"
+          rm -rf "$support"
+          mkdir -p "$wheelhouse" "$source"
+
+          test "$(git -C .qualification-cflib-source rev-parse HEAD)" = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
+          test "$(git -C .qualification-cflib-source rev-parse 'HEAD^{tree}')" = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
+          test "$(git -C .qualification-cflib-source rev-parse 'HEAD:cflib')" = "750e850390753de14019f0e1f55d4fbc44317699"
+          cp -a .qualification-cflib-source/. "$source/"
+
+          expected="$RUNNER_TEMP/qualification-runtime-wheel-sha256.txt"
+          : > "$expected"
+          while IFS='|' read -r spec filename digest; do
+            case "$spec" in ''|'#'*) continue ;; esac
+            python3 -m pip download --disable-pip-version-check \
+              --no-deps --only-binary=:all: \
+              --platform manylinux2014_x86_64 \
+              --implementation cp --python-version 310 --abi cp310 \
+              --dest "$wheelhouse" "$spec"
+            test -f "$wheelhouse/$filename"
+            printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
+          done < tools/physical/qualification_runtime_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
+          sha256sum -c "$expected"
+          python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"
+
+      - name: Verify exact physical qualification runtime support
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/test_physical_qualification_runtime_lock.py
+          source=.ci-support/qualification-runtime/cflib-source
+          wheelhouse=.ci-support/qualification-runtime/wheels
+          python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"
+
+      - name: Save exact physical qualification runtime support for maintenance runs
+        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-support/qualification-runtime
+          key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
       - name: Verify selector and repository contracts
         run: |
           python3 tools/ci/test_select_ci.py
@@ -76,6 +142,7 @@ jobs:
           python3 tools/ci/test_controller_contract.py
           python3 tools/ci/test_evidence_publication.py
           python3 tools/ci/test_historical_boost_support.py
+          python3 tools/ci/test_physical_qualification_runtime_lock.py
       - name: Select required suites
         id: scope
         run: >-
