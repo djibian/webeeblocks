@@ -1275,7 +1275,7 @@ jobs:
             echo "$code" > "ci-artifacts/crazyflie-handoff/${policy}-exit-code.txt"
             if [ "$code" -ne 0 ]; then
               echo "::error::${policy} Webots run exited with $code"
-              exit "$code"
+              exit 1
             fi
           done
 
