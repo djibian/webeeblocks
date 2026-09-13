@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .ci-support/libboost1.74-dev_1.74.0-14ubuntu3_amd64.deb
-          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0d25db6280d1ee326771cbb76462f73b9430f06bac1de8d05b7a78
+          key: historical-boost-jammy-amd64-1.74.0-14ubuntu3-4d9c90e43f0f06bac1de8d05b7a78
 
       - name: Verify selector and repository contracts
         run: |
@@ -86,6 +86,61 @@ jobs:
           --base-ref "${{ github.base_ref }}"
           --draft "${{ github.event.pull_request.draft || false }}"
           --github-output "$GITHUB_OUTPUT"
+      - name: Select physical qualification runtime proof
+        id: qualification-runtime-scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=false
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            run=true
+          else
+            while IFS= read -r path; do
+              case "$path" in
+                tools/physical/*|tools/ci/test_physical_qualification_runtime_closure.py|.github/workflows/ci.yml)
+                  run=true
+                  break
+                  ;;
+              esac
+            done < <(git diff --name-only --no-renames "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "PHYSICAL_QUALIFICATION_RUNTIME=$run"
+      - name: Checkout pinned cflib for physical qualification runtime
+        if: steps.qualification-runtime-scope.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-lib-python
+          ref: 45fdb784c9d13074c42835f3b5ac1d12133bf873
+          path: .qualification-cflib
+          fetch-depth: 1
+      - name: Prove isolated physical qualification runtime closure
+        if: steps.qualification-runtime-scope.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C .qualification-cflib rev-parse HEAD)" = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
+          test "$(git -C .qualification-cflib rev-parse 'HEAD^{tree}')" = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
+          test "$(git -C .qualification-cflib rev-parse 'HEAD:cflib')" = "750e850390753de14019f0e1f55d4fbc44317699"
+          python3 tools/ci/test_physical_qualification_runtime_closure.py --cflib-root .qualification-cflib
+
+          wheelhouse="$RUNNER_TEMP/physical-qualification-wheels"
+          mkdir -p "$wheelhouse"
+          expected="$RUNNER_TEMP/physical-qualification-wheel-sha256.txt"
+          : > "$expected"
+          while IFS='|' read -r spec filename digest; do
+            case "$spec" in ''|'#'*) continue ;; esac
+            python3 -m pip download --disable-pip-version-check \
+              --no-deps --only-binary=:all: \
+              --platform manylinux2014_x86_64 \
+              --implementation cp --python-version 310 --abi cp310 \
+              --dest "$wheelhouse" "$spec"
+            test -f "$wheelhouse/$filename"
+            printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
+          done < tools/physical/qualification_runtime_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
+          sha256sum -c "$expected"
+          bash tools/physical/run_physical_qualification_environment.sh .qualification-cflib "$wheelhouse"
       - name: Select bounded X3 observer diagnostic
         id: x3-scope
         shell: bash
