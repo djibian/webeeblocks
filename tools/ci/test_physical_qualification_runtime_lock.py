@@ -147,6 +147,8 @@ def main() -> int:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     maintenance = "github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)"
     for required in (
+        "id: qualification-runtime-scope",
+        "tools/physical/*.py",
         "id: qualification-runtime-cache",
         "uses: actions/cache/restore@v4",
         "path: .ci-support/qualification-runtime",
@@ -162,7 +164,7 @@ def main() -> int:
     ):
         require(required in workflow, f"missing qualification runtime CI support: {required}")
     require(workflow.count(maintenance) >= 3, "qualification support acquisition must stay maintenance-only")
-    section = workflow.split("- name: Restore exact physical qualification runtime support", 1)[1].split(
+    section = workflow.split("- name: Select physical qualification runtime support", 1)[1].split(
         "- name: Restore exact historical Boost cache for maintenance runs", 1
     )[0]
     require("restore-keys:" not in section, "qualification runtime cache must be exact-key only")
@@ -171,15 +173,19 @@ def main() -> int:
         "qualification support acquisition must be cache-miss-only",
     )
     require(
+        section.count("if: steps.qualification-runtime-scope.outputs.run == 'true'") >= 4,
+        "qualification cache restore/verify/save must stay bounded to qualification-affecting changes",
+    )
+    require(
         "github.event.pull_request.draft == false" in section,
-        "Ready candidates must verify restored qualification support",
+        "Ready candidates in qualification scope must verify restored qualification support",
     )
     require(
         section.count("python3 tools/physical/verify_qualification_runtime.py") == 2,
         "qualification runtime must be verified both before cache save and on canonical consumption",
     )
 
-    print("PASS: exact physical qualification runtime lock, hermetic CI cache and isolated import contract")
+    print("PASS: exact scoped physical qualification runtime lock, hermetic CI cache and isolated import contract")
     return 0
 
 

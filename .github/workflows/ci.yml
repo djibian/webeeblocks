@@ -30,7 +30,28 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Select physical qualification runtime support
+        id: qualification-runtime-scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            run=false
+            while IFS= read -r path; do
+              case "$path" in
+                .github/workflows/ci.yml|tools/ci/test_physical_qualification_runtime_lock.py|tools/physical/qualification_runtime_lock.txt|tools/physical/*.py)
+                  run=true
+                  break
+                  ;;
+              esac
+            done < <(git diff --name-only --no-renames "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "PHYSICAL_QUALIFICATION_RUNTIME=$run"
+
       - name: Restore exact physical qualification runtime support
+        if: steps.qualification-runtime-scope.outputs.run == 'true'
         id: qualification-runtime-cache
         uses: actions/cache/restore@v4
         with:
@@ -38,7 +59,7 @@ jobs:
           key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
 
       - name: Checkout pinned cflib for qualification runtime maintenance
-        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: bitcraze/crazyflie-lib-python
@@ -48,7 +69,7 @@ jobs:
           persist-credentials: false
 
       - name: Prime exact physical qualification runtime support for maintenance runs
-        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,7 +101,7 @@ jobs:
           python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"
 
       - name: Verify exact physical qualification runtime support
-        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
         shell: bash
         run: |
           set -euo pipefail
@@ -90,7 +111,7 @@ jobs:
           python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"
 
       - name: Save exact physical qualification runtime support for maintenance runs
-        if: (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-runtime-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .ci-support/qualification-runtime
