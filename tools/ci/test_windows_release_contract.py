@@ -70,17 +70,32 @@ class WindowsReleaseContractTests(unittest.TestCase):
         )
         self.assertIn('<meta http-equiv="Pragma" content="no-cache">', html)
         self.assertIn('<meta http-equiv="Expires" content="0">', html)
-        self.assertIn("Get-ChildItem -LiteralPath $blocklySource -File", packager)
-        self.assertIn("$_.Extension -in @('.html', '.css', '.js')", packager)
         self.assertIn("$assetPattern = '(?<prefix>(?:src|href)=\")", packager)
         self.assertIn("Referenced Robot Window asset missing from release", packager)
         self.assertIn("Get-FileHash -LiteralPath $assetPath -Algorithm SHA256", packager)
         self.assertIn('"?wb=$digest"', packager)
         self.assertIn("Write-Utf8NoBom $blocklyHtmlPath $blocklyHtml", packager)
 
-        # These were the two concrete 404s in the failed Windows artifact. They
-        # remain direct HTML dependencies and therefore must be picked up by the
-        # generic root-asset packaging rule above rather than a basename list.
+        # Keep the root package boundary explicit: the two files missing from the
+        # failed #338 artifact are admitted, while build-only sibling helpers are
+        # not swept into the classroom ZIP by an extension-wide copy rule.
+        runtime_root = (
+            "blockly_v2.html",
+            "execution_observer.css",
+            "main.css",
+            "main.js",
+            "project_files.css",
+            "project_ui.js",
+            "classroom_fixes.css",
+            "classroom_fixes.js",
+            "led_observability.js",
+            "physical_preflight_runtime.js",
+        )
+        for name in runtime_root:
+            self.assertIn(f"'{name}'", packager)
+        self.assertNotIn("Get-ChildItem -LiteralPath $blocklySource -File", packager)
+        self.assertNotIn("prepare_blockly_vendor.js", packager)
+
         self.assertIn('src="led_observability.js"', html)
         self.assertIn('src="physical_preflight_runtime.js"', html)
         self.assertTrue((BLOCKLY / "led_observability.js").is_file())
