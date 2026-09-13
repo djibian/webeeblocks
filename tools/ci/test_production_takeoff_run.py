@@ -316,14 +316,36 @@ def test_actual_host_runner_contract() -> None:
     )
 
 
+def test_physical_qualification_launcher_contract() -> None:
+    result = subprocess.run(
+        [sys.executable, "tools/ci/test_physical_qualification_launcher.py"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode:
+        raise AssertionError(
+            "physical qualification launcher regression failed\n"
+            + result.stdout
+            + "\n"
+            + result.stderr
+        )
+    require(
+        "PASS physical qualification launcher:" in result.stdout,
+        "qualification launcher did not publish its exact PASS evidence",
+    )
+
+
 def main() -> int:
     test_real_controller_orders_post_reset_authority_before_takeoff()
     test_stale_candidate_fails_before_reset()
     test_host_and_adapter_preserve_authority_ownership_boundaries()
     test_actual_host_runner_contract()
+    test_physical_qualification_launcher_contract()
     print(
         "PASS production takeoff lifecycle: reset epoch -> post-reset teacher -> watchdog -> "
-        "causal takeoff, stale candidate rejection, actual host runner and controller-owned teardown"
+        "causal takeoff, stale candidate rejection, actual host runner, qualification launcher "
+        "and controller-owned teardown"
     )
     return 0
 
