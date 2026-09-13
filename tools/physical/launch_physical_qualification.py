@@ -285,7 +285,11 @@ class QualificationPreparationBridge:
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._thread = Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
+        try:
+            self._thread.start()
+        except BaseException:
+            self._server.server_close()
+            raise
 
     @property
     def base_url(self) -> str:
@@ -527,22 +531,22 @@ class PhysicalQualificationSession:
     def start(self) -> None:
         if self._host is not None or self._bridge is not None:
             raise PhysicalQualificationLauncherError("qualification session is already started")
-        bootstrap = self._spawn_host()
-        self._bridge = QualificationPreparationBridge()
-        self._ephemeral = prepare_ephemeral_robot_window(
-            source_plugin=self.source_plugin,
-            source_world=self.world_path,
-            helper_script=self.helper_script,
-            launcher_base_url=self._bridge.base_url,
-            launcher_token=self._bridge.token,
-            host_bootstrap=bootstrap,
-        )
         try:
+            bootstrap = self._spawn_host()
+            self._bridge = QualificationPreparationBridge()
+            self._ephemeral = prepare_ephemeral_robot_window(
+                source_plugin=self.source_plugin,
+                source_world=self.world_path,
+                helper_script=self.helper_script,
+                launcher_base_url=self._bridge.base_url,
+                launcher_token=self._bridge.token,
+                host_bootstrap=bootstrap,
+            )
             self._webots = subprocess.Popen(
                 [self.webots_executable, *self.webots_args, str(self._ephemeral.world_path)],
                 cwd=str(ROOT),
             )
-        except Exception:
+        except BaseException:
             self.close()
             raise
 
@@ -579,11 +583,15 @@ class PhysicalQualificationSession:
             raise PhysicalQualificationLauncherError("teacher decision is not available")
         checked = _teacher_proposal(proposal, self._prepared)
         _write_socket_line(self._teacher, teacher_decision_reply(checked, approved))
+        # sendall returning makes the one-shot decision an irrevocable outcome:
+        # never allow a retry even if the following local half-close is uncertain.
+        self._teacher_sealed = True
         try:
             self._teacher.shutdown(socket.SHUT_WR)
         except OSError as exc:
-            raise PhysicalQualificationLauncherError("teacher decision channel could not be sealed") from exc
-        self._teacher_sealed = True
+            raise PhysicalQualificationLauncherError(
+                "teacher decision was sent; local channel half-close is uncertain"
+            ) from exc
 
     def execute_approved_program(self, *, timeout_seconds: float = 30.0) -> None:
         if self._caller is None or self._prepared is None or not self._teacher_sealed:
