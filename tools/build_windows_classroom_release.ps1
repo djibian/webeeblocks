@@ -233,34 +233,43 @@ Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
 
-# Treat blockly_v2.html as the authority for its initial local resource graph.
-# The package must fail closed if any relative src/href target is absent from the
-# exact directory that will be zipped. Query strings are cache revisions only.
+# Treat blockly_v2.html as the authority for its local startup resource graph.
+# Every packaged resource gets a content-derived URL identity, so a new release
+# cannot reuse stale localhost CSS/JS bytes while remaining fully offline.
 $robotWindowHtmlPath = Join-Path $blocklyTarget 'blockly_v2.html'
 $robotWindowHtml = Get-Content -LiteralPath $robotWindowHtmlPath -Raw
 $robotWindowRoot = Split-Path $robotWindowHtmlPath -Parent
 $releaseRootPrefix = [System.IO.Path]::GetFullPath($packageDir) + [System.IO.Path]::DirectorySeparatorChar
-$localResourceMatches = [regex]::Matches($robotWindowHtml, '(?i)(?:src|href)="([^"]+)"')
-if ($localResourceMatches.Count -eq 0) {
+$assetPattern = '(?<prefix>(?:src|href)=")(?<url>[^"]+)(?<suffix>")'
+$assetMatches = [regex]::Matches($robotWindowHtml, $assetPattern)
+if ($assetMatches.Count -eq 0) {
   throw 'Robot Window HTML exposes no local resource references.'
 }
-foreach ($match in $localResourceMatches) {
-  $reference = $match.Groups[1].Value
-  if ($reference -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/)') {
-    continue
+$robotWindowHtml = [regex]::Replace(
+  $robotWindowHtml,
+  $assetPattern,
+  [System.Text.RegularExpressions.MatchEvaluator]{
+    param($match)
+    $reference = $match.Groups['url'].Value
+    if ($reference -match '(?i)^(?:[a-z][a-z0-9+.-]*:|//|/)') {
+      throw "Robot Window release dependency must be local: $reference"
+    }
+    $relativeReference = ($reference -split '[?#]', 2)[0]
+    if ([string]::IsNullOrWhiteSpace($relativeReference)) {
+      throw "Empty Robot Window resource reference: $reference"
+    }
+    $resourcePath = [System.IO.Path]::GetFullPath((Join-Path $robotWindowRoot ($relativeReference.Replace('/', '\'))))
+    if (-not $resourcePath.StartsWith($releaseRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+      throw "Robot Window resource escapes release root: $reference"
+    }
+    if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
+      throw "Missing Robot Window HTML resource in release: $reference"
+    }
+    $digest = (Get-FileHash -LiteralPath $resourcePath -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0, 16)
+    return $match.Groups['prefix'].Value + $relativeReference + "?wb=$digest" + $match.Groups['suffix'].Value
   }
-  $relativeReference = ($reference -split '[?#]', 2)[0]
-  if ([string]::IsNullOrWhiteSpace($relativeReference)) {
-    throw "Empty Robot Window resource reference: $reference"
-  }
-  $resourcePath = [System.IO.Path]::GetFullPath((Join-Path $robotWindowRoot ($relativeReference.Replace('/', '\'))))
-  if (-not $resourcePath.StartsWith($releaseRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Robot Window resource escapes release root: $reference"
-  }
-  if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
-    throw "Missing Robot Window HTML resource in release: $reference"
-  }
-}
+)
+Write-Utf8NoBom $robotWindowHtmlPath $robotWindowHtml
 
 $manifestLines = Get-ChildItem -LiteralPath $packageDir -File -Recurse | Sort-Object FullName | ForEach-Object {
   $relative = [System.IO.Path]::GetRelativePath($packageDir, $_.FullName).Replace('\', '/')
