@@ -13,6 +13,7 @@ VERIFIER = ROOT / "tools" / "physical" / "verify_physical_qualification_package.
 PACKAGER = ROOT / "tools" / "physical" / "package_physical_qualification.py"
 RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 
 sys.path.insert(0, str(ROOT / "tools" / "physical"))
@@ -211,6 +212,50 @@ def verify_static_contract() -> None:
         "network/cache priming must stay Draft/maintenance-only",
     )
     require("restore-keys:" not in workflow, "package caches must be exact-key only")
+
+    human = HUMAN_WORKFLOW.read_text(encoding="utf-8")
+    for required in (
+        "'physical-capabilities-representative': 'WebeeBlocks-Physical-Qualification',",
+        "'physical-capabilities-representative': {'checkpoint'},",
+        "needs.validate.outputs.test_profile == 'physical-capabilities-representative'",
+        "id: representative-runtime-cache",
+        "id: representative-package-input-cache",
+        "qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}",
+        "qualification-package-inputs-r2025a-f0023e30daf38b17-",
+        'test "${{ steps.representative-runtime-cache.outputs.cache-hit }}" = "true"',
+        'test "${{ steps.representative-package-input-cache.outputs.cache-hit }}" = "true"',
+        'target_sha="${{ needs.validate.outputs.target_sha }}"',
+        'test "$(git rev-parse HEAD)" = "$target_sha"',
+        'python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"',
+        "python3 tools/physical/verify_qualification_generated_inputs.py",
+        "python3 tools/physical/package_physical_qualification.py",
+        "python3 tools/physical/verify_physical_qualification_package.py",
+        "python3 tools/ci/test_physical_qualification_package.py",
+        "name: WebeeBlocks-Physical-Qualification",
+        "path: ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification/",
+        "include-hidden-files: true",
+    ):
+        require(required in human, f"representative checkpoint missing exact package contract: {required}")
+    representative = human.split(
+        "- name: Restore exact physical qualification runtime support", 1
+    )[1].split("\n  publish:", 1)[0]
+    for forbidden in (
+        "actions/setup-node",
+        "actions/cache/save",
+        "pip download",
+        "docker pull",
+        "docker run",
+        "repository: bitcraze/crazyflie-lib-python",
+        "restore-keys:",
+        ".zip",
+    ):
+        require(forbidden not in representative, f"representative checkpoint must restore-and-verify only: {forbidden}")
+    publish = human.split("\n  publish:\n", 1)[1]
+    require(
+        "needs.validate.outputs.test_profile != 'physical-capabilities-representative'" in publish
+        and "needs.physical.result == 'success'" in publish,
+        "representative checkpoint publication must require successful deterministic physical artifact preparation",
+    )
 
 
 def verify_built_bundle(bundle: Path) -> None:
