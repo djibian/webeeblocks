@@ -10,8 +10,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 VERIFIER = ROOT / "tools" / "physical" / "verify_physical_qualification_package.py"
+PACKAGER = ROOT / "tools" / "physical" / "package_physical_qualification.py"
 RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
-WORKFLOW = ROOT / ".github" / "workflows" / "physical-qualification-package.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 
 
 def require(condition: bool, message: str) -> None:
@@ -61,11 +63,19 @@ def main(argv: list[str] | None = None) -> int:
         manifest.count(".whl") == 7,
         "package manifest must contain exactly seven locked wheels",
     )
+    require("/.git/" not in manifest and "/.git\"" not in manifest, "package must omit checkout Git metadata")
+    require(not (bundle / "support" / "cflib-source" / ".git").exists(), "canonical cflib source must omit .git")
+
+    provenance = (bundle / "PROVENANCE.json").read_text(encoding="utf-8")
     require(
-        '"execution_authority_packaged": false'
-        in (bundle / "PROVENANCE.json").read_text(encoding="utf-8"),
-        "package provenance must remain non-authority",
+        '"preparation_execution_authority": false' in provenance,
+        "package preparation must remain non-authority",
     )
+    require(
+        '"execution_requires_teacher_authorization": true' in provenance,
+        "packaged execution must retain teacher authorization",
+    )
+    require(WEBOTS_IMAGE_DIGEST in provenance, "package provenance must bind exact Webots build image")
 
     runner = RUNNER.read_text(encoding="utf-8")
     for required in (
@@ -86,16 +96,29 @@ def main(argv: list[str] | None = None) -> int:
         require(forbidden not in runner, f"offline runner must not use network: {forbidden}")
 
     verifier = VERIFIER.read_text(encoding="utf-8")
-    require(
-        'env["PYTHONDONTWRITEBYTECODE"] = "1"' in verifier,
-        "effect-free package verification must not mutate manifest-covered sources with bytecode",
-    )
+    for required in (
+        'env["PYTHONDWRITEBYTECODE"] = "1"',
+        "_git_tree_oid(cflib_root).hex() != EXPECTED_CFLIB_TREE",
+        "runtime.verify_isolated_imports(cflib, locked)",
+    ):
+        require(required in verifier, f"package verifier missing canonical read-only contract: {required}")
+
+    packager = PACKAGER.read_text(encoding="utf-8")
+    for required in (
+        '"status", "--porcelain", "--untracked-files=no"',
+        '"archive",',
+        "EXPECTED_CFLIB_COMMIT",
+        "WEBOTS_BUILD_IMAGE_DIGEST",
+    ):
+        require(required in packager, f"packager missing exact provenance contract: {required}")
 
     workflow = WORKFLOW.read_text(encoding="utf-8")
     for required in (
-        "name: CI Physical qualification package",
-        "qualification-package-runtime-ubuntu22-cp310-cflib-45fdb784",
+        "name: CI Gate",
+        "# BEGIN PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT",
+        "qualification-runtime-ubuntu22-cp310-cflib-45fdb784",
         "qualification-package-inputs-r2025a-",
+        WEBOTS_IMAGE_DIGEST,
         "python3 tools/physical/package_physical_qualification.py",
         "python3 tools/physical/verify_physical_qualification_package.py",
         "python3 tools/ci/test_physical_qualification_package.py",
@@ -103,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         "path: ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification/",
         "include-hidden-files: true",
     ):
-        require(required in workflow, f"package workflow missing contract: {required}")
+        require(required in workflow, f"canonical workflow missing package contract: {required}")
     require(
         "ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.zip"
         not in workflow,
@@ -111,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     require(
         "CHECKPOINT_REQUEST" not in workflow and "TEST_REQUIRED" not in workflow,
-        "machine-only package workflow must not open a human checkpoint",
+        "machine-only package path must not open a human checkpoint",
     )
     require(
         workflow.count("github.event.pull_request.draft == true") >= 4,
@@ -120,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     require("restore-keys:" not in workflow, "package caches must be exact-key only")
 
     print(
-        "PASS: exact offline physical qualification package, mutation rejection and no-checkpoint workflow contract"
+        "PASS: exact offline physical qualification package, canonical provenance, mutation rejection and no-checkpoint CI contract"
     )
     return 0
 
