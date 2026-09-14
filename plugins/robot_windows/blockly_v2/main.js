@@ -12,6 +12,9 @@ var runtimeDebug = null;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 var WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK = 'WEBEEBLOCKS_CREATE_VARIABLE';
+var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src
+  ? document.currentScript.src
+  : null;
 
 var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
   base: Blockly.Themes.Classic,
@@ -379,7 +382,10 @@ window.onload = async function() {
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {
-    var module = await import('./webots/RobotWindow.js');
+    if (!WEBEEBLOCKS_MAIN_SCRIPT_URL)
+      throw new Error('WebeeBlocks main script URL unavailable');
+    var robotWindowModuleUrl = new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href;
+    var module = await import(robotWindowModuleUrl);
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true});
     robotWindow.receive = receiveMessage;
