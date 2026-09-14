@@ -42,9 +42,17 @@ class Cdp:
         self.call('Input.dispatchMouseEvent',{'type':'mousePressed','x':x,'y':y,'button':'left','clickCount':1})
         self.call('Input.dispatchMouseEvent',{'type':'mouseReleased','x':x,'y':y,'button':'left','clickCount':1})
     def hover(self,rect):
+        target_x=rect['x']+rect['width']/2; target_y=rect['y']+rect['height']/2
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':1,'y':1})
         time.sleep(.1)
-        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['x']+rect['width']/2,'y':rect['y']+rect['height']/2})
+        for step in range(1,9):
+            fraction=step/8
+            self.call('Input.dispatchMouseEvent',{
+                'type':'mouseMoved',
+                'x':1+(target_x-1)*fraction,
+                'y':1+(target_y-1)*fraction,
+            })
+            time.sleep(.04)
     def drag(self,rect,target_x,target_y,steps=12):
         start_x=rect['x']+rect['width']/2; start_y=rect['y']+rect['height']/2
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':start_x,'y':start_y})
