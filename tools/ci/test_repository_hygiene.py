@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 
 
@@ -59,6 +60,14 @@ class RepositoryHygieneTests(unittest.TestCase):
             if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
                 tracked_cache.append(relative)
         self.assertEqual(tracked_cache, [])
+
+    def test_x3_characterization_package_contract(self) -> None:
+        """Keep the new machine-only firmware bundle on an always-run CI path."""
+        subprocess.run(
+            [sys.executable, "tools/ci/test_x3_characterization_package.py"],
+            cwd=ROOT,
+            check=True,
+        )
 
 
 if __name__ == "__main__":
