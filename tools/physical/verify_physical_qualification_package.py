@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import re
@@ -223,6 +224,8 @@ def verify_runtime_closure(bundle: Path) -> None:
             f"Linux x86_64 required, got {platform.system()} {platform.machine()}"
         )
     verifier = bundle / "tools" / "physical" / "verify_qualification_runtime.py"
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     try:
         subprocess.run(
             [
@@ -234,6 +237,7 @@ def verify_runtime_closure(bundle: Path) -> None:
             check=True,
             cwd=bundle,
             text=True,
+            env=env,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise QualificationPackageVerificationError(
