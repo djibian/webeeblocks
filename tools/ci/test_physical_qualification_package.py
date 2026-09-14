@@ -15,6 +15,12 @@ RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 
+sys.path.insert(0, str(ROOT / "tools" / "physical"))
+import package_physical_qualification as packager  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "tools" / "ci"))
+import select_qualification_runtime_support as selector  # noqa: E402
+
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -60,14 +66,49 @@ def verify_static_contract() -> None:
     ):
         require(required in verifier, f"package verifier missing canonical read-only contract: {required}")
 
-    packager = PACKAGER.read_text(encoding="utf-8")
+    packager_source = PACKAGER.read_text(encoding="utf-8")
     for required in (
         '"status", "--porcelain", "--untracked-files=no"',
+        '"--untracked-files=all"',
+        "PACKAGED_SOURCE_PATHS",
+        "_unexpected_untracked_package_paths",
         '"archive",',
         "EXPECTED_CFLIB_COMMIT",
         "WEBOTS_BUILD_IMAGE_DIGEST",
     ):
-        require(required in packager, f"packager missing exact provenance contract: {required}")
+        require(required in packager_source, f"packager missing exact provenance contract: {required}")
+
+    untracked = packager._unexpected_untracked_package_paths(
+        "?? tools/physical/rogue.py\n"
+        "?? plugins/robot_windows/blockly_v2/rogue.js\n"
+        "?? controllers/crazyflie_runtime_v2/rogue.cpp\n"
+        "?? controllers/crazyflie_runtime_v2/crazyflie_runtime_v2\n"
+        "?? controllers/crazyflie_runtime_v2/build-state.d\n"
+    )
+    require(
+        untracked
+        == (
+            "controllers/crazyflie_runtime_v2/rogue.cpp",
+            "plugins/robot_windows/blockly_v2/rogue.js",
+            "tools/physical/rogue.py",
+        ),
+        "packager must reject every non-ignored untracked path that would enter the artifact while allowing generated non-copied/controller outputs",
+    )
+
+    representative_inputs = (
+        "tools/physical/physical_execution_domain.py",
+        "tools/prepare_runtime_v2.sh",
+        "plugins/robot_windows/blockly_v2/main.js",
+        "plugins/robot_windows/blockly/webeeblocks/interpreter.js",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
+        "worlds/crazyflie_runtime_v2.wbt",
+        "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.cpp",
+        "controllers/crazyflie_square/pid_controller.c",
+    )
+    for path in representative_inputs:
+        require(selector.relevant_path(path), f"packaged input must select qualification proof: {path}")
+    require(not selector.relevant_path("docs/ROADMAP.md"), "unrelated docs must not select package proof")
 
     workflow = WORKFLOW.read_text(encoding="utf-8")
     for required in (
@@ -84,6 +125,19 @@ def verify_static_contract() -> None:
         "include-hidden-files: true",
     ):
         require(required in workflow, f"canonical workflow missing package contract: {required}")
+    package_cache = workflow.split(
+        "- name: Restore exact prepared qualification package inputs", 1
+    )[1].split("- name: Fail closed unless exact qualification package inputs are restored", 1)[0]
+    require(
+        "plugins/robot_windows/blockly_v2/webots" not in package_cache,
+        "prepared-input cache must never restore tracked candidate Webots bridge bytes",
+    )
+    for required in (
+        "plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
+    ):
+        require(required in package_cache, f"generated vendor cache key missing source input: {required}")
     require(
         "ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.zip"
         not in workflow,
