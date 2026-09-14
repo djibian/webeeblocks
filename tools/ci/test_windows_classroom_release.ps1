@@ -86,7 +86,7 @@ Assert-Release ($robotWindowName -eq "blockly_v2_$($identityDigest.Substring(0, 
 $robotWindowRelative = "plugins\robot_windows\$robotWindowName"
 $required = @(
   'Launch-WebeeBlocks.cmd',
-  'Launch-WebeeBlocks.ps1',
+  'WebeeBlocksLauncher.exe',
   'README-WINDOWS.md',
   'WINDOWS-ACCEPTANCE.md',
   'controllers\crazyflie_runtime_v2\crazyflie_runtime_v2.exe',
@@ -107,6 +107,7 @@ $required = @(
 foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
 }
+Assert-Release (-not (Test-Path -LiteralPath (Join-Path $testRoot 'Launch-WebeeBlocks.ps1') -PathType Leaf)) 'PowerShell launcher must not be shipped in the classroom archive.'
 
 $version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
@@ -151,11 +152,18 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
   if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax failure in $($_.FullName)" }
 }
 
-$windowsPowerShellMajor = (& powershell.exe -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.Major' | Out-String).Trim()
-Assert-Release ($LASTEXITCODE -eq 0 -and $windowsPowerShellMajor -eq '5') "Expected Windows PowerShell 5.1 for the packaged launcher, got major version '$windowsPowerShellMajor'."
-$launcher = Join-Path $testRoot 'Launch-WebeeBlocks.ps1'
-& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -WebotsHome $WebotsHome
-if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed under Windows PowerShell 5.1.' }
+$launcher = Join-Path $testRoot 'WebeeBlocksLauncher.exe'
+$launcherBytes = [System.IO.File]::ReadAllBytes($launcher)
+Assert-Release ($launcherBytes.Length -gt 2 -and $launcherBytes[0] -eq 0x4d -and $launcherBytes[1] -eq 0x5a) 'Native launcher is not a Windows PE executable.'
+$oldLauncherWebotsHome = $env:WEBOTS_HOME
+try {
+  $env:WEBOTS_HOME = $WebotsHome
+  & $launcher --validate-only
+  if ($LASTEXITCODE -ne 0) { throw 'Native release launcher validation failed.' }
+}
+finally {
+  $env:WEBOTS_HOME = $oldLauncherWebotsHome
+}
 
 # GitHub-hosted Windows has no trustworthy interactive Webots/Robot Window session.
 # Prove the diagnosed product boundary directly instead: the executable extracted
@@ -224,4 +232,4 @@ finally {
   $env:PATH = $oldPath
 }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, cache-isolated, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
+Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, cache-isolated, native-launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
