@@ -112,6 +112,16 @@ class ContractTests(unittest.TestCase):
         self.assertIn("mere existence of a deletable branch does not create work", self.contract)
         self.assertIn("require repository-wide housekeeping, or prevent Controller termination", self.contract)
 
+    def test_local_branch_retirement_preference_is_bounded(self):
+        for required in (
+            "action selected by this loop whose useful effect is independent of branch deletion",
+            "normally attempt safe retirement of a directly associated transient branch ref as local completion",
+            "creates no standalone cleanup eligibility or durable cleanup obligation",
+            "cannot by itself justify a retry under the existing no-blind-retry and unknown-outcome rules",
+            "Do not blindly retry failures. Rerun only after causal diagnosis or relevant external-state change",
+        ):
+            self.assertIn(required, self.contract)
+
     def test_optimistic_candidate_validation_and_exact_head_integration(self):
         self.assertIn("Draft means mutable work in progress", self.contract)
         self.assertIn("Ready means the current exact HEAD is offered for validation", self.contract)
