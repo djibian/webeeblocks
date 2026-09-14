@@ -41,12 +41,12 @@ class Cdp:
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y})
         self.call('Input.dispatchMouseEvent',{'type':'mousePressed','x':x,'y':y,'button':'left','clickCount':1})
         self.call('Input.dispatchMouseEvent',{'type':'mouseReleased','x':x,'y':y,'button':'left','clickCount':1})
+    def move(self,x,y):
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y})
     def hover(self,rect):
-        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['outsideX'],'y':rect['outsideY']})
-        time.sleep(.1)
-        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['entryX'],'y':rect['entryY']})
+        self.move(rect['entryX'],rect['entryY'])
         time.sleep(.12)
-        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['settleX'],'y':rect['settleY']})
+        self.move(rect['settleX'],rect['settleY'])
         time.sleep(.04)
     def drag(self,rect,target_x,target_y,steps=12):
         start_x=rect['x']+rect['width']/2; start_y=rect['y']+rect['height']/2
@@ -199,6 +199,23 @@ VISIBLE_OVERLAY=r'''(() => {
  return nodes.map(el=>({className:el.className||'',role:el.getAttribute('role'),ariaLabel:el.getAttribute('aria-label'),text:(el.innerText||el.textContent||'').trim(),html:el.outerHTML.slice(0,1200)}));
 })()'''
 
+TOOLTIP_STATE=r'''(() => {
+ const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+ const repeatRoot=repeat&&repeat.getSvgRoot();
+ const repeatPath=repeatRoot&&repeatRoot.querySelector('.blocklyPath');
+ const tooltip=Blockly.Tooltip;
+ const current=tooltip.element_;
+ return {
+   blocked:!!tooltip.blocked_,
+   visible:!!tooltip.visible,
+   boundPathTargetsRepeat:!!repeatPath&&repeatPath.tooltip===repeat,
+   hasCurrentElement:!!current,
+   currentElementIsRepeat:current===repeat,
+   currentElementType:(current&&current.type)||null,
+   showTimerPending:!!tooltip.showPid_,
+   poisonedIsRepeat:tooltip.poisonedElement_===repeat
+ };
+})()'''
 
 PROFILE_FIELD_INSTALL=r'''(() => {
  const definition=Blockly.Blocks.webeeblocks_v2_move;
@@ -321,6 +338,12 @@ def normalise_colour(value):
 def main():
     p=argparse.ArgumentParser(); p.add_argument('--fixture',required=True); p.add_argument('--expected-ast',required=True); p.add_argument('--output',required=True); p.add_argument('--screenshot',required=True); a=p.parse_args()
     c=Cdp(wait_target()['webSocketDebuggerUrl']); c.call('Runtime.enable'); c.call('Page.enable'); c.call('Emulation.setDeviceMetricsOverride',{'width':1366,'height':768,'deviceScaleFactor':1,'mobile':False})
+    tooltip_trace=[]; tooltip_trace_start=time.monotonic(); tooltip_trace_path=Path(a.output).with_name('tooltip-state.json')
+    def record_tooltip_state(phase):
+        state=c.eval(TOOLTIP_STATE)
+        tooltip_trace.append({'phase':phase,'elapsedMs':round((time.monotonic()-tooltip_trace_start)*1000,1),'state':state})
+        tooltip_trace_path.write_text(json.dumps(tooltip_trace,ensure_ascii=False,indent=2),encoding='utf-8')
+        return state
     end=time.time()+30
     while time.time()<end:
         ready=c.eval("({v:window.Blockly&&Blockly.VERSION,w:!!window.workspace})")
@@ -399,10 +422,28 @@ def main():
         time.sleep(.05)
     if blocking_overlay:
         raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
-    # Re-hit-test after the dropdown has actually closed and construct a causal
-    # outside -> tooltip-bound path entry -> settled in-path move sequence.
+    # Move the real browser pointer outside first. A closed dropdown may still be
+    # disposing its Blockly gesture for a short interval; while that normal
+    # lifecycle keeps Tooltip.blocked_ true, a mouseover is intentionally ignored.
+    # Wait only for that normal unblock before entering the tooltip-bound path.
     repeat_after_close=c.eval(REPEAT_HOVER_RECT)
+    record_tooltip_state('after-overlay-close')
+    c.move(repeat_after_close['outsideX'],repeat_after_close['outsideY'])
+    record_tooltip_state('after-outside-move')
+    unblock_end=time.time()+2.0
+    tooltip_ready=False
+    while time.time()<unblock_end:
+        state=record_tooltip_state('await-natural-unblock')
+        if not state['blocked']:
+            tooltip_ready=True
+            break
+        time.sleep(.02)
+    if not tooltip_ready:
+        raise RuntimeError('Blockly tooltip remained blocked after direction dropdown closed: '+json.dumps(tooltip_trace[-1],ensure_ascii=False))
     c.hover(repeat_after_close)
+    hover_state=record_tooltip_state('after-settled-hover')
+    if not hover_state['boundPathTargetsRepeat'] or hover_state['blocked'] or not hover_state['currentElementIsRepeat'] or not hover_state['showTimerPending']:
+        raise RuntimeError('real repeat hover did not arm Blockly tooltip scheduler: '+json.dumps(hover_state,ensure_ascii=False))
     tooltip=[]
     end=time.time()+5.0
     while time.time()<end:
@@ -410,6 +451,7 @@ def main():
         tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
         if tooltip: break
         time.sleep(.1)
+    record_tooltip_state('tooltip-visible' if tooltip else 'tooltip-timeout')
     if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty after hover within 5.0s')
     tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
     if not tooltip_text or 'repeat' in tooltip_text:
@@ -476,7 +518,7 @@ def main():
     if switched_values != ['forward','left']:
         raise RuntimeError('product reactive profile was cumulatively shrunk or mis-filtered: '+json.dumps(switched_flyout,ensure_ascii=False))
     final=c.eval(SNAP)
-    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'profileFieldOptions':{'generic':generic_options,'firstProductFlyout':field_flyout,'created':field_created,'restoredFlyout':restored_flyout,'reactiveFlyout':switched_flyout},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
+    Path(a.output).write_text(json.dumps({'ast':ast,'astMatchesExpected':True,'locale':locale,'renderedLocale':rendered,'directionMenu':direction_menu,'repeatTooltip':tooltip,'tooltipStateTrace':tooltip_trace,'profileFieldOptions':{'generic':generic_options,'firstProductFlyout':field_flyout,'created':field_created,'restoredFlyout':restored_flyout,'reactiveFlyout':switched_flyout},'initial':initial,'keyboard':key,'responsive800':responsive,'final':final},ensure_ascii=False,indent=2),encoding='utf-8')
     try:c.call('Browser.close')
     except Exception:pass
 
