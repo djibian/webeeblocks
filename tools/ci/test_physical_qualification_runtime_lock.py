@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 
@@ -10,21 +11,28 @@ ROOT = Path(__file__).resolve().parents[2]
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_qualification_runtime.py"
 SELECTOR_PATH = ROOT / "tools" / "ci" / "select_qualification_runtime_support.py"
 LOCK_PATH = ROOT / "tools" / "physical" / "qualification_runtime_lock.txt"
+X3_FIXTURE_PATH = ROOT / "tools" / "physical" / "prepare_x3_firmware_fixture.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
+QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
+X3_FIXTURE_LOCK = (
+    "# x3-firmware-fixture|6562ad827bf0c8bf2c9b609edad36f3e15652133|"
+    "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
+)
 
-spec = importlib.util.spec_from_file_location("verify_qualification_runtime", VERIFIER_PATH)
-if spec is None or spec.loader is None:
-    raise RuntimeError("cannot load qualification runtime verifier")
-verifier = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = verifier
-spec.loader.exec_module(verifier)
 
-selector_spec = importlib.util.spec_from_file_location("select_qualification_runtime_support", SELECTOR_PATH)
-if selector_spec is None or selector_spec.loader is None:
-    raise RuntimeError("cannot load qualification runtime selector")
-selector = importlib.util.module_from_spec(selector_spec)
-sys.modules[selector_spec.name] = selector
-selector_spec.loader.exec_module(selector)
+def load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+verifier = load_module("verify_qualification_runtime", VERIFIER_PATH)
+selector = load_module("select_qualification_runtime_support", SELECTOR_PATH)
+x3_fixture = load_module("prepare_x3_firmware_fixture", X3_FIXTURE_PATH)
 
 EXPECTED = {
     "pyusb==1.2.1": (
@@ -73,6 +81,9 @@ def expect_runtime_error(callable_, pattern: str) -> None:
 
 
 def main() -> int:
+    lock_text = LOCK_PATH.read_text(encoding="utf-8")
+    require(X3_FIXTURE_LOCK in lock_text, "qualification cache key must bind exact #251 X3 fixture")
+
     entries = verifier.parse_lock(LOCK_PATH)
     observed = {entry.spec: (entry.filename, entry.sha256) for entry in entries}
     require(observed == EXPECTED, "qualification runtime lock must remain exact")
@@ -139,6 +150,65 @@ def main() -> int:
     require("escaped isolated wheelhouse" in probe, "isolated proof must pin dependency paths")
     require("escaped repository source" in probe, "isolated proof must pin host-module source paths")
 
+    require(
+        x3_fixture.maintenance_allowed(
+            github_actions="true",
+            event_name="pull_request",
+            draft=True,
+            head_repo="djibian/webeeblocks",
+            repository="djibian/webeeblocks",
+        ),
+        "same-repository Draft must be allowed to prime exact X3 fixture support",
+    )
+    require(
+        not x3_fixture.maintenance_allowed(
+            github_actions="true",
+            event_name="pull_request",
+            draft=False,
+            head_repo="djibian/webeeblocks",
+            repository="djibian/webeeblocks",
+        ),
+        "Ready acceptance must never acquire X3 firmware from the network",
+    )
+    require(
+        not x3_fixture.maintenance_allowed(
+            github_actions="true",
+            event_name="pull_request",
+            draft=True,
+            head_repo="someone/fork",
+            repository="djibian/webeeblocks",
+        ),
+        "fork Draft must not prime trusted X3 fixture support",
+    )
+    require(
+        not x3_fixture.maintenance_allowed(
+            github_actions="",
+            event_name="schedule",
+            draft=None,
+            head_repo="",
+            repository="djibian/webeeblocks",
+        ),
+        "non-CI execution must not acquire X3 firmware implicitly",
+    )
+
+    fixture_source = X3_FIXTURE_PATH.read_text(encoding="utf-8")
+    for required in (
+        x3_fixture.EXPECTED_REQUEST_SOURCE_SHA,
+        x3_fixture.EXPECTED_FIRMWARE_SHA256,
+        x3_fixture.UPSTREAM_FIRMWARE_COMMIT,
+        'if not maintenance_allowed_from_environment():',
+        "fixture cache is missing outside an authorized maintenance run",
+        "maintenance build did not reproduce exact #251 cf2.bin",
+    ):
+        require(required in fixture_source, f"missing fail-closed X3 fixture support contract: {required}")
+
+    # This script runs once inside the restored qualification-support step before
+    # actions/cache/save. On relevant maintenance cache misses it seeds the exact
+    # fixture; on Ready it can only verify an already-restored fixture. The later
+    # repository-contract invocation sees the same support and is observational.
+    if (QUALIFICATION_SUPPORT / "cflib-source").is_dir():
+        subprocess.run([sys.executable, str(X3_FIXTURE_PATH)], cwd=ROOT, check=True)
+
     source = VERIFIER_PATH.read_text(encoding="utf-8")
     for required in (
         '"--no-index"',
@@ -191,6 +261,10 @@ def main() -> int:
     )
     require(selector.relevant_path("tools/physical/serve_physical_host.py"), "physical Python boundary must select support")
     require(selector.relevant_path("tools/ci/select_qualification_runtime_support.py"), "selector edits must select support")
+    require(
+        selector.relevant_path("tools/ci/test_x3_characterization_package.py"),
+        "X3 real-bundle oracle changes must restore exact qualification support",
+    )
     require(not selector.relevant_path("docs/ROADMAP.md"), "unrelated paths must not select support")
 
     section = workflow.split(selector.START_MARKER, 1)[1].split(selector.END_MARKER, 1)[0]
@@ -212,7 +286,10 @@ def main() -> int:
         "qualification runtime must be verified both before cache save and on canonical consumption",
     )
 
-    print("PASS: exact structurally scoped physical qualification runtime lock, hermetic CI cache and isolated import contract")
+    print(
+        "PASS: exact structurally scoped physical qualification runtime lock, hermetic CI cache, "
+        "isolated import contract and cache-backed #251 X3 fixture"
+    )
     return 0
 
 
