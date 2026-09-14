@@ -70,6 +70,7 @@ def verify_static_contract() -> None:
     for required in (
         '"status", "--porcelain", "--untracked-files=no"',
         '"--untracked-files=all"',
+        '"-z"',
         "PACKAGED_SOURCE_PATHS",
         "_unexpected_untracked_package_paths",
         '"archive",',
@@ -93,6 +94,27 @@ def verify_static_contract() -> None:
             "tools/physical/rogue.py",
         ),
         "packager must reject every non-ignored untracked path that would enter the artifact while allowing generated non-copied/controller outputs",
+    )
+
+    unusual_untracked = packager._unexpected_untracked_package_paths(
+        "?? tools/physical/rogue file.py\0"
+        "?? tools/physical/ligne\nétrange.py\0"
+        "?? plugins/robot_windows/blockly_v2/élève.js\0"
+        "?? controllers/crazyflie_runtime_v2/crazyflie_runtime_v2\0"
+        "?? controllers/crazyflie_runtime_v2/build-state.d\0"
+    )
+    require(
+        unusual_untracked
+        == tuple(
+            sorted(
+                (
+                    "plugins/robot_windows/blockly_v2/élève.js",
+                    "tools/physical/ligne\nétrange.py",
+                    "tools/physical/rogue file.py",
+                )
+            )
+        ),
+        "NUL-delimited porcelain must preserve spaces, non-ASCII and embedded newlines in packaged untracked paths",
     )
 
     representative_inputs = (
