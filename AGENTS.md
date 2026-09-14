@@ -236,6 +236,14 @@ repository ambiguity or completes the abandonment of an already-engaged path.
 The mere existence of a deletable branch does not create work, require
 repository-wide housekeeping, or prevent Controller termination.
 
+While carrying out or resuming an action selected by this loop whose useful
+effect is independent of branch deletion, normally attempt safe retirement of a
+directly associated transient branch ref as local completion when reconstruction
+establishes the deletion conditions in §2. This execution-local preference
+creates no standalone cleanup eligibility or durable cleanup obligation and
+cannot by itself justify a retry under the existing no-blind-retry and
+unknown-outcome rules.
+
 Pending CI is not a reason to notify or globally idle. Use its latency for
 independent useful work when available.
 
