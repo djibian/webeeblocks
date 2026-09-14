@@ -54,6 +54,13 @@ class WindowsReleaseContractTests(unittest.TestCase):
             "textures/fast_helix.png",
             "MANIFEST.sha256",
             "Compression.ZipFile]::CreateFromDirectory",
+            "msys64\\mingw64\\bin\\g++.exe",
+            "WebeeBlocksLauncher.cpp",
+            "WebeeBlocksLauncher.exe",
+            "'-static'",
+            "libstdc++-6.dll",
+            "libgcc_s_seh-1.dll",
+            "libwinpthread-1.dll",
         ):
             self.assertIn(required, packager)
         self.assertIn("$worldText -match '\"(?:https?|webots)://'", packager)
@@ -63,6 +70,7 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\usr\\bin\\make.exe", packager)
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
+        self.assertNotIn("'Launch-WebeeBlocks.ps1'", packager)
 
     def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
@@ -228,19 +236,31 @@ class WindowsReleaseContractTests(unittest.TestCase):
             readme,
         )
 
-    def test_launcher_opens_only_packaged_world_with_r2025a(self) -> None:
-        launcher = (PACKAGING / "Launch-WebeeBlocks.ps1").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("worlds\\crazyflie_runtime_v2.wbt", launcher)
-        self.assertIn("--mode=realtime", launcher)
+    def test_native_launcher_owns_startup_and_session_identity(self) -> None:
+        command = (PACKAGING / "Launch-WebeeBlocks.cmd").read_text(encoding="utf-8")
+        launcher = (PACKAGING / "WebeeBlocksLauncher.cpp").read_text(encoding="utf-8")
+        release_check = (
+            ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("WebeeBlocksLauncher.exe", command)
+        self.assertNotIn("powershell", command.lower())
+        self.assertIn('package_root / L"worlds" / L"crazyflie_runtime_v2.wbt"', launcher)
+        self.assertIn('L" --mode=realtime "', launcher)
         self.assertNotIn("--mode=pause", launcher)
         self.assertNotIn("--mode=run", launcher)
-        self.assertIn("$worldArgument = '\"' + $world + '\"'", launcher)
-        self.assertIn("Test-WebotsR2025a", launcher)
-        self.assertIn("--version", launcher)
-        self.assertIn("-match 'R2025a'", launcher)
-        self.assertIn("-ValidateOnly", (ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(encoding="utf-8"))
+        self.assertIn('capture_process(console, L"--version")', launcher)
+        self.assertIn('version.find("R2025a")', launcher)
+        self.assertIn('session_name_stream << "webeeblocks_session_"', launcher)
+        self.assertIn("struct SessionFiles", launcher)
+        self.assertIn('"Connection: close\\r\\n\\r\\n"', launcher)
+        self.assertIn("Access-Control-Allow-Origin: *", launcher)
+        self.assertIn('L"--validate-only"', launcher)
+
+        self.assertIn("'WebeeBlocksLauncher.exe'", release_check)
+        self.assertIn("--validate-only", release_check)
+        self.assertNotIn("powershell.exe", release_check)
+        self.assertIn("PowerShell launcher must not be shipped", release_check)
 
 
 if __name__ == "__main__":
