@@ -52,7 +52,8 @@ if ([string]::IsNullOrWhiteSpace($WebotsHome)) {
 $webotsRoot = (Resolve-Path -LiteralPath $WebotsHome).Path
 $make = Join-Path $webotsRoot 'msys64\usr\bin\make.exe'
 $gcc = Join-Path $webotsRoot 'msys64\mingw64\bin\gcc.exe'
-foreach ($requiredTool in @($make, $gcc)) {
+$gxx = Join-Path $webotsRoot 'msys64\mingw64\bin\g++.exe'
+foreach ($requiredTool in @($make, $gcc, $gxx)) {
   if (-not (Test-Path -LiteralPath $requiredTool -PathType Leaf)) {
     throw "Webots R2025a MSYS2 tool is missing: $requiredTool"
   }
@@ -133,7 +134,55 @@ if (Test-Path -LiteralPath $archivePath) {
 }
 New-Item -ItemType Directory -Path $packageDir | Out-Null
 
-foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-WINDOWS.md', 'WINDOWS-ACCEPTANCE.md', 'THIRD_PARTY_NOTICES.md')) {
+# The classroom entry point is a native GUI executable, not a PowerShell script.
+# Build it with the exact MinGW toolchain shipped by Webots R2025a and statically
+# link the compiler runtime so the extracted classroom archive has no extra DLL
+# prerequisite beyond Windows system libraries.
+$launcherSource = Join-Path $repoRoot 'packaging\windows\WebeeBlocksLauncher.cpp'
+$launcherBinary = Join-Path $packageDir 'WebeeBlocksLauncher.exe'
+if (-not (Test-Path -LiteralPath $launcherSource -PathType Leaf)) {
+  throw "Native Windows launcher source is missing: $launcherSource"
+}
+$launcherArgs = @(
+  '-std=c++17',
+  '-O2',
+  '-s',
+  '-static',
+  '-static-libgcc',
+  '-static-libstdc++',
+  '-municode',
+  '-mwindows',
+  '-pthread',
+  $launcherSource,
+  '-o',
+  $launcherBinary,
+  '-lws2_32',
+  '-lshell32',
+  '-luser32'
+)
+& $gxx @launcherArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "Native WebeeBlocks launcher build failed with exit code $LASTEXITCODE."
+}
+if (-not (Test-Path -LiteralPath $launcherBinary -PathType Leaf) -or (Get-Item $launcherBinary).Length -le 0) {
+  throw 'Native WebeeBlocks launcher build produced no executable.'
+}
+$launcherImports = (& $objdump -p $launcherBinary | Out-String)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Could not inspect the native WebeeBlocks launcher import table.'
+}
+foreach ($forbiddenRuntime in @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')) {
+  if ($launcherImports -match ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($forbiddenRuntime) + '\s*$')) {
+    throw "Native WebeeBlocks launcher unexpectedly requires MinGW runtime DLL: $forbiddenRuntime"
+  }
+}
+foreach ($requiredSystemDll in @('KERNEL32.dll', 'USER32.dll', 'SHELL32.dll', 'WS2_32.dll')) {
+  if ($launcherImports -notmatch ('(?im)^\s*DLL Name:\s*' + [regex]::Escape($requiredSystemDll) + '\s*$')) {
+    throw "Native WebeeBlocks launcher is missing expected Windows dependency: $requiredSystemDll"
+  }
+}
+
+foreach ($name in @('Launch-WebeeBlocks.cmd', 'README-WINDOWS.md', 'WINDOWS-ACCEPTANCE.md', 'THIRD_PARTY_NOTICES.md')) {
   Copy-RequiredFile `
     (Join-Path $repoRoot "packaging\windows\$name") `
     (Join-Path $packageDir $name)
