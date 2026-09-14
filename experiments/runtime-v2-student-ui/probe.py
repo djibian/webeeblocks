@@ -163,16 +163,18 @@ REPEAT_HOVER_RECT=r'''(() => {
  if(!repeat)throw new Error('rendered repeat block missing for hover');
  const repeatRoot=repeat.getSvgRoot();
  if(!repeatRoot)throw new Error('rendered repeat SVG root missing for hover');
+ const repeatPath=repeatRoot.querySelector('.blocklyPath');
+ if(!repeatPath)throw new Error('rendered repeat tooltip-bound SVG path missing for hover');
  const rb=repeatRoot.getBoundingClientRect();
  for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
    for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
      const hit=document.elementFromPoint(x,y);
-     if(hit&&repeatRoot.contains(hit)){
+     if(hit&&(hit===repeatPath||repeatPath.contains(hit))){
        return {x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
      }
    }
  }
- throw new Error('no real hit-tested hover point on existing repeat block');
+ throw new Error('no real hit-tested tooltip-bound path point on existing repeat block');
 })()'''
 
 VISIBLE_OVERLAY=r'''(() => {
