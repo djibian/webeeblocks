@@ -19,6 +19,7 @@ CAPTURE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "capture_indepe
 S3_ORACLE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "run_s3_build_oracle.sh"
 UPSTREAM_FIRMWARE_REPOSITORY = "https://github.com/bitcraze/crazyflie-firmware.git"
 UPSTREAM_FIRMWARE_COMMIT = "54f31e243a0b28b67efef5ba20dbb6d9890a5478"
+BUILDER_IMAGE = "bitcraze/builder:latest"
 QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
 
 REAL_BUNDLE_PROOF_PATHS = frozenset(
@@ -175,6 +176,35 @@ def _clone_exact_firmware(destination: Path) -> None:
     require(resolved == UPSTREAM_FIRMWARE_COMMIT, "X3 firmware checkout resolved to unexpected commit")
 
 
+def _restore_firmware_ownership(firmware_root: Path) -> None:
+    if not firmware_root.exists():
+        return
+    image = subprocess.run(
+        ["docker", "image", "inspect", BUILDER_IMAGE],
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if image.returncode != 0:
+        return
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "0:0",
+            "-v",
+            f"{firmware_root}:/module",
+            BUILDER_IMAGE,
+            "bash",
+            "-lc",
+            f"chown -R {os.getuid()}:{os.getgid()} /module",
+        ],
+        check=True,
+    )
+
+
 def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ...]) -> None:
     if not _real_bundle_proof_required():
         return
@@ -188,62 +218,65 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         temp = Path(temp_text)
         firmware_root = temp / "crazyflie-firmware"
         _clone_exact_firmware(firmware_root)
-        subprocess.run(
-            ["bash", str(S3_ORACLE), str(firmware_root)],
-            cwd=ROOT,
-            check=True,
-        )
-        firmware_bin = firmware_root / "build" / "cf2.bin"
-        require(firmware_bin.is_file(), "exact S3 firmware build did not produce cf2.bin")
-        require(
-            package.sha256(firmware_bin) == package.EXPECTED_FIRMWARE_SHA256,
-            "exact S3 firmware build does not match #251 cf2.bin",
-        )
+        try:
+            subprocess.run(
+                ["bash", str(S3_ORACLE), str(firmware_root)],
+                cwd=ROOT,
+                check=True,
+            )
+            firmware_bin = firmware_root / "build" / "cf2.bin"
+            require(firmware_bin.is_file(), "exact S3 firmware build did not produce cf2.bin")
+            require(
+                package.sha256(firmware_bin) == package.EXPECTED_FIRMWARE_SHA256,
+                "exact S3 firmware build does not match #251 cf2.bin",
+            )
 
-        wheelhouse = temp / "wheels"
-        wheelhouse.mkdir()
-        for _spec, filename, digest in rows:
-            source = support_wheels / filename
-            require(source.is_file(), f"restored qualification support is missing {filename}")
-            require(package.sha256(source) == digest, f"restored qualification wheel changed: {filename}")
-            shutil.copy2(source, wheelhouse / filename)
-        package.verify_wheels(wheelhouse)
+            wheelhouse = temp / "wheels"
+            wheelhouse.mkdir()
+            for _spec, filename, digest in rows:
+                source = support_wheels / filename
+                require(source.is_file(), f"restored qualification support is missing {filename}")
+                require(package.sha256(source) == digest, f"restored qualification wheel changed: {filename}")
+                shutil.copy2(source, wheelhouse / filename)
+            package.verify_wheels(wheelhouse)
 
-        output_root = temp / "output"
-        output_root.mkdir()
-        bundle = package.build(
-            source_sha=head,
-            firmware_bin=firmware_bin,
-            cflib_root=cflib_root,
-            wheelhouse=wheelhouse,
-            output_root=output_root,
-        )
+            output_root = temp / "output"
+            output_root.mkdir()
+            bundle = package.build(
+                source_sha=head,
+                firmware_bin=firmware_bin,
+                cflib_root=cflib_root,
+                wheelhouse=wheelhouse,
+                output_root=output_root,
+            )
 
-        verifier = bundle / "verify_x3_characterization_bundle.py"
-        runner = bundle / "run_x3_independent_capture.sh"
-        verification_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            verifier = bundle / "verify_x3_characterization_bundle.py"
+            runner = bundle / "run_x3_independent_capture.sh"
+            verification_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
 
-        subprocess.run(
-            [sys.executable, "-B", str(verifier), str(bundle)],
-            cwd=bundle,
-            env=verification_env,
-            check=True,
-        )
-        before = file_snapshot(bundle)
-        subprocess.run(
-            ["bash", str(runner), "--verify-environment"],
-            cwd=bundle,
-            env=verification_env,
-            check=True,
-        )
-        after = file_snapshot(bundle)
-        require(after == before, "complete X3 --verify-environment path mutated exact bundle bytes/file set")
-        subprocess.run(
-            [sys.executable, "-B", str(verifier), str(bundle)],
-            cwd=bundle,
-            env=verification_env,
-            check=True,
-        )
+            subprocess.run(
+                [sys.executable, "-B", str(verifier), str(bundle)],
+                cwd=bundle,
+                env=verification_env,
+                check=True,
+            )
+            before = file_snapshot(bundle)
+            subprocess.run(
+                ["bash", str(runner), "--verify-environment"],
+                cwd=bundle,
+                env=verification_env,
+                check=True,
+            )
+            after = file_snapshot(bundle)
+            require(after == before, "complete X3 --verify-environment path mutated exact bundle bytes/file set")
+            subprocess.run(
+                [sys.executable, "-B", str(verifier), str(bundle)],
+                cwd=bundle,
+                env=verification_env,
+                check=True,
+            )
+        finally:
+            _restore_firmware_ownership(firmware_root)
 
     print("PASS: assembled exact X3 bundle completed observational hardware-free verification")
 
