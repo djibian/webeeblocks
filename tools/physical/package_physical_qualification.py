@@ -118,11 +118,15 @@ def _would_copy_untracked(relative: str) -> bool:
 
 
 def _unexpected_untracked_package_paths(status: str) -> tuple[str, ...]:
+    # Git porcelain `-z` emits exact, unquoted path bytes as NUL-terminated
+    # records. Keep line parsing only for direct regression fixtures and older
+    # callers; real repository provenance always uses the lossless NUL form.
+    records = status.split("\0") if "\0" in status else status.splitlines()
     unexpected: list[str] = []
-    for line in status.splitlines():
-        if not line.startswith("?? "):
+    for record in records:
+        if not record.startswith("?? "):
             continue
-        relative = line[3:]
+        relative = record[3:]
         if _would_copy_untracked(relative):
             unexpected.append(relative)
     return tuple(sorted(unexpected))
@@ -144,6 +148,7 @@ def _require_source_sha(value: str) -> str:
     package_status = _git(
         "status",
         "--porcelain=v1",
+        "-z",
         "--untracked-files=all",
         "--",
         *PACKAGED_SOURCE_PATHS,
