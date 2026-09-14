@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Build one deterministic offline bundle for later physical qualification.
 
-This packager is machine-only.  It verifies the already-pinned qualification
-runtime inputs, copies only repository-controlled/runtime inputs into a
-repository-shaped bundle, localizes the pinned Webots world to webots://, and
-writes a complete SHA-256 manifest.  It never opens Crazyradio, starts Webots,
-creates execution authority, or emits a physical effect.
+This packager is machine-only. It verifies already-pinned qualification runtime
+inputs, copies only exact repository/runtime content into a repository-shaped
+bundle, localizes the pinned Webots world to webots://, and writes a complete
+SHA-256 manifest. It never opens Crazyradio, starts Webots, creates execution
+authority, or emits a physical effect.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
+import tempfile
 
 from verify_qualification_runtime import (
     EXPECTED_CFLIB_COMMIT,
@@ -38,6 +40,9 @@ MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
 SOURCE_SHA_NAME = "SOURCE_SHA"
 RUNTIME_TARGET = "ubuntu-22.04-python-3.10-x86_64"
+WEBOTS_BUILD_IMAGE_DIGEST = (
+    "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+)
 
 SHARED_WEBEEBLOCKS = REPO_ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks"
 GOOGLE_BLOCK = (
@@ -63,21 +68,31 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _require_source_sha(value: str) -> str:
-    if not re.fullmatch(r"[0-9a-f]{40}", value):
-        raise QualificationPackageError("exact lowercase 40-character source SHA required")
+def _git(*args: str) -> str:
     try:
-        observed = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+        result = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), *args],
             check=True,
             text=True,
             capture_output=True,
-        ).stdout.strip()
+        )
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise QualificationPackageError("repository HEAD is unavailable") from exc
+        raise QualificationPackageError("repository Git provenance is unavailable") from exc
+    return result.stdout.strip()
+
+
+def _require_source_sha(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise QualificationPackageError("exact lowercase 40-character source SHA required")
+    observed = _git("rev-parse", "HEAD")
     if observed != value:
         raise QualificationPackageError(
             f"source SHA does not match checkout HEAD: expected {value}, got {observed}"
+        )
+    tracked_status = _git("status", "--porcelain", "--untracked-files=no")
+    if tracked_status:
+        raise QualificationPackageError(
+            "tracked repository content is dirty; exact source SHA cannot bind package bytes"
         )
     return value
 
@@ -102,6 +117,47 @@ def _copy_file(source: Path, target: Path) -> None:
         raise QualificationPackageError(f"required file missing: {source}")
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
+
+
+def _copy_canonical_cflib(cflib_root: Path, target: Path) -> None:
+    """Materialize only the exact tracked cflib Git tree, never checkout metadata."""
+    verify_cflib_provenance(cflib_root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="webeeblocks-cflib-archive-") as temp_text:
+        archive = Path(temp_text) / "cflib-source.tar"
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(cflib_root),
+                    "archive",
+                    "--format=tar",
+                    "--output",
+                    str(archive),
+                    EXPECTED_CFLIB_COMMIT,
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise QualificationPackageError("canonical cflib source archive failed") from exc
+
+        target.mkdir(parents=True, exist_ok=False)
+        root = target.resolve()
+        with tarfile.open(archive, "r:") as source_tar:
+            for member in source_tar.getmembers():
+                if member.isdev() or member.isfifo():
+                    raise QualificationPackageError("unsupported cflib archive member type")
+                candidate = (target / member.name).resolve()
+                try:
+                    candidate.relative_to(root)
+                except ValueError as exc:
+                    raise QualificationPackageError("cflib archive escaped package root") from exc
+            source_tar.extractall(target)
+    if (target / ".git").exists():
+        raise QualificationPackageError("canonical cflib source unexpectedly contains .git")
 
 
 def _verify_prepared_runtime() -> None:
@@ -132,7 +188,7 @@ def _localize_world(source: Path, target: Path) -> None:
     count = text.count(REMOTE_WEBOTS_PREFIX)
     if count != EXPECTED_WORLD_REMOTE_REFS:
         raise QualificationPackageError(
-            f"expected {EXPECTED_WORLD_REMOTE_REFS} pinned Webots R2025a world references, found {count}"
+            f"expected {EXPECTED_WORLD_REMOTE_REFS} pinned Webots R2025a references, found {count}"
         )
     localized = text.replace(REMOTE_WEBOTS_PREFIX, LOCAL_WEBOTS_PREFIX)
     if "raw.githubusercontent.com/cyberbotics/webots/" in localized:
@@ -146,7 +202,7 @@ def _copy_controller(bundle: Path) -> None:
     binary = source / "crazyflie_runtime_v2"
     if not binary.is_file():
         raise QualificationPackageError(
-            "Linux Runtime v2 controller binary is missing; build it with Webots R2025a before packaging"
+            "Linux Runtime v2 controller binary is missing; build it with exact Webots R2025a before packaging"
         )
     if not (binary.stat().st_mode & stat.S_IXUSR):
         raise QualificationPackageError("Runtime v2 controller binary is not executable")
@@ -236,7 +292,7 @@ def build_bundle(
         bundle / "worlds" / "crazyflie_runtime_v2.wbt",
     )
 
-    _copy_tree(cflib_root, bundle / "support" / "cflib-source")
+    _copy_canonical_cflib(cflib_root, bundle / "support" / "cflib-source")
     (bundle / "support" / "wheels").mkdir(parents=True, exist_ok=True)
     for wheel in verify_wheelhouse(entries, wheelhouse):
         _copy_file(wheel, bundle / "support" / "wheels" / wheel.name)
@@ -271,7 +327,9 @@ def build_bundle(
         "wheel_count": len(entries),
         "blockly_version": "13.2.1",
         "webots_version": "R2025a",
-        "execution_authority_packaged": False,
+        "webots_build_image_digest": WEBOTS_BUILD_IMAGE_DIGEST,
+        "preparation_execution_authority": False,
+        "execution_requires_teacher_authorization": True,
     }
     (bundle / PROVENANCE_NAME).write_text(
         json.dumps(provenance, sort_keys=True, indent=2) + "\n",
