@@ -37,7 +37,7 @@ jobs:
           python3 tools/ci/select_qualification_runtime_support.py
           --event "${{ github.event_name }}"
           --base "${{ github.event.pull_request.base.sha }}"
-          --head "${{ github.event.pull_request.head.sha || github.sha }}"
+          --head "${{ github.event.pull_request.head.sha }}"
           --github-output "$GITHUB_OUTPUT"
 
       - name: Restore exact physical qualification runtime support
