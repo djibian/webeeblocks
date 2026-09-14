@@ -108,6 +108,7 @@ jobs:
           key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
 
       - name: Package exact physical qualification bundle
+        id: qualification-bundle
         if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
         shell: bash
         run: |
@@ -115,12 +116,13 @@ jobs:
           mkdir -p ci-artifacts/physical-qualification
           source=.ci-support/qualification-runtime/cflib-source
           wheelhouse=.ci-support/qualification-runtime/wheels
-          target_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          target_sha="$(git rev-parse HEAD)"
           output=ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz
           python3 tools/physical/package_physical_qualification.py \
             "$PWD" "$source" "$wheelhouse" "$output" \
             --source-sha "$target_sha"
           sha256sum "$output" > "$output.sha256"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
 
       - name: Verify exact physical qualification bundle
         if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
@@ -135,7 +137,7 @@ jobs:
           mkdir -p "$extract"
           tar -xzf "$artifact" -C "$extract"
           bundle="$extract/webeeblocks-physical-qualification"
-          python3 - <<'PY' "$bundle/QUALIFICATION_MANIFEST.json" "${{ github.event.pull_request.head.sha || github.sha }}"
+          python3 - <<'PY' "$bundle/QUALIFICATION_MANIFEST.json" "${{ steps.qualification-bundle.outputs.target_sha }}"
           import json
           from pathlib import Path
           import sys
@@ -152,7 +154,7 @@ jobs:
         if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
         uses: actions/upload-artifact@v4
         with:
-          name: WebeeBlocks-Physical-Qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          name: WebeeBlocks-Physical-Qualification-${{ steps.qualification-bundle.outputs.target_sha }}
           path: |
             ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz
             ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz.sha256
