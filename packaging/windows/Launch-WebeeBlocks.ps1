@@ -411,7 +411,12 @@ if ($ValidateOnly) {
       if (-not ([System.IO.File]::ReadAllText($probe.Session.World)).Contains(('window "' + $probe.Session.Name + '"'))) {
         throw 'Le monde de session ne selectionne pas son identite Robot Window unique.'
       }
-      $references = [regex]::Matches($probe.Html, '(?:src|href)="([^"]+)"')
+      $faviconMarker = '<link rel="icon" href="data:,">'
+      if ([regex]::Matches($probe.Html, [regex]::Escape($faviconMarker)).Count -ne 1) {
+        throw 'La Robot Window de session doit neutraliser exactement une requete favicon implicite.'
+      }
+      $dependencyHtml = $probe.Html.Replace($faviconMarker, '')
+      $references = [regex]::Matches($dependencyHtml, '(?:src|href)="([^"]+)"')
       if ($references.Count -lt 10) {
         throw 'La Robot Window de session contient trop peu de dependances pour valider le pont HTTP.'
       }
