@@ -60,7 +60,8 @@ function New-WebeeBlocksRobotWindowSession {
     Move-Item -LiteralPath $copiedHtml -Destination $html
 
     $sourceMarker = 'window "' + $RobotWindow.Name + '"'
-    if (($WorldText.Split($sourceMarker).Count - 1) -ne 1) {
+    $markerCount = [regex]::Matches($WorldText, [regex]::Escape($sourceMarker)).Count
+    if ($markerCount -ne 1) {
       throw 'Le monde de classe ne contient pas exactement une identite Robot Window remplacable.'
     }
     $sessionWorldText = $WorldText.Replace($sourceMarker, ('window "' + $name + '"'))
