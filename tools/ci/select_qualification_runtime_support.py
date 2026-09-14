@@ -37,7 +37,9 @@ def relevant_path(path: str) -> bool:
     if path in {
         "tools/ci/select_qualification_runtime_support.py",
         "tools/ci/test_physical_qualification_runtime_lock.py",
+        "tools/ci/test_physical_qualification_package.py",
         "tools/physical/qualification_runtime_lock.txt",
+        "tools/physical/run_packaged_physical_qualification.sh",
     }:
         return True
     return path.startswith("tools/physical/") and path.endswith(".py")
