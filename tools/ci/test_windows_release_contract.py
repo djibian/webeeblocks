@@ -240,6 +240,14 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("Test-WebotsR2025a", launcher)
         self.assertIn("--version", launcher)
         self.assertIn("-match 'R2025a'", launcher)
+        self.assertIn("$WebeeBlocksLocalServerPort = 18455", launcher)
+        self.assertIn("Loopback, $ServerPort", launcher)
+        self.assertNotIn("Loopback, 0", launcher)
+        self.assertIn(
+            "Start-WebeeBlocksLocalServer -Root $PSScriptRoot -Port $WebeeBlocksLocalServerPort",
+            launcher,
+        )
+        self.assertIn("http://127.0.0.1:$WebeeBlocksLocalServerPort/", launcher)
         self.assertIn("-ValidateOnly", (ROOT / "tools" / "ci" / "test_windows_classroom_release.ps1").read_text(encoding="utf-8"))
 
 
