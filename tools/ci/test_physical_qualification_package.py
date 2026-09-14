@@ -70,8 +70,10 @@ def verify_static_contract() -> None:
     for required in (
         '"status", "--porcelain", "--untracked-files=no"',
         '"--untracked-files=all"',
+        '"--ignored"',
         '"-z"',
         "PACKAGED_SOURCE_PATHS",
+        "GENERATED_VENDOR_PREFIX",
         "_unexpected_untracked_package_paths",
         '"archive",',
         "EXPECTED_CFLIB_COMMIT",
@@ -115,6 +117,28 @@ def verify_static_contract() -> None:
             )
         ),
         "NUL-delimited porcelain must preserve spaces, non-ASCII and embedded newlines in packaged untracked paths",
+    )
+
+    ignored = packager._unexpected_untracked_package_paths(
+        "!! tools/physical/rogue.so\0"
+        "!! plugins/robot_windows/blockly/webeeblocks/.probe.swp\0"
+        "!! plugins/robot_windows/blockly_v2/.DS_Store\0"
+        "!! plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js\0"
+        "!! controllers/crazyflie_runtime_v2/crazyflie_runtime_v2\0"
+        "!! controllers/crazyflie_runtime_v2/build-state.d\0"
+    )
+    require(
+        ignored
+        == tuple(
+            sorted(
+                (
+                    "plugins/robot_windows/blockly/webeeblocks/.probe.swp",
+                    "plugins/robot_windows/blockly_v2/.DS_Store",
+                    "tools/physical/rogue.so",
+                )
+            )
+        ),
+        "ignored copied bytes must fail exact-source packaging while deterministic vendor/controller outputs remain allowed",
     )
 
     representative_inputs = (
