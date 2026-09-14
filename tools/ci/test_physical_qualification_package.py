@@ -143,6 +143,8 @@ def verify_static_contract() -> None:
 
     representative_inputs = (
         "tools/physical/physical_execution_domain.py",
+        "tools/physical/qualification_generated_lock.json",
+        "tools/physical/verify_qualification_generated_inputs.py",
         "tools/prepare_runtime_v2.sh",
         "plugins/robot_windows/blockly_v2/main.js",
         "plugins/robot_windows/blockly/webeeblocks/interpreter.js",
@@ -163,6 +165,8 @@ def verify_static_contract() -> None:
         "qualification-runtime-ubuntu22-cp310-cflib-45fdb784",
         "qualification-package-inputs-r2025a-",
         WEBOTS_IMAGE_DIGEST,
+        "qualification_generated_lock.json",
+        "python3 tools/physical/verify_qualification_generated_inputs.py",
         "python3 tools/physical/package_physical_qualification.py",
         "python3 tools/physical/verify_physical_qualification_package.py",
         "python3 tools/ci/test_physical_qualification_package.py",
@@ -171,6 +175,10 @@ def verify_static_contract() -> None:
         "include-hidden-files: true",
     ):
         require(required in workflow, f"canonical workflow missing package contract: {required}")
+    require(
+        workflow.count("python3 tools/physical/verify_qualification_generated_inputs.py") >= 2,
+        "generated inputs must be verified after Draft generation and after every cache restore",
+    )
     restore_cache = workflow.split(
         "- name: Restore exact prepared qualification package inputs", 1
     )[1].split("- uses: actions/setup-node@v4", 1)[0]
@@ -186,8 +194,9 @@ def verify_static_contract() -> None:
             "plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js",
             "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
             "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
+            "tools/physical/qualification_generated_lock.json",
         ):
-            require(required in cache_block, f"generated vendor cache key missing source input: {required}")
+            require(required in cache_block, f"generated cache key missing bound input: {required}")
     require(
         "ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.zip"
         not in workflow,
