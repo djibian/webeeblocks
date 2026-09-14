@@ -7,6 +7,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$WebeeBlocksLocalServerPort = 18455
+
 $world = Join-Path $PSScriptRoot 'worlds\crazyflie_runtime_v2.wbt'
 if (-not (Test-Path -LiteralPath $world -PathType Leaf)) {
   throw "Monde WebeeBlocks introuvable : $world"
@@ -34,18 +36,24 @@ function Get-PackagedRobotWindow {
 }
 
 function Start-WebeeBlocksLocalServer {
-  param([string]$Root)
+  param(
+    [string]$Root,
+    [int]$Port
+  )
 
-  $job = Start-Job -ArgumentList $Root -ScriptBlock {
-    param([string]$ServerRoot)
+  $job = Start-Job -ArgumentList $Root, $Port -ScriptBlock {
+    param([string]$ServerRoot, [int]$ServerPort)
     $ErrorActionPreference = 'Stop'
     Set-StrictMode -Version Latest
 
     $rootPath = [System.IO.Path]::GetFullPath($ServerRoot)
     $rootPrefix = $rootPath + [System.IO.Path]::DirectorySeparatorChar
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $ServerPort)
     $listener.Start()
     $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+    if ($port -ne $ServerPort) {
+      throw "Le serveur HTTP local a obtenu le port inattendu $port au lieu de $ServerPort."
+    }
     Write-Output "WEBEEBLOCKS_LOCAL_SERVER_READY=$port"
 
     function Write-Reply {
@@ -288,7 +296,10 @@ $robotWindow = Get-PackagedRobotWindow -WorldText $worldText
 if ($ValidateOnly) {
   $server = $null
   try {
-    $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
+    $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot -Port $WebeeBlocksLocalServerPort
+    if ($server.Port -ne $WebeeBlocksLocalServerPort) {
+      throw "Le serveur HTTP local doit conserver le port $WebeeBlocksLocalServerPort entre les relances."
+    }
     $htmlRelative = "plugins\robot_windows\$($robotWindow.Name)\$($robotWindow.Name).html"
     Assert-LocalServerFile -Port $server.Port -RelativePath $htmlRelative -ExpectedContentType 'text/html'
     Assert-LocalServerFile -Port $server.Port -RelativePath (Join-Path "plugins\robot_windows\$($robotWindow.Name)" 'main.css') -ExpectedContentType 'text/css'
@@ -300,15 +311,15 @@ if ($ValidateOnly) {
     $references = [regex]::Matches($rewrittenHtml, '(?:src|href)="([^"]+)"')
     if ($references.Count -lt 10) { throw 'La Robot Window re-ecrite contient trop peu de dependances pour valider le pont HTTP.' }
     foreach ($reference in $references) {
-      if (-not $reference.Groups[1].Value.StartsWith("http://127.0.0.1:$($server.Port)/", [System.StringComparison]::Ordinal)) {
-        throw "Une dependance de demarrage contourne le serveur HTTP local : $($reference.Groups[1].Value)"
+      if (-not $reference.Groups[1].Value.StartsWith("http://127.0.0.1:$WebeeBlocksLocalServerPort/", [System.StringComparison]::Ordinal)) {
+        throw "Une dependance de demarrage contourne l origine HTTP locale stable : $($reference.Groups[1].Value)"
       }
     }
   }
   finally {
     Stop-WebeeBlocksLocalServer -Server $server
   }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-connection-close"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-port-$WebeeBlocksLocalServerPort-connection-close"
   exit 0
 }
 
@@ -318,7 +329,7 @@ $server = $null
 $originalHtml = $null
 $webotsProcess = $null
 try {
-  $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
+  $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot -Port $WebeeBlocksLocalServerPort
   $originalHtml = [System.IO.File]::ReadAllText($robotWindow.Html, [System.Text.Encoding]::UTF8)
   $proxiedHtml = Convert-RobotWindowChildUrls -Html $originalHtml -PluginRoot $robotWindow.Root -Port $server.Port
   $proxiedHtml = $proxiedHtml.Replace('<head>', '<head><link rel="icon" href="data:,">')
