@@ -65,6 +65,7 @@ PACKAGED_SOURCE_PATHS = (
     "controllers/crazyflie_square/pid_controller.h",
 )
 GENERATED_CONTROLLER_PATH = "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
+GENERATED_VENDOR_PREFIX = "plugins/robot_windows/blockly_v2/vendor/"
 
 
 class QualificationPackageError(RuntimeError):
@@ -95,7 +96,7 @@ def _git(*args: str) -> str:
 def _would_copy_untracked(relative: str) -> bool:
     path = Path(relative)
     parts = path.parts
-    if relative == GENERATED_CONTROLLER_PATH:
+    if relative == GENERATED_CONTROLLER_PATH or relative.startswith(GENERATED_VENDOR_PREFIX):
         return False
     if relative.startswith("tools/physical/"):
         return "__pycache__" not in parts and path.suffix != ".pyc"
@@ -124,7 +125,7 @@ def _unexpected_untracked_package_paths(status: str) -> tuple[str, ...]:
     records = status.split("\0") if "\0" in status else status.splitlines()
     unexpected: list[str] = []
     for record in records:
-        if not record.startswith("?? "):
+        if not (record.startswith("?? ") or record.startswith("!! ")):
             continue
         relative = record[3:]
         if _would_copy_untracked(relative):
@@ -150,13 +151,14 @@ def _require_source_sha(value: str) -> str:
         "--porcelain=v1",
         "-z",
         "--untracked-files=all",
+        "--ignored",
         "--",
         *PACKAGED_SOURCE_PATHS,
     )
     unexpected = _unexpected_untracked_package_paths(package_status)
     if unexpected:
         raise QualificationPackageError(
-            "untracked repository content would enter exact-source package: "
+            "untracked or ignored repository content would enter exact-source package: "
             + ", ".join(unexpected)
         )
     return value
