@@ -1,11 +1,151 @@
 [CmdletBinding()]
 param(
   [string]$WebotsHome = $env:WEBOTS_HOME,
-  [switch]$ValidateOnly
+  [switch]$ValidateOnly,
+  [switch]$ServeAssets,
+  [string]$ServeAssetsRoot,
+  [string]$ServeAssetsReadyFile,
+  [int]$ServeAssetsParentPid = 0
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+function Write-WebeeBlocksReply {
+  param(
+    [System.Net.Sockets.NetworkStream]$Stream,
+    [int]$Status,
+    [string]$Reason,
+    [string]$ContentType,
+    [byte[]]$Body
+  )
+  $header = "HTTP/1.1 $Status $Reason`r`n" +
+            "Content-Type: $ContentType`r`n" +
+            "Content-Length: $($Body.Length)`r`n" +
+            "Cache-Control: no-store, no-cache, must-revalidate`r`n" +
+            "Pragma: no-cache`r`n" +
+            "Access-Control-Allow-Origin: *`r`n" +
+            "Connection: close`r`n`r`n"
+  $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
+  $Stream.Write($headerBytes, 0, $headerBytes.Length)
+  if ($Body.Length -gt 0) {
+    $Stream.Write($Body, 0, $Body.Length)
+  }
+  $Stream.Flush()
+}
+
+function Get-WebeeBlocksContentType {
+  param([string]$Path)
+  switch ([System.IO.Path]::GetExtension($Path).ToLowerInvariant()) {
+    '.html' { return 'text/html; charset=utf-8' }
+    '.css' { return 'text/css; charset=utf-8' }
+    '.js' { return 'application/javascript; charset=utf-8' }
+    '.json' { return 'application/json; charset=utf-8' }
+    '.png' { return 'image/png' }
+    '.jpg' { return 'image/jpeg' }
+    '.jpeg' { return 'image/jpeg' }
+    '.svg' { return 'image/svg+xml' }
+    '.ico' { return 'image/x-icon' }
+    default { return 'application/octet-stream' }
+  }
+}
+
+function Invoke-WebeeBlocksAssetServer {
+  param(
+    [string]$Root,
+    [string]$ReadyFile,
+    [int]$ParentProcessId
+  )
+
+  if ($ParentProcessId -le 0) {
+    throw 'Le serveur HTTP local exige un processus parent valide.'
+  }
+  $rootPath = [System.IO.Path]::GetFullPath($Root)
+  if (-not (Test-Path -LiteralPath $rootPath -PathType Container)) {
+    throw "Racine HTTP locale introuvable : $rootPath"
+  }
+  $rootPrefix = $rootPath + [System.IO.Path]::DirectorySeparatorChar
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  try {
+    $listener.Start()
+    $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+    $readyTempFile = $ReadyFile + '.tmp'
+    Remove-Item -LiteralPath $readyTempFile -Force -ErrorAction SilentlyContinue
+    [System.IO.File]::WriteAllText($readyTempFile, [string]$port, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::Move($readyTempFile, $ReadyFile)
+
+    while ($true) {
+      $parent = Get-Process -Id $ParentProcessId -ErrorAction SilentlyContinue
+      if ($null -eq $parent) { break }
+      if (-not $listener.Pending()) {
+        Start-Sleep -Milliseconds 50
+        continue
+      }
+
+      $client = $listener.AcceptTcpClient()
+      $stream = $null
+      $reader = $null
+      try {
+        $stream = $client.GetStream()
+        $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
+        $requestLine = $reader.ReadLine()
+        if ([string]::IsNullOrWhiteSpace($requestLine)) {
+          continue
+        }
+        while ($true) {
+          $headerLine = $reader.ReadLine()
+          if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break }
+        }
+        $parts = $requestLine.Split(' ')
+        if ($parts.Count -lt 2 -or $parts[0] -ne 'GET') {
+          Write-WebeeBlocksReply $stream 405 'Method Not Allowed' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Method Not Allowed'))
+          continue
+        }
+
+        $requestUri = [System.Uri]::new('http://127.0.0.1' + $parts[1])
+        $relative = [System.Uri]::UnescapeDataString($requestUri.AbsolutePath.TrimStart('/')).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+        if ([string]::IsNullOrWhiteSpace($relative)) {
+          Write-WebeeBlocksReply $stream 404 'Not Found' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Not Found'))
+          continue
+        }
+        $target = [System.IO.Path]::GetFullPath((Join-Path $rootPath $relative))
+        if (-not $target.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not (Test-Path -LiteralPath $target -PathType Leaf)) {
+          Write-WebeeBlocksReply $stream 404 'Not Found' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Not Found'))
+          continue
+        }
+        $body = [System.IO.File]::ReadAllBytes($target)
+        Write-WebeeBlocksReply $stream 200 'OK' (Get-WebeeBlocksContentType $target) $body
+      }
+      catch {
+        try {
+          if ($null -ne $stream) {
+            Write-WebeeBlocksReply $stream 500 'Internal Server Error' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Internal Server Error'))
+          }
+        }
+        catch { }
+      }
+      finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+        $client.Close()
+      }
+    }
+  }
+  finally {
+    $listener.Stop()
+  }
+}
+
+if ($ServeAssets) {
+  if ([string]::IsNullOrWhiteSpace($ServeAssetsRoot) -or
+      [string]::IsNullOrWhiteSpace($ServeAssetsReadyFile) -or
+      $ServeAssetsParentPid -le 0) {
+    throw 'Arguments du serveur HTTP local incomplets.'
+  }
+  Invoke-WebeeBlocksAssetServer -Root $ServeAssetsRoot -ReadyFile $ServeAssetsReadyFile -ParentProcessId $ServeAssetsParentPid
+  exit 0
+}
 
 $world = Join-Path $PSScriptRoot 'worlds\crazyflie_runtime_v2.wbt'
 if (-not (Test-Path -LiteralPath $world -PathType Leaf)) {
@@ -33,141 +173,89 @@ function Get-PackagedRobotWindow {
   [PSCustomObject]@{ Name = $name; Root = $root; Html = $html }
 }
 
+function Quote-WebeeBlocksProcessArgument {
+  param([string]$Value)
+  if ($Value.Contains('"')) {
+    throw 'Un chemin du lanceur contient un guillemet non pris en charge.'
+  }
+  return '"' + $Value + '"'
+}
+
 function Start-WebeeBlocksLocalServer {
   param([string]$Root)
 
-  $job = Start-Job -ArgumentList $Root -ScriptBlock {
-    param([string]$ServerRoot)
-    $ErrorActionPreference = 'Stop'
-    Set-StrictMode -Version Latest
-
-    $rootPath = [System.IO.Path]::GetFullPath($ServerRoot)
-    $rootPrefix = $rootPath + [System.IO.Path]::DirectorySeparatorChar
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-    $listener.Start()
-    $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-    Write-Output "WEBEEBLOCKS_LOCAL_SERVER_READY=$port"
-
-    function Write-Reply {
-      param(
-        [System.Net.Sockets.NetworkStream]$Stream,
-        [int]$Status,
-        [string]$Reason,
-        [string]$ContentType,
-        [byte[]]$Body
-      )
-      $header = "HTTP/1.1 $Status $Reason`r`n" +
-                "Content-Type: $ContentType`r`n" +
-                "Content-Length: $($Body.Length)`r`n" +
-                "Cache-Control: no-store, no-cache, must-revalidate`r`n" +
-                "Pragma: no-cache`r`n" +
-                "Access-Control-Allow-Origin: *`r`n" +
-                "Connection: close`r`n`r`n"
-      $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
-      $Stream.Write($headerBytes, 0, $headerBytes.Length)
-      if ($Body.Length -gt 0) {
-        $Stream.Write($Body, 0, $Body.Length)
-      }
-      $Stream.Flush()
-    }
-
-    function Get-ContentType {
-      param([string]$Path)
-      switch ([System.IO.Path]::GetExtension($Path).ToLowerInvariant()) {
-        '.html' { return 'text/html; charset=utf-8' }
-        '.css' { return 'text/css; charset=utf-8' }
-        '.js' { return 'application/javascript; charset=utf-8' }
-        '.json' { return 'application/json; charset=utf-8' }
-        '.png' { return 'image/png' }
-        '.jpg' { return 'image/jpeg' }
-        '.jpeg' { return 'image/jpeg' }
-        '.svg' { return 'image/svg+xml' }
-        '.ico' { return 'image/x-icon' }
-        default { return 'application/octet-stream' }
-      }
-    }
-
-    try {
-      while ($true) {
-        $client = $listener.AcceptTcpClient()
-        $stream = $null
-        $reader = $null
-        try {
-          $stream = $client.GetStream()
-          $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 4096, $true)
-          $requestLine = $reader.ReadLine()
-          if ([string]::IsNullOrWhiteSpace($requestLine)) {
-            continue
-          }
-          while ($true) {
-            $headerLine = $reader.ReadLine()
-            if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break }
-          }
-          $parts = $requestLine.Split(' ')
-          if ($parts.Count -lt 2 -or $parts[0] -ne 'GET') {
-            Write-Reply $stream 405 'Method Not Allowed' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Method Not Allowed'))
-            continue
-          }
-
-          $requestUri = [System.Uri]::new('http://127.0.0.1' + $parts[1])
-          $relative = [System.Uri]::UnescapeDataString($requestUri.AbsolutePath.TrimStart('/')).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
-          if ([string]::IsNullOrWhiteSpace($relative)) {
-            Write-Reply $stream 404 'Not Found' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Not Found'))
-            continue
-          }
-          $target = [System.IO.Path]::GetFullPath((Join-Path $rootPath $relative))
-          if (-not $target.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
-              -not (Test-Path -LiteralPath $target -PathType Leaf)) {
-            Write-Reply $stream 404 'Not Found' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Not Found'))
-            continue
-          }
-          $body = [System.IO.File]::ReadAllBytes($target)
-          Write-Reply $stream 200 'OK' (Get-ContentType $target) $body
-        }
-        catch {
-          try {
-            if ($null -ne $stream) {
-              Write-Reply $stream 500 'Internal Server Error' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Internal Server Error'))
-            }
-          }
-          catch { }
-        }
-        finally {
-          if ($null -ne $reader) { $reader.Dispose() }
-          if ($null -ne $stream) { $stream.Dispose() }
-          $client.Close()
-        }
-      }
-    }
-    finally {
-      $listener.Stop()
-    }
+  if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path -LiteralPath $PSCommandPath -PathType Leaf)) {
+    throw 'Script du lanceur WebeeBlocks introuvable.'
   }
+  $token = [Guid]::NewGuid().ToString('N')
+  $readyFile = Join-Path ([System.IO.Path]::GetTempPath()) "webeeblocks-assets-$token.ready"
+  $errorFile = Join-Path ([System.IO.Path]::GetTempPath()) "webeeblocks-assets-$token.stderr.log"
+  $readyTempFile = $readyFile + '.tmp'
+  Remove-Item -LiteralPath $readyFile, $readyTempFile, $errorFile -Force -ErrorAction SilentlyContinue
 
+  $arguments = @(
+    '-NoLogo',
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    (Quote-WebeeBlocksProcessArgument $PSCommandPath),
+    '-ServeAssets',
+    '-ServeAssetsRoot',
+    (Quote-WebeeBlocksProcessArgument $Root),
+    '-ServeAssetsReadyFile',
+    (Quote-WebeeBlocksProcessArgument $readyFile),
+    '-ServeAssetsParentPid',
+    [string]$PID
+  )
+  $process = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardError $errorFile -PassThru
   $deadline = [DateTime]::UtcNow.AddSeconds(8)
   do {
-    foreach ($line in @(Receive-Job -Job $job -Keep)) {
-      if ([string]$line -match '^WEBEEBLOCKS_LOCAL_SERVER_READY=(\d+)$') {
-        return [PSCustomObject]@{ Job = $job; Port = [int]$Matches[1] }
+    if (Test-Path -LiteralPath $readyFile -PathType Leaf) {
+      $readyText = (Get-Content -LiteralPath $readyFile -Raw).Trim()
+      $port = 0
+      if ([int]::TryParse($readyText, [ref]$port) -and $port -gt 0 -and $port -le 65535) {
+        return [PSCustomObject]@{
+          Process = $process
+          Port = $port
+          ReadyFile = $readyFile
+          ReadyTempFile = $readyTempFile
+          ErrorFile = $errorFile
+        }
       }
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      $process.WaitForExit()
+      Remove-Item -LiteralPath $readyFile, $readyTempFile, $errorFile -Force -ErrorAction SilentlyContinue
+      throw "Port HTTP local invalide : $readyText"
     }
-    if ($job.State -eq 'Failed') {
-      $reason = if ($null -ne $job.ChildJobs[0].JobStateInfo.Reason) { $job.ChildJobs[0].JobStateInfo.Reason.Message } else { 'unknown failure' }
-      throw "Le serveur HTTP local WebeeBlocks a echoue : $reason"
+    $process.Refresh()
+    if ($process.HasExited) {
+      $detail = if (Test-Path -LiteralPath $errorFile -PathType Leaf) { (Get-Content -LiteralPath $errorFile -Raw).Trim() } else { '' }
+      if ([string]::IsNullOrWhiteSpace($detail)) { $detail = "code $($process.ExitCode)" }
+      Remove-Item -LiteralPath $readyFile, $readyTempFile, $errorFile -Force -ErrorAction SilentlyContinue
+      throw "Le serveur HTTP local WebeeBlocks a echoue : $detail"
     }
     Start-Sleep -Milliseconds 100
   } while ([DateTime]::UtcNow -lt $deadline)
 
-  Stop-Job -Job $job -ErrorAction SilentlyContinue
-  Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+  Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+  $process.WaitForExit()
+  Remove-Item -LiteralPath $readyFile, $readyTempFile, $errorFile -Force -ErrorAction SilentlyContinue
   throw 'Le serveur HTTP local WebeeBlocks ne s est pas initialise.'
 }
 
 function Stop-WebeeBlocksLocalServer {
   param($Server)
   if ($null -eq $Server) { return }
-  Stop-Job -Job $Server.Job -ErrorAction SilentlyContinue
-  Remove-Job -Job $Server.Job -Force -ErrorAction SilentlyContinue
+  if ($null -ne $Server.Process) {
+    $Server.Process.Refresh()
+    if (-not $Server.Process.HasExited) {
+      Stop-Process -Id $Server.Process.Id -Force -ErrorAction SilentlyContinue
+      $Server.Process.WaitForExit()
+    }
+  }
+  Remove-Item -LiteralPath $Server.ReadyFile, $Server.ReadyTempFile, $Server.ErrorFile -Force -ErrorAction SilentlyContinue
 }
 
 function Convert-RobotWindowChildUrls {
@@ -286,6 +374,14 @@ if ([string]::IsNullOrWhiteSpace($webots)) {
 $robotWindow = Get-PackagedRobotWindow -WorldText $worldText
 
 if ($ValidateOnly) {
+  $launcherText = [System.IO.File]::ReadAllText($PSCommandPath, [System.Text.Encoding]::UTF8)
+  foreach ($jobVerb in @('Start', 'Receive', 'Stop', 'Remove')) {
+    $forbiddenJobCommand = $jobVerb + '-Job'
+    if ($launcherText -match ('(?m)\b' + [regex]::Escape($forbiddenJobCommand) + '\b')) {
+      throw "Le lanceur de classe ne doit pas executer de job PowerShell : $forbiddenJobCommand"
+    }
+  }
+
   $server = $null
   try {
     $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
@@ -308,7 +404,7 @@ if ($ValidateOnly) {
   finally {
     Stop-WebeeBlocksLocalServer -Server $server
   }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-connection-close"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-connection-close process_isolated=true"
   exit 0
 }
 
