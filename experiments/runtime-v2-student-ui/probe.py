@@ -213,7 +213,6 @@ PROFILE_FIELD_INSTALL=r'''(() => {
    const flyoutWorkspace=flyout&&flyout.getWorkspace&&flyout.getWorkspace();
    if(flyoutWorkspace)flyoutWorkspace.getAllBlocks(false).forEach(filterBlock);
  };
- definition.init=function(){ originalInit.call(this); filterBlock(this); };
  window.__profileFieldExperiment={genericOptions:genericOptions,setAllowed:setAllowed,filterBlock:filterBlock};
  return true;
 })()'''
