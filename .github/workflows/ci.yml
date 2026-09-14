@@ -106,6 +106,57 @@ jobs:
         with:
           path: .ci-support/qualification-runtime
           key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
+      - name: Package exact physical qualification bundle
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/physical-qualification
+          source=.ci-support/qualification-runtime/cflib-source
+          wheelhouse=.ci-support/qualification-runtime/wheels
+          target_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          output=ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz
+          python3 tools/physical/package_physical_qualification.py \
+            "$PWD" "$source" "$wheelhouse" "$output" \
+            --source-sha "$target_sha"
+          sha256sum "$output" > "$output.sha256"
+
+      - name: Verify exact physical qualification bundle
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/test_physical_qualification_bundle.py
+          artifact=ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz
+          sha256sum -c "$artifact.sha256"
+          extract="$RUNNER_TEMP/physical-qualification-bundle"
+          rm -rf "$extract"
+          mkdir -p "$extract"
+          tar -xzf "$artifact" -C "$extract"
+          bundle="$extract/webeeblocks-physical-qualification"
+          python3 - <<'PY' "$bundle/QUALIFICATION_MANIFEST.json" "${{ github.event.pull_request.head.sha || github.sha }}"
+          import json
+          from pathlib import Path
+          import sys
+          manifest = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+          if manifest.get('sourceSha') != sys.argv[2]:
+              raise SystemExit('FAIL: physical qualification bundle source SHA mismatch')
+          if manifest.get('executionAuthority') is not False:
+              raise SystemExit('FAIL: physical qualification bundle crossed authority boundary')
+          print('PASS: physical qualification bundle manifest binds exact non-authority source')
+          PY
+          bash "$bundle/Run-Physical-Qualification.sh" --help
+
+      - name: Upload exact physical qualification bundle
+        if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Physical-Qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz
+            ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.tar.gz.sha256
+          if-no-files-found: error
       # END PHYSICAL_QUALIFICATION_RUNTIME_SUPPORT
 
       - name: Restore exact historical Boost cache for maintenance runs
@@ -155,6 +206,7 @@ jobs:
           python3 tools/ci/test_evidence_publication.py
           python3 tools/ci/test_historical_boost_support.py
           python3 tools/ci/test_physical_qualification_runtime_lock.py
+          python3 tools/ci/test_physical_qualification_bundle.py
       - name: Select required suites
         id: scope
         run: >-
