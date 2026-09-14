@@ -160,9 +160,21 @@ $launcherArgs = @(
   '-lshell32',
   '-luser32'
 )
-& $gxx @launcherArgs
-if ($LASTEXITCODE -ne 0) {
-  throw "Native WebeeBlocks launcher build failed with exit code $LASTEXITCODE."
+# g++.exe is invoked by absolute path, but its cc1plus/linker children still
+# require the pinned Webots MSYS2 bin directories on PATH. Keep the native
+# launcher build inside the same deterministic toolchain environment as the
+# controller build, then restore the caller environment unconditionally.
+try {
+  $env:WEBOTS_HOME = $webotsRoot
+  $env:PATH = ((Join-Path $webotsRoot 'msys64\mingw64\bin'), (Join-Path $webotsRoot 'msys64\usr\bin'), $oldPath) -join ';'
+  & $gxx @launcherArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Native WebeeBlocks launcher build failed with exit code $LASTEXITCODE."
+  }
+}
+finally {
+  $env:WEBOTS_HOME = $oldWebotsHome
+  $env:PATH = $oldPath
 }
 if (-not (Test-Path -LiteralPath $launcherBinary -PathType Leaf) -or (Get-Item $launcherBinary).Length -le 0) {
   throw 'Native WebeeBlocks launcher build produced no executable.'
