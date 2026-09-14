@@ -63,11 +63,13 @@ jobs:
               'windows-low-end': 'WebeeBlocks-Windows-R2025a',
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
               'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
+              'physical-capabilities-representative': 'WebeeBlocks-Physical-Qualification',
           }
           PURPOSES = {
               'windows-low-end': {'checkpoint', 'release'},
               's3-props-off': {'checkpoint'},
               'physical-capabilities-readonly': {'checkpoint'},
+              'physical-capabilities-representative': {'checkpoint'},
           }
 
           def get_commit(sha):
@@ -187,9 +189,11 @@ jobs:
       target_sha: ${{ needs.validate.outputs.target_sha }}
 
   physical:
-    name: Prepare deterministic physical capability probe
+    name: Prepare deterministic physical checkpoint artifact
     needs: validate
-    if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
+    if: >-
+      needs.validate.outputs.test_profile == 'physical-capabilities-readonly' ||
+      needs.validate.outputs.test_profile == 'physical-capabilities-representative'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -197,6 +201,7 @@ jobs:
           ref: ${{ needs.validate.outputs.target_sha }}
 
       - name: Checkout exact cflib source
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
         uses: actions/checkout@v4
         with:
           repository: bitcraze/crazyflie-lib-python
@@ -205,6 +210,7 @@ jobs:
           fetch-depth: 1
 
       - name: Validate probe and package exact offline support closure
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
         shell: bash
         run: |
           set -euo pipefail
@@ -263,10 +269,73 @@ jobs:
           PYTHONPATH="$ambient" "$bundle/run_reference_probe.sh" --verify-environment
 
       - name: Upload deterministic physical capability probe
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-readonly'
         uses: actions/upload-artifact@v4
         with:
           name: WebeeBlocks-Physical-Capability-Probe
           path: ci-artifacts/physical-capability-probe/
+          if-no-files-found: error
+
+      - name: Restore exact physical qualification runtime support
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+        id: representative-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/qualification-runtime
+          key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
+      - name: Restore exact prepared physical qualification inputs
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+        id: representative-package-input-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            plugins/robot_windows/blockly_v2/vendor
+            controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          key: qualification-package-inputs-r2025a-f0023e30daf38b17-${{ hashFiles('tools/prepare_runtime_v2.sh', 'plugins/robot_windows/blockly_v2/package.json', 'plugins/robot_windows/blockly_v2/package-lock.json', 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png') }}-${{ hashFiles('controllers/crazyflie_runtime_v2/Makefile', 'controllers/crazyflie_runtime_v2/*.c', 'controllers/crazyflie_runtime_v2/*.cpp', 'controllers/crazyflie_runtime_v2/*.h', 'controllers/crazyflie_square/pid_controller.c', 'controllers/crazyflie_square/pid_controller.h') }}-${{ hashFiles('tools/physical/qualification_generated_lock.json') }}
+
+      - name: Fail closed unless exact physical qualification support is restored
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.representative-runtime-cache.outputs.cache-hit }}" = "true"
+          test "${{ steps.representative-package-input-cache.outputs.cache-hit }}" = "true"
+          source=.ci-support/qualification-runtime/cflib-source
+          wheelhouse=.ci-support/qualification-runtime/wheels
+          test -d "$source/.git"
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
+          test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
+          test -x controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          python3 tools/physical/verify_qualification_runtime.py "$source" "$wheelhouse"
+          python3 tools/physical/verify_qualification_generated_inputs.py
+
+      - name: Build and verify exact representative physical qualification artifact
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha="${{ needs.validate.outputs.target_sha }}"
+          test "$(git rev-parse HEAD)" = "$target_sha"
+          source=.ci-support/qualification-runtime/cflib-source
+          wheelhouse=.ci-support/qualification-runtime/wheels
+          python3 tools/physical/package_physical_qualification.py \
+            --source-sha "$target_sha" \
+            --cflib-root "$source" \
+            --wheelhouse "$wheelhouse" \
+            --output-root ci-artifacts/physical-qualification
+          bundle=ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification
+          python3 tools/physical/verify_physical_qualification_package.py "$bundle"
+          python3 tools/ci/test_physical_qualification_package.py "$bundle"
+
+      - name: Upload exact representative physical qualification artifact
+        if: needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-Physical-Qualification
+          path: ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification/
+          include-hidden-files: true
           if-no-files-found: error
 
   publish:
@@ -277,7 +346,8 @@ jobs:
       needs.validate.outputs.target_sha != '' &&
       needs.runtime.result == 'success' &&
       needs.webots.result == 'success' &&
-      (needs.validate.outputs.test_profile != 'physical-capabilities-readonly' ||
+      ((needs.validate.outputs.test_profile != 'physical-capabilities-readonly' &&
+        needs.validate.outputs.test_profile != 'physical-capabilities-representative') ||
        needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
