@@ -14,7 +14,12 @@ PACKAGING = ROOT / "packaging" / "windows"
 class WindowsReleaseContractTests(unittest.TestCase):
     def test_robot_window_bridge_is_local_pinned_and_fail_safe(self) -> None:
         main = (BLOCKLY / "main.js").read_text(encoding="utf-8")
-        self.assertIn("import('./webots/RobotWindow.js')", main)
+        self.assertIn("document.currentScript && document.currentScript.src", main)
+        self.assertIn(
+            "import(new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href)",
+            main,
+        )
+        self.assertNotIn("import('./webots/RobotWindow.js')", main)
         self.assertNotIn("cyberbotics.com/wwi", main)
         robot_window = (BLOCKLY / "webots" / "RobotWindow.js").read_text(encoding="utf-8")
         requests = (BLOCKLY / "webots" / "request_methods.js").read_text(encoding="utf-8")
