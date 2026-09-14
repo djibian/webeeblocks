@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 from pathlib import Path
 import re
 import shutil
@@ -25,8 +26,11 @@ EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
 RUNTIME = "ubuntu-22.04-python-3.10-x86_64"
 PROFILE = "x3-independent-props-off"
 BUNDLE_NAME = "WebeeBlocks-X3-Characterization"
+MANIFEST_NAME = "MANIFEST.json"
+MANIFEST_FORMAT = "webeeblocks-x3-characterization-manifest-v1"
 LOCK = ROOT / "tools" / "physical" / "reference_probe_lock.txt"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
+VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 CAPTURE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "capture_independent_inputs.py"
 
 
@@ -135,11 +139,21 @@ def copy_file(source: Path, destination: Path, *, executable: bool = False) -> N
 
 
 def write_manifest(bundle: Path) -> None:
-    lines = []
-    for path in sorted(p for p in bundle.rglob("*") if p.is_file() and p.name != "SHA256SUMS"):
+    files = []
+    for path in sorted(p for p in bundle.rglob("*") if p.is_file() and p.name != MANIFEST_NAME):
         relative = path.relative_to(bundle).as_posix()
-        lines.append(f"{sha256(path)}  {relative}")
-    (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        files.append(
+            {
+                "path": relative,
+                "size": path.stat().st_size,
+                "sha256": sha256(path),
+            }
+        )
+    manifest = {"format": MANIFEST_FORMAT, "files": files}
+    (bundle / MANIFEST_NAME).write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: Path, output_root: Path) -> Path:
@@ -160,6 +174,7 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(firmware_bin, bundle / "cf2.bin")
     copy_file(CAPTURE, bundle / "capture_independent_inputs.py", executable=True)
     copy_file(RUNNER, bundle / "run_x3_independent_capture.sh", executable=True)
+    copy_file(VERIFIER, bundle / "verify_x3_characterization_bundle.py", executable=True)
     copy_file(LOCK, bundle / "reference_probe_lock.txt")
     export_cflib(cflib_root, bundle / "cflib-source")
     (bundle / "wheels").mkdir()
