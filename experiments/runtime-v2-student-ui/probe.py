@@ -42,17 +42,12 @@ class Cdp:
         self.call('Input.dispatchMouseEvent',{'type':'mousePressed','x':x,'y':y,'button':'left','clickCount':1})
         self.call('Input.dispatchMouseEvent',{'type':'mouseReleased','x':x,'y':y,'button':'left','clickCount':1})
     def hover(self,rect):
-        target_x=rect['x']+rect['width']/2; target_y=rect['y']+rect['height']/2
-        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':1,'y':1})
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['outsideX'],'y':rect['outsideY']})
         time.sleep(.1)
-        for step in range(1,9):
-            fraction=step/8
-            self.call('Input.dispatchMouseEvent',{
-                'type':'mouseMoved',
-                'x':1+(target_x-1)*fraction,
-                'y':1+(target_y-1)*fraction,
-            })
-            time.sleep(.04)
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['entryX'],'y':rect['entryY']})
+        time.sleep(.12)
+        self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':rect['settleX'],'y':rect['settleY']})
+        time.sleep(.04)
     def drag(self,rect,target_x,target_y,steps=12):
         start_x=rect['x']+rect['width']/2; start_y=rect['y']+rect['height']/2
         self.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':start_x,'y':start_y})
@@ -166,15 +161,36 @@ REPEAT_HOVER_RECT=r'''(() => {
  const repeatPath=repeatRoot.querySelector('.blocklyPath');
  if(!repeatPath)throw new Error('rendered repeat tooltip-bound SVG path missing for hover');
  const rb=repeatRoot.getBoundingClientRect();
- for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
-   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
+ const pathHit=(x,y)=>{
+   const hit=document.elementFromPoint(x,y);
+   return hit&&(hit===repeatPath||repeatPath.contains(hit));
+ };
+ for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=2){
+   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=2){
+     if(!pathHit(x,y))continue;
+     const neighbours=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+     const settle=neighbours.find(([sx,sy])=>pathHit(sx,sy));
+     if(!settle)continue;
+     const outsideCandidates=[
+       [Math.max(1,Math.floor(rb.left)-8),y],
+       [Math.min(innerWidth-2,Math.ceil(rb.right)+8),y],
+       [x,Math.max(1,Math.floor(rb.top)-8)],
+       [x,Math.min(innerHeight-2,Math.ceil(rb.bottom)+8)],
+     ];
+     const outside=outsideCandidates.find(([ox,oy])=>{
+       const hit=document.elementFromPoint(ox,oy);
+       return hit&&!repeatRoot.contains(hit);
+     });
+     if(!outside)continue;
      const hit=document.elementFromPoint(x,y);
-     if(hit&&(hit===repeatPath||repeatPath.contains(hit))){
-       return {x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
-     }
+     return {
+       x:x-1,y:y-1,width:2,height:2,
+       entryX:x,entryY:y,settleX:settle[0],settleY:settle[1],outsideX:outside[0],outsideY:outside[1],
+       hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')
+     };
    }
  }
- throw new Error('no real hit-tested tooltip-bound path point on existing repeat block');
+ throw new Error('no causal outside-to-inside hover path on existing repeat block');
 })()'''
 
 VISIBLE_OVERLAY=r'''(() => {
@@ -383,9 +399,8 @@ def main():
         time.sleep(.05)
     if blocking_overlay:
         raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
-    # Re-hit-test after the dropdown has actually closed. A stale pre-menu
-    # coordinate can remain under the transient widget overlay, causing the
-    # synthetic mouse move to be consumed without ever entering the real block.
+    # Re-hit-test after the dropdown has actually closed and construct a causal
+    # outside -> tooltip-bound path entry -> settled in-path move sequence.
     repeat_after_close=c.eval(REPEAT_HOVER_RECT)
     c.hover(repeat_after_close)
     tooltip=[]
