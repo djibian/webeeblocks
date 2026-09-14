@@ -324,7 +324,7 @@ std::string url_encode_path(const std::string &value) {
 
 std::string rewrite_html(const std::string &html, const fs::path &plugin_root,
                          const fs::path &package_root, unsigned short port) {
-  static const std::regex attr(R"((src|href)="([^"]+)")", std::regex::icase);
+  static const std::regex attr(R"WB((src|href)="([^"]+)")WB", std::regex::icase);
   static const std::regex scheme(R"(^[A-Za-z][A-Za-z0-9+.-]*:)");
   std::string output;
   size_t cursor = 0;
@@ -363,7 +363,7 @@ std::string rewrite_html(const std::string &html, const fs::path &plugin_root,
 
 std::string canonical_window_name(const std::string &world) {
   static const std::regex line(
-      R"((?:^|\r?\n)\s*window\s+"(blockly_v2_[0-9a-f]{16})"\s*(?:\r?\n|$))");
+      R"WB((?:^|\r?\n)\s*window\s+"(blockly_v2_[0-9a-f]{16})"\s*(?:\r?\n|$))WB");
   std::sregex_iterator it(world.begin(), world.end(), line), end;
   if (it == end)
     throw std::runtime_error("packaged world has no content-addressed Robot Window");
