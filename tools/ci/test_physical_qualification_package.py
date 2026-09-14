@@ -125,19 +125,23 @@ def verify_static_contract() -> None:
         "include-hidden-files: true",
     ):
         require(required in workflow, f"canonical workflow missing package contract: {required}")
-    package_cache = workflow.split(
+    restore_cache = workflow.split(
         "- name: Restore exact prepared qualification package inputs", 1
+    )[1].split("- uses: actions/setup-node@v4", 1)[0]
+    save_cache = workflow.split(
+        "- name: Save exact prepared qualification package inputs for maintenance runs", 1
     )[1].split("- name: Fail closed unless exact qualification package inputs are restored", 1)[0]
-    require(
-        "plugins/robot_windows/blockly_v2/webots" not in package_cache,
-        "prepared-input cache must never restore tracked candidate Webots bridge bytes",
-    )
-    for required in (
-        "plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js",
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
-    ):
-        require(required in package_cache, f"generated vendor cache key missing source input: {required}")
+    for cache_block in (restore_cache, save_cache):
+        require(
+            "plugins/robot_windows/blockly_v2/webots" not in cache_block,
+            "prepared-input cache must never restore tracked candidate Webots bridge bytes",
+        )
+        for required in (
+            "plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js",
+            "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
+            "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
+        ):
+            require(required in cache_block, f"generated vendor cache key missing source input: {required}")
     require(
         "ci-artifacts/physical-qualification/WebeeBlocks-Physical-Qualification.zip"
         not in workflow,
