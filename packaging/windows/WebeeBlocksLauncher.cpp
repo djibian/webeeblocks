@@ -321,17 +321,9 @@ std::string rewrite_html(const std::string &html, const fs::path &plugin_root,
   output.append(html, cursor, std::string::npos);
   if (count < 10)
     throw std::runtime_error("Robot Window dependency set is unexpectedly small");
-
-  fs::path plugin_relative = fs::relative(plugin_root, package_root);
-  std::string proxy_base =
-      "http://127.0.0.1:" + std::to_string(port) + "/" +
-      url_encode_path(plugin_relative.generic_u8string()) + "/";
   size_t head = output.find("<head>");
-  if (head == std::string::npos)
-    throw std::runtime_error("Robot Window document has no head element");
-  output.insert(head + 6,
-                "<base href=\"" + proxy_base +
-                    "\"><link rel=\"icon\" href=\"data:,\">");
+  if (head != std::string::npos)
+    output.insert(head + 6, "<link rel=\"icon\" href=\"data:,\">");
   return output;
 }
 
@@ -554,14 +546,6 @@ int run(bool validate_only) {
 
   std::string proxied_html =
       rewrite_html(canonical_html_bytes, canonical_plugin, package_root, server.port);
-  std::string canonical_plugin_relative =
-      fs::relative(canonical_plugin, package_root).generic_u8string();
-  std::string expected_proxy_base =
-      "http://127.0.0.1:" + std::to_string(server.port) + "/" +
-      url_encode_path(canonical_plugin_relative) + "/";
-  if (proxied_html.find("<base href=\"" + expected_proxy_base + "\">") ==
-      std::string::npos)
-    throw std::runtime_error("Robot Window dynamic media base does not use local proxy");
   write_bytes(session.plugin_dir / widen(session_name + ".html"), proxied_html);
   std::string session_world =
       replace_once(world_text, "window \"" + canonical_name + "\"",
