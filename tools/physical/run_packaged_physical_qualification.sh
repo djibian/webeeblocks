@@ -7,6 +7,11 @@ LOCK="$ROOT/tools/physical/qualification_runtime_lock.txt"
 WHEELHOUSE="$ROOT/support/wheels"
 CFLIB="$ROOT/support/cflib-source"
 
+# Verification and later imports must be observational with respect to the
+# manifest-covered source tree.
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONNOUSERSITE=1
+
 python3 "$ROOT/tools/physical/verify_physical_qualification_package.py" "$ROOT" --manifest-only
 
 python3 - <<'PY'
@@ -16,6 +21,23 @@ if sys.version_info[:2] != (3, 10):
 if platform.system() != "Linux" or platform.machine() != "x86_64":
     raise SystemExit(f"Linux x86_64 required, got {platform.system()} {platform.machine()}")
 PY
+
+if [[ -n "${WEBOTS:-}" ]]; then
+  WEBOTS_BIN="$WEBOTS"
+elif [[ -n "${WEBOTS_HOME:-}" ]]; then
+  WEBOTS_BIN="$WEBOTS_HOME/webots"
+else
+  WEBOTS_BIN="$(command -v webots || true)"
+fi
+if [[ -z "$WEBOTS_BIN" || ! -x "$WEBOTS_BIN" ]]; then
+  echo "FAIL: exact Webots R2025a executable not found; set WEBOTS or WEBOTS_HOME" >&2
+  exit 1
+fi
+webots_version="$($WEBOTS_BIN --version 2>&1 || true)"
+if [[ "$webots_version" != *R2025a* ]]; then
+  echo "FAIL: Webots R2025a required; observed: $webots_version" >&2
+  exit 1
+fi
 
 rm -rf "$VENV"
 python3 -m venv "$VENV"
@@ -37,6 +59,5 @@ test "${#wheels[@]}" -eq 7
 
 chmod u+x "$ROOT/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
 
-export PYTHONNOUSERSITE=1
 export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
-exec "$VENV/bin/python" "$ROOT/tools/physical/launch_physical_qualification.py" "$@"
+exec "$VENV/bin/python" "$ROOT/tools/physical/launch_physical_qualification.py" "$@" --webots "$WEBOTS_BIN"
