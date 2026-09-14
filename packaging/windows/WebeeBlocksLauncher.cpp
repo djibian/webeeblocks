@@ -22,6 +22,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
+constexpr DWORD kClientIoTimeoutMs = 500;
+
 std::string read_bytes(const fs::path &path) {
   std::ifstream stream(path, std::ios::binary);
   if (!stream)
@@ -175,8 +177,12 @@ void serve_client(SOCKET client, const fs::path &root) {
     const int got = recv(client, buffer, sizeof(buffer), 0);
     if (got == 0)
       return;
-    if (got == SOCKET_ERROR)
+    if (got == SOCKET_ERROR) {
+      const int error = WSAGetLastError();
+      if (error == WSAETIMEDOUT || error == WSAEWOULDBLOCK)
+        return;
       throw std::runtime_error("socket receive failed");
+    }
     request.append(buffer, static_cast<size_t>(got));
   }
 
@@ -271,6 +277,16 @@ struct Server {
     SOCKET client = accept(listener, nullptr, nullptr);
     if (client == INVALID_SOCKET)
       throw std::runtime_error("local server accept failed");
+    const DWORD client_timeout = kClientIoTimeoutMs;
+    if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
+                   reinterpret_cast<const char *>(&client_timeout),
+                   sizeof(client_timeout)) == SOCKET_ERROR ||
+        setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
+                   reinterpret_cast<const char *>(&client_timeout),
+                   sizeof(client_timeout)) == SOCKET_ERROR) {
+      closesocket(client);
+      throw std::runtime_error("local client timeout configuration failed");
+    }
     try {
       try {
         serve_client(client, root);
@@ -554,6 +570,33 @@ void prove_aborted_client_is_contained(Server &server) {
     throw std::runtime_error("aborted client was not accepted");
 }
 
+void prove_idle_client_is_contained(Server &server) {
+  SOCKET client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (client == INVALID_SOCKET)
+    throw std::runtime_error("idle-client socket creation failed");
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  address.sin_port = htons(server.port);
+  if (connect(client, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == SOCKET_ERROR) {
+    closesocket(client);
+    throw std::runtime_error("idle-client connection failed");
+  }
+  try {
+    const ULONGLONG started = GetTickCount64();
+    if (!server.serve_one(1000))
+      throw std::runtime_error("idle client was not accepted");
+    const ULONGLONG elapsed = GetTickCount64() - started;
+    if (elapsed > static_cast<ULONGLONG>(kClientIoTimeoutMs) + 1500)
+      throw std::runtime_error("idle client exceeded bounded server lifetime");
+    shutdown(client, SD_BOTH);
+    closesocket(client);
+  } catch (...) {
+    closesocket(client);
+    throw;
+  }
+}
+
 struct SessionFiles {
   fs::path plugin_dir;
   fs::path world;
@@ -611,6 +654,7 @@ int run(bool validate_only) {
   write_bytes(session.world, session_world);
 
   prove_aborted_client_is_contained(server);
+  prove_idle_client_is_contained(server);
 
   const std::string main_css_relative =
       fs::relative(canonical_plugin / L"main.css", package_root).generic_u8string();
