@@ -194,7 +194,7 @@ function Invoke-WebeeBlocksLocalServerRequest {
       }
     }
     catch { }
-    throw
+    return $true
   }
   finally {
     if ($null -ne $reader) { $reader.Dispose() }
@@ -312,6 +312,42 @@ function Assert-LocalServerFile {
   }
 }
 
+function Assert-LocalServerRecoversFromAbortedRequest {
+  param(
+    $Server,
+    [string]$RelativePath,
+    [string]$ExpectedContentType
+  )
+
+  $client = [System.Net.Sockets.TcpClient]::new()
+  try {
+    $client.LingerState = [System.Net.Sockets.LingerOption]::new($true, 0)
+    $client.Connect([System.Net.IPAddress]::Loopback, $Server.Port)
+    $stream = $client.GetStream()
+    $partial = [System.Text.Encoding]::ASCII.GetBytes('GET /aborted-request')
+    $stream.Write($partial, 0, $partial.Length)
+    $stream.Flush()
+  }
+  finally {
+    $client.Close()
+  }
+
+  $deadline = [DateTime]::UtcNow.AddSeconds(5)
+  while (-not $Server.Listener.Pending()) {
+    if ([DateTime]::UtcNow -ge $deadline) {
+      throw 'La requete HTTP interrompue n a pas atteint le serveur local.'
+    }
+    Start-Sleep -Milliseconds 10
+  }
+  if (-not (Invoke-WebeeBlocksLocalServerRequest -Server $Server)) {
+    throw 'Le serveur local n a pas traite la requete HTTP interrompue.'
+  }
+
+  # The aborted client must be contained locally; the same listener/session must
+  # still serve exact packaged bytes to the next valid request.
+  Assert-LocalServerFile -Server $Server -RelativePath $RelativePath -ExpectedContentType $ExpectedContentType
+}
+
 $candidates = [System.Collections.Generic.List[string]]::new()
 foreach ($candidateHome in @($WebotsHome, (Join-Path $env:ProgramFiles 'Webots'))) {
   if ([string]::IsNullOrWhiteSpace($candidateHome)) { continue }
@@ -385,6 +421,7 @@ if ($ValidateOnly) {
         }
       }
       $sessionRelative = "plugins\robot_windows\$($probe.Session.Name)"
+      Assert-LocalServerRecoversFromAbortedRequest -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'main.css') -ExpectedContentType 'text/css'
       Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative "$($probe.Session.Name).html") -ExpectedContentType 'text/html'
       Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'main.css') -ExpectedContentType 'text/css'
       Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'vendor\msg\fr.js') -ExpectedContentType 'application/javascript'
