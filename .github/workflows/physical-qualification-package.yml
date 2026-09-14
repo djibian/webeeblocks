@@ -140,8 +140,7 @@ jobs:
           test "$(find .ci-support/qualification-package-runtime/wheels -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 7
           test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
-          test -s controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
-          chmod u+x controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          test -x controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
 
       - name: Verify exact qualification runtime before packaging
         shell: bash
