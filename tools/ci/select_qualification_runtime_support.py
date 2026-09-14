@@ -37,10 +37,24 @@ def relevant_path(path: str) -> bool:
     if path in {
         "tools/ci/select_qualification_runtime_support.py",
         "tools/ci/test_physical_qualification_runtime_lock.py",
-        "tools/physical/qualification_runtime_lock.txt",
+        "tools/ci/test_physical_qualification_package.py",
+        "tools/prepare_runtime_v2.sh",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
+        "worlds/crazyflie_runtime_v2.wbt",
+        "controllers/crazyflie_square/pid_controller.c",
+        "controllers/crazyflie_square/pid_controller.h",
     }:
         return True
-    return path.startswith("tools/physical/") and path.endswith(".py")
+    return path.startswith(
+        (
+            "tools/physical/",
+            "plugins/robot_windows/blockly_v2/",
+            "plugins/robot_windows/blockly/webeeblocks/",
+            "controllers/crazyflie_runtime_v2/",
+        )
+    )
 
 
 def _git_text(ref: str, path: str) -> str | None:
