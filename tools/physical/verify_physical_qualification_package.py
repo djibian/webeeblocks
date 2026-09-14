@@ -10,12 +10,16 @@ import os
 from pathlib import Path
 import platform
 import re
+import stat
 import subprocess
 import sys
 
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
+EXPECTED_WEBOTS_BUILD_IMAGE_DIGEST = (
+    "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+)
 RUNTIME_TARGET = "ubuntu-22.04-python-3.10-x86_64"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
@@ -32,6 +36,41 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _git_object_oid(kind: bytes, payload: bytes) -> bytes:
+    header = kind + b" " + str(len(payload)).encode("ascii") + b"\0"
+    return hashlib.sha1(header + payload).digest()
+
+
+def _git_tree_oid(root: Path) -> bytes:
+    """Reconstruct the Git SHA-1 tree object from an extracted canonical tree."""
+    if not root.is_dir():
+        raise QualificationPackageVerificationError(f"Git tree root is missing: {root}")
+    entries: list[tuple[bytes, bytes, bytes]] = []
+    for path in root.iterdir():
+        if path.name == ".git":
+            raise QualificationPackageVerificationError("packaged cflib source contains .git metadata")
+        name = os.fsencode(path.name)
+        if path.is_symlink():
+            raise QualificationPackageVerificationError(
+                f"symlink is not supported in canonical cflib source: {path.name}"
+            )
+        if path.is_dir():
+            mode = b"40000"
+            oid = _git_tree_oid(path)
+            sort_name = name + b"/"
+        elif path.is_file():
+            mode = b"100755" if (path.stat().st_mode & stat.S_IXUSR) else b"100644"
+            oid = _git_object_oid(b"blob", path.read_bytes())
+            sort_name = name
+        else:
+            raise QualificationPackageVerificationError(
+                f"unsupported canonical cflib source entry: {path.name}"
+            )
+        entries.append((sort_name, mode + b" " + name + b"\0", oid))
+    payload = b"".join(prefix + oid for _sort, prefix, oid in sorted(entries, key=lambda item: item[0]))
+    return _git_object_oid(b"tree", payload)
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -119,7 +158,9 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
         "wheel_count",
         "blockly_version",
         "webots_version",
-        "execution_authority_packaged",
+        "webots_build_image_digest",
+        "preparation_execution_authority",
+        "execution_requires_teacher_authorization",
     }
     if set(provenance) != required:
         raise QualificationPackageVerificationError(
@@ -146,8 +187,16 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
         raise QualificationPackageVerificationError(
             "prepared browser/Webots provenance changed"
         )
-    if provenance.get("execution_authority_packaged") is not False:
-        raise QualificationPackageVerificationError("package must not claim execution authority")
+    if provenance.get("webots_build_image_digest") != EXPECTED_WEBOTS_BUILD_IMAGE_DIGEST:
+        raise QualificationPackageVerificationError("Webots build image provenance changed")
+    if provenance.get("preparation_execution_authority") is not False:
+        raise QualificationPackageVerificationError(
+            "package preparation must not mint execution authority"
+        )
+    if provenance.get("execution_requires_teacher_authorization") is not True:
+        raise QualificationPackageVerificationError(
+            "packaged execution must retain explicit teacher authorization"
+        )
     cflib = provenance.get("cflib")
     if cflib != {
         "commit": EXPECTED_CFLIB_COMMIT,
@@ -159,6 +208,14 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
         raise QualificationPackageVerificationError(
             "qualification package must contain exactly seven wheels"
         )
+
+    cflib_root = bundle / "support" / "cflib-source"
+    if (cflib_root / ".git").exists():
+        raise QualificationPackageVerificationError("packaged cflib source contains checkout metadata")
+    if _git_tree_oid(cflib_root).hex() != EXPECTED_CFLIB_TREE:
+        raise QualificationPackageVerificationError("packaged cflib source tree hash changed")
+    if _git_tree_oid(cflib_root / "cflib").hex() != EXPECTED_CFLIB_SUBTREE:
+        raise QualificationPackageVerificationError("packaged cflib package subtree hash changed")
 
     lock = bundle / "tools" / "physical" / "qualification_runtime_lock.txt"
     if sha256_file(lock) != provenance.get("qualification_runtime_lock_sha256"):
@@ -223,17 +280,28 @@ def verify_runtime_closure(bundle: Path) -> None:
         raise QualificationPackageVerificationError(
             f"Linux x86_64 required, got {platform.system()} {platform.machine()}"
         )
-    verifier = bundle / "tools" / "physical" / "verify_qualification_runtime.py"
+    physical = bundle / "tools" / "physical"
+    cflib = bundle / "support" / "cflib-source"
+    wheels = bundle / "support" / "wheels"
+    code = r'''
+from pathlib import Path
+import sys
+physical = Path(sys.argv[1]).resolve()
+cflib = Path(sys.argv[2]).resolve()
+wheelhouse = Path(sys.argv[3]).resolve()
+sys.path.insert(0, str(physical))
+import verify_qualification_runtime as runtime
+entries = runtime.parse_lock(physical / "qualification_runtime_lock.txt")
+locked = runtime.verify_wheelhouse(entries, wheelhouse)
+runtime.verify_isolated_imports(cflib, locked)
+print("PASS: canonical packaged cflib tree + locked wheels import effect-free")
+'''
     env = os.environ.copy()
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONNOUSERSITE"] = "1"
     try:
         subprocess.run(
-            [
-                sys.executable,
-                str(verifier),
-                str(bundle / "support" / "cflib-source"),
-                str(bundle / "support" / "wheels"),
-            ],
+            [sys.executable, "-c", code, str(physical), str(cflib), str(wheels)],
             check=True,
             cwd=bundle,
             text=True,
