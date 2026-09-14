@@ -72,13 +72,24 @@ def main(argv: list[str] | None = None) -> int:
         "--no-index",
         "--no-deps",
         "PYTHONNOUSERSITE=1",
+        "PYTHONDONTWRITEBYTECODE=1",
         "verify_physical_qualification_package.py",
         "launch_physical_qualification.py",
         "chmod u+x",
+        "WEBOTS_HOME",
+        "--version",
+        "R2025a",
+        '--webots "$WEBOTS_BIN"',
     ):
         require(required in runner, f"offline runner missing contract: {required}")
     for forbidden in ("curl ", "wget ", "http://", "https://"):
         require(forbidden not in runner, f"offline runner must not use network: {forbidden}")
+
+    verifier = VERIFIER.read_text(encoding="utf-8")
+    require(
+        'env["PYTHONDONTWRITEBYTECODE"] = "1"' in verifier,
+        "effect-free package verification must not mutate manifest-covered sources with bytecode",
+    )
 
     workflow = WORKFLOW.read_text(encoding="utf-8")
     for required in (
