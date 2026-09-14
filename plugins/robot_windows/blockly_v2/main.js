@@ -9,6 +9,7 @@ var runtimeResetPending = false;
 var runtimeStopPending = false;
 var runtimeStopRequested = false;
 var runtimeDebug = null;
+var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 var WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK = 'WEBEEBLOCKS_CREATE_VARIABLE';
@@ -379,7 +380,7 @@ window.onload = async function() {
   window.addEventListener('resize', function() { Blockly.svgResize(workspace); });
   window.dispatchEvent(new CustomEvent('webeeblocks-ui-ready', {detail: {blocklyVersion: Blockly.VERSION, renderer: 'zelos', theme: 'webeeblocksStudent'}}));
   try {
-    var module = await import('./webots/RobotWindow.js');
+    var module = await import(new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href);
     robotWindow = new module.default();
     runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true});
     robotWindow.receive = receiveMessage;
