@@ -31,7 +31,13 @@ MANIFEST_FORMAT = "webeeblocks-x3-characterization-manifest-v1"
 LOCK = ROOT / "tools" / "physical" / "reference_probe_lock.txt"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
-CAPTURE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "capture_independent_inputs.py"
+EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
+CAPTURE = EXPERIMENT / "capture_independent_inputs.py"
+METRIC_REFERENCE = EXPERIMENT / "metric_reference.py"
+PRESSURE_PROBE = EXPERIMENT / "frozen_pressure_probe.py"
+METRIC_REFERENCE_DOC = EXPERIMENT / "METRIC_REFERENCE.md"
+PREREGISTRATION = EXPERIMENT / "X3_CHARACTERIZATION_PREREGISTRATION.md"
+CHECKPOINT_SUPPORT = EXPERIMENT / "X3_CHECKPOINT_SUPPORT.md"
 
 
 class PackageError(RuntimeError):
@@ -175,6 +181,11 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(CAPTURE, bundle / "capture_independent_inputs.py", executable=True)
     copy_file(RUNNER, bundle / "run_x3_independent_capture.sh", executable=True)
     copy_file(VERIFIER, bundle / "verify_x3_characterization_bundle.py", executable=True)
+    copy_file(METRIC_REFERENCE, bundle / "metric_reference.py", executable=True)
+    copy_file(PRESSURE_PROBE, bundle / "frozen_pressure_probe.py", executable=True)
+    copy_file(METRIC_REFERENCE_DOC, bundle / "METRIC_REFERENCE.md")
+    copy_file(PREREGISTRATION, bundle / "X3_CHARACTERIZATION_PREREGISTRATION.md")
+    copy_file(CHECKPOINT_SUPPORT, bundle / "X3_CHECKPOINT_SUPPORT.md")
     copy_file(LOCK, bundle / "reference_probe_lock.txt")
     export_cflib(cflib_root, bundle / "cflib-source")
     (bundle / "wheels").mkdir()
@@ -189,9 +200,11 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
         f"cflib_tree={EXPECTED_CFLIB_TREE}",
         f"cflib_subtree={EXPECTED_CFLIB_SUBTREE}",
         f"runtime={RUNTIME}",
+        "reference_processing=conditional-only",
         "physical_effect=none-during-packaging",
         "firmware_flash=not-performed",
         "execution_authority=none",
+        "human_checkpoint=request-not-enabled",
     ]
     (bundle / "PROVENANCE.txt").write_text("\n".join(provenance) + "\n", encoding="utf-8")
     write_manifest(bundle)
