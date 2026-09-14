@@ -54,6 +54,17 @@ GOOGLE_BLOCK = (
     / "blocks"
     / "crazyflie_v2.js"
 )
+PACKAGED_SOURCE_PATHS = (
+    "tools/physical",
+    "plugins/robot_windows/blockly_v2",
+    "plugins/robot_windows/blockly/webeeblocks",
+    "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+    "worlds/crazyflie_runtime_v2.wbt",
+    "controllers/crazyflie_runtime_v2",
+    "controllers/crazyflie_square/pid_controller.c",
+    "controllers/crazyflie_square/pid_controller.h",
+)
+GENERATED_CONTROLLER_PATH = "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
 
 
 class QualificationPackageError(RuntimeError):
@@ -81,6 +92,42 @@ def _git(*args: str) -> str:
     return result.stdout.strip()
 
 
+def _would_copy_untracked(relative: str) -> bool:
+    path = Path(relative)
+    parts = path.parts
+    if relative == GENERATED_CONTROLLER_PATH:
+        return False
+    if relative.startswith("tools/physical/"):
+        return "__pycache__" not in parts and path.suffix != ".pyc"
+    if relative.startswith("plugins/robot_windows/blockly_v2/"):
+        return (
+            "node_modules" not in parts
+            and "__pycache__" not in parts
+            and path.suffix != ".pyc"
+        )
+    if relative.startswith("plugins/robot_windows/blockly/webeeblocks/"):
+        return "__pycache__" not in parts and path.suffix != ".pyc"
+    if relative.startswith("controllers/crazyflie_runtime_v2/"):
+        return path.name == "Makefile" or path.suffix in {".c", ".cc", ".cpp", ".h", ".hpp"}
+    return relative in {
+        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "worlds/crazyflie_runtime_v2.wbt",
+        "controllers/crazyflie_square/pid_controller.c",
+        "controllers/crazyflie_square/pid_controller.h",
+    }
+
+
+def _unexpected_untracked_package_paths(status: str) -> tuple[str, ...]:
+    unexpected: list[str] = []
+    for line in status.splitlines():
+        if not line.startswith("?? "):
+            continue
+        relative = line[3:]
+        if _would_copy_untracked(relative):
+            unexpected.append(relative)
+    return tuple(sorted(unexpected))
+
+
 def _require_source_sha(value: str) -> str:
     if not re.fullmatch(r"[0-9a-f]{40}", value):
         raise QualificationPackageError("exact lowercase 40-character source SHA required")
@@ -93,6 +140,19 @@ def _require_source_sha(value: str) -> str:
     if tracked_status:
         raise QualificationPackageError(
             "tracked repository content is dirty; exact source SHA cannot bind package bytes"
+        )
+    package_status = _git(
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        *PACKAGED_SOURCE_PATHS,
+    )
+    unexpected = _unexpected_untracked_package_paths(package_status)
+    if unexpected:
+        raise QualificationPackageError(
+            "untracked repository content would enter exact-source package: "
+            + ", ".join(unexpected)
         )
     return value
 
