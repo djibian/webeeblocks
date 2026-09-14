@@ -158,8 +158,10 @@ REPEAT_HOVER_RECT=r'''(() => {
  if(!repeat)throw new Error('rendered repeat block missing for hover');
  const repeatRoot=repeat.getSvgRoot();
  if(!repeatRoot)throw new Error('rendered repeat SVG root missing for hover');
- const repeatPath=repeatRoot.querySelector('.blocklyPath');
- if(!repeatPath)throw new Error('rendered repeat tooltip-bound SVG path missing for hover');
+ const repeatPath=repeat.pathObject&&repeat.pathObject.svgPath;
+ if(!repeatPath)throw new Error('rendered repeat has no Blockly tooltip-bound path object');
+ if(!repeatRoot.contains(repeatPath))throw new Error('Blockly tooltip-bound repeat path is outside rendered repeat root');
+ if(repeatPath.tooltip!==repeat)throw new Error('rendered repeat path is not bound to the repeat tooltip object');
  const rb=repeatRoot.getBoundingClientRect();
  const pathHit=(x,y)=>{
    const hit=document.elementFromPoint(x,y);
@@ -190,7 +192,7 @@ REPEAT_HOVER_RECT=r'''(() => {
      };
    }
  }
- throw new Error('no causal outside-to-inside hover path on existing repeat block');
+ throw new Error('no causal outside-to-inside hover path on exact Blockly tooltip-bound repeat path');
 })()'''
 
 VISIBLE_OVERLAY=r'''(() => {
@@ -399,8 +401,12 @@ def main():
         time.sleep(.05)
     if blocking_overlay:
         raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
-    # Re-hit-test after the dropdown has actually closed and construct a causal
-    # outside -> tooltip-bound path entry -> settled in-path move sequence.
+    # A hidden dropdown is not enough to prove its widget/paint teardown has
+    # settled. Wait for two real browser paint turns before selecting the next
+    # hit target; the final tooltip oracle still requires a real pointer hover.
+    c.eval("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))")
+    # Re-hit-test the exact SVG path object Blockly itself bound to this block's
+    # tooltip, then construct a causal outside -> path -> settled-path trajectory.
     repeat_after_close=c.eval(REPEAT_HOVER_RECT)
     c.hover(repeat_after_close)
     tooltip=[]
