@@ -73,7 +73,7 @@ async function proveProgramInvalidRetryWithoutReset() {
     WebeeBlocksActivities:{BLOCK_CATALOG:{}},
     WebeeBlocksActivityProfiles:{},
     WebeeBlocksWwiBackend:function(){},
-    setTimeout,clearTimeout,Promise
+    URL,setTimeout,clearTimeout,Promise
   };
   vm.createContext(context);
   vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
