@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
 
     verifier = VERIFIER.read_text(encoding="utf-8")
     for required in (
-        'env["PYTHONDWRITEBYTECODE"] = "1"',
+        'env["PYTHONDONTWRITEBYTECODE"] = "1"',
         "_git_tree_oid(cflib_root).hex() != EXPECTED_CFLIB_TREE",
         "runtime.verify_isolated_imports(cflib, locked)",
     ):
