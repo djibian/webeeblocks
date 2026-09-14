@@ -10,6 +10,8 @@ var runtimeStopPending = false;
 var runtimeStopRequested = false;
 var runtimeDebug = null;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
+if (!WEBEEBLOCKS_MAIN_SCRIPT_URL) throw new Error('WebeeBlocks main script URL unavailable');
+var WEBEEBLOCKS_MEDIA_URL = new URL('./vendor/media/', WEBEEBLOCKS_MAIN_SCRIPT_URL).href;
 
 var WEBEEBLOCKS_WORKSPACE_SCALE = 0.90;
 var WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK = 'WEBEEBLOCKS_CREATE_VARIABLE';
@@ -368,7 +370,7 @@ window.onload = async function() {
     toolbox: buildToolbox(runtimeProfile), renderer: 'zelos', theme: WebeeBlocksStudentTheme, scrollbars: true,
     move: {scrollbars: true, drag: true, wheel: true},
     zoom: {controls: false, wheel: true, startScale: WEBEEBLOCKS_WORKSPACE_SCALE, maxScale: 1.40, minScale: 0.55, scaleSpeed: 1.10, pinch: true},
-    trashcan: true, media: 'vendor/media/', sounds: false
+    trashcan: true, media: WEBEEBLOCKS_MEDIA_URL, sounds: false
   });
   if (typeof workspace.registerButtonCallback !== 'function' || !Blockly.Variables || typeof Blockly.Variables.createVariableButtonHandler !== 'function')
     throw new Error('Blockly variable creation callback unavailable');
