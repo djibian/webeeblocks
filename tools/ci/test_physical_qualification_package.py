@@ -33,50 +33,7 @@ def run_verify(bundle: Path, *, success: bool) -> None:
         raise AssertionError("package verifier accepted a mutated package")
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bundle", type=Path)
-    args = parser.parse_args(argv)
-    bundle = args.bundle.resolve()
-
-    run_verify(bundle, success=True)
-
-    source_sha = bundle / "SOURCE_SHA"
-    original = source_sha.read_bytes()
-    try:
-        source_sha.write_bytes(original + b"x")
-        run_verify(bundle, success=False)
-    finally:
-        source_sha.write_bytes(original)
-
-    extra = bundle / "unexpected-controller-or-dependency.txt"
-    try:
-        extra.write_text("unexpected\n", encoding="utf-8")
-        run_verify(bundle, success=False)
-    finally:
-        extra.unlink(missing_ok=True)
-
-    run_verify(bundle, success=True)
-
-    manifest = (bundle / "SHA256SUMS.json").read_text(encoding="utf-8")
-    require(
-        manifest.count(".whl") == 7,
-        "package manifest must contain exactly seven locked wheels",
-    )
-    require("/.git/" not in manifest and "/.git\"" not in manifest, "package must omit checkout Git metadata")
-    require(not (bundle / "support" / "cflib-source" / ".git").exists(), "canonical cflib source must omit .git")
-
-    provenance = (bundle / "PROVENANCE.json").read_text(encoding="utf-8")
-    require(
-        '"preparation_execution_authority": false' in provenance,
-        "package preparation must remain non-authority",
-    )
-    require(
-        '"execution_requires_teacher_authorization": true' in provenance,
-        "packaged execution must retain teacher authorization",
-    )
-    require(WEBOTS_IMAGE_DIGEST in provenance, "package provenance must bind exact Webots build image")
-
+def verify_static_contract() -> None:
     runner = RUNNER.read_text(encoding="utf-8")
     for required in (
         "--no-index",
@@ -142,9 +99,61 @@ def main(argv: list[str] | None = None) -> int:
     )
     require("restore-keys:" not in workflow, "package caches must be exact-key only")
 
-    print(
-        "PASS: exact offline physical qualification package, canonical provenance, mutation rejection and no-checkpoint CI contract"
+
+def verify_built_bundle(bundle: Path) -> None:
+    run_verify(bundle, success=True)
+
+    source_sha = bundle / "SOURCE_SHA"
+    original = source_sha.read_bytes()
+    try:
+        source_sha.write_bytes(original + b"x")
+        run_verify(bundle, success=False)
+    finally:
+        source_sha.write_bytes(original)
+
+    extra = bundle / "unexpected-controller-or-dependency.txt"
+    try:
+        extra.write_text("unexpected\n", encoding="utf-8")
+        run_verify(bundle, success=False)
+    finally:
+        extra.unlink(missing_ok=True)
+
+    run_verify(bundle, success=True)
+
+    manifest = (bundle / "SHA256SUMS.json").read_text(encoding="utf-8")
+    require(
+        manifest.count(".whl") == 7,
+        "package manifest must contain exactly seven locked wheels",
     )
+    require("/.git/" not in manifest and "/.git\"" not in manifest, "package must omit checkout Git metadata")
+    require(not (bundle / "support" / "cflib-source" / ".git").exists(), "canonical cflib source must omit .git")
+
+    provenance = (bundle / "PROVENANCE.json").read_text(encoding="utf-8")
+    require(
+        '"preparation_execution_authority": false' in provenance,
+        "package preparation must remain non-authority",
+    )
+    require(
+        '"execution_requires_teacher_authorization": true' in provenance,
+        "packaged execution must retain teacher authorization",
+    )
+    require(WEBOTS_IMAGE_DIGEST in provenance, "package provenance must bind exact Webots build image")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("bundle", type=Path)
+    args = parser.parse_args(argv)
+    bundle = args.bundle.resolve()
+
+    verify_static_contract()
+    if bundle.is_dir():
+        verify_built_bundle(bundle)
+        print(
+            "PASS: exact offline physical qualification package, canonical provenance, mutation rejection and no-checkpoint CI contract"
+        )
+    else:
+        print("PASS: physical qualification package static CI contract")
     return 0
 
 
