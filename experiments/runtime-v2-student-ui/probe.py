@@ -136,18 +136,13 @@ RENDER_LOCALE=r'''(() => {
  const fieldRoot=field.getSvgRoot();
  const repeatRoot=repeat.getSvgRoot();
  const repeatText=[...(repeatRoot&&repeatRoot.querySelectorAll('.blocklyText')||[])].find(el=>(el.textContent||'').trim().toLowerCase().startsWith('répéter'));
- const rb=repeatRoot.getBoundingClientRect();
- let repeatHoverRect=null;
- outer: for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
-   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
-     const hit=document.elementFromPoint(x,y);
-     if(hit&&repeatRoot.contains(hit)){
-       repeatHoverRect={x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
-       break outer;
-     }
-   }
- }
- if(!repeatHoverRect)throw new Error('no real hit-tested hover point on repeat block');
+ if(!repeatText)throw new Error('rendered repeat label missing for hover target');
+ const tb=repeatText.getBoundingClientRect();
+ if(!(tb.width>0&&tb.height>0))throw new Error('rendered repeat label has no visible hover geometry');
+ const tx=tb.left+tb.width/2; const ty=tb.top+tb.height/2;
+ const repeatHit=document.elementFromPoint(tx,ty);
+ if(!repeatHit||!repeatRoot.contains(repeatHit))throw new Error('rendered repeat label center is not hit-tested inside repeat block');
+ const repeatHoverRect={x:tx-1,y:ty-1,width:2,height:2,hitTag:repeatHit.tagName,hitClass:String(repeatHit.getAttribute&&repeatHit.getAttribute('class')||'')};
  return {
    logicAndText:logicAnd.toString(),logicAndSvgText:logicAnd.getSvgRoot().textContent,
    logicOrText:logicOr.toString(),logicOrSvgText:logicOr.getSvgRoot().textContent,
@@ -163,16 +158,14 @@ REPEAT_HOVER_RECT=r'''(() => {
  if(!repeat)throw new Error('rendered repeat block missing for hover');
  const repeatRoot=repeat.getSvgRoot();
  if(!repeatRoot)throw new Error('rendered repeat SVG root missing for hover');
- const rb=repeatRoot.getBoundingClientRect();
- for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=4){
-   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=4){
-     const hit=document.elementFromPoint(x,y);
-     if(hit&&repeatRoot.contains(hit)){
-       return {x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
-     }
-   }
- }
- throw new Error('no real hit-tested hover point on existing repeat block');
+ const repeatText=[...repeatRoot.querySelectorAll('.blocklyText')].find(el=>(el.textContent||'').trim().toLowerCase().startsWith('répéter'));
+ if(!repeatText)throw new Error('rendered repeat label missing for hover');
+ const rb=repeatText.getBoundingClientRect();
+ if(!(rb.width>0&&rb.height>0))throw new Error('rendered repeat label has no visible hover geometry');
+ const x=rb.left+rb.width/2; const y=rb.top+rb.height/2;
+ const hit=document.elementFromPoint(x,y);
+ if(!hit||!repeatRoot.contains(hit))throw new Error('repeat label center is not hit-tested inside existing repeat block');
+ return {x:x-1,y:y-1,width:2,height:2,hitTag:hit.tagName,hitClass:String(hit.getAttribute&&hit.getAttribute('class')||'')};
 })()'''
 
 VISIBLE_OVERLAY=r'''(() => {
@@ -220,6 +213,7 @@ PROFILE_FIELD_INSTALL=r'''(() => {
    const flyoutWorkspace=flyout&&flyout.getWorkspace&&flyout.getWorkspace();
    if(flyoutWorkspace)flyoutWorkspace.getAllBlocks(false).forEach(filterBlock);
  };
+ definition.init=function(){ originalInit.call(this); filterBlock(this); };
  window.__profileFieldExperiment={genericOptions:genericOptions,setAllowed:setAllowed,filterBlock:filterBlock};
  return true;
 })()'''
@@ -381,9 +375,13 @@ def main():
         time.sleep(.05)
     if blocking_overlay:
         raise RuntimeError('direction dropdown overlay did not close before tooltip hover: '+json.dumps(blocking_overlay,ensure_ascii=False))
-    # Re-hit-test after the dropdown has actually closed. A stale pre-menu
-    # coordinate can remain under the transient widget overlay, causing the
-    # synthetic mouse move to be consumed without ever entering the real block.
+    # Let the browser complete two paint turns after the dropdown disappears so
+    # the real Blockly gesture/widget teardown is settled before hit-testing the
+    # next target. This is fixed state synchronization, not a tooltip retry.
+    c.eval("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))")
+    # Target the stable localized repeat label, then prove the real hit-test is
+    # still inside the existing repeat block before dispatching the real pointer
+    # trajectory. Avoid an arbitrary near-edge SVG point whose hit child can vary.
     repeat_after_close=c.eval(REPEAT_HOVER_RECT)
     c.hover(repeat_after_close)
     tooltip=[]
@@ -393,7 +391,8 @@ def main():
         tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
         if tooltip: break
         time.sleep(.1)
-    if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty after hover within 5.0s')
+    if not tooltip:
+        raise RuntimeError('real repeat tooltip did not become visible and non-empty after hover within 5.0s; target='+json.dumps(repeat_after_close,ensure_ascii=False,separators=(',',':')))
     tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
     if not tooltip_text or 'repeat' in tooltip_text:
         raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
