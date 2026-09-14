@@ -62,7 +62,7 @@ async function proveProgramInvalidRetryWithoutReset() {
   const context = {
     console:{log(){},error(){}},
     Blockly:{Theme:{defineTheme(){return{};}},Themes:{Classic:{}},Events:{UI:'ui',BLOCK_MOVE:'move'},Blocks:{}},
-    document:{getElementById:element,body:{dataset:{}},createElement(){return{setAttribute(){},appendChild(){}};}},
+    document:{currentScript:{src:'http://127.0.0.1:18455/plugins/robot_windows/blockly_v2_test/main.js'},getElementById:element,body:{dataset:{}},createElement(){return{setAttribute(){},appendChild(){}};}},
     window:{dispatchEvent(){},addEventListener(){}},
     CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail;},
     WebeeBlocksRuntimeOutcome:Outcome,
