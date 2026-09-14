@@ -164,6 +164,28 @@ class WindowsReleaseContractTests(unittest.TestCase):
             release_check,
         )
 
+    def test_runtime_generated_blockly_media_uses_native_exact_byte_proxy(self) -> None:
+        main = (BLOCKLY / "main.js").read_text(encoding="utf-8")
+        launcher = (PACKAGING / "WebeeBlocksLauncher.cpp").read_text(encoding="utf-8")
+        vendor_preparation = (BLOCKLY / "prepare_blockly_vendor.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "var WEBEEBLOCKS_MEDIA_URL = new URL('./vendor/media/', WEBEEBLOCKS_MAIN_SCRIPT_URL).href;",
+            main,
+        )
+        self.assertIn("media: WEBEEBLOCKS_MEDIA_URL", main)
+        self.assertNotIn("media: 'vendor/media/'", main)
+        self.assertIn("http://127.0.0.1:", launcher)
+        self.assertIn("url_encode_path(relative_url)", launcher)
+        self.assertIn(
+            'send_reply(client, 200, "OK", mime_type(target), read_bytes(target));',
+            launcher,
+        )
+        self.assertIn("sprites.png", vendor_preparation)
+        self.assertIn("replaceAll('sprites.svg', 'sprites.png')", vendor_preparation)
+
     def test_native_firefox_broker_dependency_closure_is_fail_closed(self) -> None:
         packager = (
             ROOT / "tools" / "build_windows_classroom_release.ps1"
