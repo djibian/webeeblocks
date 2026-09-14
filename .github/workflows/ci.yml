@@ -115,7 +115,7 @@ jobs:
           path: |
             plugins/robot_windows/blockly_v2/vendor
             controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
-          key: qualification-package-inputs-r2025a-f0023e30daf38b17-${{ hashFiles('tools/prepare_runtime_v2.sh', 'plugins/robot_windows/blockly_v2/package.json', 'plugins/robot_windows/blockly_v2/package-lock.json', 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png') }}-${{ hashFiles('controllers/crazyflie_runtime_v2/Makefile', 'controllers/crazyflie_runtime_v2/*.c', 'controllers/crazyflie_runtime_v2/*.cpp', 'controllers/crazyflie_runtime_v2/*.h', 'controllers/crazyflie_square/pid_controller.c', 'controllers/crazyflie_square/pid_controller.h') }}
+          key: qualification-package-inputs-r2025a-f0023e30daf38b17-${{ hashFiles('tools/prepare_runtime_v2.sh', 'plugins/robot_windows/blockly_v2/package.json', 'plugins/robot_windows/blockly_v2/package-lock.json', 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png') }}-${{ hashFiles('controllers/crazyflie_runtime_v2/Makefile', 'controllers/crazyflie_runtime_v2/*.c', 'controllers/crazyflie_runtime_v2/*.cpp', 'controllers/crazyflie_runtime_v2/*.h', 'controllers/crazyflie_square/pid_controller.c', 'controllers/crazyflie_square/pid_controller.h') }}-${{ hashFiles('tools/physical/qualification_generated_lock.json') }}
 
       - uses: actions/setup-node@v4
         if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-package-input-cache.outputs.cache-hit != 'true'
@@ -138,6 +138,7 @@ jobs:
           test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
           test -x controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          python3 tools/physical/verify_qualification_generated_inputs.py
 
       - name: Save exact prepared qualification package inputs for maintenance runs
         if: steps.qualification-runtime-scope.outputs.run == 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository)) && steps.qualification-package-input-cache.outputs.cache-hit != 'true'
@@ -146,7 +147,7 @@ jobs:
           path: |
             plugins/robot_windows/blockly_v2/vendor
             controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
-          key: qualification-package-inputs-r2025a-f0023e30daf38b17-${{ hashFiles('tools/prepare_runtime_v2.sh', 'plugins/robot_windows/blockly_v2/package.json', 'plugins/robot_windows/blockly_v2/package-lock.json', 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png') }}-${{ hashFiles('controllers/crazyflie_runtime_v2/Makefile', 'controllers/crazyflie_runtime_v2/*.c', 'controllers/crazyflie_runtime_v2/*.cpp', 'controllers/crazyflie_runtime_v2/*.h', 'controllers/crazyflie_square/pid_controller.c', 'controllers/crazyflie_square/pid_controller.h') }}
+          key: qualification-package-inputs-r2025a-f0023e30daf38b17-${{ hashFiles('tools/prepare_runtime_v2.sh', 'plugins/robot_windows/blockly_v2/package.json', 'plugins/robot_windows/blockly_v2/package-lock.json', 'plugins/robot_windows/blockly_v2/prepare_blockly_vendor.js', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg', 'plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png') }}-${{ hashFiles('controllers/crazyflie_runtime_v2/Makefile', 'controllers/crazyflie_runtime_v2/*.c', 'controllers/crazyflie_runtime_v2/*.cpp', 'controllers/crazyflie_runtime_v2/*.h', 'controllers/crazyflie_square/pid_controller.c', 'controllers/crazyflie_square/pid_controller.h') }}-${{ hashFiles('tools/physical/qualification_generated_lock.json') }}
 
       - name: Fail closed unless exact qualification package inputs are restored
         if: steps.qualification-runtime-scope.outputs.run == 'true'
@@ -158,6 +159,7 @@ jobs:
           test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = "13.2.1"
           test -s plugins/robot_windows/blockly_v2/webots/RobotWindow.js
           test -x controllers/crazyflie_runtime_v2/crazyflie_runtime_v2
+          python3 tools/physical/verify_qualification_generated_inputs.py
 
       - name: Build and verify exact offline physical qualification artifact
         id: qualification-package
