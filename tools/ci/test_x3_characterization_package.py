@@ -154,6 +154,7 @@ def main() -> int:
     require("shutil.copytree(cflib_root" not in source, "cflib checkout metadata must not be copied")
 
     runner = RUNNER.read_text(encoding="utf-8")
+    verifier_call = 'python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"'
     for required in (
         package.EXPECTED_FIRMWARE_SHA256,
         package.EXPECTED_CFLIB_COMMIT,
@@ -164,12 +165,12 @@ def main() -> int:
         "--props-removed",
         "--installed-bin-confirmed",
         "export PYTHONDONTWRITEBYTECODE=1",
-        'python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"',
+        verifier_call,
     ):
         require(required in runner, f"X3 runner contract missing: {required}")
     require(
-        runner.count('python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"') >= 2,
-        "runner must verify exact bundle before and after environment probing",
+        runner.count("\nverify_bundle\n") >= 3,
+        "runner must verify exact bundle before and after environment probing and after capture",
     )
     require("sha256sum -c" not in runner, "runner must not accept manifest-listed files while ignoring extras")
     for forbidden in ("set_value", "send_position_setpoint", "send_hover_setpoint"):
