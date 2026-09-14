@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
 
 CALLER_PWD="$(pwd)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -28,6 +29,12 @@ performs a motorized action. The operator must explicitly confirm that the props
 are removed and that the exact bundled cf2.bin has already been installed.
 EOF
   exit 2
+}
+
+verify_bundle() {
+  test -s "$HERE/MANIFEST.json"
+  test -s "$HERE/verify_x3_characterization_bundle.py"
+  python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"
 }
 
 VERIFY_ONLY=0
@@ -90,8 +97,7 @@ else
 fi
 
 cd "$HERE"
-test -s SHA256SUMS
-sha256sum -c SHA256SUMS
+verify_bundle
 
 test -s PROVENANCE.txt
 grep -Fxq "cflib_commit=$EXPECTED_CFLIB_COMMIT" PROVENANCE.txt
@@ -112,7 +118,7 @@ test -s "$HERE/capture_independent_inputs.py"
 test -d "$HERE/cflib-source/cflib"
 test -d "$HERE/wheels"
 
-python3 - <<'PY'
+python3 -B - <<'PY'
 import platform
 import sys
 if sys.version_info[:2] != (3, 10):
@@ -139,13 +145,13 @@ if [ "${#WHEELS[@]}" -ne 4 ]; then
   exit 2
 fi
 
-python3 -m pip install --disable-pip-version-check \
+python3 -B -m pip install --disable-pip-version-check \
   --no-index --no-deps --ignore-installed \
   --target "$ISOLATED_SITE" \
   "${WHEELS[@]}"
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
-python3 -S - "$HERE/cflib-source" "$ISOLATED_SITE" <<'PY'
+python3 -B -S - "$HERE/cflib-source" "$ISOLATED_SITE" <<'PY'
 import pathlib
 import sys
 
@@ -173,8 +179,8 @@ print("PASS: exact offline X3 cflib runtime closure is isolated")
 PY
 
 DESCRIBE_JSON="$(PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
-  python3 -S "$HERE/capture_independent_inputs.py" --describe)"
-python3 - "$DESCRIBE_JSON" "$EXPECTED_TEST_PROFILE" <<'PY'
+  python3 -B -S "$HERE/capture_independent_inputs.py" --describe)"
+python3 -B - "$DESCRIBE_JSON" "$EXPECTED_TEST_PROFILE" <<'PY'
 import json
 import sys
 
@@ -185,6 +191,8 @@ if described.get("test_profile") != expected:
         f"FAIL: collector test_profile must be {expected!r}, got {described.get('test_profile')!r}"
     )
 PY
+
+verify_bundle
 
 if [ "$VERIFY_ONLY" -eq 1 ]; then
   echo "PASS: X3 capture bundle verified without hardware"
@@ -212,7 +220,7 @@ if ! [[ "$URI" =~ ^radio://[0-9]+/[0-9]+/(250K|1M|2M)(/[0-9A-Fa-f]+)?$ ]]; then
 fi
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
-python3 -S "$HERE/capture_independent_inputs.py" \
+python3 -B -S "$HERE/capture_independent_inputs.py" \
   --uri "$URI" \
   --checkpoint-url "$CHECKPOINT_URL" \
   --request-sha "$REQUEST_SHA" \
@@ -221,3 +229,5 @@ python3 -S "$HERE/capture_independent_inputs.py" \
   --seconds "$DURATION_SECONDS" \
   --props-removed \
   --installed-bin-confirmed
+
+verify_bundle
