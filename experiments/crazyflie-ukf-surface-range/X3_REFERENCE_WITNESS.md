@@ -75,9 +75,11 @@ rows or select a best trace.
 
 The external stopwatch is independent, so the evidence needs physical events
 observable in both clock domains. Use two or more synchronization gestures that
-bracket all interpreted events: one after the required stationary calibration and
-before the first characterized transition, and one after the last interpreted
-transition while recording is still active. More anchors may be retained.
+bracket the complete reference-time domain consumed by `metric_reference.py`:
+one after raw capture has started but **before `calibration_start`**, and one after
+the last interpreted transition while recording is still active. More anchors may
+be retained. The first gesture is a clock anchor only; stationary calibration
+starts after that gesture and remains entirely inside the bracketing sync domain.
 
 For each sync gesture:
 
