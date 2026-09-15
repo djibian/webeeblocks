@@ -359,65 +359,42 @@ justified by the current evidence.
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — establish independent vertical-motion evidence before terrain redesign
+### X3 — simplified independent characterization before terrain redesign
 
 - parent: #70
-- established physical result: #180 refuted the original terrain candidate and
-  #236 showed that the late S3 VZ/barometer vetoes are not independent terrain
-  discriminators; the valid S3-B/S3-C controls stay below the stock ToF rejection
-  gate and therefore do not exercise the late decision path
-- causal consequence: the scalar S3 `surfaceOffset` direction is not a sound
-  architecture to repair by threshold or veto tuning. Preserve the proven
-  local-range Flow split, but first separate vehicle vertical displacement from
-  surface-height change instead of assuming `delta z = 0`
-- current proof question: determine whether an independent vehicle displacement
-  estimate from IMU/barometer evidence that excludes suspect ToF can bound
-  `delta z` tightly enough that `delta h = delta z_ind - delta c` distinguishes
-  terrain, true vertical motion and a mixed event
-- archived-input result: #292 made the retained #180/#236/#251 text accessible;
-  the [input audit](../experiments/crazyflie-ukf-surface-range/evidence/analysis-2026-09-11/README.md)
-  verifies all 94 retained files. No CSV contains continuous raw barometer or
-  accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
-  or measured mixed case is retained. Those archives therefore cannot establish
-  the independent-displacement proof
-- integrated support result: current `main` now contains the independent raw
-  input capture, frozen pressure probe, conditional metric-reference path,
-  frozen vertical predictor, durable evidence publication/provenance and
-  checkpoint-support tooling. It also retains the diagnostic
-  `stabilizer.intToOut`, exact BMP3 chip identity and the logging-only X3
-  pre-LPF observer with coherent complete-group snapshots plus MCU read windows.
-  Missing acquisition/calculation tooling is no longer the blocker
-- timing/provenance boundary: the log-worker timestamp is not sensor producer
-  time, and the X3 observer's `readBeg/readEnd` values bound CPU register reads,
-  not sensor-internal production/filter time. #342 further establishes that the
-  electrical source of `sensorData.interruptTimestamp` is UNPROVEN: the pinned
-  firmware configures gyro DRDY on BMI088 INT3 while the published Crazyflie 2.1
-  Rev.B schematic routes STM32 PC14 / `INT_GYR` to BMI088 INT2 and leaves INT3
-  unconnected. Do not promote either timestamp into producer time
-- remaining proof: justify deterministic provenance for every frozen-predictor
-  uncertainty bound, especially specific-force/tilt/initial-velocity error,
-  intersample acceleration, barometer displacement/filter uncertainty,
-  `sensor_time_error_s` and delivery latency. Nominal ODR and manufacturer
-  typical/RMS specifications are not deterministic bounds. The exact metric
-  reference, synchronization and raw-publication procedure must also be frozen
-  before any physical result can become authoritative
-- next checkpoint boundary: request at most one bounded props-off information
-  checkpoint only after the exact still-missing machine-unavailable information,
-  instrumented artifact/profile and deterministic offline method are identified.
-  That checkpoint should fill only those gaps and compare the same frozen
-  calculation across stationary, terrain, true-vertical and mixed cases; do not
-  repeat generic S3-A/B/C trials
-- falsification boundary: the current #70 review uses at most 5 cm displacement
-  error and at most 1 s after transition end as bounded experimental criteria,
-  not classifier thresholds or flight acceptance. A valid counterexample
-  refutes that candidate; missing or unjustified bounds/reference makes the
-  result UNPROVEN rather than grounds for tuning around the evidence
-- safety boundary: do not modify product Runtime v2, tune ToF/barometer or S3
-  thresholds/persistence, delete the late veto to rescue S3, add `rangeUp` or a
-  full `z/f/r` estimator by default, or perform motorized real flight as an agent
-- consequence: no new terrain-classifier implementation or stronger world-altitude
-  capability claim is justified until this independent-information proof
-  converges; #70 remains Lab-only.
+- owner direction: `X3 VIABLE WITH SIMPLIFICATION` supersedes the earlier plan
+  to prove tight deterministic bounds for every sensor/timing sub-link before
+  collecting new physical information. The frozen predictor remains a conditional
+  confirmation tool; characterization cannot retroactively validate its stronger
+  bound flags
+- established preparation: the reviewed pre-registration/support definition fixes
+  the unchanged #251 props-off firmware/configuration, calibration-versus-
+  confirmation split, stationary/terrain/true-vertical/mixed cases, all-trial
+  retention and the 5 cm / 1 s falsification quantities. Integrated #426 adds the
+  concrete measured-guide + independent-clock witness, explicit uncertainty and
+  affine-clock fail-closed mapping into the exact characterization bundle
+- trusted checkpoint path: integrated #428 enables checkpoint-only
+  `x3-independent-props-off` backed by `WebeeBlocks-X3-Characterization`. Exact
+  requested-SHA checkout, pinned cflib/#251 support, locked offline runtime,
+  bundle verification, Runtime/Webots evidence, digest/provenance and the generic
+  one-open-human-test rule remain mandatory; packaging itself remains request-
+  neutral and grants no execution or motorized authority
+- next indispensable evidence: one complete props-off human characterization
+  bundle against the independent metric/time reference, retaining all validly
+  started raw trials across stationary, terrain, true-vertical and mixed cases.
+  Calibration-only processing/envelopes are then frozen before untouched
+  confirmation and the separate scientific decision. An uncertainty interval
+  crossing a predeclared target is `UNPROVEN`, never PASS
+- checkpoint gating: `[TEST_REQUIRED]` #392 currently occupies the sole global
+  human-test slot, so no X3 request is opened or notified until that request
+  resolves. There is no human-test queue
+- safety boundary: empirical characterization is tested-domain evidence, not a
+  universal deterministic guarantee. Do not revive dominated interrupt/timing
+  provenance investigations merely because they remain `UNPROVEN`, retune
+  ToF/barometer/S3 thresholds, modify product Runtime/controller behavior, add
+  `rangeUp`/full z-f-r by default, or infer/authorize motorized flight
+- consequence: #70 remains Lab-only until the characterization/confirmation
+  evidence supports an explicit scientific decision.
 
 ## Later gates kept intentionally coarse
 
@@ -490,37 +467,26 @@ justified by the current evidence.
 ### FF — Firefox same-file project semantics
 
 - parent: #87
-- retained architecture: a native Qt file broker through the existing local
-  Webots/WWI path, as selected by the bounded post-C26 decision on #87
-- established causal result: C26 isolated executable COPY data interposition
-  relative to GOT binding in the pinned minimal Qt closure; do not reopen C8–C26
-- real-provider result: the single #301 qualification compiled the actual
-  provider as PIC, verified no Qt COPY relocation, and observed official Webots
-  launch, QApplication initialization, a displayed QFileDialog, real cancellation
-  and provider return. The [retained result and raw evidence](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5634037411)
-  do not establish completion of the controller loop: its aggregate eight-step
-  marker and controller exit status are absent, so continuation remains UNPROVEN
-- continuity prerequisite established: the subsequent bounded #317 measurement
-  repair on exact candidate `e8aecd14e7988a6772d780062f8cf83060657dff`
-  received an [owner PASS](https://github.com/djibian/webeeblocks/issues/87#issuecomment-5643382930).
-  Its controller-owned journal, observed before shutdown while Webots remained
-  alive, proves eight successful steps, 0.256 s of progression, a local broker
-  capabilities response and provider destruction after real dialog cancellation.
-  The [complete retained evidence](https://github.com/djibian/webeeblocks/tree/44abcebfe0a399a488a77c4ddb5d418ce0920c2a/experiments/firefox-qt-provider/evidence/2026-09-12)
-  preserves the original archive and all 30 raw files. #317 is closed without
-  merge; this establishes dialog/controller coexistence, not a browser/WWI
-  file-operation round trip. The older #301 result remains UNPROVEN for its own
-  candidate
-- next product boundary: implement the native broker and existing project-manager
-  transport through local WWI, with browser-held opaque session references,
-  validation before adopting an opened target, confirmed writes before adopting
-  Save As, same-file Save and neutral cancellation/errors. The continuity
-  prerequisite no longer blocks this implementation. Do not integrate the
-  research harness or restart a causal discriminator chain
-- product boundary: the native broker must preserve direct same-file Open,
-  Save As and Save semantics; full Firefox parity and Windows qualification
-  remain unproven. The supported Chromium path remains independent of #87
-- keep deferred while higher-value work remains executable.
+- integrated product result: the native Qt file broker through the local
+  Webots/WWI path is in production, and Linux Firefox acceptance proves direct
+  `.wbb` Open / Save As / same-file Save, neutral cancellation, fail-closed
+  invalid/incompatible Open and no numbered-download fallback while preserving
+  the Chromium File System Access path
+- Windows preparation: the native broker/runtime and deterministic classroom
+  package are integrated. The earlier Windows checkpoint #338 failed at startup
+  because the R2025a Robot Window intermittently substituted JavaScript responses
+  with CSS bytes/MIME; later same-artifact evidence showed the direct Firefox
+  broker/file semantics working once startup succeeded. #369 tracks that Windows
+  startup/resource-distribution defect and its bounded repairs
+- current proof boundary: trusted `[TEST_REQUIRED]` #392 is the sole open human
+  checkpoint, bound to exact target `2229c5b9b4c5f162301357cb883639dd914e7ca5`
+  and exact Windows artifact. It re-tests repeated untouched-cache Firefox
+  startup plus native project-file semantics and preserves the Chrome path
+- next consequence: an owner-authoritative PASS on #392 closes the remaining
+  Windows Firefox qualification boundary; a FAIL becomes the exact demonstrated
+  Windows defect to repair. Do not infer either result from machine CI
+- preserve evidence: do not restart the already-settled C8–C26 Qt research or
+  redesign the integrated native broker without new contradictory evidence.
 
 ### R — final real-flight activity
 
