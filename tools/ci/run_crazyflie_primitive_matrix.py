@@ -8,6 +8,7 @@ from pathlib import Path
 IMAGE = "cyberbotics/webots:R2025a-ubuntu22.04"
 REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
 LOCAL_WEBOTS_PREFIX = "webots://"
+PINNED_PROJECTS_REL = Path(".ci-webots-r2025a/projects")
 REQUIRED_LOCAL_PROTO_FILES = (
     "projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto",
     "projects/objects/backgrounds/protos/TexturedBackground.proto",
@@ -48,9 +49,12 @@ def render_world(source: str, controller: str, kind: str | None, value: str | No
             f"expected exactly {len(REQUIRED_LOCAL_PROTO_FILES)} pinned R2025a Webots references, "
             f"found {remote_refs}"
         )
-    source = source.replace(REMOTE_WEBOTS_PREFIX, LOCAL_WEBOTS_PREFIX)
-    if "raw.githubusercontent.com/cyberbotics/webots/" in source:
+    localized = source.replace(REMOTE_WEBOTS_PREFIX, LOCAL_WEBOTS_PREFIX)
+    if "raw.githubusercontent.com/cyberbotics/webots/" in localized:
         raise RuntimeError("remote Cyberbotics dependency remains after localizing primitive world")
+    if localized.replace(LOCAL_WEBOTS_PREFIX, REMOTE_WEBOTS_PREFIX) != source:
+        raise RuntimeError("localizing primitive world changed more than the pinned URL prefix")
+    source = localized
 
     needle = f'  controller "{controller}"\n'
     if needle not in source:
@@ -93,7 +97,19 @@ def require_common_endpoint(pairs: dict, backend: str, mission: str) -> None:
             raise RuntimeError(f"{backend}/{mission}: residual altitude error not settled")
 
 
-def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str | None, value: str | None) -> dict:
+def require_pinned_projects(root: Path) -> Path:
+    pinned_projects = root / PINNED_PROJECTS_REL
+    missing = [
+        str(root / ".ci-webots-r2025a" / relative)
+        for relative in REQUIRED_LOCAL_PROTO_FILES
+        if not (root / ".ci-webots-r2025a" / relative).is_file()
+    ]
+    if missing:
+        raise RuntimeError("required pinned Webots R2025a project assets missing: " + ", ".join(missing))
+    return pinned_projects
+
+
+def run_case(root: Path, pinned_projects: Path, artifacts: Path, backend: str, mission: str, kind: str | None, value: str | None) -> dict:
     cfg = BACKENDS[backend]
     source = (root / cfg["world"]).read_text(encoding="utf-8")
     generated = root / "worlds" / f".ci-primitive-{backend}-{mission}.wbt"
@@ -111,7 +127,7 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
     inner = (
         "set -e; "
         f"for asset in {required_assets}; do "
-        'test -f "$asset" || { echo "ERROR: required local Webots R2025a asset missing: $asset" >&2; exit 2; }; '
+        'test -f "$asset" || { echo "ERROR: required pinned Webots R2025a asset missing: $asset" >&2; exit 2; }; '
         "done; "
         "timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast "
         f"/workspace/{relative_world}"
@@ -121,6 +137,7 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
         "-e", "LIBGL_ALWAYS_SOFTWARE=true",
         "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
         "-v", f"{root}:/workspace",
+        "-v", f"{pinned_projects}:/usr/local/webots/projects:ro",
         "-w", "/workspace",
         IMAGE,
         "bash", "-lc", inner,
@@ -206,10 +223,11 @@ def main() -> int:
     artifacts.mkdir(parents=True, exist_ok=True)
     rows = []
     try:
+        pinned_projects = require_pinned_projects(root)
         for mission, kind, value in MISSIONS:
             for backend in ("A", "B"):
                 print(f"=== {backend} / {mission} ===", flush=True)
-                row = run_case(root, artifacts, backend, mission, kind, value)
+                row = run_case(root, pinned_projects, artifacts, backend, mission, kind, value)
                 rows.append(row)
                 print(json.dumps(row, sort_keys=True), flush=True)
     except Exception as exc:
