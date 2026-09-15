@@ -38,6 +38,8 @@ PRESSURE_PROBE = EXPERIMENT / "frozen_pressure_probe.py"
 METRIC_REFERENCE_DOC = EXPERIMENT / "METRIC_REFERENCE.md"
 PREREGISTRATION = EXPERIMENT / "X3_CHARACTERIZATION_PREREGISTRATION.md"
 CHECKPOINT_SUPPORT = EXPERIMENT / "X3_CHECKPOINT_SUPPORT.md"
+REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"
+REFERENCE_WITNESS_TEMPLATE = EXPERIMENT / "X3_REFERENCE_WITNESS_TEMPLATE.csv"
 
 
 class PackageError(RuntimeError):
@@ -186,6 +188,8 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(METRIC_REFERENCE_DOC, bundle / "METRIC_REFERENCE.md")
     copy_file(PREREGISTRATION, bundle / "X3_CHARACTERIZATION_PREREGISTRATION.md")
     copy_file(CHECKPOINT_SUPPORT, bundle / "X3_CHECKPOINT_SUPPORT.md")
+    copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")
+    copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")
     copy_file(LOCK, bundle / "reference_probe_lock.txt")
     export_cflib(cflib_root, bundle / "cflib-source")
     (bundle / "wheels").mkdir()
@@ -201,6 +205,8 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
         f"cflib_subtree={EXPECTED_CFLIB_SUBTREE}",
         f"runtime={RUNTIME}",
         "reference_processing=conditional-only",
+        "reference_witness=measured-guide-csv-v1",
+        "evidence_profile=physical-csv-text-v1",
         "physical_effect=none-during-packaging",
         "firmware_flash=not-performed",
         "execution_authority=none",
