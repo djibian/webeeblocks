@@ -380,13 +380,13 @@ justified by the current evidence.
   accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
   or measured mixed case is retained. Those archives therefore cannot establish
   the independent-displacement proof
-- integrated support result: #426 freezes the simplified characterization design
-  and packages a concrete measured-guide + independent-clock witness, canonical
-  raw/reference publication and full bundle provenance; #428 adds the trusted
-  `x3-independent-props-off` checkpoint profile with restore-and-verify-only
-  support for the exact firmware, pinned cflib/runtime and deterministic
-  `WebeeBlocks-X3-Characterization` artifact. Machine-side checkpoint preparation
-  is therefore complete without claiming any physical result
+- integrated support result: the reviewed simplified pre-registration/support
+  definition is already integrated; #426 packages a concrete measured-guide +
+  independent-clock witness, canonical raw/reference publication and full bundle
+  provenance; #428 adds the trusted `x3-independent-props-off` checkpoint profile
+  with restore-and-verify-only support for the exact firmware, pinned cflib/runtime
+  and deterministic `WebeeBlocks-X3-Characterization` artifact. Machine-side
+  checkpoint preparation is therefore complete without claiming any physical result
 - timing/provenance boundary: the log-worker timestamp is not sensor producer
   time, and the X3 observer's `readBeg/readEnd` values bound CPU register reads,
   not sensor-internal production/filter time. #342 further establishes that the
