@@ -64,12 +64,14 @@ jobs:
               's3-props-off': 'experimental-s3-surface-offset-2026-08',
               'physical-capabilities-readonly': 'WebeeBlocks-Physical-Capability-Probe',
               'physical-capabilities-representative': 'WebeeBlocks-Physical-Qualification',
+              'x3-independent-props-off': 'WebeeBlocks-X3-Characterization',
           }
           PURPOSES = {
               'windows-low-end': {'checkpoint', 'release'},
               's3-props-off': {'checkpoint'},
               'physical-capabilities-readonly': {'checkpoint'},
               'physical-capabilities-representative': {'checkpoint'},
+              'x3-independent-props-off': {'checkpoint'},
           }
 
           def get_commit(sha):
@@ -193,7 +195,8 @@ jobs:
     needs: validate
     if: >-
       needs.validate.outputs.test_profile == 'physical-capabilities-readonly' ||
-      needs.validate.outputs.test_profile == 'physical-capabilities-representative'
+      needs.validate.outputs.test_profile == 'physical-capabilities-representative' ||
+      needs.validate.outputs.test_profile == 'x3-independent-props-off'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -338,6 +341,67 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+      - name: Restore exact X3 characterization runtime support
+        if: needs.validate.outputs.test_profile == 'x3-independent-props-off'
+        id: x3-runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-support/qualification-runtime
+          key: qualification-runtime-ubuntu22-cp310-cflib-45fdb784c9d13074c42835f3b5ac1d12133bf873-${{ hashFiles('tools/physical/qualification_runtime_lock.txt') }}
+
+      - name: Fail closed unless exact X3 characterization support is restored
+        if: needs.validate.outputs.test_profile == 'x3-independent-props-off'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.x3-runtime-cache.outputs.cache-hit }}" = "true"
+          source=.ci-support/qualification-runtime/cflib-source
+          support_wheels=.ci-support/qualification-runtime/wheels
+          firmware=.ci-support/qualification-runtime/x3-firmware/cf2.bin
+          test -d "$source/.git"
+          test -d "$support_wheels"
+          test -f "$firmware"
+          python3 tools/physical/verify_qualification_runtime.py "$source" "$support_wheels"
+          test "$(sha256sum "$firmware" | awk '{print $1}')" = "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
+
+      - name: Build and verify exact X3 characterization artifact
+        if: needs.validate.outputs.test_profile == 'x3-independent-props-off'
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha="${{ needs.validate.outputs.target_sha }}"
+          test "$(git rev-parse HEAD)" = "$target_sha"
+          source=.ci-support/qualification-runtime/cflib-source
+          support_wheels=.ci-support/qualification-runtime/wheels
+          firmware=.ci-support/qualification-runtime/x3-firmware/cf2.bin
+          wheelhouse="$RUNNER_TEMP/x3-characterization-wheels"
+          mkdir -p "$wheelhouse"
+          while IFS='|' read -r spec filename digest; do
+            case "$spec" in ''|'#'*) continue ;; esac
+            test -f "$support_wheels/$filename"
+            cp "$support_wheels/$filename" "$wheelhouse/$filename"
+            test "$(sha256sum "$wheelhouse/$filename" | awk '{print $1}')" = "$digest"
+          done < tools/physical/reference_probe_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 4
+          python3 tools/physical/package_x3_characterization.py \
+            --source-sha "$target_sha" \
+            --firmware-bin "$firmware" \
+            --cflib-root "$source" \
+            --wheelhouse "$wheelhouse" \
+            --output-root ci-artifacts/x3-characterization
+          bundle=ci-artifacts/x3-characterization/WebeeBlocks-X3-Characterization
+          python3 tools/physical/verify_x3_characterization_bundle.py "$bundle"
+          PYTHONDONTWRITEBYTECODE=1 bash "$bundle/run_x3_independent_capture.sh" --verify-environment
+          python3 tools/physical/verify_x3_characterization_bundle.py "$bundle"
+
+      - name: Upload exact X3 characterization artifact
+        if: needs.validate.outputs.test_profile == 'x3-independent-props-off'
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebeeBlocks-X3-Characterization
+          path: ci-artifacts/x3-characterization/WebeeBlocks-X3-Characterization/
+          if-no-files-found: error
+
   publish:
     name: Publish one TEST_REQUIRED
     needs: [validate, runtime, webots, physical]
@@ -347,7 +411,8 @@ jobs:
       needs.runtime.result == 'success' &&
       needs.webots.result == 'success' &&
       ((needs.validate.outputs.test_profile != 'physical-capabilities-readonly' &&
-        needs.validate.outputs.test_profile != 'physical-capabilities-representative') ||
+        needs.validate.outputs.test_profile != 'physical-capabilities-representative' &&
+        needs.validate.outputs.test_profile != 'x3-independent-props-off') ||
        needs.physical.result == 'success')
     runs-on: ubuntu-22.04
     concurrency:
