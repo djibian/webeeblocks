@@ -29,6 +29,8 @@ REAL_BUNDLE_PROOF_PATHS = frozenset(
         "tools/physical/reference_probe_lock.txt",
         "tools/physical/qualification_runtime_lock.txt",
         "experiments/crazyflie-ukf-surface-range/capture_independent_inputs.py",
+        "experiments/crazyflie-ukf-surface-range/X3_REFERENCE_WITNESS.md",
+        "experiments/crazyflie-ukf-surface-range/X3_REFERENCE_WITNESS_TEMPLATE.csv",
         "experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh",
         "experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py",
         "experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py",
@@ -182,6 +184,18 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             output_root=output_root,
         )
 
+        for required_name in (
+            "X3_REFERENCE_WITNESS.md",
+            "X3_REFERENCE_WITNESS_TEMPLATE.csv",
+        ):
+            require((bundle / required_name).is_file(), f"assembled X3 bundle missing {required_name}")
+        provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
+        for required in (
+            "reference_witness=measured-guide-csv-v1\n",
+            "evidence_profile=physical-csv-text-v1\n",
+        ):
+            require(required in provenance, f"assembled X3 bundle provenance missing {required.strip()}")
+
         verifier = bundle / "verify_x3_characterization_bundle.py"
         runner = bundle / "run_x3_independent_capture.sh"
         verification_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -256,6 +270,12 @@ def main() -> int:
         '"archive", "--format=tar", EXPECTED_CFLIB_COMMIT, "cflib"',
         'MANIFEST_NAME = "MANIFEST.json"',
         'VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"',
+        'REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"',
+        'REFERENCE_WITNESS_TEMPLATE = EXPERIMENT / "X3_REFERENCE_WITNESS_TEMPLATE.csv"',
+        'copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")',
+        'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
+        '"reference_witness=measured-guide-csv-v1"',
+        '"evidence_profile=physical-csv-text-v1"',
         "physical_effect=none-during-packaging",
         "firmware_flash=not-performed",
         "execution_authority=none",
