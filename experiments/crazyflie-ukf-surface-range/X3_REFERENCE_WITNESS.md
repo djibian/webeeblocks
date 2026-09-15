@@ -168,6 +168,27 @@ JSON beside it. The transformation is mechanical:
 - the event witness locator lists the exact raw reference rows supporting those
   four metric intervals and transition-time intervals.
 
+The generated specification is usable only when the unchanged processor can prove
+all of its admissibility conditions from the retained interval evidence and the
+full affine-clock envelope. In particular, under **every** admissible clock:
+
+- the mapped stationary calibration starts at or after device time zero and its
+  guaranteed duration satisfies `calibration_end_device_low -
+  calibration_start_device_high >= 30 s`;
+- each event is separated from the preceding calibration/event by at least two
+  device-time seconds, and its guaranteed end is strictly after its possible
+  start (`end_device_low > start_device_high`);
+- the final and every intermediate post-event window remains covered, including
+  `end_device_high + 0.75 s <= covered_end`;
+- the supplied vehicle/surface intervals never allow the vehicle reference point
+  below the measured surface.
+
+These are device-time/interval conditions, not fixed gaps in the independent
+reference-clock coordinate. Use enough operational margin to make them provable
+after uncertainty propagation. If any condition is not established, keep the
+comparison `UNPROVEN` or recollect under the predeclared procedure; do not narrow
+reference, clock or metric intervals after seeing the outcome.
+
 Do not midpoint intervals before invoking `metric_reference.py`. Do not narrow an
 interval because the Crazyflie capture or predictor suggests a preferred value.
 The existing processor must continue to reject inconsistent clocks, extrapolation,
