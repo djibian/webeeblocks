@@ -184,6 +184,18 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             output_root=output_root,
         )
 
+        for required_name in (
+            "X3_REFERENCE_WITNESS.md",
+            "X3_REFERENCE_WITNESS_TEMPLATE.csv",
+        ):
+            require((bundle / required_name).is_file(), f"assembled X3 bundle missing {required_name}")
+        provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
+        for required in (
+            "reference_witness=measured-guide-csv-v1\n",
+            "evidence_profile=physical-csv-text-v1\n",
+        ):
+            require(required in provenance, f"assembled X3 bundle provenance missing {required.strip()}")
+
         verifier = bundle / "verify_x3_characterization_bundle.py"
         runner = bundle / "run_x3_independent_capture.sh"
         verification_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
