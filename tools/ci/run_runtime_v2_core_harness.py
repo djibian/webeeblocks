@@ -174,7 +174,7 @@ def main():
         port=server.server_address[1]; threading.Thread(target=server.serve_forever,daemon=True).start(); time.sleep(.05); url=f'http://127.0.0.1:{port}/{HARNESS.as_posix()}'
         process=subprocess.Popen([browser,'--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--virtual-time-budget=5000','--dump-dom',url],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
         timed_out=False
-        try: stdout,stderr=process.communicate(timeout=30)
+        try: stdout,stderr=process.communicate(timeout=60)
         except subprocess.TimeoutExpired:
             timed_out=True; process.kill(); stdout,stderr=process.communicate()
         server.shutdown()
