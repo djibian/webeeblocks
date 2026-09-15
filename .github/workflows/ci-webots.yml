@@ -1975,7 +1975,7 @@ jobs:
           LOG=ci-artifacts/webots-light-sensor.log
 
           if grep -Fq 'ERROR:' "$LOG"; then
-            echo '::error::Webots emitted an error in boxChallenge.wbt.'
+            echo '::error::Webots emitted an error while running BoxWithLightSensor.'
             grep -F 'ERROR:' "$LOG"
             exit 1
           fi
@@ -2382,7 +2382,7 @@ jobs:
             exit 1
           fi
 
-          echo 'PASS: R2025a started both controllers and executed code installed through historical SEND_CODE.'
+          echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
 
       - name: Export historical BoxWithDistSensor controller
         shell: bash
