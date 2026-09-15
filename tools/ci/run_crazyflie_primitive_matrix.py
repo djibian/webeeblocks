@@ -6,6 +6,14 @@ import sys
 from pathlib import Path
 
 IMAGE = "cyberbotics/webots:R2025a-ubuntu22.04"
+REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
+LOCAL_WEBOTS_PREFIX = "webots://"
+REQUIRED_LOCAL_PROTO_FILES = (
+    "projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto",
+    "projects/objects/backgrounds/protos/TexturedBackground.proto",
+    "projects/objects/backgrounds/protos/TexturedBackgroundLight.proto",
+    "projects/objects/floors/protos/Floor.proto",
+)
 MISSIONS = [
     ("T-short", "forward", "0.50"),
     ("T-long", "forward", "1.50"),
@@ -34,6 +42,16 @@ BACKENDS = {
 
 
 def render_world(source: str, controller: str, kind: str | None, value: str | None, label: str) -> str:
+    remote_refs = source.count(REMOTE_WEBOTS_PREFIX)
+    if remote_refs != len(REQUIRED_LOCAL_PROTO_FILES):
+        raise RuntimeError(
+            f"expected exactly {len(REQUIRED_LOCAL_PROTO_FILES)} pinned R2025a Webots references, "
+            f"found {remote_refs}"
+        )
+    source = source.replace(REMOTE_WEBOTS_PREFIX, LOCAL_WEBOTS_PREFIX)
+    if "raw.githubusercontent.com/cyberbotics/webots/" in source:
+        raise RuntimeError("remote Cyberbotics dependency remains after localizing primitive world")
+
     needle = f'  controller "{controller}"\n'
     if needle not in source:
         raise RuntimeError(f"controller field not found for {controller}")
@@ -87,12 +105,19 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
     square_path.unlink(missing_ok=True)
     log_path = artifacts / f"{backend}-{mission}.log"
     relative_world = generated.relative_to(root).as_posix()
+    required_assets = " ".join(
+        f"/usr/local/webots/{path}" for path in REQUIRED_LOCAL_PROTO_FILES
+    )
     inner = (
+        "set -e; "
+        f"for asset in {required_assets}; do "
+        'test -f "$asset" || { echo "ERROR: required local Webots R2025a asset missing: $asset" >&2; exit 2; }; '
+        "done; "
         "timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast "
         f"/workspace/{relative_world}"
     )
     command = [
-        "docker", "run", "--rm",
+        "docker", "run", "--rm", "--network", "none",
         "-e", "LIBGL_ALWAYS_SOFTWARE=true",
         "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
         "-v", f"{root}:/workspace",
