@@ -1,9 +1,8 @@
 # X3 simplified characterization checkpoint support boundary
 
 This document records the current support boundary for #70 after the owner
-scientific decision `X3 VIABLE WITH SIMPLIFICATION`. It does **not** enable a
-human-checkpoint profile, request `TEST_REQUIRED`, authorize flashing, or claim a
-physical or motorized capability.
+scientific decision `X3 VIABLE WITH SIMPLIFICATION`. It does **not** itself request
+`TEST_REQUIRED`, authorize flashing, or claim a physical or motorized capability.
 
 The scientific sequence is now:
 

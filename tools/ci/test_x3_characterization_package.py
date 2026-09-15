@@ -16,11 +16,13 @@ MODULE_PATH = ROOT / "tools" / "physical" / "package_x3_characterization.py"
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 CAPTURE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "capture_independent_inputs.py"
+HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
 FIRMWARE_FIXTURE = QUALIFICATION_SUPPORT / "x3-firmware" / "cf2.bin"
 
 REAL_BUNDLE_PROOF_PATHS = frozenset(
     {
+        ".github/workflows/human-checkpoint.yml",
         "tools/ci/test_x3_characterization_package.py",
         "tools/physical/package_x3_characterization.py",
         "tools/physical/run_x3_independent_capture.sh",
@@ -193,6 +195,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         for required in (
             "reference_witness=measured-guide-csv-v1\n",
             "evidence_profile=physical-csv-text-v1\n",
+            "human_checkpoint=request-not-issued\n",
         ):
             require(required in provenance, f"assembled X3 bundle provenance missing {required.strip()}")
 
@@ -276,12 +279,26 @@ def main() -> int:
         'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
         '"reference_witness=measured-guide-csv-v1"',
         '"evidence_profile=physical-csv-text-v1"',
+        '"human_checkpoint=request-not-issued"',
         "physical_effect=none-during-packaging",
         "firmware_flash=not-performed",
         "execution_authority=none",
     ):
         require(required in source, f"X3 package contract missing: {required}")
     require("shutil.copytree(cflib_root" not in source, "cflib checkout metadata must not be copied")
+
+    human = HUMAN_WORKFLOW.read_text(encoding="utf-8")
+    for required in (
+        "'x3-independent-props-off': 'WebeeBlocks-X3-Characterization',",
+        "'x3-independent-props-off': {'checkpoint'},",
+        "id: x3-runtime-cache",
+        "steps.x3-runtime-cache.outputs.cache-hit",
+        "python3 tools/physical/prepare_x3_firmware_fixture.py",
+        "python3 tools/physical/package_x3_characterization.py",
+        "name: WebeeBlocks-X3-Characterization",
+        "needs.validate.outputs.test_profile != 'x3-independent-props-off'",
+    ):
+        require(required in human, f"trusted X3 checkpoint preparation missing: {required}")
 
     runner = RUNNER.read_text(encoding="utf-8")
     verifier_call = 'python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"'

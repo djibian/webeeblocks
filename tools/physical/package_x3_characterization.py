@@ -210,7 +210,7 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
         "physical_effect=none-during-packaging",
         "firmware_flash=not-performed",
         "execution_authority=none",
-        "human_checkpoint=request-not-enabled",
+        "human_checkpoint=request-not-issued",
     ]
     (bundle / "PROVENANCE.txt").write_text("\n".join(provenance) + "\n", encoding="utf-8")
     write_manifest(bundle)
