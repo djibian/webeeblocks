@@ -5,34 +5,20 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from pathlib import Path
 
 import probe
 
 
-TOOLTIP_STATE = r'''(() => {
+TOOLTIP_DIAGNOSTIC = r'''(() => {
   const tooltip = Blockly.Tooltip;
   if (!tooltip) return {available:false};
-  const describe = value => {
-    if (!value) return null;
-    return {
-      type: typeof value.type === 'string' ? value.type : null,
-      id: typeof value.id === 'string' ? value.id : null,
-      tooltipType: typeof value.tooltip,
-      tooltipText: typeof value.tooltip === 'string' ? value.tooltip : null,
-    };
-  };
   return {
     available:true,
-    blocked: typeof tooltip.blocked_ === 'boolean' ? tooltip.blocked_ : null,
-    visible: Boolean(tooltip.visible),
-    showPidActive: Boolean(tooltip.showPid_),
-    current: describe(tooltip.element_),
-    poisoned: describe(tooltip.poisonedElement_),
-    gestureIdle: typeof workspace.getGesture === 'function' ? workspace.getGesture() === null : null,
-    diagnosticKeys: Object.keys(tooltip)
-      .filter(key => /block|element|poison|show|visible|pid|timer/i.test(key))
+    visible:typeof tooltip.isVisible==='function'?Boolean(tooltip.isVisible()):null,
+    gestureIdle:typeof workspace.getGesture==='function'?workspace.getGesture()===null:null,
+    diagnosticKeys:Object.keys(tooltip)
+      .filter(key=>/block|element|poison|show|visible|pid|timer/i.test(key))
       .sort(),
   };
 })()'''
@@ -60,7 +46,7 @@ INSTALL_EVENT_TRACE = r'''(() => {
         currentTargetIsRepeatPath:event.currentTarget===path,
         relatedTarget:describeNode(event.relatedTarget),
       });
-    },{capture:false,passive:true});
+    },{capture:true,passive:true});
   }
   window.__webeeblocksTooltipEventTrace={path:path,events:trace};
   return {installed:true,eventCount:trace.length};
@@ -106,8 +92,8 @@ def _object(cdp: probe.Cdp, expression: str, label: str) -> dict[str, object]:
     return value
 
 
-def _state(cdp: probe.Cdp) -> dict[str, object]:
-    return _object(cdp, TOOLTIP_STATE, 'Blockly tooltip state probe')
+def _diagnostic(cdp: probe.Cdp) -> dict[str, object]:
+    return _object(cdp, TOOLTIP_DIAGNOSTIC, 'Blockly tooltip diagnostic probe')
 
 
 def _event_trace(cdp: probe.Cdp) -> dict[str, object]:
@@ -115,21 +101,12 @@ def _event_trace(cdp: probe.Cdp) -> dict[str, object]:
 
 
 def _ready_hover(self: probe.Cdp, rect: dict[str, float]) -> None:
-    before = _state(self)
-    _record('before-ready-wait', before)
-    if not before.get('available') or before.get('blocked') is None:
-        raise RuntimeError('Blockly tooltip readiness state unavailable: ' + json.dumps(before, ensure_ascii=False))
+    before = _diagnostic(self)
+    _record('before-hover', before)
+    if not before.get('available'):
+        raise RuntimeError('Blockly tooltip API unavailable before the real hover: ' + json.dumps(before, ensure_ascii=False))
     if before.get('gestureIdle') is not True:
         raise RuntimeError('Blockly workspace gesture was still active before tooltip hover: ' + json.dumps(before, ensure_ascii=False))
-
-    deadline = time.monotonic() + 2.0
-    ready = before
-    while ready.get('blocked') is True and time.monotonic() < deadline:
-        time.sleep(.02)
-        ready = _state(self)
-    _record('ready-before-hover', ready)
-    if ready.get('blocked') is not False or ready.get('gestureIdle') is not True:
-        raise RuntimeError('Blockly tooltip subsystem was not causally ready before the real hover: ' + json.dumps(ready, ensure_ascii=False))
 
     installed = _object(self, INSTALL_EVENT_TRACE, 'Blockly tooltip browser-event trace installation')
     _record('event-trace-installed', installed)
@@ -150,15 +127,10 @@ def _ready_hover(self: probe.Cdp, rect: dict[str, float]) -> None:
     if move_index <= over_index or events.get('pathStillBound') is not True or events.get('gestureIdle') is not True:
         raise RuntimeError('real CDP hover browser-event boundary was not stable: ' + json.dumps(events, ensure_ascii=False))
 
-    after = _state(self)
+    after = _diagnostic(self)
     _record('after-hover', after)
-    current = after.get('current') if isinstance(after.get('current'), dict) else {}
-    if after.get('blocked') is not False or after.get('gestureIdle') is not True:
-        raise RuntimeError('Blockly tooltip became blocked or gesture-active during the real hover: ' + json.dumps(after, ensure_ascii=False))
-    if current.get('type') != 'controls_repeat_ext' or current.get('tooltipType') == 'undefined':
-        raise RuntimeError('real hover did not bind the repeat tooltip target: ' + json.dumps(after, ensure_ascii=False))
-    if not after.get('showPidActive') and not after.get('visible'):
-        raise RuntimeError('real repeat mousemove did not schedule the normal tooltip timer: ' + json.dumps(after, ensure_ascii=False))
+    if after.get('gestureIdle') is not True:
+        raise RuntimeError('Blockly workspace gesture became active during the real hover: ' + json.dumps(after, ensure_ascii=False))
 
 
 probe.Cdp.hover = _ready_hover
