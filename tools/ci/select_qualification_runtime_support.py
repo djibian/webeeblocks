@@ -35,6 +35,7 @@ def workflow_support_changed(base_text: str | None, head_text: str | None) -> bo
 
 def relevant_path(path: str) -> bool:
     if path in {
+        ".github/workflows/human-checkpoint.yml",
         "tools/ci/select_qualification_runtime_support.py",
         "tools/ci/test_physical_qualification_runtime_lock.py",
         "tools/ci/test_physical_qualification_package.py",
