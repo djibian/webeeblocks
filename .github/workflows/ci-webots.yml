@@ -2382,7 +2382,7 @@ jobs:
             exit 1
           fi
 
-          echo 'PASS: R2025a started both controllers and executed code installed through historical SEND_CODE.'
+          echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
 
       - name: Export historical BoxWithDistSensor controller
         shell: bash
