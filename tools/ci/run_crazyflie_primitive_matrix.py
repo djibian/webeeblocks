@@ -5,7 +5,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+from localize_webots_world import localize
+
 IMAGE = "cyberbotics/webots:R2025a-ubuntu22.04"
+WEBOTS_REPOSITORY = "https://github.com/cyberbotics/webots.git"
+WEBOTS_SHA = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
+WEBOTS_CHECKOUT = ".ci-webots-r2025a"
+REQUIRED_PROJECT_ASSETS = (
+    "projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto",
+    "projects/objects/backgrounds/protos/TexturedBackground.proto",
+    "projects/objects/backgrounds/protos/TexturedBackgroundLight.proto",
+    "projects/objects/floors/protos/Floor.proto",
+)
 MISSIONS = [
     ("T-short", "forward", "0.50"),
     ("T-long", "forward", "1.50"),
@@ -33,6 +44,54 @@ BACKENDS = {
 }
 
 
+def run_checked(command: list[str], *, cwd: Path, timeout: int = 180) -> None:
+    completed = subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"command failed ({completed.returncode}): {' '.join(command)}\n{completed.stdout}"
+        )
+
+
+def prepare_pinned_webots_projects(root: Path) -> Path:
+    checkout = root / WEBOTS_CHECKOUT
+    if not checkout.exists():
+        checkout.mkdir()
+        run_checked(["git", "init"], cwd=checkout)
+        run_checked(["git", "remote", "add", "origin", WEBOTS_REPOSITORY], cwd=checkout)
+        run_checked(
+            ["git", "fetch", "--depth=1", "origin", WEBOTS_SHA],
+            cwd=checkout,
+            timeout=300,
+        )
+        run_checked(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=checkout)
+
+    if not (checkout / ".git").is_dir():
+        raise RuntimeError(f"{checkout} exists but is not a Git checkout")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=checkout,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+    if head != WEBOTS_SHA:
+        raise RuntimeError(
+            f"pinned Webots checkout mismatch: expected {WEBOTS_SHA}, found {head}"
+        )
+
+    missing = [asset for asset in REQUIRED_PROJECT_ASSETS if not (checkout / asset).is_file()]
+    if missing:
+        raise RuntimeError(f"pinned Webots project assets missing: {missing}")
+    return checkout / "projects"
+
+
 def render_world(source: str, controller: str, kind: str | None, value: str | None, label: str) -> str:
     needle = f'  controller "{controller}"\n'
     if needle not in source:
@@ -43,6 +102,43 @@ def render_world(source: str, controller: str, kind: str | None, value: str | No
     source = source.replace("WorldInfo {", "WorldInfo {\n  randomSeed 1\n  optimalThreadCount 1", 1)
     source = source.replace('name "Crazyflie"', 'name "Crazyflie"\n  synchronization TRUE', 1)
     return source.replace('experiment"', f'experiment — {label}"', 1)
+
+
+def prepare_generated_world(
+    source: Path,
+    target: Path,
+    controller: str,
+    kind: str | None,
+    value: str | None,
+    label: str,
+) -> None:
+    localize(source, target, expected=4)
+    target.write_text(
+        render_world(
+            target.read_text(encoding="utf-8"), controller, kind, value, label
+        ),
+        encoding="utf-8",
+    )
+
+
+def build_webots_command(
+    root: Path, webots_projects: Path, relative_world: str
+) -> list[str]:
+    inner = (
+        "timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast "
+        f"/workspace/{relative_world}"
+    )
+    return [
+        "docker", "run", "--rm",
+        "--network", "none",
+        "-e", "LIBGL_ALWAYS_SOFTWARE=true",
+        "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
+        "-v", f"{root}:/workspace",
+        "-v", f"{webots_projects}:/usr/local/webots/projects:ro",
+        "-w", "/workspace",
+        IMAGE,
+        "bash", "-lc", inner,
+    ]
 
 
 def parse_pairs(line: str, prefix: str) -> dict:
@@ -75,11 +171,21 @@ def require_common_endpoint(pairs: dict, backend: str, mission: str) -> None:
             raise RuntimeError(f"{backend}/{mission}: residual altitude error not settled")
 
 
-def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str | None, value: str | None) -> dict:
+def run_case(
+    root: Path,
+    artifacts: Path,
+    webots_projects: Path,
+    backend: str,
+    mission: str,
+    kind: str | None,
+    value: str | None,
+) -> dict:
     cfg = BACKENDS[backend]
-    source = (root / cfg["world"]).read_text(encoding="utf-8")
+    source_path = root / cfg["world"]
     generated = root / "worlds" / f".ci-primitive-{backend}-{mission}.wbt"
-    generated.write_text(render_world(source, cfg["controller"], kind, value, f"{backend} {mission}"), encoding="utf-8")
+    prepare_generated_world(
+        source_path, generated, cfg["controller"], kind, value, f"{backend} {mission}"
+    )
 
     primitive_path = root / cfg["primitive_result"]
     square_path = root / cfg["square_result"]
@@ -87,19 +193,7 @@ def run_case(root: Path, artifacts: Path, backend: str, mission: str, kind: str 
     square_path.unlink(missing_ok=True)
     log_path = artifacts / f"{backend}-{mission}.log"
     relative_world = generated.relative_to(root).as_posix()
-    inner = (
-        "timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast "
-        f"/workspace/{relative_world}"
-    )
-    command = [
-        "docker", "run", "--rm",
-        "-e", "LIBGL_ALWAYS_SOFTWARE=true",
-        "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
-        "-v", f"{root}:/workspace",
-        "-w", "/workspace",
-        IMAGE,
-        "bash", "-lc", inner,
-    ]
+    command = build_webots_command(root, webots_projects, relative_world)
     try:
         completed = subprocess.run(command, cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=105)
         log_path.write_text(completed.stdout, encoding="utf-8")
@@ -181,10 +275,11 @@ def main() -> int:
     artifacts.mkdir(parents=True, exist_ok=True)
     rows = []
     try:
+        webots_projects = prepare_pinned_webots_projects(root)
         for mission, kind, value in MISSIONS:
             for backend in ("A", "B"):
                 print(f"=== {backend} / {mission} ===", flush=True)
-                row = run_case(root, artifacts, backend, mission, kind, value)
+                row = run_case(root, artifacts, webots_projects, backend, mission, kind, value)
                 rows.append(row)
                 print(json.dumps(row, sort_keys=True), flush=True)
     except Exception as exc:
