@@ -15,18 +15,22 @@ this procedure.
 
 Use, and identify in retained metadata:
 
-- one rigid vertical metric guide fixed to the room/world frame and readable at
-  the Crazyflie body reference point used for every vehicle-Z observation;
-- one physical length standard or the same guide to measure the relevant floor
-  and raised-surface heights from the same world datum;
+- one rigid metric guide/frame fixed to the room/world frame and readable at every
+  predeclared vehicle plateau position; if more than one guide segment is needed,
+  survey their common world datum before collection and retain that survey;
+- one physical length standard or the same surveyed guide/frame to measure the
+  relevant floor and raised-surface heights from that same world datum;
 - one independent elapsed-time display/stopwatch whose clock is not the
   Crazyflie log clock, host monotonic clock, UKF/S3 state, downward ToF or the
   predictor under test;
 - the exact Crazyflie body reference feature used for every guide reading.
 
-The guide must not support, constrain or drive the Crazyflie's vertical motion.
-The props remain removed. The operator hand-carries the vehicle as required by
-the pre-registration.
+The guide/frame must not support, constrain or drive the Crazyflie's vertical
+motion. The props remain removed. The vehicle is hand-carried as required by the
+pre-registration. Use separate manipulator and observer/recorder roles whenever
+one person cannot manipulate the Crazyflie and read the guide/clock without
+changing the apparatus or losing the declared observation bound; retain those
+roles in metadata.
 
 Before characterization, record the guide resolution, the surface-height
 measurement resolution, the independent-clock display resolution, and a
@@ -83,11 +87,21 @@ For each sync gesture:
 2. observe the same gesture on the independent stopwatch and record a `sync` row
    with a conservative reference-time interval including display resolution and
    the predeclared human observation/reaction allowance;
-3. after collection, identify the bracketing raw IMU rows that contain the same
-   gesture. The device-time anchor interval is the Crazyflie log-time interval
-   bounded by those retained rows, not a host-receipt timestamp;
-4. keep the witness locator for the anchor as the exact reference CSV row plus the
-   exact `imu.csv` row range used to bound it.
+3. after collection, identify the bracketing raw `imu.csv` rows that contain the
+   same gesture; do not use `stateEstimate.*`, S3 or downward range to choose the
+   rows;
+4. convert those bracketing Crazyflie log timestamps into the exact elapsed-device
+   coordinate required by `metric_reference.py`: unwrap the shared 24-bit log
+   timestamp as already done by the frozen pressure parser and subtract the first
+   retained `barometer.csv` log timestamp, so `device_s=0` is exactly
+   `first-barometer-log-row`;
+5. keep the witness locator for the anchor as the exact `reference-witness.csv`
+   sync row plus the exact `imu.csv` row range used to bound the device interval.
+
+The raw `imu.csv` file remains part of the complete published capture and is
+therefore hash-bound by the trusted raw-evidence publication bundle even though
+the existing metric-reference input schema names only the barometer capture and
+the external-reference file as source kinds.
 
 The gesture-detection rule used to identify the IMU row range is chosen from
 calibration only and frozen before untouched confirmation. It may use raw gyro
@@ -112,8 +126,8 @@ Use the scenario set and trial-retention rule from the pre-registration:
 - mixed motion, including approximately `delta z = delta h`;
 - both signs where practical.
 
-For vehicle-Z plateaus, read the same body reference feature against the fixed
-world guide before and after the transition and record conservative metric
+For vehicle-Z plateaus, read the same body reference feature against the surveyed
+world guide/frame before and after the transition and record conservative metric
 intervals. For surface-height plateaus, measure the local surface from the same
 world datum and record conservative intervals. These measurements are independent
 of `stateEstimate.z`, S3 state, downward range and the predictor.
@@ -134,9 +148,9 @@ JSON beside it. The transformation is mechanical:
 - set `clock.model=affine`,
   `clock.device_origin=first-barometer-log-row`, and point
   `clock.barometer_source` at the exact continuous capture;
-- for every `sync` row, use its reference-time interval and the independently
-  identified bracketing IMU/log device-time interval to create one clock anchor;
-  the witness locator names both exact row ranges;
+- for every `sync` row, use its reference-time interval and the elapsed-device
+  interval derived from the exact bracketing IMU rows under section 3 to create
+  one clock anchor; the witness locator names both exact row ranges;
 - derive calibration start/end only from the corresponding retained witness rows;
 - derive event start/end from `event_start` / `event_end` rows;
 - derive `z_before_m` / `z_after_m` from the corresponding vehicle guide plateau
@@ -174,10 +188,12 @@ uncertainty crosses the 5 cm or 1 s falsification quantity, the relevant result 
 
 The exact checkpoint evidence bundle must retain at least:
 
-- the complete raw Crazyflie capture directory;
+- the complete raw Crazyflie capture directory, including the exact IMU rows used
+  for synchronization;
 - `reference-witness.csv` unchanged from collection;
-- metadata describing the guide, datum, body reference, independent clock and
-  predeclared resolutions/uncertainties;
+- metadata describing the guide/frame survey and datum, body reference,
+  manipulator/observer roles, independent clock and predeclared
+  resolutions/uncertainties;
 - the exact metric-reference input JSON and output JSON;
 - the frozen processing/reference/uncertainty configuration used for the phase;
 - exact artifact/runtime/Git provenance required by the checkpoint mechanism.
