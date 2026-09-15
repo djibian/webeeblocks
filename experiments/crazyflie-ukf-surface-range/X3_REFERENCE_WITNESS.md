@@ -76,13 +76,17 @@ rows or select a best trace.
 The external stopwatch is independent, so the evidence needs physical events
 observable in both clock domains. Use two or more synchronization gestures that
 bracket the complete reference-time domain consumed by `metric_reference.py`:
-one after raw capture has started but **before `calibration_start`**, and one only
-after the complete required post-event window of the last interpreted transition
-while recording is still active. Under the current frozen processor, the final
-sync row's `reference_time_low_s` must be no earlier than the greatest retained
-`event_end.reference_time_high_s + 0.75 s`. More anchors may be retained. The first
-gesture is a clock anchor only; stationary calibration starts after that gesture
-and remains entirely inside the bracketing sync domain.
+one after raw capture has started but **before `calibration_start`**, and one late
+enough that the mechanically generated affine-clock envelope proves the unchanged
+processor coverage condition for the final interpreted event under every
+admissible clock: `end_device_high + 0.75 s <= covered_end`. More anchors may be
+retained. Do **not** treat `+0.75 s` in the independent reference-clock coordinate
+as equivalent to that device-time condition; the admissible affine rate need not
+be 1. A conservative extra external-time delay may be used operationally, but if
+the retained anchors and their uncertainty do not prove the device-time coverage
+condition, the affected comparison remains `UNPROVEN`. The first gesture is a
+clock anchor only; stationary calibration starts after that gesture and remains
+entirely inside the bracketing sync domain.
 
 For each sync gesture:
 
