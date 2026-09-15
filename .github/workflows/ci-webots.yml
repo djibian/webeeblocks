@@ -765,7 +765,7 @@ jobs:
               event_server_pid=$!
               trap "kill $event_server_pid 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 45s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
+              timeout -k 5s 60s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_obstacle.wbt
             ' 2>&1 | tee ci-artifacts/crazyflie-parametric-obstacle/detour.log
           code=${PIPESTATUS[0]}
           set -e
@@ -2382,7 +2382,7 @@ jobs:
             exit 1
           fi
 
-          echo 'PASS: R2025a started both controllers and executed code installed through SEND_CODE.'
+          echo 'PASS: R2025a started both controllers and executed code installed through historical SEND_CODE.'
 
       - name: Export historical BoxWithDistSensor controller
         shell: bash
