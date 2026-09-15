@@ -83,9 +83,10 @@ The immutable `capture-start.json` records the evidence identity
 `x3-independent-props-off`. This name is deliberately distinct from the
 superseded `s3-props-off` human checkpoint: the X3 capture exists to test the
 independent IMU/barometer information path, not to repeat or validate the scalar
-S3 terrain classifier. The string is capture provenance only until the trusted
-human-checkpoint mechanism explicitly implements and enables a matching profile;
-it does not itself request `TEST_REQUIRED` or authorize physical action.
+S3 terrain classifier. The matching trusted human-checkpoint profile packages
+this collector and its exact support closure; the evidence identity itself does
+not request `TEST_REQUIRED`, grant execution authority or authorize physical
+action.
 
 Output includes four CSVs and immutable start/ready/result metadata. Startup
 samples stay in the raw files; `recording-ready.json` is a receipt-clock marker,
@@ -100,33 +101,30 @@ analysis. A forward 24-bit timestamp wrap is distinguished from a backward clock
 or durable publication. A crash may leave only partial files; absence of a final
 result is incomplete/unknown. Existing output directories are never overwritten.
 
-## Remaining prerequisites before TEST_REQUIRED
+## Checkpoint status and remaining physical evidence
 
-The acquisition component, frozen pressure probe, conditional metric-reference
-processor, conditional vertical replay predictor and generic Git-backed evidence
-publication mechanism are now integrated. No new physical test follows from this
-component alone. The remaining checkpoint preparation is narrower:
+The acquisition component, reviewed pre-registration, measured-guide and
+independent-clock witness procedure, conditional metric-reference processor,
+frozen pressure/predictor support, exact `WebeeBlocks-X3-Characterization`
+packaging and generic Git-backed evidence publication path are integrated. The
+trusted `x3-independent-props-off` profile can therefore prepare and verify the
+exact props-off artifact under the repository's single-unresolved-`TEST_REQUIRED`
+rule. Enabling or packaging the profile is not itself a physical result.
 
-- Prepare the measured stationary/terrain/vertical/mixed procedure, synchronized
-  independent reference and event boundaries. A 30 s calibration and both signs
-  of each physical case are retained; the same analysis path must process every
-  case. The [conditional reference processor](METRIC_REFERENCE.md) preserves
-  external annotations and clock/metric intervals; its arithmetic does not
-  validate the physical measurements, clock assumptions or synchronization.
-- Pre-register and justify the deterministic error, tilt, initial-velocity,
-  intersample-acceleration, sensor-time, barometer and delivery-latency bounds
-  consumed by [the frozen vertical predictor](FROZEN_VERTICAL_PREDICTOR.md).
-  Outcome data must never be used to narrow these bounds. The retained
-  `stabilizer.intToOut` diagnostic can falsify assumptions about the internal
-  sensor-to-output path but cannot by itself validate sensor producer timing.
-- Package and validate the exact cflib runtime, exact #251 firmware file, capture
-  script, reference/predictor support and executable physical procedure in the
-  trusted checkpoint preparation. The collector's module hashes identify two
-  observed modules; they are deliberately not a complete dependency lock. Live
-  cadence/availability remains unproven until the bounded props-off capture.
-- Use the integrated generic raw-publication path from #296 / `docs/TEST_EVIDENCE.md`
-  for the produced bounded CSV/JSON/text evidence. This collector never deletes
-  or uploads raw files, and a manual browser attachment is not canonical evidence.
+The next indispensable information is the pre-registered human collection on the
+exact prepared bundle. The operator must retain every validly started
+stationary/terrain/vertical/mixed trial, the canonical `reference-witness.csv`,
+its clock/metric uncertainty and the complete raw Crazyflie capture. The reviewed
+witness rules in `X3_REFERENCE_WITNESS.md` and the admissibility conditions in
+`METRIC_REFERENCE.md` remain authoritative; uncertainty that cannot establish a
+quantity yields `UNPROVEN`, never a narrowed post-hoc interval.
+
+After raw evidence is durably published, calibration may freeze only the choices
+allowed by `X3_CHARACTERIZATION_PREREGISTRATION.md`. Untouched confirmation then
+uses those frozen choices before the separate #70 scientific decision. The
+stronger deterministic bounds consumed by
+[FROZEN_VERTICAL_PREDICTOR.md](FROZEN_VERTICAL_PREDICTOR.md) remain conditional
+and are not retroactively validated by characterization data.
 
 Preserve the local-range Flow split, all #251 parameters and the no-motorized
 boundary. No estimator or controller change follows from successful acquisition.
