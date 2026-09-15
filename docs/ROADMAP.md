@@ -380,13 +380,13 @@ justified by the current evidence.
   accelerometer/gyroscope samples; no independent metric vehicle-Z trajectory
   or measured mixed case is retained. Those archives therefore cannot establish
   the independent-displacement proof
-- integrated support result: current `main` now contains the independent raw
-  input capture, frozen pressure probe, conditional metric-reference path,
-  frozen vertical predictor, durable evidence publication/provenance and
-  checkpoint-support tooling. It also retains the diagnostic
-  `stabilizer.intToOut`, exact BMP3 chip identity and the logging-only X3
-  pre-LPF observer with coherent complete-group snapshots plus MCU read windows.
-  Missing acquisition/calculation tooling is no longer the blocker
+- integrated support result: #426 freezes the simplified characterization design
+  and packages a concrete measured-guide + independent-clock witness, canonical
+  raw/reference publication and full bundle provenance; #428 adds the trusted
+  `x3-independent-props-off` checkpoint profile with restore-and-verify-only
+  support for the exact firmware, pinned cflib/runtime and deterministic
+  `WebeeBlocks-X3-Characterization` artifact. Machine-side checkpoint preparation
+  is therefore complete without claiming any physical result
 - timing/provenance boundary: the log-worker timestamp is not sensor producer
   time, and the X3 observer's `readBeg/readEnd` values bound CPU register reads,
   not sensor-internal production/filter time. #342 further establishes that the
@@ -394,19 +394,16 @@ justified by the current evidence.
   firmware configures gyro DRDY on BMI088 INT3 while the published Crazyflie 2.1
   Rev.B schematic routes STM32 PC14 / `INT_GYR` to BMI088 INT2 and leaves INT3
   unconnected. Do not promote either timestamp into producer time
-- remaining proof: justify deterministic provenance for every frozen-predictor
-  uncertainty bound, especially specific-force/tilt/initial-velocity error,
-  intersample acceleration, barometer displacement/filter uncertainty,
-  `sensor_time_error_s` and delivery latency. Nominal ODR and manufacturer
-  typical/RMS specifications are not deterministic bounds. The exact metric
-  reference, synchronization and raw-publication procedure must also be frozen
-  before any physical result can become authoritative
-- next checkpoint boundary: request at most one bounded props-off information
-  checkpoint only after the exact still-missing machine-unavailable information,
-  instrumented artifact/profile and deterministic offline method are identified.
-  That checkpoint should fill only those gaps and compare the same frozen
-  calculation across stationary, terrain, true-vertical and mixed cases; do not
-  repeat generic S3-A/B/C trials
+- remaining proof: obtain the pre-registered props-off human characterization on
+  the exact prepared bundle, retain every validly started stationary/terrain/
+  true-vertical/mixed trial plus the canonical independent witness, then freeze
+  only the calibration choices allowed by the pre-registration before untouched
+  confirmation and the separate #70 scientific decision. Stronger deterministic
+  frozen-predictor bounds remain conditional and are not validated by outcome data
+- next checkpoint boundary: the exact profile/artifact/method now exist. Request
+  at most one `x3-independent-props-off` checkpoint through the trusted mechanism
+  only when the repository-wide single-unresolved-`TEST_REQUIRED` rule permits;
+  do not create a second human request or repeat generic S3-A/B/C trials
 - falsification boundary: the current #70 review uses at most 5 cm displacement
   error and at most 1 s after transition end as bounded experimental criteria,
   not classifier thresholds or flight acceptance. A valid counterexample
