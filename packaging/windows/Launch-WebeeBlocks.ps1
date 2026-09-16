@@ -11,6 +11,11 @@ $world = Join-Path $PSScriptRoot 'worlds\crazyflie_runtime_v2.wbt'
 if (-not (Test-Path -LiteralPath $world -PathType Leaf)) {
   throw "Monde WebeeBlocks introuvable : $world"
 }
+$worldRoot = Split-Path $world -Parent
+$worldPerspective = Join-Path $worldRoot ('.' + [System.IO.Path]::GetFileNameWithoutExtension($world) + '.wbproj')
+if (-not (Test-Path -LiteralPath $worldPerspective -PathType Leaf)) {
+  throw "Perspective Webots de classe introuvable : $worldPerspective"
+}
 
 $worldText = Get-Content -LiteralPath $world -Raw
 if ($worldText -match '"(?:https?|webots)://') {
@@ -44,9 +49,11 @@ function New-WebeeBlocksRobotWindowSession {
   $robotWindowsRoot = Split-Path $RobotWindow.Root -Parent
   $root = Join-Path $robotWindowsRoot $name
   $html = Join-Path $root "$name.html"
-  $worldRoot = Split-Path $world -Parent
   $sessionWorld = Join-Path $worldRoot "$name.wbt"
-  if ((Test-Path -LiteralPath $root) -or (Test-Path -LiteralPath $sessionWorld)) {
+  $sessionPerspective = Join-Path $worldRoot ".$name.wbproj"
+  if ((Test-Path -LiteralPath $root) -or
+      (Test-Path -LiteralPath $sessionWorld) -or
+      (Test-Path -LiteralPath $sessionPerspective)) {
     throw "Identite de session WebeeBlocks deja presente : $name"
   }
 
@@ -66,9 +73,19 @@ function New-WebeeBlocksRobotWindowSession {
     }
     $sessionWorldText = $WorldText.Replace($sourceMarker, ('window "' + $name + '"'))
     [System.IO.File]::WriteAllText($sessionWorld, $sessionWorldText, [System.Text.UTF8Encoding]::new($false))
-    return [PSCustomObject]@{ Name = $name; Root = $root; Html = $html; World = $sessionWorld }
+    [System.IO.File]::Copy($worldPerspective, $sessionPerspective, $false)
+    return [PSCustomObject]@{
+      Name = $name
+      Root = $root
+      Html = $html
+      World = $sessionWorld
+      Perspective = $sessionPerspective
+    }
   }
   catch {
+    if (Test-Path -LiteralPath $sessionPerspective) {
+      Remove-Item -LiteralPath $sessionPerspective -Force -ErrorAction SilentlyContinue
+    }
     if (Test-Path -LiteralPath $sessionWorld) {
       Remove-Item -LiteralPath $sessionWorld -Force -ErrorAction SilentlyContinue
     }
@@ -82,6 +99,9 @@ function New-WebeeBlocksRobotWindowSession {
 function Remove-WebeeBlocksRobotWindowSession {
   param($Session)
   if ($null -eq $Session) { return }
+  if (Test-Path -LiteralPath $Session.Perspective) {
+    Remove-Item -LiteralPath $Session.Perspective -Force -ErrorAction SilentlyContinue
+  }
   if (Test-Path -LiteralPath $Session.World) {
     Remove-Item -LiteralPath $Session.World -Force -ErrorAction SilentlyContinue
   }
@@ -404,12 +424,24 @@ if ($ValidateOnly) {
     if ($serverA.Port -eq $serverB.Port) {
       throw 'Deux serveurs WebeeBlocks simultanes ont reutilise le meme port ephemere.'
     }
+    $canonicalPerspectiveHash = (Get-FileHash -LiteralPath $worldPerspective -Algorithm SHA256).Hash
     foreach ($probe in @(
       [PSCustomObject]@{ Server = $serverA; Session = $sessionA; Html = $rewrittenA },
       [PSCustomObject]@{ Server = $serverB; Session = $sessionB; Html = $rewrittenB }
     )) {
       if (-not ([System.IO.File]::ReadAllText($probe.Session.World)).Contains(('window "' + $probe.Session.Name + '"'))) {
         throw 'Le monde de session ne selectionne pas son identite Robot Window unique.'
+      }
+      $expectedPerspective = Join-Path (Split-Path $probe.Session.World -Parent) ('.' + [System.IO.Path]::GetFileNameWithoutExtension($probe.Session.World) + '.wbproj')
+      if (-not [string]::Equals($probe.Session.Perspective, $expectedPerspective, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'La perspective de session ne correspond pas au nom de monde attendu par Webots.'
+      }
+      if (-not (Test-Path -LiteralPath $probe.Session.Perspective -PathType Leaf)) {
+        throw 'La perspective Webots de session est absente.'
+      }
+      $sessionPerspectiveHash = (Get-FileHash -LiteralPath $probe.Session.Perspective -Algorithm SHA256).Hash
+      if ($sessionPerspectiveHash -ne $canonicalPerspectiveHash) {
+        throw 'La perspective Webots de session ne preserve pas exactement la perspective canonique.'
       }
       $faviconMarker = '<link rel="icon" href="data:,">'
       if ([regex]::Matches($probe.Html, [regex]::Escape($faviconMarker)).Count -ne 1) {
@@ -439,7 +471,7 @@ if ($ValidateOnly) {
     Remove-WebeeBlocksRobotWindowSession -Session $sessionB
     Remove-WebeeBlocksRobotWindowSession -Session $sessionA
   }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-ephemeral-session-isolated-connection-close"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-ephemeral-session-isolated-connection-close perspective=session-cloned"
   exit 0
 }
 
