@@ -355,6 +355,40 @@ def main():
         colours=[first_colour(initial,t) for t in block_types]
         if set(colours)!={expected_colours[name]}:
             raise RuntimeError(name+' blocks do not use semantic palette: '+json.dumps(dict(zip(block_types,colours)),ensure_ascii=False))
+
+    # #414 recurrence after #418 proves that page activation alone is not enough:
+    # the later keyboard toolbox/flyout lifecycle can precede the tooltip oracle.
+    # Keep the real tooltip proof as the first user interaction after fixture setup,
+    # before any keyboard, flyout, responsive or dropdown interaction can alter
+    # Blockly's gesture/tooltip scheduling lifecycle.
+    screenshot=Path(a.screenshot)
+    repeat_before_dropdown=c.eval(REPEAT_HOVER_RECT)
+    c.hover(repeat_before_dropdown)
+    tooltip=[]
+    end=time.time()+5.0
+    while time.time()<end:
+        overlay=c.eval(VISIBLE_OVERLAY)
+        tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
+        if tooltip: break
+        time.sleep(.1)
+    if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty before dropdown within 5.0s')
+    tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
+    if not tooltip_text or 'repeat' in tooltip_text:
+        raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
+    c.screenshot(screenshot.with_name('repeat-tooltip-1366x768.png'))
+
+    # Leave the exact tooltip path using ordinary browser input only, then wait
+    # for the public visible overlay to close before exercising other controls.
+    c.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':repeat_before_dropdown['outsideX'],'y':repeat_before_dropdown['outsideY']})
+    tooltip_overlay=[]
+    tooltip_end=time.time()+2.0
+    while time.time()<tooltip_end:
+        tooltip_overlay=[entry for entry in c.eval(VISIBLE_OVERLAY) if 'tooltip' in entry['className'].lower() and entry['text'].strip()]
+        if not tooltip_overlay: break
+        time.sleep(.05)
+    if tooltip_overlay:
+        raise RuntimeError('repeat tooltip did not close before direction dropdown: '+json.dumps(tooltip_overlay,ensure_ascii=False))
+
     key=keyboard(c)
     c.call('Emulation.setDeviceMetricsOverride',{'width':800,'height':768,'deviceScaleFactor':1,'mobile':False}); c.eval('Blockly.svgResize(workspace);true'); time.sleep(.25)
     responsive=c.eval(RESPONSIVE)
@@ -379,37 +413,7 @@ def main():
         raise RuntimeError('rendered repeat block must not display "faire": '+repeat_text)
     if rendered['workspaceAriaLabel']!='Programme Blockly':
         raise RuntimeError('rendered workspace accessibility label is not French: '+str(rendered['workspaceAriaLabel']))
-    screenshot=Path(a.screenshot)
     c.screenshot(screenshot)
-
-    # #405 causal repair: prove the real tooltip before any direction-dropdown
-    # lifecycle can contaminate Blockly's tooltip scheduling state.
-    repeat_before_dropdown=c.eval(REPEAT_HOVER_RECT)
-    c.hover(repeat_before_dropdown)
-    tooltip=[]
-    end=time.time()+5.0
-    while time.time()<end:
-        overlay=c.eval(VISIBLE_OVERLAY)
-        tooltip=[entry for entry in overlay if ('Tooltip' in entry['className'] or 'tooltip' in entry['className'].lower()) and entry['text'].strip()]
-        if tooltip: break
-        time.sleep(.1)
-    if not tooltip: raise RuntimeError('real repeat tooltip did not become visible and non-empty before dropdown within 5.0s')
-    tooltip_text=' '.join(entry['text'] for entry in tooltip).lower()
-    if not tooltip_text or 'repeat' in tooltip_text:
-        raise RuntimeError('real repeat tooltip is empty or English: '+tooltip_text)
-    c.screenshot(screenshot.with_name('repeat-tooltip-1366x768.png'))
-
-    # Leave the exact tooltip path using ordinary browser input only, then wait
-    # for the public visible overlay to close before testing the dropdown.
-    c.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':repeat_before_dropdown['outsideX'],'y':repeat_before_dropdown['outsideY']})
-    tooltip_overlay=[]
-    tooltip_end=time.time()+2.0
-    while time.time()<tooltip_end:
-        tooltip_overlay=[entry for entry in c.eval(VISIBLE_OVERLAY) if 'tooltip' in entry['className'].lower() and entry['text'].strip()]
-        if not tooltip_overlay: break
-        time.sleep(.05)
-    if tooltip_overlay:
-        raise RuntimeError('repeat tooltip did not close before direction dropdown: '+json.dumps(tooltip_overlay,ensure_ascii=False))
 
     # Exercise the real direction dropdown independently after the tooltip oracle
     # has already passed; this path never retries or manufactures the tooltip.
