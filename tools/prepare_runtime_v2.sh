@@ -31,4 +31,8 @@ test -d vendor/media
 test -s webots/RobotWindow.js
 test -s webots/request_methods.js
 
-echo "Runtime v2 Blockly assets ready: blockly@13.2.1"
+node "$ROOT_DIR/tools/prepare_classroom_progression.js"
+test -s vendor/classroom_activity_entry.js
+test -s vendor/classroom-activities/progression/index.json
+
+echo "Runtime v2 Blockly assets ready: blockly@13.2.1 + classroom progression starters"
