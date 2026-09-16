@@ -7,7 +7,6 @@ LOCK="$ROOT/tools/physical/qualification_runtime_lock.txt"
 WHEELHOUSE="$ROOT/support/wheels"
 CFLIB="$ROOT/support/cflib-source"
 QUALIFICATION_WORLD_SOURCE="$ROOT/tools/physical/qualification_world.wbt"
-QUALIFICATION_WORLD="$ROOT/worlds/.webeeblocks-qualification-world.wbt"
 
 # Verification and later imports must be observational with respect to the
 # manifest-covered source tree.
@@ -67,9 +66,9 @@ chmod u+x "$ROOT/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
 # local Robot Window host, so materialize the manifest-covered self-contained
 # shell inside the package's worlds/ directory to keep normal controller/project
 # discovery while introducing no network or system-project dependency.
-rm -f "$QUALIFICATION_WORLD"
-cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
+QUALIFICATION_WORLD="$(mktemp "$ROOT/worlds/.webeeblocks-qualification-source-XXXXXXXX.wbt")"
 trap 'rm -f "$QUALIFICATION_WORLD"' EXIT
+cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
 
 export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
 "$VENV/bin/python" "$ROOT/tools/physical/launch_physical_qualification.py" "$@" \
