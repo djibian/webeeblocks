@@ -348,6 +348,17 @@ justified by the current evidence.
   independent authority/acknowledgement/completion consumers. Post-takeoff
   interpreter/observer/protocol uncertainty enters the existing terminal
   powered-session/watchdog recovery path rather than permitting continuation
+- checkpoint #433 closed owner-authoritative `FAIL` before `PREPARE`: the exact
+  qualification package verified, but its world fell back from pinned R2025a
+  PROTO URLs to system project paths absent from the supported Ubuntu package.
+  No teacher approval, motor action or deck/flight qualification occurred, so the
+  trusted physical semantics are not refuted by this result
+- next repair boundary: close the qualification-world asset dependency
+  deterministically in the exact bundle, reusing the pinned R2025a localization
+  and package mechanisms where possible, and prove that every transitive
+  world/PROTO asset is present without fallback to absent system project files.
+  Only after that repair is integrated is a fresh exact-artifact representative
+  checkpoint eligible
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the
@@ -391,10 +402,11 @@ justified by the current evidence.
   Calibration-only processing/envelopes are then frozen before untouched
   confirmation and the separate scientific decision. An uncertainty interval
   crossing a predeclared target is `UNPROVEN`, never PASS
-- checkpoint gating: trusted `[TEST_REQUIRED]` #433 currently occupies the sole
-  global human-test slot for #157 representative real-device qualification, so
-  no X3 request is opened or notified until that request resolves. There is no
-  human-test queue
+- checkpoint gating: #433 is closed `FAIL` before `PREPARE` and no longer blocks
+  another checkpoint merely by occupying the one-open-human-test slot. This does
+  not create a queue or make X3 automatically next: any X3 request still requires
+  an exact trusted checkpoint decision from reconstructed current dependencies,
+  and the generic one-open-human-test rule remains mandatory
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune
@@ -433,8 +445,10 @@ justified by the current evidence.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: representative real-device qualification of the integrated physical
-  envelope. The trusted host already owns the live session, #278 responder,
+- depends: first repair the #433 qualification-world asset closure so the exact
+  representative bundle no longer falls back to absent system R2025a project
+  paths; then qualify the integrated physical envelope on representative real
+  hardware. The trusted host already owns the live session, #278 responder,
   exact #267 teacher binding, #262/#266 powered-session/watchdog lifecycle,
   #276/#308/#341 effect substrate and #362 dynamic Multi-ranger composition; new
   physical capability slices must consume those boundaries rather than expose
@@ -491,9 +505,12 @@ justified by the current evidence.
   isolated session's matching `.wbproj` name, preserving the native Firefox file
   broker, Chromium File System Access path, asset proxy and Runtime semantics
 - current proof boundary: a fresh exact Windows artifact acceptance is still
-  required to qualify Firefox on the repaired path. Trusted `[TEST_REQUIRED]`
-  #433 currently occupies the sole human-test slot for #157, so no second Windows
-  request is opened or notified until it resolves; no result is inferred from CI
+  required to qualify Firefox on the repaired path. #433 is now closed, but its
+  closure does not automatically create or prioritize a Windows checkpoint. Any
+  later `windows-low-end` request must bind the exact currently relevant classroom
+  artifact; integrated #435 materially changed the project/activity UI and Windows
+  packaging, so the older `badf635...` artifact cannot by itself close the current
+  Firefox/classroom boundary. Do not infer a result from machine CI
 - preserve evidence: do not restart the already-settled C8–C26 Qt research or
   redesign the integrated native broker without new contradictory evidence.
 
