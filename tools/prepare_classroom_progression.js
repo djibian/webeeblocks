@@ -7,8 +7,6 @@ const ROOT = path.resolve(__dirname, '..');
 const SOURCE = path.join(ROOT, 'activities', 'progression');
 const BLOCKLY = path.join(ROOT, 'plugins', 'robot_windows', 'blockly_v2');
 const TARGET = path.join(BLOCKLY, 'vendor', 'classroom-activities', 'progression');
-const ENTRY_SOURCE = path.join(BLOCKLY, 'activity_entry.js');
-const ENTRY_TARGET = path.join(BLOCKLY, 'vendor', 'classroom_activity_entry.js');
 const Activities = require(path.join(
   ROOT,
   'plugins',
@@ -36,7 +34,6 @@ function same(left, right) {
 
 const manifestPath = path.join(SOURCE, 'index.json');
 if (!fs.existsSync(manifestPath)) fail('starter manifest is missing');
-if (!fs.existsSync(ENTRY_SOURCE)) fail('activity entry source is missing');
 
 const manifest = readJson(manifestPath);
 if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.starters) || !manifest.starters.length)
@@ -93,13 +90,10 @@ fs.mkdirSync(TARGET, {recursive: true});
 fs.copyFileSync(manifestPath, path.join(TARGET, 'index.json'));
 for (const file of declaredFiles)
   fs.copyFileSync(path.join(SOURCE, file), path.join(TARGET, file));
-fs.copyFileSync(ENTRY_SOURCE, ENTRY_TARGET);
 
 const preparedFiles = fs.readdirSync(TARGET).sort();
 const expectedPreparedFiles = ['index.json', ...sortedDeclaredFiles].sort();
 if (!same(preparedFiles, expectedPreparedFiles))
   fail('prepared starter bundle is incomplete');
-if (!fs.statSync(ENTRY_TARGET).isFile() || fs.statSync(ENTRY_TARGET).size === 0)
-  fail('prepared classroom activity entry is missing or empty');
 
 console.log('Classroom progression ready: ' + declaredFiles.length + ' starters');
