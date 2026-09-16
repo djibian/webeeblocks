@@ -46,6 +46,7 @@ if [[ "$webots_version" != *R2025a* ]]; then
   echo "FAIL: Webots R2025a required; observed: $webots_version" >&2
   exit 1
 fi
+REAL_WEBOTS_BIN="$WEBOTS_BIN"
 
 rm -rf "$VENV"
 python3 -m venv "$VENV"
@@ -73,15 +74,17 @@ chmod u+x "$QUALIFICATION_WEBOTS_WRAPPER"
 # local Robot Window host, so materialize the manifest-covered self-contained
 # shell inside the package's worlds/ directory to keep normal controller/project
 # discovery while introducing no network or system-project dependency. The final
-# launcher-generated world is paired by the Webots wrapper with the exact
-# manifest-backed R2025a perspective for its complete basename.
+# launcher-generated world is paired with its exact R2025a perspective; the
+# wrapper verifies that pair against the manifest-backed perspective immediately
+# before the real Webots process starts.
 QUALIFICATION_WORLD="$(mktemp "$ROOT/worlds/.webeeblocks-qualification-source-XXXXXXXX.wbt")"
 trap 'rm -f "$QUALIFICATION_WORLD"' EXIT
 cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
 
-export WEBEEBLOCKS_REAL_WEBOTS="$WEBOTS_BIN"
+export WEBEEBLOCKS_REAL_WEBOTS="$REAL_WEBOTS_BIN"
 export WEBEEBLOCKS_QUALIFICATION_PERSPECTIVE="$QUALIFICATION_PERSPECTIVE_SOURCE"
+WEBOTS_BIN="$QUALIFICATION_WEBOTS_WRAPPER"
 export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
 "$VENV/bin/python" "$ROOT/tools/physical/launch_physical_qualification.py" "$@" \
-  --webots "$QUALIFICATION_WEBOTS_WRAPPER" \
+  --webots "$WEBOTS_BIN" \
   --world "$QUALIFICATION_WORLD"
