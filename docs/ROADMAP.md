@@ -504,13 +504,13 @@ justified by the current evidence.
 - source repair: integrated #432 copies the canonical Webots perspective into the
   isolated session's matching `.wbproj` name, preserving the native Firefox file
   broker, Chromium File System Access path, asset proxy and Runtime semantics
-- current proof boundary: a fresh exact Windows artifact acceptance is still
-  required to qualify Firefox on the repaired path. #433 is now closed, but its
-  closure does not automatically create or prioritize a Windows checkpoint. Any
-  later `windows-low-end` request must bind the exact currently relevant classroom
-  artifact; integrated #435 materially changed the project/activity UI and Windows
-  packaging, so the older `badf635...` artifact cannot by itself close the current
-  Firefox/classroom boundary. Do not infer a result from machine CI
+- current proof boundary: trusted `[TEST_REQUIRED]` #438 is the sole open human
+  checkpoint, bound to exact current `main@3b8b67337fe1df4c569069e0174a3e07d3893e24`,
+  evidence run `35101396769` and the exact `WebeeBlocks-Windows-R2025a` artifact.
+  Its procedure requalifies automatic Firefox opening plus direct Firefox `.wbb`
+  and Chrome File System Access semantics on the classroom UI/packaging after
+  integrated #432 and #435. A PASS or FAIL must come from that exact human run;
+  do not infer either result from successful machine preparation or CI
 - preserve evidence: do not restart the already-settled C8–C26 Qt research or
   redesign the integrated native broker without new contradictory evidence.
 
