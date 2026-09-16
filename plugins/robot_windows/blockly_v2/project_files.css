@@ -6,6 +6,36 @@
   gap: 7px;
 }
 
+#activityStarterControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#activityStarterControls[hidden] { display: none; }
+
+#activityStarterControls label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--wb-muted);
+}
+
+#activityStarter {
+  min-width: 190px;
+  max-width: 290px;
+  padding: 8px 10px;
+  border: 1px solid #c8d0da;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #263342;
+  font: inherit;
+}
+
+#activityStarter:focus-visible {
+  outline: 2px solid #167f91;
+  outline-offset: 2px;
+}
+
 #projectFileState {
   margin-left: auto;
   min-width: 0;
@@ -20,5 +50,6 @@
 @media (max-width: 850px) {
   #primaryActions { gap: 5px; }
   #primaryActions button { padding-inline: 9px; }
+  #activityStarter { min-width: 160px; max-width: 220px; }
   #projectFileState { display: none; }
 }
