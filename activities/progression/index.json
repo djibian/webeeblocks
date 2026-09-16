@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "starters": [
+    {"file": "01-sequence.wbb", "activityId": "progression-sequence-v1"},
+    {"file": "02-precise-movement.wbb", "activityId": "progression-precise-movement-v1"},
+    {"file": "03-repeat.wbb", "activityId": "progression-repeat-v1"},
+    {"file": "04-simple-decision.wbb", "activityId": "progression-simple-decision-v1"},
+    {"file": "05-reactive.wbb", "activityId": "progression-reactive-v1"},
+    {"file": "06-multi-perception.wbb", "activityId": "progression-combined-decisions-v1"},
+    {"file": "07-memory.wbb", "activityId": "progression-memory-v1"},
+    {"file": "08-autonomous-strategy.wbb", "activityId": "progression-autonomous-strategy-v1"}
+  ]
+}
