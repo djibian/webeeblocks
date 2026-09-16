@@ -284,6 +284,26 @@
         if (previousHandle && previousHandle !== targetHandle) await releaseTarget(previousHandle);
         return {name: targetName, ast: validated.ast, mode: opened.mode || null};
       },
+      async openTemplate() {
+        var opened = await options.transport.open();
+        var templateHandle = opened.handle || null;
+        var validated;
+        var templateName;
+        try {
+          validated = validateProjectText(opened.text, options.getProfile(), dependencies());
+          applyValidated(validated);
+          templateName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+        } catch (error) {
+          if (templateHandle && templateHandle !== targetHandle) await releaseTarget(templateHandle);
+          throw error;
+        }
+        var previousHandle = targetHandle;
+        targetHandle = null;
+        targetName = null;
+        if (templateHandle) await releaseTarget(templateHandle);
+        if (previousHandle && previousHandle !== templateHandle) await releaseTarget(previousHandle);
+        return {name: templateName, ast: validated.ast, mode: opened.mode || null};
+      },
       async saveAs(name) {
         var proposal = normalizeName(name || targetName || options.getProfile().id);
         var result = await options.transport.saveAs(proposal, currentBytes());

@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
@@ -38,7 +39,7 @@ function ast(workspace, profile) {
 }
 
 function memoryTransport() {
-  const state = {writes:[], openText:null, currentText:null};
+  const state = {writes:[], releases:[], openText:null, currentText:null};
   const handle = {name:'eleve.wbb', token:'same-target'};
   return {
     state,
@@ -57,7 +58,8 @@ function memoryTransport() {
       state.currentText = text;
       state.writes.push({kind:'save',name,text,handle:target});
       return {handle:target,name,mode:'test'};
-    }
+    },
+    async release(target) { state.releases.push(target); }
   };
 }
 
@@ -293,6 +295,23 @@ async function exerciseWwiBoundary() {
   await expectRejectedWithoutMutation(manager, transport, JSON.stringify(injected), liveWorkspace, profileRef, 'hidden dropdown injection');
   assert.strictEqual(transport.state.writes.length, writesBeforeSave + 1, 'failed opens caused persistence writes');
 
+  // Starting a packaged activity is template import, not Open: the selected
+  // starter and any previous project target are released, so Save cannot
+  // overwrite either one. The student must explicitly choose Save As.
+  transport.state.openText = fs.readFileSync(path.join(ROOT, 'activities/progression/01-sequence.wbb'), 'utf8');
+  const releasesBeforeTemplate = transport.state.releases.length;
+  const templateResult = await manager.openTemplate();
+  assert.strictEqual(templateResult.ast, null, 'empty activity starter unexpectedly compiled as executable AST');
+  assert.strictEqual(profileRef.value.id, 'progression-sequence-v1', 'activity starter did not apply its declared profile');
+  assert.strictEqual(liveWorkspace.getAllBlocks(false).length, 0, 'activity starter did not restore its workspace');
+  assert.strictEqual(manager.hasCurrentTarget(), false, 'activity starter was adopted as the student save target');
+  assert.strictEqual(transport.state.releases.length, releasesBeforeTemplate + 1, 'activity starter target was not released');
+  await assert.rejects(manager.save(), /no current file/, 'Save after activity start must require Save As');
+  const writesBeforeTemplateSaveAs = transport.state.writes.length;
+  await manager.saveAs('mon-activite');
+  assert.strictEqual(manager.hasCurrentTarget(), true, 'Save As after activity start did not establish a student target');
+  assert.strictEqual(transport.state.writes.length, writesBeforeTemplateSaveAs + 1, 'Save As after activity start did not write exactly once');
+
   // A student must be able to save unfinished work. It is a valid project even
   // though it is not yet a valid executable flight AST.
   const incompleteProfile = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
@@ -311,13 +330,14 @@ async function exerciseWwiBoundary() {
   assert.strictEqual(incomplete.getBlocksByType('webeeblocks_v2_takeoff', false).length, 1, 'incomplete workspace was not restored');
   assert.strictEqual(incompleteTransport.state.writes.length, 1, 'opening incomplete project caused a write');
 
-  const fs = require('fs');
   const uiSource = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
   assert(uiSource.includes("error.name === 'AbortError'"), 'UI must treat native cancellation neutrally');
   assert(uiSource.includes('!manager.hasCurrentTarget()'), 'UI must disable Save without a current handle');
+  assert(uiSource.includes('manager.openTemplate()'), 'UI must expose activity starters as non-target templates');
+  assert(uiSource.includes("getElementById('projectActivity')"), 'UI must expose a discoverable activity-start action');
   assert(uiSource.includes('createDirectTransport'), 'UI must select a direct browser-or-WWI transport');
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
-  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
+  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
 })().catch(error => { console.error(error); process.exit(1); });
