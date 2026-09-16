@@ -42,6 +42,13 @@ try {
     }
   }
 
+  $activityEntrySource = Join-Path $blocklyDir 'activity_entry.js'
+  if (-not (Test-Path -LiteralPath $activityEntrySource -PathType Leaf)) {
+    throw 'Classroom activity entry source is missing.'
+  }
+  $activityEntryTarget = Join-Path $blocklyDir 'vendor\classroom_activity_entry.js'
+  Copy-Item -LiteralPath $activityEntrySource -Destination $activityEntryTarget -Force
+
   $progressionSource = Join-Path $rootDir 'activities\progression'
   $progressionManifestPath = Join-Path $progressionSource 'index.json'
   if (-not (Test-Path -LiteralPath $progressionManifestPath -PathType Leaf)) {
