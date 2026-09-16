@@ -43,10 +43,6 @@ BASE_WINDOW = ROOT / "plugins" / "robot_windows" / "blockly_v2"
 BASE_WORLD = ROOT / "worlds" / "crazyflie_runtime_v2.wbt"
 BROWSER_HELPER = PHYSICAL / "physical_qualification_runtime.js"
 MAX_JSON_BYTES = 65536
-ROBOT_WINDOW_PERSPECTIVE = (
-    "Webots Project File version R2025a\n"
-    "robotWindow: Crazyflie WebeeBlocks\n"
-)
 
 
 class PhysicalQualificationLauncherError(RuntimeError):
@@ -322,11 +318,9 @@ def _html_safe_json(value: object) -> str:
 class EphemeralRobotWindow:
     plugin_dir: Path
     world_path: Path
-    perspective_path: Path
 
     def close(self) -> None:
         try:
-            self.perspective_path.unlink(missing_ok=True)
             self.world_path.unlink(missing_ok=True)
         finally:
             shutil.rmtree(self.plugin_dir, ignore_errors=True)
@@ -359,9 +353,8 @@ def prepare_ephemeral_robot_window(
     suffix = secrets.token_hex(8)
     plugin_name = "blockly_v2_physical_" + suffix
     plugin_dir = robot_windows / plugin_name
-    world_path = worlds / ("webeeblocks-physical-" + suffix + ".wbt")
-    perspective_path = worlds / ("." + world_path.stem + ".wbproj")
-    if plugin_dir.exists() or world_path.exists() or perspective_path.exists():
+    world_path = worlds / (".webeeblocks-physical-" + suffix + ".wbt")
+    if plugin_dir.exists() or world_path.exists():
         raise PhysicalQualificationLauncherError("ephemeral qualification path collision")
 
     try:
@@ -396,15 +389,9 @@ def prepare_ephemeral_robot_window(
             world.replace(window_marker, f'window "{plugin_name}"', 1),
             encoding="utf-8",
         )
-        perspective_path.write_text(ROBOT_WINDOW_PERSPECTIVE, encoding="utf-8")
-        return EphemeralRobotWindow(
-            plugin_dir=plugin_dir,
-            world_path=world_path,
-            perspective_path=perspective_path,
-        )
+        return EphemeralRobotWindow(plugin_dir=plugin_dir, world_path=world_path)
     except Exception:
         try:
-            perspective_path.unlink(missing_ok=True)
             world_path.unlink(missing_ok=True)
         finally:
             shutil.rmtree(plugin_dir, ignore_errors=True)

@@ -20,6 +20,13 @@ function response(payload, ok = true, status = 200) {
   };
 }
 
+function writeFakeWebots(root, body) {
+  const fakeWebots = path.join(root, 'fake-webots.sh');
+  fs.writeFileSync(fakeWebots, '#!/usr/bin/env bash\nset -euo pipefail\n' + body, 'utf8');
+  fs.chmodSync(fakeWebots, 0o755);
+  return fakeWebots;
+}
+
 function testFinalWorldGetsExactLifecyclePerspective() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'webeeblocks-qualification-perspective-'));
   try {
@@ -28,13 +35,17 @@ function testFinalWorldGetsExactLifecyclePerspective() {
     const world = path.join(worlds, '.webeeblocks-physical-regression.wbt');
     fs.writeFileSync(world, '#VRML_SIM R2025a utf8\nRobot { }\n', 'utf8');
     const observed = path.join(root, 'observed-perspective.txt');
-    const fakeWebots = path.join(root, 'fake-webots.sh');
-    fs.writeFileSync(
-      fakeWebots,
-      `#!/usr/bin/env bash\nset -euo pipefail\nlast=\"\"\nfor arg in \"$@\"; do last=\"$arg\"; done\nbase=\"$(basename \"$last\" .wbt)\"\nperspective=\"$(dirname \"$last\")/.$base.wbproj\"\ntest -f \"$perspective\"\ngrep -Fxq 'Webots Project File version R2025a' \"$perspective\"\ntest \"$(grep -Fxc 'robotWindow: Crazyflie WebeeBlocks' \"$perspective\")\" -eq 1\nprintf '%s\\n' \"$perspective\" > \"$WEBEEBLOCKS_OBSERVED_PERSPECTIVE\"\n`,
-      'utf8'
+    const fakeWebots = writeFakeWebots(
+      root,
+      'last=""\n' +
+      'for arg in "$@"; do last="$arg"; done\n' +
+      'base="$(basename "$last" .wbt)"\n' +
+      'perspective="$(dirname "$last")/.$base.wbproj"\n' +
+      'test -f "$perspective"\n' +
+      "grep -Fxq 'Webots Project File version R2025a' \"$perspective\"\n" +
+      "test \"$(grep -Fxc 'robotWindow: Crazyflie WebeeBlocks' \"$perspective\")\" -eq 1\n" +
+      'printf \'%s\\n\' "$perspective" > "$WEBEEBLOCKS_OBSERVED_PERSPECTIVE"\n'
     );
-    fs.chmodSync(fakeWebots, 0o755);
 
     const expectedPerspective = path.join(worlds, '..webeeblocks-physical-regression.wbproj');
     const result = childProcess.spawnSync(
@@ -66,6 +77,78 @@ function testFinalWorldGetsExactLifecyclePerspective() {
       fs.existsSync(expectedPerspective),
       false,
       'final qualification perspective must be removed when Webots exits'
+    );
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+}
+
+function testPerspectiveSurvivesForwardedTermination() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'webeeblocks-qualification-signal-'));
+  try {
+    const worlds = path.join(root, 'worlds');
+    fs.mkdirSync(worlds);
+    const world = path.join(worlds, '.webeeblocks-physical-signal.wbt');
+    fs.writeFileSync(world, '#VRML_SIM R2025a utf8\nRobot { }\n', 'utf8');
+    const ready = path.join(root, 'child-ready.txt');
+    const observed = path.join(root, 'child-exit-observation.txt');
+    const fakeWebots = writeFakeWebots(
+      root,
+      'last=""\n' +
+      'for arg in "$@"; do last="$arg"; done\n' +
+      'base="$(basename "$last" .wbt)"\n' +
+      'perspective="$(dirname "$last")/.$base.wbproj"\n' +
+      'test -f "$perspective"\n' +
+      'printf ready > "$WEBEEBLOCKS_CHILD_READY"\n' +
+      "trap 'test -f \"$perspective\"; sleep 0.25; test -f \"$perspective\"; printf perspective_present_before_child_exit > \"$WEBEEBLOCKS_CHILD_OBSERVED\"; exit 143' TERM\n" +
+      'while true; do sleep 0.05; done\n'
+    );
+    const expectedPerspective = path.join(worlds, '..webeeblocks-physical-signal.wbproj');
+    const driver = [
+      'set -euo pipefail',
+      `wrapper=${JSON.stringify(WEBOTS_WRAPPER)}`,
+      `world=${JSON.stringify(world)}`,
+      `ready=${JSON.stringify(ready)}`,
+      `observed=${JSON.stringify(observed)}`,
+      `perspective=${JSON.stringify(expectedPerspective)}`,
+      'bash "$wrapper" "$world" &',
+      'wrapper_pid=$!',
+      'for _ in $(seq 1 100); do [[ -f "$ready" ]] && break; sleep 0.02; done',
+      'test -f "$ready"',
+      'test -f "$perspective"',
+      'kill -TERM "$wrapper_pid"',
+      'sleep 0.08',
+      'kill -0 "$wrapper_pid"',
+      'test -f "$perspective"',
+      'set +e',
+      'wait "$wrapper_pid"',
+      'wrapper_status=$?',
+      'set -e',
+      'test "$wrapper_status" -ne 0',
+      'test "$(cat "$observed")" = perspective_present_before_child_exit',
+      'test ! -e "$perspective"'
+    ].join('\n');
+    const result = childProcess.spawnSync(
+      'bash',
+      ['-c', driver],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 5000,
+        env: {
+          ...process.env,
+          WEBEEBLOCKS_REAL_WEBOTS: fakeWebots,
+          WEBEEBLOCKS_QUALIFICATION_PERSPECTIVE: PERSPECTIVE_SOURCE,
+          WEBEEBLOCKS_CHILD_READY: ready,
+          WEBEEBLOCKS_CHILD_OBSERVED: observed
+        }
+      }
+    );
+    assert.strictEqual(
+      result.status,
+      0,
+      'wrapper must remain alive with perspective until delayed child termination: ' +
+        result.stdout + '\n' + result.stderr
     );
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
@@ -129,8 +212,6 @@ async function runCase({preflightFails}) {
     throw new Error('unexpected qualification helper URL: ' + url);
   };
 
-  // Let any post-settlement poll happen quickly. The fixed helper returns before
-  // scheduling this delay; the pre-fix loop therefore becomes observably noisy.
   global.setTimeout = function(resolve, ms, ...args) {
     return originalSetTimeout(resolve, Math.min(Number(ms) || 0, 1), ...args);
   };
@@ -146,9 +227,6 @@ async function runCase({preflightFails}) {
     ))
   ]);
 
-  // Give the real helper multiple opportunities to schedule another 200 ms poll.
-  // With the accelerated timer above, an implementation that keeps polling will
-  // issue many additional GETs during this window.
   await new Promise(resolve => originalSetTimeout(resolve, 30));
 
   assert.strictEqual(prepareGets, 1, 'settled one-shot preparation must stop launcher GET polling');
@@ -175,9 +253,10 @@ async function runCase({preflightFails}) {
 
 (async function() {
   testFinalWorldGetsExactLifecyclePerspective();
+  testPerspectiveSurvivesForwardedTermination();
   await runCase({preflightFails: false});
   await runCase({preflightFails: true});
-  console.log('PASS physical qualification browser preparation polls exactly once after success and fail-closed settlement');
+  console.log('PASS physical qualification browser preparation and Webots perspective lifecycle fail closed');
 })().catch(error => {
   global.fetch = originalFetch;
   global.setTimeout = originalSetTimeout;
