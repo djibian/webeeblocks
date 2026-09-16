@@ -37,6 +37,9 @@
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
+    window.dispatchEvent(new CustomEvent('webeeblocks-project-controls', {
+      detail: {locked: locked, runtimeLocked: runtimeLocked}
+    }));
   }
 
   function setRuntimeLocked(locked) {
@@ -54,7 +57,10 @@
     catch (error) {
       if (!isCancellation(error)) {
         diagnostic(name, error);
-        fileState(name === 'open' ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
+        var message = name === 'open'
+          ? 'Impossible d’ouvrir ce projet'
+          : (name === 'activity' ? 'Impossible de démarrer cette activité' : 'Impossible d’enregistrer ce projet');
+        fileState(message, true);
       }
       return null;
     } finally {
@@ -72,6 +78,45 @@
     if (workspace && typeof workspace.updateToolbox === 'function') workspace.updateToolbox(buildToolbox(profile));
     profileFieldOptions.applyWorkspace(workspace);
     WebeeBlocksActivityContract.applyFieldBounds(profile, workspace);
+  }
+
+  function createManager(transport) {
+    return WebeeBlocksProjectFiles.createManager({
+      Blockly: Blockly,
+      profiles: WebeeBlocksActivityProfiles,
+      activitiesDocument: WebeeBlocksActivities.DOCUMENT,
+      blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
+      semanticAst: WebeeBlocksSemanticAst,
+      activityContract: WebeeBlocksActivityContract,
+      workspace: workspace,
+      getProfile: function() { return runtimeProfile; },
+      setProfile: applyProfile,
+      transport: transport
+    });
+  }
+
+  function createTemplateTransport(baseTransport, text, name) {
+    var pendingTemplate = true;
+    return {
+      nativeFileSystemAccess: !!baseTransport.nativeFileSystemAccess,
+      mode: baseTransport.mode || 'native',
+      async open() {
+        if (pendingTemplate) {
+          pendingTemplate = false;
+          return {handle: null, name: name, text: text, mode: 'template'};
+        }
+        return baseTransport.open();
+      },
+      async saveAs(targetName, targetText) {
+        return baseTransport.saveAs(targetName, targetText);
+      },
+      async save(target, targetName, targetText) {
+        return baseTransport.save(target, targetName, targetText);
+      },
+      async release(target) {
+        if (typeof baseTransport.release === 'function') return baseTransport.release(target);
+      }
+    };
   }
 
   function suggestedName() {
@@ -181,21 +226,30 @@
         return;
       }
 
-      manager = WebeeBlocksProjectFiles.createManager({
-        Blockly: Blockly,
-        profiles: WebeeBlocksActivityProfiles,
-        activitiesDocument: WebeeBlocksActivities.DOCUMENT,
-        blockCatalog: WebeeBlocksActivities.BLOCK_CATALOG,
-        semanticAst: WebeeBlocksSemanticAst,
-        activityContract: WebeeBlocksActivityContract,
-        workspace: workspace,
-        getProfile: function() { return runtimeProfile; },
-        setProfile: applyProfile,
-        transport: transport
-      });
+      manager = createManager(transport);
       window.WebeeBlocksProjectManager = manager;
       supported = manager.nativeFileSystemAccess;
       document.body.dataset.projectFileMode = transport.mode || 'native';
+      window.WebeeBlocksStartActivityTemplate = function(text, name) {
+        return operation('activity', async function() {
+          if (typeof text !== 'string' || !text.trim()) throw new Error('activity starter is empty');
+          if (typeof name !== 'string' || !name.trim()) throw new Error('activity starter has no name');
+          var nextManager = createManager(createTemplateTransport(transport, text, name));
+          var result = await nextManager.open();
+          manager = nextManager;
+          window.WebeeBlocksProjectManager = manager;
+          fileState('Activité chargée — utilisez Enregistrer sous pour conserver votre travail', false);
+          if (runtimeBackend && runtimeBackend.ready) {
+            if (runtimeTerminal) {
+              document.getElementById('runtimeDetail').textContent = 'Activité chargée — réinitialisez la simulation avant de relancer';
+              updateRuntimeActions();
+            } else {
+              setRuntimeStatus('PRÊT', 'Activité chargée');
+            }
+          }
+          return result;
+        });
+      };
       window.dispatchEvent(new CustomEvent('webeeblocks-project-files-ready', {
         detail: {nativeFileSystemAccess: supported, mode: document.body.dataset.projectFileMode}
       }));
