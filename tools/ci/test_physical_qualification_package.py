@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -38,6 +39,30 @@ def run_verify(bundle: Path, *, success: bool) -> None:
         raise AssertionError("package verifier unexpectedly failed\n" + result.stdout + result.stderr)
     if not success and result.returncode == 0:
         raise AssertionError("package verifier accepted a mutated package")
+
+
+def run_perspective_self_test(bundle: Path) -> None:
+    helper = bundle / "tools" / "physical" / "qualification_perspective.py"
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONNOUSERSITE"] = "1"
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [sys.executable, str(helper), "--self-test"],
+        cwd=bundle,
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+    expected = "PASS: exact R2025a ephemeral qualification perspective lifecycle verified"
+    require(
+        result.returncode == 0,
+        "packaged perspective self-test failed\n" + result.stdout + result.stderr,
+    )
+    require(
+        result.stdout.strip() == expected and not result.stderr,
+        "packaged perspective self-test did not produce the exact causal PASS",
+    )
 
 
 def verify_static_contract() -> None:
@@ -260,6 +285,7 @@ def verify_static_contract() -> None:
 
 def verify_built_bundle(bundle: Path) -> None:
     run_verify(bundle, success=True)
+    run_perspective_self_test(bundle)
 
     source_sha = bundle / "SOURCE_SHA"
     original = source_sha.read_bytes()
