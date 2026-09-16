@@ -1,9 +1,14 @@
 'use strict';
 
 const assert = require('assert');
+const childProcess = require('child_process');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const HELPER = path.resolve(__dirname, '../physical/physical_qualification_runtime.js');
+const WEBOTS_WRAPPER = path.resolve(__dirname, '../physical/run_webots_qualification_world.sh');
+const PERSPECTIVE_SOURCE = path.resolve(__dirname, '../physical/qualification_world.wbproj');
 const originalFetch = global.fetch;
 const originalSetTimeout = global.setTimeout;
 
@@ -13,6 +18,58 @@ function response(payload, ok = true, status = 200) {
     status: status,
     async json() { return JSON.parse(JSON.stringify(payload)); }
   };
+}
+
+function testFinalWorldGetsExactLifecyclePerspective() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'webeeblocks-qualification-perspective-'));
+  try {
+    const worlds = path.join(root, 'worlds');
+    fs.mkdirSync(worlds);
+    const world = path.join(worlds, '.webeeblocks-physical-regression.wbt');
+    fs.writeFileSync(world, '#VRML_SIM R2025a utf8\nRobot { }\n', 'utf8');
+    const observed = path.join(root, 'observed-perspective.txt');
+    const fakeWebots = path.join(root, 'fake-webots.sh');
+    fs.writeFileSync(
+      fakeWebots,
+      `#!/usr/bin/env bash\nset -euo pipefail\nlast=\"\"\nfor arg in \"$@\"; do last=\"$arg\"; done\nbase=\"$(basename \"$last\" .wbt)\"\nperspective=\"$(dirname \"$last\")/.$base.wbproj\"\ntest -f \"$perspective\"\ngrep -Fxq 'Webots Project File version R2025a' \"$perspective\"\ntest \"$(grep -Fxc 'robotWindow: Crazyflie WebeeBlocks' \"$perspective\")\" -eq 1\nprintf '%s\\n' \"$perspective\" > \"$WEBEEBLOCKS_OBSERVED_PERSPECTIVE\"\n`,
+      'utf8'
+    );
+    fs.chmodSync(fakeWebots, 0o755);
+
+    const expectedPerspective = path.join(worlds, '..webeeblocks-physical-regression.wbproj');
+    const result = childProcess.spawnSync(
+      'bash',
+      [WEBOTS_WRAPPER, '--mode=fast', world],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          WEBEEBLOCKS_REAL_WEBOTS: fakeWebots,
+          WEBEEBLOCKS_QUALIFICATION_PERSPECTIVE: PERSPECTIVE_SOURCE,
+          WEBEEBLOCKS_OBSERVED_PERSPECTIVE: observed
+        }
+      }
+    );
+    assert.strictEqual(
+      result.status,
+      0,
+      'qualification Webots wrapper must start fake Webots with the exact final perspective: ' +
+        result.stdout + '\n' + result.stderr
+    );
+    assert.strictEqual(
+      fs.readFileSync(observed, 'utf8').trim(),
+      expectedPerspective,
+      'Webots must observe the perspective derived from the final ephemeral world complete basename'
+    );
+    assert.strictEqual(
+      fs.existsSync(expectedPerspective),
+      false,
+      'final qualification perspective must be removed when Webots exits'
+    );
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
 }
 
 async function runCase({preflightFails}) {
@@ -117,6 +174,7 @@ async function runCase({preflightFails}) {
 }
 
 (async function() {
+  testFinalWorldGetsExactLifecyclePerspective();
   await runCase({preflightFails: false});
   await runCase({preflightFails: true});
   console.log('PASS physical qualification browser preparation polls exactly once after success and fail-closed settlement');

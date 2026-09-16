@@ -242,6 +242,12 @@ justified by the current evidence.
   and `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`;
   starter filenames map one-to-one to activity IDs and cumulative constraints are
   contract-tested without student progress state or a graphical activity studio
+- classroom access: integrated #435 closes #434 by shipping the canonical ordered
+  starter `.wbb` files in the Windows classroom release and exposing a distinct
+  `Démarrer une activité` template path through the existing declarative
+  project/profile loader. Starting a packaged activity clears the current save
+  target so student work requires an explicit Save As; no second activity
+  catalogue, unlock/progress state or new Runtime semantics is introduced
 - boundary: the product target is approximately 8–12 substantial activities, not
   an obligation to manufacture filler micro-exercises; add or split activities
   only for a demonstrated pedagogical need
@@ -342,6 +348,17 @@ justified by the current evidence.
   independent authority/acknowledgement/completion consumers. Post-takeoff
   interpreter/observer/protocol uncertainty enters the existing terminal
   powered-session/watchdog recovery path rather than permitting continuation
+- checkpoint #433 closed owner-authoritative `FAIL` before `PREPARE`: the exact
+  qualification package verified, but its world fell back from pinned R2025a
+  PROTO URLs to system project paths absent from the supported Ubuntu package.
+  No teacher approval, motor action or deck/flight qualification occurred, so the
+  trusted physical semantics are not refuted by this result
+- next repair boundary: close the qualification-world asset dependency
+  deterministically in the exact bundle, reusing the pinned R2025a localization
+  and package mechanisms where possible, and prove that every transitive
+  world/PROTO asset is present without fallback to absent system project files.
+  Only after that repair is integrated is a fresh exact-artifact representative
+  checkpoint eligible
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the
@@ -385,9 +402,11 @@ justified by the current evidence.
   Calibration-only processing/envelopes are then frozen before untouched
   confirmation and the separate scientific decision. An uncertainty interval
   crossing a predeclared target is `UNPROVEN`, never PASS
-- checkpoint gating: `[TEST_REQUIRED]` #392 currently occupies the sole global
-  human-test slot, so no X3 request is opened or notified until that request
-  resolves. There is no human-test queue
+- checkpoint gating: #433 is closed `FAIL` before `PREPARE` and no longer blocks
+  another checkpoint merely by occupying the one-open-human-test slot. This does
+  not create a queue or make X3 automatically next: any X3 request still requires
+  an exact trusted checkpoint decision from reconstructed current dependencies,
+  and the generic one-open-human-test rule remains mandatory
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune
@@ -426,8 +445,10 @@ justified by the current evidence.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: representative real-device qualification of the integrated physical
-  envelope. The trusted host already owns the live session, #278 responder,
+- depends: first repair the #433 qualification-world asset closure so the exact
+  representative bundle no longer falls back to absent system R2025a project
+  paths; then qualify the integrated physical envelope on representative real
+  hardware. The trusted host already owns the live session, #278 responder,
   exact #267 teacher binding, #262/#266 powered-session/watchdog lifecycle,
   #276/#308/#341 effect substrate and #362 dynamic Multi-ranger composition; new
   physical capability slices must consume those boundaries rather than expose
@@ -472,19 +493,24 @@ justified by the current evidence.
   `.wbb` Open / Save As / same-file Save, neutral cancellation, fail-closed
   invalid/incompatible Open and no numbered-download fallback while preserving
   the Chromium File System Access path
-- Windows preparation: the native broker/runtime and deterministic classroom
-  package are integrated. The earlier Windows checkpoint #338 failed at startup
-  because the R2025a Robot Window intermittently substituted JavaScript responses
-  with CSS bytes/MIME; later same-artifact evidence showed the direct Firefox
-  broker/file semantics working once startup succeeded. #369 tracks that Windows
-  startup/resource-distribution defect and its bounded repairs
-- current proof boundary: trusted `[TEST_REQUIRED]` #392 is the sole open human
-  checkpoint, bound to exact target `2229c5b9b4c5f162301357cb883639dd914e7ca5`
-  and exact Windows artifact. It re-tests repeated untouched-cache Firefox
-  startup plus native project-file semantics and preserves the Chrome path
-- next consequence: an owner-authoritative PASS on #392 closes the remaining
-  Windows Firefox qualification boundary; a FAIL becomes the exact demonstrated
-  Windows defect to repair. Do not infer either result from machine CI
+- Windows evidence: owner-authoritative #392 closed `FAIL` on exact target
+  `2229c5b9b4c5f162301357cb883639dd914e7ca5`. Once the controller ran, manually
+  opening Firefox connected to the ready Runtime, but automatic Robot Window
+  opening failed for the isolated per-session world. Earlier Windows evidence on
+  the #338 artifact had already shown the direct `.wbb` path working once startup
+  succeeded, so that broker contract remains to be requalified rather than
+  treated as refuted. The initial one-off controller executable refusal remains
+  causally `UNPROVEN` and is a separate release-distribution risk
+- source repair: integrated #432 copies the canonical Webots perspective into the
+  isolated session's matching `.wbproj` name, preserving the native Firefox file
+  broker, Chromium File System Access path, asset proxy and Runtime semantics
+- current proof boundary: trusted `[TEST_REQUIRED]` #438 is the sole open human
+  checkpoint, bound to exact current `main@3b8b67337fe1df4c569069e0174a3e07d3893e24`,
+  evidence run `35101396769` and the exact `WebeeBlocks-Windows-R2025a` artifact.
+  Its procedure requalifies automatic Firefox opening plus direct Firefox `.wbb`
+  and Chrome File System Access semantics on the classroom UI/packaging after
+  integrated #432 and #435. A PASS or FAIL must come from that exact human run;
+  do not infer either result from successful machine preparation or CI
 - preserve evidence: do not restart the already-settled C8–C26 Qt research or
   redesign the integrated native broker without new contradictory evidence.
 
