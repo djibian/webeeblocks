@@ -94,6 +94,8 @@ $required = @(
   "${robotWindowRelative}\${robotWindowName}.html",
   "${robotWindowRelative}\vendor\VERSION",
   "${robotWindowRelative}\vendor\blockly_compressed.js",
+  "${robotWindowRelative}\vendor\classroom_activity_entry.js",
+  "${robotWindowRelative}\vendor\classroom-activities\progression\index.json",
   "${robotWindowRelative}\webots\RobotWindow.js",
   'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js',
   'plugins\robot_windows\blockly\webeeblocks\project_files.js',
@@ -106,6 +108,30 @@ $required = @(
 )
 foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
+}
+
+$progressionRoot = Join-Path $robotWindowRoot 'vendor\classroom-activities\progression'
+$progressionManifestPath = Join-Path $progressionRoot 'index.json'
+$progressionManifest = Get-Content -LiteralPath $progressionManifestPath -Raw | ConvertFrom-Json
+Assert-Release ($progressionManifest.version -eq 1) 'Packaged progression manifest version is invalid.'
+$progressionEntries = @($progressionManifest.starters)
+Assert-Release ($progressionEntries.Count -gt 0) 'Packaged progression manifest is empty.'
+$declaredStarterFiles = @($progressionEntries | ForEach-Object { [string]$_.file } | Sort-Object)
+$packagedStarterFiles = @(Get-ChildItem -LiteralPath $progressionRoot -File -Filter '*.wbb' | Sort-Object Name | ForEach-Object { $_.Name })
+Assert-Release (($declaredStarterFiles -join "`n") -eq ($packagedStarterFiles -join "`n")) 'Packaged progression starters do not match the declared manifest.'
+$seenActivityIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($entry in $progressionEntries) {
+  $starterFile = [string]$entry.file
+  $activityId = [string]$entry.activityId
+  Assert-Release ($starterFile -match '^\d{2}-[a-z0-9-]+\.wbb$') "Invalid packaged progression starter name: $starterFile"
+  Assert-Release ($activityId -match '^progression-[a-z0-9-]+-v1$') "Invalid packaged progression activity id: $activityId"
+  Assert-Release ($seenActivityIds.Add($activityId)) "Duplicate packaged progression activity id: $activityId"
+  $starterPath = Join-Path $progressionRoot $starterFile
+  Assert-Release (Test-Path -LiteralPath $starterPath -PathType Leaf) "Missing packaged progression starter: $starterFile"
+  $starterProject = Get-Content -LiteralPath $starterPath -Raw | ConvertFrom-Json
+  Assert-Release ($starterProject.format -eq 'webeeblocks-project' -and $starterProject.version -eq 1) "Invalid packaged progression project: $starterFile"
+  Assert-Release ($starterProject.activity.id -eq $activityId) "Packaged progression starter/activity mismatch: $starterFile"
+  Assert-Release ($starterProject.activity.semantics -eq 'webeeblocks-ast-v1') "Packaged progression starter semantics mismatch: $starterFile"
 }
 
 $version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
@@ -224,4 +250,4 @@ finally {
   $env:PATH = $oldPath
 }
 
-Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, cache-isolated, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
+Write-Host "PASS: Windows classroom archive is self-contained, checksummed, path-safe, cache-isolated, progression-complete, launcher-ready and its packaged controller loads through the declared Webots R2025a runtime ($($manifestEntries.Count) files)."
