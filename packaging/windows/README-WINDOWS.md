@@ -37,6 +37,25 @@ Après préparation de Webots et extraction de cette archive, couper le réseau 
 doit pas empêcher le lancement, Blockly, l’exécution, le pas à pas, la remise à
 zéro ou les fichiers `.wbb`.
 
+## Démarrer une activité de la progression
+
+L’archive contient le dossier `Activites` avec les huit fichiers `.wbb` de la
+progression pédagogique, numérotés dans l’ordre. L’enseignant peut distribuer
+l’ensemble du dossier ou seulement les activités qu’il souhaite rendre
+disponibles.
+
+Dans WebeeBlocks, cliquer **Démarrer une activité**, puis choisir le fichier
+`.wbb` voulu dans `Activites`. Le titre, l’objectif, la boîte à outils et les
+contraintes de cette activité sont alors appliqués par le même profil déclaratif
+que dans le produit. Le fichier fourni est utilisé comme **modèle** : il ne
+devient pas la cible d’enregistrement de l’élève. Pour conserver son travail,
+l’élève choisit **Enregistrer sous** et crée son propre fichier ; ensuite
+**Enregistrer** réécrit uniquement ce fichier choisi.
+
+Le bouton **Ouvrir** conserve son sens habituel : il ouvre un projet de travail
+existant et en fait la cible courante d’**Enregistrer**. Il ne remplace donc pas
+**Démarrer une activité**.
+
 En cas d’échec, vérifier que
 `C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe` existe. Le fichier
 `MANIFEST.sha256` permet de contrôler l’intégrité de chaque fichier livré.

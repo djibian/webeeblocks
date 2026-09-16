@@ -139,6 +139,22 @@ foreach ($name in @('Launch-WebeeBlocks.cmd', 'Launch-WebeeBlocks.ps1', 'README-
     (Join-Path $packageDir $name)
 }
 
+# Ship the canonical progression starters as teacher-distributable templates.
+# Copy the source-of-truth files dynamically so the classroom release cannot
+# silently drift from activities/progression.
+$progressionSource = Join-Path $repoRoot 'activities\progression'
+if (-not (Test-Path -LiteralPath $progressionSource -PathType Container)) {
+  throw "Progression starter directory is missing: $progressionSource"
+}
+$progressionStarters = @(Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name)
+if ($progressionStarters.Count -eq 0) {
+  throw 'No progression starter project is available for the classroom release.'
+}
+$progressionTarget = Join-Path $packageDir 'Activites'
+foreach ($starter in $progressionStarters) {
+  Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)
+}
+
 $blocklySource = Join-Path $repoRoot 'plugins\robot_windows\blockly_v2'
 $blocklyTarget = Join-Path $packageDir 'plugins\robot_windows\blockly_v2'
 # Keep the classroom archive bounded to the actual Runtime root dependency

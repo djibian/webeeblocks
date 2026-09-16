@@ -30,10 +30,12 @@
   }
 
   function renderButtons() {
+    var activity = document.getElementById('projectActivity');
     var open = document.getElementById('projectOpen');
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
     var locked = busy || !supported || runtimeLocked;
+    if (activity) activity.disabled = locked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
     if (save) save.disabled = locked || !manager || !manager.hasCurrentTarget();
@@ -54,7 +56,7 @@
     catch (error) {
       if (!isCancellation(error)) {
         diagnostic(name, error);
-        fileState(name === 'open' ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
+        fileState((name === 'open' || name === 'activity') ? 'Impossible d’ouvrir ce projet' : 'Impossible d’enregistrer ce projet', true);
       }
       return null;
     } finally {
@@ -126,19 +128,31 @@
     return brokerTransport;
   }
 
+  function markProjectChanged(detail) {
+    if (runtimeBackend && runtimeBackend.ready) {
+      if (runtimeTerminal) {
+        document.getElementById('runtimeDetail').textContent = detail + ' — réinitialisez la simulation avant de relancer';
+        updateRuntimeActions();
+      } else {
+        setRuntimeStatus('PRÊT', detail);
+      }
+    }
+  }
+
   function bindProjectButtons() {
+    document.getElementById('projectActivity').addEventListener('click', function() {
+      operation('activity', async function() {
+        var result = await manager.openTemplate();
+        fileState('Activité : ' + result.name + ' — utilisez Enregistrer sous pour votre travail', false);
+        markProjectChanged('Activité démarrée');
+      });
+    });
+
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
         fileState('Projet : ' + result.name, false);
-        if (runtimeBackend && runtimeBackend.ready) {
-          if (runtimeTerminal) {
-            document.getElementById('runtimeDetail').textContent = 'Projet ouvert — réinitialisez la simulation avant de relancer';
-            updateRuntimeActions();
-          } else {
-            setRuntimeStatus('PRÊT', 'Projet ouvert');
-          }
-        }
+        markProjectChanged('Projet ouvert');
       });
     });
 

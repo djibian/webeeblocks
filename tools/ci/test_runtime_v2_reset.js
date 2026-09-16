@@ -147,6 +147,7 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   }
 
   const elements = {
+    projectActivity: button('projectActivity'),
     projectOpen: button('projectOpen'),
     projectSave: button('projectSave'),
     projectSaveAs: button('projectSaveAs'),

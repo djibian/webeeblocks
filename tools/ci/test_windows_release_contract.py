@@ -2,6 +2,7 @@
 """Static fail-closed contract for the Windows classroom release path."""
 
 from pathlib import Path
+import json
 import re
 import unittest
 
@@ -63,6 +64,46 @@ class WindowsReleaseContractTests(unittest.TestCase):
         self.assertIn("msys64\\usr\\bin\\make.exe", packager)
         self.assertIn("msys64\\mingw64\\bin\\gcc.exe", packager)
         self.assertIn("$env:WEBOTS_HOME = $webotsRoot", packager)
+
+    def test_progression_starters_are_shipped_as_non_target_templates(self) -> None:
+        packager = (
+            ROOT / "tools" / "build_windows_classroom_release.ps1"
+        ).read_text(encoding="utf-8")
+        html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
+        project_files = (
+            ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks" / "project_files.js"
+        ).read_text(encoding="utf-8")
+        project_ui = (BLOCKLY / "project_ui.js").read_text(encoding="utf-8")
+        readme = (PACKAGING / "README-WINDOWS.md").read_text(encoding="utf-8")
+
+        expected = {
+            "01-sequence.wbb": "progression-sequence-v1",
+            "02-precise-movement.wbb": "progression-precise-movement-v1",
+            "03-repeat.wbb": "progression-repeat-v1",
+            "04-simple-decision.wbb": "progression-simple-decision-v1",
+            "05-reactive.wbb": "progression-reactive-v1",
+            "06-multi-perception.wbb": "progression-combined-decisions-v1",
+            "07-memory.wbb": "progression-memory-v1",
+            "08-autonomous-strategy.wbb": "progression-autonomous-strategy-v1",
+        }
+        starter_dir = ROOT / "activities" / "progression"
+        self.assertEqual(sorted(path.name for path in starter_dir.glob("*.wbb")), list(expected))
+        for filename, activity_id in expected.items():
+            project = json.loads((starter_dir / filename).read_text(encoding="utf-8"))
+            self.assertEqual(project["activity"]["id"], activity_id)
+
+        self.assertIn("$progressionSource = Join-Path $repoRoot 'activities\\progression'", packager)
+        self.assertIn("Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name", packager)
+        self.assertIn("$progressionTarget = Join-Path $packageDir 'Activites'", packager)
+        self.assertIn("Copy-RequiredFile $starter.FullName (Join-Path $progressionTarget $starter.Name)", packager)
+        self.assertIn('id="projectActivity"', html)
+        self.assertIn("async openTemplate()", project_files)
+        self.assertIn("targetHandle = null", project_files)
+        self.assertIn("targetName = null", project_files)
+        self.assertIn("manager.openTemplate()", project_ui)
+        self.assertIn("utilisez Enregistrer sous pour votre travail", project_ui)
+        self.assertIn("dossier `Activites`", readme)
+        self.assertIn("utilisé comme **modèle**", readme)
 
     def test_robot_window_release_assets_are_complete_and_cache_isolated(self) -> None:
         html = (BLOCKLY / "blockly_v2.html").read_text(encoding="utf-8")
