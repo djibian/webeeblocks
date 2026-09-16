@@ -4,6 +4,7 @@
   var catalog = null;
   var loading = false;
   var controlsLocked = false;
+  var progressionRoot = 'vendor/classroom-activities/progression/';
 
   function controls() {
     return {
@@ -55,7 +56,7 @@
   }
 
   async function loadCatalog() {
-    var response = await fetch(new URL('activities/progression/index.json', window.location.href).href, {cache: 'no-store'});
+    var response = await fetch(new URL(progressionRoot + 'index.json', window.location.href).href, {cache: 'no-store'});
     if (!response.ok) throw new Error('progression starter manifest unavailable: HTTP ' + response.status);
     return validateCatalog(await response.json());
   }
@@ -85,7 +86,7 @@
     loading = true;
     setControlsDisabled();
     try {
-      var response = await fetch(new URL('activities/progression/' + selected.file, window.location.href).href, {cache: 'no-store'});
+      var response = await fetch(new URL(progressionRoot + selected.file, window.location.href).href, {cache: 'no-store'});
       if (!response.ok) throw new Error('activity starter unavailable: HTTP ' + response.status);
       var text = await response.text();
       var result = await window.WebeeBlocksStartActivityTemplate(text, selected.file);
@@ -108,13 +109,14 @@
 
   async function initialize() {
     if (catalog || typeof window.WebeeBlocksStartActivityTemplate !== 'function') return;
+    if (!window.WebeeBlocksProjectManager || window.WebeeBlocksProjectManager.nativeFileSystemAccess !== true) return;
     try {
       catalog = await loadCatalog();
       renderCatalog(catalog);
     } catch (error) {
-      // The generic development Robot Window may run without the packaged
+      // The generic development Robot Window may run without the prepared
       // classroom starter bundle. Keep that path intact and expose the chooser
-      // only when the deterministic release bundle is actually present.
+      // only when the deterministic bundle is actually present.
       console.warn('WebeeBlocks classroom progression starters unavailable', error);
     }
   }
