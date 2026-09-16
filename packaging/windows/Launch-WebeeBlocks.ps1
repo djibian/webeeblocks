@@ -7,6 +7,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$WebeeBlocksLocalServerPort = 18455
+
 $world = Join-Path $PSScriptRoot 'worlds\crazyflie_runtime_v2.wbt'
 if (-not (Test-Path -LiteralPath $world -PathType Leaf)) {
   throw "Monde WebeeBlocks introuvable : $world"
@@ -31,63 +33,6 @@ function Get-PackagedRobotWindow {
     throw "Robot Window de classe introuvable : $name"
   }
   [PSCustomObject]@{ Name = $name; Root = $root; Html = $html }
-}
-
-function New-WebeeBlocksRobotWindowSession {
-  param(
-    $RobotWindow,
-    [string]$WorldText
-  )
-
-  $token = [Guid]::NewGuid().ToString('N').Substring(0, 12)
-  $name = "$($RobotWindow.Name)_session_${PID}_$token"
-  $robotWindowsRoot = Split-Path $RobotWindow.Root -Parent
-  $root = Join-Path $robotWindowsRoot $name
-  $html = Join-Path $root "$name.html"
-  $worldRoot = Split-Path $world -Parent
-  $sessionWorld = Join-Path $worldRoot "$name.wbt"
-  if ((Test-Path -LiteralPath $root) -or (Test-Path -LiteralPath $sessionWorld)) {
-    throw "Identite de session WebeeBlocks deja presente : $name"
-  }
-
-  try {
-    New-Item -ItemType Directory -Path $root | Out-Null
-    Copy-Item -Path (Join-Path $RobotWindow.Root '*') -Destination $root -Recurse -Force
-    $copiedHtml = Join-Path $root "$($RobotWindow.Name).html"
-    if (-not (Test-Path -LiteralPath $copiedHtml -PathType Leaf)) {
-      throw "HTML Robot Window de session introuvable : $copiedHtml"
-    }
-    Move-Item -LiteralPath $copiedHtml -Destination $html
-
-    $sourceMarker = 'window "' + $RobotWindow.Name + '"'
-    $markerCount = [regex]::Matches($WorldText, [regex]::Escape($sourceMarker)).Count
-    if ($markerCount -ne 1) {
-      throw 'Le monde de classe ne contient pas exactement une identite Robot Window remplacable.'
-    }
-    $sessionWorldText = $WorldText.Replace($sourceMarker, ('window "' + $name + '"'))
-    [System.IO.File]::WriteAllText($sessionWorld, $sessionWorldText, [System.Text.UTF8Encoding]::new($false))
-    return [PSCustomObject]@{ Name = $name; Root = $root; Html = $html; World = $sessionWorld }
-  }
-  catch {
-    if (Test-Path -LiteralPath $sessionWorld) {
-      Remove-Item -LiteralPath $sessionWorld -Force -ErrorAction SilentlyContinue
-    }
-    if (Test-Path -LiteralPath $root) {
-      Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    throw
-  }
-}
-
-function Remove-WebeeBlocksRobotWindowSession {
-  param($Session)
-  if ($null -eq $Session) { return }
-  if (Test-Path -LiteralPath $Session.World) {
-    Remove-Item -LiteralPath $Session.World -Force -ErrorAction SilentlyContinue
-  }
-  if (Test-Path -LiteralPath $Session.Root) {
-    Remove-Item -LiteralPath $Session.Root -Recurse -Force -ErrorAction SilentlyContinue
-  }
 }
 
 function Get-WebeeBlocksContentType {
@@ -130,15 +75,20 @@ function Write-WebeeBlocksReply {
 }
 
 function Start-WebeeBlocksLocalServer {
-  param([string]$Root)
+  param(
+    [string]$Root,
+    [int]$Port
+  )
 
   $rootPath = [System.IO.Path]::GetFullPath($Root)
-  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
   try {
     $listener.Start()
-    $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-    if ($port -le 0) { throw 'Le serveur HTTP local WebeeBlocks n a obtenu aucun port.' }
-    return [PSCustomObject]@{ Listener = $listener; Port = $port; Root = $rootPath }
+    $boundPort = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+    if ($boundPort -ne $Port) {
+      throw "Le serveur HTTP local WebeeBlocks a obtenu le port inattendu $boundPort au lieu de $Port."
+    }
+    return [PSCustomObject]@{ Listener = $listener; Port = $boundPort; Root = $rootPath }
   }
   catch {
     $listener.Stop()
@@ -243,15 +193,15 @@ function Convert-RobotWindowChildUrls {
   return $rewritten
 }
 
-function Set-WebeeBlocksSessionHtml {
+function Set-WebeeBlocksRobotWindowHtml {
   param(
-    $Session,
+    $RobotWindow,
+    [string]$OriginalHtml,
     [int]$Port
   )
-  $html = [System.IO.File]::ReadAllText($Session.Html, [System.Text.Encoding]::UTF8)
-  $rewritten = Convert-RobotWindowChildUrls -Html $html -PluginRoot $Session.Root -Port $Port
+  $rewritten = Convert-RobotWindowChildUrls -Html $OriginalHtml -PluginRoot $RobotWindow.Root -Port $Port
   $rewritten = $rewritten.Replace('<head>', '<head><link rel="icon" href="data:,">')
-  [System.IO.File]::WriteAllText($Session.Html, $rewritten, [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($RobotWindow.Html, $rewritten, [System.Text.UTF8Encoding]::new($false))
   return $rewritten
 }
 
@@ -343,8 +293,6 @@ function Assert-LocalServerRecoversFromAbortedRequest {
     throw 'Le serveur local n a pas traite la requete HTTP interrompue.'
   }
 
-  # The aborted client must be contained locally; the same listener/session must
-  # still serve exact packaged bytes to the next valid request.
   Assert-LocalServerFile -Server $Server -RelativePath $RelativePath -ExpectedContentType $ExpectedContentType
 }
 
@@ -380,79 +328,58 @@ if ([string]::IsNullOrWhiteSpace($webots)) {
 }
 
 $robotWindow = Get-PackagedRobotWindow -WorldText $worldText
+$originalHtml = [System.IO.File]::ReadAllText($robotWindow.Html, [System.Text.Encoding]::UTF8)
 
 if ($ValidateOnly) {
-  $serverA = $null
-  $serverB = $null
-  $sessionA = $null
-  $sessionB = $null
-  try {
-    # Keep the first launch alive while constructing a complete second launch.
-    # Distinct top-level Robot Window identities make stale browser documents
-    # unable to retain the first launch's ephemeral child-asset origin.
-    $serverA = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
-    $sessionA = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText
-    $rewrittenA = Set-WebeeBlocksSessionHtml -Session $sessionA -Port $serverA.Port
-
-    $serverB = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
-    $sessionB = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText
-    $rewrittenB = Set-WebeeBlocksSessionHtml -Session $sessionB -Port $serverB.Port
-
-    if ($sessionA.Name -eq $sessionB.Name) {
-      throw 'Deux relances WebeeBlocks ont reutilise la meme identite Robot Window.'
-    }
-    if ($serverA.Port -eq $serverB.Port) {
-      throw 'Deux serveurs WebeeBlocks simultanes ont reutilise le meme port ephemere.'
-    }
-    foreach ($probe in @(
-      [PSCustomObject]@{ Server = $serverA; Session = $sessionA; Html = $rewrittenA },
-      [PSCustomObject]@{ Server = $serverB; Session = $sessionB; Html = $rewrittenB }
-    )) {
-      if (-not ([System.IO.File]::ReadAllText($probe.Session.World)).Contains(('window "' + $probe.Session.Name + '"'))) {
-        throw 'Le monde de session ne selectionne pas son identite Robot Window unique.'
+  for ($attempt = 1; $attempt -le 2; $attempt++) {
+    $server = $null
+    try {
+      $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot -Port $WebeeBlocksLocalServerPort
+      if ($server.Port -ne $WebeeBlocksLocalServerPort) {
+        throw "Le serveur HTTP local doit conserver le port $WebeeBlocksLocalServerPort entre les relances."
+      }
+      $rewritten = Set-WebeeBlocksRobotWindowHtml -RobotWindow $robotWindow -OriginalHtml $originalHtml -Port $server.Port
+      if (-not $worldText.Contains(('window "' + $robotWindow.Name + '"'))) {
+        throw 'Le monde de classe ne conserve pas l identite Robot Window stable.'
       }
       $faviconMarker = '<link rel="icon" href="data:,">'
-      if ([regex]::Matches($probe.Html, [regex]::Escape($faviconMarker)).Count -ne 1) {
-        throw 'La Robot Window de session doit neutraliser exactement une requete favicon implicite.'
+      if ([regex]::Matches($rewritten, [regex]::Escape($faviconMarker)).Count -ne 1) {
+        throw 'La Robot Window doit neutraliser exactement une requete favicon implicite.'
       }
-      $dependencyHtml = $probe.Html.Replace($faviconMarker, '')
+      $dependencyHtml = $rewritten.Replace($faviconMarker, '')
       $references = [regex]::Matches($dependencyHtml, '(?:src|href)="([^"]+)"')
       if ($references.Count -lt 10) {
-        throw 'La Robot Window de session contient trop peu de dependances pour valider le pont HTTP.'
+        throw 'La Robot Window contient trop peu de dependances pour valider le pont HTTP.'
       }
       foreach ($reference in $references) {
-        if (-not $reference.Groups[1].Value.StartsWith("http://127.0.0.1:$($probe.Server.Port)/", [System.StringComparison]::Ordinal)) {
-          throw "Une dependance de demarrage contourne le serveur HTTP propre a la session : $($reference.Groups[1].Value)"
+        if (-not $reference.Groups[1].Value.StartsWith("http://127.0.0.1:$WebeeBlocksLocalServerPort/", [System.StringComparison]::Ordinal)) {
+          throw "Une dependance de demarrage contourne l origine HTTP locale stable : $($reference.Groups[1].Value)"
         }
       }
-      $sessionRelative = "plugins\robot_windows\$($probe.Session.Name)"
-      Assert-LocalServerRecoversFromAbortedRequest -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'main.css') -ExpectedContentType 'text/css'
-      Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative "$($probe.Session.Name).html") -ExpectedContentType 'text/html'
-      Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'main.css') -ExpectedContentType 'text/css'
-      Assert-LocalServerFile -Server $probe.Server -RelativePath (Join-Path $sessionRelative 'vendor\msg\fr.js') -ExpectedContentType 'application/javascript'
-      Assert-LocalServerFile -Server $probe.Server -RelativePath 'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js' -ExpectedContentType 'application/javascript'
+      $robotWindowRelative = "plugins\robot_windows\$($robotWindow.Name)"
+      Assert-LocalServerRecoversFromAbortedRequest -Server $server -RelativePath (Join-Path $robotWindowRelative 'main.css') -ExpectedContentType 'text/css'
+      Assert-LocalServerFile -Server $server -RelativePath (Join-Path $robotWindowRelative "$($robotWindow.Name).html") -ExpectedContentType 'text/html'
+      Assert-LocalServerFile -Server $server -RelativePath (Join-Path $robotWindowRelative 'main.css') -ExpectedContentType 'text/css'
+      Assert-LocalServerFile -Server $server -RelativePath (Join-Path $robotWindowRelative 'vendor\msg\fr.js') -ExpectedContentType 'application/javascript'
+      Assert-LocalServerFile -Server $server -RelativePath 'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js' -ExpectedContentType 'application/javascript'
+    }
+    finally {
+      [System.IO.File]::WriteAllText($robotWindow.Html, $originalHtml, [System.Text.UTF8Encoding]::new($false))
+      Stop-WebeeBlocksLocalServer -Server $server
     }
   }
-  finally {
-    Stop-WebeeBlocksLocalServer -Server $serverB
-    Stop-WebeeBlocksLocalServer -Server $serverA
-    Remove-WebeeBlocksRobotWindowSession -Session $sessionB
-    Remove-WebeeBlocksRobotWindowSession -Session $sessionA
-  }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-ephemeral-session-isolated-connection-close"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-port-$WebeeBlocksLocalServerPort-stable-window-identity-connection-close"
   exit 0
 }
 
 $server = $null
-$session = $null
 $webotsProcess = $null
 try {
-  $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
-  $session = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText
-  Set-WebeeBlocksSessionHtml -Session $session -Port $server.Port | Out-Null
+  $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot -Port $WebeeBlocksLocalServerPort
+  Set-WebeeBlocksRobotWindowHtml -RobotWindow $robotWindow -OriginalHtml $originalHtml -Port $server.Port | Out-Null
 
-  if ($session.World.Contains('"')) { throw 'Le chemin du monde de session contient un guillemet non pris en charge.' }
-  $worldArgument = '"' + $session.World + '"'
+  if ($world.Contains('"')) { throw 'Le chemin du monde contient un guillemet non pris en charge.' }
+  $worldArgument = '"' + $world + '"'
   $webotsProcess = Start-Process -FilePath $webots -ArgumentList @('--mode=realtime', $worldArgument) -WorkingDirectory $PSScriptRoot -PassThru
   Write-Host "WebeeBlocks demarre. La simulation et la fenetre Blockly vont s'initialiser automatiquement."
 
@@ -465,6 +392,6 @@ try {
   }
 }
 finally {
+  [System.IO.File]::WriteAllText($robotWindow.Html, $originalHtml, [System.Text.UTF8Encoding]::new($false))
   Stop-WebeeBlocksLocalServer -Server $server
-  Remove-WebeeBlocksRobotWindowSession -Session $session
 }
