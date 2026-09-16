@@ -481,11 +481,12 @@ justified by the current evidence.
   the Chromium File System Access path
 - Windows evidence: owner-authoritative #392 closed `FAIL` on exact target
   `2229c5b9b4c5f162301357cb883639dd914e7ca5`. Once the controller ran, manually
-  opening Firefox connected to the ready Runtime and the direct `.wbb` path
-  remained usable; the reproducible product failure was automatic Robot Window
-  opening for the isolated per-session world. The initial one-off controller
-  executable refusal remains causally `UNPROVEN` and is a separate release-
-  distribution risk
+  opening Firefox connected to the ready Runtime, but automatic Robot Window
+  opening failed for the isolated per-session world. Earlier Windows evidence on
+  the #338 artifact had already shown the direct `.wbb` path working once startup
+  succeeded, so that broker contract remains to be requalified rather than
+  treated as refuted. The initial one-off controller executable refusal remains
+  causally `UNPROVEN` and is a separate release-distribution risk
 - source repair: integrated #432 copies the canonical Webots perspective into the
   isolated session's matching `.wbproj` name, preserving the native Firefox file
   broker, Chromium File System Access path, asset proxy and Runtime semantics
