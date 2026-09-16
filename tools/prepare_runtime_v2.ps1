@@ -42,6 +42,69 @@ try {
     }
   }
 
+  $progressionSource = Join-Path $rootDir 'activities\progression'
+  $progressionManifestPath = Join-Path $progressionSource 'index.json'
+  if (-not (Test-Path -LiteralPath $progressionManifestPath -PathType Leaf)) {
+    throw 'Classroom progression starter manifest is missing.'
+  }
+  $progressionManifest = Get-Content -LiteralPath $progressionManifestPath -Raw | ConvertFrom-Json
+  if ($null -eq $progressionManifest -or $progressionManifest.version -ne 1 -or $null -eq $progressionManifest.starters) {
+    throw 'Classroom progression starter manifest is invalid.'
+  }
+  $progressionEntries = @($progressionManifest.starters)
+  if ($progressionEntries.Count -eq 0) {
+    throw 'Classroom progression starter manifest is empty.'
+  }
+
+  $declaredFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  $declaredActivityIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($entry in $progressionEntries) {
+    $file = [string]$entry.file
+    $activityId = [string]$entry.activityId
+    if ($file -notmatch '^\d{2}-[a-z0-9-]+\.wbb$' -or [System.IO.Path]::GetFileName($file) -ne $file) {
+      throw "Invalid classroom progression starter filename: $file"
+    }
+    if ($activityId -notmatch '^progression-[a-z0-9-]+-v1$') {
+      throw "Invalid classroom progression activity id: $activityId"
+    }
+    if (-not $declaredFiles.Add($file) -or -not $declaredActivityIds.Add($activityId)) {
+      throw "Duplicate classroom progression starter declaration: $file / $activityId"
+    }
+
+    $starterPath = Join-Path $progressionSource $file
+    if (-not (Test-Path -LiteralPath $starterPath -PathType Leaf)) {
+      throw "Declared classroom progression starter is missing: $file"
+    }
+    $project = Get-Content -LiteralPath $starterPath -Raw | ConvertFrom-Json
+    if ($project.format -ne 'webeeblocks-project' -or $project.version -ne 1) {
+      throw "Classroom progression starter has an invalid project format: $file"
+    }
+    if ($project.activity.id -ne $activityId -or $project.activity.semantics -ne 'webeeblocks-ast-v1') {
+      throw "Classroom progression starter does not match its manifest activity: $file"
+    }
+  }
+
+  $sourceStarterFiles = @(Get-ChildItem -LiteralPath $progressionSource -File -Filter '*.wbb' | Sort-Object Name | ForEach-Object { $_.Name })
+  $declaredStarterFiles = @($progressionEntries | ForEach-Object { [string]$_.file } | Sort-Object)
+  if (($sourceStarterFiles -join "`n") -ne ($declaredStarterFiles -join "`n")) {
+    throw 'Classroom progression manifest must declare every progression starter exactly once.'
+  }
+
+  $progressionTarget = Join-Path $blocklyDir 'vendor\classroom-activities\progression'
+  if (Test-Path -LiteralPath $progressionTarget) {
+    Remove-Item -LiteralPath $progressionTarget -Recurse -Force
+  }
+  New-Item -ItemType Directory -Path $progressionTarget -Force | Out-Null
+  Copy-Item -LiteralPath $progressionManifestPath -Destination (Join-Path $progressionTarget 'index.json') -Force
+  foreach ($entry in $progressionEntries) {
+    $file = [string]$entry.file
+    Copy-Item -LiteralPath (Join-Path $progressionSource $file) -Destination (Join-Path $progressionTarget $file) -Force
+  }
+  $packagedStarterFiles = @(Get-ChildItem -LiteralPath $progressionTarget -File -Filter '*.wbb' | Sort-Object Name | ForEach-Object { $_.Name })
+  if (($packagedStarterFiles -join "`n") -ne ($declaredStarterFiles -join "`n")) {
+    throw 'Prepared classroom progression starter bundle is incomplete.'
+  }
+
   $mediaDir = Join-Path $blocklyDir 'vendor\media'
   if (-not (Test-Path -Path $mediaDir -PathType Container)) {
     throw 'Required Blockly media directory is missing.'
@@ -51,4 +114,4 @@ finally {
   Pop-Location
 }
 
-Write-Host 'Runtime v2 Blockly assets ready: blockly@13.2.1'
+Write-Host 'Runtime v2 Blockly assets ready: blockly@13.2.1 + classroom progression starters'
