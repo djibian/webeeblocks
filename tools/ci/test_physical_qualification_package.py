@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -16,6 +17,9 @@ RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+WEBOTS_IMAGE = f"cyberbotics/webots@{WEBOTS_IMAGE_DIGEST}"
+PACKAGED_RUNTIME_READY = "WEBEEBLOCKS_RUNTIME_V2 READY"
+CANONICAL_CI_WORKFLOW = "CI Gate"
 
 sys.path.insert(0, str(ROOT / "tools" / "physical"))
 import package_physical_qualification as packager  # noqa: E402
@@ -63,6 +67,123 @@ def run_perspective_self_test(bundle: Path) -> None:
         result.stdout.strip() == expected and not result.stderr,
         "packaged perspective self-test did not produce the exact causal PASS",
     )
+
+
+def _canonical_ci_runtime_smoke_enabled() -> bool:
+    return (
+        os.environ.get("GITHUB_ACTIONS") == "true"
+        and os.environ.get("GITHUB_WORKFLOW") == CANONICAL_CI_WORKFLOW
+    )
+
+
+def run_packaged_runtime_smoke(bundle: Path) -> None:
+    """Prove the exact package controller reaches the R2025a runtime without hardware."""
+
+    if not _canonical_ci_runtime_smoke_enabled():
+        return
+
+    source_sha = (bundle / "SOURCE_SHA").read_text(encoding="utf-8").strip()
+    manifest_bytes = (bundle / "SHA256SUMS.json").read_bytes()
+    fingerprint = f"{source_sha} {hashlib.sha256(manifest_bytes).hexdigest()}\n"
+
+    evidence = ROOT / "ci-artifacts" / "physical-qualification-runtime-smoke"
+    evidence.mkdir(parents=True, exist_ok=True)
+    stamp = evidence / "PASS.fingerprint"
+    webots_log = evidence / "webots.log"
+
+    if stamp.is_file() and webots_log.is_file():
+        require(
+            stamp.read_text(encoding="utf-8") == fingerprint,
+            "packaged Runtime smoke evidence fingerprint does not match the exact bundle",
+        )
+        require(
+            PACKAGED_RUNTIME_READY in webots_log.read_text(encoding="utf-8", errors="replace"),
+            "packaged Runtime smoke reuse lacks the exact READY evidence",
+        )
+        print("PASS: exact packaged Runtime v2 R2025a startup smoke already proven in this canonical CI job")
+        return
+
+    inner = r"""
+set -euo pipefail
+work=/tmp/webeeblocks-physical-qualification-smoke
+home=/tmp/webeeblocks-physical-qualification-home
+rm -rf "$work" "$home"
+cp -a /bundle "$work"
+world="$work/worlds/.webeeblocks-qualification-ci-smoke.wbt"
+cp "$work/tools/physical/qualification_world.wbt" "$world"
+mkdir -p "$home/.config/Cyberbotics"
+printf '%s\n' \
+  '[RobotWindow]' \
+  'browser=/bin/true' \
+  'newBrowserWindow=false' \
+  > "$home/.config/Cyberbotics/Webots-R2025a.conf"
+
+set +e
+env -u LD_LIBRARY_PATH -u WEBOTS_LIBRARY_PATH -u QT_PLUGIN_PATH \
+  HOME="$home" \
+  LIBGL_ALWAYS_SOFTWARE=true \
+  WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
+  timeout -k 5s 20s xvfb-run -a webots --stdout --stderr --batch --mode=fast "$world" \
+  > /evidence/webots.log 2>&1
+code=$?
+set -e
+printf '%s\n' "$code" > /evidence/exit-code.txt
+cat /evidence/webots.log
+case "$code" in
+  0|124) ;;
+  *) exit "$code" ;;
+esac
+grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' /evidence/webots.log
+"""
+
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "-v",
+        f"{bundle}:/bundle:ro",
+        "-v",
+        f"{evidence}:/evidence",
+        WEBOTS_IMAGE,
+        "bash",
+        "-lc",
+        inner,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        if isinstance(output, bytes):
+            output = output.decode("utf-8", errors="replace")
+        (evidence / "driver.log").write_text(output, encoding="utf-8")
+        raise AssertionError("packaged Runtime smoke timed out before a bounded result\n" + output[-8000:]) from exc
+
+    (evidence / "driver.log").write_text(result.stdout, encoding="utf-8")
+    require(
+        result.returncode == 0,
+        "packaged Runtime smoke failed\n" + result.stdout[-8000:],
+    )
+    require(webots_log.is_file(), "packaged Runtime smoke did not retain the Webots log")
+    log_text = webots_log.read_text(encoding="utf-8", errors="replace")
+    require(PACKAGED_RUNTIME_READY in log_text, "packaged Runtime v2 never reached READY")
+    for forbidden in (
+        "WEBEEBLOCKS_RUNTIME_V2 FATAL",
+        "error while loading shared libraries",
+        "Qt_6.5' not found",
+        "Qt_6.5` not found",
+    ):
+        require(forbidden not in log_text, f"packaged Runtime startup contains loader/runtime failure: {forbidden}")
+    stamp.write_text(fingerprint, encoding="utf-8")
+    print("PASS: exact packaged Runtime v2 entered the pinned R2025a controller runtime without hardware")
 
 
 def verify_static_contract() -> None:
@@ -346,6 +467,7 @@ def main(argv: list[str] | None = None) -> int:
     verify_static_contract()
     if bundle.is_dir():
         verify_built_bundle(bundle)
+        run_packaged_runtime_smoke(bundle)
         print(
             "PASS: exact offline physical qualification package, canonical provenance, mutation rejection and no-checkpoint CI contract"
         )
