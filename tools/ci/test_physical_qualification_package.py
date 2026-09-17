@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VERIFIER = ROOT / "tools" / "physical" / "verify_physical_qualification_package.py"
 PACKAGER = ROOT / "tools" / "physical" / "package_physical_qualification.py"
 RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
+RUNTIME_SMOKE = ROOT / "tools" / "physical" / "verify_packaged_controller_runtime.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
@@ -65,6 +66,43 @@ def run_perspective_self_test(bundle: Path) -> None:
     )
 
 
+def run_packaged_runtime_smoke(bundle: Path) -> None:
+    """Run only in canonical CI, never in the restore-only human checkpoint."""
+    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("GITHUB_WORKFLOW") != "CI Gate":
+        return
+    image = "cyberbotics/webots@" + WEBOTS_IMAGE_DIGEST
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network=none",
+            "-v",
+            f"{bundle}:/qualification:ro",
+            image,
+            "python3",
+            "/qualification/tools/physical/verify_packaged_controller_runtime.py",
+            "/qualification",
+        ],
+        text=True,
+        capture_output=True,
+        timeout=90.0,
+    )
+    require(
+        result.returncode == 0,
+        "exact packaged controller failed R2025a no-hardware runtime smoke\n"
+        + result.stdout
+        + result.stderr,
+    )
+    require(
+        result.stdout.strip()
+        == "PASS: exact packaged crazyflie_runtime_v2 entered stable Webots R2025a controller runtime without hardware",
+        "packaged R2025a runtime smoke did not emit the exact causal PASS\n"
+        + result.stdout
+        + result.stderr,
+    )
+
+
 def verify_static_contract() -> None:
     runner = RUNNER.read_text(encoding="utf-8")
     for required in (
@@ -94,6 +132,19 @@ def verify_static_contract() -> None:
         '"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins"',
     ):
         require(required in verifier, f"package verifier missing canonical read-only contract: {required}")
+
+    smoke = RUNTIME_SMOKE.read_text(encoding="utf-8")
+    for required in (
+        'Path("/proc")',
+        '"browser=/bin/true\\n"',
+        '"--mode=realtime"',
+        '"controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"',
+        'start_new_session=True',
+        '"R2025a" not in version_text',
+    ):
+        require(required in smoke, f"packaged runtime smoke missing causal boundary: {required}")
+    for forbidden in ("radio://", "APPROVE", "serve_physical_host.py"):
+        require(forbidden not in smoke, f"packaged runtime smoke crossed physical authority boundary: {forbidden}")
 
     packager_source = PACKAGER.read_text(encoding="utf-8")
     for required in (
@@ -179,6 +230,7 @@ def verify_static_contract() -> None:
         "tools/physical/physical_execution_domain.py",
         "tools/physical/qualification_generated_lock.json",
         "tools/physical/verify_qualification_generated_inputs.py",
+        "tools/physical/verify_packaged_controller_runtime.py",
         "tools/prepare_runtime_v2.sh",
         "plugins/robot_windows/blockly_v2/main.js",
         "plugins/robot_windows/blockly/webeeblocks/interpreter.js",
@@ -322,6 +374,10 @@ def verify_built_bundle(bundle: Path) -> None:
         '"path": "controllers/crazyflie_runtime_v2/runtime.ini"' in manifest,
         "package manifest must bind the Runtime v2 Linux environment contract",
     )
+    require(
+        '"path": "tools/physical/verify_packaged_controller_runtime.py"' in manifest,
+        "package manifest must bind the no-hardware packaged-controller runtime oracle",
+    )
     require("/.git/" not in manifest and "/.git\"" not in manifest, "package must omit checkout Git metadata")
     require(not (bundle / "support" / "cflib-source" / ".git").exists(), "canonical cflib source must omit .git")
 
@@ -335,6 +391,7 @@ def verify_built_bundle(bundle: Path) -> None:
         "packaged execution must retain teacher authorization",
     )
     require(WEBOTS_IMAGE_DIGEST in provenance, "package provenance must bind exact Webots build image")
+    run_packaged_runtime_smoke(bundle)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -347,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
     if bundle.is_dir():
         verify_built_bundle(bundle)
         print(
-            "PASS: exact offline physical qualification package, canonical provenance, mutation rejection and no-checkpoint CI contract"
+            "PASS: exact offline physical qualification package, canonical provenance, mutation rejection, packaged R2025a runtime smoke and no-checkpoint CI contract"
         )
     else:
         print("PASS: physical qualification package static CI contract")
