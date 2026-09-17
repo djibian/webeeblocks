@@ -24,6 +24,7 @@ RUNTIME_TARGET = "ubuntu-22.04-python-3.10-x86_64"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
 SOURCE_SHA_NAME = "SOURCE_SHA"
+QUALIFICATION_PROTO_RELATIVE = "../tools/physical/qualification_crazyflie_r2025a.proto"
 
 
 class QualificationPackageVerificationError(RuntimeError):
@@ -225,12 +226,20 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
     return provenance
 
 
+def _reject_external_runtime_url(text: str, *, source: str) -> None:
+    if re.search(r'"(?:https?|webots)://', text):
+        raise QualificationPackageVerificationError(
+            source + " contains an external runtime asset URL"
+        )
+
+
 def verify_required_runtime_files(bundle: Path) -> None:
     required = (
         "tools/physical/launch_physical_qualification.py",
         "tools/physical/serve_physical_host.py",
         "tools/physical/physical_qualification_runtime.js",
         "tools/physical/run_packaged_physical_qualification.sh",
+        "tools/physical/qualification_crazyflie_r2025a.proto",
         "plugins/robot_windows/blockly_v2/blockly_v2.html",
         "plugins/robot_windows/blockly_v2/vendor/VERSION",
         "plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js",
@@ -259,10 +268,45 @@ def verify_required_runtime_files(bundle: Path) -> None:
         raise QualificationPackageVerificationError(
             "packaged world retains a remote Cyberbotics URL"
         )
-    if world.count("webots://") != 4:
+    _reject_external_runtime_url(world, source="packaged world")
+    local_proto = f'EXTERNPROTO "{QUALIFICATION_PROTO_RELATIVE}"'
+    if world.count(local_proto) != 1:
         raise QualificationPackageVerificationError(
-            "packaged world does not use exact R2025a webots:// closure"
+            "packaged world does not bind the exact local qualification Crazyflie PROTO"
         )
+    for forbidden in (
+        "TexturedBackground { }",
+        "TexturedBackgroundLight { }",
+        "Floor { size 4 4 }",
+    ):
+        if forbidden in world:
+            raise QualificationPackageVerificationError(
+                "packaged world retains external-project node dependency: " + forbidden
+            )
+
+    proto = (
+        bundle / "tools/physical/qualification_crazyflie_r2025a.proto"
+    ).read_text(encoding="utf-8")
+    _reject_external_runtime_url(proto, source="qualification Crazyflie PROTO")
+    for required_token in (
+        "PROTO QualificationCrazyflieR2025a [",
+        'name "m1_motor"',
+        'name "m2_motor"',
+        'name "m3_motor"',
+        'name "m4_motor"',
+        'name "range_front"',
+        'name "range_back"',
+        'name "range_left"',
+        'name "range_right"',
+        'name "inertial_unit"',
+        "children IS extensionSlot",
+        "mass 0.05",
+    ):
+        if required_token not in proto:
+            raise QualificationPackageVerificationError(
+                "qualification Crazyflie PROTO lost required device/physics contract: "
+                + required_token
+            )
 
     controller = bundle / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
     if controller.read_bytes()[:4] != b"\x7fELF":
