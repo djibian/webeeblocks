@@ -16,4 +16,4 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime "$ROOT/worlds/crazy
 wpid=$!
 trap 'kill "$wpid" 2>/dev/null || true; wait "$wpid" 2>/dev/null || true' EXIT
 python3 "$ROOT/experiments/runtime-v2-student-ui/activate_page.py"
-python3 "$ROOT/experiments/runtime-v2-student-ui/probe.py" --fixture "$FIXTURE" --expected-ast "$EXPECTED_AST" --output "$OUT/metrics.json" --screenshot "$OUT/workspace-1366x768.png"
+python3 "$ROOT/experiments/runtime-v2-student-ui/probe_entry.py" --fixture "$FIXTURE" --expected-ast "$EXPECTED_AST" --output "$OUT/metrics.json" --screenshot "$OUT/workspace-1366x768.png"
