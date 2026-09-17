@@ -14,10 +14,11 @@ ROOT = Path(__file__).resolve().parents[2]
 VERIFIER = ROOT / "tools" / "physical" / "verify_physical_qualification_package.py"
 PACKAGER = ROOT / "tools" / "physical" / "package_physical_qualification.py"
 RUNNER = ROOT / "tools" / "physical" / "run_packaged_physical_qualification.sh"
+GENERATED_INPUT_VERIFIER = ROOT / "tools" / "physical" / "verify_qualification_generated_inputs.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 WEBOTS_IMAGE_DIGEST = "sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
-WEBOTS_IMAGE = f"cyberbotics/webots@{WEBOTS_IMAGE_DIGEST}"
+WEBOTS_RUNTIME_IMAGE = "webeeblocks/qualification-webots:r2025a-f0023e30daf38b17"
 PACKAGED_RUNTIME_READY = "WEBEEBLOCKS_RUNTIME_V2 READY"
 CANONICAL_CI_WORKFLOW = "CI Gate"
 
@@ -140,6 +141,7 @@ grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' /evidence/webots.log
     command = [
         "docker",
         "run",
+        "--pull=never",
         "--rm",
         "--network",
         "none",
@@ -147,7 +149,7 @@ grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' /evidence/webots.log
         f"{bundle}:/bundle:ro",
         "-v",
         f"{evidence}:/evidence",
-        WEBOTS_IMAGE,
+        WEBOTS_RUNTIME_IMAGE,
         "bash",
         "-lc",
         inner,
@@ -216,6 +218,17 @@ def verify_static_contract() -> None:
         '"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins"',
     ):
         require(required in verifier, f"package verifier missing canonical read-only contract: {required}")
+
+    generated_input_verifier = GENERATED_INPUT_VERIFIER.read_text(encoding="utf-8")
+    for required in (
+        "EXPECTED_WEBOTS_IMAGE = (",
+        'EXPECTED_WEBOTS_LOCAL_IMAGE = "webeeblocks/qualification-webots:r2025a-f0023e30daf38b17"',
+        '"image_id_member"',
+        '["load", "--input", str(support_tar)]',
+        '["tag", image_id, EXPECTED_WEBOTS_LOCAL_IMAGE]',
+        "exact cached Webots R2025a image support is missing in canonical Ready CI",
+    ):
+        require(required in generated_input_verifier, f"generated-input verifier missing offline image-support contract: {required}")
 
     packager_source = PACKAGER.read_text(encoding="utf-8")
     for required in (

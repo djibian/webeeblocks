@@ -25,6 +25,10 @@ EXPECTED_WEBOTS_IMAGE = (
 EXPECTED_WEBOTS_CACHE_MEMBER = (
     "plugins/robot_windows/blockly_v2/vendor/.qualification-webots-r2025a-image.tar"
 )
+EXPECTED_WEBOTS_IMAGE_ID_MEMBER = (
+    "plugins/robot_windows/blockly_v2/vendor/.qualification-webots-r2025a-image.id"
+)
+EXPECTED_WEBOTS_LOCAL_IMAGE = "webeeblocks/qualification-webots:r2025a-f0023e30daf38b17"
 
 
 class QualificationGeneratedInputError(RuntimeError):
@@ -101,12 +105,21 @@ def load_lock(path: Path) -> dict[str, object]:
         raise QualificationGeneratedInputError("generated controller lock size is invalid")
     if not isinstance(controller.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", controller["sha256"]):
         raise QualificationGeneratedInputError("generated controller lock digest is invalid")
-    if not isinstance(support, dict) or set(support) != {"cache_member", "image"}:
+    if not isinstance(support, dict) or set(support) != {
+        "cache_member",
+        "image",
+        "image_id_member",
+        "local_image",
+    }:
         raise QualificationGeneratedInputError("Webots image support lock has unsupported shape")
     if support.get("image") != EXPECTED_WEBOTS_IMAGE:
         raise QualificationGeneratedInputError("Webots image support digest changed")
     if support.get("cache_member") != EXPECTED_WEBOTS_CACHE_MEMBER:
         raise QualificationGeneratedInputError("Webots image support cache member changed")
+    if support.get("image_id_member") != EXPECTED_WEBOTS_IMAGE_ID_MEMBER:
+        raise QualificationGeneratedInputError("Webots image support ID member changed")
+    if support.get("local_image") != EXPECTED_WEBOTS_LOCAL_IMAGE:
+        raise QualificationGeneratedInputError("Webots image support local image changed")
     return value
 
 
@@ -162,7 +175,7 @@ def _maintenance_context() -> bool:
     return bool(pull_request.get("draft")) and head_full_name == os.environ.get("GITHUB_REPOSITORY")
 
 
-def _run_docker(args: list[str], *, purpose: str) -> None:
+def _run_docker(args: list[str], *, purpose: str) -> str:
     try:
         result = subprocess.run(
             ["docker", *args],
@@ -177,47 +190,94 @@ def _run_docker(args: list[str], *, purpose: str) -> None:
         raise QualificationGeneratedInputError(
             f"{purpose} failed: {result.stdout[-4000:]}"
         )
+    return result.stdout
 
 
-def _support_tar(vendor: Path, lock: dict[str, object]) -> Path:
+def _image_id(reference: str, *, purpose: str) -> str:
+    value = _run_docker(
+        ["image", "inspect", "--format", "{{.Id}}", reference],
+        purpose=purpose,
+    ).strip()
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+        raise QualificationGeneratedInputError(f"{purpose} returned invalid image ID: {value!r}")
+    return value
+
+
+def _support_paths(vendor: Path, lock: dict[str, object]) -> tuple[Path, Path]:
     support = lock["webots_image_support"]
     assert isinstance(support, dict)
-    member = Path(str(support["cache_member"]))
-    if member.parent.as_posix() != "plugins/robot_windows/blockly_v2/vendor":
+    tar_member = Path(str(support["cache_member"]))
+    id_member = Path(str(support["image_id_member"]))
+    expected_parent = "plugins/robot_windows/blockly_v2/vendor"
+    if tar_member.parent.as_posix() != expected_parent or id_member.parent.as_posix() != expected_parent:
         raise QualificationGeneratedInputError("Webots image support cache location escaped vendor cache")
-    return vendor.resolve() / member.name
+    root = vendor.resolve()
+    return root / tar_member.name, root / id_member.name
 
 
 def _consume_or_sanitize_support(vendor: Path, lock: dict[str, object]) -> None:
-    support_tar = _support_tar(vendor, lock)
-    if not support_tar.exists():
+    support_tar, support_id = _support_paths(vendor, lock)
+    present = (support_tar.exists(), support_id.exists())
+    if present == (False, False):
         if _canonical_ci() and not _maintenance_context():
             raise QualificationGeneratedInputError(
                 "exact cached Webots R2025a image support is missing in canonical Ready CI"
             )
         return
-    if not support_tar.is_file() or support_tar.is_symlink():
+    if present != (True, True):
+        raise QualificationGeneratedInputError("Webots image support cache is incomplete")
+    if (
+        not support_tar.is_file()
+        or support_tar.is_symlink()
+        or not support_id.is_file()
+        or support_id.is_symlink()
+    ):
         raise QualificationGeneratedInputError("Webots image support cache member is unsupported")
+    image_id = support_id.read_text(encoding="ascii").strip()
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
+        raise QualificationGeneratedInputError("Webots image support image ID is invalid")
+    if support_tar.stat().st_size < 1024 * 1024:
+        raise QualificationGeneratedInputError("Webots image support archive is unexpectedly small")
     if _canonical_ci():
         _run_docker(["load", "--input", str(support_tar)], purpose="cached Webots image load")
-        _run_docker(["image", "inspect", EXPECTED_WEBOTS_IMAGE], purpose="exact Webots image verification")
+        loaded_id = _image_id(image_id, purpose="cached Webots image ID verification")
+        if loaded_id != image_id:
+            raise QualificationGeneratedInputError("cached Webots image ID changed after load")
+        _run_docker(["tag", image_id, EXPECTED_WEBOTS_LOCAL_IMAGE], purpose="cached Webots local tag binding")
+        local_id = _image_id(
+            EXPECTED_WEBOTS_LOCAL_IMAGE,
+            purpose="cached Webots local tag verification",
+        )
+        if local_id != image_id:
+            raise QualificationGeneratedInputError("cached Webots local tag bound the wrong image")
     support_tar.unlink()
+    support_id.unlink()
 
 
 def _prime_support_after_verification(vendor: Path, lock: dict[str, object]) -> None:
     if not _maintenance_context():
         return
-    support_tar = _support_tar(vendor, lock)
-    if support_tar.exists():
+    support_tar, support_id = _support_paths(vendor, lock)
+    if support_tar.exists() or support_id.exists():
         raise QualificationGeneratedInputError("Webots image support cache member unexpectedly survived verification")
-    _run_docker(["image", "inspect", EXPECTED_WEBOTS_IMAGE], purpose="maintenance Webots image verification")
-    temporary = support_tar.with_name(support_tar.name + ".tmp")
-    temporary.unlink(missing_ok=True)
-    _run_docker(["save", "--output", str(temporary), EXPECTED_WEBOTS_IMAGE], purpose="maintenance Webots image export")
-    if not temporary.is_file() or temporary.stat().st_size < 1024 * 1024:
-        temporary.unlink(missing_ok=True)
+    image_id = _image_id(
+        EXPECTED_WEBOTS_IMAGE,
+        purpose="maintenance Webots source image verification",
+    )
+    temporary_tar = support_tar.with_name(support_tar.name + ".tmp")
+    temporary_id = support_id.with_name(support_id.name + ".tmp")
+    temporary_tar.unlink(missing_ok=True)
+    temporary_id.unlink(missing_ok=True)
+    _run_docker(
+        ["save", "--output", str(temporary_tar), EXPECTED_WEBOTS_IMAGE],
+        purpose="maintenance Webots image export",
+    )
+    if not temporary_tar.is_file() or temporary_tar.stat().st_size < 1024 * 1024:
+        temporary_tar.unlink(missing_ok=True)
         raise QualificationGeneratedInputError("maintenance Webots image export is unexpectedly small")
-    temporary.replace(support_tar)
+    temporary_id.write_text(image_id + "\n", encoding="ascii")
+    temporary_tar.replace(support_tar)
+    temporary_id.replace(support_id)
     print("PASS: exact pinned Webots R2025a image support primed for Draft/maintenance cache")
 
 
@@ -228,8 +288,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lock", type=Path, default=DEFAULT_LOCK)
     args = parser.parse_args(argv)
     lock = load_lock(args.lock)
-    support_tar = _support_tar(args.vendor, lock)
-    prime = _maintenance_context() and not support_tar.exists()
+    support_tar, support_id = _support_paths(args.vendor, lock)
+    support_present = support_tar.exists() or support_id.exists()
+    prime = _maintenance_context() and not support_present
     if not prime:
         _consume_or_sanitize_support(args.vendor, lock)
     verify_generated_inputs(args.vendor, args.controller, args.lock)
