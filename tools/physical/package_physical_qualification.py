@@ -34,8 +34,8 @@ from verify_qualification_runtime import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
 EXPECTED_WORLD_REMOTE_REFS = 4
-QUALIFICATION_PROTO_RELATIVE = "../tools/physical/qualification_crazyflie_r2025a.proto"
 QUALIFICATION_PROTO_NAME = "QualificationCrazyflieR2025a"
+QUALIFICATION_PROTO_RELATIVE = f"../tools/physical/{QUALIFICATION_PROTO_NAME}.proto"
 BUNDLE_NAME = "WebeeBlocks-Physical-Qualification"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
@@ -436,6 +436,10 @@ def build_bundle(
     bundle.mkdir(parents=True)
 
     _copy_tree(REPO_ROOT / "tools" / "physical", bundle / "tools" / "physical")
+    _copy_file(
+        QUALIFICATION_PROTO,
+        bundle / "tools" / "physical" / f"{QUALIFICATION_PROTO_NAME}.proto",
+    )
     _copy_tree(
         REPO_ROOT / "plugins" / "robot_windows" / "blockly_v2",
         bundle / "plugins" / "robot_windows" / "blockly_v2",
