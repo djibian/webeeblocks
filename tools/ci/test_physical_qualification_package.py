@@ -340,7 +340,7 @@ def verify_built_bundle(bundle: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("bundle", type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     bundle = args.bundle.resolve()
 
     verify_static_contract()
