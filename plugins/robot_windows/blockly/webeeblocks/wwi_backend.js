@@ -48,6 +48,7 @@
       return Promise.resolve();
     var self = this;
     return new Promise(function(resolve, reject) {
+      var firstWaiter = self.readyWaiters.length === 0;
       var waiter = {resolve: resolve, reject: reject, timer: null};
       waiter.timer = setTimeout(function() {
         var index = self.readyWaiters.indexOf(waiter);
@@ -56,6 +57,20 @@
         reject(new Error('Runtime v2 READY timeout'));
       }, self.timeoutMs);
       self.readyWaiters.push(waiter);
+      if (!firstWaiter)
+        return;
+      try {
+        // READY is normally emitted spontaneously by the controller. The explicit
+        // HELLO makes late/early Robot Window attachment deterministic without
+        // changing any student-visible action or replaying a program.
+        self.robotWindow.send(PREFIX + ' HELLO');
+      } catch (error) {
+        clearTimeout(waiter.timer);
+        var index = self.readyWaiters.indexOf(waiter);
+        if (index !== -1)
+          self.readyWaiters.splice(index, 1);
+        reject(error);
+      }
     });
   };
 

@@ -110,6 +110,13 @@
     if (typeof window.WebeeBlocksProjectFileWwiTransport !== 'function')
       throw new Error('Project file WWI transport module unavailable');
     var directRobotWindow = await waitForRobotWindow(5000);
+    if (typeof runtimeBackend === 'undefined' || !runtimeBackend || typeof runtimeBackend.waitUntilReady !== 'function')
+      throw new Error('Runtime v2 backend unavailable for project files');
+
+    // The Qt file broker lives in the controller receive loop. Waiting for the
+    // Runtime handshake prevents an automatically opened Firefox window from
+    // spending its short broker readiness budget before that loop is live.
+    await runtimeBackend.waitUntilReady();
     brokerTransport = new window.WebeeBlocksProjectFileWwiTransport(directRobotWindow, {timeoutMs: 5000});
 
     // RobotWindow has one receive callback. Runtime v2 keeps ownership of the

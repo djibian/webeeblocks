@@ -9,10 +9,16 @@
 
 namespace {
 constexpr const char *kPrefix = "WEBEEBLOCKS_FILE_BROKER_V1 ";
+constexpr const char *kRuntimeHello = "WEBEEBLOCKS_RUNTIME_V2 HELLO";
+constexpr const char *kRuntimeReady = "WEBEEBLOCKS_RUNTIME_V2 READY";
 WbFileBroker *gBroker = nullptr;
 
 bool isBrokerMessage(const char *message) {
   return message && std::strncmp(message, kPrefix, std::strlen(kPrefix)) == 0;
+}
+
+bool isRuntimeHello(const char *message) {
+  return message && std::strcmp(message, kRuntimeHello) == 0;
 }
 
 int requestId(const char *message) {
@@ -34,6 +40,13 @@ void sendUnavailable(const char *message) {
 extern "C" const char *webeeblocks_file_broker_receive_text(void) {
   const char *message = nullptr;
   while ((message = wb_robot_wwi_receive_text()) != nullptr) {
+    // A Robot Window may attach after the controller's one-shot startup READY.
+    // Reply only once the controller has entered its normal receive loop; this
+    // is a liveness handshake and never executes or replays a student action.
+    if (isRuntimeHello(message)) {
+      wb_robot_wwi_send_text(kRuntimeReady);
+      continue;
+    }
     if (!isBrokerMessage(message))
       return message;
     if (!gBroker)
