@@ -109,8 +109,9 @@ work=/tmp/webeeblocks-physical-qualification-smoke
 home=/tmp/webeeblocks-physical-qualification-home
 rm -rf "$work" "$home"
 cp -a /bundle "$work"
-world="$work/worlds/.webeeblocks-qualification-ci-smoke.wbt"
-cp "$work/tools/physical/qualification_world.wbt" "$world"
+world="$work/worlds/crazyflie_runtime_v2.wbt"
+test -f "$world"
+cmp -s /bundle/worlds/crazyflie_runtime_v2.wbt "$world"
 mkdir -p "$home/.config/Cyberbotics"
 printf '%s\n' \
   '[RobotWindow]' \
