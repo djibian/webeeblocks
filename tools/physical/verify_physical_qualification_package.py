@@ -250,12 +250,27 @@ def verify_required_runtime_files(bundle: Path) -> None:
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
         "worlds/crazyflie_runtime_v2.wbt",
         "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
+        "controllers/crazyflie_runtime_v2/runtime.ini",
         "support/cflib-source/cflib/__init__.py",
     )
     for relative in required:
         if not (bundle / relative).is_file():
             raise QualificationPackageVerificationError(
                 f"required packaged file missing: {relative}"
+            )
+
+    runtime_ini = (
+        bundle / "controllers/crazyflie_runtime_v2/runtime.ini"
+    ).read_text(encoding="utf-8")
+    for required_line in (
+        "[environment variables for Linux]",
+        "WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots",
+        "QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins",
+    ):
+        if required_line not in runtime_ini:
+            raise QualificationPackageVerificationError(
+                "packaged Runtime v2 runtime.ini lost Webots R2025a environment contract: "
+                + required_line
             )
 
     if (

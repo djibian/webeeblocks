@@ -110,7 +110,13 @@ def _would_copy_untracked(relative: str) -> bool:
     if relative.startswith("plugins/robot_windows/blockly/webeeblocks/"):
         return "__pycache__" not in parts and path.suffix != ".pyc"
     if relative.startswith("controllers/crazyflie_runtime_v2/"):
-        return path.name == "Makefile" or path.suffix in {".c", ".cc", ".cpp", ".h", ".hpp"}
+        return path.name in {"Makefile", "runtime.ini"} or path.suffix in {
+            ".c",
+            ".cc",
+            ".cpp",
+            ".h",
+            ".hpp",
+        }
     return relative in {
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
         "worlds/crazyflie_runtime_v2.wbt",
@@ -369,7 +375,7 @@ def _copy_controller(bundle: Path) -> None:
             continue
         if path.is_file() and (
             path.name == "crazyflie_runtime_v2"
-            or path.name == "Makefile"
+            or path.name in {"Makefile", "runtime.ini"}
             or path.suffix in {".c", ".cc", ".cpp", ".h", ".hpp"}
         ):
             _copy_file(path, target / path.name)

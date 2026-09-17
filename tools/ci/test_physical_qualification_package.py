@@ -89,6 +89,9 @@ def verify_static_contract() -> None:
         'env["PYTHONDONTWRITEBYTECODE"] = "1"',
         "_git_tree_oid(cflib_root).hex() != EXPECTED_CFLIB_TREE",
         "runtime.verify_isolated_imports(cflib, locked)",
+        '"controllers/crazyflie_runtime_v2/runtime.ini"',
+        '"WEBOTS_LIBRARY_PATH = $(WEBOTS_HOME)/lib/webots"',
+        '"QT_PLUGIN_PATH = $(WEBOTS_HOME)/lib/webots/qt/plugins"',
     ):
         require(required in verifier, f"package verifier missing canonical read-only contract: {required}")
 
@@ -104,6 +107,7 @@ def verify_static_contract() -> None:
         '"archive",',
         "EXPECTED_CFLIB_COMMIT",
         "WEBOTS_BUILD_IMAGE_DIGEST",
+        '"runtime.ini"',
     ):
         require(required in packager_source, f"packager missing exact provenance contract: {required}")
 
@@ -111,6 +115,7 @@ def verify_static_contract() -> None:
         "?? tools/physical/rogue.py\n"
         "?? plugins/robot_windows/blockly_v2/rogue.js\n"
         "?? controllers/crazyflie_runtime_v2/rogue.cpp\n"
+        "?? controllers/crazyflie_runtime_v2/runtime.ini\n"
         "?? controllers/crazyflie_runtime_v2/crazyflie_runtime_v2\n"
         "?? controllers/crazyflie_runtime_v2/build-state.d\n"
     )
@@ -118,6 +123,7 @@ def verify_static_contract() -> None:
         untracked
         == (
             "controllers/crazyflie_runtime_v2/rogue.cpp",
+            "controllers/crazyflie_runtime_v2/runtime.ini",
             "plugins/robot_windows/blockly_v2/rogue.js",
             "tools/physical/rogue.py",
         ),
@@ -150,6 +156,7 @@ def verify_static_contract() -> None:
         "!! plugins/robot_windows/blockly/webeeblocks/.probe.swp\0"
         "!! plugins/robot_windows/blockly_v2/.DS_Store\0"
         "!! plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js\0"
+        "!! controllers/crazyflie_runtime_v2/runtime.ini\0"
         "!! controllers/crazyflie_runtime_v2/crazyflie_runtime_v2\0"
         "!! controllers/crazyflie_runtime_v2/build-state.d\0"
     )
@@ -158,6 +165,7 @@ def verify_static_contract() -> None:
         == tuple(
             sorted(
                 (
+                    "controllers/crazyflie_runtime_v2/runtime.ini",
                     "plugins/robot_windows/blockly/webeeblocks/.probe.swp",
                     "plugins/robot_windows/blockly_v2/.DS_Store",
                     "tools/physical/rogue.so",
@@ -178,6 +186,7 @@ def verify_static_contract() -> None:
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
         "worlds/crazyflie_runtime_v2.wbt",
         "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.cpp",
+        "controllers/crazyflie_runtime_v2/runtime.ini",
         "controllers/crazyflie_square/pid_controller.c",
     )
     for path in representative_inputs:
@@ -308,6 +317,10 @@ def verify_built_bundle(bundle: Path) -> None:
     require(
         manifest.count(".whl") == 7,
         "package manifest must contain exactly seven locked wheels",
+    )
+    require(
+        '"path": "controllers/crazyflie_runtime_v2/runtime.ini"' in manifest,
+        "package manifest must bind the Runtime v2 Linux environment contract",
     )
     require("/.git/" not in manifest and "/.git\"" not in manifest, "package must omit checkout Git metadata")
     require(not (bundle / "support" / "cflib-source" / ".git").exists(), "canonical cflib source must omit .git")
