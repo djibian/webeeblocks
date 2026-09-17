@@ -6,6 +6,8 @@ VENV="$ROOT/.runtime/venv"
 LOCK="$ROOT/tools/physical/qualification_runtime_lock.txt"
 WHEELHOUSE="$ROOT/support/wheels"
 CFLIB="$ROOT/support/cflib-source"
+QUALIFICATION_WORLD_SOURCE="$ROOT/tools/physical/qualification_world.wbt"
+QUALIFICATION_PERSPECTIVE_ENTRY="$ROOT/tools/physical/qualification_perspective.py"
 
 # Verification and later imports must be observational with respect to the
 # manifest-covered source tree.
@@ -13,6 +15,7 @@ export PYTHONDONTWRITEBYTECODE=1
 export PYTHONNOUSERSITE=1
 
 python3 "$ROOT/tools/physical/verify_physical_qualification_package.py" "$ROOT" --manifest-only
+python3 "$ROOT/tools/physical/verify_qualification_world.py" "$QUALIFICATION_WORLD_SOURCE"
 
 python3 - <<'PY'
 import platform, sys
@@ -59,5 +62,21 @@ test "${#wheels[@]}" -eq 7
 
 chmod u+x "$ROOT/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
 
+# Fail closed before opening Crazyradio or Webots unless the exact final
+# ephemeral-world/perspective lifecycle is proven against the real
+# launch_physical_qualification.py preparation seam.
+"$VENV/bin/python" "$QUALIFICATION_PERSPECTIVE_ENTRY" --self-test
+
+# The supported Ubuntu Webots package does not guarantee the optional project
+# PROTO tree used by the simulation world. Physical qualification needs only a
+# local Robot Window host, so materialize the manifest-covered self-contained
+# shell inside the package's worlds/ directory to keep normal controller/project
+# discovery while introducing no network or system-project dependency.
+QUALIFICATION_WORLD="$(mktemp "$ROOT/worlds/.webeeblocks-qualification-source-XXXXXXXX.wbt")"
+trap 'rm -f "$QUALIFICATION_WORLD"' EXIT
+cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
+
 export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
-exec "$VENV/bin/python" "$ROOT/tools/physical/launch_physical_qualification.py" "$@" --webots "$WEBOTS_BIN"
+"$VENV/bin/python" "$QUALIFICATION_PERSPECTIVE_ENTRY" "$@" \
+  --webots "$WEBOTS_BIN" \
+  --world "$QUALIFICATION_WORLD"

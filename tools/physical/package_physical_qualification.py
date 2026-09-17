@@ -3,9 +3,9 @@
 
 This packager is machine-only. It verifies already-pinned qualification runtime
 inputs, copies only exact repository/runtime content into a repository-shaped
-bundle, localizes the pinned Webots world to webots://, and writes a complete
-SHA-256 manifest. It never opens Crazyradio, starts Webots, creates execution
-authority, or emits a physical effect.
+bundle, closes the Runtime v2 world over a self-contained R2025a qualification
+PROTO, and writes a complete SHA-256 manifest. It never opens Crazyradio, starts
+Webots, creates execution authority, or emits a physical effect.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ from verify_qualification_runtime import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
-LOCAL_WEBOTS_PREFIX = "webots://"
 EXPECTED_WORLD_REMOTE_REFS = 4
+QUALIFICATION_PROTO_RELATIVE = "../tools/physical/qualification_crazyflie_r2025a.proto"
 BUNDLE_NAME = "WebeeBlocks-Physical-Qualification"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
@@ -54,6 +54,7 @@ GOOGLE_BLOCK = (
     / "blocks"
     / "crazyflie_v2.js"
 )
+QUALIFICATION_PROTO = REPO_ROOT / "tools" / "physical" / "qualification_crazyflie_r2025a.proto"
 PACKAGED_SOURCE_PATHS = (
     "tools/physical",
     "plugins/robot_windows/blockly_v2",
@@ -250,6 +251,33 @@ def _verify_prepared_runtime() -> None:
         raise QualificationPackageError("prepared Runtime v2 must be exact Blockly 13.2.1")
 
 
+def _verify_qualification_proto() -> None:
+    if not QUALIFICATION_PROTO.is_file():
+        raise QualificationPackageError("self-contained qualification Crazyflie PROTO is missing")
+    text = QUALIFICATION_PROTO.read_text(encoding="utf-8")
+    if re.search(r'"(?:https?|webots)://', text):
+        raise QualificationPackageError("qualification Crazyflie PROTO contains an external runtime URL")
+    for required in (
+        "PROTO QualificationCrazyflieR2025a [",
+        'name "m1_motor"',
+        'name "m2_motor"',
+        'name "m3_motor"',
+        'name "m4_motor"',
+        'name "range_front"',
+        'name "range_back"',
+        'name "range_left"',
+        'name "range_right"',
+        'name "inertial_unit"',
+        "children IS extensionSlot",
+        "mass 0.05",
+    ):
+        if required not in text:
+            raise QualificationPackageError(
+                "qualification Crazyflie PROTO lost required R2025a device/physics contract: "
+                + required
+            )
+
+
 def _localize_world(source: Path, target: Path) -> None:
     text = source.read_text(encoding="utf-8")
     count = text.count(REMOTE_WEBOTS_PREFIX)
@@ -257,9 +285,66 @@ def _localize_world(source: Path, target: Path) -> None:
         raise QualificationPackageError(
             f"expected {EXPECTED_WORLD_REMOTE_REFS} pinned Webots R2025a references, found {count}"
         )
-    localized = text.replace(REMOTE_WEBOTS_PREFIX, LOCAL_WEBOTS_PREFIX)
+
+    crazyflie = (
+        'EXTERNPROTO "'
+        + REMOTE_WEBOTS_PREFIX
+        + 'projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"'
+    )
+    background = (
+        'EXTERNPROTO "'
+        + REMOTE_WEBOTS_PREFIX
+        + 'projects/objects/backgrounds/protos/TexturedBackground.proto"'
+    )
+    background_light = (
+        'EXTERNPROTO "'
+        + REMOTE_WEBOTS_PREFIX
+        + 'projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"'
+    )
+    floor_proto = (
+        'EXTERNPROTO "'
+        + REMOTE_WEBOTS_PREFIX
+        + 'projects/objects/floors/protos/Floor.proto"'
+    )
+    for reference in (crazyflie, background, background_light, floor_proto):
+        if text.count(reference) != 1:
+            raise QualificationPackageError("pinned Runtime v2 world reference is ambiguous")
+
+    localized = text.replace(
+        crazyflie,
+        f'EXTERNPROTO "{QUALIFICATION_PROTO_RELATIVE}"',
+        1,
+    )
+    for reference in (background, background_light, floor_proto):
+        localized = localized.replace(reference + "\n", "", 1)
+    localized = localized.replace(
+        "TexturedBackground { }",
+        "Background { skyColor [ 0.75 0.83 0.92 ] }",
+        1,
+    )
+    localized = localized.replace(
+        "TexturedBackgroundLight { }",
+        "DirectionalLight { direction -0.4 -0.5 -1 intensity 1.5 }",
+        1,
+    )
+    floor = """Solid {
+  translation 0 0 -0.025
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }
+      geometry Box { size 4 4 0.05 }
+    }
+  ]
+  boundingObject Box { size 4 4 0.05 }
+}"""
+    localized = localized.replace("Floor { size 4 4 }", floor, 1)
+
     if "raw.githubusercontent.com/cyberbotics/webots/" in localized:
         raise QualificationPackageError("remote Cyberbotics reference remains after localization")
+    if re.search(r'"(?:https?|webots)://', localized):
+        raise QualificationPackageError("packaged world still depends on an external Webots asset")
+    if localized.count(f'EXTERNPROTO "{QUALIFICATION_PROTO_RELATIVE}"') != 1:
+        raise QualificationPackageError("packaged world lost local qualification Crazyflie binding")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(localized, encoding="utf-8")
 
@@ -320,6 +405,7 @@ def build_bundle(
 ) -> Path:
     source_sha = _require_source_sha(source_sha)
     _verify_prepared_runtime()
+    _verify_qualification_proto()
 
     cflib_root = cflib_root.resolve()
     wheelhouse = wheelhouse.resolve()
