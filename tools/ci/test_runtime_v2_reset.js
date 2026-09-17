@@ -6,6 +6,27 @@ const vm = require('vm');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 const WwiProjectFileTransport = require('../../plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js');
 
+async function testBackendReadyHandshake() {
+  const sent = [];
+  const backend = new WwiBackend({send: message => sent.push(String(message))}, {timeoutMs: 1000});
+
+  const first = backend.waitUntilReady();
+  const second = backend.waitUntilReady();
+  assert.deepStrictEqual(sent, ['WEBEEBLOCKS_RUNTIME_V2 HELLO'],
+    'concurrent readiness waiters must share one non-effect liveness probe');
+  assert.strictEqual(backend.readyWaiters.length, 2);
+
+  assert.strictEqual(backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'), true);
+  await Promise.all([first, second]);
+  assert.strictEqual(backend.ready, true);
+  assert.strictEqual(backend.readyWaiters.length, 0);
+
+  const sentBeforeReadyNoop = sent.length;
+  await backend.waitUntilReady();
+  assert.strictEqual(sent.length, sentBeforeReadyNoop,
+    'already-ready backend must not emit a new liveness probe');
+}
+
 async function testBackendResetContract() {
   const sent = [];
   const backend = new WwiBackend({send: message => sent.push(String(message))}, {
@@ -231,6 +252,24 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   assert.match(elements.runtimeDetail.textContent, /réinitialisez la simulation/);
 }
 
+function testStartupHandshakeSourceContract() {
+  const brokerSource = fs.readFileSync(
+    path.join(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_runtime.cpp'), 'utf8');
+  assert.match(brokerSource, /WEBEEBLOCKS_RUNTIME_V2 HELLO/);
+  assert.match(brokerSource, /WEBEEBLOCKS_RUNTIME_V2 READY/);
+  assert.match(brokerSource, /if \(isRuntimeHello\(message\)\) \{[\s\S]*wb_robot_wwi_send_text\(kRuntimeReady\);[\s\S]*continue;/,
+    'controller receive seam must answer HELLO with READY without forwarding an action');
+
+  const projectSource = fs.readFileSync(
+    path.join(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
+  const runtimeReadyIndex = projectSource.indexOf('await runtimeBackend.waitUntilReady();');
+  const brokerCreateIndex = projectSource.indexOf('new window.WebeeBlocksProjectFileWwiTransport');
+  assert(runtimeReadyIndex >= 0, 'Firefox project path must wait for Runtime readiness');
+  assert(brokerCreateIndex >= 0, 'Firefox project path must still construct the WWI file broker transport');
+  assert(runtimeReadyIndex < brokerCreateIndex,
+    'short file-broker readiness timeout must not start before the controller receive loop is live');
+}
+
 function testNativeResetTimeoutSourceContract() {
   const source = fs.readFileSync(path.join(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
   assert.match(source, /#define RESET_TIMEOUT [0-9.]+/);
@@ -240,11 +279,13 @@ function testNativeResetTimeoutSourceContract() {
 }
 
 (async () => {
+  await testBackendReadyHandshake();
   await testBackendResetContract();
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();
+  testStartupHandshakeSourceContract();
   testNativeResetTimeoutSourceContract();
-  console.log('PASS: reset cancels stale requests, project-file effects stay attached while readiness stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
+  console.log('PASS: startup readiness is actively recoverable, file-broker readiness starts only after Runtime readiness, reset cancels stale requests, project-file effects stay attached while readiness stays bounded, reset stays retryable, Blockly/Open lock while pending, and project reset gating remains simulation-only.');
 })().catch(error => {
   console.error(error.stack || error);
   process.exit(1);
