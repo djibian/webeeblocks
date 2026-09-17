@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Prove the packaged Runtime v2 controller enters the Webots R2025a runtime.
 
-This is a no-hardware oracle.  It launches only the simulation world/controller
-from an exact physical-qualification bundle, with the Robot Window browser
-suppressed.  It never starts the physical host, opens Crazyradio, prepares a
-student program or creates execution authority.
+This is a no-hardware oracle. It launches only the exact packaged qualification
+world/controller, with the Robot Window browser suppressed. It never starts the
+physical host, opens Crazyradio, prepares a student program or creates execution
+authority.
 """
 
 from __future__ import annotations
@@ -118,8 +118,7 @@ def verify_runtime(
     required_file = (
         bundle / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
         bundle / "controllers/crazyflie_runtime_v2/runtime.ini",
-        bundle / "worlds/crazyflie_runtime_v2.wbt",
-        bundle / "tools/physical/qualification_crazyflie_r2025a.proto",
+        bundle / "tools/physical/qualification_world.wbt",
     )
     for path in required_file:
         if not path.is_file():
@@ -131,11 +130,8 @@ def verify_runtime(
         project.mkdir()
         _copy_tree(bundle / "controllers", project / "controllers")
         _copy_tree(bundle / "plugins", project / "plugins")
-        _copy_tree(bundle / "worlds", project / "worlds")
-        _copy_file(
-            bundle / "tools/physical/qualification_crazyflie_r2025a.proto",
-            project / "tools/physical/qualification_crazyflie_r2025a.proto",
-        )
+        smoke_world = project / "worlds/qualification_world.wbt"
+        _copy_file(bundle / "tools/physical/qualification_world.wbt", smoke_world)
 
         expected_controller = project / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
         expected_controller.chmod(expected_controller.stat().st_mode | 0o100)
@@ -163,7 +159,7 @@ def verify_runtime(
                     "--stderr",
                     "--batch",
                     "--mode=realtime",
-                    str(project / "worlds/crazyflie_runtime_v2.wbt"),
+                    str(smoke_world),
                 ],
                 cwd=project,
                 env=env,
