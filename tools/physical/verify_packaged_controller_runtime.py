@@ -104,7 +104,7 @@ def verify_runtime(
         raise PackagedControllerRuntimeError("xvfb-run is required for deterministic R2025a smoke")
 
     version = subprocess.run(
-        [webots, "--version"],
+        [xvfb, "-a", webots, "--version"],
         text=True,
         capture_output=True,
         timeout=15.0,
