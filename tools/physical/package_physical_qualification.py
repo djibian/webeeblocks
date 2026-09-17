@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
 EXPECTED_WORLD_REMOTE_REFS = 4
 QUALIFICATION_PROTO_RELATIVE = "../tools/physical/qualification_crazyflie_r2025a.proto"
+QUALIFICATION_PROTO_NAME = "QualificationCrazyflieR2025a"
 BUNDLE_NAME = "WebeeBlocks-Physical-Qualification"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
@@ -264,7 +265,7 @@ def _verify_qualification_proto() -> None:
     if re.search(r'"(?:https?|webots)://', text):
         raise QualificationPackageError("qualification Crazyflie PROTO contains an external runtime URL")
     for required in (
-        "PROTO QualificationCrazyflieR2025a [",
+        f"PROTO {QUALIFICATION_PROTO_NAME} [",
         'name "m1_motor"',
         'name "m2_motor"',
         'name "m3_motor"',
@@ -315,10 +316,18 @@ def _localize_world(source: Path, target: Path) -> None:
     for reference in (crazyflie, background, background_light, floor_proto):
         if text.count(reference) != 1:
             raise QualificationPackageError("pinned Runtime v2 world reference is ambiguous")
+    stock_crazyflie_node = "\nCrazyflie {"
+    if text.count(stock_crazyflie_node) != 1:
+        raise QualificationPackageError("pinned Runtime v2 Crazyflie node is ambiguous")
 
     localized = text.replace(
         crazyflie,
         f'EXTERNPROTO "{QUALIFICATION_PROTO_RELATIVE}"',
+        1,
+    )
+    localized = localized.replace(
+        stock_crazyflie_node,
+        f"\n{QUALIFICATION_PROTO_NAME} {{",
         1,
     )
     for reference in (background, background_light, floor_proto):
@@ -351,6 +360,8 @@ def _localize_world(source: Path, target: Path) -> None:
         raise QualificationPackageError("packaged world still depends on an external Webots asset")
     if localized.count(f'EXTERNPROTO "{QUALIFICATION_PROTO_RELATIVE}"') != 1:
         raise QualificationPackageError("packaged world lost local qualification Crazyflie binding")
+    if localized.count(f"\n{QUALIFICATION_PROTO_NAME} {{") != 1 or stock_crazyflie_node in localized:
+        raise QualificationPackageError("packaged world qualification PROTO declaration and node binding disagree")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(localized, encoding="utf-8")
 
