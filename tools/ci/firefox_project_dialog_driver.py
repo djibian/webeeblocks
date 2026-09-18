@@ -67,6 +67,8 @@ class XDriver:
         self.bind(self.x, "XSetInputFocus", integer, pointer, window, integer, window)
         self.bind(self.x, "XSync", integer, pointer, integer)
         self.bind(self.x, "XKeysymToKeycode", C.c_ubyte, pointer, window)
+        self.bind(self.x, "XCreateSimpleWindow", window, pointer, window, integer, integer, C.c_uint, C.c_uint, C.c_uint, C.c_ulong, C.c_ulong)
+        self.bind(self.x, "XDestroyWindow", integer, pointer, window)
         self.bind(self.xt, "XTestFakeKeyEvent", integer, pointer, C.c_uint, integer, C.c_ulong)
         self.bind(self.xt, "XTestQueryExtension", integer, pointer, C.POINTER(integer), C.POINTER(integer), C.POINTER(integer), C.POINTER(integer))
         # XSetErrorHandler returns the previous process-global handler. Use a raw
@@ -249,6 +251,78 @@ def run_self_test():
     return 0
 
 
+def call_with_sentinel_handler(driver, operation):
+    """Run one probe while proving _volatile_window_query restores its caller handler."""
+    leaked_errors = []
+
+    def capture(_display, event):
+        value = event.contents
+        leaked_errors.append((int(value.error_code), int(value.resourceid)))
+        return 0
+
+    sentinel = XErrorHandler(capture)
+    sentinel_pointer = C.cast(sentinel, C.c_void_p).value
+    previous = driver.x.XSetErrorHandler(C.cast(sentinel, C.c_void_p))
+    result = None
+    caught = None
+    try:
+        result = operation()
+    except Exception as error:  # re-raised after restoring the process-global handler
+        caught = error
+    current = driver.x.XSetErrorHandler(previous)
+    if current != sentinel_pointer:
+        raise AssertionError("scoped X11 probe did not restore the previous error handler")
+    if leaked_errors:
+        raise AssertionError(f"probe error escaped scoped handler: {leaked_errors}")
+    if caught is not None:
+        raise caught
+    return result
+
+
+def run_x11_self_test(driver):
+    """Exercise the real Xlib handler boundary against deterministic X server errors."""
+    stale = driver.x.XCreateSimpleWindow(
+        driver.display, driver.root, 0, 0, 8, 8, 0, 0, 0,
+    )
+    if not stale:
+        raise RuntimeError("failed to create deterministic stale-window fixture")
+    driver.x.XDestroyWindow(driver.display, stale)
+    driver.x.XSync(driver.display, 0)
+
+    actual = C.c_char_p()
+    result = call_with_sentinel_handler(
+        driver,
+        lambda: driver._volatile_window_query(
+            stale,
+            lambda: driver.x.XFetchName(driver.display, stale, C.byref(actual)),
+        ),
+    )
+    if result is not None:
+        if actual:
+            driver.x.XFree(actual)
+        raise AssertionError("destroyed XID was not classified as a stale window")
+
+    try:
+        call_with_sentinel_handler(
+            driver,
+            lambda: driver._volatile_window_query(
+                driver.root,
+                lambda: driver.x.XSetInputFocus(driver.display, driver.root, 99, 0),
+            ),
+        )
+    except RuntimeError as error:
+        if "code=3" in str(error):
+            raise AssertionError(f"expected non-BadWindow X error, got: {error}") from error
+    else:
+        raise AssertionError("non-BadWindow X error was suppressed by scoped probe")
+
+    print(
+        "PASS: real scoped Xlib probe consumes exact stale BadWindow, restores handler, "
+        "and surfaces other X errors.",
+        flush=True,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root')
@@ -283,6 +357,7 @@ def main():
         ('Ouvrir un projet WebeeBlocks', 'accept', unknown),
     ]
     driver = XDriver()
+    run_x11_self_test(driver)
     overall = time.monotonic() + args.timeout
     for index, (title, action, path) in enumerate(plan, 1):
         window = wait_window(driver, title, overall)
