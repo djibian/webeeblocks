@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Run the canonical student UI probe with an exact same-session hover boundary.
+"""Run the canonical student UI probe with exact same-session hover diagnostics.
 
 The product/runtime probe remains authoritative. This entrypoint only strengthens
-its real-tooltip evidence: immediately before the canonical hover, the same CDP
-session brings the Robot Window to the front, establishes one bounded leave/re-
-entry cycle, and passively proves that public mouse/pointer entry and movement
-reach the exact Blockly path selected by the existing probe. It does not mutate
-Blockly tooltip state, workspace state, timeout values or pass conditions, and it
-never retries based on the tooltip outcome.
+its real-tooltip evidence: immediately before the single canonical hover, the
+same CDP session brings the Robot Window to the front, records Blockly's public
+gesture lifecycle state, and passively proves that public mouse/pointer entry and
+movement reach the exact tooltip-bound Blockly path selected by the existing
+probe. It does not wait on or mutate gesture/tooltip state, mutate workspace
+state, change timeout values or pass conditions, or add a second hover attempt.
 """
 
 from __future__ import annotations
@@ -40,6 +40,19 @@ def _same_session_focus(c: probe.Cdp) -> dict[str, object]:
     raise RuntimeError(
         "Robot Window lost visible focus immediately before real tooltip hover: "
         + json.dumps(state, sort_keys=True)
+    )
+
+
+def _gesture_state(c: probe.Cdp) -> dict[str, object]:
+    return c.eval(
+        r'''(() => {
+          const gesture=window.Blockly&&Blockly.Gesture;
+          const available=!!gesture&&typeof gesture.inProgress==='function';
+          return {
+            available:available,
+            inProgress:available ? !!gesture.inProgress() : null
+          };
+        })()'''
     )
 
 
@@ -105,20 +118,9 @@ def _cleanup_delivery_probe(c: probe.Cdp) -> None:
 
 def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -> None:
     focus = _same_session_focus(self)
+    gesture = _gesture_state(self)
     _install_delivery_probe(self)
     try:
-        # The first bounded cycle establishes a known real leave/entry history.
-        # It ends well before Blockly's 750 ms tooltip delay, then ordinary
-        # pointer leave cancels that pending hover.  The second unchanged
-        # canonical trajectory is the one left parked on the tooltip path for
-        # probe.py's existing 5 s acceptance oracle.  This sequence is fixed;
-        # it never branches or retries based on tooltip visibility.
-        _ORIGINAL_HOVER(self, rect)
-        self.call(
-            'Input.dispatchMouseEvent',
-            {'type': 'mouseMoved', 'x': rect['outsideX'], 'y': rect['outsideY']},
-        )
-        time.sleep(0.05)
         _ORIGINAL_HOVER(self, rect)
         delivery = _read_delivery(self, rect)
     except BaseException:
@@ -128,27 +130,38 @@ def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -
             pass
         raise
 
+    diagnostic = {"focus": focus, "gesture": gesture, "delivery": delivery}
+    print(
+        "WEBEEBLOCKS_STUDENT_UI_HOVER_DIAGNOSTIC "
+        + json.dumps(diagnostic, sort_keys=True)
+    )
+
+    if not gesture or not gesture.get("available"):
+        raise RuntimeError(
+            "Blockly gesture lifecycle is unavailable before real tooltip hover: "
+            + json.dumps(diagnostic, sort_keys=True)
+        )
     if not delivery:
         raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
-    if delivery.get("mousemove", 0) < 4 or delivery.get("pointermove", 0) < 4:
+    if delivery.get("mousemove", 0) < 2 or delivery.get("pointermove", 0) < 2:
         raise RuntimeError(
             "real tooltip hover did not deliver bounded public move events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(diagnostic, sort_keys=True)
         )
     if delivery.get("mouseover", 0) < 1 or delivery.get("pointerover", 0) < 1:
         raise RuntimeError(
             "real tooltip hover did not deliver public entry events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(diagnostic, sort_keys=True)
         )
-    if delivery.get("pathMouseover", 0) < 2 or delivery.get("pathPointerover", 0) < 2:
+    if delivery.get("pathMouseover", 0) < 1 or delivery.get("pathPointerover", 0) < 1:
         raise RuntimeError(
-            "real tooltip hover did not establish two exact-path public entry events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            "real tooltip hover did not deliver public entry to the exact tooltip-bound Blockly path: "
+            + json.dumps(diagnostic, sort_keys=True)
         )
-    if delivery.get("pathMousemove", 0) < 4 or delivery.get("pathPointermove", 0) < 4:
+    if delivery.get("pathMousemove", 0) < 2 or delivery.get("pathPointermove", 0) < 2:
         raise RuntimeError(
-            "real tooltip hover did not deliver bounded moves to the exact Blockly path: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            "real tooltip hover did not deliver bounded moves to the exact tooltip-bound Blockly path: "
+            + json.dumps(diagnostic, sort_keys=True)
         )
     hit_class = str(delivery.get("hitClass", ""))
     last_mouse = delivery.get("last", {}).get("mousemove", {})
@@ -164,7 +177,7 @@ def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -
     ):
         raise RuntimeError(
             "real tooltip hover did not settle on the exact public Blockly path: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(diagnostic, sort_keys=True)
         )
 
 
