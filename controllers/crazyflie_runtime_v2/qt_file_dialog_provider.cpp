@@ -8,6 +8,9 @@
 #include <QtCore/QSaveFile>
 #include <QtCore/QString>
 #include <QtCore/QUuid>
+#ifdef Q_OS_WIN
+#include <QtCore/qt_windows.h>
+#endif
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
 
@@ -20,16 +23,61 @@
 #include <utility>
 
 namespace {
-void configureDialogPresentation(QFileDialog &dialog) {
 #ifdef Q_OS_WIN
-  // The broker is a different process from the Firefox Robot Window. Windows
-  // will not let activateWindow() steal activation from another application,
-  // so keep the short-lived modal native picker above the classroom window.
-  dialog.setWindowFlag(Qt::WindowStaysOnTopHint, true);
-#else
-  (void)dialog;
-#endif
+thread_local bool gNativeDialogPresentationActive = false;
+thread_local bool gNativeDialogPresentationApplied = false;
+
+LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lParam) {
+  if (code == HCBT_ACTIVATE && gNativeDialogPresentationActive && wParam != 0) {
+    const HWND window = reinterpret_cast<HWND>(wParam);
+    wchar_t className[32] = {};
+    if (GetClassNameW(window, className, static_cast<int>(std::size(className))) > 0 &&
+        std::wcscmp(className, L"#32770") == 0) {
+      // Qt 6.5.x forwards a parent HWND to IFileDialog::Show(), but ignores the
+      // QFileDialog widget flags for the native Windows shell picker. Reach the
+      // actual native dialog HWND instead of relying on WindowStaysOnTopHint.
+      if (SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0,
+                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING))
+        gNativeDialogPresentationApplied = true;
+    }
+  }
+  return CallNextHookEx(nullptr, code, wParam, lParam);
 }
+
+class NativeDialogPresentationGuard final {
+public:
+  NativeDialogPresentationGuard() {
+    if (gNativeDialogPresentationActive)
+      throw std::runtime_error("nested native dialog presentation guard");
+    gNativeDialogPresentationApplied = false;
+    gNativeDialogPresentationActive = true;
+    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr, GetCurrentThreadId());
+    if (!mHook) {
+      gNativeDialogPresentationActive = false;
+      throw std::runtime_error("unable to install native dialog presentation hook");
+    }
+  }
+
+  ~NativeDialogPresentationGuard() {
+    if (mHook)
+      UnhookWindowsHookEx(mHook);
+    gNativeDialogPresentationActive = false;
+  }
+
+  NativeDialogPresentationGuard(const NativeDialogPresentationGuard &) = delete;
+  NativeDialogPresentationGuard &operator=(const NativeDialogPresentationGuard &) = delete;
+
+  bool applied() const { return gNativeDialogPresentationApplied; }
+
+private:
+  HHOOK mHook = nullptr;
+};
+#else
+class NativeDialogPresentationGuard final {
+public:
+  bool applied() const { return true; }
+};
+#endif
 
 class QtFileDialogProvider final : public webeeblocks::FileDialogProvider {
 public:
@@ -53,8 +101,11 @@ public:
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
-    configureDialogPresentation(dialog);
-    if (dialog.exec() != QDialog::Accepted)
+    NativeDialogPresentationGuard presentation;
+    const int dialogResult = dialog.exec();
+    if (!presentation.applied())
+      return openError("PRESENTATION_UNAVAILABLE");
+    if (dialogResult != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
     if (selected.size() != 1)
@@ -89,8 +140,11 @@ public:
     dialog.setDefaultSuffix(QStringLiteral("wbb"));
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
-    configureDialogPresentation(dialog);
-    if (dialog.exec() != QDialog::Accepted)
+    NativeDialogPresentationGuard presentation;
+    const int dialogResult = dialog.exec();
+    if (!presentation.applied())
+      return saveError("PRESENTATION_UNAVAILABLE");
+    if (dialogResult != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
     if (selected.size() != 1)
