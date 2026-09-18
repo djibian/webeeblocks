@@ -31,8 +31,7 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
   if (code == HCBT_ACTIVATE && gNativeDialogPresentationActive && wParam != 0) {
     const HWND window = reinterpret_cast<HWND>(wParam);
     wchar_t className[32] = {};
-    if (GetClassNameW(window, className, static_cast<int>(std::size(className))) > 0 &&
-        std::wcscmp(className, L"#32770") == 0) {
+    if (GetClassNameW(window, className, 32) > 0 && lstrcmpW(className, L"#32770") == 0) {
       // Qt 6.5.x forwards a parent HWND to IFileDialog::Show(), but ignores the
       // QFileDialog widget flags for the native Windows shell picker. Reach the
       // actual native dialog HWND instead of relying on WindowStaysOnTopHint.
