@@ -24,7 +24,22 @@
 #include <utility>
 
 namespace {
-std::unique_ptr<QWindow> bindDialogToForegroundOwner(QFileDialog &dialog) {
+class DialogPresentationBinding {
+public:
+#ifdef Q_OS_WIN
+  ~DialogPresentationBinding() {
+    if (mInputAttached)
+      (void)AttachThreadInput(mDialogThreadId, mOwnerThreadId, FALSE);
+  }
+
+  std::unique_ptr<QWindow> ownerWindow;
+  DWORD mDialogThreadId = 0;
+  DWORD mOwnerThreadId = 0;
+  bool mInputAttached = false;
+#endif
+};
+
+std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDialog &dialog) {
 #ifdef Q_OS_WIN
   // Qt 6.5's Windows native QFileDialog helper ignores QWidget window flags;
   // IFileDialog receives only the transient parent's HWND. Capture the external
@@ -34,13 +49,14 @@ std::unique_ptr<QWindow> bindDialogToForegroundOwner(QFileDialog &dialog) {
   if (!owner)
     return {};
   DWORD ownerProcessId = 0;
-  if (GetWindowThreadProcessId(owner, &ownerProcessId) == 0 || ownerProcessId == 0 ||
-      ownerProcessId == GetCurrentProcessId())
+  const DWORD ownerThreadId = GetWindowThreadProcessId(owner, &ownerProcessId);
+  if (ownerThreadId == 0 || ownerProcessId == 0 || ownerProcessId == GetCurrentProcessId())
     return {};
 
-  auto ownerWindow = std::unique_ptr<QWindow>(
+  auto binding = std::make_unique<DialogPresentationBinding>();
+  binding->ownerWindow.reset(
       QWindow::fromWinId(static_cast<WId>(reinterpret_cast<quintptr>(owner))));
-  if (!ownerWindow)
+  if (!binding->ownerWindow)
     return {};
 
   // QFileDialog is normally represented only by the platform-native picker.
@@ -50,8 +66,24 @@ std::unique_ptr<QWindow> bindDialogToForegroundOwner(QFileDialog &dialog) {
   QWindow *dialogWindow = dialog.windowHandle();
   if (!dialogWindow)
     return {};
-  dialogWindow->setTransientParent(ownerWindow.get());
-  return ownerWindow;
+  dialogWindow->setTransientParent(binding->ownerWindow.get());
+
+  // The real Windows checkpoint established that ownership alone is not enough:
+  // the broker/controller process did not receive the user's activating input,
+  // so Windows may keep its IFileDialog in the background even when Show() gets
+  // the correct foreign owner HWND. Temporarily share the foreground owner's
+  // input state with this GUI thread while the native modal dialog exists. Win32
+  // then treats the two UI threads as sharing active-window/focus/Z-order state,
+  // without forcing a foreground switch or making the picker permanently topmost.
+  // Only attach while the captured owner is still the foreground window, so a
+  // delayed broker request never steals activation after the user switches apps.
+  binding->mDialogThreadId = GetCurrentThreadId();
+  binding->mOwnerThreadId = ownerThreadId;
+  if (binding->mDialogThreadId != binding->mOwnerThreadId && GetForegroundWindow() == owner) {
+    binding->mInputAttached =
+        AttachThreadInput(binding->mDialogThreadId, binding->mOwnerThreadId, TRUE) != FALSE;
+  }
+  return binding;
 #else
   (void)dialog;
   return {};
@@ -75,14 +107,14 @@ public:
   webeeblocks::OpenFileResult open() override {
     if (!canAllocateReference())
       return openError("REFERENCE_LIMIT");
-    // Declared before dialog so the foreign owner outlives the dialog itself.
-    [[maybe_unused]] std::unique_ptr<QWindow> presentationOwner;
+    // Declared before dialog so the foreign owner/input binding outlives it.
+    [[maybe_unused]] std::unique_ptr<DialogPresentationBinding> presentationBinding;
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Ouvrir un projet WebeeBlocks"));
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
-    presentationOwner = bindDialogToForegroundOwner(dialog);
+    presentationBinding = bindDialogToForegroundOwner(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
@@ -111,8 +143,8 @@ public:
   webeeblocks::SaveFileResult saveAs(const std::string &suggestedName, const std::string &bytes) override {
     if (!canAllocateReference())
       return saveError("REFERENCE_LIMIT");
-    // Declared before dialog so the foreign owner outlives the dialog itself.
-    [[maybe_unused]] std::unique_ptr<QWindow> presentationOwner;
+    // Declared before dialog so the foreign owner/input binding outlives it.
+    [[maybe_unused]] std::unique_ptr<DialogPresentationBinding> presentationBinding;
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Enregistrer le projet WebeeBlocks"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
@@ -120,7 +152,7 @@ public:
     dialog.setDefaultSuffix(QStringLiteral("wbb"));
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
-    presentationOwner = bindDialogToForegroundOwner(dialog);
+    presentationBinding = bindDialogToForegroundOwner(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
