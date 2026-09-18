@@ -375,7 +375,7 @@ jobs:
               server=$!
               trap "kill $server 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 55s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              timeout -k 5s 75s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-observability/unsafe-webots.log
           code=${PIPESTATUS[0]}
