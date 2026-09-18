@@ -6,8 +6,11 @@ student-visible behavior and never retries a tooltip interaction. Immediately
 before the existing single canonical hover, the same CDP session brings the Robot
 Window to the front, snapshots Blockly's public gesture lifecycle, and installs
 passive listeners proving whether ordinary public mouse/pointer entry and move
-events reach the exact tooltip-bound Blockly path at DOM target phase. The
-canonical 5 s visible/non-empty/localized tooltip oracle remains unchanged.
+events reach the exact tooltip-bound Blockly path at DOM target phase. It also
+records read-only Blockly tooltip scheduler state before and immediately after
+that unchanged hover so a recurrence can distinguish blocked/binding/scheduling
+failures without manufacturing tooltip state. The canonical 5 s visible/non-empty/
+localized tooltip oracle remains unchanged.
 """
 
 from __future__ import annotations
@@ -54,6 +57,44 @@ def _gesture_snapshot(c: probe.Cdp) -> dict[str, object]:
     if not state or not state.get("available"):
         raise RuntimeError(
             "Blockly gesture lifecycle is unavailable before real tooltip hover: "
+            + json.dumps(state, sort_keys=True)
+        )
+    return state
+
+
+def _tooltip_snapshot(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
+    settle_x = float(rect["settleX"])
+    settle_y = float(rect["settleY"])
+    expression = r'''((x,y) => {
+      const tooltip=window.Blockly&&Blockly.Tooltip;
+      const target=document.elementFromPoint(x,y);
+      const element=tooltip&&tooltip.element_;
+      const poisoned=tooltip&&tooltip.poisonedElement_;
+      const div=tooltip&&tooltip.DIV;
+      const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+      return {
+        available:!!tooltip,
+        blocked:tooltip ? !!tooltip.blocked_ : null,
+        visible:tooltip ? !!tooltip.visible : null,
+        targetClass:classOf(target),
+        targetHasTooltip:!!(target&&target.tooltip),
+        targetMouseOverBound:!!(target&&target.mouseOverWrapper_),
+        targetMouseOutBound:!!(target&&target.mouseOutWrapper_),
+        elementIsTarget:!!tooltip&&element===target,
+        elementHasTooltip:!!(element&&element.tooltip),
+        elementClass:classOf(element),
+        poisonedIsTarget:!!tooltip&&poisoned===target,
+        showScheduled:!!(tooltip&&tooltip.showPid_),
+        mouseOutScheduled:!!(tooltip&&tooltip.mouseOutPid_),
+        divExists:!!div,
+        divDisplay:div ? getComputedStyle(div).display : null,
+        divText:div ? String(div.innerText||div.textContent||'').trim().slice(0,200) : null
+      };
+    })(%s,%s)''' % (settle_x, settle_y)
+    state = c.eval(expression)
+    if not state or not state.get("available"):
+        raise RuntimeError(
+            "Blockly tooltip lifecycle is unavailable for passive diagnostics: "
             + json.dumps(state, sort_keys=True)
         )
     return state
@@ -125,19 +166,28 @@ def _cleanup_delivery_probe(c: probe.Cdp) -> None:
 def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
     focus = _same_session_focus(self)
     gesture = _gesture_snapshot(self)
+    tooltip_before = _tooltip_snapshot(self, rect)
     _install_delivery_probe(self, rect)
     try:
         # Exactly one unchanged canonical outside -> path -> settle trajectory.
         # No second hover, no wait for gesture state, and no outcome-based retry.
         _ORIGINAL_HOVER(self, rect)
+        tooltip_after = _tooltip_snapshot(self, rect)
         delivery = _read_delivery(self, rect)
     except BaseException:
         try:
+            tooltip_after = _tooltip_snapshot(self, rect)
             delivery = _read_delivery(self, rect)
             print(
                 "WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC "
                 + json.dumps(
-                    {"focus": focus, "gesture": gesture, "delivery": delivery},
+                    {
+                        "focus": focus,
+                        "gesture": gesture,
+                        "tooltipBefore": tooltip_before,
+                        "tooltipAfter": tooltip_after,
+                        "delivery": delivery,
+                    },
                     sort_keys=True,
                 )
             )
@@ -150,7 +200,13 @@ def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> 
 
     if not delivery:
         raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
-    evidence = {"focus": focus, "gesture": gesture, "delivery": delivery}
+    evidence = {
+        "focus": focus,
+        "gesture": gesture,
+        "tooltipBefore": tooltip_before,
+        "tooltipAfter": tooltip_after,
+        "delivery": delivery,
+    }
     print("WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC " + json.dumps(evidence, sort_keys=True))
 
     document = delivery.get("document", {})
