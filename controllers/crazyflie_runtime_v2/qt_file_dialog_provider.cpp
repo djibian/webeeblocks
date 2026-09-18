@@ -32,6 +32,7 @@ public:
       (void)AttachThreadInput(mDialogThreadId, mOwnerThreadId, FALSE);
   }
 
+  HWND ownerHwnd = nullptr;
   std::unique_ptr<QWindow> ownerWindow;
   DWORD mDialogThreadId = 0;
   DWORD mOwnerThreadId = 0;
@@ -54,6 +55,7 @@ std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDial
     return {};
 
   auto binding = std::make_unique<DialogPresentationBinding>();
+  binding->ownerHwnd = owner;
   binding->ownerWindow.reset(
       QWindow::fromWinId(static_cast<WId>(reinterpret_cast<quintptr>(owner))));
   if (!binding->ownerWindow)
@@ -72,9 +74,7 @@ std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDial
   // the broker/controller process did not receive the user's activating input,
   // so Windows may keep its IFileDialog in the background even when Show() gets
   // the correct foreign owner HWND. Temporarily share the foreground owner's
-  // input state with this GUI thread while the native modal dialog exists. Win32
-  // then treats the two UI threads as sharing active-window/focus/Z-order state,
-  // without forcing a foreground switch or making the picker permanently topmost.
+  // input state with this GUI thread while the native modal dialog exists.
   // Only attach while the captured owner is still the foreground window, so a
   // delayed broker request never steals activation after the user switches apps.
   binding->mDialogThreadId = GetCurrentThreadId();
@@ -95,6 +95,97 @@ std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDial
   return {};
 #endif
 }
+
+#ifdef Q_OS_WIN
+thread_local HWND gNativeDialogExpectedOwner = nullptr;
+thread_local bool gNativeDialogPresentationActive = false;
+thread_local bool gNativeDialogPresentationApplied = false;
+
+LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lParam) {
+  if (code == HCBT_ACTIVATE && gNativeDialogPresentationActive &&
+      !gNativeDialogPresentationApplied && wParam != 0 && gNativeDialogExpectedOwner) {
+    const HWND window = reinterpret_cast<HWND>(wParam);
+    DWORD processId = 0;
+    wchar_t className[32] = {};
+    const HWND foreground = GetForegroundWindow();
+    if (GetWindowThreadProcessId(window, &processId) != 0 && processId == GetCurrentProcessId() &&
+        GetClassNameW(window, className, 32) > 0 && lstrcmpW(className, L"#32770") == 0 &&
+        GetWindow(window, GW_OWNER) == gNativeDialogExpectedOwner &&
+        (foreground == gNativeDialogExpectedOwner || foreground == window)) {
+      // The broker has already joined the exact foreground owner's input queue.
+      // Intercept Qt's synchronous IFileDialog activation only for the shell
+      // picker owned by that captured HWND, keep it in the normal top z-order,
+      // then explicitly request foreground activation. This avoids permanent
+      // TOPMOST state and refuses to steal focus after the user switches apps.
+      gNativeDialogPresentationApplied = true;  // Prevent hook re-entry.
+      (void)SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |
+                             SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+      if (!SetForegroundWindow(window)) {
+        gNativeDialogPresentationApplied = false;
+        std::fprintf(stderr,
+                     "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND set_foreground_window_failed\n");
+      }
+    }
+  }
+  return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+class NativeDialogPresentationGuard final {
+public:
+  explicit NativeDialogPresentationGuard(const DialogPresentationBinding *binding) {
+    if (!binding || !binding->mInputAttached || !binding->ownerHwnd)
+      return;
+    if (gNativeDialogPresentationActive) {
+      std::fprintf(stderr,
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND nested_presentation_guard\n");
+      return;
+    }
+    gNativeDialogExpectedOwner = binding->ownerHwnd;
+    gNativeDialogPresentationApplied = false;
+    gNativeDialogPresentationActive = true;
+    mOwnsState = true;
+    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr,
+                              GetCurrentThreadId());
+    if (!mHook) {
+      std::fprintf(stderr,
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND cbt_hook_install_failed\n");
+      resetState();
+    }
+  }
+
+  ~NativeDialogPresentationGuard() {
+    if (!mOwnsState)
+      return;
+    if (mHook)
+      (void)UnhookWindowsHookEx(mHook);
+    if (!gNativeDialogPresentationApplied) {
+      std::fprintf(stderr,
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND native_picker_not_activated\n");
+    }
+    resetState();
+  }
+
+  NativeDialogPresentationGuard(const NativeDialogPresentationGuard &) = delete;
+  NativeDialogPresentationGuard &operator=(const NativeDialogPresentationGuard &) = delete;
+
+private:
+  void resetState() {
+    gNativeDialogExpectedOwner = nullptr;
+    gNativeDialogPresentationApplied = false;
+    gNativeDialogPresentationActive = false;
+    mOwnsState = false;
+  }
+
+  HHOOK mHook = nullptr;
+  bool mOwnsState = false;
+};
+#else
+class NativeDialogPresentationGuard final {
+public:
+  explicit NativeDialogPresentationGuard(const DialogPresentationBinding *) {}
+};
+#endif
 
 class QtFileDialogProvider final : public webeeblocks::FileDialogProvider {
 public:
@@ -121,6 +212,7 @@ public:
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
     presentationBinding = bindDialogToForegroundOwner(dialog);
+    NativeDialogPresentationGuard presentation(presentationBinding.get());
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
@@ -159,6 +251,7 @@ public:
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
     presentationBinding = bindDialogToForegroundOwner(dialog);
+    NativeDialogPresentationGuard presentation(presentationBinding.get());
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
