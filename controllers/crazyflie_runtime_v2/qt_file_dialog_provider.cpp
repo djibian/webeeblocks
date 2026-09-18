@@ -80,8 +80,14 @@ std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDial
   binding->mDialogThreadId = GetCurrentThreadId();
   binding->mOwnerThreadId = ownerThreadId;
   if (binding->mDialogThreadId != binding->mOwnerThreadId && GetForegroundWindow() == owner) {
+    SetLastError(ERROR_SUCCESS);
     binding->mInputAttached =
         AttachThreadInput(binding->mDialogThreadId, binding->mOwnerThreadId, TRUE) != FALSE;
+    if (!binding->mInputAttached) {
+      std::fprintf(stderr,
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND attach_thread_input_failed=%lu\n",
+                   static_cast<unsigned long>(GetLastError()));
+    }
   }
   return binding;
 #else
