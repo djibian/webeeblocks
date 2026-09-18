@@ -10,10 +10,11 @@
 #include <QtCore/QUuid>
 #ifdef Q_OS_WIN
 #include <QtCore/qt_windows.h>
-#endif
-#include <QtGui/QWindow>
-#include <QtWidgets/QApplication>
+#include <shobjidl.h>
+#else
 #include <QtWidgets/QFileDialog>
+#endif
+#include <QtWidgets/QApplication>
 
 #include <array>
 #include <cstdio>
@@ -24,79 +25,45 @@
 #include <utility>
 
 namespace {
-class DialogPresentationBinding {
-public:
 #ifdef Q_OS_WIN
-  ~DialogPresentationBinding() {
-    if (mInputAttached)
-      (void)AttachThreadInput(mDialogThreadId, mOwnerThreadId, FALSE);
-  }
+constexpr HRESULT kDialogCancelled = HRESULT_FROM_WIN32(ERROR_CANCELLED);
 
-  HWND ownerHwnd = nullptr;
-  std::unique_ptr<QWindow> ownerWindow;
-  DWORD mDialogThreadId = 0;
-  DWORD mOwnerThreadId = 0;
-  bool mInputAttached = false;
-#endif
+struct ComRelease {
+  template <typename T>
+  void operator()(T *value) const {
+    if (value)
+      value->Release();
+  }
 };
 
-std::unique_ptr<DialogPresentationBinding> bindDialogToForegroundOwner(QFileDialog &dialog) {
-#ifdef Q_OS_WIN
-  // Qt 6.5's Windows native QFileDialog helper ignores QWidget window flags;
-  // IFileDialog receives only the transient parent's HWND. Capture the external
-  // foreground window that initiated the broker request and bind it explicitly
-  // so the native picker has a real owner in the calling desktop application.
-  const HWND owner = GetForegroundWindow();
-  if (!owner)
-    return {};
-  DWORD ownerProcessId = 0;
-  const DWORD ownerThreadId = GetWindowThreadProcessId(owner, &ownerProcessId);
-  if (ownerThreadId == 0 || ownerProcessId == 0 || ownerProcessId == GetCurrentProcessId())
-    return {};
+template <typename T>
+using ComPtr = std::unique_ptr<T, ComRelease>;
 
-  auto binding = std::make_unique<DialogPresentationBinding>();
-  binding->ownerHwnd = owner;
-  binding->ownerWindow.reset(
-      QWindow::fromWinId(static_cast<WId>(reinterpret_cast<quintptr>(owner))));
-  if (!binding->ownerWindow)
-    return {};
-
-  // QFileDialog is normally represented only by the platform-native picker.
-  // Create its QWindow long enough to carry the foreign transient parent into
-  // QDialogPrivate::transientParentWindow() -> IFileDialog::Show(owner HWND).
-  (void)dialog.winId();
-  QWindow *dialogWindow = dialog.windowHandle();
-  if (!dialogWindow)
-    return {};
-  dialogWindow->setTransientParent(binding->ownerWindow.get());
-
-  // The real Windows checkpoint established that ownership alone is not enough:
-  // the broker/controller process did not receive the user's activating input,
-  // so Windows may keep its IFileDialog in the background even when Show() gets
-  // the correct foreign owner HWND. Temporarily share the foreground owner's
-  // input state with this GUI thread while the native modal dialog exists.
-  // Only attach while the captured owner is still the foreground window, so a
-  // delayed broker request never steals activation after the user switches apps.
-  binding->mDialogThreadId = GetCurrentThreadId();
-  binding->mOwnerThreadId = ownerThreadId;
-  if (binding->mDialogThreadId != binding->mOwnerThreadId && GetForegroundWindow() == owner) {
-    SetLastError(ERROR_SUCCESS);
-    binding->mInputAttached =
-        AttachThreadInput(binding->mDialogThreadId, binding->mOwnerThreadId, TRUE) != FALSE;
-    if (!binding->mInputAttached) {
-      std::fprintf(stderr,
-                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND attach_thread_input_failed=%lu\n",
-                   static_cast<unsigned long>(GetLastError()));
-    }
+class ComApartmentGuard final {
+public:
+  ComApartmentGuard() : mResult(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)) {}
+  ~ComApartmentGuard() {
+    if (mResult == S_OK || mResult == S_FALSE)
+      CoUninitialize();
   }
-  return binding;
-#else
-  (void)dialog;
-  return {};
-#endif
+
+  bool ready() const { return mResult == S_OK || mResult == S_FALSE; }
+
+private:
+  HRESULT mResult = E_FAIL;
+};
+
+HWND externalForegroundOwner() {
+  const HWND owner = GetForegroundWindow();
+  if (!owner || !IsWindow(owner))
+    return nullptr;
+  DWORD ownerProcessId = 0;
+  if (GetWindowThreadProcessId(owner, &ownerProcessId) == 0 || ownerProcessId == 0 ||
+      ownerProcessId == GetCurrentProcessId())
+    return nullptr;
+  return owner;
 }
 
-#ifdef Q_OS_WIN
 thread_local HWND gNativeDialogExpectedOwner = nullptr;
 thread_local bool gNativeDialogPresentationActive = false;
 thread_local bool gNativeDialogPresentationApplied = false;
@@ -106,25 +73,24 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
       !gNativeDialogPresentationApplied && wParam != 0 && gNativeDialogExpectedOwner) {
     const HWND window = reinterpret_cast<HWND>(wParam);
     DWORD processId = 0;
+    const DWORD windowThreadId = GetWindowThreadProcessId(window, &processId);
     wchar_t className[32] = {};
     const HWND foreground = GetForegroundWindow();
-    if (GetWindowThreadProcessId(window, &processId) != 0 && processId == GetCurrentProcessId() &&
+    if (windowThreadId == GetCurrentThreadId() && processId == GetCurrentProcessId() &&
         GetClassNameW(window, className, 32) > 0 && lstrcmpW(className, L"#32770") == 0 &&
         GetWindow(window, GW_OWNER) == gNativeDialogExpectedOwner &&
         (foreground == gNativeDialogExpectedOwner || foreground == window)) {
-      // The broker has already joined the exact foreground owner's input queue.
-      // Intercept Qt's synchronous IFileDialog activation only for the shell
-      // picker owned by that captured HWND, keep it in the normal top z-order,
-      // then explicitly request foreground activation. This avoids permanent
-      // TOPMOST state and refuses to steal focus after the user switches apps.
-      gNativeDialogPresentationApplied = true;  // Prevent hook re-entry.
-      (void)SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |
-                             SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-      if (!SetForegroundWindow(window)) {
-        gNativeDialogPresentationApplied = false;
+      // This hook runs on the exact thread that executes IFileDialog::Show().
+      // Its input queue is temporarily joined to the still-foreground external
+      // owner, so normal foreground activation is permitted without TOPMOST.
+      const BOOL raised = SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
+                                       SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |
+                                           SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+      const BOOL foregrounded = SetForegroundWindow(window);
+      gNativeDialogPresentationApplied = raised && foregrounded;
+      if (!gNativeDialogPresentationApplied) {
         std::fprintf(stderr,
-                     "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND set_foreground_window_failed\n");
+                     "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND activation_failed\n");
       }
     }
   }
@@ -133,43 +99,75 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
 
 class NativeDialogPresentationGuard final {
 public:
-  explicit NativeDialogPresentationGuard(const DialogPresentationBinding *binding) {
-    if (!binding || !binding->mInputAttached || !binding->ownerHwnd)
+  explicit NativeDialogPresentationGuard(HWND owner) : mOwner(owner) {
+    if (!mOwner)
       return;
+    DWORD ownerProcessId = 0;
+    mOwnerThreadId = GetWindowThreadProcessId(mOwner, &ownerProcessId);
+    mDialogThreadId = GetCurrentThreadId();
+    if (mOwnerThreadId == 0 || ownerProcessId == 0 || ownerProcessId == GetCurrentProcessId() ||
+        GetForegroundWindow() != mOwner)
+      return;
+
+    if (mDialogThreadId != mOwnerThreadId) {
+      SetLastError(ERROR_SUCCESS);
+      if (!AttachThreadInput(mDialogThreadId, mOwnerThreadId, TRUE)) {
+        std::fprintf(stderr,
+                     "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND attach_thread_input_failed=%lu\n",
+                     static_cast<unsigned long>(GetLastError()));
+        return;
+      }
+      mInputAttached = true;
+    }
+
     if (gNativeDialogPresentationActive) {
       std::fprintf(stderr,
                    "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND nested_presentation_guard\n");
+      detachInput();
       return;
     }
-    gNativeDialogExpectedOwner = binding->ownerHwnd;
+
+    gNativeDialogExpectedOwner = mOwner;
     gNativeDialogPresentationApplied = false;
     gNativeDialogPresentationActive = true;
     mOwnsState = true;
-    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr,
-                              GetCurrentThreadId());
+    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr, mDialogThreadId);
     if (!mHook) {
       std::fprintf(stderr,
-                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND cbt_hook_install_failed\n");
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND cbt_hook_install_failed=%lu\n",
+                   static_cast<unsigned long>(GetLastError()));
       resetState();
+      detachInput();
     }
   }
 
   ~NativeDialogPresentationGuard() {
-    if (!mOwnsState)
-      return;
     if (mHook)
       (void)UnhookWindowsHookEx(mHook);
-    if (!gNativeDialogPresentationApplied) {
+    if (mOwnsState && !gNativeDialogPresentationApplied) {
       std::fprintf(stderr,
                    "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND native_picker_not_activated\n");
     }
-    resetState();
+    if (mOwnsState)
+      resetState();
+    detachInput();
   }
 
   NativeDialogPresentationGuard(const NativeDialogPresentationGuard &) = delete;
   NativeDialogPresentationGuard &operator=(const NativeDialogPresentationGuard &) = delete;
 
 private:
+  void detachInput() {
+    if (!mInputAttached)
+      return;
+    if (!AttachThreadInput(mDialogThreadId, mOwnerThreadId, FALSE)) {
+      std::fprintf(stderr,
+                   "WEBEEBLOCKS_FILE_DIALOG_FOREGROUND detach_thread_input_failed=%lu\n",
+                   static_cast<unsigned long>(GetLastError()));
+    }
+    mInputAttached = false;
+  }
+
   void resetState() {
     gNativeDialogExpectedOwner = nullptr;
     gNativeDialogPresentationApplied = false;
@@ -177,14 +175,101 @@ private:
     mOwnsState = false;
   }
 
+  HWND mOwner = nullptr;
+  DWORD mOwnerThreadId = 0;
+  DWORD mDialogThreadId = 0;
   HHOOK mHook = nullptr;
+  bool mInputAttached = false;
   bool mOwnsState = false;
 };
-#else
-class NativeDialogPresentationGuard final {
-public:
-  explicit NativeDialogPresentationGuard(const DialogPresentationBinding *) {}
+
+struct NativeDialogResult {
+  enum class Status { Ok, Cancelled, Error } status = Status::Error;
+  QString path;
 };
+
+NativeDialogResult resultPath(IFileDialog *dialog) {
+  IShellItem *rawItem = nullptr;
+  if (!dialog || FAILED(dialog->GetResult(&rawItem)) || !rawItem)
+    return {};
+  ComPtr<IShellItem> item(rawItem);
+  PWSTR rawPath = nullptr;
+  if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &rawPath)) || !rawPath)
+    return {};
+  const QString path = QString::fromWCharArray(rawPath);
+  CoTaskMemFree(rawPath);
+  if (path.isEmpty())
+    return {};
+  return {NativeDialogResult::Status::Ok, path};
+}
+
+NativeDialogResult showNativeOpenDialog() {
+  ComApartmentGuard apartment;
+  if (!apartment.ready())
+    return {};
+
+  IFileOpenDialog *rawDialog = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                              IID_IFileOpenDialog, reinterpret_cast<void **>(&rawDialog))) ||
+      !rawDialog)
+    return {};
+  ComPtr<IFileOpenDialog> dialog(rawDialog);
+
+  FILEOPENDIALOGOPTIONS options = 0;
+  if (FAILED(dialog->GetOptions(&options)) ||
+      FAILED(dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST |
+                                FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR)))
+    return {};
+  const COMDLG_FILTERSPEC filter = {L"Projet WebeeBlocks", L"*.wbb;*.json"};
+  if (FAILED(dialog->SetFileTypes(1, &filter)) ||
+      FAILED(dialog->SetTitle(L"Ouvrir un projet WebeeBlocks")))
+    return {};
+
+  const HWND owner = externalForegroundOwner();
+  NativeDialogPresentationGuard presentation(owner);
+  const HRESULT shown = dialog->Show(owner);
+  if (shown == kDialogCancelled)
+    return {NativeDialogResult::Status::Cancelled, {}};
+  if (FAILED(shown))
+    return {};
+  return resultPath(dialog.get());
+}
+
+NativeDialogResult showNativeSaveDialog(const std::string &suggestedName) {
+  ComApartmentGuard apartment;
+  if (!apartment.ready())
+    return {};
+
+  IFileSaveDialog *rawDialog = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
+                              IID_IFileSaveDialog, reinterpret_cast<void **>(&rawDialog))) ||
+      !rawDialog)
+    return {};
+  ComPtr<IFileSaveDialog> dialog(rawDialog);
+
+  FILEOPENDIALOGOPTIONS options = 0;
+  if (FAILED(dialog->GetOptions(&options)) ||
+      FAILED(dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST |
+                                FOS_OVERWRITEPROMPT | FOS_NOCHANGEDIR)))
+    return {};
+  const COMDLG_FILTERSPEC filter = {L"Projet WebeeBlocks", L"*.wbb"};
+  const std::wstring suggested =
+      QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())).toStdWString();
+  if (FAILED(dialog->SetFileTypes(1, &filter)) ||
+      FAILED(dialog->SetDefaultExtension(L"wbb")) ||
+      FAILED(dialog->SetFileName(suggested.c_str())) ||
+      FAILED(dialog->SetTitle(L"Enregistrer le projet WebeeBlocks")))
+    return {};
+
+  const HWND owner = externalForegroundOwner();
+  NativeDialogPresentationGuard presentation(owner);
+  const HRESULT shown = dialog->Show(owner);
+  if (shown == kDialogCancelled)
+    return {NativeDialogResult::Status::Cancelled, {}};
+  if (FAILED(shown))
+    return {};
+  return resultPath(dialog.get());
+}
 #endif
 
 class QtFileDialogProvider final : public webeeblocks::FileDialogProvider {
@@ -204,25 +289,34 @@ public:
   webeeblocks::OpenFileResult open() override {
     if (!canAllocateReference())
       return openError("REFERENCE_LIMIT");
-    // Declared before dialog so the foreign owner/input binding outlives it.
-    [[maybe_unused]] std::unique_ptr<DialogPresentationBinding> presentationBinding;
+#ifdef Q_OS_WIN
+    const NativeDialogResult native = showNativeOpenDialog();
+    if (native.status == NativeDialogResult::Status::Cancelled)
+      return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
+    if (native.status != NativeDialogResult::Status::Ok)
+      return openError("DIALOG_FAILED");
+    const QString selectedPath = native.path;
+#else
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Ouvrir un projet WebeeBlocks"));
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
-    presentationBinding = bindDialogToForegroundOwner(dialog);
-    NativeDialogPresentationGuard presentation(presentationBinding.get());
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
     if (selected.size() != 1)
       return openError("INVALID_SELECTION");
-    const QFileInfo info(selected.front());
+    const QString selectedPath = selected.front();
+#endif
+    const QFileInfo info(selectedPath);
     const QString lowerName = info.fileName().toLower();
-    if (!info.exists() || !info.isFile() || (!lowerName.endsWith(QStringLiteral(".wbb")) && !lowerName.endsWith(QStringLiteral(".json"))))
+    if (!info.exists() || !info.isFile() ||
+        (!lowerName.endsWith(QStringLiteral(".wbb")) &&
+         !lowerName.endsWith(QStringLiteral(".json"))))
       return openError("INVALID_SELECTION");
-    if (info.size() < 0 || static_cast<qulonglong>(info.size()) > webeeblocks::FileBroker::kMaxProjectBytes)
+    if (info.size() < 0 ||
+        static_cast<qulonglong>(info.size()) > webeeblocks::FileBroker::kMaxProjectBytes)
       return openError("PROJECT_TOO_LARGE");
     QFile file(info.absoluteFilePath());
     if (!file.open(QIODevice::ReadOnly))
@@ -234,30 +328,39 @@ public:
     if (canonical.isEmpty())
       return openError("TARGET_UNAVAILABLE");
     const std::string reference = allocateReference(canonical);
-    return {webeeblocks::FileOperationStatus::Ok, reference, info.fileName().toUtf8().toStdString(),
+    return {webeeblocks::FileOperationStatus::Ok, reference,
+            info.fileName().toUtf8().toStdString(),
             std::string(bytes.constData(), static_cast<std::size_t>(bytes.size())), ""};
   }
 
-  webeeblocks::SaveFileResult saveAs(const std::string &suggestedName, const std::string &bytes) override {
+  webeeblocks::SaveFileResult saveAs(const std::string &suggestedName,
+                                      const std::string &bytes) override {
     if (!canAllocateReference())
       return saveError("REFERENCE_LIMIT");
-    // Declared before dialog so the foreign owner/input binding outlives it.
-    [[maybe_unused]] std::unique_ptr<DialogPresentationBinding> presentationBinding;
+#ifdef Q_OS_WIN
+    const NativeDialogResult native = showNativeSaveDialog(suggestedName);
+    if (native.status == NativeDialogResult::Status::Cancelled)
+      return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
+    if (native.status != NativeDialogResult::Status::Ok)
+      return saveError("DIALOG_FAILED");
+    const QString selectedPath = native.path;
+#else
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Enregistrer le projet WebeeBlocks"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.setFileMode(QFileDialog::AnyFile);
     dialog.setDefaultSuffix(QStringLiteral("wbb"));
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
-    dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
-    presentationBinding = bindDialogToForegroundOwner(dialog);
-    NativeDialogPresentationGuard presentation(presentationBinding.get());
+    dialog.selectFile(
+        QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
     if (selected.size() != 1)
       return saveError("INVALID_SELECTION");
-    const QString path = QFileInfo(selected.front()).absoluteFilePath();
+    const QString selectedPath = selected.front();
+#endif
+    const QString path = QFileInfo(selectedPath).absoluteFilePath();
     if (!path.toLower().endsWith(QStringLiteral(".wbb")))
       return saveError("INVALID_EXTENSION");
     const std::string writeError = writeAtomically(path, bytes, false);
@@ -268,10 +371,12 @@ public:
     if (canonical.isEmpty())
       return saveError("TARGET_UNAVAILABLE");
     const std::string reference = allocateReference(canonical);
-    return {webeeblocks::FileOperationStatus::Ok, reference, written.fileName().toUtf8().toStdString(), ""};
+    return {webeeblocks::FileOperationStatus::Ok, reference,
+            written.fileName().toUtf8().toStdString(), ""};
   }
 
-  webeeblocks::SaveFileResult save(const std::string &reference, const std::string &bytes) override {
+  webeeblocks::SaveFileResult save(const std::string &reference,
+                                    const std::string &bytes) override {
     const QString key = QString::fromLatin1(reference.data(), static_cast<int>(reference.size()));
     const auto it = mReferences.constFind(key);
     if (it == mReferences.cend())
@@ -286,7 +391,8 @@ public:
     const QFileInfo after(path);
     if (!after.exists() || !after.isFile())
       return saveError("TARGET_UNAVAILABLE");
-    return {webeeblocks::FileOperationStatus::Ok, reference, after.fileName().toUtf8().toStdString(), ""};
+    return {webeeblocks::FileOperationStatus::Ok, reference,
+            after.fileName().toUtf8().toStdString(), ""};
   }
 
   void release(const std::string &reference) override {
@@ -311,7 +417,8 @@ private:
     mReferences.insert(token, path);
     return token.toLatin1().toStdString();
   }
-  static std::string writeAtomically(const QString &path, const std::string &bytes, bool requireExisting) {
+  static std::string writeAtomically(const QString &path, const std::string &bytes,
+                                     bool requireExisting) {
     if (bytes.size() > webeeblocks::FileBroker::kMaxProjectBytes)
       return "PROJECT_TOO_LARGE";
     if (requireExisting) {
@@ -348,7 +455,8 @@ std::unique_ptr<FileDialogProvider> createQtFileDialogProvider() {
 }  // namespace webeeblocks
 
 struct WbFileBroker {
-  explicit WbFileBroker(std::unique_ptr<webeeblocks::FileDialogProvider> provider) : broker(std::move(provider)) {}
+  explicit WbFileBroker(std::unique_ptr<webeeblocks::FileDialogProvider> provider)
+      : broker(std::move(provider)) {}
   webeeblocks::FileBroker broker;
   std::string response;
 };
@@ -364,7 +472,8 @@ extern "C" WbFileBroker *wb_file_broker_create_qt(void) {
 
 extern "C" void wb_file_broker_destroy(WbFileBroker *broker) { delete broker; }
 
-extern "C" const char *wb_file_broker_handle_message(WbFileBroker *broker, const char *message) {
+extern "C" const char *wb_file_broker_handle_message(WbFileBroker *broker,
+                                                       const char *message) {
   if (!broker)
     return nullptr;
   broker->response.clear();
