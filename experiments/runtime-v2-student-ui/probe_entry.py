@@ -7,10 +7,10 @@ before the existing single canonical hover, the same CDP session brings the Robo
 Window to the front, snapshots Blockly's public gesture lifecycle, and installs
 passive listeners proving whether ordinary public mouse/pointer entry and move
 events reach the exact tooltip-bound Blockly path at DOM target phase. It also
-records read-only Blockly tooltip scheduler state before and immediately after
-that unchanged hover so a recurrence can distinguish blocked/binding/scheduling
-failures without manufacturing tooltip state. The canonical 5 s visible/non-empty/
-localized tooltip oracle remains unchanged.
+records only exported Blockly tooltip visibility/div state plus the target's
+actual tooltip bindings and tooltip chain before and immediately after that
+unchanged hover. The canonical 5 s visible/non-empty/localized tooltip oracle
+remains unchanged.
 """
 
 from __future__ import annotations
@@ -68,33 +68,64 @@ def _tooltip_snapshot(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object
     expression = r'''((x,y) => {
       const tooltip=window.Blockly&&Blockly.Tooltip;
       const target=document.elementFromPoint(x,y);
-      const element=tooltip&&tooltip.element_;
-      const poisoned=tooltip&&tooltip.poisonedElement_;
-      const div=tooltip&&tooltip.DIV;
+      const hasVisible=!!tooltip&&typeof tooltip.isVisible==='function';
+      const hasGetDiv=!!tooltip&&typeof tooltip.getDiv==='function';
+      const div=hasGetDiv ? tooltip.getDiv() : null;
       const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+      const tooltipChain=[];
+      const seen=new Set();
+      let cursor=target;
+      for(let depth=0;depth<8&&cursor&&!seen.has(cursor);depth+=1){
+        seen.add(cursor);
+        const value=cursor.tooltip;
+        if(value===undefined||value===null)break;
+        const kind=typeof value;
+        const entry={kind:kind};
+        if(kind==='string'){
+          entry.text=value.slice(0,200);
+          tooltipChain.push(entry);
+          break;
+        }
+        if(kind==='function'){
+          entry.name=String(value.name||'');
+          tooltipChain.push(entry);
+          break;
+        }
+        if(kind==='object'){
+          entry.constructor=String((value.constructor&&value.constructor.name)||'');
+          entry.hasTooltip=Object.prototype.hasOwnProperty.call(value,'tooltip')||('tooltip' in value);
+          tooltipChain.push(entry);
+          cursor=value;
+          continue;
+        }
+        entry.value=String(value).slice(0,200);
+        tooltipChain.push(entry);
+        break;
+      }
       return {
         available:!!tooltip,
-        blocked:tooltip ? !!tooltip.blocked_ : null,
-        visible:tooltip ? !!tooltip.visible : null,
+        hasIsVisible:hasVisible,
+        hasGetDiv:hasGetDiv,
+        visible:hasVisible ? !!tooltip.isVisible() : null,
         targetClass:classOf(target),
         targetHasTooltip:!!(target&&target.tooltip),
         targetMouseOverBound:!!(target&&target.mouseOverWrapper_),
         targetMouseOutBound:!!(target&&target.mouseOutWrapper_),
-        elementIsTarget:!!tooltip&&element===target,
-        elementHasTooltip:!!(element&&element.tooltip),
-        elementClass:classOf(element),
-        poisonedIsTarget:!!tooltip&&poisoned===target,
-        showScheduled:!!(tooltip&&tooltip.showPid_),
-        mouseOutScheduled:!!(tooltip&&tooltip.mouseOutPid_),
+        tooltipChain:tooltipChain,
         divExists:!!div,
         divDisplay:div ? getComputedStyle(div).display : null,
         divText:div ? String(div.innerText||div.textContent||'').trim().slice(0,200) : null
       };
     })(%s,%s)''' % (settle_x, settle_y)
     state = c.eval(expression)
-    if not state or not state.get("available"):
+    if (
+        not state
+        or not state.get("available")
+        or not state.get("hasIsVisible")
+        or not state.get("hasGetDiv")
+    ):
         raise RuntimeError(
-            "Blockly tooltip lifecycle is unavailable for passive diagnostics: "
+            "Exported Blockly tooltip observables are unavailable for passive diagnostics: "
             + json.dumps(state, sort_keys=True)
         )
     return state
