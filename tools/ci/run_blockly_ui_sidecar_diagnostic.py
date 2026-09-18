@@ -10,6 +10,7 @@ assert spec.loader is not None
 spec.loader.exec_module(module)
 
 _original_injected_harness = module.injected_harness
+_original_wait_for_port = module.wait_for_port
 
 
 def injected_harness():
@@ -37,11 +38,17 @@ def injected_harness():
 
 module.injected_harness = injected_harness
 
-# The old TCP readiness probe intentionally opens a non-WebSocket connection,
-# which makes blocklyServer log "Transport endpoint is not connected". The real
-# browser flow already waits for WebSocket.OPEN, so suppress that misleading
-# probe in this diagnostic run.
-module.wait_for_port = lambda port, timeout=5: None
+# The legacy sidecar TCP readiness probe intentionally opens a non-WebSocket
+# connection, which makes blocklyServer log "Transport endpoint is not connected".
+# Suppress only that known sidecar probe. Every other readiness probe, including
+# the causal Chrome DevTools boundary introduced for #469, must remain real.
+def wait_for_port(port, timeout=5):
+    if port == 8001:
+        return None
+    return _original_wait_for_port(port, timeout=timeout)
+
+
+module.wait_for_port = wait_for_port
 
 if __name__ == "__main__":
     raise SystemExit(module.main())
