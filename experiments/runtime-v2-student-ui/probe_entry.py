@@ -3,10 +3,10 @@
 
 The product/runtime probe remains authoritative. This entrypoint only strengthens
 its real-tooltip evidence: immediately before the canonical hover, the same CDP
-session brings the Robot Window to the front and proves that public pointer
-entry/move events reach the exact Blockly path selected by the existing probe.
-It does not mutate Blockly tooltip state, workspace state, timeout values or pass
-conditions.
+session brings the Robot Window to the front and passively proves the exact
+public pointer/mouse entry, movement and exit sequence delivered around the
+Blockly path selected by the existing probe. It does not mutate Blockly tooltip
+state, workspace state, timeout values or pass conditions.
 """
 
 from __future__ import annotations
@@ -47,11 +47,25 @@ def _install_delivery_probe(c: probe.Cdp) -> None:
         r'''(() => {
           const key='__webeeblocksCiTooltipDelivery';
           if(window[key]&&window[key].cleanup)window[key].cleanup();
-          const state={mousemove:0,mouseover:0,pointermove:0,pointerover:0,last:{},cleanup:null};
-          const pack=e=>({x:e.clientX,y:e.clientY,targetTag:(e.target&&e.target.tagName)||'',targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||'')});
+          const state={
+            mousemove:0,mouseover:0,pointermove:0,pointerover:0,mouseout:0,pointerout:0,
+            last:{},events:[],cleanup:null
+          };
+          const pack=e=>({
+            x:e.clientX,y:e.clientY,
+            targetTag:(e.target&&e.target.tagName)||'',
+            targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||''),
+            relatedTag:(e.relatedTarget&&e.relatedTarget.tagName)||'',
+            relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||'')
+          });
           const handlers={};
-          for(const type of ['mousemove','mouseover','pointermove','pointerover']){
-            handlers[type]=e=>{state[type]+=1;state.last[type]=pack(e);};
+          for(const type of ['mousemove','mouseover','pointermove','pointerover','mouseout','pointerout']){
+            handlers[type]=e=>{
+              state[type]+=1;
+              const event={type,...pack(e)};
+              state.last[type]=event;
+              if(state.events.length<64)state.events.push(event);
+            };
             document.addEventListener(type,handlers[type],true);
           }
           state.cleanup=()=>{for(const type of Object.keys(handlers))document.removeEventListener(type,handlers[type],true);};
@@ -71,7 +85,7 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
       const hit=document.elementFromPoint(x,y);
       const result={
         mousemove:s.mousemove,mouseover:s.mouseover,pointermove:s.pointermove,pointerover:s.pointerover,
-        last:s.last,
+        mouseout:s.mouseout,pointerout:s.pointerout,last:s.last,events:s.events,
         hitTag:(hit&&hit.tagName)||'',
         hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||'')
       };
@@ -79,6 +93,14 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
       return result;
     })(%s,%s)''' % (settle_x, settle_y)
     return c.eval(expression)
+
+
+def _is_path_event(event: object, event_type: str) -> bool:
+    return bool(
+        isinstance(event, dict)
+        and event.get("type") == event_type
+        and "blocklyPath" in str(event.get("targetClass", ""))
+    )
 
 
 def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -> None:
@@ -98,16 +120,45 @@ def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -
 
     if not delivery:
         raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
+
+    evidence = {"focus": focus, "delivery": delivery}
+    print(
+        "WEBEEBLOCKS_STUDENT_UI_HOVER_DELIVERY "
+        + json.dumps(evidence, sort_keys=True, separators=(",", ":"))
+    )
+
     if delivery.get("mousemove", 0) < 2 or delivery.get("pointermove", 0) < 2:
         raise RuntimeError(
             "real tooltip hover did not deliver bounded public move events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(evidence, sort_keys=True)
         )
     if delivery.get("mouseover", 0) < 1 or delivery.get("pointerover", 0) < 1:
         raise RuntimeError(
             "real tooltip hover did not deliver public entry events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(evidence, sort_keys=True)
         )
+
+    events = delivery.get("events", [])
+    mouse_entry = next((i for i, event in enumerate(events) if _is_path_event(event, "mouseover")), None)
+    pointer_entry = next((i for i, event in enumerate(events) if _is_path_event(event, "pointerover")), None)
+    if mouse_entry is None or pointer_entry is None:
+        raise RuntimeError(
+            "real tooltip hover entry did not target the exact public Blockly path: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
+    last_entry = max(mouse_entry, pointer_entry)
+    premature_exit = [
+        event
+        for event in events[last_entry + 1 :]
+        if _is_path_event(event, "mouseout") or _is_path_event(event, "pointerout")
+    ]
+    if premature_exit:
+        raise RuntimeError(
+            "real tooltip hover left the exact public Blockly path before the canonical wait: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
     hit_class = str(delivery.get("hitClass", ""))
     last_mouse = delivery.get("last", {}).get("mousemove", {})
     last_pointer = delivery.get("last", {}).get("pointermove", {})
@@ -118,7 +169,7 @@ def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -
     ):
         raise RuntimeError(
             "real tooltip hover did not settle on the exact public Blockly path: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(evidence, sort_keys=True)
         )
 
 
