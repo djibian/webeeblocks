@@ -3,8 +3,8 @@
 
 The product/runtime probe remains authoritative. This entrypoint only strengthens
 its real-tooltip evidence: immediately before the canonical hover, the same CDP
-session brings the Robot Window to the front and proves that public pointer
-entry/move events reach the exact Blockly path selected by the existing probe.
+session brings the Robot Window to the front and proves that ordinary public
+mouse events reach the exact Blockly tooltip-bound path at the DOM target phase.
 It does not mutate Blockly tooltip state, workspace state, timeout values or pass
 conditions.
 """
@@ -42,23 +42,42 @@ def _same_session_focus(c: probe.Cdp) -> dict[str, object]:
     )
 
 
-def _install_delivery_probe(c: probe.Cdp) -> None:
-    c.eval(
-        r'''(() => {
-          const key='__webeeblocksCiTooltipDelivery';
-          if(window[key]&&window[key].cleanup)window[key].cleanup();
-          const state={mousemove:0,mouseover:0,pointermove:0,pointerover:0,last:{},cleanup:null};
-          const pack=e=>({x:e.clientX,y:e.clientY,targetTag:(e.target&&e.target.tagName)||'',targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||'')});
-          const handlers={};
-          for(const type of ['mousemove','mouseover','pointermove','pointerover']){
-            handlers[type]=e=>{state[type]+=1;state.last[type]=pack(e);};
-            document.addEventListener(type,handlers[type],true);
-          }
-          state.cleanup=()=>{for(const type of Object.keys(handlers))document.removeEventListener(type,handlers[type],true);};
-          window[key]=state;
-          return true;
-        })()'''
-    )
+def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
+    settle_x = float(rect["settleX"])
+    settle_y = float(rect["settleY"])
+    expression = r'''((x,y) => {
+      const key='__webeeblocksCiTooltipDelivery';
+      if(window[key]&&window[key].cleanup)window[key].cleanup();
+      const target=document.elementFromPoint(x,y);
+      const targetClass=String((target&&target.getAttribute&&target.getAttribute('class'))||'');
+      if(!target||!targetClass.includes('blocklyPath'))throw new Error('tooltip delivery target is not the exact public Blockly path');
+      const types=['mousemove','mouseover','mouseout','pointermove','pointerover','pointerout'];
+      const state={document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
+      const pack=e=>({
+        x:e.clientX,y:e.clientY,buttons:e.buttons,defaultPrevented:e.defaultPrevented,
+        targetTag:(e.target&&e.target.tagName)||'',
+        targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||''),
+        relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||'')
+      });
+      const documentHandlers={};
+      const targetHandlers={};
+      for(const type of types){
+        state.document[type]=0; state.target[type]=0;
+        documentHandlers[type]=e=>{state.document[type]+=1;state.last[type]=pack(e);};
+        targetHandlers[type]=e=>{state.target[type]+=1;state.targetLast[type]=pack(e);state.targetSequence.push(type);};
+        document.addEventListener(type,documentHandlers[type],true);
+        target.addEventListener(type,targetHandlers[type],false);
+      }
+      state.cleanup=()=>{
+        for(const type of types){
+          document.removeEventListener(type,documentHandlers[type],true);
+          target.removeEventListener(type,targetHandlers[type],false);
+        }
+      };
+      window[key]=state;
+      return true;
+    })(%s,%s)''' % (settle_x, settle_y)
+    c.eval(expression)
 
 
 def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
@@ -70,8 +89,7 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
       if(!s)return null;
       const hit=document.elementFromPoint(x,y);
       const result={
-        mousemove:s.mousemove,mouseover:s.mouseover,pointermove:s.pointermove,pointerover:s.pointerover,
-        last:s.last,
+        document:s.document,target:s.target,last:s.last,targetLast:s.targetLast,targetSequence:s.targetSequence,
         hitTag:(hit&&hit.tagName)||'',
         hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||'')
       };
@@ -81,44 +99,67 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
     return c.eval(expression)
 
 
+def _cleanup_delivery_probe(c: probe.Cdp) -> None:
+    c.eval(
+        "(() => {const s=window.__webeeblocksCiTooltipDelivery;if(s&&s.cleanup)s.cleanup();delete window.__webeeblocksCiTooltipDelivery;return true;})()"
+    )
+
+
 def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -> None:
     focus = _same_session_focus(self)
-    _install_delivery_probe(self)
+    _install_delivery_probe(self, rect)
     try:
         _ORIGINAL_HOVER(self, rect)
         delivery = _read_delivery(self, rect)
     except BaseException:
         try:
-            self.eval(
-                "(() => {const s=window.__webeeblocksCiTooltipDelivery;if(s&&s.cleanup)s.cleanup();delete window.__webeeblocksCiTooltipDelivery;return true;})()"
-            )
+            _cleanup_delivery_probe(self)
         except Exception:
             pass
         raise
 
     if not delivery:
         raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
-    if delivery.get("mousemove", 0) < 2 or delivery.get("pointermove", 0) < 2:
+    evidence = {"focus": focus, "delivery": delivery}
+    print("WEBEEBLOCKS_TOOLTIP_TARGET_DELIVERY " + json.dumps(evidence, sort_keys=True))
+
+    document = delivery.get("document", {})
+    if document.get("mousemove", 0) < 2 or document.get("pointermove", 0) < 2:
         raise RuntimeError(
-            "real tooltip hover did not deliver bounded public move events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            "real tooltip hover did not deliver bounded public document move events: "
+            + json.dumps(evidence, sort_keys=True)
         )
-    if delivery.get("mouseover", 0) < 1 or delivery.get("pointerover", 0) < 1:
+    if document.get("mouseover", 0) < 1 or document.get("pointerover", 0) < 1:
         raise RuntimeError(
-            "real tooltip hover did not deliver public entry events: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            "real tooltip hover did not deliver public document entry events: "
+            + json.dumps(evidence, sort_keys=True)
         )
+
+    target = delivery.get("target", {})
+    if target.get("mousemove", 0) < 2 or target.get("mouseover", 0) < 1:
+        raise RuntimeError(
+            "real tooltip hover did not reach the exact Blockly path at target phase: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+    mouse_sequence = [
+        event for event in delivery.get("targetSequence", [])
+        if event in ("mouseover", "mouseout", "mousemove")
+    ]
+    if not mouse_sequence or mouse_sequence[-1] != "mousemove":
+        raise RuntimeError(
+            "real tooltip hover did not finish with a stable exact-path target mousemove: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
     hit_class = str(delivery.get("hitClass", ""))
-    last_mouse = delivery.get("last", {}).get("mousemove", {})
-    last_pointer = delivery.get("last", {}).get("pointermove", {})
+    target_mouse = delivery.get("targetLast", {}).get("mousemove", {})
     if (
         "blocklyPath" not in hit_class
-        or "blocklyPath" not in str(last_mouse.get("targetClass", ""))
-        or "blocklyPath" not in str(last_pointer.get("targetClass", ""))
+        or "blocklyPath" not in str(target_mouse.get("targetClass", ""))
     ):
         raise RuntimeError(
             "real tooltip hover did not settle on the exact public Blockly path: "
-            + json.dumps({"focus": focus, "delivery": delivery}, sort_keys=True)
+            + json.dumps(evidence, sort_keys=True)
         )
 
 
