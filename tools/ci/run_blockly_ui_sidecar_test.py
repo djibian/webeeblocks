@@ -179,21 +179,30 @@ def injected_harness():
 </script>
 """
 
-def run_chrome(url, server, timeout=35):
+def run_chrome(url, server, startup_timeout=35, ui_timeout=35):
     # Keep a real headless browser alive while actual WebSocket/network events
     # occur. Persist Chrome stderr to a file so a timeout cannot hide browser
     # diagnostics or deadlock on a full stderr pipe. A fixed DevTools port gives
     # an independent causal startup boundary without changing the UI oracle.
+    # Browser startup has its own bounded allowance because canonical evidence
+    # observed DevTools becoming ready only after about 28 s; the historical UI
+    # flow keeps its existing 35 s result budget once that prerequisite is real.
     devtools_port=free_port()
     cmd=[chrome_executable(),"--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-background-networking",f"--remote-debugging-port={devtools_port}",url]
     chrome_out=tempfile.TemporaryFile(mode="w+",encoding="utf-8")
     chrome_err=tempfile.TemporaryFile(mode="w+",encoding="utf-8")
     p=subprocess.Popen(cmd,text=True,stdout=chrome_out,stderr=chrome_err)
     record_progress(server,{"stage":"chrome-spawned","pid":p.pid,"devtoolsPort":devtools_port})
-    deadline=time.monotonic()+timeout
     try:
-        wait_for_port(devtools_port,timeout=5)
+        try:
+            wait_for_port(devtools_port,timeout=startup_timeout)
+        except Exception as exc:
+            raise RuntimeError(
+                f"headless browser DevTools startup did not complete within {startup_timeout}s; "
+                f"last progress={server.ui_progress}; progress trace={server.ui_trace}; chrome stderr={read_log(chrome_err)}"
+            ) from exc
         record_progress(server,{"stage":"chrome-devtools-ready","devtoolsPort":devtools_port})
+        deadline=time.monotonic()+ui_timeout
         while time.monotonic()<deadline:
             if server.ui_event.wait(timeout=.1):
                 return server.ui_result
