@@ -167,6 +167,11 @@ def validate() -> None:
 
 
 def main() -> int:
+    subprocess.run([
+        sys.executable,
+        str(ROOT / "tools/ci/firefox_project_dialog_driver.py"),
+        "--self-test",
+    ], check=True)
     run_scenario()
     validate()
     return 0
