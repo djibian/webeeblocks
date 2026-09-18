@@ -116,31 +116,76 @@ def _cleanup_delivery_probe(c: probe.Cdp) -> None:
     )
 
 
-def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -> None:
-    focus = _same_session_focus(self)
-    gesture = _gesture_state(self)
-    _install_delivery_probe(self)
-    try:
-        _ORIGINAL_HOVER(self, rect)
-        delivery = _read_delivery(self, rect)
-    except BaseException:
-        try:
-            _cleanup_delivery_probe(self)
-        except Exception:
-            pass
-        raise
-
-    diagnostic = {"focus": focus, "gesture": gesture, "delivery": delivery}
+def _print_diagnostic(
+    focus: dict[str, object],
+    gesture: dict[str, object],
+    delivery: dict[str, object] | None,
+    *,
+    outcome: str,
+    error: BaseException | None = None,
+    diagnostic_error: BaseException | None = None,
+) -> None:
+    diagnostic: dict[str, object] = {
+        "focus": focus,
+        "gesture": gesture,
+        "delivery": delivery,
+        "outcome": outcome,
+    }
+    if error is not None:
+        diagnostic["error"] = {"type": type(error).__name__, "message": str(error)}
+    if diagnostic_error is not None:
+        diagnostic["diagnosticError"] = {
+            "type": type(diagnostic_error).__name__,
+            "message": str(diagnostic_error),
+        }
     print(
         "WEBEEBLOCKS_STUDENT_UI_HOVER_DIAGNOSTIC "
         + json.dumps(diagnostic, sort_keys=True)
     )
 
+
+def hover_with_same_session_delivery(self: probe.Cdp, rect: dict[str, object]) -> None:
+    focus = _same_session_focus(self)
+    gesture = _gesture_state(self)
     if not gesture or not gesture.get("available"):
         raise RuntimeError(
             "Blockly gesture lifecycle is unavailable before real tooltip hover: "
-            + json.dumps(diagnostic, sort_keys=True)
+            + json.dumps({"focus": focus, "gesture": gesture}, sort_keys=True)
         )
+    print(
+        "WEBEEBLOCKS_STUDENT_UI_HOVER_READY "
+        + json.dumps({"focus": focus, "gesture": gesture}, sort_keys=True)
+    )
+    _install_delivery_probe(self)
+    try:
+        # Preserve the single canonical outside -> exact-path -> settle trajectory
+        # and its fixed 5 s public tooltip oracle. The listeners are passive.
+        _ORIGINAL_HOVER(self, rect)
+    except BaseException as error:
+        delivery = None
+        diagnostic_error = None
+        try:
+            delivery = _read_delivery(self, rect)
+        except BaseException as exc:
+            diagnostic_error = exc
+            try:
+                _cleanup_delivery_probe(self)
+            except Exception:
+                pass
+        _print_diagnostic(
+            focus,
+            gesture,
+            delivery,
+            outcome="hover_error",
+            error=error,
+            diagnostic_error=diagnostic_error,
+        )
+        raise
+
+    delivery = _read_delivery(self, rect)
+    _print_diagnostic(focus, gesture, delivery, outcome="hover_returned")
+    diagnostic = {"focus": focus, "gesture": gesture, "delivery": delivery}
+
     if not delivery:
         raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
     if delivery.get("mousemove", 0) < 2 or delivery.get("pointermove", 0) < 2:
