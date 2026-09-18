@@ -61,6 +61,18 @@ std::unique_ptr<QWindow> bindDialogToForegroundOwner(QFileDialog &dialog) {
 #ifdef Q_OS_WIN
 thread_local bool gNativeDialogPresentationActive = false;
 thread_local bool gNativeDialogPresentationApplied = false;
+thread_local bool gNativeDialogInputAttached = false;
+thread_local HWND gNativeDialogExpectedOwner = nullptr;
+thread_local DWORD gNativeDialogOwnerThread = 0;
+thread_local DWORD gNativeDialogBrokerThread = 0;
+
+void detachNativeDialogInput() {
+  if (!gNativeDialogInputAttached)
+    return;
+  if (!AttachThreadInput(gNativeDialogBrokerThread, gNativeDialogOwnerThread, FALSE))
+    std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN unable to detach native dialog input queues\n");
+  gNativeDialogInputAttached = false;
+}
 
 LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lParam) {
   if (code == HCBT_ACTIVATE && gNativeDialogPresentationActive &&
@@ -69,17 +81,21 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
     DWORD processId = 0;
     wchar_t className[32] = {};
     if (GetWindowThreadProcessId(window, &processId) != 0 && processId == GetCurrentProcessId() &&
-        GetClassNameW(window, className, 32) > 0 && lstrcmpW(className, L"#32770") == 0) {
-      // Ownership alone is not a foreground guarantee on the real Windows 11
-      // Firefox path. Qt 6.5.3 synchronously calls IFileDialog::Show() on this
-      // thread, so a thread-local CBT hook is the smallest public Win32 boundary
-      // that exposes the actual shell-picker HWND before activation completes.
-      // Put that exact short-lived modal window at the top of the desktop z-order
-      // and allow SetWindowPos to activate it; no browser or non-Windows path is
-      // touched, and the topmost state disappears with the picker itself.
-      gNativeDialogPresentationApplied = true;  // Prevent hook re-entry from SetWindowPos.
-      if (!SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING))
+        GetClassNameW(window, className, 32) > 0 && lstrcmpW(className, L"#32770") == 0 &&
+        GetWindow(window, GW_OWNER) == gNativeDialogExpectedOwner) {
+      // #468 gives IFileDialog the exact external Firefox/Webots foreground
+      // owner, but ownership alone does not transfer Windows foreground-input
+      // authority to this broker process. The guard has attached this broker
+      // GUI thread to that exact owner's input queue, so activate only the
+      // owned native shell picker intercepted on this synchronous dialog thread.
+      // Keep normal (non-topmost) Z-order; SetForegroundWindow is now performed
+      // while both UI threads share active/focus state.
+      gNativeDialogPresentationApplied = true;  // Prevent hook re-entry below.
+      const BOOL raised = SetWindowPos(window, HWND_TOP, 0, 0, 0, 0,
+                                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                                           SWP_SHOWWINDOW | SWP_NOSENDCHANGING);
+      const BOOL foregrounded = SetForegroundWindow(window);
+      if (!raised || !foregrounded)
         gNativeDialogPresentationApplied = false;
     }
   }
@@ -88,18 +104,43 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
 
 class NativeDialogPresentationGuard final {
 public:
-  NativeDialogPresentationGuard() {
+  explicit NativeDialogPresentationGuard(QWindow *ownerWindow) {
     if (gNativeDialogPresentationActive) {
       std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN nested native dialog presentation guard\n");
       return;
     }
+    if (!ownerWindow) {
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN no external foreground owner for native dialog\n");
+      return;
+    }
+
+    const HWND owner = reinterpret_cast<HWND>(static_cast<quintptr>(ownerWindow->winId()));
+    DWORD ownerProcessId = 0;
+    const DWORD ownerThread = IsWindow(owner) ? GetWindowThreadProcessId(owner, &ownerProcessId) : 0;
+    const DWORD brokerThread = GetCurrentThreadId();
+    if (ownerThread == 0 || ownerProcessId == 0 || ownerProcessId == GetCurrentProcessId() ||
+        ownerThread == brokerThread) {
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN invalid external foreground owner for native dialog\n");
+      return;
+    }
+
+    if (!AttachThreadInput(brokerThread, ownerThread, TRUE)) {
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN unable to attach native dialog input queues\n");
+      return;
+    }
+
+    gNativeDialogExpectedOwner = owner;
+    gNativeDialogOwnerThread = ownerThread;
+    gNativeDialogBrokerThread = brokerThread;
+    gNativeDialogInputAttached = true;
     gNativeDialogPresentationApplied = false;
     gNativeDialogPresentationActive = true;
     mOwnsState = true;
-    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr, GetCurrentThreadId());
+    mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr, brokerThread);
     if (!mHook) {
       std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN unable to install native dialog presentation hook\n");
-      gNativeDialogPresentationActive = false;
+      detachNativeDialogInput();
+      resetPresentationState();
       mOwnsState = false;
     }
   }
@@ -109,20 +150,32 @@ public:
       return;
     if (mHook)
       UnhookWindowsHookEx(mHook);
+    detachNativeDialogInput();
     if (!gNativeDialogPresentationApplied)
-      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN native dialog HWND was not promoted\n");
-    gNativeDialogPresentationActive = false;
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN native owned dialog was not foregrounded\n");
+    resetPresentationState();
   }
 
   NativeDialogPresentationGuard(const NativeDialogPresentationGuard &) = delete;
   NativeDialogPresentationGuard &operator=(const NativeDialogPresentationGuard &) = delete;
 
 private:
+  static void resetPresentationState() {
+    gNativeDialogPresentationActive = false;
+    gNativeDialogPresentationApplied = false;
+    gNativeDialogExpectedOwner = nullptr;
+    gNativeDialogOwnerThread = 0;
+    gNativeDialogBrokerThread = 0;
+  }
+
   HHOOK mHook = nullptr;
   bool mOwnsState = false;
 };
 #else
-class NativeDialogPresentationGuard final {};
+class NativeDialogPresentationGuard final {
+public:
+  explicit NativeDialogPresentationGuard(QWindow *) {}
+};
 #endif
 
 class QtFileDialogProvider final : public webeeblocks::FileDialogProvider {
@@ -150,7 +203,7 @@ public:
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
     presentationOwner = bindDialogToForegroundOwner(dialog);
-    NativeDialogPresentationGuard presentation;
+    NativeDialogPresentationGuard presentation(presentationOwner.get());
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
@@ -189,7 +242,7 @@ public:
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
     presentationOwner = bindDialogToForegroundOwner(dialog);
-    NativeDialogPresentationGuard presentation;
+    NativeDialogPresentationGuard presentation(presentationOwner.get());
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
