@@ -10,6 +10,9 @@ from pathlib import Path
 import time
 
 
+X_BAD_WINDOW = 3
+
+
 class Attributes(C.Structure):
     _fields_ = [(name, kind) for name, kind in (
         ("x", C.c_int), ("y", C.c_int), ("width", C.c_int), ("height", C.c_int),
@@ -19,6 +22,35 @@ class Attributes(C.Structure):
         ("save_under", C.c_int), ("colormap", C.c_ulong), ("map_installed", C.c_int),
         ("map_state", C.c_int), ("all_event_masks", C.c_long), ("your_event_mask", C.c_long),
         ("do_not_propagate_mask", C.c_long), ("override_redirect", C.c_int), ("screen", C.c_void_p))]
+
+
+class XErrorEvent(C.Structure):
+    _fields_ = [
+        ("type", C.c_int),
+        ("display", C.c_void_p),
+        ("resourceid", C.c_ulong),
+        ("serial", C.c_ulong),
+        ("error_code", C.c_ubyte),
+        ("request_code", C.c_ubyte),
+        ("minor_code", C.c_ubyte),
+    ]
+
+
+XErrorHandler = C.CFUNCTYPE(C.c_int, C.c_void_p, C.POINTER(XErrorEvent))
+
+
+def classify_window_probe_error(error, window):
+    """Return stale only for BadWindow on the exact volatile XID being probed."""
+    if error is None:
+        return False
+    error_code, resourceid, request_code, minor_code = error
+    if error_code == X_BAD_WINDOW and resourceid == window:
+        return True
+    raise RuntimeError(
+        "unexpected X11 error while probing window "
+        f"{window:#x}: code={error_code} resource={resourceid:#x} "
+        f"request={request_code} minor={minor_code}"
+    )
 
 
 class XDriver:
@@ -35,8 +67,17 @@ class XDriver:
         self.bind(self.x, "XSetInputFocus", integer, pointer, window, integer, window)
         self.bind(self.x, "XSync", integer, pointer, integer)
         self.bind(self.x, "XKeysymToKeycode", C.c_ubyte, pointer, window)
+        self.bind(self.x, "XCreateSimpleWindow", window, pointer, window, integer, integer, C.c_uint, C.c_uint, C.c_uint, C.c_ulong, C.c_ulong)
+        self.bind(self.x, "XDestroyWindow", integer, pointer, window)
         self.bind(self.xt, "XTestFakeKeyEvent", integer, pointer, C.c_uint, integer, C.c_ulong)
         self.bind(self.xt, "XTestQueryExtension", integer, pointer, C.POINTER(integer), C.POINTER(integer), C.POINTER(integer), C.POINTER(integer))
+        # XSetErrorHandler returns the previous process-global handler. Use a raw
+        # pointer so the exact previous handler can be restored after each scoped
+        # volatile-window query.
+        self.x.XSetErrorHandler.restype = C.c_void_p
+        self.x.XSetErrorHandler.argtypes = [C.c_void_p]
+        self._probe_error = None
+        self._probe_handler = XErrorHandler(self._capture_probe_error)
         self.display = self.x.XOpenDisplay(None)
         if not self.display:
             raise RuntimeError("Xvfb display unavailable")
@@ -49,6 +90,34 @@ class XDriver:
     def bind(library, name, result, *arguments):
         function = getattr(library, name)
         function.restype, function.argtypes = result, arguments
+
+    def _capture_probe_error(self, _display, event):
+        value = event.contents
+        self._probe_error = (
+            int(value.error_code),
+            int(value.resourceid),
+            int(value.request_code),
+            int(value.minor_code),
+        )
+        return 0
+
+    def _volatile_window_query(self, window, operation):
+        # XQueryTree returns a snapshot. A child can disappear before its name or
+        # attributes are queried. Scope error interception to this single query,
+        # force asynchronous errors through XSync, then restore the prior handler.
+        # Only BadWindow for this exact XID is treated as a stale snapshot entry.
+        self._probe_error = None
+        previous = self.x.XSetErrorHandler(C.cast(self._probe_handler, C.c_void_p))
+        try:
+            result = operation()
+            self.x.XSync(self.display, 0)
+        finally:
+            self.x.XSetErrorHandler(previous)
+        error = self._probe_error
+        self._probe_error = None
+        if classify_window_probe_error(error, window):
+            return None
+        return result
 
     def windows(self):
         root, parent, children, count = C.c_ulong(), C.c_ulong(), C.POINTER(C.c_ulong)(), C.c_uint()
@@ -64,7 +133,13 @@ class XDriver:
         wanted = title.encode()
         for window in self.windows():
             actual = C.c_char_p()
-            if not self.x.XFetchName(self.display, window, C.byref(actual)) or not actual:
+            fetched = self._volatile_window_query(
+                window,
+                lambda: self.x.XFetchName(self.display, window, C.byref(actual)),
+            )
+            if fetched is None:
+                continue
+            if not fetched or not actual:
                 continue
             try:
                 matches = actual.value == wanted
@@ -73,7 +148,13 @@ class XDriver:
             if not matches:
                 continue
             attributes = Attributes()
-            if self.x.XGetWindowAttributes(self.display, window, C.byref(attributes)) and attributes.map_state == 2:
+            got_attributes = self._volatile_window_query(
+                window,
+                lambda: self.x.XGetWindowAttributes(self.display, window, C.byref(attributes)),
+            )
+            if got_attributes is None:
+                continue
+            if got_attributes and attributes.map_state == 2:
                 if attributes.width >= 200 and attributes.height >= 100:
                     return window
         return None
@@ -152,11 +233,106 @@ def prepare_invalid_projects(roundtrip: Path, malformed: Path, unsupported: Path
     unknown.write_text(json.dumps(bad_activity, separators=(",", ":")), encoding="utf-8")
 
 
+def run_self_test():
+    window = 0x20001B
+    assert classify_window_probe_error(None, window) is False
+    assert classify_window_probe_error((X_BAD_WINDOW, window, 20, 0), window) is True
+    for error in (
+        (X_BAD_WINDOW, window + 1, 20, 0),
+        (2, window, 20, 0),
+    ):
+        try:
+            classify_window_probe_error(error, window)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"unexpected X11 error was suppressed: {error}")
+    print("PASS: only exact-XID BadWindow is tolerated by volatile dialog discovery.")
+    return 0
+
+
+def call_with_sentinel_handler(driver, operation):
+    """Run one probe while proving _volatile_window_query restores its caller handler."""
+    leaked_errors = []
+
+    def capture(_display, event):
+        value = event.contents
+        leaked_errors.append((int(value.error_code), int(value.resourceid)))
+        return 0
+
+    sentinel = XErrorHandler(capture)
+    sentinel_pointer = C.cast(sentinel, C.c_void_p).value
+    previous = driver.x.XSetErrorHandler(C.cast(sentinel, C.c_void_p))
+    result = None
+    caught = None
+    try:
+        result = operation()
+    except Exception as error:  # re-raised after restoring the process-global handler
+        caught = error
+    current = driver.x.XSetErrorHandler(previous)
+    if current != sentinel_pointer:
+        raise AssertionError("scoped X11 probe did not restore the previous error handler")
+    if leaked_errors:
+        raise AssertionError(f"probe error escaped scoped handler: {leaked_errors}")
+    if caught is not None:
+        raise caught
+    return result
+
+
+def run_x11_self_test(driver):
+    """Exercise the real Xlib handler boundary against deterministic X server errors."""
+    stale = driver.x.XCreateSimpleWindow(
+        driver.display, driver.root, 0, 0, 8, 8, 0, 0, 0,
+    )
+    if not stale:
+        raise RuntimeError("failed to create deterministic stale-window fixture")
+    driver.x.XDestroyWindow(driver.display, stale)
+    driver.x.XSync(driver.display, 0)
+
+    actual = C.c_char_p()
+    result = call_with_sentinel_handler(
+        driver,
+        lambda: driver._volatile_window_query(
+            stale,
+            lambda: driver.x.XFetchName(driver.display, stale, C.byref(actual)),
+        ),
+    )
+    if result is not None:
+        if actual:
+            driver.x.XFree(actual)
+        raise AssertionError("destroyed XID was not classified as a stale window")
+
+    try:
+        call_with_sentinel_handler(
+            driver,
+            lambda: driver._volatile_window_query(
+                driver.root,
+                lambda: driver.x.XSetInputFocus(driver.display, driver.root, 99, 0),
+            ),
+        )
+    except RuntimeError as error:
+        if "code=3" in str(error):
+            raise AssertionError(f"expected non-BadWindow X error, got: {error}") from error
+    else:
+        raise AssertionError("non-BadWindow X error was suppressed by scoped probe")
+
+    print(
+        "PASS: real scoped Xlib probe consumes exact stale BadWindow, restores handler, "
+        "and surfaces other X errors.",
+        flush=True,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', required=True)
+    parser.add_argument('--root')
     parser.add_argument('--timeout', type=float, default=75.0)
+    parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
+    if args.self_test:
+        return run_self_test()
+    if not args.root:
+        parser.error('--root is required unless --self-test is used')
     root = Path(args.root)
     root.mkdir(parents=True, exist_ok=True)
     roundtrip_path = (root / 'roundtrip.wbb').resolve()
@@ -181,6 +357,7 @@ def main():
         ('Ouvrir un projet WebeeBlocks', 'accept', unknown),
     ]
     driver = XDriver()
+    run_x11_self_test(driver)
     overall = time.monotonic() + args.timeout
     for index, (title, action, path) in enumerate(plan, 1):
         window = wait_window(driver, title, overall)

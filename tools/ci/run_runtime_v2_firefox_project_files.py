@@ -46,6 +46,11 @@ xvfb-run -a bash -lc '\''
   test -f "$qt_plugins/platforms/libqxcb.so"
   unset QT_PLUGIN_PATH
   printf "%s\\n" "$qt_plugins" > "$artifact/qt-plugin-path.txt"
+  if ! python3 /workspace/tools/ci/test_firefox_project_dialog_x11_stale.py \\
+    > "$artifact/x11-stale-regression.log" 2>&1; then
+    cat "$artifact/x11-stale-regression.log" >&2
+    exit 1
+  fi
   python3 /workspace/tools/ci/firefox_project_dialog_driver.py --root "$artifact" --timeout 80 \\
     > "$artifact/dialog-driver.log" 2>&1 &
   driver=$!
@@ -150,6 +155,11 @@ def validate() -> None:
     final = next(e["detail"] for e in events if e.get("event") == "FIREFOX_TARGET_PRESERVED_OK")
     if final.get("name") != "roundtrip.wbb":
         raise AssertionError(final)
+    x11_regression = (ARTIFACT / "x11-stale-regression.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    if "PASS: real X11 stale-window probe consumes only the exact vanished XID" not in x11_regression:
+        raise AssertionError(x11_regression)
     driver = (ARTIFACT / "dialog-driver.log").read_text(encoding="utf-8", errors="replace")
     if driver.count("DIALOG_STEP_OK") != 7 or "FIREFOX_DIALOG_PLAN_COMPLETE" not in driver:
         raise AssertionError(driver)
@@ -167,6 +177,11 @@ def validate() -> None:
 
 
 def main() -> int:
+    subprocess.run([
+        sys.executable,
+        str(ROOT / "tools/ci/firefox_project_dialog_driver.py"),
+        "--self-test",
+    ], check=True)
     run_scenario()
     validate()
     return 0
