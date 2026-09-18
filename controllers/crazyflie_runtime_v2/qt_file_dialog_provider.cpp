@@ -89,18 +89,24 @@ LRESULT CALLBACK nativeDialogPresentationHook(int code, WPARAM wParam, LPARAM lP
 class NativeDialogPresentationGuard final {
 public:
   NativeDialogPresentationGuard() {
-    if (gNativeDialogPresentationActive)
-      throw std::runtime_error("nested native dialog presentation guard");
+    if (gNativeDialogPresentationActive) {
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN nested native dialog presentation guard\n");
+      return;
+    }
     gNativeDialogPresentationApplied = false;
     gNativeDialogPresentationActive = true;
+    mOwnsState = true;
     mHook = SetWindowsHookExW(WH_CBT, nativeDialogPresentationHook, nullptr, GetCurrentThreadId());
     if (!mHook) {
+      std::fprintf(stderr, "WEBEEBLOCKS_FILE_BROKER_V1 WARN unable to install native dialog presentation hook\n");
       gNativeDialogPresentationActive = false;
-      throw std::runtime_error("unable to install native dialog presentation hook");
+      mOwnsState = false;
     }
   }
 
   ~NativeDialogPresentationGuard() {
+    if (!mOwnsState)
+      return;
     if (mHook)
       UnhookWindowsHookEx(mHook);
     if (!gNativeDialogPresentationApplied)
@@ -113,6 +119,7 @@ public:
 
 private:
   HHOOK mHook = nullptr;
+  bool mOwnsState = false;
 };
 #else
 class NativeDialogPresentationGuard final {};
