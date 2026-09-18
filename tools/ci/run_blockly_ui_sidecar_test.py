@@ -29,8 +29,23 @@ def read_log(handle):
     except Exception as exc:
         return f"<unable to read log: {exc}>"
 
+def record_progress(server, payload):
+    entry=dict(payload)
+    entry["probeMonotonic"]=time.monotonic()
+    server.ui_progress=entry
+    server.ui_trace.append(entry)
+    print("CI_UI_PROGRESS="+json.dumps(entry, sort_keys=True), flush=True)
+
 class ResultHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args): pass
+
+    def do_GET(self):
+        is_harness=self.path.startswith("/ci-ui-") and self.path.endswith(".html")
+        if is_harness:
+            record_progress(self.server,{"stage":"harness-requested","path":self.path})
+        super().do_GET()
+        if is_harness:
+            record_progress(self.server,{"stage":"harness-response-sent","path":self.path})
 
     def do_POST(self):
         if self.path not in ("/__ci_result", "/__ci_progress"):
@@ -40,8 +55,7 @@ class ResultHandler(SimpleHTTPRequestHandler):
             length=int(self.headers.get("Content-Length","0"))
             payload=json.loads(self.rfile.read(length).decode("utf-8"))
             if self.path == "/__ci_progress":
-                self.server.ui_progress=payload
-                print("CI_UI_PROGRESS="+json.dumps(payload, sort_keys=True), flush=True)
+                record_progress(self.server,payload)
             else:
                 self.server.ui_result=payload
                 self.server.ui_event.set()
@@ -110,6 +124,9 @@ def injected_harness():
   const restoreButton=document.getElementById("restore");
   const titleElement=document.getElementById("projectTitle");
 
+  await progress("harness-executed");
+  if(!window.Blockly || !Blockly.mainWorkspace)throw new Error("historical Blockly workspace unavailable after harness load");
+  await progress("blockly-available",{{blocklyVersion:String(Blockly.VERSION||"")}});
   await progress("wait-websocket");
   let socketInstrumented=false;
   await waitFor(()=>{{
@@ -162,27 +179,48 @@ def injected_harness():
 </script>
 """
 
-def run_chrome(url, server, timeout=35):
+def run_chrome(url, server, timeout=35, startup_timeout=45):
     # Keep a real headless browser alive while actual WebSocket/network events
     # occur. Persist Chrome stderr to a file so a timeout cannot hide browser
-    # diagnostics or deadlock on a full stderr pipe.
-    cmd=[chrome_executable(),"--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-background-networking","--remote-debugging-port=0",url]
+    # diagnostics or deadlock on a full stderr pipe. A fixed DevTools port gives
+    # an independent causal startup boundary without changing the UI oracle.
+    devtools_port=free_port()
+    cmd=[chrome_executable(),"--headless=new","--no-sandbox","--disable-gpu","--disable-dev-shm-usage","--disable-background-networking",f"--remote-debugging-port={devtools_port}",url]
     chrome_out=tempfile.TemporaryFile(mode="w+",encoding="utf-8")
     chrome_err=tempfile.TemporaryFile(mode="w+",encoding="utf-8")
     p=subprocess.Popen(cmd,text=True,stdout=chrome_out,stderr=chrome_err)
-    deadline=time.monotonic()+timeout
+    record_progress(server,{"stage":"chrome-spawned","pid":p.pid,"devtoolsPort":devtools_port})
     try:
+        startup_deadline=time.monotonic()+startup_timeout
+        while time.monotonic()<startup_deadline:
+            with socket.socket() as sock:
+                sock.settimeout(.2)
+                if sock.connect_ex(("127.0.0.1",devtools_port))==0:
+                    break
+            if p.poll() is not None:
+                raise RuntimeError(
+                    f"headless browser exited before DevTools readiness ({p.returncode}); "
+                    f"last progress={server.ui_progress}; progress trace={server.ui_trace}; stderr={read_log(chrome_err)}"
+                )
+            time.sleep(.05)
+        else:
+            raise RuntimeError(
+                f"timeout waiting {startup_timeout}s for Chrome DevTools readiness; "
+                f"last progress={server.ui_progress}; progress trace={server.ui_trace}; chrome stderr={read_log(chrome_err)}"
+            )
+        record_progress(server,{"stage":"chrome-devtools-ready","devtoolsPort":devtools_port})
+        deadline=time.monotonic()+timeout
         while time.monotonic()<deadline:
             if server.ui_event.wait(timeout=.1):
                 return server.ui_result
             if p.poll() is not None:
                 raise RuntimeError(
                     f"headless browser exited before UI result callback ({p.returncode}); "
-                    f"last progress={server.ui_progress}; stderr={read_log(chrome_err)}"
+                    f"last progress={server.ui_progress}; progress trace={server.ui_trace}; stderr={read_log(chrome_err)}"
                 )
         raise RuntimeError(
             "timeout waiting for browser UI result callback; "
-            f"last progress={server.ui_progress}; chrome stderr={read_log(chrome_err)}"
+            f"last progress={server.ui_progress}; progress trace={server.ui_trace}; chrome stderr={read_log(chrome_err)}"
         )
     finally:
         if p.poll() is None:
@@ -214,7 +252,8 @@ def main():
             h.write(injected_harness()); harness_path=Path(h.name)
         port=free_port()
         server=ThreadingHTTPServer(("127.0.0.1",port),partial(ResultHandler,directory=str(WINDOW_DIR)))
-        server.ui_event=threading.Event(); server.ui_result=None; server.ui_progress={"stage":"server-started"}
+        server.ui_event=threading.Event(); server.ui_result=None; server.ui_progress={}; server.ui_trace=[]
+        record_progress(server,{"stage":"server-started","port":port})
         thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
         try:
             result=run_chrome(f"http://127.0.0.1:{port}/{harness_path.name}",server)
@@ -229,6 +268,7 @@ def main():
                 +str(result.get("error") if result else "no result")
                 +"; browserErrors="+str(result.get("browserErrors") if result else None)
                 +"; websocketEvents="+str(result.get("websocketEvents") if result else None)
+                +"; progress trace="+str(server.ui_trace)
                 +"; blocklyServer stdout="+read_log(sidecar_out)
                 +"; blocklyServer stderr="+read_log(sidecar_err)
             )
