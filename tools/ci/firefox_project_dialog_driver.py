@@ -10,6 +10,9 @@ from pathlib import Path
 import time
 
 
+X_BAD_WINDOW = 3
+
+
 class Attributes(C.Structure):
     _fields_ = [(name, kind) for name, kind in (
         ("x", C.c_int), ("y", C.c_int), ("width", C.c_int), ("height", C.c_int),
@@ -21,17 +24,46 @@ class Attributes(C.Structure):
         ("do_not_propagate_mask", C.c_long), ("override_redirect", C.c_int), ("screen", C.c_void_p))]
 
 
+class XErrorEvent(C.Structure):
+    _fields_ = [
+        ("type", C.c_int),
+        ("display", C.c_void_p),
+        ("resourceid", C.c_ulong),
+        ("serial", C.c_ulong),
+        ("error_code", C.c_ubyte),
+        ("request_code", C.c_ubyte),
+        ("minor_code", C.c_ubyte),
+    ]
+
+
+def classify_x_errors(errors, *, context, allow_bad_window=False):
+    """Return False only for an allowed stale-window race; raise otherwise."""
+    if not errors:
+        return True
+    if allow_bad_window and all(error[0] == X_BAD_WINDOW for error in errors):
+        return False
+    rendered = ", ".join(
+        f"code={code} resource={resource:#x} request={request} minor={minor}"
+        for code, resource, request, minor in errors
+    )
+    raise RuntimeError(f"X11 error during {context}: {rendered}")
+
+
 class XDriver:
     def __init__(self):
         self.x = C.CDLL("libX11.so.6")
         self.xt = C.CDLL("libXtst.so.6")
         pointer, window, integer = C.c_void_p, C.c_ulong, C.c_int
+        self._error_handler_type = C.CFUNCTYPE(C.c_int, pointer, C.POINTER(XErrorEvent))
+        self._x_errors = []
+        self._error_handler = self._error_handler_type(self._capture_x_error)
         self.bind(self.x, "XOpenDisplay", pointer, C.c_char_p)
         self.bind(self.x, "XDefaultRootWindow", window, pointer)
         self.bind(self.x, "XQueryTree", integer, pointer, window, C.POINTER(window), C.POINTER(window), C.POINTER(C.POINTER(window)), C.POINTER(C.c_uint))
         self.bind(self.x, "XGetWindowAttributes", integer, pointer, window, C.POINTER(Attributes))
         self.bind(self.x, "XFetchName", integer, pointer, window, C.POINTER(C.c_char_p))
         self.bind(self.x, "XFree", integer, pointer)
+        self.bind(self.x, "XSetErrorHandler", C.c_void_p, self._error_handler_type)
         self.bind(self.x, "XSetInputFocus", integer, pointer, window, integer, window)
         self.bind(self.x, "XSync", integer, pointer, integer)
         self.bind(self.x, "XKeysymToKeycode", C.c_ubyte, pointer, window)
@@ -40,6 +72,7 @@ class XDriver:
         self.display = self.x.XOpenDisplay(None)
         if not self.display:
             raise RuntimeError("Xvfb display unavailable")
+        self.x.XSetErrorHandler(self._error_handler)
         args = [integer() for _ in range(4)]
         if not self.xt.XTestQueryExtension(self.display, *(C.byref(a) for a in args)):
             raise RuntimeError("XTEST unavailable")
@@ -50,9 +83,30 @@ class XDriver:
         function = getattr(library, name)
         function.restype, function.argtypes = result, arguments
 
+    def _capture_x_error(self, _display, event):
+        self._x_errors.append((
+            int(event.contents.error_code),
+            int(event.contents.resourceid),
+            int(event.contents.request_code),
+            int(event.contents.minor_code),
+        ))
+        return 0
+
+    def _begin_x_request(self):
+        self._x_errors.clear()
+
+    def _finish_x_request(self, context, *, allow_bad_window=False):
+        self.x.XSync(self.display, 0)
+        errors = tuple(self._x_errors)
+        self._x_errors.clear()
+        return classify_x_errors(errors, context=context, allow_bad_window=allow_bad_window)
+
     def windows(self):
         root, parent, children, count = C.c_ulong(), C.c_ulong(), C.POINTER(C.c_ulong)(), C.c_uint()
-        if not self.x.XQueryTree(self.display, self.root, C.byref(root), C.byref(parent), C.byref(children), C.byref(count)):
+        self._begin_x_request()
+        ok = self.x.XQueryTree(self.display, self.root, C.byref(root), C.byref(parent), C.byref(children), C.byref(count))
+        self._finish_x_request("XQueryTree")
+        if not ok:
             raise RuntimeError("X11 window enumeration failed")
         try:
             return [children[i] for i in range(count.value)]
@@ -64,7 +118,14 @@ class XDriver:
         wanted = title.encode()
         for window in self.windows():
             actual = C.c_char_p()
-            if not self.x.XFetchName(self.display, window, C.byref(actual)) or not actual:
+            self._begin_x_request()
+            fetched = self.x.XFetchName(self.display, window, C.byref(actual))
+            stable = self._finish_x_request("XFetchName", allow_bad_window=True)
+            if not stable:
+                if actual:
+                    self.x.XFree(actual)
+                continue
+            if not fetched or not actual:
                 continue
             try:
                 matches = actual.value == wanted
@@ -73,14 +134,24 @@ class XDriver:
             if not matches:
                 continue
             attributes = Attributes()
-            if self.x.XGetWindowAttributes(self.display, window, C.byref(attributes)) and attributes.map_state == 2:
+            self._begin_x_request()
+            got_attributes = self.x.XGetWindowAttributes(self.display, window, C.byref(attributes))
+            stable = self._finish_x_request("XGetWindowAttributes", allow_bad_window=True)
+            if not stable:
+                continue
+            if got_attributes and attributes.map_state == 2:
                 if attributes.width >= 200 and attributes.height >= 100:
                     return window
         return None
 
     def key(self, keysym, down):
         code = self.x.XKeysymToKeycode(self.display, keysym)
-        if not code or not self.xt.XTestFakeKeyEvent(self.display, code, 1 if down else 0, 0):
+        if not code:
+            raise RuntimeError(f"X11 keycode unavailable for keysym {keysym:#x}")
+        self._begin_x_request()
+        emitted = self.xt.XTestFakeKeyEvent(self.display, code, 1 if down else 0, 0)
+        self._finish_x_request("XTestFakeKeyEvent")
+        if not emitted:
             raise RuntimeError(f"XTEST key event failed for keysym {keysym:#x}")
 
     def chord(self, modifier, key):
@@ -98,8 +169,9 @@ class XDriver:
             self.key(value, False)
 
     def focus(self, window):
+        self._begin_x_request()
         self.x.XSetInputFocus(self.display, window, 2, 0)
-        self.x.XSync(self.display, 0)
+        self._finish_x_request("XSetInputFocus")
 
     def accept_path(self, window, path):
         self.focus(window)
@@ -107,13 +179,11 @@ class XDriver:
         self.type_ascii(path)
         self.key(0xff0d, True)
         self.key(0xff0d, False)
-        self.x.XSync(self.display, 0)
 
     def cancel(self, window):
         self.focus(window)
         self.key(0xff1b, True)
         self.key(0xff1b, False)
-        self.x.XSync(self.display, 0)
 
 
 def wait_window(driver, title, deadline):
