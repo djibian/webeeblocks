@@ -4,9 +4,9 @@ Issue #462 is a Windows 11 Firefox presentation boundary, not a project-file sem
 
 ## Causal boundary
 
-Qt 6.5.3 can execute its native `IFileDialog::Show(owner)` through a separate `QWindowsDialogThread`. Therefore attaching or hooking only the broker/provider GUI thread does not establish control over the input/activation state of the thread that actually owns the shell picker.
+The exact Qt 6.5.3 synchronous modal path does **not** require `IFileDialog::Show(owner)` to run on a separate `QWindowsDialogThread`: `QFileDialog::exec()` enters the native platform helper synchronously, and the Windows helper's modal `exec()` stops the pending asynchronous-dialog timer before invoking the native dialog on the caller thread. Earlier review comments that treated a separate helper thread as unavoidable were superseded by later exact-source inspection recorded on #462.
 
-The Windows provider consequently bypasses Qt's threaded native-file-dialog helper for Open / Save As and uses `IFileOpenDialog` / `IFileSaveDialog` directly. The contract is:
+The durable product evidence is instead #472: supplying the correct external owner HWND alone did not make the shell picker foreground-visible. The Windows provider therefore makes both ownership and activation explicit by using `IFileOpenDialog` / `IFileSaveDialog` directly. The contract is:
 
 - capture the external foreground HWND only if it belongs to another process;
 - call `IFileDialog::Show(owner)` synchronously on the same broker thread whose activation relationship is controlled;
@@ -17,7 +17,7 @@ The Windows provider consequently bypasses Qt's threaded native-file-dialog help
 - treat `ERROR_CANCELLED` as neutral user cancellation rather than an I/O failure;
 - preserve the non-Windows Qt path and all opaque-reference, validation, atomic-write and same-file Save semantics.
 
-This boundary intentionally rejects two earlier non-causal repairs: `Qt::WindowStaysOnTopHint`, which does not reach the native shell picker, and input/hook control on the provider thread while Qt shows the picker on a different helper thread.
+This boundary intentionally rejects `Qt::WindowStaysOnTopHint`, which does not reach the native shell picker. Direct COM is used here to make the exact owner, calling thread and activation intervention explicit rather than relying on Qt's private Windows dialog-helper details.
 
 ## Evidence boundary
 
