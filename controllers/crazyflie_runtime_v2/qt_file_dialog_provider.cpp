@@ -8,6 +8,10 @@
 #include <QtCore/QSaveFile>
 #include <QtCore/QString>
 #include <QtCore/QUuid>
+#ifdef Q_OS_WIN
+#include <QtCore/qt_windows.h>
+#endif
+#include <QtGui/QWindow>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QFileDialog>
 
@@ -20,14 +24,37 @@
 #include <utility>
 
 namespace {
-void configureDialogPresentation(QFileDialog &dialog) {
+std::unique_ptr<QWindow> bindDialogToForegroundOwner(QFileDialog &dialog) {
 #ifdef Q_OS_WIN
-  // The broker is a different process from the Firefox Robot Window. Windows
-  // will not let activateWindow() steal activation from another application,
-  // so keep the short-lived modal native picker above the classroom window.
-  dialog.setWindowFlag(Qt::WindowStaysOnTopHint, true);
+  // Qt 6.5's Windows native QFileDialog helper ignores QWidget window flags;
+  // IFileDialog receives only the transient parent's HWND. Capture the external
+  // foreground window that initiated the broker request and bind it explicitly
+  // so the native picker has a real owner in the calling desktop application.
+  const HWND owner = GetForegroundWindow();
+  if (!owner)
+    return {};
+  DWORD ownerProcessId = 0;
+  if (GetWindowThreadProcessId(owner, &ownerProcessId) == 0 || ownerProcessId == 0 ||
+      ownerProcessId == GetCurrentProcessId())
+    return {};
+
+  auto ownerWindow = std::unique_ptr<QWindow>(
+      QWindow::fromWinId(static_cast<WId>(reinterpret_cast<quintptr>(owner))));
+  if (!ownerWindow)
+    return {};
+
+  // QFileDialog is normally represented only by the platform-native picker.
+  // Create its QWindow long enough to carry the foreign transient parent into
+  // QDialogPrivate::transientParentWindow() -> IFileDialog::Show(owner HWND).
+  (void)dialog.winId();
+  QWindow *dialogWindow = dialog.windowHandle();
+  if (!dialogWindow)
+    return {};
+  dialogWindow->setTransientParent(ownerWindow.get());
+  return ownerWindow;
 #else
   (void)dialog;
+  return {};
 #endif
 }
 
@@ -48,12 +75,14 @@ public:
   webeeblocks::OpenFileResult open() override {
     if (!canAllocateReference())
       return openError("REFERENCE_LIMIT");
+    // Declared before dialog so the foreign owner outlives the dialog itself.
+    [[maybe_unused]] std::unique_ptr<QWindow> presentationOwner;
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Ouvrir un projet WebeeBlocks"));
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
-    configureDialogPresentation(dialog);
+    presentationOwner = bindDialogToForegroundOwner(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
@@ -82,6 +111,8 @@ public:
   webeeblocks::SaveFileResult saveAs(const std::string &suggestedName, const std::string &bytes) override {
     if (!canAllocateReference())
       return saveError("REFERENCE_LIMIT");
+    // Declared before dialog so the foreign owner outlives the dialog itself.
+    [[maybe_unused]] std::unique_ptr<QWindow> presentationOwner;
     QFileDialog dialog;
     dialog.setWindowTitle(QStringLiteral("Enregistrer le projet WebeeBlocks"));
     dialog.setAcceptMode(QFileDialog::AcceptSave);
@@ -89,7 +120,7 @@ public:
     dialog.setDefaultSuffix(QStringLiteral("wbb"));
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
-    configureDialogPresentation(dialog);
+    presentationOwner = bindDialogToForegroundOwner(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
