@@ -24,7 +24,8 @@ RUNTIME_TARGET = "ubuntu-22.04-python-3.10-x86_64"
 MANIFEST_NAME = "SHA256SUMS.json"
 PROVENANCE_NAME = "PROVENANCE.json"
 SOURCE_SHA_NAME = "SOURCE_SHA"
-QUALIFICATION_PROTO_RELATIVE = "../tools/physical/qualification_crazyflie_r2025a.proto"
+QUALIFICATION_PROTO_NAME = "QualificationCrazyflieR2025a"
+QUALIFICATION_PROTO_RELATIVE = f"../tools/physical/{QUALIFICATION_PROTO_NAME}.proto"
 
 
 class QualificationPackageVerificationError(RuntimeError):
@@ -240,6 +241,7 @@ def verify_required_runtime_files(bundle: Path) -> None:
         "tools/physical/physical_qualification_runtime.js",
         "tools/physical/run_packaged_physical_qualification.sh",
         "tools/physical/qualification_crazyflie_r2025a.proto",
+        f"tools/physical/{QUALIFICATION_PROTO_NAME}.proto",
         "plugins/robot_windows/blockly_v2/blockly_v2.html",
         "plugins/robot_windows/blockly_v2/vendor/VERSION",
         "plugins/robot_windows/blockly_v2/vendor/blockly_compressed.js",
@@ -289,6 +291,10 @@ def verify_required_runtime_files(bundle: Path) -> None:
         raise QualificationPackageVerificationError(
             "packaged world does not bind the exact local qualification Crazyflie PROTO"
         )
+    if world.count(f"\n{QUALIFICATION_PROTO_NAME} {{") != 1 or "\nCrazyflie {" in world:
+        raise QualificationPackageVerificationError(
+            "packaged world qualification PROTO declaration and node binding disagree"
+        )
     for forbidden in (
         "TexturedBackground { }",
         "TexturedBackgroundLight { }",
@@ -300,11 +306,11 @@ def verify_required_runtime_files(bundle: Path) -> None:
             )
 
     proto = (
-        bundle / "tools/physical/qualification_crazyflie_r2025a.proto"
+        bundle / "tools" / "physical" / f"{QUALIFICATION_PROTO_NAME}.proto"
     ).read_text(encoding="utf-8")
     _reject_external_runtime_url(proto, source="qualification Crazyflie PROTO")
     for required_token in (
-        "PROTO QualificationCrazyflieR2025a [",
+        f"PROTO {QUALIFICATION_PROTO_NAME} [",
         'name "m1_motor"',
         'name "m2_motor"',
         'name "m3_motor"',
@@ -358,6 +364,7 @@ print("PASS: canonical packaged cflib tree + locked wheels import effect-free")
     env = os.environ.copy()
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
+    env.pop("PYTHONPATH", None)
     try:
         subprocess.run(
             [sys.executable, "-c", code, str(physical), str(cflib), str(wheels)],

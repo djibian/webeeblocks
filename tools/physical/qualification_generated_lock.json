@@ -9,5 +9,11 @@
     "algorithm": "sha256-path-size-sha256-v1",
     "file_count": 21,
     "sha256": "3024e5f7b7245464ab7281657dbcf7593e1fcc2231e72ef75e93fa33246c7663"
+  },
+  "webots_image_support": {
+    "cache_member": "plugins/robot_windows/blockly_v2/vendor/.qualification-webots-r2025a-image.tar",
+    "image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+    "image_id_member": "plugins/robot_windows/blockly_v2/vendor/.qualification-webots-r2025a-image.id",
+    "local_image": "webeeblocks/qualification-webots:r2025a-f0023e30daf38b17"
   }
 }
