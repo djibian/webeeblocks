@@ -9,7 +9,7 @@ MARKER = '<!-- WEBEEBLOCKS_OBSERVABILITY_CI -->'
 REACTIVE = (ROOT / 'controllers/Blockly_Programs/CrazyflieReactiveV2.xml').read_text(encoding='utf-8')
 BLOCKED = '''<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="webeeblocks_v2_takeoff" id="ci_blocked_takeoff" x="40" y="40">
-    <field name="HEIGHT">1</field>
+    <field name="HEIGHT">0.5</field>
     <next>
       <block type="webeeblocks_v2_move" id="ci_blocked_move">
         <field name="DIRECTION">forward</field>
@@ -27,7 +27,7 @@ COMMON = r'''
   function report(event, detail) {
     const payload = {seq: seq++, event, detail: detail === undefined ? null : detail, wall_ms: Date.now()};
     chain = chain.then(() => fetch('http://127.0.0.1:8765/event', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     }));
     return chain;
   }
@@ -249,6 +249,7 @@ UNSAFE = r'''
 (async function() {
 __COMMON__
   const diagnostics = [];
+  const wwiTx = [];
   window.addEventListener('webeeblocks-runtime-v2-diagnostic', event => {
     diagnostics.push(event.detail); report('DIAGNOSTIC', event.detail);
   });
@@ -257,11 +258,38 @@ __COMMON__
       'Runtime v2 READY', 20000);
     if (!runtimeBackend.capabilities || runtimeBackend.capabilities.simulationDebug !== true)
       throw new Error('simulation-only debug capability missing');
+    await report('UNSAFE_READY', snapshot());
+
+    const originalRobotWindowSend = robotWindow.send.bind(robotWindow);
+    robotWindow.send = function(message) {
+      const text = String(message);
+      if (text.startsWith('WEBEEBLOCKS_RUNTIME_V2 REQUEST ')) {
+        wwiTx.push(text);
+        report('UNSAFE_WWI_TX', text);
+      }
+      return originalRobotWindowSend(message);
+    };
+
     loadXml(__BLOCKED__);
     document.getElementById('stepMode').checked = false;
     const startDiagnostics = diagnostics.length;
+    await report('UNSAFE_PROGRAM_SUBMITTING', {snapshot: snapshot(), txCount: wwiTx.length});
     window.runProgram();
-    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'neutral safety stop', 45000);
+
+    await waitFor(() => wwiTx.some(text => text.includes(' TAKEOFF ')), 'unsafe TAKEOFF request', 5000);
+    const takeoffRequest = wwiTx.find(text => text.includes(' TAKEOFF '));
+    await report('UNSAFE_TAKEOFF_REQUESTED', {request: takeoffRequest, snapshot: snapshot()});
+
+    await waitFor(() => wwiTx.some(text => text.includes(' MOVE forward ')), 'unsafe forward MOVE request', 20000);
+    const moveRequest = wwiTx.find(text => text.includes(' MOVE forward '));
+    if (!moveRequest || !moveRequest.includes(' MOVE forward 2.0000000000000000'))
+      throw new Error('unexpected unsafe MOVE request: ' + JSON.stringify(wwiTx));
+    await report('UNSAFE_MOVE_REQUESTED', {request: moveRequest, snapshot: snapshot()});
+
+    // The native controller's ACTION_TIMEOUT is 25 s. Start this bounded wait
+    // only after the exact blocked MOVE has actually left the browser so startup
+    // and takeoff variance cannot consume the fail-safe observation budget.
+    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'neutral safety stop after blocked MOVE', 30000);
     const detail = document.getElementById('runtimeDetail').textContent;
     if (detail !== 'L’action n’a pas pu être terminée')
       throw new Error('unsafe student detail mismatch: ' + detail);
@@ -275,12 +303,12 @@ __COMMON__
     ['mur', 'obstacle', 'utilise ', 'essaie ', 'condition vraie', 'condition fausse', 'bloc conseillé', 'solution'].forEach(term => {
       if (surface.includes(term)) throw new Error('anti-tutoring boundary crossed: ' + term);
     });
-    await report('UNSAFE_SCENARIO_DONE', {diagnostic: unsafe, snapshot: snapshot()});
+    await report('UNSAFE_SCENARIO_DONE', {diagnostic: unsafe, snapshot: snapshot(), wwiTx: wwiTx.slice()});
     await chain;
     console.log('WEBEEBLOCKS_CI_OBSERVABILITY_UNSAFE_DONE');
   } catch (error) {
     await report('ERROR', error && error.stack ? error.stack : String(error));
-    await report('FINAL_DIAG', snapshot());
+    await report('FINAL_DIAG', {snapshot: snapshot(), wwiTx: wwiTx.slice(), diagnostics: diagnostics.slice()});
     await chain;
     console.error('WEBEEBLOCKS_CI_OBSERVABILITY_UNSAFE_ERROR=' + (error && error.stack ? error.stack : String(error)));
   }
