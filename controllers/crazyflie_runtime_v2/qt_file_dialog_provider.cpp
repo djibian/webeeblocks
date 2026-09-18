@@ -20,6 +20,17 @@
 #include <utility>
 
 namespace {
+void configureDialogPresentation(QFileDialog &dialog) {
+#ifdef Q_OS_WIN
+  // The broker is a different process from the Firefox Robot Window. Windows
+  // will not let activateWindow() steal activation from another application,
+  // so keep the short-lived modal native picker above the classroom window.
+  dialog.setWindowFlag(Qt::WindowStaysOnTopHint, true);
+#else
+  (void)dialog;
+#endif
+}
+
 class QtFileDialogProvider final : public webeeblocks::FileDialogProvider {
 public:
   QtFileDialogProvider() {
@@ -42,6 +53,7 @@ public:
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb *.json)"));
+    configureDialogPresentation(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     const QStringList selected = dialog.selectedFiles();
@@ -77,6 +89,7 @@ public:
     dialog.setDefaultSuffix(QStringLiteral("wbb"));
     dialog.setNameFilter(QStringLiteral("Projet WebeeBlocks (*.wbb)"));
     dialog.selectFile(QString::fromUtf8(suggestedName.data(), static_cast<int>(suggestedName.size())));
+    configureDialogPresentation(dialog);
     if (dialog.exec() != QDialog::Accepted)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", ""};
     const QStringList selected = dialog.selectedFiles();
