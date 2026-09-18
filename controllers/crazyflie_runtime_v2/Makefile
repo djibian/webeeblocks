@@ -9,7 +9,7 @@ ifeq ($(OS),Windows_NT)
  USE_C_API = true
  CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -include file_broker_interpose.h
  QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
- DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets
+ DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets -lole32 -luuid
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
 else
  CXX_SOURCES = file_broker.cpp qt_file_dialog_provider.cpp file_broker_runtime.cpp
