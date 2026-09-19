@@ -18,6 +18,14 @@ The student UI should not require an account, dashboard, progress page, badge sy
 
 The student is responsible for project-file management. WebeeBlocks should provide clear **Open** and **Save / Save As** actions for portable project files stored in the student's personal school folder.
 
+**Start activity** and **Open** are two distinct student intents and should remain visibly separate:
+
+- **Start activity** should present a simple ordered chooser of the available activity starters rather than a generic project-file picker. Selecting an activity loads its starter as a template and deliberately leaves no current save target, so the student's first persistence action is **Save As**.
+- **Open** should use the normal project-file picker to resume an existing student `.wbb` file and bind that file as the current save target for later **Save** actions.
+- Activity starters and student projects may use the same `.wbb` format, validation and loader. Do **not** introduce a second activity-file format merely to distinguish these two workflows.
+
+The activity chooser is a small launch surface for the teacher-guided progression, not a dashboard, catalogue service, unlock system or progress tracker.
+
 Do **not** add permanent automatic saving, attempt history, success/failure history, score history or automatic student progress tracking. Use Blockly's native Undo/Redo if it is adequate; do not build a separate version-history system without a new explicit need.
 
 ## Pedagogical progression
@@ -64,6 +72,8 @@ The architecture remains:
 `activity/profile → Blockly → backend-neutral AST → preflight → shared interpreter → backend`
 
 The same student program should be able to target Webots and, when relevant and safe, a real Crazyflie without rewriting the Blockly program.
+
+An activity starter may remain a `.wbb` project that references a declarative activity/profile and contains the initial Blockly workspace. The complete pedagogical definition of the activity does not need to be duplicated into the starter file; the activity chooser selects the starter/profile workflow, while **Open** resumes an already-created project.
 
 Activity authoring does **not** currently require a teacher-facing graphical editor. Activities may be maintained as declarative, versionable files and created/modified by the project owner with AI/development assistance. Do not build a large “activity studio” without a demonstrated need.
 
@@ -160,7 +170,7 @@ The student UI should therefore be judged by pedagogical usability rather than n
 - modern but sober typography, spacing and contrast;
 - clear separation between editing, normal execution and simulation debug mode;
 - keyboard/accessibility support;
-- simple visible Open / Save actions;
+- visibly distinct **Start activity**, **Open**, **Save** and **Save As** actions with student-appropriate semantics;
 - familiarity with useful Scratch interaction patterns without reproducing all of Scratch.
 
 Renderer comparison is closed: do **not** reopen Thrasos vs Zelos without a new demonstrated need. Future UI work should improve the WebeeBlocks presentation and ergonomics **on top of Zelos** while preserving the backend-neutral AST and Runtime behavior.
@@ -191,7 +201,7 @@ WebeeBlocks is not intended to become:
 2. **Student autonomy: observe, reason and correct without hints**.
 3. **Debugging without altering the student program**.
 4. **Simulation-only step-by-step debugging; never in real flight**.
-5. **Manual, portable student project files; no progress/history tracking**.
+5. **Manual, portable student project files; activity starters are templates and resuming an existing project remains a distinct workflow; no progress/history tracking**.
 6. **Simulation ↔ real-hardware continuity for the student program**.
 7. **Real flight only as a teacher-authorized final activity**.
 8. **Strict separation between pedagogical problem and student solution**.
