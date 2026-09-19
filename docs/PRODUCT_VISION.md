@@ -12,7 +12,7 @@ Students should progressively learn to decompose a problem, build algorithms, us
 
 The normal learning loop should remain simple:
 
-`open activity → understand objective → build program → simulate → observe → debug if needed → modify → rerun → succeed → save manually if needed → move on`
+`start activity → understand objective → build program → simulate → observe → debug if needed → modify → rerun → succeed → save manually if needed → move on`
 
 The student UI should not require an account, dashboard, progress page, badge system, ranking or class-management workflow.
 
