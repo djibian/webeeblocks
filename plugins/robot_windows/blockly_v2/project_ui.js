@@ -146,15 +146,104 @@
     }
   }
 
+  function progressionProfiles() {
+    var documentModel = WebeeBlocksActivities && WebeeBlocksActivities.DOCUMENT;
+    var activities = documentModel && Array.isArray(documentModel.activities) ? documentModel.activities : [];
+    var profiles = activities.filter(function(profile) {
+      return profile && typeof profile.id === 'string' && profile.id.indexOf('progression-') === 0;
+    });
+    if (!profiles.length) throw new Error('aucune activité de progression disponible');
+    return profiles;
+  }
+
+  function chooseActivityProfile() {
+    return new Promise(function(resolve, reject) {
+      if (typeof HTMLDialogElement === 'undefined') {
+        reject(new Error('sélecteur d’activité indisponible dans ce navigateur'));
+        return;
+      }
+
+      var profiles;
+      try { profiles = progressionProfiles(); }
+      catch (error) { reject(error); return; }
+
+      var dialog = document.createElement('dialog');
+      dialog.id = 'activityChooser';
+      dialog.setAttribute('aria-labelledby', 'activityChooserTitle');
+      dialog.style.maxWidth = 'min(560px, calc(100vw - 32px))';
+      dialog.style.border = '1px solid #c8d2dd';
+      dialog.style.borderRadius = '12px';
+      dialog.style.padding = '18px';
+
+      var title = document.createElement('h2');
+      title.id = 'activityChooserTitle';
+      title.textContent = 'Démarrer une activité';
+      title.style.margin = '0 0 8px';
+      title.style.fontSize = '19px';
+      dialog.appendChild(title);
+
+      var introduction = document.createElement('p');
+      introduction.textContent = 'Choisis l’activité à commencer. Ton travail devra ensuite être enregistré avec Enregistrer sous.';
+      introduction.style.marginBottom = '14px';
+      dialog.appendChild(introduction);
+
+      var list = document.createElement('div');
+      list.setAttribute('role', 'list');
+      list.style.display = 'grid';
+      list.style.gap = '7px';
+      profiles.forEach(function(profile) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('role', 'listitem');
+        button.textContent = profile.brief && profile.brief.title ? profile.brief.title : profile.id;
+        button.style.textAlign = 'left';
+        button.addEventListener('click', function() { finish(profile); });
+        list.appendChild(button);
+      });
+      dialog.appendChild(list);
+
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Annuler';
+      cancel.style.marginTop = '14px';
+      cancel.addEventListener('click', function() { finish(null); });
+      dialog.appendChild(cancel);
+
+      var settled = false;
+      function finish(profile) {
+        if (settled) return;
+        settled = true;
+        if (dialog.open) dialog.close();
+        dialog.remove();
+        resolve(profile);
+      }
+      dialog.addEventListener('cancel', function(event) {
+        event.preventDefault();
+        finish(null);
+      });
+
+      document.body.appendChild(dialog);
+      dialog.showModal();
+    });
+  }
+
   function bindProjectButtons() {
     document.getElementById('projectActivity').addEventListener('click', function() {
       operation('activity', async function() {
-        var result = await manager.openTemplate();
-        fileState('Activité : ' + result.name + ' — utilisez Enregistrer sous pour votre travail', false);
+        var profile = await chooseActivityProfile();
+        if (!profile) return null;
+        var starterName = profile.id + '.wbb';
+        var starterText = WebeeBlocksProjectFiles.createStarterText(profile.id);
+        var result = await manager.openTemplateText(starterName, starterText);
+        fileState('Activité : ' + profile.brief.title + ' — utilisez Enregistrer sous pour votre travail', false);
         markProjectChanged('Activité démarrée');
+        return result;
       });
     });
 
+    // `manager.openTemplate()` remains the explicit external-template API used
+    // by compatibility/tests. The Start activity action above deliberately uses
+    // embedded starter bytes so it never opens the generic OS project picker.
     document.getElementById('projectOpen').addEventListener('click', function() {
       operation('open', async function() {
         var result = await manager.open();
