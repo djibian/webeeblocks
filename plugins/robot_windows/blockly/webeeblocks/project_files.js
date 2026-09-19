@@ -99,6 +99,16 @@
     return JSON.stringify(createProject(profile, workspace, options), null, 2) + '\n';
   }
 
+  function createStarterText(activityId) {
+    requireString(activityId, 'activity.id');
+    return JSON.stringify({
+      format: FORMAT,
+      version: VERSION,
+      activity: {id: activityId.trim(), semantics: SEMANTICS},
+      workspace: {blocks: {languageVersion: 0, blocks: []}}
+    }, null, 2) + '\n';
+  }
+
   function parseProject(text) {
     var value;
     try { value = JSON.parse(String(text)); }
@@ -264,6 +274,16 @@
         throw error;
       } finally { applying = false; }
     }
+    async function applyTemplateText(name, text, mode) {
+      var validated = validateProjectText(text, options.getProfile(), dependencies());
+      var templateName = preserveSelectedName(name || validated.profile.id + EXTENSION);
+      applyValidated(validated);
+      var previousHandle = targetHandle;
+      targetHandle = null;
+      targetName = null;
+      if (previousHandle) await releaseTarget(previousHandle);
+      return {name: templateName, ast: validated.ast, mode: mode || null};
+    }
     return {
       async open() {
         var opened = await options.transport.open();
@@ -287,22 +307,18 @@
       async openTemplate() {
         var opened = await options.transport.open();
         var templateHandle = opened.handle || null;
-        var validated;
-        var templateName;
+        var previousHandle = targetHandle;
         try {
-          validated = validateProjectText(opened.text, options.getProfile(), dependencies());
-          applyValidated(validated);
-          templateName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
+          var result = await applyTemplateText(opened.name, opened.text, opened.mode || null);
+          if (templateHandle && templateHandle !== previousHandle) await releaseTarget(templateHandle);
+          return result;
         } catch (error) {
           if (templateHandle && templateHandle !== targetHandle) await releaseTarget(templateHandle);
           throw error;
         }
-        var previousHandle = targetHandle;
-        targetHandle = null;
-        targetName = null;
-        if (templateHandle) await releaseTarget(templateHandle);
-        if (previousHandle && previousHandle !== templateHandle) await releaseTarget(previousHandle);
-        return {name: templateName, ast: validated.ast, mode: opened.mode || null};
+      },
+      async openTemplateText(name, text) {
+        return applyTemplateText(name, text, 'embedded');
       },
       async saveAs(name) {
         var proposal = normalizeName(name || targetName || options.getProfile().id);
@@ -346,6 +362,7 @@
     preserveSelectedName: preserveSelectedName,
     createProject: createProject,
     encodeProject: encodeProject,
+    createStarterText: createStarterText,
     parseProject: parseProject,
     validateProjectText: validateProjectText,
     createBrowserTransport: createBrowserTransport,
