@@ -307,9 +307,10 @@
       async openTemplate() {
         var opened = await options.transport.open();
         var templateHandle = opened.handle || null;
+        var previousHandle = targetHandle;
         try {
           var result = await applyTemplateText(opened.name, opened.text, opened.mode || null);
-          if (templateHandle) await releaseTarget(templateHandle);
+          if (templateHandle && templateHandle !== previousHandle) await releaseTarget(templateHandle);
           return result;
         } catch (error) {
           if (templateHandle && templateHandle !== targetHandle) await releaseTarget(templateHandle);
