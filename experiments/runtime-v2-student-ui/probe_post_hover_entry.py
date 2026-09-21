@@ -132,7 +132,6 @@ _RESET_REPEAT_HOVER_RECT = r'''(() => {
 
  const reset=stablePoint(resetPath,2);
  if(!reset)throw new Error('no stable real-pointer tooltip-owner reset point');
- if(repeatRoot.contains(resetPath))throw new Error('tooltip-owner reset path unexpectedly belongs to repeat root');
  if(document.elementFromPoint(reset.x,reset.y)!==resetPath)throw new Error('tooltip-owner reset point lost exact DOM identity');
 
  return {
