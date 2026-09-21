@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
@@ -68,6 +69,8 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
 }
 
 (async function(){
+  const productMain=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/main.js'),'utf8');
+  assert(productMain.includes("overrideBuiltinBlockStyle('math_change', 'variable_blocks')"),'math_change must use the Variables semantic block style on the product path');
   const p4=Profiles.resolveById(Activities.DOCUMENT,'progression-combined-decisions-v1',Activities.BLOCK_CATALOG),p5=profile();
   assert.strictEqual(p4.world,p5.world);assert(p4.toolbox.every(type=>p5.toolbox.includes(type)),'memory profile must be cumulative');assert(p5.toolbox.includes('variables_set'));assert(p5.toolbox.includes('variables_get'));assert(p5.toolbox.includes('math_change'));assert.strictEqual(p5.parameterBounds.math_number.NUM.min,-10);assert(p5.runtime.allowedStatementKinds.includes('set_variable'));
   const workspace=buildWorkspace(),ast=compile(workspace);
