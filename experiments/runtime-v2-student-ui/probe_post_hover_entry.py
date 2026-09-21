@@ -2,20 +2,22 @@
 """Run the canonical student UI probe with deterministic real-hover reset and passive diagnostics.
 
 The product/runtime probe and existing exact-path delivery boundary remain
-authoritative.  Natural #414 evidence has demonstrated two distinct real-pointer
+authoritative. Natural #414 evidence has demonstrated two distinct real-pointer
 failure modes: a tooltip can render and be hidden by an edge-adjacent path
 transition, and a later stable same-path hover can receive ordinary pointer input
-without scheduling any visible tooltip.  Blockly's tooltip state intentionally
+without scheduling any visible tooltip. Blockly's tooltip state intentionally
 poisons an element after showing it and clears that poison when mouseover changes
-tooltip owner.  A background-only first move cannot repair stale owner/poison
+tooltip owner. A background-only first move cannot repair stale owner/poison
 state if a prior pointerout was lost.
 
 This wrapper therefore keeps the same three real pointer moves but makes their
 first point a stable path belonging to a different tooltip owner, then chooses
-entry/settle points well inside the exact tooltip-bound repeat path.  This is a
-deterministic real-pointer precondition, not an outcome-conditioned retry.  The
-5 s public visible/non-empty/localized tooltip oracle and ordinary exit assertion
-remain unchanged.
+entry/settle points well inside the exact tooltip-bound repeat path. Geometry
+selection is intentionally bounded to a small fixed candidate grid and only the
+minimum required clearance, so the prerequisite itself remains deterministic in
+the real Robot Window. This is not an outcome-conditioned retry. The 5 s public
+visible/non-empty/localized tooltip oracle and ordinary exit assertion remain
+unchanged.
 
 After the hover it retains passive browser observations: page focus/visibility,
 ordinary mouse/pointer traffic, public tooltip DOM mutations/visibility, and
@@ -38,12 +40,17 @@ _ORIGINAL_HOVER = probe.Cdp.hover
 
 # Blockly 13.2.x tooltip semantics leave a shown element poisoned until an
 # onMouseOver transition changes tooltip owner (or a completed pointerout clears
-# the state).  #491 showed that a stable repeat-path entry can still receive
-# pointerover/pointermove while producing no tooltip at all.  Make the existing
+# the state). #491 showed that a stable repeat-path entry can still receive
+# pointerover/pointermove while producing no tooltip at all. Make the existing
 # first/outside move causally useful: hit a different tooltip-bound block before
-# entering the repeat block.  Keep repeat entry/settle on one exact DOM path and
+# entering the repeat block. Keep repeat entry/settle on one exact DOM path and
 # away from SVG hit-test edges to retain the independent post-fire lesson from
 # the earlier #485 recurrence.
+#
+# The search is deliberately finite. The previous exhaustive 2 px raster with
+# radii up to 8 caused the exact Ready Robot Window CDP evaluation to time out.
+# This expression tests at most 35 deterministic candidates per path and, for a
+# candidate that hits the exact path, only the radius required by acceptance.
 _RESET_REPEAT_HOVER_RECT = r'''(() => {
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
  const resetBlock=workspace.getBlocksByType('controls_if',false)[0];
@@ -60,39 +67,42 @@ _RESET_REPEAT_HOVER_RECT = r'''(() => {
  if(resetPath.tooltip===repeatPath.tooltip)throw new Error('tooltip-owner reset must use a different tooltip owner');
 
  const same=(path,x,y)=>document.elementFromPoint(x,y)===path;
- const clearanceAt=(path,x,y,maxRadius)=>{
-   let clearance=0;
-   for(let r=1;r<=maxRadius;r++){
+ const hasClearance=(path,x,y,radius)=>{
+   if(!same(path,x,y))return false;
+   for(let r=1;r<=radius;r++){
      const points=[
        [x-r,y],[x+r,y],[x,y-r],[x,y+r],
        [x-r,y-r],[x-r,y+r],[x+r,y-r],[x+r,y+r]
      ];
-     if(!points.every(([px,py])=>same(path,px,py)))break;
-     clearance=r;
+     if(!points.every(([px,py])=>same(path,px,py)))return false;
    }
-   return clearance;
+   return true;
  };
- const bestPoint=(root,path,maxRadius)=>{
-   const rb=root.getBoundingClientRect();
-   let best=null;
-   for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=2){
-     for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=2){
-       if(!same(path,x,y))continue;
-       const clearance=clearanceAt(path,x,y,maxRadius);
-       if(!best||clearance>best.clearance)best={x:x,y:y,clearance:clearance};
+ const stablePoint=(path,minClearance)=>{
+   const rb=path.getBoundingClientRect();
+   const xFractions=[0.08,0.18,0.32,0.50,0.68,0.82,0.92];
+   const yFractions=[0.18,0.34,0.50,0.66,0.82];
+   for(const yf of yFractions){
+     const y=Math.round(rb.top+rb.height*yf);
+     for(const xf of xFractions){
+       const x=Math.round(rb.left+rb.width*xf);
+       if(hasClearance(path,x,y,minClearance))return {x:x,y:y,clearance:minClearance};
      }
    }
-   return best;
+   return null;
  };
 
- const entry=bestPoint(repeatRoot,repeatPath,8);
- if(!entry||entry.clearance<3)throw new Error('no stable interior hover point on exact Blockly tooltip-bound repeat path');
- const neighbours=[[entry.x+1,entry.y],[entry.x-1,entry.y],[entry.x,entry.y+1],[entry.x,entry.y-1]];
- const settle=neighbours.find(([sx,sy])=>same(repeatPath,sx,sy)&&clearanceAt(repeatPath,sx,sy,8)>=2);
+ const entry=stablePoint(repeatPath,3);
+ if(!entry)throw new Error('no stable interior hover point on exact Blockly tooltip-bound repeat path');
+ const neighbours=[
+   [entry.x+1,entry.y],[entry.x-1,entry.y],
+   [entry.x,entry.y+1],[entry.x,entry.y-1]
+ ];
+ const settle=neighbours.find(([sx,sy])=>hasClearance(repeatPath,sx,sy,2));
  if(!settle)throw new Error('no stable settle point on exact Blockly tooltip-bound repeat path');
 
- const reset=bestPoint(resetRoot,resetPath,6);
- if(!reset||reset.clearance<2)throw new Error('no stable real-pointer tooltip-owner reset point');
+ const reset=stablePoint(resetPath,2);
+ if(!reset)throw new Error('no stable real-pointer tooltip-owner reset point');
  if(repeatRoot.contains(resetPath))throw new Error('tooltip-owner reset path unexpectedly belongs to repeat root');
  if(document.elementFromPoint(reset.x,reset.y)!==resetPath)throw new Error('tooltip-owner reset point lost exact DOM identity');
 
@@ -282,7 +292,7 @@ def eval_with_post_hover_diagnostics(self: probe.Cdp, expr: str):
     elapsed = time.monotonic() - getattr(
         self, "_webeeblocks_post_hover_started", time.monotonic()
     )
-    # The expected public tooltip delay is 750 ms.  A single late snapshot after
+    # The expected public tooltip delay is 750 ms. A single late snapshot after
     # 4.25 s cannot make a correctly scheduled tooltip pass, while preserving
     # evidence from almost the entire unchanged 5 s oracle window.
     if elapsed >= 4.25 and not getattr(
