@@ -10,7 +10,7 @@ rend cette preuve à nouveau décision-relevante.
 
 ## Périmètre de la revendication
 
-Le périmètre actuellement validé est :
+Le périmètre de cette baseline Chrome est :
 
 - Windows 11 64 bits ;
 - Webots R2025a ;
@@ -20,9 +20,19 @@ Le périmètre actuellement validé est :
 Windows 10 reste une cible de compatibilité de la release, mais n’est pas couvert
 par les preuves réelles W1/W2 actuelles.
 
-**Edge et Firefox ne sont pas couverts par ce verdict.** Firefox same-file reste
-suivi par #87. Ne cocher aucun verdict Windows comme preuve implicite de ces
-navigateurs.
+**Edge et Firefox ne sont pas couverts par ce verdict.** Cette phrase qualifie
+strictement le verdict W1/W2 Chrome de #81 : elle ne signifie plus que Firefox
+reste sans preuve propre. Le checkpoint owner-authoritative #481 a depuis établi,
+sur Windows 11 + Webots R2025a et l’artefact exact associé, la parité Firefox
+directe `.wbb` pour `Ouvrir`, `Enregistrer sous`, `Enregistrer` sur le même
+fichier, annulations neutres et présentation spontanée au premier plan des boîtes
+natives. #87 est donc clos sur cette preuve indépendante. Edge reste hors du
+périmètre validé.
+
+La baseline Chrome et la qualification Firefox ne doivent pas être fusionnées en
+un verdict plus large qu’elles ne le sont réellement. En particulier, le défaut
+Chrome hors ligne lié à l’indisponibilité possible du profil/data-directory ou
+d’un contexte réseau reste suivi séparément par #476.
 
 ## Baseline réelle déjà établie
 
@@ -40,6 +50,8 @@ navigateurs.
 
 Les détails exacts d’artefact, versions et observations restent dans l’issue
 #81 ; ne recopiez pas cette ligne comme preuve d’un futur artefact différent.
+La preuve Firefox Windows exacte reste, elle, consignée sur #481/#87 et ne vaut
+pas extension automatique des mesures faibles W1/W2 à Firefox.
 
 ## Revalidation d’une future release
 
