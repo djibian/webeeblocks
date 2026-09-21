@@ -60,28 +60,50 @@ def _gesture_snapshot(c: probe.Cdp) -> dict[str, object]:
 
 
 def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
+    entry_x = float(rect["entryX"])
+    entry_y = float(rect["entryY"])
     settle_x = float(rect["settleX"])
     settle_y = float(rect["settleY"])
-    expression = r'''((x,y) => {
+    expression = r'''((entryX,entryY,settleX,settleY) => {
       const key='__webeeblocksCiTooltipDelivery';
       if(window[key]&&window[key].cleanup)window[key].cleanup();
-      const target=document.elementFromPoint(x,y);
-      const targetClass=String((target&&target.getAttribute&&target.getAttribute('class'))||'');
-      if(!target||!targetClass.includes('blocklyPath'))throw new Error('tooltip delivery target is not the exact public Blockly path');
+
+      const repeat=window.workspace&&workspace.getBlocksByType('controls_repeat_ext',false)[0];
+      const target=repeat&&repeat.pathObject&&repeat.pathObject.svgPath;
+      if(!repeat||!target)throw new Error('exact repeat tooltip delivery target is unavailable');
+      if(target.tooltip!==repeat)throw new Error('repeat SVG path is not bound to the repeat tooltip owner');
+
+      const entryHit=document.elementFromPoint(entryX,entryY);
+      const settleHit=document.elementFromPoint(settleX,settleY);
+      if(entryHit!==target||settleHit!==target){
+        throw new Error('post-reset tooltip entry/settle does not resolve to repeat.pathObject.svgPath');
+      }
+
+      const targetClass=String((target.getAttribute&&target.getAttribute('class'))||'');
+      if(!targetClass.includes('blocklyPath'))throw new Error('repeat tooltip delivery target is not a public Blockly path');
+
       const types=['mousemove','mouseover','mouseout','pointermove','pointerover','pointerout'];
-      const state={document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
+      const state={
+        target:target,repeat:repeat,
+        entryX:entryX,entryY:entryY,settleX:settleX,settleY:settleY,
+        document:{},targetEvents:{},last:{},targetLast:{},targetSequence:[],cleanup:null
+      };
       const pack=e=>({
         x:e.clientX,y:e.clientY,buttons:e.buttons,defaultPrevented:e.defaultPrevented,
         targetTag:(e.target&&e.target.tagName)||'',
         targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||''),
-        relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||'')
+        relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||''),
+        targetIsExactRepeatPath:e.target===target,
+        targetSharesRepeatTooltip:!!(e.target&&e.target.tooltip===repeat),
+        relatedIsExactRepeatPath:e.relatedTarget===target,
+        relatedSharesRepeatTooltip:!!(e.relatedTarget&&e.relatedTarget.tooltip===repeat)
       });
       const documentHandlers={};
       const targetHandlers={};
       for(const type of types){
-        state.document[type]=0; state.target[type]=0;
+        state.document[type]=0; state.targetEvents[type]=0;
         documentHandlers[type]=e=>{state.document[type]+=1;state.last[type]=pack(e);};
-        targetHandlers[type]=e=>{state.target[type]+=1;state.targetLast[type]=pack(e);state.targetSequence.push(type);};
+        targetHandlers[type]=e=>{state.targetEvents[type]+=1;state.targetLast[type]=pack(e);state.targetSequence.push(type);};
         document.addEventListener(type,documentHandlers[type],true);
         target.addEventListener(type,targetHandlers[type],false);
       }
@@ -93,26 +115,38 @@ def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
       };
       window[key]=state;
       return true;
-    })(%s,%s)''' % (settle_x, settle_y)
+    })(%s,%s,%s,%s)''' % (entry_x, entry_y, settle_x, settle_y)
     c.eval(expression)
 
 
 def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
+    entry_x = float(rect["entryX"])
+    entry_y = float(rect["entryY"])
     settle_x = float(rect["settleX"])
     settle_y = float(rect["settleY"])
-    expression = r'''((x,y) => {
+    expression = r'''((entryX,entryY,settleX,settleY) => {
       const key='__webeeblocksCiTooltipDelivery';
       const s=window[key];
       if(!s)return null;
-      const hit=document.elementFromPoint(x,y);
+
+      const repeat=window.workspace&&workspace.getBlocksByType('controls_repeat_ext',false)[0];
+      const target=repeat&&repeat.pathObject&&repeat.pathObject.svgPath;
+      const entryHit=document.elementFromPoint(entryX,entryY);
+      const settleHit=document.elementFromPoint(settleX,settleY);
+      const targetStable=!!target&&target===s.target&&repeat===s.repeat&&target.tooltip===repeat;
       const result={
-        document:s.document,target:s.target,last:s.last,targetLast:s.targetLast,targetSequence:s.targetSequence,
-        hitTag:(hit&&hit.tagName)||'',
-        hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||'')
+        document:s.document,target:s.targetEvents,last:s.last,targetLast:s.targetLast,targetSequence:s.targetSequence,
+        exactTargetStable:targetStable,
+        entryHitIsExactTarget:entryHit===target,
+        settleHitIsExactTarget:settleHit===target,
+        entryHitSharesRepeatTooltip:!!(entryHit&&repeat&&entryHit.tooltip===repeat),
+        settleHitSharesRepeatTooltip:!!(settleHit&&repeat&&settleHit.tooltip===repeat),
+        hitTag:(settleHit&&settleHit.tagName)||'',
+        hitClass:String((settleHit&&settleHit.getAttribute&&settleHit.getAttribute('class'))||'')
       };
       s.cleanup(); delete window[key];
       return result;
-    })(%s,%s)''' % (settle_x, settle_y)
+    })(%s,%s,%s,%s)''' % (entry_x, entry_y, settle_x, settle_y)
     return c.eval(expression)
 
 
@@ -122,14 +156,35 @@ def _cleanup_delivery_probe(c: probe.Cdp) -> None:
     )
 
 
+def _canonical_hover_after_reset(c: probe.Cdp, rect: dict[str, object]) -> None:
+    """Preserve the canonical three real moves while binding after the first move."""
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["outsideX"], "y": rect["outsideY"]},
+    )
+    time.sleep(0.1)
+    _install_delivery_probe(c, rect)
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["entryX"], "y": rect["entryY"]},
+    )
+    time.sleep(0.12)
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["settleX"], "y": rect["settleY"]},
+    )
+    time.sleep(0.04)
+
+
 def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
     focus = _same_session_focus(self)
     gesture = _gesture_snapshot(self)
-    _install_delivery_probe(self, rect)
     try:
-        # Exactly one unchanged canonical outside -> path -> settle trajectory.
-        # No second hover, no wait for gesture state, and no outcome-based retry.
-        _ORIGINAL_HOVER(self, rect)
+        # Keep the canonical outside -> path -> settle trajectory and timings.
+        # Bind the exact repeat target only after the real outside/reset move, so
+        # the prerequisite describes the DOM that will actually receive entry.
+        # No extra move, second hover, gesture wait, or outcome-based retry.
+        _canonical_hover_after_reset(self, rect)
         delivery = _read_delivery(self, rect)
     except BaseException:
         try:
@@ -153,6 +208,18 @@ def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> 
     evidence = {"focus": focus, "gesture": gesture, "delivery": delivery}
     print("WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC " + json.dumps(evidence, sort_keys=True))
 
+    if (
+        not delivery.get("exactTargetStable")
+        or not delivery.get("entryHitIsExactTarget")
+        or not delivery.get("settleHitIsExactTarget")
+        or not delivery.get("entryHitSharesRepeatTooltip")
+        or not delivery.get("settleHitSharesRepeatTooltip")
+    ):
+        raise RuntimeError(
+            "real tooltip hover lost exact repeat.pathObject.svgPath identity or tooltip ownership: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
     document = delivery.get("document", {})
     if document.get("mousemove", 0) < 2 or document.get("pointermove", 0) < 2:
         raise RuntimeError(
@@ -173,7 +240,7 @@ def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> 
         or target.get("pointerover", 0) < 1
     ):
         raise RuntimeError(
-            "real tooltip hover did not reach the exact Blockly path at target phase: "
+            "real tooltip hover did not reach repeat.pathObject.svgPath at target phase: "
             + json.dumps(evidence, sort_keys=True)
         )
     mouse_sequence = [
@@ -183,20 +250,20 @@ def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> 
     ]
     if not mouse_sequence or mouse_sequence[-1] != "mousemove":
         raise RuntimeError(
-            "real tooltip hover did not finish with a stable exact-path target mousemove: "
+            "real tooltip hover did not finish with a stable exact repeat-path target mousemove: "
             + json.dumps(evidence, sort_keys=True)
         )
 
-    hit_class = str(delivery.get("hitClass", ""))
     target_mouse = delivery.get("targetLast", {}).get("mousemove", {})
     target_pointer = delivery.get("targetLast", {}).get("pointermove", {})
     if (
-        "blocklyPath" not in hit_class
-        or "blocklyPath" not in str(target_mouse.get("targetClass", ""))
-        or "blocklyPath" not in str(target_pointer.get("targetClass", ""))
+        not target_mouse.get("targetIsExactRepeatPath")
+        or not target_pointer.get("targetIsExactRepeatPath")
+        or not target_mouse.get("targetSharesRepeatTooltip")
+        or not target_pointer.get("targetSharesRepeatTooltip")
     ):
         raise RuntimeError(
-            "real tooltip hover did not settle on the exact public Blockly path: "
+            "real tooltip hover event target was not the exact repeat path / tooltip owner: "
             + json.dumps(evidence, sort_keys=True)
         )
 
