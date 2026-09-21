@@ -3,8 +3,8 @@
 ## Supported target
 
 The release compatibility target remains **Windows 10 or 11 64-bit + Webots
-R2025a**. The current broad real-machine classroom baseline is **Windows 11
-64-bit + Webots R2025a + Google Chrome**.
+R2025a**. The current validated classroom baseline is **Windows 11
+64-bit + Webots R2025a + Google Chrome** for the broad W1/W2 weak-PC path.
 
 Chrome remains the reference browser because the product project-file path uses
 the native File System Access API for Open / Save As / Save on the selected file
