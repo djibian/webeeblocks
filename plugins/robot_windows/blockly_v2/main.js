@@ -316,7 +316,13 @@ async function runProgram() {
       }
     });
     if (runtimeStopRequested) throw userStoppedError();
-    runtimeRunning = false; runtimeTerminal = true; setRuntimeStatus('TERMINÉ', 'Programme exécuté');
+    var missionOutcome = await WebeeBlocksRuntimeOutcome.evaluateMission(runtimeProfile, runtimeBackend);
+    runtimeRunning = false;
+    runtimeTerminal = true;
+    if (missionOutcome)
+      setRuntimeStatus(missionOutcome.state, missionOutcome.detail);
+    else
+      setRuntimeStatus('TERMINÉ', 'Programme exécuté');
   } catch (error) {
     runtimeRunning = false;
     runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
