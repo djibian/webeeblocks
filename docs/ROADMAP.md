@@ -13,11 +13,15 @@ here.
 
 ## Product priority
 
-1. **#157 — broader useful reference-capability coverage**
+1. **#487 — executable pedagogical scenarios and cumulative learning progression**
+2. **#157 — broader useful reference-capability coverage**
 
-#81 (Windows classroom deployment), #66 (progressive pedagogical activity model),
-#80 (one-click unified classroom interface) and #79 (fully French student
-interface) are validated baseline, not active priority nodes.
+#66 established the declarative activity/profile architecture and compact-
+progression structure, but new product evidence in #487 supersedes interpreting
+that result as proof that the current activity scenarios are pedagogically
+complete. #81 (Windows classroom deployment), #80 (one-click unified classroom
+interface) and #79 (fully French student interface) remain validated baselines,
+not active priority nodes.
 
 The #157 simulation-side C1b boundary is now established for every currently
 justified student-facing generic capability. Integrated #193/#196 establish the
@@ -229,34 +233,56 @@ justified by the current evidence.
   work has since closed every currently justified simulation-side generic
   capability gap; physical continuity/proof remains separate.
 
-### B1 — declarative activity model and compact progression established
+### B1 — declarative activity model established; pedagogical acceptance reopened
 
 - parent: #66
 - evidence: integrated #181 on `main@8eab31ca448a966063e53f039f340238ecfec833`
   plus the earlier field-option, variables/memory and open-strategy slices
-- established result: eight ordered substantial `progression-*` profiles/starter
-  files now form the representative simulation progression, with distinct precise
-  movement, repetition, first measure/compare/decide, repeated reaction, combined
-  decisions, memory and open-strategy objectives
-- proof: one shared declarative activity/profile model preserves generic blocks
-  and `activity/profile -> Blockly -> AST -> preflight -> interpreter -> backend`;
-  starter filenames map one-to-one to activity IDs and cumulative constraints are
-  contract-tested without student progress state or a graphical activity studio
+- established structural result: eight ordered substantial `progression-*`
+  profiles/starter files, one shared declarative activity/profile model, generic
+  blocks and `activity/profile -> Blockly -> AST -> preflight -> interpreter ->
+  backend`; starter filenames map one-to-one to activity IDs and cumulative
+  constraints are contract-tested without student progress state or a graphical
+  activity studio
 - classroom access: integrated #435 closes #434 by shipping the canonical ordered
   starter `.wbb` files in the Windows classroom release and exposing a distinct
   `Démarrer une activité` template path through the existing declarative
   project/profile loader. Starting a packaged activity clears the current save
   target so student work requires an explicit Save As; no second activity
   catalogue, unlock/progress state or new Runtime semantics is introduced
-- boundary: the product target is approximately 8–12 substantial activities, not
-  an obligation to manufacture filler micro-exercises; add or split activities
-  only for a demonstrated pedagogical need
+- superseding evidence: #487 establishes that structural progression and named
+  objectives do **not** prove pedagogically complete activity scenarios. The
+  current activities must be re-evaluated against explicit student missions,
+  worlds that make the new concept genuinely useful/necessary, cumulative reuse
+  of prior concepts and executable mission outcomes
 - finality: the teacher-authorized final real-flight activity remains separately
   gated under #72 by physical backend/capability proof and any #70 result required
-  by the chosen mission; B1 establishment does not claim real-flight readiness
-- note: broader C1b capability work remains parallel and does not reopen B1 unless
-  concrete evidence shows the representative progression is distorted by a
-  missing capability
+  by the chosen mission; B1 establishment does not claim real-flight readiness.
+
+### B2 — executable pedagogical scenarios and cumulative progression
+
+- parent: #487
+- target: approximately 8–12 substantial problem situations, where quality and
+  cumulative learning take precedence over activity count
+- activity contract: every retained activity has a complete student-facing
+  scenario/mission distinct from its internal pedagogical objective; its world,
+  geometry, events, sensor availability or other constraints create the need for
+  the target concept; prior concepts are naturally reused; success/failure is
+  evaluated from observable mission state rather than expected Blockly/AST shape
+- student feedback: provide simple mission achieved / not achieved / interrupted
+  feedback without automatic diagnosis, hints, strategy suggestions or persistent
+  attempt/progress history
+- variable gap: provide one generic change-variable-by-value capability so
+  increment/decrement, counters and accumulators do not require task-specific
+  magic blocks
+- acceptance: re-evaluate the existing representative activities one by one;
+  retain those meeting the contract, redesign weak scenarios/worlds and replace
+  those that cannot be made pedagogically coherent. For each activity be able to
+  state `new concept -> world property that makes it necessary -> student mission
+  -> prior concepts reused -> executable success criteria`
+- non-goals: no accounts, automatic unlocks, mastery database, grading system,
+  leaderboard, intelligent tutor, solution-shape oracle or world proliferation
+  for its own sake.
 
 ### C1b — broaden reference Crazyflie/deck capability coverage
 
