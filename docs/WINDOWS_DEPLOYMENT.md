@@ -3,21 +3,30 @@
 ## Supported target
 
 The release compatibility target remains **Windows 10 or 11 64-bit + Webots
-R2025a**. The current real-machine validated classroom baseline is **Windows 11
+R2025a**. The current broad real-machine classroom baseline is **Windows 11
 64-bit + Webots R2025a + Google Chrome**.
 
-Chrome is the reference browser because the product project-file path uses the
-native File System Access API for Open / Save As / Save on the selected file and
-that exact path has passed the real low-end classroom acceptance recorded on
-issue #81.
+Chrome remains the reference browser because the product project-file path uses
+the native File System Access API for Open / Save As / Save on the selected file
+and the complete weak-PC W1/W2 classroom path passed the real acceptance recorded
+on issue #81.
 
-Do not infer broader platform or browser support from the validated baseline:
+Firefox now also has independent real Windows 11 + Webots R2025a qualification
+for direct `.wbb` project-file parity. Owner-authoritative checkpoint #481 passed
+on exact target `2a3a4629cd1e1d0f254bf63a24c5184a496d67eb`: native **Save As** and
+**Open** appeared spontaneously in the foreground, cancellation remained neutral,
+subsequent **Save** rewrote the exact same file without numbered copies, and
+reopening restored the saved project. This evidence closes #87's Windows Firefox
+file-semantics boundary; it does not replace Chrome's broader W1/W2 low-end
+baseline.
+
+Do not infer broader platform or browser support from these validated boundaries:
 
 - Windows 10 remains a release compatibility target but is not covered by the
-  current W1/W2 real-machine evidence;
+  current real-machine evidence;
 - Edge is not part of the currently validated classroom boundary;
-- Firefox project-file parity is not currently supported and remains tracked
-  separately by #87;
+- the previous boundary statement, "Firefox project-file parity is not currently supported",
+  is superseded by the exact #481 Windows Firefox PASS described above;
 - no download-as-copy fallback is claimed as equivalent to native same-file
   Open / Save / Save As semantics.
 
@@ -53,7 +62,10 @@ Runtime change.
 
 The teacher installs Webots R2025a, extracts
 `WebeeBlocks-Windows-R2025a.zip` into a writable folder and uses Google Chrome
-as the classroom browser. The network may then be disconnected.
+as the reference classroom browser. Firefox may also be used where the qualified
+native direct-file path is desired. The network may then be disconnected, but
+#476 remains the separate active diagnostic for Chrome Save As when a Windows
+Chrome profile/data-directory depends on unavailable network or mapped storage.
 
 The student double-clicks `Launch-WebeeBlocks.cmd`. The launcher finds Webots
 through `WEBOTS_HOME`, the standard Program Files location or `PATH`, starts
@@ -73,8 +85,12 @@ Dell OptiPlex 3050 with Windows 11, Webots R2025a and Chrome:
   Open, Save As and Save cycles without progressive loss of responsiveness,
   simulation usability or Robot Window/runtime connectivity.
 
-Those passes establish the current Chrome low-end baseline. They do not prove
-Edge, Firefox, or every future materially changed release artifact.
+Those passes establish the broad Chrome low-end baseline. Separate checkpoint
+#481 establishes Windows Firefox direct `.wbb` Open / Save As / same-file Save,
+neutral cancellation and native-dialog foreground presentation on its exact
+artifact. Neither evidence proves Edge, Windows 10, every future materially
+changed release artifact, or the separate Chrome network/profile condition now
+tracked by #476.
 
 `packaging/windows/WINDOWS-ACCEPTANCE.md` is therefore a **revalidation
 template** for a future release whose changes make renewed real-machine
