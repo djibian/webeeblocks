@@ -2,11 +2,11 @@
 """Run the canonical student UI probe with passive post-hover diagnostics.
 
 The canonical product/runtime probe and the existing exact-path delivery boundary
-remain authoritative.  This wrapper adds only passive browser observations after
-the one canonical hover has completed: page focus/visibility, ordinary
-mouse/pointer traffic, and public tooltip DOM mutations/visibility.  It does not
-wrap timers, dispatch additional input, mutate Blockly/workspace state, retry the
-hover, or change the 5 s tooltip oracle.
+remain authoritative. This wrapper adds passive browser observations after the one
+canonical hover and a transparent observer of exported Blockly Tooltip block /
+unblock calls installed as soon as Blockly is available. It does not intercept
+browser timers, dispatch additional input, alter tooltip/workspace state, retry
+the hover, or change the 5 s tooltip oracle.
 """
 
 from __future__ import annotations
@@ -20,6 +20,65 @@ import probe_entry
 
 _ORIGINAL_EVAL = probe.Cdp.eval
 _ORIGINAL_HOVER = probe.Cdp.hover
+
+# Blockly 13.2.1 keeps its actual scheduler state module-local. Do not infer that
+# state from absent legacy namespace fields. The exported block()/unblock() calls
+# are a narrower real lifecycle boundary that can be observed transparently
+# without wrapping setTimeout/clearTimeout or changing the canonical hover.
+_LIFECYCLE_INSTALL = r'''(() => {
+  const key='__webeeblocksCiTooltipLifecycle';
+  const old=window[key];
+  if(old&&old.installed)return true;
+
+  const tooltip=window.Blockly&&Blockly.Tooltip;
+  if(!tooltip||typeof tooltip.block!=='function'||typeof tooltip.unblock!=='function')return false;
+
+  const state={
+    installed:false,transitions:[],
+    originalBlock:tooltip.block,originalUnblock:tooltip.unblock,
+    block:null,unblock:null
+  };
+  const record=kind=>{
+    state.transitions.push({kind:kind,at:performance.now()});
+    if(state.transitions.length>64)state.transitions.shift();
+  };
+  state.block=function(...args){
+    record('block');
+    return state.originalBlock.apply(this,args);
+  };
+  state.unblock=function(...args){
+    record('unblock');
+    return state.originalUnblock.apply(this,args);
+  };
+  try{
+    tooltip.block=state.block;
+    tooltip.unblock=state.unblock;
+    state.installed=tooltip.block===state.block&&tooltip.unblock===state.unblock;
+  }catch(_){
+    state.installed=false;
+  }
+  window[key]=state;
+  return state.installed;
+})()'''
+
+_LIFECYCLE_STATE = r'''(() => {
+  const s=window.__webeeblocksCiTooltipLifecycle;
+  if(!s)return null;
+  return {installed:!!s.installed,transitions:s.transitions.slice()};
+})()'''
+
+_LIFECYCLE_RESTORE = r'''(() => {
+  const key='__webeeblocksCiTooltipLifecycle';
+  const s=window[key];
+  if(!s)return false;
+  const tooltip=window.Blockly&&Blockly.Tooltip;
+  if(tooltip){
+    if(tooltip.block===s.block)tooltip.block=s.originalBlock;
+    if(tooltip.unblock===s.unblock)tooltip.unblock=s.originalUnblock;
+  }
+  s.installed=false;
+  return true;
+})()'''
 
 _POST_HOVER_INSTALL = r'''((x,y) => {
   const key='__webeeblocksCiTooltipPostHover';
@@ -38,6 +97,10 @@ _POST_HOVER_INSTALL = r'''((x,y) => {
 
   const now=()=>performance.now();
   const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+  const lifecycleState=()=>{
+    const s=window.__webeeblocksCiTooltipLifecycle;
+    return s ? {installed:!!s.installed,transitions:s.transitions.slice()} : null;
+  };
   const pack=e=>({
     type:e.type,at:now(),x:e.clientX,y:e.clientY,buttons:e.buttons,
     targetTag:(e.target&&e.target.tagName)||'',targetClass:classOf(e.target),
@@ -45,6 +108,7 @@ _POST_HOVER_INSTALL = r'''((x,y) => {
   });
   const state={
     installedAt:now(),events:[],lifecycle:[],mutations:[],cleanup:null,
+    tooltipLifecycleAtInstall:lifecycleState(),
     initial:{focused:document.hasFocus(),visibility:document.visibilityState,
       tooltipVisible:hasVisible ? !!tooltip.isVisible() : null,
       divDisplay:getComputedStyle(div).display,
@@ -100,8 +164,11 @@ _POST_HOVER_SNAPSHOT = r'''((x,y) => {
   const hasGetDiv=!!tooltip&&typeof tooltip.getDiv==='function';
   const div=hasGetDiv ? tooltip.getDiv() : document.querySelector('.blocklyTooltipDiv');
   const hit=document.elementFromPoint(x,y);
+  const life=window.__webeeblocksCiTooltipLifecycle;
   return {
     installedAt:s.installedAt,initial:s.initial,
+    tooltipLifecycleAtInstall:s.tooltipLifecycleAtInstall,
+    tooltipLifecycle:life ? {installed:!!life.installed,transitions:life.transitions.slice()} : null,
     current:{
       at:performance.now(),focused:document.hasFocus(),visibility:document.visibilityState,
       hitTag:(hit&&hit.tagName)||'',hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||''),
@@ -134,6 +201,23 @@ def _tooltip_visible(entries: object) -> bool:
     )
 
 
+def _ensure_lifecycle_observer(c: probe.Cdp, *, required: bool) -> bool:
+    if getattr(c, "_webeeblocks_tooltip_lifecycle_installed", False):
+        return True
+    try:
+        installed = bool(_ORIGINAL_EVAL(c, _LIFECYCLE_INSTALL))
+    except Exception:
+        installed = False
+    if installed:
+        c._webeeblocks_tooltip_lifecycle_installed = True
+        return True
+    if required:
+        raise RuntimeError(
+            "exported Blockly tooltip lifecycle observer unavailable before canonical hover"
+        )
+    return False
+
+
 def _snapshot(c: probe.Cdp) -> object:
     rect = getattr(c, "_webeeblocks_post_hover_rect", None)
     if not rect:
@@ -153,11 +237,15 @@ def _emit(c: probe.Cdp, reason: str, cleanup: bool) -> None:
     )
     if cleanup:
         _ORIGINAL_EVAL(c, _POST_HOVER_CLEANUP)
+        _ORIGINAL_EVAL(c, _LIFECYCLE_RESTORE)
         c._webeeblocks_post_hover_active = False
+        c._webeeblocks_tooltip_lifecycle_installed = False
 
 
 def hover_with_post_hover_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
-    # Keep the already-integrated exact-path/focus/delivery diagnostic unchanged.
+    # Install the exported lifecycle observer before the one existing hover. The
+    # underlying probe_entry hover still owns focus, gesture and delivery checks.
+    _ensure_lifecycle_observer(self, required=True)
     _ORIGINAL_HOVER(self, rect)
     installed = _ORIGINAL_EVAL(
         self,
@@ -174,6 +262,12 @@ def hover_with_post_hover_diagnostics(self: probe.Cdp, rect: dict[str, object]) 
 
 def eval_with_post_hover_diagnostics(self: probe.Cdp, expr: str):
     result = _ORIGINAL_EVAL(self, expr)
+
+    # Start observing exported block/unblock lifecycle calls as early as Blockly
+    # exists, so a later canonical-hover recurrence can distinguish lifecycle
+    # transitions that happened before the post-hover DOM observer is installed.
+    _ensure_lifecycle_observer(self, required=False)
+
     if expr != probe.VISIBLE_OVERLAY or not getattr(
         self, "_webeeblocks_post_hover_active", False
     ):
@@ -186,7 +280,7 @@ def eval_with_post_hover_diagnostics(self: probe.Cdp, expr: str):
     elapsed = time.monotonic() - getattr(
         self, "_webeeblocks_post_hover_started", time.monotonic()
     )
-    # The expected public tooltip delay is 750 ms.  A single late snapshot after
+    # The expected public tooltip delay is 750 ms. A single late snapshot after
     # 4.25 s cannot make a correctly scheduled tooltip pass, while preserving
     # evidence from almost the entire unchanged 5 s oracle window.
     if elapsed >= 4.25 and not getattr(
