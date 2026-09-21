@@ -14,10 +14,11 @@ This wrapper therefore keeps the same three real pointer moves but makes their
 first point a stable path belonging to a different tooltip owner, then chooses
 entry/settle points well inside the exact tooltip-bound repeat path. Geometry
 selection is intentionally bounded to a small fixed sample of each actual SVG
-path plus only the minimum required clearance, so the prerequisite itself remains
-deterministic in the real Robot Window. This is not an outcome-conditioned
-retry. The 5 s public visible/non-empty/localized tooltip oracle and ordinary
-exit assertion remain unchanged.
+path and requires a deeper repeat-path clearance after Ready evidence showed a
+minimum-clearance point could transition to an adjacent path when the tooltip
+appeared. This is not an outcome-conditioned retry. The 5 s public
+visible/non-empty/localized tooltip oracle and ordinary exit assertion remain
+unchanged.
 
 After the hover it retains passive browser observations: page focus/visibility,
 ordinary mouse/pointer traffic, public tooltip DOM mutations/visibility, and
@@ -52,8 +53,14 @@ _ORIGINAL_HOVER = probe.Cdp.hover
 # while the later fixed bounding-box fraction grid could miss the non-rectangular
 # Zelos path entirely. Derive candidates from the actual SVG path instead: sample
 # a fixed number of arc-length positions, compute the screen-space path normal,
-# and test only three bounded offsets on either side. The existing exact DOM hit
-# and minimum-clearance checks remain authoritative and fail closed.
+# and test only three bounded offsets on either side. Ready run 35605362137 then
+# proved that the former 3 px / 2 px minimum could still end beside a sibling
+# path: the French tooltip became visible, a stationary pointer transitioned off
+# the exact repeat path, and Blockly immediately hid it. Require 8 px at entry
+# and 7 px at the one-pixel settle point while keeping the same bounded candidate
+# set and exact DOM hit checks. Reset-owner geometry keeps its smaller 2 px
+# requirement because it is only the causal first move, not the delayed oracle
+# target.
 _RESET_REPEAT_HOVER_RECT = r'''(() => {
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
  const resetBlock=workspace.getBlocksByType('webeeblocks_v2_takeoff',false)[0];
@@ -121,14 +128,14 @@ _RESET_REPEAT_HOVER_RECT = r'''(() => {
    return null;
  };
 
- const entry=stablePoint(repeatPath,3);
- if(!entry)throw new Error('no stable interior hover point on exact Blockly tooltip-bound repeat path');
+ const entry=stablePoint(repeatPath,8);
+ if(!entry)throw new Error('no deep stable interior hover point on exact Blockly tooltip-bound repeat path');
  const neighbours=[
    [entry.x+1,entry.y],[entry.x-1,entry.y],
    [entry.x,entry.y+1],[entry.x,entry.y-1]
  ];
- const settle=neighbours.find(([sx,sy])=>hasClearance(repeatPath,sx,sy,2));
- if(!settle)throw new Error('no stable settle point on exact Blockly tooltip-bound repeat path');
+ const settle=neighbours.find(([sx,sy])=>hasClearance(repeatPath,sx,sy,7));
+ if(!settle)throw new Error('no deep stable settle point on exact Blockly tooltip-bound repeat path');
 
  const reset=stablePoint(resetPath,2);
  if(!reset)throw new Error('no stable real-pointer tooltip-owner reset point');
