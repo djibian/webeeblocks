@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
@@ -26,6 +27,8 @@ function buildWorkspace(){
   const takeoff=workspace.newBlock('webeeblocks_v2_takeoff');
   const set=workspace.newBlock('variables_set');
   const range=workspace.newBlock('webeeblocks_v2_range');
+  const change=workspace.newBlock('math_change');
+  const delta=workspace.newBlock('math_number');
   const decision=workspace.newBlock('controls_if');
   const compare=workspace.newBlock('logic_compare');
   const get=workspace.newBlock('variables_get');
@@ -36,6 +39,9 @@ function buildWorkspace(){
   set.getField('VAR').setValue(variable.getId());
   range.setFieldValue('front','DIRECTION');
   set.getInput('VALUE').connection.connect(range.outputConnection);
+  change.getField('VAR').setValue(variable.getId());
+  delta.setFieldValue('-1','NUM');
+  change.getInput('DELTA').connection.connect(delta.outputConnection);
   compare.setFieldValue('LT','OP');
   get.getField('VAR').setValue(variable.getId());
   threshold.setFieldValue('1','NUM');
@@ -44,7 +50,7 @@ function buildWorkspace(){
   decision.getInput('IF0').connection.connect(compare.outputConnection);
   move.setFieldValue('left','DIRECTION');move.setFieldValue('0.3','DISTANCE');
   decision.getInput('DO0').connection.connect(move.previousConnection);
-  connectStatement(takeoff,set);connectStatement(set,decision);connectStatement(decision,land);
+  connectStatement(takeoff,set);connectStatement(set,change);connectStatement(change,decision);connectStatement(decision,land);
   return workspace;
 }
 function profile(){return Profiles.resolveById(Activities.DOCUMENT,'progression-memory-v1',Activities.BLOCK_CATALOG);}
@@ -63,13 +69,19 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
 }
 
 (async function(){
+  const productMain=fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/main.js'),'utf8');
+  assert(productMain.includes("overrideBuiltinBlockStyle('math_change', 'variable_blocks')"),'math_change must use the Variables semantic block style on the product path');
   const p4=Profiles.resolveById(Activities.DOCUMENT,'progression-combined-decisions-v1',Activities.BLOCK_CATALOG),p5=profile();
-  assert.strictEqual(p4.world,p5.world);assert(p4.toolbox.every(type=>p5.toolbox.includes(type)),'memory profile must be cumulative');assert(p5.toolbox.includes('variables_set'));assert(p5.toolbox.includes('variables_get'));assert(p5.runtime.allowedStatementKinds.includes('set_variable'));
+  assert.strictEqual(p4.world,p5.world);assert(p4.toolbox.every(type=>p5.toolbox.includes(type)),'memory profile must be cumulative');assert(p5.toolbox.includes('variables_set'));assert(p5.toolbox.includes('variables_get'));assert(p5.toolbox.includes('math_change'));assert.strictEqual(p5.parameterBounds.math_number.NUM.min,-10);assert(p5.runtime.allowedStatementKinds.includes('set_variable'));
   const workspace=buildWorkspace(),ast=compile(workspace);
-  const set=ast.program.find(node=>node.kind==='set_variable');assert(set);assert.deepStrictEqual(set.variable,{id:'memo-distance',name:'distance mémorisée'});assert.strictEqual(set.value.kind,'range');
+  const assignments=ast.program.filter(node=>node.kind==='set_variable');
+  assert.strictEqual(assignments.length,2,'variable set + change should compile to two generic assignments');
+  const set=assignments[0],change=assignments[1];
+  assert.deepStrictEqual(set.variable,{id:'memo-distance',name:'distance mémorisée'});assert.strictEqual(set.value.kind,'range');
+  assert.deepStrictEqual(change,{kind:'set_variable',variable:{id:'memo-distance',name:'distance mémorisée'},value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:{id:'memo-distance',name:'distance mémorisée'}},right:{kind:'number',value:-1}}},'math_change did not lower to backend-neutral assignment + arithmetic');
   const normal=await execute(ast,{}),variableEvents=[];
   const observed=await execute(ast,{onNode:async()=>{},beforeStep:async()=>{},onSensor:async()=>{},onVariables:async detail=>{variableEvents.push(detail.values);}});
-  assert.deepStrictEqual(observed.log,normal.log,'debug hooks changed normal execution semantics');assert.deepStrictEqual(normal.result.variables,{'distance mémorisée':0.4});assert.deepStrictEqual(variableEvents.at(-1),{'distance mémorisée':0.4});assert(normal.log.some(item=>item[0]==='move'&&item[1]==='left'),'stored value was not reused in decision');
+  assert.deepStrictEqual(observed.log,normal.log,'debug hooks changed normal execution semantics');assert.deepStrictEqual(normal.result.variables,{'distance mémorisée':-0.6});assert.deepStrictEqual(variableEvents.at(-1),{'distance mémorisée':-0.6});assert(normal.log.some(item=>item[0]==='move'&&item[1]==='left'),'changed value was not reused in decision');
 
   const observerVariableEvents=[],activeEvents=[];
   const observer=ExecutionObserver.create(workspace,{
@@ -81,11 +93,21 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   const throughObserver=await execute(ast,observerHooks);
   observer.finish();
   const setBlock=workspace.getAllBlocks(false).find(block=>block.type==='variables_set');
+  const changeBlock=workspace.getAllBlocks(false).find(block=>block.type==='math_change');
   assert.deepStrictEqual(throughObserver.log,normal.log,'execution observer changed variable-program semantics');
-  assert.deepStrictEqual(observerVariableEvents.at(-1),{'distance mémorisée':0.4},'execution observer did not surface current variable values');
+  assert.deepStrictEqual(observerVariableEvents.at(-1),{'distance mémorisée':-0.6},'execution observer did not surface changed variable values');
   assert(activeEvents.some(detail=>detail.kind==='set_variable'&&detail.blockId===setBlock.id),'set-variable interpreter event did not map back to its real Blockly block');
+  assert(activeEvents.some(detail=>detail.kind==='set_variable'&&detail.blockId===changeBlock.id),'change-variable interpreter event did not map back to its real Blockly block');
 
   let backendActions=0;await assert.rejects(Interpreter.run({version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'if',condition:{kind:'variable_get',variable:{id:'x',name:'x'}},then:[],else:[]},{kind:'land'}]},{async takeoff(){backendActions++;},async land(){backendActions++;}}),/read before assignment/);assert.strictEqual(backendActions,0,'uninitialized variable was not rejected before backend action');
+  const uninitializedChangeWorkspace=new Blockly.Workspace();
+  const changeOnlyVariable=uninitializedChangeWorkspace.getVariableMap().createVariable('compteur','', 'counter');
+  const changeOnly=uninitializedChangeWorkspace.newBlock('math_change');
+  const changeOnlyDelta=uninitializedChangeWorkspace.newBlock('math_number');
+  changeOnly.getField('VAR').setValue(changeOnlyVariable.getId());changeOnlyDelta.setFieldValue('1','NUM');changeOnly.getInput('DELTA').connection.connect(changeOnlyDelta.outputConnection);
+  const changeOnlyAst=SemanticAst.compileStatement(changeOnly);
+  await assert.rejects(Interpreter.run({version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},changeOnlyAst,{kind:'land'}]},{async takeoff(){},async land(){}},{maxSteps:20}),/read before assignment/,'change before initial assignment must remain fail-closed');
+  uninitializedChangeWorkspace.dispose();
   await assert.rejects(Interpreter.run(ast,backend([]),{maxSteps:1}),/execution budget exceeded/);
   await roundTrip(workspace,ast);
 
@@ -109,5 +131,5 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
     'division by zero must fail with a correctable student outcome'
   );
   arithmeticWorkspace.dispose();
-  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
+  console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
