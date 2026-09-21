@@ -83,7 +83,7 @@ def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
       const targetClass=String((target.getAttribute&&target.getAttribute('class'))||'');
       if(!targetClass.includes('blocklyPath'))throw new Error('current exact repeat path is not a public Blockly path');
       const types=['mousemove','mouseover','mouseout','pointermove','pointerover','pointerout'];
-      const state={target:target,document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
+      const state={observedTarget:target,document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
       const pack=e=>({
         x:e.clientX,y:e.clientY,buttons:e.buttons,defaultPrevented:e.defaultPrevented,
         targetTag:(e.target&&e.target.tagName)||'',
@@ -124,7 +124,7 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
         document:s.document,target:s.target,last:s.last,targetLast:s.targetLast,targetSequence:s.targetSequence,
         hitTag:(hit&&hit.tagName)||'',
         hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||''),
-        hitIsObserved:hit===s.target
+        hitIsObserved:hit===s.observedTarget
       };
       s.cleanup(); delete window[key];
       return result;
