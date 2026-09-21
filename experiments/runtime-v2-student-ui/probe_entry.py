@@ -76,7 +76,7 @@ def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
       const entryHit=document.elementFromPoint(entryX,entryY);
       const settleHit=document.elementFromPoint(settleX,settleY);
       if(entryHit!==target||settleHit!==target){
-        throw new Error('configured tooltip entry/settle does not resolve to repeat.pathObject.svgPath');
+        throw new Error('post-reset tooltip entry/settle does not resolve to repeat.pathObject.svgPath');
       }
 
       const targetClass=String((target.getAttribute&&target.getAttribute('class'))||'');
@@ -156,14 +156,35 @@ def _cleanup_delivery_probe(c: probe.Cdp) -> None:
     )
 
 
+def _canonical_hover_after_reset(c: probe.Cdp, rect: dict[str, object]) -> None:
+    """Preserve the canonical three real moves while binding after the first move."""
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["outsideX"], "y": rect["outsideY"]},
+    )
+    time.sleep(0.1)
+    _install_delivery_probe(c, rect)
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["entryX"], "y": rect["entryY"]},
+    )
+    time.sleep(0.12)
+    c.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": rect["settleX"], "y": rect["settleY"]},
+    )
+    time.sleep(0.04)
+
+
 def hover_with_passive_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
     focus = _same_session_focus(self)
     gesture = _gesture_snapshot(self)
-    _install_delivery_probe(self, rect)
     try:
-        # Exactly one unchanged canonical outside -> path -> settle trajectory.
-        # No second hover, no wait for gesture state, and no outcome-based retry.
-        _ORIGINAL_HOVER(self, rect)
+        # Keep the canonical outside -> path -> settle trajectory and timings.
+        # Bind the exact repeat target only after the real outside/reset move, so
+        # the prerequisite describes the DOM that will actually receive entry.
+        # No extra move, second hover, gesture wait, or outcome-based retry.
+        _canonical_hover_after_reset(self, rect)
         delivery = _read_delivery(self, rect)
     except BaseException:
         try:
