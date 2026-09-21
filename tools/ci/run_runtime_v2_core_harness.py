@@ -41,6 +41,10 @@ def main():
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
     print(variable_test.stdout.strip())
+    activity_outcome_test=subprocess.run(['node','tools/ci/test_runtime_activity_outcome.js'],text=True,capture_output=True)
+    if activity_outcome_test.returncode:
+        print('FAIL Runtime activity mission outcome contract',file=sys.stderr);print(activity_outcome_test.stdout,file=sys.stderr);print(activity_outcome_test.stderr,file=sys.stderr);return activity_outcome_test.returncode
+    print(activity_outcome_test.stdout.strip())
     physical_capability_test=subprocess.run(['node','tools/ci/test_physical_capability_contract.js'],text=True,capture_output=True)
     if physical_capability_test.returncode:
         print('FAIL read-only physical capability contract',file=sys.stderr);print(physical_capability_test.stdout,file=sys.stderr);print(physical_capability_test.stderr,file=sys.stderr);return physical_capability_test.returncode
