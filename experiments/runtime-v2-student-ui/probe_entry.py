@@ -60,21 +60,36 @@ def _gesture_snapshot(c: probe.Cdp) -> dict[str, object]:
 
 
 def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
+    # Focus can change compositor/layout state between the canonical pre-hover
+    # geometry read and real input. Re-resolve the same authorized hover geometry
+    # after focus, then bind evidence to Blockly's current exact repeat path.
+    fresh_rect = c.eval(probe.REPEAT_HOVER_RECT)
+    if not isinstance(fresh_rect, dict):
+        raise RuntimeError("real tooltip hover geometry unavailable after focus")
+    rect.clear()
+    rect.update(fresh_rect)
+
     settle_x = float(rect["settleX"])
     settle_y = float(rect["settleY"])
     expression = r'''((x,y) => {
       const key='__webeeblocksCiTooltipDelivery';
       if(window[key]&&window[key].cleanup)window[key].cleanup();
-      const target=document.elementFromPoint(x,y);
-      const targetClass=String((target&&target.getAttribute&&target.getAttribute('class'))||'');
-      if(!target||!targetClass.includes('blocklyPath'))throw new Error('tooltip delivery target is not the exact public Blockly path');
+      const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+      const target=repeat&&repeat.pathObject&&repeat.pathObject.svgPath;
+      if(!target)throw new Error('current repeat has no exact tooltip-bound Blockly path');
+      if(target.tooltip!==repeat)throw new Error('current repeat path is not bound to its tooltip owner');
+      const hit=document.elementFromPoint(x,y);
+      if(hit!==target)throw new Error('tooltip delivery coordinate does not hit the current exact repeat path after focus');
+      const targetClass=String((target.getAttribute&&target.getAttribute('class'))||'');
+      if(!targetClass.includes('blocklyPath'))throw new Error('current exact repeat path is not a public Blockly path');
       const types=['mousemove','mouseover','mouseout','pointermove','pointerover','pointerout'];
-      const state={document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
+      const state={target:target,document:{},target:{},last:{},targetLast:{},targetSequence:[],cleanup:null};
       const pack=e=>({
         x:e.clientX,y:e.clientY,buttons:e.buttons,defaultPrevented:e.defaultPrevented,
         targetTag:(e.target&&e.target.tagName)||'',
         targetClass:String((e.target&&e.target.getAttribute&&e.target.getAttribute('class'))||''),
-        relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||'')
+        relatedClass:String((e.relatedTarget&&e.relatedTarget.getAttribute&&e.relatedTarget.getAttribute('class'))||''),
+        targetIsObserved:e.target===target,relatedIsObserved:e.relatedTarget===target
       });
       const documentHandlers={};
       const targetHandlers={};
@@ -108,7 +123,8 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
       const result={
         document:s.document,target:s.target,last:s.last,targetLast:s.targetLast,targetSequence:s.targetSequence,
         hitTag:(hit&&hit.tagName)||'',
-        hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||'')
+        hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||''),
+        hitIsObserved:hit===s.target
       };
       s.cleanup(); delete window[key];
       return result;
