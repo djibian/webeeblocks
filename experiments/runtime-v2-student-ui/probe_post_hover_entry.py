@@ -56,9 +56,9 @@ _ORIGINAL_HOVER = probe.Cdp.hover
 # and minimum-clearance checks remain authoritative and fail closed.
 _RESET_REPEAT_HOVER_RECT = r'''(() => {
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
- const resetBlock=workspace.getBlocksByType('controls_if',false)[0];
+ const resetBlock=workspace.getBlocksByType('webeeblocks_v2_takeoff',false)[0];
  if(!repeat)throw new Error('rendered repeat block missing for hover');
- if(!resetBlock)throw new Error('rendered condition block missing for tooltip-owner reset');
+ if(!resetBlock)throw new Error('rendered takeoff block missing for tooltip-owner reset');
  const repeatRoot=repeat.getSvgRoot();
  const resetRoot=resetBlock.getSvgRoot();
  if(!repeatRoot||!resetRoot)throw new Error('rendered tooltip-owner reset roots missing');
@@ -132,6 +132,7 @@ _RESET_REPEAT_HOVER_RECT = r'''(() => {
 
  const reset=stablePoint(resetPath,2);
  if(!reset)throw new Error('no stable real-pointer tooltip-owner reset point');
+ if(repeatRoot.contains(resetPath))throw new Error('tooltip-owner reset path unexpectedly belongs to repeat root');
  if(document.elementFromPoint(reset.x,reset.y)!==resetPath)throw new Error('tooltip-owner reset point lost exact DOM identity');
 
  return {
