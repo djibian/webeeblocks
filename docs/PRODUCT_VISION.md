@@ -45,23 +45,57 @@ A reference progression is:
 9. open autonomous strategy;
 10. final challenge, prepared in simulation and ultimately executed on the real Crazyflie when the physical backend is proven safe and reliable.
 
-The exact number and worlds may evolve, but activities should accumulate prior concepts instead of isolating each concept artificially.
+The exact number and worlds may evolve, but activities should accumulate prior concepts instead of isolating each concept artificially. **Activity count alone is not pedagogical acceptance**: the progression is only valid when each activity is a complete problem situation whose world and mission make the intended new concept genuinely useful or necessary and deliberately reuse earlier concepts.
 
 Progression is **teacher-guided**. WebeeBlocks itself does not need per-student unlock state. The teacher decides which activity files/resources are available, for example through Moodle or school storage.
 
-A world may support several activity profiles or difficulty levels where useful.
+A world may support several activity profiles or difficulty levels where useful, but world reuse is not a goal in itself. Reuse one world only when its geometry, objects, events and available perceptions genuinely support the intended student missions.
 
 ## Mission vs student program
 
 The activity defines the problem; the student builds the solution.
 
-An activity may define the Webots world, instructions, toolbox, numeric bounds, allowed capabilities, required sensors/actuators, compatible real hardware, success/failure rules, optional time/score, and difficulty profile.
+The **student-facing mission** and the **internal pedagogical objective** are distinct. A sentence such as “memorize a measured distance and reuse it” may describe an internal learning objective, but it is not by itself a complete scenario or student mission. The student must receive a concrete, explicit and sufficiently complete problem situation that explains what the robot/drone must accomplish and what observable outcome constitutes success.
+
+A substantial learning activity should define the Webots world/scenario, student mission, initial state, toolbox, numeric bounds, allowed capabilities, required sensors/actuators, compatible real hardware where relevant, observable success rules, optional failure rules, optional time/score and difficulty profile.
+
+The world is part of the pedagogy, not a neutral background. Its geometry, obstacles, zones, events, sensor availability and other constraints should create the need for the target concept. Prefer situations in which the concept is functionally necessary or the natural algorithmic response to the mission rather than merely required by wording.
+
+For each activity, the intended design should be explainable as:
+
+`new concept → world property that makes it necessary → student mission → prior concepts reused → executable success criteria`
+
+Examples of this rule include:
+
+- repetition: the world contains a genuine repeated structure or task;
+- condition: materially different situations require different behaviours;
+- sensing: information from the world is necessary for a later decision;
+- several perceptions: a decision genuinely depends on several observations;
+- variable/memory: information is acquired at one time, later becomes unavailable, and must be reused in several later decisions;
+- open autonomous strategy: several prior concepts must be combined without encoding the strategy in task-specific magic blocks.
+
+The student may be told which new concept will be useful — for example that a variable will be needed to remember information — without being given the algorithmic solution. Later activities should naturally reuse prior sequences, parameters, repetition, sensing, comparisons, conditions and variables instead of resetting to isolated exercises.
 
 Avoid magic solution blocks such as “avoid obstacle”. Prefer generic primitives that let the student construct the strategy: range sensing, comparisons, conditions, repetition, variables, movement primitives, etc.
 
 Timing/scoring belongs to the activity/world, not to the student algorithm unless the learning objective explicitly requires it.
 
 There is no student-to-student ranking. If an activity uses time or score, it is for the activity itself or for personal optimization, not for a leaderboard.
+
+## Executable activity outcome
+
+A substantial activity should be able to determine whether its **mission** was achieved from observable world/mission state rather than by matching one expected Blockly solution.
+
+The activity contract may therefore define:
+
+- explicit initial state;
+- one or more observable success conditions;
+- explicit failure conditions when useful;
+- unfinished/interrupted state when relevant.
+
+At the end of an execution, WebeeBlocks should provide a simple non-prescriptive outcome such as **mission achieved**, **mission not achieved** or **interrupted**. This feedback belongs to the activity loop and is not an assessment history, automatic tutor or solution diagnosis.
+
+Do **not** infer success from the presence of particular blocks, a specific AST shape or one reference strategy. Do **not** provide pedagogical hints, strategy suggestions or automatic explanations of failure. The student should still learn through observation, reasoning, modification and rerun.
 
 ## Generic activity architecture
 
@@ -76,6 +110,8 @@ The same student program should be able to target Webots and, when relevant and 
 An activity starter may remain a `.wbb` project that references a declarative activity/profile and contains the initial Blockly workspace. The complete pedagogical definition of the activity does not need to be duplicated into the starter file; the activity chooser selects the starter/profile workflow, while **Open** resumes an already-created project.
 
 Activity authoring does **not** currently require a teacher-facing graphical editor. Activities may be maintained as declarative, versionable files and created/modified by the project owner with AI/development assistance. Do not build a large “activity studio” without a demonstrated need.
+
+The generic variable vocabulary should support ordinary memory operations coherently, including reading/assigning a variable and **changing a variable by a value** so increment, decrement, counters and accumulators do not require task-specific blocks.
 
 ## Reference Crazyflie capability coverage
 
@@ -197,15 +233,17 @@ WebeeBlocks is not intended to become:
 
 ## Product principles
 
-1. **Compact guided pedagogical progression (about 8–12 activities)**.
-2. **Student autonomy: observe, reason and correct without hints**.
-3. **Debugging without altering the student program**.
-4. **Simulation-only step-by-step debugging; never in real flight**.
-5. **Manual, portable student project files; activity starters are templates and resuming an existing project remains a distinct workflow; no progress/history tracking**.
-6. **Simulation ↔ real-hardware continuity for the student program**.
-7. **Real flight only as a teacher-authorized final activity**.
-8. **Strict separation between pedagogical problem and student solution**.
-9. **Generic configurable activities over task-specific product forks**.
-10. **WebeeBlocks stays a focused training tool; Moodle and evaluation remain external concerns**.
-11. **Blockly 13.2.1 + Zelos is the fixed visual-programming foundation; Scratch familiarity guides ergonomics without turning WebeeBlocks into a Scratch clone**.
-12. **Broad reference-hardware capability coverage through a small generic Blockly vocabulary, with simulation/physical continuity where relevant**.
+1. **Compact guided pedagogical progression (about 8–12 substantial problem situations), with quality and cumulative learning taking precedence over activity count**.
+2. **Each activity is an explicit student mission in a world designed to make the target concept useful/necessary while reusing prior concepts**.
+3. **Executable mission outcomes provide simple success/failure/interruption feedback without solution matching, hints or persistent progress tracking**.
+4. **Student autonomy: observe, reason and correct without hints**.
+5. **Debugging without altering the student program**.
+6. **Simulation-only step-by-step debugging; never in real flight**.
+7. **Manual, portable student project files; activity starters are templates and resuming an existing project remains a distinct workflow; no progress/history tracking**.
+8. **Simulation ↔ real-hardware continuity for the student program**.
+9. **Real flight only as a teacher-authorized final activity**.
+10. **Strict separation between pedagogical problem and student solution**.
+11. **Generic configurable activities over task-specific product forks**.
+12. **WebeeBlocks stays a focused training tool; Moodle and evaluation remain external concerns**.
+13. **Blockly 13.2.1 + Zelos is the fixed visual-programming foundation; Scratch familiarity guides ergonomics without turning WebeeBlocks into a Scratch clone**.
+14. **Broad reference-hardware capability coverage through a small generic Blockly vocabulary, with simulation/physical continuity where relevant**.
