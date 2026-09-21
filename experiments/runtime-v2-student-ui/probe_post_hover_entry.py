@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Run the canonical student UI probe with passive post-hover diagnostics.
+"""Run the canonical student UI probe with a stable single-entry real hover.
 
-The canonical product/runtime probe and the existing exact-path delivery boundary
-remain authoritative.  This wrapper adds only passive browser observations after
-the one canonical hover has completed: page focus/visibility, ordinary
-mouse/pointer traffic, and public tooltip DOM mutations/visibility.  It does not
-wrap timers, dispatch additional input, mutate Blockly/workspace state, retry the
-hover, or change the 5 s tooltip oracle.
+Natural #414 recurrences established two distinct harness-side instability
+boundaries while preserving the product/runtime behavior: the canonical adjacent
+settle move deliberately clears and replaces Blockly's 750 ms tooltip timer, and
+a later sibling-path transition can hide an already rendered tooltip before the
+public polling oracle observes it.  This wrapper therefore keeps one ordinary
+real pointer entry on the exact tooltip-bound repeat path, but chooses that entry
+well inside one DOM path and then leaves the pointer stationary until the
+unchanged 5 s visible/non-empty/localized oracle observes the public tooltip.
+
+The existing same-session focus and public pointer-delivery checks remain
+mandatory.  Passive post-hover observations remain diagnostic only.  This module
+does not wrap Blockly timers, synthesize tooltip visibility, mutate Blockly or
+workspace state, retry the hover, or weaken the acceptance timeout/assertions.
 """
 
 from __future__ import annotations
@@ -19,7 +26,64 @@ import probe_entry
 
 
 _ORIGINAL_EVAL = probe.Cdp.eval
-_ORIGINAL_HOVER = probe.Cdp.hover
+
+
+_STABLE_REPEAT_HOVER_RECT = r'''(() => {
+ const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+ if(!repeat)throw new Error('rendered repeat block missing for stable hover');
+ const repeatRoot=repeat.getSvgRoot();
+ if(!repeatRoot)throw new Error('rendered repeat SVG root missing for stable hover');
+ const repeatPath=repeat.pathObject&&repeat.pathObject.svgPath;
+ if(!repeatPath)throw new Error('rendered repeat has no Blockly tooltip-bound path object');
+ if(!repeatRoot.contains(repeatPath))throw new Error('Blockly tooltip-bound repeat path is outside rendered repeat root');
+ if(repeatPath.tooltip!==repeat)throw new Error('rendered repeat path is not bound to the repeat tooltip object');
+ const rb=repeatRoot.getBoundingClientRect();
+ const samePath=(x,y)=>document.elementFromPoint(x,y)===repeatPath;
+ const clearanceAt=(x,y)=>{
+   let clearance=0;
+   for(let r=1;r<=8;r++){
+     const points=[
+       [x-r,y],[x+r,y],[x,y-r],[x,y+r],
+       [x-r,y-r],[x-r,y+r],[x+r,y-r],[x+r,y+r]
+     ];
+     if(!points.every(([px,py])=>samePath(px,py)))break;
+     clearance=r;
+   }
+   return clearance;
+ };
+ let best=null;
+ for(let y=Math.ceil(rb.top)+2;y<Math.floor(rb.bottom);y+=2){
+   for(let x=Math.ceil(rb.left)+2;x<Math.floor(rb.right);x+=2){
+     if(!samePath(x,y))continue;
+     const clearance=clearanceAt(x,y);
+     if(!best||clearance>best.clearance)best={x:x,y:y,clearance:clearance};
+   }
+ }
+ if(!best||best.clearance<3)throw new Error('no stable interior hover point on exact Blockly tooltip-bound repeat path');
+ const outsideCandidates=[
+   [Math.max(1,Math.floor(rb.left)-8),best.y],
+   [Math.min(innerWidth-2,Math.ceil(rb.right)+8),best.y],
+   [best.x,Math.max(1,Math.floor(rb.top)-8)],
+   [best.x,Math.min(innerHeight-2,Math.ceil(rb.bottom)+8)],
+ ];
+ const outside=outsideCandidates.find(([ox,oy])=>{
+   const hit=document.elementFromPoint(ox,oy);
+   return hit&&!repeatRoot.contains(hit);
+ });
+ if(!outside)throw new Error('no outside hover origin for stable exact-path trajectory');
+ return {
+   x:best.x-1,y:best.y-1,width:2,height:2,
+   entryX:best.x,entryY:best.y,settleX:best.x,settleY:best.y,
+   outsideX:outside[0],outsideY:outside[1],
+   hitTag:repeatPath.tagName,
+   hitClass:String((repeatPath.getAttribute&&repeatPath.getAttribute('class'))||''),
+   stableClearance:best.clearance
+ };
+})()'''
+
+# The canonical probe reads this expression immediately before its one hover.
+probe.REPEAT_HOVER_RECT = _STABLE_REPEAT_HOVER_RECT
+
 
 _POST_HOVER_INSTALL = r'''((x,y) => {
   const key='__webeeblocksCiTooltipPostHover';
@@ -41,10 +105,13 @@ _POST_HOVER_INSTALL = r'''((x,y) => {
   const pack=e=>({
     type:e.type,at:now(),x:e.clientX,y:e.clientY,buttons:e.buttons,
     targetTag:(e.target&&e.target.tagName)||'',targetClass:classOf(e.target),
-    relatedClass:classOf(e.relatedTarget)
+    relatedClass:classOf(e.relatedTarget),
+    targetIsObserved:e.target===target,relatedIsObserved:e.relatedTarget===target,
+    targetSharesTooltip:!!(e.target&&target&&e.target.tooltip&&e.target.tooltip===target.tooltip),
+    relatedSharesTooltip:!!(e.relatedTarget&&target&&e.relatedTarget.tooltip&&e.relatedTarget.tooltip===target.tooltip)
   });
   const state={
-    installedAt:now(),events:[],lifecycle:[],mutations:[],cleanup:null,
+    installedAt:now(),target:target,events:[],lifecycle:[],mutations:[],cleanup:null,
     initial:{focused:document.hasFocus(),visibility:document.visibilityState,
       tooltipVisible:hasVisible ? !!tooltip.isVisible() : null,
       divDisplay:getComputedStyle(div).display,
@@ -105,6 +172,8 @@ _POST_HOVER_SNAPSHOT = r'''((x,y) => {
     current:{
       at:performance.now(),focused:document.hasFocus(),visibility:document.visibilityState,
       hitTag:(hit&&hit.tagName)||'',hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||''),
+      hitIsObserved:hit===s.target,
+      hitSharesTooltip:!!(hit&&s.target&&hit.tooltip&&hit.tooltip===s.target.tooltip),
       tooltipVisible:hasVisible ? !!tooltip.isVisible() : null,
       divExists:!!div,divDisplay:div ? getComputedStyle(div).display : null,
       divText:div ? String(div.innerText||div.textContent||'').trim().slice(0,240) : null
@@ -141,7 +210,7 @@ def _snapshot(c: probe.Cdp) -> object:
     return _ORIGINAL_EVAL(
         c,
         _POST_HOVER_SNAPSHOT
-        % (float(rect["settleX"]), float(rect["settleY"])),
+        % (float(rect["entryX"]), float(rect["entryY"])),
     )
 
 
@@ -156,13 +225,107 @@ def _emit(c: probe.Cdp, reason: str, cleanup: bool) -> None:
         c._webeeblocks_post_hover_active = False
 
 
+def _perform_single_entry_with_delivery(
+    self: probe.Cdp, rect: dict[str, object]
+) -> None:
+    focus = probe_entry._same_session_focus(self)
+    gesture = probe_entry._gesture_snapshot(self)
+    probe_entry._install_delivery_probe(self, rect)
+    delivery = None
+    try:
+        # One ordinary outside -> exact-path entry.  Do not dispatch the former
+        # adjacent settle move: Blockly schedules its tooltip from this one
+        # target pointermove and the pointer then remains stationary.
+        self.call(
+            "Input.dispatchMouseEvent",
+            {
+                "type": "mouseMoved",
+                "x": rect["outsideX"],
+                "y": rect["outsideY"],
+            },
+        )
+        time.sleep(0.1)
+        self.call(
+            "Input.dispatchMouseEvent",
+            {"type": "mouseMoved", "x": rect["entryX"], "y": rect["entryY"]},
+        )
+        time.sleep(0.04)
+        delivery = probe_entry._read_delivery(self, rect)
+    except BaseException:
+        try:
+            delivery = probe_entry._read_delivery(self, rect)
+            print(
+                "WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC "
+                + json.dumps(
+                    {"focus": focus, "gesture": gesture, "delivery": delivery},
+                    sort_keys=True,
+                )
+            )
+        except Exception:
+            try:
+                probe_entry._cleanup_delivery_probe(self)
+            except Exception:
+                pass
+        raise
+
+    if not delivery:
+        raise RuntimeError("real tooltip hover produced no public pointer-delivery observation")
+    evidence = {"focus": focus, "gesture": gesture, "delivery": delivery}
+    print("WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC " + json.dumps(evidence, sort_keys=True))
+
+    document = delivery.get("document", {})
+    if document.get("mousemove", 0) < 2 or document.get("pointermove", 0) < 2:
+        raise RuntimeError(
+            "real tooltip hover did not deliver bounded public document move events: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+    if document.get("mouseover", 0) < 1 or document.get("pointerover", 0) < 1:
+        raise RuntimeError(
+            "real tooltip hover did not deliver public document entry events: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
+    target = delivery.get("target", {})
+    if (
+        target.get("mousemove", 0) < 1
+        or target.get("pointermove", 0) < 1
+        or target.get("mouseover", 0) < 1
+        or target.get("pointerover", 0) < 1
+    ):
+        raise RuntimeError(
+            "real tooltip hover did not reach the exact Blockly path at target phase: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+    mouse_sequence = [
+        event
+        for event in delivery.get("targetSequence", [])
+        if event in ("mouseover", "mouseout", "mousemove")
+    ]
+    if not mouse_sequence or mouse_sequence[-1] != "mousemove":
+        raise RuntimeError(
+            "real tooltip hover did not finish with a stable exact-path target mousemove: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
+    hit_class = str(delivery.get("hitClass", ""))
+    target_mouse = delivery.get("targetLast", {}).get("mousemove", {})
+    target_pointer = delivery.get("targetLast", {}).get("pointermove", {})
+    if (
+        "blocklyPath" not in hit_class
+        or "blocklyPath" not in str(target_mouse.get("targetClass", ""))
+        or "blocklyPath" not in str(target_pointer.get("targetClass", ""))
+    ):
+        raise RuntimeError(
+            "real tooltip hover did not settle on the exact public Blockly path: "
+            + json.dumps(evidence, sort_keys=True)
+        )
+
+
 def hover_with_post_hover_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
-    # Keep the already-integrated exact-path/focus/delivery diagnostic unchanged.
-    _ORIGINAL_HOVER(self, rect)
+    _perform_single_entry_with_delivery(self, rect)
     installed = _ORIGINAL_EVAL(
         self,
-        _POST_HOVER_INSTALL
-        % (float(rect["settleX"]), float(rect["settleY"])),
+        _POST_HOVER_INSTALL % (float(rect["entryX"]), float(rect["entryY"])),
     )
     if not installed:
         raise RuntimeError("passive post-hover tooltip observer could not be installed")
@@ -186,9 +349,6 @@ def eval_with_post_hover_diagnostics(self: probe.Cdp, expr: str):
     elapsed = time.monotonic() - getattr(
         self, "_webeeblocks_post_hover_started", time.monotonic()
     )
-    # The expected public tooltip delay is 750 ms.  A single late snapshot after
-    # 4.25 s cannot make a correctly scheduled tooltip pass, while preserving
-    # evidence from almost the entire unchanged 5 s oracle window.
     if elapsed >= 4.25 and not getattr(
         self, "_webeeblocks_post_hover_late_emitted", False
     ):
