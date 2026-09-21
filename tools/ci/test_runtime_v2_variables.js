@@ -61,10 +61,18 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   arithmetic.getInput('A').connection.connect(left.outputConnection);arithmetic.getInput('B').connection.connect(right.outputConnection);
   return arithmetic;
 }
+function variableChangeBlock(workspace,variable,deltaValue){
+  const change=workspace.newBlock('math_change');
+  const delta=workspace.newBlock('math_number');
+  change.getField('VAR').setValue(variable.getId());
+  delta.setFieldValue(String(deltaValue),'NUM');
+  change.getInput('DELTA').connection.connect(delta.outputConnection);
+  return change;
+}
 
 (async function(){
   const p4=Profiles.resolveById(Activities.DOCUMENT,'progression-combined-decisions-v1',Activities.BLOCK_CATALOG),p5=profile();
-  assert.strictEqual(p4.world,p5.world);assert(p4.toolbox.every(type=>p5.toolbox.includes(type)),'memory profile must be cumulative');assert(p5.toolbox.includes('variables_set'));assert(p5.toolbox.includes('variables_get'));assert(p5.runtime.allowedStatementKinds.includes('set_variable'));
+  assert.strictEqual(p4.world,p5.world);assert(p4.toolbox.every(type=>p5.toolbox.includes(type)),'memory profile must be cumulative');assert(p5.toolbox.includes('variables_set'));assert(p5.toolbox.includes('variables_get'));assert(p5.toolbox.includes('math_change'));assert.deepStrictEqual(p5.parameterBounds.math_number.NUM,{min:-10,max:10,step:1});assert(p5.runtime.allowedStatementKinds.includes('set_variable'));
   const workspace=buildWorkspace(),ast=compile(workspace);
   const set=ast.program.find(node=>node.kind==='set_variable');assert(set);assert.deepStrictEqual(set.variable,{id:'memo-distance',name:'distance mémorisée'});assert.strictEqual(set.value.kind,'range');
   const normal=await execute(ast,{}),variableEvents=[];
@@ -89,6 +97,31 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   await assert.rejects(Interpreter.run(ast,backend([]),{maxSteps:1}),/execution budget exceeded/);
   await roundTrip(workspace,ast);
 
+  const changeWorkspace=new Blockly.Workspace();
+  const counter=changeWorkspace.getVariableMap().createVariable('compteur','', 'counter');
+  const incrementBlock=variableChangeBlock(changeWorkspace,counter,1);
+  ActivityContract.preflightWorkspace(p5,changeWorkspace);
+  ActivityContract.applyFieldBounds(p5,changeWorkspace);
+  const incrementAst=SemanticAst.compileStatement(incrementBlock);
+  assert.deepStrictEqual(incrementAst,{kind:'set_variable',variable:{id:'counter',name:'compteur'},value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:{id:'counter',name:'compteur'}},right:{kind:'number',value:1}}},'standard Blockly math_change did not lower to existing neutral variable/arithmetic AST');
+  const incrementProgram={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'set_variable',variable:{id:'counter',name:'compteur'},value:{kind:'number',value:2}},incrementAst,{kind:'land'}]};
+  ActivityContract.preflightAst(p5,incrementProgram);
+  const incrementRun=await Interpreter.run(incrementProgram,{async takeoff(){},async land(){}},{maxSteps:50});
+  assert.deepStrictEqual(incrementRun.variables,{compteur:3},'generic +1 variable change did not execute through existing set-variable semantics');
+
+  const decrementWorkspace=new Blockly.Workspace();
+  const decrementCounter=decrementWorkspace.getVariableMap().createVariable('compteur','', 'counter');
+  ActivityContract.applyFieldBounds(p5,decrementWorkspace);
+  const decrementBlock=variableChangeBlock(decrementWorkspace,decrementCounter,-1);
+  ActivityContract.preflightWorkspace(p5,decrementWorkspace);
+  const decrementAst=SemanticAst.compileStatement(decrementBlock);
+  assert.strictEqual(decrementAst.value.right.value,-1,'memory profile did not preserve a negative generic change value');
+  const decrementProgram={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:0.8},{kind:'set_variable',variable:{id:'counter',name:'compteur'},value:{kind:'number',value:2}},decrementAst,{kind:'land'}]};
+  ActivityContract.preflightAst(p5,decrementProgram);
+  const decrementRun=await Interpreter.run(decrementProgram,{async takeoff(){},async land(){}},{maxSteps:50});
+  assert.deepStrictEqual(decrementRun.variables,{compteur:1},'generic -1 variable change did not execute through existing set-variable semantics');
+  changeWorkspace.dispose();decrementWorkspace.dispose();
+
   const arithmeticWorkspace=new Blockly.Workspace();
   const compiledArithmetic=SemanticAst.compileExpression(arithmeticBlock(arithmeticWorkspace,'MULTIPLY',3,4));
   assert.deepStrictEqual(compiledArithmetic,{kind:'arithmetic',op:'MULTIPLY',left:{kind:'number',value:3},right:{kind:'number',value:4}},'standard Blockly arithmetic did not compile to backend-neutral AST');
@@ -109,5 +142,5 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
     'division by zero must fail with a correctable student outcome'
   );
   arithmeticWorkspace.dispose();
-  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
+  console.log('PASS variables-memory: Blockly model -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> generic +1/-1 variable change -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
