@@ -129,7 +129,13 @@ def _read_delivery(c: probe.Cdp, rect: dict[str, object]) -> dict[str, object]:
       s.cleanup(); delete window[key];
       return result;
     })(%s,%s)''' % (settle_x, settle_y)
-    return c.eval(expression)
+    result = c.eval(expression)
+    if not result or result.get("hitIsObserved") is not True:
+        raise RuntimeError(
+            "tooltip delivery coordinate left the current exact repeat path before evidence read: "
+            + json.dumps(result, sort_keys=True)
+        )
+    return result
 
 
 def _cleanup_delivery_probe(c: probe.Cdp) -> None:
