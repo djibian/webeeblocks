@@ -1,6 +1,16 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
+
+const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
+assert.match(mainSource,
+  /runtimeRunning = false;\s*runtimeTerminal = true;\s*updateRuntimeActions\(\);\s*var missionOutcome = await WebeeBlocksRuntimeOutcome\.evaluateMission\(runtimeProfile, runtimeBackend\);/,
+  'Runtime-v2 completion must evaluate the active declarative mission only after program execution becomes terminal');
+assert.match(mainSource,
+  /if \(missionOutcome\)\s*setRuntimeStatus\(missionOutcome\.state, missionOutcome\.detail\);\s*else\s*setRuntimeStatus\('TERMINÉ', 'Programme exécuté'\);/,
+  'mission outcome presentation must preserve the existing non-mission completion path');
 
 (async function() {
   assert.strictEqual(Outcome.MISSION_EVALUATION_TYPE, 'mission-state-v1');
@@ -40,7 +50,7 @@ const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime
     'unknown mission states must not be presented as success'
   );
 
-  console.log('PASS backend-neutral activity mission outcome contract');
+  console.log('PASS backend-neutral activity mission outcome contract and Runtime-v2 completion wiring');
 })().catch(error => {
   console.error(error);
   process.exit(1);
