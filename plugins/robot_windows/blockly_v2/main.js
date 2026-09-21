@@ -116,6 +116,7 @@ function applySemanticBuiltinStyles() {
   overrideBuiltinBlockStyle('logic_operation', 'operator_blocks');
   overrideBuiltinBlockStyle('math_number', 'operator_blocks');
   overrideBuiltinBlockStyle('math_arithmetic', 'operator_blocks');
+  overrideBuiltinBlockStyle('math_change', 'variable_blocks');
   overrideBuiltinBlockStyle('variables_set', 'variable_blocks');
   overrideBuiltinBlockStyle('variables_get', 'variable_blocks');
 }
