@@ -59,27 +59,46 @@ def _gesture_snapshot(c: probe.Cdp) -> dict[str, object]:
     return state
 
 
-def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
-    # Focus can change compositor/layout state between the canonical pre-hover
-    # geometry read and real input. Re-resolve the same authorized hover geometry
-    # after focus, then bind evidence to Blockly's current exact repeat path.
+def _refresh_hover_geometry(c: probe.Cdp, rect: dict[str, object]) -> None:
     fresh_rect = c.eval(probe.REPEAT_HOVER_RECT)
     if not isinstance(fresh_rect, dict):
-        raise RuntimeError("real tooltip hover geometry unavailable after focus")
+        raise RuntimeError("real tooltip hover geometry unavailable in current focused frame")
     rect.clear()
     rect.update(fresh_rect)
 
+
+def _install_delivery_probe(
+    c: probe.Cdp,
+    rect: dict[str, object],
+    outside_x: float | None = None,
+    outside_y: float | None = None,
+) -> None:
+    # Re-resolve after any already-dispatched outside move, then bind evidence to
+    # Blockly's exact current repeat path. When the caller supplies the actual
+    # outside pointer coordinate, prove that it is still outside this current
+    # repeat root before the one real entry is dispatched.
+    _refresh_hover_geometry(c, rect)
+
     settle_x = float(rect["settleX"])
     settle_y = float(rect["settleY"])
-    expression = r'''((x,y) => {
+    outside_x_js = "null" if outside_x is None else repr(float(outside_x))
+    outside_y_js = "null" if outside_y is None else repr(float(outside_y))
+    expression = r'''((x,y,ox,oy) => {
       const key='__webeeblocksCiTooltipDelivery';
       if(window[key]&&window[key].cleanup)window[key].cleanup();
       const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+      const repeatRoot=repeat&&repeat.getSvgRoot&&repeat.getSvgRoot();
       const target=repeat&&repeat.pathObject&&repeat.pathObject.svgPath;
-      if(!target)throw new Error('current repeat has no exact tooltip-bound Blockly path');
+      if(!repeat||!repeatRoot||!target)throw new Error('current repeat has no exact rendered tooltip-bound Blockly path');
       if(target.tooltip!==repeat)throw new Error('current repeat path is not bound to its tooltip owner');
       const hit=document.elementFromPoint(x,y);
-      if(hit!==target)throw new Error('tooltip delivery coordinate does not hit the current exact repeat path after focus');
+      if(hit!==target)throw new Error('tooltip delivery coordinate does not hit the current exact repeat path');
+      let outsideStillOutside=null;
+      if(ox!==null&&oy!==null){
+        const outsideHit=document.elementFromPoint(ox,oy);
+        if(!outsideHit||repeatRoot.contains(outsideHit))throw new Error('actual pointer origin is not outside the current repeat root');
+        outsideStillOutside=true;
+      }
       const targetClass=String((target.getAttribute&&target.getAttribute('class'))||'');
       if(!targetClass.includes('blocklyPath'))throw new Error('current exact repeat path is not a public Blockly path');
       const types=['mousemove','mouseover','mouseout','pointermove','pointerover','pointerout'];
@@ -107,8 +126,8 @@ def _install_delivery_probe(c: probe.Cdp, rect: dict[str, object]) -> None:
         }
       };
       window[key]=state;
-      return true;
-    })(%s,%s)''' % (settle_x, settle_y)
+      return {hitIsCurrentRepeatPath:hit===target,tooltipOwnerIsRepeat:target.tooltip===repeat,outsideStillOutside:outsideStillOutside};
+    })(%s,%s,%s,%s)''' % (settle_x, settle_y, outside_x_js, outside_y_js)
     c.eval(expression)
 
 
