@@ -230,21 +230,26 @@ def _perform_single_entry_with_delivery(
 ) -> None:
     focus = probe_entry._same_session_focus(self)
     gesture = probe_entry._gesture_snapshot(self)
-    probe_entry._install_delivery_probe(self, rect)
+
+    # Resolve geometry in the focused frame, perform the required ordinary move
+    # to a point outside the repeat, and only then bind the delivery observer to
+    # Blockly's current exact repeat path. This ordering closes the exact-head
+    # refutation where the outside move could replace the pre-bound path node.
+    probe_entry._refresh_hover_geometry(self, rect)
+    outside_x = float(rect["outsideX"])
+    outside_y = float(rect["outsideY"])
+    self.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseMoved", "x": outside_x, "y": outside_y},
+    )
+    time.sleep(0.1)
+    probe_entry._install_delivery_probe(self, rect, outside_x, outside_y)
+
     delivery = None
     try:
-        # One ordinary outside -> exact-path entry.  Do not dispatch the former
-        # adjacent settle move: Blockly schedules its tooltip from this one
-        # target pointermove and the pointer then remains stationary.
-        self.call(
-            "Input.dispatchMouseEvent",
-            {
-                "type": "mouseMoved",
-                "x": rect["outsideX"],
-                "y": rect["outsideY"],
-            },
-        )
-        time.sleep(0.1)
+        # Exactly one ordinary real entry on the current exact path.  Do not
+        # dispatch the former adjacent settle move: Blockly schedules its tooltip
+        # from this one target pointermove and the pointer then remains stationary.
         self.call(
             "Input.dispatchMouseEvent",
             {"type": "mouseMoved", "x": rect["entryX"], "y": rect["entryY"]},
@@ -273,10 +278,13 @@ def _perform_single_entry_with_delivery(
     evidence = {"focus": focus, "gesture": gesture, "delivery": delivery}
     print("WEBEEBLOCKS_TOOLTIP_CAUSAL_DIAGNOSTIC " + json.dumps(evidence, sort_keys=True))
 
+    # The delivery probe is deliberately installed after the outside move. One
+    # document move plus the entry events therefore proves the single exact-path
+    # entry without observing or creating an extra target move.
     document = delivery.get("document", {})
-    if document.get("mousemove", 0) < 2 or document.get("pointermove", 0) < 2:
+    if document.get("mousemove", 0) < 1 or document.get("pointermove", 0) < 1:
         raise RuntimeError(
-            "real tooltip hover did not deliver bounded public document move events: "
+            "real tooltip hover did not deliver the single public document move event: "
             + json.dumps(evidence, sort_keys=True)
         )
     if document.get("mouseover", 0) < 1 or document.get("pointerover", 0) < 1:
@@ -314,9 +322,11 @@ def _perform_single_entry_with_delivery(
         "blocklyPath" not in hit_class
         or "blocklyPath" not in str(target_mouse.get("targetClass", ""))
         or "blocklyPath" not in str(target_pointer.get("targetClass", ""))
+        or target_mouse.get("targetIsObserved") is not True
+        or target_pointer.get("targetIsObserved") is not True
     ):
         raise RuntimeError(
-            "real tooltip hover did not settle on the exact public Blockly path: "
+            "real tooltip hover did not settle on the exact current public Blockly path: "
             + json.dumps(evidence, sort_keys=True)
         )
 
