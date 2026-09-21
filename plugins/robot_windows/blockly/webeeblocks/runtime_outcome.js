@@ -6,6 +6,13 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
 
+  var MISSION_EVALUATION_TYPE = 'mission-state-v1';
+  var MISSION_STATES = Object.freeze({
+    achieved: Object.freeze({state: 'MISSION RÉUSSIE', detail: 'Mission accomplie'}),
+    'not-achieved': Object.freeze({state: 'MISSION NON RÉUSSIE', detail: 'Mission non accomplie'}),
+    interrupted: Object.freeze({state: 'MISSION INTERROMPUE', detail: 'Mission interrompue'})
+  });
+
   function isRetryable(error) {
     return !!(error && error.code === 'PROGRAM_INVALID');
   }
@@ -40,5 +47,33 @@
     };
   }
 
-  return {classify: classify, isRetryable: isRetryable};
+  function supportsMissionEvaluation(evaluation) {
+    return !!(evaluation && evaluation.type === MISSION_EVALUATION_TYPE);
+  }
+
+  function classifyMission(raw) {
+    var status = typeof raw === 'string' ? raw : raw && raw.status;
+    var presentation = MISSION_STATES[status];
+    if (!presentation)
+      throw new Error('runtime outcome: invalid mission state: ' + String(status));
+    return {status: status, state: presentation.state, detail: presentation.detail};
+  }
+
+  async function evaluateMission(profile, backend) {
+    var evaluation = profile && profile.evaluation;
+    if (!supportsMissionEvaluation(evaluation))
+      return null;
+    if (!backend || typeof backend.readActivityOutcome !== 'function')
+      throw new Error('runtime outcome: backend mission outcome capability unavailable');
+    return classifyMission(await backend.readActivityOutcome(evaluation));
+  }
+
+  return {
+    classify: classify,
+    isRetryable: isRetryable,
+    MISSION_EVALUATION_TYPE: MISSION_EVALUATION_TYPE,
+    supportsMissionEvaluation: supportsMissionEvaluation,
+    classifyMission: classifyMission,
+    evaluateMission: evaluateMission
+  };
 });
