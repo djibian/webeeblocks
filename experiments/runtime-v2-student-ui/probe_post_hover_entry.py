@@ -1,12 +1,27 @@
 #!/usr/bin/env python3
-"""Run the canonical student UI probe with passive post-hover diagnostics.
+"""Run the canonical student UI probe with deterministic real-hover reset and passive diagnostics.
 
-The canonical product/runtime probe and the existing exact-path delivery boundary
-remain authoritative.  This wrapper adds only passive browser observations after
-the one canonical hover has completed: page focus/visibility, ordinary
-mouse/pointer traffic, and public tooltip DOM mutations/visibility.  It does not
-wrap timers, dispatch additional input, mutate Blockly/workspace state, retry the
-hover, or change the 5 s tooltip oracle.
+The product/runtime probe and existing exact-path delivery boundary remain
+authoritative. Natural #414 evidence has demonstrated two distinct real-pointer
+failure modes: a tooltip can render and be hidden by an edge-adjacent path
+transition, and a later stable same-path hover can receive ordinary pointer input
+without scheduling any visible tooltip. Blockly's tooltip state intentionally
+poisons an element after showing it and clears that poison when mouseover changes
+tooltip owner. A background-only first move cannot repair stale owner/poison
+state if a prior pointerout was lost.
+
+This wrapper therefore keeps the same three real pointer moves but makes their
+first point a stable path belonging to a different tooltip owner, then chooses
+entry/settle points on the exact tooltip-bound repeat path only where the bounded
+browser hit stack contains no competing Blockly path. This is not an
+outcome-conditioned retry. The 5 s public visible/non-empty/localized tooltip
+oracle and ordinary exit assertion remain unchanged.
+
+After the hover it retains passive browser observations: page focus/visibility,
+ordinary mouse/pointer traffic, public tooltip DOM mutations/visibility, exact
+DOM/tooltip-owner identity, and the Blockly-path hit stack at the settle point.
+It does not wrap timers or Blockly lifecycle functions, mutate tooltip/workspace
+state, synthesize visibility, retry the hover, or weaken the oracle.
 """
 
 from __future__ import annotations
@@ -21,14 +36,164 @@ import probe_entry
 _ORIGINAL_EVAL = probe.Cdp.eval
 _ORIGINAL_HOVER = probe.Cdp.hover
 
+# Blockly 13.2.x tooltip semantics leave a shown element poisoned until an
+# onMouseOver transition changes tooltip owner (or a completed pointerout clears
+# the state). #491 showed that a stable repeat-path entry can still receive
+# pointerover/pointermove while producing no tooltip at all. Make the existing
+# first/outside move causally useful: hit a different tooltip-bound block before
+# entering the repeat block. Keep repeat entry/settle on one exact DOM path and
+# away from SVG hit-test edges to retain the independent post-fire lesson from
+# the earlier #485 recurrence.
+#
+# The search is deliberately finite. The previous exhaustive 2 px raster with
+# radii up to 8 caused the exact Ready Robot Window CDP evaluation to time out,
+# while the later fixed bounding-box fraction grid could miss the non-rectangular
+# Zelos path entirely. Derive candidates from the actual SVG path instead: sample
+# a fixed number of arc-length positions, compute the screen-space path normal,
+# and test only three bounded offsets on either side. Ready run 35605362137 then
+# showed why a top-hit-only clearance test is insufficient: a stationary pointer
+# changed from the exact repeat path to another blocklyPath immediately after the
+# tooltip rendered. Candidate acceptance therefore checks the bounded public
+# elementsFromPoint() stack and rejects every point whose stack contains any
+# competing Blockly path. The prior 3 px entry / 2 px settle minimum remains; the
+# causal improvement is stack exclusivity, not a larger ungrounded distance.
+_RESET_REPEAT_HOVER_RECT = r'''(() => {
+ const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
+ const resetBlock=workspace.getBlocksByType('webeeblocks_v2_takeoff',false)[0];
+ if(!repeat)throw new Error('rendered repeat block missing for hover');
+ if(!resetBlock)throw new Error('rendered takeoff block missing for tooltip-owner reset');
+ const repeatRoot=repeat.getSvgRoot();
+ const resetRoot=resetBlock.getSvgRoot();
+ if(!repeatRoot||!resetRoot)throw new Error('rendered tooltip-owner reset roots missing');
+ const repeatPath=repeat.pathObject&&repeat.pathObject.svgPath;
+ const resetPath=resetBlock.pathObject&&resetBlock.pathObject.svgPath;
+ if(!repeatPath||!resetPath)throw new Error('rendered tooltip-bound paths missing');
+ if(!repeatRoot.contains(repeatPath)||!resetRoot.contains(resetPath))throw new Error('tooltip-bound path outside rendered block root');
+ if(repeatPath.tooltip!==repeat||resetPath.tooltip!==resetBlock)throw new Error('rendered path is not bound to its block tooltip object');
+ if(resetPath.tooltip===repeatPath.tooltip)throw new Error('tooltip-owner reset must use a different tooltip owner');
+
+ const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+ const blocklyPathsAt=(x,y)=>document.elementsFromPoint(x,y).filter(node=>classOf(node).includes('blocklyPath'));
+ const sameExclusive=(path,x,y)=>{
+   const paths=blocklyPathsAt(x,y);
+   return paths.length===1&&paths[0]===path;
+ };
+ const hasClearance=(path,x,y,radius)=>{
+   if(!sameExclusive(path,x,y))return false;
+   for(let r=1;r<=radius;r++){
+     const points=[
+       [x-r,y],[x+r,y],[x,y-r],[x,y+r],
+       [x-r,y-r],[x-r,y+r],[x+r,y-r],[x+r,y+r]
+     ];
+     if(!points.every(([px,py])=>sameExclusive(path,px,py)))return false;
+   }
+   return true;
+ };
+ const ownerSummary=node=>{
+   const owner=node&&node.tooltip;
+   return owner&&typeof owner==='object'
+     ? {type:String(owner.type||''),id:String(owner.id||'')}
+     : null;
+ };
+ const stackSummary=(x,y)=>blocklyPathsAt(x,y).map(node=>({
+   tag:node.tagName||'',className:classOf(node),owner:ownerSummary(node)
+ }));
+ const toScreen=(matrix,point)=>{
+   const p=new DOMPoint(point.x,point.y).matrixTransform(matrix);
+   return {x:p.x,y:p.y};
+ };
+ const stablePoint=(path,minClearance)=>{
+   if(typeof path.getTotalLength!=='function'||typeof path.getPointAtLength!=='function'){
+     throw new Error('exact tooltip-bound SVG path geometry API unavailable');
+   }
+   const total=path.getTotalLength();
+   const matrix=path.getScreenCTM();
+   if(!(total>0)||!Number.isFinite(total)||!matrix){
+     throw new Error('exact tooltip-bound SVG path geometry unavailable');
+   }
+   const samples=12;
+   const offsets=[5,9,13];
+   const delta=Math.max(0.5,Math.min(2,total/(samples*4)));
+   for(let i=0;i<samples;i++){
+     const at=total*(i+0.5)/samples;
+     const center=toScreen(matrix,path.getPointAtLength(at));
+     const before=toScreen(matrix,path.getPointAtLength(Math.max(0,at-delta)));
+     const after=toScreen(matrix,path.getPointAtLength(Math.min(total,at+delta)));
+     const tx=after.x-before.x;
+     const ty=after.y-before.y;
+     const norm=Math.hypot(tx,ty);
+     if(!(norm>0))continue;
+     const nx=-ty/norm;
+     const ny=tx/norm;
+     for(const offset of offsets){
+       for(const sign of [1,-1]){
+         const x=Math.round(center.x+sign*nx*offset);
+         const y=Math.round(center.y+sign*ny*offset);
+         if(hasClearance(path,x,y,minClearance)){
+           return {x:x,y:y,clearance:minClearance};
+         }
+       }
+     }
+   }
+   return null;
+ };
+
+ const entry=stablePoint(repeatPath,3);
+ if(!entry)throw new Error('no exclusive stable interior hover point on exact Blockly tooltip-bound repeat path');
+ const neighbours=[
+   [entry.x+1,entry.y],[entry.x-1,entry.y],
+   [entry.x,entry.y+1],[entry.x,entry.y-1]
+ ];
+ const settle=neighbours.find(([sx,sy])=>hasClearance(repeatPath,sx,sy,2));
+ if(!settle)throw new Error('no exclusive stable settle point on exact Blockly tooltip-bound repeat path');
+
+ const reset=stablePoint(resetPath,2);
+ if(!reset)throw new Error('no exclusive stable real-pointer tooltip-owner reset point');
+ if(repeatRoot.contains(resetPath))throw new Error('tooltip-owner reset path unexpectedly belongs to repeat root');
+ if(document.elementFromPoint(reset.x,reset.y)!==resetPath)throw new Error('tooltip-owner reset point lost exact DOM identity');
+
+ return {
+   x:entry.x-1,y:entry.y-1,width:2,height:2,
+   entryX:entry.x,entryY:entry.y,settleX:settle[0],settleY:settle[1],
+   outsideX:reset.x,outsideY:reset.y,
+   hitTag:repeatPath.tagName,
+   hitClass:classOf(repeatPath),
+   stableClearance:entry.clearance,
+   entryStack:stackSummary(entry.x,entry.y),
+   settleStack:stackSummary(settle[0],settle[1]),
+   resetTag:resetPath.tagName,
+   resetClass:classOf(resetPath),
+   resetClearance:reset.clearance,
+   resetStack:stackSummary(reset.x,reset.y)
+ };
+})()'''
+
+# The canonical probe reads this expression immediately before its one hover.
+probe.REPEAT_HOVER_RECT = _RESET_REPEAT_HOVER_RECT
+
 _POST_HOVER_INSTALL = r'''((x,y) => {
   const key='__webeeblocksCiTooltipPostHover';
   const old=window[key];
   if(old&&old.cleanup)old.cleanup();
 
   const target=document.elementFromPoint(x,y);
-  const targetClass=String((target&&target.getAttribute&&target.getAttribute('class'))||'');
+  const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+  const targetClass=classOf(target);
   if(!target||!targetClass.includes('blocklyPath'))throw new Error('post-hover target is not the exact public Blockly path');
+
+  const ownerOf=node=>{
+    const owner=node&&node.tooltip;
+    return owner&&typeof owner==='object'
+      ? {type:String(owner.type||''),id:String(owner.id||'')}
+      : null;
+  };
+  const stackAt=(px,py)=>document.elementsFromPoint(px,py)
+    .filter(node=>classOf(node).includes('blocklyPath'))
+    .map(node=>({
+      tag:node.tagName||'',className:classOf(node),isObserved:node===target,
+      sharesObservedTooltip:!!(node&&target&&node.tooltip&&node.tooltip===target.tooltip),
+      owner:ownerOf(node)
+    }));
 
   const tooltip=window.Blockly&&Blockly.Tooltip;
   const hasVisible=!!tooltip&&typeof tooltip.isVisible==='function';
@@ -37,15 +202,19 @@ _POST_HOVER_INSTALL = r'''((x,y) => {
   if(!div)throw new Error('public Blockly tooltip div unavailable for post-hover observation');
 
   const now=()=>performance.now();
-  const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
   const pack=e=>({
     type:e.type,at:now(),x:e.clientX,y:e.clientY,buttons:e.buttons,
     targetTag:(e.target&&e.target.tagName)||'',targetClass:classOf(e.target),
-    relatedClass:classOf(e.relatedTarget)
+    relatedClass:classOf(e.relatedTarget),
+    targetOwner:ownerOf(e.target),relatedOwner:ownerOf(e.relatedTarget),
+    targetIsObserved:e.target===target,relatedIsObserved:e.relatedTarget===target,
+    targetSharesTooltip:!!(e.target&&target&&e.target.tooltip&&e.target.tooltip===target.tooltip),
+    relatedSharesTooltip:!!(e.relatedTarget&&target&&e.relatedTarget.tooltip&&e.relatedTarget.tooltip===target.tooltip)
   });
   const state={
-    installedAt:now(),events:[],lifecycle:[],mutations:[],cleanup:null,
+    installedAt:now(),target:target,events:[],lifecycle:[],mutations:[],cleanup:null,
     initial:{focused:document.hasFocus(),visibility:document.visibilityState,
+      stack:stackAt(x,y),
       tooltipVisible:hasVisible ? !!tooltip.isVisible() : null,
       divDisplay:getComputedStyle(div).display,
       divText:String(div.innerText||div.textContent||'').trim().slice(0,240)}
@@ -95,6 +264,20 @@ _POST_HOVER_INSTALL = r'''((x,y) => {
 _POST_HOVER_SNAPSHOT = r'''((x,y) => {
   const s=window.__webeeblocksCiTooltipPostHover;
   if(!s)return null;
+  const classOf=node=>String((node&&node.getAttribute&&node.getAttribute('class'))||'');
+  const ownerOf=node=>{
+    const owner=node&&node.tooltip;
+    return owner&&typeof owner==='object'
+      ? {type:String(owner.type||''),id:String(owner.id||'')}
+      : null;
+  };
+  const stackAt=(px,py)=>document.elementsFromPoint(px,py)
+    .filter(node=>classOf(node).includes('blocklyPath'))
+    .map(node=>({
+      tag:node.tagName||'',className:classOf(node),isObserved:node===s.target,
+      sharesObservedTooltip:!!(node&&s.target&&node.tooltip&&node.tooltip===s.target.tooltip),
+      owner:ownerOf(node)
+    }));
   const tooltip=window.Blockly&&Blockly.Tooltip;
   const hasVisible=!!tooltip&&typeof tooltip.isVisible==='function';
   const hasGetDiv=!!tooltip&&typeof tooltip.getDiv==='function';
@@ -104,7 +287,10 @@ _POST_HOVER_SNAPSHOT = r'''((x,y) => {
     installedAt:s.installedAt,initial:s.initial,
     current:{
       at:performance.now(),focused:document.hasFocus(),visibility:document.visibilityState,
-      hitTag:(hit&&hit.tagName)||'',hitClass:String((hit&&hit.getAttribute&&hit.getAttribute('class'))||''),
+      hitTag:(hit&&hit.tagName)||'',hitClass:classOf(hit),
+      hitIsObserved:hit===s.target,
+      hitSharesTooltip:!!(hit&&s.target&&hit.tooltip&&hit.tooltip===s.target.tooltip),
+      stack:stackAt(x,y),
       tooltipVisible:hasVisible ? !!tooltip.isVisible() : null,
       divExists:!!div,divDisplay:div ? getComputedStyle(div).display : null,
       divText:div ? String(div.innerText||div.textContent||'').trim().slice(0,240) : null
@@ -157,7 +343,7 @@ def _emit(c: probe.Cdp, reason: str, cleanup: bool) -> None:
 
 
 def hover_with_post_hover_diagnostics(self: probe.Cdp, rect: dict[str, object]) -> None:
-    # Keep the already-integrated exact-path/focus/delivery diagnostic unchanged.
+    # Keep the integrated focus/path/delivery diagnostic and one real hover.
     _ORIGINAL_HOVER(self, rect)
     installed = _ORIGINAL_EVAL(
         self,
@@ -186,7 +372,7 @@ def eval_with_post_hover_diagnostics(self: probe.Cdp, expr: str):
     elapsed = time.monotonic() - getattr(
         self, "_webeeblocks_post_hover_started", time.monotonic()
     )
-    # The expected public tooltip delay is 750 ms.  A single late snapshot after
+    # The expected public tooltip delay is 750 ms. A single late snapshot after
     # 4.25 s cannot make a correctly scheduled tooltip pass, while preserving
     # evidence from almost the entire unchanged 5 s oracle window.
     if elapsed >= 4.25 and not getattr(
