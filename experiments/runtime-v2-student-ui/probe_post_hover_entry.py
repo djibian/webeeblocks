@@ -13,11 +13,11 @@ state if a prior pointerout was lost.
 This wrapper therefore keeps the same three real pointer moves but makes their
 first point a stable path belonging to a different tooltip owner, then chooses
 entry/settle points well inside the exact tooltip-bound repeat path. Geometry
-selection is intentionally bounded to a small fixed candidate grid and only the
-minimum required clearance, so the prerequisite itself remains deterministic in
-the real Robot Window. This is not an outcome-conditioned retry. The 5 s public
-visible/non-empty/localized tooltip oracle and ordinary exit assertion remain
-unchanged.
+selection is intentionally bounded to a small fixed sample of each actual SVG
+path plus only the minimum required clearance, so the prerequisite itself remains
+deterministic in the real Robot Window. This is not an outcome-conditioned
+retry. The 5 s public visible/non-empty/localized tooltip oracle and ordinary
+exit assertion remain unchanged.
 
 After the hover it retains passive browser observations: page focus/visibility,
 ordinary mouse/pointer traffic, public tooltip DOM mutations/visibility, and
@@ -48,9 +48,12 @@ _ORIGINAL_HOVER = probe.Cdp.hover
 # the earlier #485 recurrence.
 #
 # The search is deliberately finite. The previous exhaustive 2 px raster with
-# radii up to 8 caused the exact Ready Robot Window CDP evaluation to time out.
-# This expression tests at most 35 deterministic candidates per path and, for a
-# candidate that hits the exact path, only the radius required by acceptance.
+# radii up to 8 caused the exact Ready Robot Window CDP evaluation to time out,
+# while the later fixed bounding-box fraction grid could miss the non-rectangular
+# Zelos path entirely. Derive candidates from the actual SVG path instead: sample
+# a fixed number of arc-length positions, compute the screen-space path normal,
+# and test only three bounded offsets on either side. The existing exact DOM hit
+# and minimum-clearance checks remain authoritative and fail closed.
 _RESET_REPEAT_HOVER_RECT = r'''(() => {
  const repeat=workspace.getBlocksByType('controls_repeat_ext',false)[0];
  const resetBlock=workspace.getBlocksByType('controls_if',false)[0];
@@ -78,15 +81,41 @@ _RESET_REPEAT_HOVER_RECT = r'''(() => {
    }
    return true;
  };
+ const toScreen=(matrix,point)=>{
+   const p=new DOMPoint(point.x,point.y).matrixTransform(matrix);
+   return {x:p.x,y:p.y};
+ };
  const stablePoint=(path,minClearance)=>{
-   const rb=path.getBoundingClientRect();
-   const xFractions=[0.08,0.18,0.32,0.50,0.68,0.82,0.92];
-   const yFractions=[0.18,0.34,0.50,0.66,0.82];
-   for(const yf of yFractions){
-     const y=Math.round(rb.top+rb.height*yf);
-     for(const xf of xFractions){
-       const x=Math.round(rb.left+rb.width*xf);
-       if(hasClearance(path,x,y,minClearance))return {x:x,y:y,clearance:minClearance};
+   if(typeof path.getTotalLength!=='function'||typeof path.getPointAtLength!=='function'){
+     throw new Error('exact tooltip-bound SVG path geometry API unavailable');
+   }
+   const total=path.getTotalLength();
+   const matrix=path.getScreenCTM();
+   if(!(total>0)||!Number.isFinite(total)||!matrix){
+     throw new Error('exact tooltip-bound SVG path geometry unavailable');
+   }
+   const samples=12;
+   const offsets=[5,9,13];
+   const delta=Math.max(0.5,Math.min(2,total/(samples*4)));
+   for(let i=0;i<samples;i++){
+     const at=total*(i+0.5)/samples;
+     const center=toScreen(matrix,path.getPointAtLength(at));
+     const before=toScreen(matrix,path.getPointAtLength(Math.max(0,at-delta)));
+     const after=toScreen(matrix,path.getPointAtLength(Math.min(total,at+delta)));
+     const tx=after.x-before.x;
+     const ty=after.y-before.y;
+     const norm=Math.hypot(tx,ty);
+     if(!(norm>0))continue;
+     const nx=-ty/norm;
+     const ny=tx/norm;
+     for(const offset of offsets){
+       for(const sign of [1,-1]){
+         const x=Math.round(center.x+sign*nx*offset);
+         const y=Math.round(center.y+sign*ny*offset);
+         if(hasClearance(path,x,y,minClearance)){
+           return {x:x,y:y,clearance:minClearance};
+         }
+       }
      }
    }
    return null;
