@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -203,6 +204,15 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
   assert.strictEqual(element('resetSimulation').disabled, false, 'Reset should reopen only after the mission outcome is presented');
 }
 
+function proveRealWebotsOutcomeFreshness() {
+  const runner = path.resolve(__dirname, 'run_runtime_v2_outcome_probe.py');
+  const result = childProcess.spawnSync('python3', [runner], {stdio:'inherit'});
+  if (result.error)
+    throw result.error;
+  assert.strictEqual(result.status, 0,
+    'real R2025a outcome provider did not prove attempt A terminal -> reset -> no stale terminal -> attempt B terminal');
+}
+
 (async function() {
   assert.strictEqual(Outcome.MISSION_EVALUATION_TYPE, 'mission-state-v1');
   assert.strictEqual(Outcome.supportsMissionEvaluation({type:'mission-state-v1'}), true);
@@ -244,7 +254,8 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
-  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, Runtime-v2 completion wiring, and pending-outcome action gating');
+  proveRealWebotsOutcomeFreshness();
+  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);
