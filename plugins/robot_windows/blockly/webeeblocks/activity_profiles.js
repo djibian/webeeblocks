@@ -66,6 +66,7 @@
     requireString(profile.evaluation.type, 'evaluation.type');
     if (profile.evaluation.type === 'mission-state-v1') {
       if (!isObject(profile.pedagogy)) fail('mission-state-v1 requires pedagogy');
+      requireString(profile.brief.mission, 'brief.mission');
       requireString(profile.pedagogy.objective, 'pedagogy.objective');
       requireString(profile.evaluation.oracle, 'evaluation.oracle');
     }
