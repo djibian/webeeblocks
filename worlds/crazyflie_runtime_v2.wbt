@@ -51,7 +51,7 @@ Pose {
 
 # WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN
 Pose {
-  translation 0.30 0.20 0.002
+  translation 0.30 0.40 0.002
   children [
     Shape {
       appearance PBRAppearance {
@@ -59,7 +59,7 @@ Pose {
         transparency 0.10
         roughness 0.9
       }
-      geometry Box { size 0.20 0.20 0.004 }
+      geometry Box { size 0.24 0.24 0.004 }
     }
   ]
 }
