@@ -6,7 +6,10 @@ const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/acti
 const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
 
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
-assert.strictEqual(p1.world, 'worlds/crazyflie_runtime_v2.wbt');
+const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+assert.strictEqual(p1.world, 'worlds/crazyflie_runtime_obstacle.wbt');
+assert.strictEqual(p1.world, initialProfile.world,
+  'embedded Start activity must preserve the shared project/world compatibility tag');
 assert.strictEqual(p1.brief.title, '1 — Rejoindre la zone d’arrivée');
 assert.strictEqual(p1.brief.goal,
   'Le drone part de la zone bleue. Sa mission est de terminer posé dans la zone verte, avant l’obstacle rouge.');
@@ -44,6 +47,9 @@ assert.doesNotMatch(projectUiSource, /pedagogy\.objective/,
   'internal pedagogical objective must not be rendered when applying an activity profile');
 assert.match(mainSource, /runtimeProfile\.brief\.goal/);
 assert.match(projectUiSource, /profile\.brief\.goal/);
+assert.match(projectUiSource,
+  /createStarterText\(profile\.id\)[\s\S]*manager\.openTemplateText\(starterName, starterText\)/,
+  'Démarrer une activité must use embedded starter bytes rather than the OS project picker');
 
 const worldSource = fs.readFileSync(path.resolve(__dirname, '../../worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 assert.match(worldSource, /WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN/);
@@ -59,4 +65,4 @@ assert.match(evaluatorSource, /progression-sequence-v1/);
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
 
-console.log('PASS first progression activity separates student mission from pedagogy and binds a distinct world-state evaluator process without accepting later profiles');
+console.log('PASS first progression activity keeps the shared Start-activity world binding, separates student mission from pedagogy, and binds a distinct world-state evaluator process without accepting later profiles');
