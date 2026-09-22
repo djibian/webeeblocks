@@ -17,12 +17,13 @@ from controller import Supervisor
 ATTEMPT_PREFIX = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 "
 OUTCOME_PREFIX = "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1"
 ORACLE = "progression-sequence-landing-v1"
+CRAZYFLIE_NAME = "Crazyflie WebeeBlocks"
 
 # Activity 1 deliberately uses a generous landing zone: parameter precision is
 # reserved for Activity 2. The target sits directly ahead of the departure pad
 # and before the existing obstacle corridor.
-TARGET_CENTER_X = 0.25
-TARGET_HALF_X = 0.15
+TARGET_CENTER_X = 0.23
+TARGET_HALF_X = 0.16
 TARGET_HALF_Y = 0.16
 LANDED_MAX_Z = 0.12
 STATIONARY_MAX_SPEED_M_S = 0.08
@@ -51,11 +52,24 @@ def mission_status(position, velocity) -> str:
     return "achieved" if inside_target and landed and stationary else "not-achieved"
 
 
+def find_named_top_level_robot(supervisor: Supervisor, name: str):
+    root = supervisor.getRoot()
+    children = root.getField("children") if root is not None else None
+    if children is None:
+        raise RuntimeError("world children unavailable")
+    for index in range(children.getCount()):
+        node = children.getMFNode(index)
+        if node is None:
+            continue
+        name_field = node.getField("name")
+        if name_field is not None and name_field.getSFString() == name:
+            return node
+    raise RuntimeError(name + " unavailable")
+
+
 robot = Supervisor()
 step = int(robot.getBasicTimeStep())
-crazyflie = robot.getFromDef("WEBEEBLOCKS_CRAZYFLIE")
-if crazyflie is None:
-    raise RuntimeError("WEBEEBLOCKS_CRAZYFLIE unavailable")
+crazyflie = find_named_top_level_robot(robot, CRAZYFLIE_NAME)
 custom_data = crazyflie.getField("customData")
 if custom_data is None:
     raise RuntimeError("Crazyflie customData unavailable")
