@@ -43,6 +43,7 @@ BASE_WINDOW = ROOT / "plugins" / "robot_windows" / "blockly_v2"
 BASE_WORLD = ROOT / "worlds" / "crazyflie_runtime_v2.wbt"
 BROWSER_HELPER = PHYSICAL / "physical_qualification_runtime.js"
 MAX_JSON_BYTES = 65536
+PRE_TEACHER_FAILURE_MAX_CHARS = 1024
 
 
 class PhysicalQualificationLauncherError(RuntimeError):
@@ -423,6 +424,24 @@ def execution_request_count(ast_binding: str) -> int:
 
 
 def _teacher_proposal(value: dict[str, object], prepared: PreparedProgram) -> dict[str, object]:
+    if value.get("op") == "pre-teacher-activation-failure":
+        if set(value) != {"op", "error", "executionAuthority"}:
+            raise PhysicalQualificationLauncherError(
+                "pre-teacher activation failure has unsupported shape"
+            )
+        if value.get("executionAuthority") is not False:
+            raise PhysicalQualificationLauncherError(
+                "trusted activation diagnostic crossed authority boundary"
+            )
+        error = _require_text(value.get("error"), "pre-teacher activation error")
+        if len(error) > PRE_TEACHER_FAILURE_MAX_CHARS:
+            raise PhysicalQualificationLauncherError(
+                "pre-teacher activation error exceeds size limit"
+            )
+        raise PhysicalQualificationLauncherError(
+            "trusted activation failed before teacher decision: " + error
+        )
+
     required = {
         "op", "requestId", "challengeId", "profileId", "astBinding",
         "connectionEpoch", "executionAuthority",

@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import socket
+import sys
+from threading import Thread
+
+ROOT = Path(__file__).resolve().parents[2]
+PHYSICAL = ROOT / "tools" / "physical"
+sys.path.insert(0, str(PHYSICAL))
+
+import launch_physical_qualification as launcher  # noqa: E402
+import post_reset_teacher_decision as decision  # noqa: E402
+import teacher_run_authorization as authorization  # noqa: E402
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+def _read_json_line(peer: socket.socket) -> dict[str, object]:
+    peer.settimeout(0.5)
+    data = bytearray()
+    while not data.endswith(b"\n"):
+        data.extend(peer.recv(1))
+    value = json.loads(data.decode("utf-8"))
+    require(isinstance(value, dict), "trusted diagnostic must be a JSON object")
+    return value
+
+
+def _require_no_more_data(peer: socket.socket) -> None:
+    peer.settimeout(0.05)
+    try:
+        data = peer.recv(1)
+    except TimeoutError:
+        return
+    require(not data, "teacher channel unexpectedly received a second host frame")
+
+
+def test_pre_teacher_failure_is_one_bounded_non_authority_frame() -> None:
+    host, peer = socket.socketpair()
+    channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
+    try:
+        long_error = "reset-reopen-" + ("x" * 2048)
+        require(
+            channel.publish_pre_teacher_failure(RuntimeError(long_error)) is True,
+            "first pre-teacher failure must be published",
+        )
+        message = _read_json_line(peer)
+        require(
+            message["op"] == "pre-teacher-activation-failure"
+            and message["executionAuthority"] is False,
+            "pre-teacher failure frame must remain exact non-authority data",
+        )
+        require(
+            isinstance(message["error"], str)
+            and message["error"].startswith("reset-reopen-")
+            and len(message["error"]) == 1024,
+            "pre-teacher failure text must be bounded without losing its causal prefix",
+        )
+        require(
+            channel.publish_pre_teacher_failure(RuntimeError("second failure")) is False,
+            "pre-teacher failure publication must be one-shot",
+        )
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
+def test_pre_proposal_epoch_failure_remains_diagnosable() -> None:
+    host, peer = socket.socketpair()
+
+    def unavailable_epoch() -> str:
+        raise RuntimeError("post-reset epoch unavailable")
+
+    channel = decision.PostResetTeacherDecisionChannel(host, unavailable_epoch)
+    authorizer = authorization.TrustedTeacherAuthorizer()
+    binding = authorization.PhysicalRunBinding(
+        profile_id="activity-1",
+        ast_binding='{"program":[]}',
+        connection_epoch="epoch-after",
+    )
+    try:
+        try:
+            channel.receive_authorization_for_binding(
+                authorizer,
+                binding,
+                decision_timeout_seconds=0.5,
+            )
+        except decision.TeacherDecisionChannelError as exc:
+            require(
+                "connection epoch is unavailable for teacher decision" in str(exc),
+                "pre-proposal epoch failure lost its causal reason",
+            )
+            require(
+                channel.publish_pre_teacher_failure(exc) is True,
+                "pre-proposal validation failure must remain eligible for diagnostic publication",
+            )
+        else:
+            raise AssertionError("pre-proposal epoch failure unexpectedly started teacher exchange")
+
+        message = _read_json_line(peer)
+        require(
+            message.get("op") == "pre-teacher-activation-failure"
+            and message.get("executionAuthority") is False,
+            "pre-proposal epoch failure did not produce the bounded non-authority diagnostic",
+        )
+        require(
+            "connection epoch is unavailable for teacher decision" in str(message.get("error")),
+            "pre-proposal diagnostic lost the epoch failure cause",
+        )
+        prepared = launcher.PreparedProgram(
+            profile_id="activity-1",
+            ast_binding='{"program":[]}',
+            connection_epoch="epoch-before",
+        )
+        try:
+            launcher._teacher_proposal(message, prepared)
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require(
+                str(exc).startswith("trusted activation failed before teacher decision: ")
+                and "connection epoch is unavailable for teacher decision" in str(exc),
+                "launcher did not surface the exact pre-proposal activation failure",
+            )
+        else:
+            raise AssertionError("launcher mistook pre-proposal diagnostic for a teacher proposal")
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
+def test_oversized_proposal_remains_diagnosable_before_teacher_bytes() -> None:
+    host, peer = socket.socketpair()
+    channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
+    authorizer = authorization.TrustedTeacherAuthorizer()
+    binding = authorization.PhysicalRunBinding(
+        profile_id="activity-1",
+        ast_binding="x" * 9000,
+        connection_epoch="epoch-after",
+    )
+    try:
+        try:
+            channel.receive_authorization_for_binding(
+                authorizer,
+                binding,
+                decision_timeout_seconds=0.5,
+            )
+        except decision.TeacherDecisionChannelError as exc:
+            require(
+                "teacher decision message is too large" in str(exc),
+                "oversized pre-send proposal lost its exact failure cause",
+            )
+            require(
+                channel.terminal is False,
+                "oversized proposal must fail before consuming the one-shot channel",
+            )
+            require(
+                channel.publish_pre_teacher_failure(exc) is True,
+                "oversized pre-send proposal must remain eligible for the diagnostic",
+            )
+        else:
+            raise AssertionError("oversized proposal unexpectedly started teacher exchange")
+
+        message = _read_json_line(peer)
+        require(
+            message.get("op") == "pre-teacher-activation-failure"
+            and message.get("executionAuthority") is False,
+            "oversized proposal did not yield exactly the non-authority diagnostic",
+        )
+        require(
+            "teacher decision message is too large" in str(message.get("error")),
+            "oversized proposal diagnostic lost the pre-send failure cause",
+        )
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
+def test_teacher_exchange_start_irrevocably_disables_failure_frame() -> None:
+    host, peer = socket.socketpair()
+    channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
+    authorizer = authorization.TrustedTeacherAuthorizer()
+    binding = authorization.PhysicalRunBinding(
+        profile_id="activity-1",
+        ast_binding='{"program":[]}',
+        connection_epoch="epoch-after",
+    )
+    outcome: dict[str, object] = {}
+
+    def worker() -> None:
+        try:
+            channel.receive_authorization_for_binding(
+                authorizer,
+                binding,
+                decision_timeout_seconds=0.5,
+            )
+        except Exception as exc:
+            outcome["error"] = exc
+
+    thread = Thread(target=worker, daemon=True)
+    thread.start()
+    try:
+        proposal = _read_json_line(peer)
+        require(
+            proposal.get("op") == "teacher-run-binding-proposal",
+            "real host-first teacher proposal must start the exchange",
+        )
+        require(
+            channel.publish_pre_teacher_failure(RuntimeError("too late")) is False,
+            "diagnostic must never be mixed into a started teacher exchange",
+        )
+        peer.sendall(
+            (
+                json.dumps(
+                    {
+                        "op": "teacher-run-decision-result",
+                        "requestId": proposal["requestId"],
+                        "challengeId": proposal["challengeId"],
+                        "profileId": proposal["profileId"],
+                        "astBinding": proposal["astBinding"],
+                        "connectionEpoch": proposal["connectionEpoch"],
+                        "approved": False,
+                        "executionAuthority": False,
+                    },
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode("utf-8")
+        )
+        peer.shutdown(socket.SHUT_WR)
+        thread.join(timeout=1.0)
+        require(not thread.is_alive(), "denied teacher exchange must settle")
+        require("error" in outcome, "teacher denial must fail closed")
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
+def test_launcher_surfaces_exact_pre_teacher_failure() -> None:
+    prepared = launcher.PreparedProgram(
+        profile_id="activity-1",
+        ast_binding='{"program":[]}',
+        connection_epoch="epoch-before",
+    )
+    failure = {
+        "op": "pre-teacher-activation-failure",
+        "error": "post-reset bridge reopen failed",
+        "executionAuthority": False,
+    }
+    try:
+        launcher._teacher_proposal(failure, prepared)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require(
+            str(exc)
+            == "trusted activation failed before teacher decision: post-reset bridge reopen failed",
+            "launcher must retain the causal pre-teacher failure instead of a generic socket timeout",
+        )
+    else:
+        raise AssertionError("pre-teacher activation failure was mistaken for a teacher proposal")
+
+    malformed = dict(failure)
+    malformed["executionAuthority"] = True
+    try:
+        launcher._teacher_proposal(malformed, prepared)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("authority boundary" in str(exc), "diagnostic authority violation must fail closed")
+    else:
+        raise AssertionError("authority-bearing pre-teacher failure unexpectedly passed")
+
+    oversized = dict(failure)
+    oversized["error"] = "x" * 1025
+    try:
+        launcher._teacher_proposal(oversized, prepared)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("size limit" in str(exc), "oversized diagnostic must fail closed")
+    else:
+        raise AssertionError("oversized pre-teacher failure unexpectedly passed")
+
+
+def test_common_takeoff_controller_defers_protocol_state_to_channel() -> None:
+    source = (PHYSICAL / "production_takeoff_run.py").read_text(encoding="utf-8")
+    exchange = source.index("receive_authorization_for_binding")
+    fallback = source.index("except Exception as exc:", exchange)
+    publish = source.index("publish_pre_teacher_failure(exc)", fallback)
+    require(
+        exchange < fallback < publish,
+        "common takeoff controller must offer failures to the channel after activation failure",
+    )
+    require(
+        "teacher_exchange_started" not in source,
+        "controller must not mirror the teacher channel protocol state",
+    )
+    require(
+        "_PreTeacherDiagnosticSocket" not in source,
+        "diagnostic repair must not weaken the exact socket type boundary",
+    )
+
+
+def main() -> int:
+    test_pre_teacher_failure_is_one_bounded_non_authority_frame()
+    test_pre_proposal_epoch_failure_remains_diagnosable()
+    test_oversized_proposal_remains_diagnosable_before_teacher_bytes()
+    test_teacher_exchange_start_irrevocably_disables_failure_frame()
+    test_launcher_surfaces_exact_pre_teacher_failure()
+    test_common_takeoff_controller_defers_protocol_state_to_channel()
+    print(
+        "PASS pre-teacher activation diagnostic: one bounded failure frame before teacher exchange, "
+        "pre-proposal validation and oversized pre-send failures remain diagnosable, no protocol mixing "
+        "after send begins, exact socket boundary preserved, and causal launcher surfacing"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

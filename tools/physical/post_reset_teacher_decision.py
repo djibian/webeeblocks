@@ -16,11 +16,14 @@ effect capability.
 
 from __future__ import annotations
 
+import json
 import secrets
+import socket
 
 from teacher_decision_channel import (
     TeacherDecisionChannelError,
     TrustedTeacherDecisionChannel,
+    _MAX_MESSAGE_BYTES,
     _read_epoch,
     _require_timeout,
 )
@@ -31,9 +34,78 @@ from teacher_run_authorization import (
     TrustedTeacherAuthorizer,
 )
 
+_PRE_TEACHER_FAILURE_MAX_CHARS = 1024
+
 
 class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
     """One host-first exact-binding decision on the #288 trusted socket."""
+
+    def publish_pre_teacher_failure(
+        self,
+        error: object,
+        *,
+        timeout_seconds: float = 1.0,
+    ) -> bool:
+        """Publish one bounded non-authority failure before any teacher exchange.
+
+        This diagnostic is deliberately mutually exclusive with the host-first
+        teacher protocol. Whichever path marks the channel started first owns the
+        socket permanently; a later diagnostic can never be mixed into an
+        already-started teacher exchange.
+        """
+        timeout = _require_timeout(timeout_seconds)
+        message = str(error).strip()
+        if not message:
+            message = type(error).__name__ or "trusted activation failed"
+        if len(message) > _PRE_TEACHER_FAILURE_MAX_CHARS:
+            message = message[:_PRE_TEACHER_FAILURE_MAX_CHARS]
+
+        with self._lock:
+            if self._terminal or self._started:
+                return False
+            self._started = True
+            self._terminal = True
+            self._terminal_reason = "pre-teacher activation failed"
+
+        self._send_json_line(
+            {
+                "op": "pre-teacher-activation-failure",
+                "error": message,
+                "executionAuthority": False,
+            },
+            timeout,
+        )
+        return True
+
+    def _prepare_proposal_frame(
+        self,
+        proposal: dict[str, object],
+        timeout: float,
+    ) -> bytes:
+        """Finish all fallible non-emitting proposal work before claiming exchange."""
+        encoded = (
+            json.dumps(proposal, separators=(",", ":"), sort_keys=True) + "\n"
+        ).encode("utf-8")
+        if len(encoded) > _MAX_MESSAGE_BYTES:
+            raise TeacherDecisionChannelError("teacher decision message is too large")
+        try:
+            self._socket.settimeout(timeout)
+        except OSError as exc:
+            raise TeacherDecisionChannelError(
+                "teacher decision transport failed"
+            ) from exc
+        return encoded
+
+    def _send_prepared_proposal_frame(self, encoded: bytes) -> None:
+        """Emit an already-validated frame after the one-shot fence is claimed."""
+        try:
+            self._socket.sendall(encoded)
+        except socket.timeout as exc:
+            raise TeacherDecisionChannelError("teacher decision timed out") from exc
+        except OSError as exc:
+            raise TeacherDecisionChannelError(
+                "teacher decision transport failed"
+            ) from exc
 
     def receive_authorization_for_binding(
         self,
@@ -53,6 +125,31 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
             )
         timeout = _require_timeout(decision_timeout_seconds)
 
+        # Keep fallible pre-proposal validation outside the one-shot teacher
+        # exchange. If it fails, the production caller may still publish the
+        # bounded diagnostic because no teacher bytes could have been emitted.
+        before_epoch = _read_epoch(self._epoch_reader)
+        if binding.connection_epoch != before_epoch:
+            raise TeacherDecisionChannelError(
+                "host teacher binding does not match the live connection epoch"
+            )
+        request_id = secrets.token_urlsafe(24)
+        challenge_id = self._challenge_id()
+        proposal = {
+            "op": "teacher-run-binding-proposal",
+            "requestId": request_id,
+            "challengeId": challenge_id,
+            "profileId": binding.profile_id,
+            "astBinding": binding.ast_binding,
+            "connectionEpoch": binding.connection_epoch,
+            "executionAuthority": False,
+        }
+
+        # Serialize, bound and configure the socket while the exchange is still
+        # unclaimed. These operations cannot emit teacher-proposal bytes, so any
+        # failure remains eligible for the one bounded diagnostic. Claim the
+        # one-shot fence only immediately before sendall(), the first operation
+        # that can emit a partial or ambiguous proposal.
         with self._lock:
             if self._terminal:
                 raise TeacherDecisionChannelError(
@@ -63,28 +160,12 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
                 raise TeacherDecisionChannelError(
                     "teacher decision channel already has an active exchange"
                 )
+            proposal_frame = self._prepare_proposal_frame(proposal, timeout)
             self._started = True
 
         receipt: TeacherRunAuthorization | None = None
         try:
-            before_epoch = _read_epoch(self._epoch_reader)
-            if binding.connection_epoch != before_epoch:
-                raise TeacherDecisionChannelError(
-                    "host teacher binding does not match the live connection epoch"
-                )
-
-            request_id = secrets.token_urlsafe(24)
-            challenge_id = self._challenge_id()
-            proposal = {
-                "op": "teacher-run-binding-proposal",
-                "requestId": request_id,
-                "challengeId": challenge_id,
-                "profileId": binding.profile_id,
-                "astBinding": binding.ast_binding,
-                "connectionEpoch": binding.connection_epoch,
-                "executionAuthority": False,
-            }
-            self._send_json_line(proposal, timeout)
+            self._send_prepared_proposal_frame(proposal_frame)
             response = self._recv_json_line(timeout)
 
             if set(response) != {
