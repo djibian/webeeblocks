@@ -68,7 +68,7 @@
   function applyProfile(profile) {
     runtimeProfile = profile;
     document.getElementById('activityTitle').textContent = profile.brief.visible ? profile.brief.title : 'WebeeBlocks';
-    document.getElementById('activityGoal').textContent = profile.brief.visible ? profile.brief.goal : '';
+    document.getElementById('activityGoal').textContent = profile.brief.visible ? (profile.brief.mission || profile.brief.goal) : '';
     if (!profileFieldOptions) throw new Error('activity field-option controller unavailable');
     profileFieldOptions.setProfile(profile, workspace);
     if (workspace && typeof workspace.updateToolbox === 'function') workspace.updateToolbox(buildToolbox(profile));
