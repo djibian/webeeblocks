@@ -16,11 +16,14 @@ effect capability.
 
 from __future__ import annotations
 
+import json
 import secrets
+import socket
 
 from teacher_decision_channel import (
     TeacherDecisionChannelError,
     TrustedTeacherDecisionChannel,
+    _MAX_MESSAGE_BYTES,
     _read_epoch,
     _require_timeout,
 )
@@ -74,6 +77,36 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
         )
         return True
 
+    def _prepare_proposal_frame(
+        self,
+        proposal: dict[str, object],
+        timeout: float,
+    ) -> bytes:
+        """Finish all fallible non-emitting proposal work before claiming exchange."""
+        encoded = (
+            json.dumps(proposal, separators=(",", ":"), sort_keys=True) + "\n"
+        ).encode("utf-8")
+        if len(encoded) > _MAX_MESSAGE_BYTES:
+            raise TeacherDecisionChannelError("teacher decision message is too large")
+        try:
+            self._socket.settimeout(timeout)
+        except OSError as exc:
+            raise TeacherDecisionChannelError(
+                "teacher decision transport failed"
+            ) from exc
+        return encoded
+
+    def _send_prepared_proposal_frame(self, encoded: bytes) -> None:
+        """Emit an already-validated frame after the one-shot fence is claimed."""
+        try:
+            self._socket.sendall(encoded)
+        except socket.timeout as exc:
+            raise TeacherDecisionChannelError("teacher decision timed out") from exc
+        except OSError as exc:
+            raise TeacherDecisionChannelError(
+                "teacher decision transport failed"
+            ) from exc
+
     def receive_authorization_for_binding(
         self,
         authorizer: TrustedTeacherAuthorizer,
@@ -112,9 +145,11 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
             "executionAuthority": False,
         }
 
-        # From this point onward a send may be partial/ambiguous. Claim the
-        # one-shot protocol immediately before the first possible proposal byte;
-        # diagnostics are permanently forbidden once this flag is set.
+        # Serialize, bound and configure the socket while the exchange is still
+        # unclaimed. These operations cannot emit teacher-proposal bytes, so any
+        # failure remains eligible for the one bounded diagnostic. Claim the
+        # one-shot fence only immediately before sendall(), the first operation
+        # that can emit a partial or ambiguous proposal.
         with self._lock:
             if self._terminal:
                 raise TeacherDecisionChannelError(
@@ -125,11 +160,12 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
                 raise TeacherDecisionChannelError(
                     "teacher decision channel already has an active exchange"
                 )
+            proposal_frame = self._prepare_proposal_frame(proposal, timeout)
             self._started = True
 
         receipt: TeacherRunAuthorization | None = None
         try:
-            self._send_json_line(proposal, timeout)
+            self._send_prepared_proposal_frame(proposal_frame)
             response = self._recv_json_line(timeout)
 
             if set(response) != {
