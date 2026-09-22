@@ -231,6 +231,14 @@ class ProductionTakeoffRunController:
             self._active = active
             return active
         except Exception as exc:
+            try:
+                # The channel itself owns the one-shot protocol state: this emits
+                # only before a teacher exchange and becomes a no-op once started.
+                self._teacher_channel.publish_pre_teacher_failure(exc)
+            except Exception:
+                # Diagnostic transport is non-authority and best-effort. It must
+                # never replace or weaken the original fail-closed activation.
+                pass
             if watchdog is not None and watchdog.active:
                 try:
                     watchdog.stop_for_terminal_reboot()

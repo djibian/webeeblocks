@@ -26,11 +26,14 @@
       throw new Error('Runtime v2 RobotWindow transport unavailable');
     this.robotWindow = robotWindow;
     this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
+    this.outcomeSettleMs = options && Number.isFinite(options.outcomeSettleMs) ? options.outcomeSettleMs : 2000;
+    this.outcomePollMs = options && Number.isFinite(options.outcomePollMs) ? options.outcomePollMs : 50;
     this.nextId = 1;
     this.pending = Object.create(null);
     this.ready = false;
     this.readyWaiters = [];
     this.simulationStopped = false;
+    this.completedMissionOracle = null;
     var capabilities = {
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],
@@ -150,6 +153,15 @@
     return this.simulationStopped ? Promise.reject(new RuntimeV2BackendError('USER_STOPPED')) : null;
   };
 
+  RuntimeV2WwiBackend.prototype._missionOracle = function(evaluation) {
+    if (!evaluation || evaluation.type !== MISSION_EVALUATION_TYPE)
+      throw new Error('Runtime v2 unsupported activity outcome evaluation');
+    var oracle = evaluation.oracle;
+    if (typeof oracle !== 'string' || !ORACLE_TOKEN.test(oracle))
+      throw new Error('Runtime v2 invalid activity outcome oracle');
+    return oracle;
+  };
+
   RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
@@ -159,18 +171,45 @@
   RuntimeV2WwiBackend.prototype.setLight = function(color) { return this._guardSimulationStopped() || this._request(['LIGHT', String(color)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
-  RuntimeV2WwiBackend.prototype.readActivityOutcome = function(evaluation) {
-    if (!evaluation || evaluation.type !== MISSION_EVALUATION_TYPE)
-      return Promise.reject(new Error('Runtime v2 unsupported activity outcome evaluation'));
-    var oracle = evaluation.oracle;
-    if (typeof oracle !== 'string' || !ORACLE_TOKEN.test(oracle))
-      return Promise.reject(new Error('Runtime v2 invalid activity outcome oracle'));
+  RuntimeV2WwiBackend.prototype.completeActivityMission = function(evaluation) {
+    var oracle;
+    try { oracle = this._missionOracle(evaluation); }
+    catch (error) { return Promise.reject(error); }
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
     var self = this;
-    return this._guardSimulationStopped() || this._request(['OUTCOME', oracle]).then(function(status) {
-      if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, status))
-        throw new Error('Runtime v2 invalid activity outcome state');
-      return {status: status};
+    return this._request(['COMPLETE', oracle]).then(function(value) {
+      self.completedMissionOracle = oracle;
+      return value;
     });
+  };
+  RuntimeV2WwiBackend.prototype.readActivityOutcome = function(evaluation) {
+    var oracle;
+    try { oracle = this._missionOracle(evaluation); }
+    catch (error) { return Promise.reject(error); }
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    var self = this;
+    function requestOnce() {
+      return self._request(['OUTCOME', oracle]).then(function(status) {
+        if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, status))
+          throw new Error('Runtime v2 invalid activity outcome state');
+        return {status: status};
+      });
+    }
+    if (this.completedMissionOracle !== oracle)
+      return requestOnce();
+    var deadline = Date.now() + Math.max(0, this.outcomeSettleMs);
+    function poll() {
+      return requestOnce().catch(function(error) {
+        if (!(error && error.code === 'OUTCOME_UNAVAILABLE') || Date.now() >= deadline)
+          throw error;
+        return new Promise(function(resolve) {
+          setTimeout(resolve, Math.max(0, self.outcomePollMs));
+        }).then(poll);
+      });
+    }
+    return poll();
   };
   RuntimeV2WwiBackend.prototype.stopSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationStop !== true)
@@ -182,6 +221,7 @@
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
     this._cancelPendingForReset();
+    this.completedMissionOracle = null;
     this.ready = false;
     var self = this;
     return this._request(['RESET']).then(function(value) {

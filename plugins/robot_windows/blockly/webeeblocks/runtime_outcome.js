@@ -65,6 +65,11 @@
       return null;
     if (!backend || typeof backend.readActivityOutcome !== 'function')
       throw new Error('runtime outcome: backend mission outcome capability unavailable');
+    // Live-world backends may need an explicit causal boundary between the end
+    // of interpreter execution and the world evaluator's terminal observation.
+    // Generic/mock backends that already return a terminal result remain valid.
+    if (typeof backend.completeActivityMission === 'function')
+      await backend.completeActivityMission(evaluation);
     return classifyMission(await backend.readActivityOutcome(evaluation));
   }
 
