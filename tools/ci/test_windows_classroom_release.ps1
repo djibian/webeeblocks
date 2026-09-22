@@ -153,6 +153,79 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
 
 $windowsPowerShellMajor = (& powershell.exe -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.Major' | Out-String).Trim()
 Assert-Release ($LASTEXITCODE -eq 0 -and $windowsPowerShellMajor -eq '5') "Expected Windows PowerShell 5.1 for the packaged launcher, got major version '$windowsPowerShellMajor'."
+
+# Exercise the exact packaged CMD -> Windows PowerShell local-profile probe on a
+# real Windows runner. The production PowerShell launcher is replaced only in
+# this isolated harness so no interactive Webots session is required. This
+# catches CMD quoting/escaping failures before a real-machine checkpoint.
+$launcherHarness = Join-Path $env:RUNNER_TEMP 'WebeeBlocks launcher profile probe with spaces'
+if (Test-Path -LiteralPath $launcherHarness) {
+  Remove-Item -LiteralPath $launcherHarness -Recurse -Force
+}
+New-Item -ItemType Directory -Path $launcherHarness | Out-Null
+Copy-Item -LiteralPath (Join-Path $testRoot 'Launch-WebeeBlocks.cmd') -Destination (Join-Path $launcherHarness 'Launch-WebeeBlocks.cmd')
+Set-Content -LiteralPath (Join-Path $launcherHarness 'Launch-WebeeBlocks.ps1') -Value 'exit 0' -Encoding Ascii
+
+$fakeProgramFiles = Join-Path $launcherHarness 'Program Files'
+$fakeChrome = Join-Path $fakeProgramFiles 'Google\Chrome\Application\chrome.exe'
+New-Item -ItemType Directory -Path (Split-Path $fakeChrome -Parent) -Force | Out-Null
+Set-Content -LiteralPath $fakeChrome -Value '' -Encoding Ascii
+
+$registryKey = 'HKCU\Software\Cyberbotics\Webots-R2025a\RobotWindow'
+$registryProviderKey = 'Registry::HKEY_CURRENT_USER\Software\Cyberbotics\Webots-R2025a\RobotWindow'
+$registryBackup = Join-Path $launcherHarness 'robot-window-before.reg'
+& reg.exe query $registryKey *> $null
+$registryExisted = $LASTEXITCODE -eq 0
+if ($registryExisted) {
+  & reg.exe export $registryKey $registryBackup /y *> $null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not snapshot the runner RobotWindow registry key before the launcher probe.' }
+}
+
+$oldLocalAppData = $env:LOCALAPPDATA
+$oldProgramFiles = $env:ProgramFiles
+try {
+  $env:LOCALAPPDATA = Join-Path $launcherHarness 'Local AppData'
+  $env:ProgramFiles = $fakeProgramFiles
+  New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
+
+  & reg.exe add $registryKey /v browser /t REG_SZ /d chrome.exe /f *> $null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the Chrome RobotWindow browser preference for the launcher probe.' }
+  & reg.exe add $registryKey /v newBrowserWindow /t REG_DWORD /d 1 /f *> $null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the RobotWindow window-mode preference for the launcher probe.' }
+
+  Push-Location $launcherHarness
+  try {
+    & $env:ComSpec /d /c 'Launch-WebeeBlocks.cmd <nul'
+    $launcherCmdExit = $LASTEXITCODE
+  }
+  finally {
+    Pop-Location
+  }
+
+  Assert-Release ($launcherCmdExit -eq 0) "Packaged Launch-WebeeBlocks.cmd failed its local Chrome profile probe (exit $launcherCmdExit)."
+  $localProfile = Join-Path $env:LOCALAPPDATA 'WebeeBlocks\Chrome-R2025a'
+  Assert-Release (Test-Path -LiteralPath $localProfile -PathType Container) 'Packaged CMD did not create the dedicated local Chrome profile directory.'
+  $probeFiles = @(Get-ChildItem -LiteralPath $localProfile -File -Filter '.webeeblocks-write-*.tmp' -ErrorAction SilentlyContinue)
+  Assert-Release ($probeFiles.Count -eq 0) 'Packaged CMD left its Chrome profile write probe behind.'
+  Assert-Release (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'WebeeBlocks\WebeeBlocks-Chrome.cmd') -PathType Leaf) 'Packaged CMD did not create the local Chrome helper after the profile probe.'
+
+  $restoredRobotWindow = Get-ItemProperty -LiteralPath $registryProviderKey
+  Assert-Release ([string]$restoredRobotWindow.browser -eq 'chrome.exe') 'Packaged CMD did not restore the prior RobotWindow browser preference.'
+  Assert-Release ([int]$restoredRobotWindow.newBrowserWindow -eq 1) 'Packaged CMD did not restore the prior RobotWindow window-mode preference.'
+}
+finally {
+  $env:LOCALAPPDATA = $oldLocalAppData
+  $env:ProgramFiles = $oldProgramFiles
+  & reg.exe delete $registryKey /f *> $null
+  if ($registryExisted -and (Test-Path -LiteralPath $registryBackup -PathType Leaf)) {
+    & reg.exe import $registryBackup *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not restore the runner RobotWindow registry key after the launcher probe.' }
+  }
+  if (Test-Path -LiteralPath $launcherHarness) {
+    Remove-Item -LiteralPath $launcherHarness -Recurse -Force
+  }
+}
+
 $launcher = Join-Path $testRoot 'Launch-WebeeBlocks.ps1'
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher -ValidateOnly -WebotsHome $WebotsHome
 if ($LASTEXITCODE -ne 0) { throw 'Release launcher validation failed under Windows PowerShell 5.1.' }
