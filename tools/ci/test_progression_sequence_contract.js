@@ -15,19 +15,27 @@ const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obsta
 assert.strictEqual(p1.world, 'worlds/crazyflie_runtime_obstacle.wbt');
 assert.strictEqual(p1.world, initialProfile.world,
   'embedded Start activity must preserve the shared project/world compatibility tag');
-assert.strictEqual(p1.brief.title, '1 — Rejoindre la zone d’arrivée');
+assert.strictEqual(p1.brief.title, '1 — Livrer le colis');
 assert.strictEqual(p1.brief.mission,
-  'Le drone part de la zone bleue. Sa mission est de terminer posé dans la zone verte, avant l’obstacle rouge.');
+  'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.');
 assert.strictEqual(p1.brief.goal, p1.brief.mission,
   'legacy goal compatibility must preserve the redesigned student mission');
 assert.strictEqual(p1.pedagogy.objective,
-  'Construire et ordonner une première séquence d’actions paramétrées pour atteindre un état final observable.');
+  'Construire et comprendre une séquence ordonnée d’actions.');
 assert.notStrictEqual(p1.brief.mission, p1.pedagogy.objective,
   'student mission must remain distinct from the internal pedagogical objective');
 assert.deepStrictEqual(p1.evaluation, {type:'mission-state-v1', oracle:'progression-sequence-v1'});
 assert.deepStrictEqual(p1.toolbox,
   ['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land']);
 assert.deepStrictEqual(p1.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward']);
+assert.deepStrictEqual(p1.parameterBounds.webeeblocks_v2_takeoff.HEIGHT,
+  {min:0.5,max:0.5,step:0.1},
+  'Activity 1 takeoff parameter must be non-discriminating so sequencing remains the new concept');
+assert.deepStrictEqual(p1.parameterBounds.webeeblocks_v2_move.DISTANCE,
+  {min:0.1,max:0.1,step:0.1},
+  'Activity 1 movement parameter must be fixed; precision belongs to Activity 2');
+assert.deepStrictEqual(p1.runtime.astBounds['takeoff.height_m'], {min:0.5,max:0.5});
+assert.deepStrictEqual(p1.runtime.astBounds['move.distance_m'], {min:0.1,max:0.1});
 
 const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id.startsWith('progression-') && profile.id !== 'progression-sequence-v1');
@@ -83,6 +91,10 @@ assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|we
 const sequenceProbeSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
 assert.match(sequenceProbeSource, /completeActivityMission\(evaluation\)/,
   'real-Webots sequence probe must cross the integrated execution-completion boundary');
+assert.match(sequenceProbeSource, /SEQUENCE_ALTERNATIVE_ACHIEVED/,
+  'real-Webots proof must accept a second valid sequence shape with the same observable outcome');
+assert.match(sequenceProbeSource, /move\('forward', 0\.1\)/,
+  'real-Webots proof must exercise the fixed movement parameter exposed by Activity 1');
 
 async function exerciseEmbeddedStartActivityPath() {
   const workspace = new Blockly.Workspace();
@@ -144,7 +156,7 @@ async function exerciseEmbeddedStartActivityPath() {
 
 (async function() {
   await exerciseEmbeddedStartActivityPath();
-  console.log('PASS first progression activity keeps the shared Start-activity world binding, executes the embedded project-manager path without an OS picker/save target, separates explicit student mission from pedagogy, and binds completion-scoped world-state evaluation without accepting later profiles');
+  console.log('PASS first progression activity preserves Start-activity compatibility, explicit student mission/pedagogy separation, fixed non-discriminating parameters, completion-scoped world-state evaluation, reset freshness, and multiple valid sequence shapes without accepting later profiles');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
