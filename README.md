@@ -185,7 +185,7 @@ See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 ## Development model
 
-WebeeBlocks uses a small, trunk-based V4 development contract:
+WebeeBlocks uses a small, trunk-based V5 development contract:
 
 - `main` is the single healthy integration trunk;
 - independent Controller executions may work concurrently from isolated branches/worktrees;
