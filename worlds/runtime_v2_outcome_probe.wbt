@@ -1,0 +1,87 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+
+WorldInfo {
+  basicTimeStep 32
+  randomSeed 1
+  optimalThreadCount 1
+  title "WebeeBlocks — Runtime v2 outcome freshness probe"
+}
+Viewpoint {
+  orientation -0.45 0.47 0.76 1.05
+  position -2.4 -2.4 2.2
+  follow "Crazyflie WebeeBlocks"
+}
+TexturedBackground { }
+TexturedBackgroundLight { }
+Floor { size 4 4 }
+
+DEF OUTCOME_CRAZYFLIE Crazyflie {
+  name "Crazyflie WebeeBlocks"
+  controller "crazyflie_runtime_v2"
+  window "outcome_probe"
+  supervisor TRUE
+  synchronization TRUE
+  extensionSlot [
+    Pose {
+      translation 0 0 0.0066
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.04 0.09 0.05
+            roughness 0.62
+            metalness 0
+          }
+          geometry Box {
+            size 0.0347 0.0347 0.0015
+          }
+        }
+        LED {
+          translation 0 0 -0.0058
+          name "color_led"
+          gradual TRUE
+          color [ ]
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.82 0.84 0.82
+                emissiveColor 0 0 0
+                transparency 0.12
+                roughness 0.25
+                metalness 0
+              }
+              geometry Cylinder {
+                height 0.0101
+                radius 0.01735
+                subdivision 24
+              }
+            }
+          ]
+        }
+      ]
+    }
+    Pose {
+      translation 0 0 0.02
+      rotation 0 1 0 -1.57079632679
+      children [
+        DistanceSensor {
+          name "range_up"
+          lookupTable [
+            0 0 0
+            2 2000 0
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Robot {
+  name "Runtime v2 outcome provider probe"
+  supervisor TRUE
+  controller "runtime_v2_outcome_probe"
+}
