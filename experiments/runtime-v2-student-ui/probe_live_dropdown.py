@@ -48,10 +48,12 @@ _LIVE_DIRECTION_FIELD_RECT = r'''(() => {
 _ORIGINAL_CLICK = probe.Cdp.click
 _MAIN_SOURCE = inspect.getsource(probe.main)
 _DIRECTION_CALL = "c.click(rendered['directionFieldRect'])"
+_direction_index = _MAIN_SOURCE.find(_DIRECTION_CALL)
 if (
-    _MAIN_SOURCE.count("c.click(") != 2
-    or _MAIN_SOURCE.find("c.click(") != _MAIN_SOURCE.find(_DIRECTION_CALL)
-    or "c.click(vol_rect)" not in _MAIN_SOURCE
+    _MAIN_SOURCE.count(_DIRECTION_CALL) != 1
+    or _direction_index < 0
+    or _MAIN_SOURCE.find("c.click(") != _direction_index
+    or _MAIN_SOURCE.find("c.click(vol_rect)") <= _direction_index
 ):
     raise RuntimeError('student-ui click ordering changed; live direction-field repair must be revalidated')
 
