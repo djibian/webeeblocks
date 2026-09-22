@@ -115,15 +115,12 @@ window.addEventListener('unhandledrejection', function(event) {
       alternative:alternative.status
     });
 
-    // Activity 2 reuses the same ordered flight sequence, but now movement
-    // parameters are deliberately meaningful. The world-state oracle must
-    // accept equivalent decompositions and reject geometric misses/collision.
     const precise = {type:'mission-state-v1', oracle:'progression-precise-movement-v1'};
     await resetAndProveFresh(backend, precise, 'PRECISE_INITIAL_RESET_FRESH');
 
     await backend.takeoff(0.5);
     await backend.move('forward', 0.3);
-    await backend.move('left', 0.2);
+    await backend.move('left', 0.4);
     await backend.land();
     await backend.completeActivityMission(precise);
     const preciseAchieved = await waitForOutcome(backend, precise, 'achieved', 8000);
@@ -132,7 +129,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await resetAndProveFresh(backend, precise, 'PRECISE_RESET_FRESH');
     await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
-    await backend.move('left', 0.2);
+    await backend.move('left', 0.4);
     await backend.land();
     await backend.completeActivityMission(precise);
     const undershoot = await waitForOutcome(backend, precise, 'not-achieved', 8000);
@@ -140,7 +137,17 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, precise, 'PRECISE_UNDERSHOOT_RESET_FRESH');
     await backend.takeoff(0.5);
+    await backend.move('left', 0.4);
+    await backend.move('forward', 0.5);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const overshoot = await waitForOutcome(backend, precise, 'not-achieved', 8000);
+    await report('PRECISE_OVERSHOOT_NOT_ACHIEVED', overshoot);
+
+    await resetAndProveFresh(backend, precise, 'PRECISE_OVERSHOOT_RESET_FRESH');
+    await backend.takeoff(0.5);
     await backend.move('forward', 0.3);
+    await backend.move('left', 0.1);
     await backend.land();
     await backend.completeActivityMission(precise);
     const lateralMiss = await waitForOutcome(backend, precise, 'not-achieved', 8000);
@@ -148,20 +155,23 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, precise, 'PRECISE_LATERAL_RESET_FRESH');
     await backend.takeoff(0.5);
-    await backend.move('forward', 0.4);
-    await backend.move('left', 0.2);
-    await backend.land();
-    await backend.completeActivityMission(precise);
+    let collisionError = null;
+    try {
+      await backend.move('forward', 0.4);
+    } catch (error) {
+      collisionError = error;
+    }
+    if (!collisionError || collisionError.code !== 'UNSAFE_OR_TIMEOUT')
+      throw new Error('expected obstacle contact to trigger Runtime fail-safe, got: ' + String(collisionError));
     const collision = await waitForOutcome(backend, precise, 'not-achieved', 8000);
-    await report('PRECISE_COLLISION_NOT_ACHIEVED', collision);
+    await report('PRECISE_COLLISION_NOT_ACHIEVED', {status:collision.status, runtime_code:collisionError.code});
 
     await resetAndProveFresh(backend, precise, 'PRECISE_COLLISION_RESET_FRESH');
     await backend.takeoff(0.5);
+    await backend.move('forward', 0.2);
     await backend.move('forward', 0.1);
-    await backend.move('forward', 0.1);
-    await backend.move('forward', 0.1);
-    await backend.move('left', 0.1);
-    await backend.move('left', 0.1);
+    await backend.move('left', 0.2);
+    await backend.move('left', 0.2);
     await backend.land();
     await backend.completeActivityMission(precise);
     const preciseAlternative = await waitForOutcome(backend, precise, 'achieved', 8000);
@@ -169,6 +179,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await report('PRECISE_MISSION_TEST_COMPLETE', {
       canonical:preciseAchieved.status,
       undershoot:undershoot.status,
+      overshoot:overshoot.status,
       lateral:lateralMiss.status,
       collision:collision.status,
       alternative:preciseAlternative.status

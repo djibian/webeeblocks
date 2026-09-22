@@ -111,7 +111,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
+timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
 
         env = os.environ.copy()
@@ -137,11 +137,11 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
-            return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-12000:])
+            return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
-            return fail("missing browser progression evidence", webots_log[-12000:])
+            return fail("missing browser progression evidence", webots_log[-14000:])
         try:
             events = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         except Exception as exc:
@@ -149,7 +149,7 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
 
         errors = [event for event in events if event.get("event") in ("ERROR", "WINDOW_ERROR", "UNHANDLED_REJECTION")]
         if errors:
-            detail = json.dumps(errors[0], ensure_ascii=False) + "\n--- Webots tail ---\n" + webots_log[-12000:]
+            detail = json.dumps(errors[0], ensure_ascii=False) + "\n--- Webots tail ---\n" + webots_log[-14000:]
             return fail("browser progression probe reported an error", detail)
         names = [event.get("event") for event in events]
         required = (
@@ -167,6 +167,8 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "PRECISE_RESET_FRESH",
             "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
             "PRECISE_UNDERSHOOT_RESET_FRESH",
+            "PRECISE_OVERSHOOT_NOT_ACHIEVED",
+            "PRECISE_OVERSHOOT_RESET_FRESH",
             "PRECISE_LATERAL_NOT_ACHIEVED",
             "PRECISE_LATERAL_RESET_FRESH",
             "PRECISE_COLLISION_NOT_ACHIEVED",
@@ -184,12 +186,14 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             if details[name] != {"status": "achieved"}:
                 return fail(f"unexpected achieved event {name}: {details[name]}")
         for name in ("SEQUENCE_NOT_ACHIEVED", "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
-                     "PRECISE_LATERAL_NOT_ACHIEVED", "PRECISE_COLLISION_NOT_ACHIEVED"):
+                     "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
             if details[name] != {"status": "not-achieved"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
+        if details["PRECISE_COLLISION_NOT_ACHIEVED"] != {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"}:
+            return fail(f"unexpected collision event: {details['PRECISE_COLLISION_NOT_ACHIEVED']}")
         for name in ("SEQUENCE_RESET_FRESH", "SEQUENCE_REPEAT_RESET_FRESH", "SEQUENCE_SECOND_RESET_FRESH",
                      "PRECISE_INITIAL_RESET_FRESH", "PRECISE_RESET_FRESH", "PRECISE_UNDERSHOOT_RESET_FRESH",
-                     "PRECISE_LATERAL_RESET_FRESH", "PRECISE_COLLISION_RESET_FRESH"):
+                     "PRECISE_OVERSHOOT_RESET_FRESH", "PRECISE_LATERAL_RESET_FRESH", "PRECISE_COLLISION_RESET_FRESH"):
             if details[name] != {"code": "OUTCOME_UNAVAILABLE"}:
                 return fail(f"outcome survived reset at {name}: {details[name]}")
         if details["SEQUENCE_MISSION_TEST_COMPLETE"] != {
@@ -197,8 +201,8 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         }:
             return fail(f"unexpected sequence mission summary: {details['SEQUENCE_MISSION_TEST_COMPLETE']}")
         if details["PRECISE_MISSION_TEST_COMPLETE"] != {
-            "canonical": "achieved", "undershoot": "not-achieved", "lateral": "not-achieved",
-            "collision": "not-achieved", "alternative": "achieved"
+            "canonical": "achieved", "undershoot": "not-achieved", "overshoot": "not-achieved",
+            "lateral": "not-achieved", "collision": "not-achieved", "alternative": "achieved"
         }:
             return fail(f"unexpected precise mission summary: {details['PRECISE_MISSION_TEST_COMPLETE']}")
 
@@ -210,16 +214,17 @@ timeout -k 5s 220s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "WEBEEBLOCKS_PRECISE_RESULT attempt=5 status=achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=not-achieved",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=7 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_COLLISION attempt=8",
             "WEBEEBLOCKS_PRECISE_RESULT attempt=8 status=not-achieved",
-            "WEBEEBLOCKS_PRECISE_RESULT attempt=9 status=achieved",
+            "WEBEEBLOCKS_PRECISE_COLLISION attempt=9",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=9 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=achieved",
         ):
             if marker not in webots_log:
-                return fail(f"missing Webots progression marker: {marker}", webots_log[-12000:])
+                return fail(f"missing Webots progression marker: {marker}", webots_log[-14000:])
         if "ERROR:" in webots_log:
-            return fail("Webots emitted an ERROR line", webots_log[-12000:])
+            return fail("Webots emitted an ERROR line", webots_log[-14000:])
 
-        print("PASS progression missions: Activity 1 sequencing plus Activity 2 parameter-sensitive target, misses, collision rejection, alternative decomposition and reset freshness in real R2025a")
+        print("PASS progression missions: Activity 1 sequencing plus Activity 2 whole-craft precision, undershoot, overshoot, lateral miss, collision fail-safe, alternative decomposition and reset freshness in real R2025a")
         return 0
     finally:
         cleanup_temp_world()
