@@ -34,7 +34,7 @@ if not defined WEBEEBLOCKS_CHROME_EXE if exist "%ProgramFiles(x86)%\Google\Chrom
 if not defined WEBEEBLOCKS_CHROME_EXE goto :chrome_unavailable
 
 powershell.exe -NoLogo -NoProfile -Command ^
-  "$ErrorActionPreference='Stop'; try { $p=[IO.Path]::GetFullPath($env:WEBEEBLOCKS_CHROME_PROFILE); $root=[IO.Path]::GetPathRoot($p); if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith('\\')) { exit 2 }; $drive=[IO.DriveInfo]::new($root); if ($drive.DriveType -eq [IO.DriveType]::Network) { exit 3 }; [IO.Directory]::CreateDirectory($p) ^| Out-Null; $probe=Join-Path $p ('.webeeblocks-write-' + [Guid]::NewGuid().ToString('N') + '.tmp'); [IO.File]::WriteAllText($probe,'probe'); Remove-Item -LiteralPath $probe -Force; exit 0 } catch { exit 4 }"
+  "$ErrorActionPreference='Stop'; try { $p=[IO.Path]::GetFullPath($env:WEBEEBLOCKS_CHROME_PROFILE); $root=[IO.Path]::GetPathRoot($p); if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith('\\')) { exit 2 }; $drive=[IO.DriveInfo]::new($root); if ($drive.DriveType -eq [IO.DriveType]::Network) { exit 3 }; [IO.Directory]::CreateDirectory($p) | Out-Null; $probe=Join-Path $p ('.webeeblocks-write-' + [Guid]::NewGuid().ToString('N') + '.tmp'); [IO.File]::WriteAllText($probe,'probe'); Remove-Item -LiteralPath $probe -Force; exit 0 } catch { exit 4 }"
 if errorlevel 1 goto :local_profile_unavailable
 
 call :write_browser_helper
