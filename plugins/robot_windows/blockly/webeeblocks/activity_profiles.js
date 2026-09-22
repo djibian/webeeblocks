@@ -18,7 +18,12 @@
     requireString(profile.id, 'id');
     requireString(profile.world, 'world');
     if (!isObject(profile.brief) || typeof profile.brief.visible !== 'boolean') fail('brief.visible must be a boolean');
-    if (profile.brief.visible) { requireString(profile.brief.title, 'brief.title'); requireString(profile.brief.goal, 'brief.goal'); }
+    if (profile.brief.visible) {
+      requireString(profile.brief.title, 'brief.title');
+      var hasMission = typeof profile.brief.mission === 'string' && profile.brief.mission.trim() !== '';
+      var hasGoal = typeof profile.brief.goal === 'string' && profile.brief.goal.trim() !== '';
+      if (!hasMission && !hasGoal) fail('visible brief requires brief.mission or brief.goal');
+    }
     if (profile.pedagogy !== undefined) {
       if (!isObject(profile.pedagogy)) fail('pedagogy must be an object');
       requireString(profile.pedagogy.objective, 'pedagogy.objective');
@@ -80,7 +85,12 @@
 
   function resolveProfile(profile, blockCatalog) {
     validateProfile(profile, blockCatalog);
-    return clone(profile);
+    var resolved = clone(profile);
+    if (resolved.brief && resolved.brief.visible &&
+        (typeof resolved.brief.goal !== 'string' || resolved.brief.goal.trim() === '') &&
+        typeof resolved.brief.mission === 'string' && resolved.brief.mission.trim() !== '')
+      resolved.brief.goal = resolved.brief.mission;
+    return resolved;
   }
 
   function resolveById(document, profileId, blockCatalog) {
