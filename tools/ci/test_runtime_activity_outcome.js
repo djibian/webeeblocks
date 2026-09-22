@@ -16,8 +16,11 @@ assert.match(mainSource,
   /if \(missionOutcome\)\s*setRuntimeStatus\(missionOutcome\.state, missionOutcome\.detail\);\s*else\s*setRuntimeStatus\('TERMINÉ', 'Programme exécuté'\);/,
   'mission outcome presentation must preserve the existing non-mission completion path');
 assert.match(interposeSource,
-  /#define wb_robot_wwi_send_text webeeblocks_file_broker_send_text/,
-  'Runtime-v2 controller responses must pass through the attempt-freshness interposer');
+  /#define wb_robot_wwi_send webeeblocks_file_broker_send/,
+  'Runtime-v2 controller responses must pass through the attempt-freshness transport interposer');
+assert.match(brokerRuntimeSource,
+  /extern "C" void webeeblocks_file_broker_send\(const void \*data, int size\)/,
+  'the send interposer must preserve the Webots binary WWI transport signature');
 assert.match(brokerRuntimeSource,
   /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/,
   'live world channel must publish an attempt identity');

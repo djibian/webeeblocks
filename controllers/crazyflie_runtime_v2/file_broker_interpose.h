@@ -7,7 +7,7 @@
 // Runtime v2 flight semantics or the C source.
 #ifndef __cplusplus
 #define wb_robot_wwi_receive_text webeeblocks_file_broker_receive_text
-#define wb_robot_wwi_send_text webeeblocks_file_broker_send_text
+#define wb_robot_wwi_send webeeblocks_file_broker_send
 #define wb_robot_cleanup webeeblocks_file_broker_robot_cleanup
 #endif
 

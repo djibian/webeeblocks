@@ -15,7 +15,6 @@ constexpr const char *kPrefix = "WEBEEBLOCKS_FILE_BROKER_V1 ";
 constexpr const char *kRuntimeHello = "WEBEEBLOCKS_RUNTIME_V2 HELLO";
 constexpr const char *kRuntimeReady = "WEBEEBLOCKS_RUNTIME_V2 READY";
 constexpr const char *kAttemptPrefix = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ";
-constexpr const char *kOutcomePrefix = "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 ";
 WbFileBroker *gBroker = nullptr;
 WbFieldRef gActivityCustomData = 0;
 unsigned long long gActivityAttempt = 1;
@@ -168,6 +167,16 @@ void observeRuntimeResponse(const char *message) {
   }
   gPendingResetRequest = -1;
 }
+
+const char *nullTerminatedMessage(const void *data, int size) {
+  if (!data || size < 1)
+    return nullptr;
+  const char *text = static_cast<const char *>(data);
+  const void *terminator = std::memchr(data, '\0', static_cast<size_t>(size));
+  if (terminator != text + size - 1)
+    return nullptr;
+  return text;
+}
 }  // namespace
 
 extern "C" const char *webeeblocks_file_broker_receive_text(void) {
@@ -201,11 +210,12 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
   return nullptr;
 }
 
-extern "C" void webeeblocks_file_broker_send_text(const char *message) {
+extern "C" void webeeblocks_file_broker_send(const void *data, int size) {
+  const char *message = nullTerminatedMessage(data, size);
   if (message && std::strcmp(message, kRuntimeReady) == 0)
     ensureActivityChannel();
   observeRuntimeResponse(message);
-  wb_robot_wwi_send_text(message);
+  wb_robot_wwi_send(data, size);
 }
 
 extern "C" void webeeblocks_file_broker_robot_cleanup(void) {
