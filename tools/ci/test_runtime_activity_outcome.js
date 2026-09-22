@@ -33,6 +33,9 @@ assert.match(brokerRuntimeSource,
 assert.match(brokerRuntimeSource,
   /std::strcmp\(payload, "OK"\) == 0[\s\S]*(?:\+\+gActivityAttempt|gActivityAttempt = 0)[\s\S]*publishActivityAttempt\(\)/,
   'a successful Reset must rotate the attempt identity and clear prior terminal evidence before the UI resumes');
+assert.match(brokerRuntimeSource,
+  /if \(resetRequestId\(message, &resetId\) && gPendingResetRequest < 1\)\s*gPendingResetRequest = resetId;/,
+  'a later Reset request must not replace the identity of the already in-flight Reset');
 
 function deferred() {
   let resolve;
@@ -47,6 +50,41 @@ async function until(predicate, label) {
     await new Promise(r => setTimeout(r, 0));
   }
   throw new Error('timeout ' + label);
+}
+
+function proveOverlappingResetFreshnessContract() {
+  let attempt = 1;
+  let pendingReset = -1;
+
+  function observeResetRequest(id) {
+    if (id >= 1 && pendingReset < 1)
+      pendingReset = id;
+  }
+
+  function observeRuntimeResponse(id, payload) {
+    if (pendingReset < 1 || id !== pendingReset)
+      return;
+    if (payload === 'OK')
+      attempt += 1;
+    pendingReset = -1;
+  }
+
+  observeResetRequest(10);
+  observeResetRequest(11);
+  assert.strictEqual(pendingReset, 10,
+    'RESET B must not overwrite RESET A while A is still in flight');
+
+  observeRuntimeResponse(11, 'ERR BUSY');
+  assert.strictEqual(pendingReset, 10,
+    'RESET B BUSY must not clear the pending identity of RESET A');
+  assert.strictEqual(attempt, 1,
+    'a rejected overlapping Reset must not rotate the attempt identity');
+
+  observeRuntimeResponse(10, 'OK');
+  assert.strictEqual(pendingReset, -1,
+    'RESET A terminal response must release the pending Reset slot');
+  assert.strictEqual(attempt, 2,
+    'RESET A OK must rotate the attempt identity after an overlapping RESET B BUSY');
 }
 
 async function proveWwiOutcomeTransport() {
@@ -203,9 +241,10 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
     'unknown mission states must not be presented as success'
   );
 
+  proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
-  console.log('PASS backend-neutral activity mission outcome contract, attempt-scoped live-world transport, Runtime-v2 completion wiring, and pending-outcome action gating');
+  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);
