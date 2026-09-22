@@ -20,6 +20,35 @@ TexturedBackground { }
 TexturedBackgroundLight { }
 Floor { size 4 4 }
 
+# WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN
+Pose {
+  translation 0 0 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.12 0.42 0.90
+        transparency 0.18
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.30 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 0.25 0 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.72 0.28
+        transparency 0.14
+        roughness 0.9
+      }
+      geometry Box { size 0.22 0.34 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_SEQUENCE_MISSION_V1_END
+
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
   children [
@@ -41,7 +70,7 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
-Crazyflie {
+DEF CRAZYFLIE Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
@@ -162,3 +191,11 @@ Crazyflie {
     }
   ]
 }
+
+# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression sequence evaluator"
+  controller "progression_sequence_evaluator"
+  supervisor TRUE
+}
+# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END

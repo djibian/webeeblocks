@@ -19,6 +19,10 @@
     requireString(profile.world, 'world');
     if (!isObject(profile.brief) || typeof profile.brief.visible !== 'boolean') fail('brief.visible must be a boolean');
     if (profile.brief.visible) { requireString(profile.brief.title, 'brief.title'); requireString(profile.brief.goal, 'brief.goal'); }
+    if (profile.pedagogy !== undefined) {
+      if (!isObject(profile.pedagogy)) fail('pedagogy must be an object');
+      requireString(profile.pedagogy.objective, 'pedagogy.objective');
+    }
     if (!Array.isArray(profile.toolbox) || profile.toolbox.length === 0) fail('toolbox must be a non-empty array');
 
     var seen = Object.create(null);
@@ -60,6 +64,11 @@
     if (!isObject(profile.timer) || typeof profile.timer.enabled !== 'boolean') fail('timer.enabled must be a boolean');
     if (!isObject(profile.evaluation)) fail('evaluation must be an object');
     requireString(profile.evaluation.type, 'evaluation.type');
+    if (profile.evaluation.type === 'mission-state-v1') {
+      if (!isObject(profile.pedagogy)) fail('mission-state-v1 requires pedagogy');
+      requireString(profile.pedagogy.objective, 'pedagogy.objective');
+      requireString(profile.evaluation.oracle, 'evaluation.oracle');
+    }
     if (!isObject(profile.runtime)) fail('runtime must be an object');
     requireStringArray(profile.runtime.allowedStatementKinds, 'runtime.allowedStatementKinds');
     requireStringArray(profile.runtime.rangeDirections, 'runtime.rangeDirections');
