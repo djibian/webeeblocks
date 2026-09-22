@@ -106,12 +106,14 @@ window.addEventListener('unhandledrejection', function(event) {
     const freshAgain = await expectFreshAfterReset(backend, evaluation);
     await report('SEQUENCE_SECOND_RESET_FRESH', freshAgain);
 
-    // Three identical fixed-distance moves are a different valid block sequence
-    // with the same observable mission result, proving the oracle is not tied to
-    // one expected Blockly/AST shape.
+    // Reach the same final zone with a materially different valid sequence:
+    // land once between the two fixed-distance moves, take off again, then
+    // finish landed in the receiving zone. The oracle must judge final world
+    // state rather than one expected Blockly/AST shape.
     await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
-    await backend.move('forward', 0.1);
+    await backend.land();
+    await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
     await backend.land();
     await backend.completeActivityMission(evaluation);
