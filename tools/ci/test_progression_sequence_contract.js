@@ -91,6 +91,17 @@ assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu orac
 assert.match(evaluatorSource, /progression-sequence-v1/);
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
+const receivingPad = worldSource.match(
+  /translation 0\.25 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
+assert.ok(receivingPad, 'Activity 1 visible green receiving pad geometry must remain explicit');
+const targetXTolerance = evaluatorSource.match(/#define SEQUENCE_TARGET_X_TOLERANCE ([0-9.]+)/);
+const targetYTolerance = evaluatorSource.match(/#define SEQUENCE_TARGET_Y_TOLERANCE ([0-9.]+)/);
+assert.ok(targetXTolerance && targetYTolerance,
+  'Activity 1 evaluator target tolerances must remain explicit');
+assert.strictEqual(Number(targetXTolerance[1]), Number(receivingPad[1]) / 2,
+  'Activity 1 X acceptance must match the visible receiving-pad half-width');
+assert.strictEqual(Number(targetYTolerance[1]), Number(receivingPad[2]) / 2,
+  'Activity 1 Y acceptance must match the visible receiving-pad half-depth');
 const sequenceProbeSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
 assert.match(sequenceProbeSource, /completeActivityMission\(evaluation\)/,
   'real-Webots sequence probe must cross the integrated execution-completion boundary');
@@ -159,7 +170,7 @@ async function exerciseEmbeddedStartActivityPath() {
 
 (async function() {
   await exerciseEmbeddedStartActivityPath();
-  console.log('PASS first progression activity preserves Start-activity compatibility, explicit student mission/pedagogy separation, fixed non-discriminating parameters, completion-scoped world-state evaluation, reset freshness, and multiple valid sequence shapes without accepting later profiles');
+  console.log('PASS first progression activity preserves Start-activity compatibility, explicit student mission/pedagogy separation, fixed non-discriminating parameters, visible-pad-aligned world-state evaluation, reset freshness, and multiple valid sequence shapes without accepting later profiles');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
