@@ -2,8 +2,13 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const Activities = require('../../plugins/robot_windows/blockly/webeeblocks/activities.js');
-const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
+const ROOT = path.resolve(__dirname, '../..');
+const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
+const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activities.js'));
+const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
+const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'));
+const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
+const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
@@ -65,4 +70,66 @@ assert.match(evaluatorSource, /progression-sequence-v1/);
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
 
-console.log('PASS first progression activity keeps the shared Start-activity world binding, separates student mission from pedagogy, and binds a distinct world-state evaluator process without accepting later profiles');
+async function exerciseEmbeddedStartActivityPath() {
+  const workspace = new Blockly.Workspace();
+  const profileRef = {value: initialProfile};
+  const transportState = {opens:0, writes:0, releases:0};
+  const transport = {
+    nativeFileSystemAccess: true,
+    async open() {
+      transportState.opens += 1;
+      throw new Error('embedded Start activity must not open the OS project picker');
+    },
+    async saveAs() {
+      transportState.writes += 1;
+      throw new Error('embedded Start activity must not save implicitly');
+    },
+    async save() {
+      transportState.writes += 1;
+      throw new Error('embedded Start activity must not save implicitly');
+    },
+    async release() { transportState.releases += 1; }
+  };
+  const manager = ProjectFiles.createManager({
+    Blockly,
+    profiles: Profiles,
+    activitiesDocument: Activities.DOCUMENT,
+    blockCatalog: Activities.BLOCK_CATALOG,
+    semanticAst: SemanticAst,
+    activityContract: ActivityContract,
+    workspace,
+    getProfile: () => profileRef.value,
+    setProfile: profile => { profileRef.value = profile; },
+    transport
+  });
+
+  try {
+    assert.strictEqual(profileRef.value.id, 'reactive-obstacle-v2');
+    assert.strictEqual(manager.hasCurrentTarget(), false);
+    const starterText = ProjectFiles.createStarterText(p1.id);
+    const result = await manager.openTemplateText(p1.id + '.wbb', starterText);
+    assert.strictEqual(result.mode, 'embedded');
+    assert.strictEqual(profileRef.value.id, p1.id,
+      'embedded Activity 1 starter must apply from the initial Runtime profile');
+    assert.strictEqual(profileRef.value.world, initialProfile.world);
+    assert.strictEqual(manager.hasCurrentTarget(), false,
+      'starting an activity must deliberately leave no current save target');
+    assert.strictEqual(manager.currentName(), null);
+    assert.strictEqual(transportState.opens, 0,
+      'embedded Start activity unexpectedly reached the OS project picker');
+    assert.strictEqual(transportState.writes, 0,
+      'embedded Start activity unexpectedly persisted project bytes');
+    assert.strictEqual(workspace.getAllBlocks(false).length, 0,
+      'empty embedded starter must remain an empty student workspace');
+  } finally {
+    workspace.dispose();
+  }
+}
+
+(async function() {
+  await exerciseEmbeddedStartActivityPath();
+  console.log('PASS first progression activity keeps the shared Start-activity world binding, executes the embedded project-manager path without an OS picker/save target, separates student mission from pedagogy, and binds a distinct world-state evaluator process without accepting later profiles');
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
