@@ -10,8 +10,8 @@
 #define SEQUENCE_MAX_LANDING_SPEED 0.12
 #define SEQUENCE_SETTLE_TIMEOUT 1.5
 #define SEQUENCE_TARGET_X 0.25
-#define SEQUENCE_TARGET_X_TOLERANCE 0.09
-#define SEQUENCE_TARGET_Y_TOLERANCE 0.12
+#define SEQUENCE_TARGET_X_TOLERANCE 0.11
+#define SEQUENCE_TARGET_Y_TOLERANCE 0.17
 
 static int sequence_parse_attempt(const char *data, unsigned long long *attempt) {
   if (!data || !attempt)
