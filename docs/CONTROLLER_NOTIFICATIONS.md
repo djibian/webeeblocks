@@ -1,4 +1,4 @@
-# WebeeBlocks V4 human notifications
+# WebeeBlocks V5 human notifications
 
 GitHub is authoritative. Controller lifecycle never notifies Emmanuel.
 

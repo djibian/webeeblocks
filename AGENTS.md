@@ -1,4 +1,4 @@
-# WebeeBlocks development contract — V4
+# WebeeBlocks development contract — V5
 
 ## Product boundary
 
@@ -137,7 +137,7 @@ make it unsuitable as the base for subsequent development.
   unrelated work need not idle.
 - Do not blindly retry failures. Rerun only after causal diagnosis or relevant
   external-state change.
-- A future merge queue may optimize contention but V4 does not depend on one.
+- A future merge queue may optimize contention but V5 does not depend on one.
 
 ## 5 — Human Boundary
 
@@ -178,15 +178,43 @@ product constraint, demonstrable logical or technical necessity, or durable
 evidence establishes it. Prior placement in a plan, roadmap sequence or issue
 history is not sufficient justification by itself.
 
-**Pull the smallest useful complete result.** Prefer reducing useful engaged work
-when that is a strong next result; otherwise take the smallest complete result
-that usefully advances or unblocks an active product outcome. Reducing engaged
-work may mean validating, integrating, repairing, completing, closing or
-abandoning a branch, candidate, duplicate or transient decomposition. Do not
-continue work merely because effort has already been invested when current
-evidence makes it dominated, obsolete, unsafe or no longer useful. Abandoning
-work never abandons a product goal or priority unless durable product authority
-changes that goal or priority.
+**Pull the smallest useful complete result.** Reduce useful engaged work when
+that is a strong next result, but do not give it automatic precedence over other
+strong independent results. A bounded result may mean validating, integrating,
+repairing, completing, closing or abandoning existing work, or completing new
+independent work. Do not continue work merely because effort has already been
+invested when current evidence makes it dominated, obsolete, unsafe or no longer
+useful. Abandoning work never abandons a product goal or priority unless durable
+product authority changes that goal or priority.
+
+**Disperse strong useful parallel work.** Reconstruct bounded useful eligible
+results from current durable project state and reason about remaining marginal
+work, never presumed Controller presence, ownership, reservation or expected
+continuation. The strong useful candidate set is deliberately selective: a
+result does not enter it merely because it is useful or eligible. A candidate
+belongs to the strong useful candidate set only when current evidence does not
+make it materially weaker than the strongest currently available alternatives.
+Dispersion must not promote materially weaker work merely to increase
+parallelism. Candidates are bounded results, not broad issues, roadmap nodes,
+subsystems or project domains. Product value, unblocking, completion value,
+information gain, remaining marginal work, useful independent parallelism and
+material interference may inform the set, but do not form a numerical utility
+function or deterministic tie-breaking chain. Interference describes coupling
+of effects, not presumed duplication by unseen executions. Clear domination
+requires a material reason why selecting another strong candidate now would
+produce substantially less useful progress, defer an important obligation or
+unblock opportunity, or perform known-unnecessary work; roadmap order, age,
+recency, prior investment, branch/PR existence and small subjective value
+differences do not establish it by themselves. When several strong bounded
+results remain and none materially dominates, order them using stable bounded
+work identifiers and an execution-local non-durable dispersion key that contains
+execution-local entropy and is not deterministically derived solely from durable
+project state. Generate the dispersion key once per Controller execution and
+reuse that same key for the lifetime of that execution; never persist it beyond
+the execution. The key carries no authority. Selection creates no affinity:
+after every durable transition, reconstruct the decision from current
+authoritative state without preferring later work merely because this execution
+previously selected, mutated or completed related work.
 
 **Persist knowledge, not planning scaffolding.** Materialize durable evidence,
 constraints, discoveries and conclusions that can affect future decisions.
@@ -209,15 +237,15 @@ At launch and after every durable transition:
    issues and evidence;
 2. if main is known unhealthy, contribute to restoration first unless a credible
    repair path is durably engaged and another independent action is more useful;
-3. prefer a useful action that reduces remaining engaged work when it is a strong
-   next result: validate/integrate a Ready PR this execution did not mutate,
-   repair/complete existing useful work, or close/abandon a dominated duplicate
-   or obsolete path;
-4. otherwise select the smallest useful complete result that best advances the
-   current product priorities and is not already sufficiently covered. Compare
-   progressing existing work with starting new work using product value,
-   unblocking, evidence, uncertainty and useful independent parallelism rather
-   than age, sunk cost or prior plan placement;
+3. enumerate bounded useful eligible results, including validating/integrating a
+   Ready PR this execution did not mutate, repairing/completing existing useful
+   work, closing/abandoning dominated or obsolete work, and starting independent
+   new work; remove results already covered, genuinely blocked, redundant without
+   marginal value, obsolete, superseded or clearly dominated;
+4. build the deliberately selective strong useful candidate set under Adaptive
+   planning. If one result materially and clearly dominates the other strong
+   candidates, select it; otherwise order the strong candidates using the
+   execution-local dispersion key and their stable bounded work identifiers;
 5. execute that result through an existing suitable branch/PR or an isolated
    short branch; publish a PR only once real durable work exists, Draft if still
    mutable and Ready if complete;
