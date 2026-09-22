@@ -20,6 +20,27 @@ TexturedBackground { }
 TexturedBackgroundLight { }
 Floor { size 4 4 }
 
+# Activity 1 keeps the existing Runtime-v2 world and adds only visual evidence
+# needed by its mission. The evaluator below owns the actual success oracle.
+Solid {
+  translation 0 0 0.005
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.15 0.35 0.85 roughness 0.75 }
+      geometry Box { size 0.14 0.22 0.01 }
+    }
+  ]
+}
+DEF PROGRESSION_SEQUENCE_TARGET Solid {
+  translation 0.25 0 0.005
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.15 0.72 0.28 roughness 0.75 }
+      geometry Box { size 0.30 0.32 0.01 }
+    }
+  ]
+}
+
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
   children [
@@ -41,7 +62,7 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
-Crazyflie {
+DEF WEBEEBLOCKS_CRAZYFLIE Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
@@ -161,4 +182,10 @@ Crazyflie {
       ]
     }
   ]
+}
+
+Robot {
+  name "Progression sequence evaluator"
+  supervisor TRUE
+  controller "progression_sequence_evaluator"
 }
