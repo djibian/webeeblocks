@@ -16,11 +16,13 @@ assert.strictEqual(p1.world, 'worlds/crazyflie_runtime_obstacle.wbt');
 assert.strictEqual(p1.world, initialProfile.world,
   'embedded Start activity must preserve the shared project/world compatibility tag');
 assert.strictEqual(p1.brief.title, '1 — Rejoindre la zone d’arrivée');
-assert.strictEqual(p1.brief.goal,
+assert.strictEqual(p1.brief.mission,
   'Le drone part de la zone bleue. Sa mission est de terminer posé dans la zone verte, avant l’obstacle rouge.');
+assert.strictEqual(p1.brief.goal, p1.brief.mission,
+  'legacy goal compatibility must preserve the redesigned student mission');
 assert.strictEqual(p1.pedagogy.objective,
   'Construire et ordonner une première séquence d’actions paramétrées pour atteindre un état final observable.');
-assert.notStrictEqual(p1.brief.goal, p1.pedagogy.objective,
+assert.notStrictEqual(p1.brief.mission, p1.pedagogy.objective,
   'student mission must remain distinct from the internal pedagogical objective');
 assert.deepStrictEqual(p1.evaluation, {type:'mission-state-v1', oracle:'progression-sequence-v1'});
 assert.deepStrictEqual(p1.toolbox,
@@ -33,8 +35,14 @@ assert.strictEqual(remainingProgression.length, 7);
 remainingProgression.forEach(profile => {
   assert.strictEqual(profile.evaluation.type, 'training-objective',
     profile.id + ' must remain explicitly unaccepted until redesigned on its own evidence');
+  assert.strictEqual(profile.brief.mission, undefined,
+    profile.id + ' must remain on the legacy goal-only representation until redesigned');
 });
 
+const missingMission = JSON.parse(JSON.stringify(p1));
+delete missingMission.brief.mission;
+assert.throws(() => Profiles.validateProfile(missingMission, Activities.BLOCK_CATALOG),
+  /brief\.mission must be a non-empty string/);
 const missingPedagogy = JSON.parse(JSON.stringify(p1));
 delete missingPedagogy.pedagogy;
 assert.throws(() => Profiles.validateProfile(missingPedagogy, Activities.BLOCK_CATALOG),
@@ -51,7 +59,8 @@ assert.doesNotMatch(mainSource, /pedagogy\.objective/,
 assert.doesNotMatch(projectUiSource, /pedagogy\.objective/,
   'internal pedagogical objective must not be rendered when applying an activity profile');
 assert.match(mainSource, /runtimeProfile\.brief\.goal/);
-assert.match(projectUiSource, /profile\.brief\.goal/);
+assert.match(projectUiSource, /profile\.brief\.mission\s*\|\|\s*profile\.brief\.goal/,
+  'redesigned activity mission must be rendered with legacy goal fallback');
 assert.match(projectUiSource,
   /createStarterText\(profile\.id\)[\s\S]*manager\.openTemplateText\(starterName, starterText\)/,
   'Démarrer une activité must use embedded starter bytes rather than the OS project picker');
@@ -65,10 +74,15 @@ assert.match(runtimeEntrySource, /sequence-evaluator-v1/);
 assert.match(runtimeEntrySource, /webeeblocks_progression_sequence_evaluator_main/);
 const evaluatorSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/progression_sequence_evaluator.c'), 'utf8');
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/);
+assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_COMPLETION_V1/,
+  'world evaluator must bind terminal judgement to the exact mission completion marker');
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s/);
 assert.match(evaluatorSource, /progression-sequence-v1/);
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
+const sequenceProbeSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
+assert.match(sequenceProbeSource, /completeActivityMission\(evaluation\)/,
+  'real-Webots sequence probe must cross the integrated execution-completion boundary');
 
 async function exerciseEmbeddedStartActivityPath() {
   const workspace = new Blockly.Workspace();
@@ -112,6 +126,8 @@ async function exerciseEmbeddedStartActivityPath() {
     assert.strictEqual(profileRef.value.id, p1.id,
       'embedded Activity 1 starter must apply from the initial Runtime profile');
     assert.strictEqual(profileRef.value.world, initialProfile.world);
+    assert.strictEqual(profileRef.value.brief.mission, p1.brief.mission,
+      'embedded Activity 1 starter must apply the explicit student mission field');
     assert.strictEqual(manager.hasCurrentTarget(), false,
       'starting an activity must deliberately leave no current save target');
     assert.strictEqual(manager.currentName(), null);
@@ -128,7 +144,7 @@ async function exerciseEmbeddedStartActivityPath() {
 
 (async function() {
   await exerciseEmbeddedStartActivityPath();
-  console.log('PASS first progression activity keeps the shared Start-activity world binding, executes the embedded project-manager path without an OS picker/save target, separates student mission from pedagogy, and binds a distinct world-state evaluator process without accepting later profiles');
+  console.log('PASS first progression activity keeps the shared Start-activity world binding, executes the embedded project-manager path without an OS picker/save target, separates explicit student mission from pedagogy, and binds completion-scoped world-state evaluation without accepting later profiles');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
