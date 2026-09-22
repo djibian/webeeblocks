@@ -253,9 +253,10 @@ function saveBlocks() {
     if (!ws || ws.readyState !== WebSocket.OPEN)
         return;
     currCommand = SocketCommand.SAVE;
+    var xml = Blockly.Xml.workspaceToDom(Blockly.mainWorkspace);
     ws.send(SocketCommand.SAVE);
     ws.send(title.textContent+".xml");
-    ws.send(Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(Blockly.mainWorkspace)));
+    ws.send(Blockly.Xml.domToText(xml));
     saveLast();
 }
 
