@@ -54,6 +54,8 @@ window.addEventListener('unhandledrejection', function(event) {
     await report('PROBE_READY', {ready: backend.ready});
 
     const evaluation = {type: 'mission-state-v1', oracle: 'ci-outcome-v1'};
+    await backend.completeActivityMission(evaluation);
+    await report('ATTEMPT_A_COMPLETED', {oracle: evaluation.oracle});
     const first = await waitForOutcome(backend, evaluation, 'achieved', 10000);
     await report('ATTEMPT_A', first);
 
@@ -71,6 +73,8 @@ window.addEventListener('unhandledrejection', function(event) {
     }
     await report('NO_STALE_AFTER_RESET', {code: staleCode});
 
+    await backend.completeActivityMission(evaluation);
+    await report('ATTEMPT_B_COMPLETED', {oracle: evaluation.oracle});
     const second = await waitForOutcome(backend, evaluation, 'not-achieved', 12000);
     await report('ATTEMPT_B', second);
     await report('OUTCOME_PROVIDER_TEST_COMPLETE', {first: first.status, second: second.status});
