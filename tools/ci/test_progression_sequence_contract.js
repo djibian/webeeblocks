@@ -77,9 +77,12 @@ const worldSource = fs.readFileSync(path.resolve(__dirname, '../../worlds/crazyf
 assert.match(worldSource, /WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN/);
 assert.match(worldSource, /name "Crazyflie WebeeBlocks"/);
 assert.match(worldSource, /name "Progression sequence evaluator"[\s\S]*controller "crazyflie_runtime_v2"[\s\S]*"sequence-evaluator-v1"/);
-const runtimeEntrySource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
+const runtimeEntrySource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
 assert.match(runtimeEntrySource, /sequence-evaluator-v1/);
 assert.match(runtimeEntrySource, /webeeblocks_progression_sequence_evaluator_main/);
+const runtimeMakefileSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
+assert.match(runtimeMakefileSource, /-Dmain=webeeblocks_runtime_flight_main/,
+  'mission dispatcher must preserve the canonical Runtime-v2 source file while renaming its native entry point at compile time');
 const evaluatorSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/progression_sequence_evaluator.c'), 'utf8');
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/);
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_COMPLETION_V1/,
