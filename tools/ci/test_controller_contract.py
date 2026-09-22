@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard V4 contract wording; these tests do not prove Controller behavior."""
+"""Guard V5 contract wording; these tests do not prove Controller behavior."""
 
 from pathlib import Path
 import unittest
@@ -167,15 +167,41 @@ class ContractTests(unittest.TestCase):
         self.assertIn("demonstrable logical or technical necessity", self.contract)
         self.assertIn("Prior placement in a plan, roadmap sequence or issue history is not sufficient justification", self.contract)
         self.assertIn("Pull the smallest useful complete result.", self.contract)
+        self.assertIn("do not give it automatic precedence over other strong independent results", self.contract)
         self.assertIn("Do not continue work merely because effort has already been invested", self.contract)
         self.assertIn("Abandoning work never abandons a product goal or priority", self.contract)
         self.assertIn("Persist knowledge, not planning scaffolding.", self.contract)
         self.assertIn("controller-local rankings", self.contract)
-        self.assertIn("smallest useful complete result that best advances the current product priorities", self.contract)
         self.assertIn("Product priority is a strong selection signal, not a strict execution queue", self.contract)
         self.assertIn("higher-priority outcome does not block independent useful work merely because it remains incomplete", self.contract)
         self.assertIn("Roadmap numbering, textual order, prior plan placement and issue history are not execution queues", self.contract)
+        self.assertNotIn("smallest useful complete result that best advances the current product priorities", self.contract)
         self.assertNotIn("start the highest-value product work", self.contract)
+
+    def test_stigmergic_work_dispersion_is_local_bounded_and_non_authoritative(self):
+        for required in (
+            "Disperse strong useful parallel work.",
+            "remaining marginal work",
+            "never presumed Controller presence, ownership, reservation or expected continuation",
+            "strong useful candidate set is deliberately selective",
+            "does not enter it merely because it is useful or eligible",
+            "only when current evidence does not make it materially weaker than the strongest currently available alternatives",
+            "must not promote materially weaker work merely to increase parallelism",
+            "Candidates are bounded results, not broad issues, roadmap nodes, subsystems or project domains",
+            "do not form a numerical utility function or deterministic tie-breaking chain",
+            "Interference describes coupling of effects, not presumed duplication by unseen executions",
+            "Clear domination requires a material reason",
+            "execution-local non-durable dispersion key",
+            "contains execution-local entropy",
+            "not deterministically derived solely from durable project state",
+            "Generate the dispersion key once per Controller execution",
+            "reuse that same key for the lifetime of that execution",
+            "never persist it beyond the execution",
+            "The key carries no authority",
+            "Selection creates no affinity",
+            "reconstruct the decision from current authoritative state",
+        ):
+            self.assertIn(required, self.contract)
 
     def test_termination_requires_final_reconstruction(self):
         self.assertIn("rebuild relevant engaged GitHub work one final time", self.contract)

@@ -1,4 +1,4 @@
-# WebeeBlocks V4 development architecture
+# WebeeBlocks V5 development architecture
 
 WebeeBlocks uses one healthy trunk and GitHub-native durable coordination.
 Controller executions are stateless: 0, 1 or N may run concurrently without
@@ -28,7 +28,7 @@ relevant issue/PR/review/evidence. Session presence, ownership, handoffs,
 heartbeats, relaunch state and agent pools do not exist.
 
 Durability does not imply trust. Decision facts are authoritative only when their
-provenance satisfies the V4 trust contract: `CI Gate` must be identified through
+provenance satisfies the V5 trust contract: `CI Gate` must be identified through
 the canonical workflow/run/attempt below, not just a context name or App;
 Controller GO/NO_GO/UNPROVEN and human PASS/FAIL/NOT_NEEDED
 must come from repository owner `djibian` and bind the exact applicable SHA or
@@ -227,7 +227,7 @@ alters protections, its rollback must restore those settings explicitly.
 
 A future merge queue is optional only if integration contention becomes real.
 
-## Install or restore this V4 on another repository
+## Install or restore this V5 on another repository
 
 1. Adapt AGENTS.md, PRODUCT_VISION.md and ROADMAP.md to the product and explicitly
    name its trusted decision principal. Preserve stateless executions, independent
@@ -237,7 +237,7 @@ A future merge queue is optional only if integration contention becomes real.
    entry point and a Ready-only `CI Gate`; Draft has a distinct check name.
    Adapt the existing selector/gate interface and workflow-inventory tests
    together if suite names change. This repository's Runtime/Webots suites are
-   product-specific, not generic V4 infrastructure.
+   product-specific, not generic V5 infrastructure.
 3. Configure and read back the main protections above, with the installation's
    actual App identity. Verify that the Controller's authorized tools can read
    PRs, reviews, full relevant runs/attempts/jobs and protections, and can perform
