@@ -13,12 +13,36 @@
   function requireStringArray(value, path) { if (!Array.isArray(value)) fail(path + ' must be an array'); value.forEach(function(item, index) { requireString(item, path + '[' + index + ']'); }); }
   function validateBounds(bounds, path) { if (!isObject(bounds)) fail(path + ' must be an object'); ['min', 'max', 'step'].forEach(function(key) { if (!Number.isFinite(bounds[key])) fail(path + '.' + key + ' must be finite'); }); if (bounds.min > bounds.max) fail(path + '.min must be <= max'); if (bounds.step <= 0) fail(path + '.step must be > 0'); }
 
+  function validateBrief(profile) {
+    if (!isObject(profile.brief) || typeof profile.brief.visible !== 'boolean') fail('brief.visible must be a boolean');
+    if (!profile.brief.visible) return;
+    requireString(profile.brief.title, 'brief.title');
+
+    var hasMission = profile.brief.mission !== undefined;
+    var hasGoal = profile.brief.goal !== undefined;
+    if (!hasMission && !hasGoal)
+      fail('brief.goal or brief.mission must be provided');
+
+    if (hasMission) {
+      requireString(profile.brief.mission, 'brief.mission');
+      if (!isObject(profile.pedagogy)) fail('pedagogy must be an object when brief.mission is used');
+      requireString(profile.pedagogy.objective, 'pedagogy.objective');
+      if (hasGoal) {
+        requireString(profile.brief.goal, 'brief.goal');
+        if (profile.brief.goal !== profile.brief.mission)
+          fail('brief.goal must match brief.mission when both are present');
+      }
+      return;
+    }
+
+    requireString(profile.brief.goal, 'brief.goal');
+  }
+
   function validateProfile(profile, blockCatalog) {
     if (!isObject(profile)) fail('profile must be an object');
     requireString(profile.id, 'id');
     requireString(profile.world, 'world');
-    if (!isObject(profile.brief) || typeof profile.brief.visible !== 'boolean') fail('brief.visible must be a boolean');
-    if (profile.brief.visible) { requireString(profile.brief.title, 'brief.title'); requireString(profile.brief.goal, 'brief.goal'); }
+    validateBrief(profile);
     if (!Array.isArray(profile.toolbox) || profile.toolbox.length === 0) fail('toolbox must be a non-empty array');
 
     var seen = Object.create(null);
@@ -70,7 +94,14 @@
 
   function resolveProfile(profile, blockCatalog) {
     validateProfile(profile, blockCatalog);
-    return clone(profile);
+    var resolved = clone(profile);
+    // Existing Robot Window surfaces still read brief.goal. For redesigned
+    // activities, project the student mission onto that legacy presentation
+    // field only after validation; the internal pedagogical objective remains a
+    // separate non-student-facing datum.
+    if (resolved.brief && resolved.brief.visible && resolved.brief.mission !== undefined && resolved.brief.goal === undefined)
+      resolved.brief.goal = resolved.brief.mission;
+    return resolved;
   }
 
   function resolveById(document, profileId, blockCatalog) {
