@@ -15,6 +15,7 @@ constexpr const char *kPrefix = "WEBEEBLOCKS_FILE_BROKER_V1 ";
 constexpr const char *kRuntimeHello = "WEBEEBLOCKS_RUNTIME_V2 HELLO";
 constexpr const char *kRuntimeReady = "WEBEEBLOCKS_RUNTIME_V2 READY";
 constexpr const char *kAttemptPrefix = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ";
+constexpr const char *kCompletionPrefix = "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1";
 WbFileBroker *gBroker = nullptr;
 WbFieldRef gActivityCustomData = 0;
 unsigned long long gActivityAttempt = 1;
@@ -62,6 +63,14 @@ void publishActivityAttempt(void) {
   wb_supervisor_field_set_sf_string(gActivityCustomData, marker);
 }
 
+void publishActivityCompletion(const char *oracle) {
+  if (!gActivityCustomData || !isSafeOracle(oracle))
+    return;
+  char marker[192];
+  std::snprintf(marker, sizeof(marker), "%s attempt=%llu oracle=%s", kCompletionPrefix, gActivityAttempt, oracle);
+  wb_supervisor_field_set_sf_string(gActivityCustomData, marker);
+}
+
 bool ensureActivityChannel(void) {
   if (gActivityChannelInitialized)
     return gActivityCustomData != 0;
@@ -86,6 +95,34 @@ void sendRuntimeState(int id, const char *status) {
   char response[192];
   std::snprintf(response, sizeof(response), "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d STATE %s", id, status);
   wb_robot_wwi_send_text(response);
+}
+
+bool handleMissionCompletionRequest(const char *message) {
+  if (!message)
+    return false;
+  int id = -1;
+  char command[32] = {0};
+  if (std::sscanf(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s", &id, command) != 2 ||
+      std::strcmp(command, "COMPLETE") != 0)
+    return false;
+
+  char oracle[64] = {0};
+  char extra[2] = {0};
+  if (id < 1 || std::sscanf(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d COMPLETE %63s %1s", &id, oracle, extra) != 2 ||
+      !isSafeOracle(oracle)) {
+    if (id >= 1)
+      sendRuntimeError(id, "INVALID_MISSION_REQUEST");
+    return true;
+  }
+  if (!ensureActivityChannel()) {
+    sendRuntimeError(id, "OUTCOME_UNAVAILABLE");
+    return true;
+  }
+  publishActivityCompletion(oracle);
+  char response[192];
+  std::snprintf(response, sizeof(response), "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d OK", id);
+  wb_robot_wwi_send_text(response);
+  return true;
 }
 
 bool handleOutcomeRequest(const char *message) {
@@ -189,6 +226,8 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
       wb_robot_wwi_send_text(kRuntimeReady);
       continue;
     }
+    if (handleMissionCompletionRequest(message))
+      continue;
     if (handleOutcomeRequest(message))
       continue;
     int resetId = -1;
