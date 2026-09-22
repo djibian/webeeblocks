@@ -92,6 +92,29 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
             )
         timeout = _require_timeout(decision_timeout_seconds)
 
+        # Keep fallible pre-proposal validation outside the one-shot teacher
+        # exchange. If it fails, the production caller may still publish the
+        # bounded diagnostic because no teacher bytes could have been emitted.
+        before_epoch = _read_epoch(self._epoch_reader)
+        if binding.connection_epoch != before_epoch:
+            raise TeacherDecisionChannelError(
+                "host teacher binding does not match the live connection epoch"
+            )
+        request_id = secrets.token_urlsafe(24)
+        challenge_id = self._challenge_id()
+        proposal = {
+            "op": "teacher-run-binding-proposal",
+            "requestId": request_id,
+            "challengeId": challenge_id,
+            "profileId": binding.profile_id,
+            "astBinding": binding.ast_binding,
+            "connectionEpoch": binding.connection_epoch,
+            "executionAuthority": False,
+        }
+
+        # From this point onward a send may be partial/ambiguous. Claim the
+        # one-shot protocol immediately before the first possible proposal byte;
+        # diagnostics are permanently forbidden once this flag is set.
         with self._lock:
             if self._terminal:
                 raise TeacherDecisionChannelError(
@@ -106,23 +129,6 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
 
         receipt: TeacherRunAuthorization | None = None
         try:
-            before_epoch = _read_epoch(self._epoch_reader)
-            if binding.connection_epoch != before_epoch:
-                raise TeacherDecisionChannelError(
-                    "host teacher binding does not match the live connection epoch"
-                )
-
-            request_id = secrets.token_urlsafe(24)
-            challenge_id = self._challenge_id()
-            proposal = {
-                "op": "teacher-run-binding-proposal",
-                "requestId": request_id,
-                "challengeId": challenge_id,
-                "profileId": binding.profile_id,
-                "astBinding": binding.ast_binding,
-                "connectionEpoch": binding.connection_epoch,
-                "executionAuthority": False,
-            }
             self._send_json_line(proposal, timeout)
             response = self._recv_json_line(timeout)
 
