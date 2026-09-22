@@ -37,7 +37,7 @@ async function waitForOutcome(backend, evaluation, expected, timeoutMs) {
 async function expectFreshAfterReset(backend, evaluation) {
   try {
     const stale = await backend.readActivityOutcome(evaluation);
-    throw new Error('previous sequence outcome survived reset: ' + JSON.stringify(stale));
+    throw new Error('previous mission outcome survived reset: ' + JSON.stringify(stale));
   } catch (error) {
     if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
       throw error;
@@ -50,6 +50,12 @@ async function flyCanonicalSequence(backend) {
   await backend.move('forward', 0.1);
   await backend.move('forward', 0.1);
   await backend.land();
+}
+
+async function resetAndProveFresh(backend, evaluation, eventName) {
+  await backend.resetSimulation();
+  const fresh = await expectFreshAfterReset(backend, evaluation);
+  await report(eventName, fresh);
 }
 
 window.addEventListener('error', function(event) {
@@ -71,45 +77,28 @@ window.addEventListener('unhandledrejection', function(event) {
     const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
 
-    // Activity 1 fixes movement distance at 0.1 m so parameter choice cannot
-    // solve the task. Two short forward actions are one valid sequence shape.
     await flyCanonicalSequence(backend);
     await backend.completeActivityMission(evaluation);
     const achieved = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_ACHIEVED', achieved);
 
-    await backend.resetSimulation();
-    const fresh = await expectFreshAfterReset(backend, evaluation);
-    await report('SEQUENCE_RESET_FRESH', fresh);
+    await resetAndProveFresh(backend, evaluation, 'SEQUENCE_RESET_FRESH');
 
-    // Repeat the exact same valid sequence after reset. This is deliberately
-    // redundant evidence for the completion/landing boundary: a one-off green
-    // run must not hide a physics-settling race in the mission oracle.
     await flyCanonicalSequence(backend);
     await backend.completeActivityMission(evaluation);
     const repeat = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_REPEAT_ACHIEVED', repeat);
 
-    await backend.resetSimulation();
-    const repeatFresh = await expectFreshAfterReset(backend, evaluation);
-    await report('SEQUENCE_REPEAT_RESET_FRESH', repeatFresh);
+    await resetAndProveFresh(backend, evaluation, 'SEQUENCE_REPEAT_RESET_FRESH');
 
-    // A complete executable sequence that lands back outside the target must
-    // remain a world-state failure rather than a solution-shape judgement.
     await backend.takeoff(0.5);
     await backend.land();
     await backend.completeActivityMission(evaluation);
     const notAchieved = await waitForOutcome(backend, evaluation, 'not-achieved', 8000);
     await report('SEQUENCE_NOT_ACHIEVED', notAchieved);
 
-    await backend.resetSimulation();
-    const freshAgain = await expectFreshAfterReset(backend, evaluation);
-    await report('SEQUENCE_SECOND_RESET_FRESH', freshAgain);
+    await resetAndProveFresh(backend, evaluation, 'SEQUENCE_SECOND_RESET_FRESH');
 
-    // Reach the same final zone with a materially different valid sequence:
-    // land once between the two fixed-distance moves, take off again, then
-    // finish landed in the receiving zone. The oracle must judge final world
-    // state rather than one expected Blockly/AST shape.
     await backend.takeoff(0.5);
     await backend.move('forward', 0.1);
     await backend.land();
@@ -124,6 +113,65 @@ window.addEventListener('unhandledrejection', function(event) {
       repeat:repeat.status,
       negative:notAchieved.status,
       alternative:alternative.status
+    });
+
+    // Activity 2 reuses the same ordered flight sequence, but now movement
+    // parameters are deliberately meaningful. The world-state oracle must
+    // accept equivalent decompositions and reject geometric misses/collision.
+    const precise = {type:'mission-state-v1', oracle:'progression-precise-movement-v1'};
+    await resetAndProveFresh(backend, precise, 'PRECISE_INITIAL_RESET_FRESH');
+
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.3);
+    await backend.move('left', 0.2);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const preciseAchieved = await waitForOutcome(backend, precise, 'achieved', 8000);
+    await report('PRECISE_ACHIEVED', preciseAchieved);
+
+    await resetAndProveFresh(backend, precise, 'PRECISE_RESET_FRESH');
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.1);
+    await backend.move('left', 0.2);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const undershoot = await waitForOutcome(backend, precise, 'not-achieved', 8000);
+    await report('PRECISE_UNDERSHOOT_NOT_ACHIEVED', undershoot);
+
+    await resetAndProveFresh(backend, precise, 'PRECISE_UNDERSHOOT_RESET_FRESH');
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.3);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const lateralMiss = await waitForOutcome(backend, precise, 'not-achieved', 8000);
+    await report('PRECISE_LATERAL_NOT_ACHIEVED', lateralMiss);
+
+    await resetAndProveFresh(backend, precise, 'PRECISE_LATERAL_RESET_FRESH');
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.4);
+    await backend.move('left', 0.2);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const collision = await waitForOutcome(backend, precise, 'not-achieved', 8000);
+    await report('PRECISE_COLLISION_NOT_ACHIEVED', collision);
+
+    await resetAndProveFresh(backend, precise, 'PRECISE_COLLISION_RESET_FRESH');
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.1);
+    await backend.move('left', 0.1);
+    await backend.move('left', 0.1);
+    await backend.land();
+    await backend.completeActivityMission(precise);
+    const preciseAlternative = await waitForOutcome(backend, precise, 'achieved', 8000);
+    await report('PRECISE_ALTERNATIVE_ACHIEVED', preciseAlternative);
+    await report('PRECISE_MISSION_TEST_COMPLETE', {
+      canonical:preciseAchieved.status,
+      undershoot:undershoot.status,
+      lateral:lateralMiss.status,
+      collision:collision.status,
+      alternative:preciseAlternative.status
     });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
