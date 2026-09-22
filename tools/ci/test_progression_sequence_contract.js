@@ -119,11 +119,11 @@ const moveTolerance = Number(positionTolerance[1]);
 const targetMinX = padCenterX - padWidth / 2;
 const targetMaxX = padCenterX + padWidth / 2;
 const twoMoveConservativeLower = 2 * (moveDistance - moveTolerance);
-const threeMoveNominalWithTolerance = 3 * moveDistance + moveTolerance;
+const twoMoveConservativeUpper = 2 * (moveDistance + moveTolerance);
 assert.ok(targetMinX <= twoMoveConservativeLower - 0.01 + Number.EPSILON,
-  'visible arrival zone must leave margin below a valid two-move sequence despite Runtime movement completion tolerance');
-assert.ok(targetMaxX >= threeMoveNominalWithTolerance - Number.EPSILON,
-  'visible arrival zone must keep a distinct three-move fixed-distance sequence comfortably valid');
+  'visible arrival zone must leave margin below a valid two-move sequence despite cumulative Runtime movement completion tolerance');
+assert.ok(targetMaxX >= twoMoveConservativeUpper + 0.01 - Number.EPSILON,
+  'visible arrival zone must leave margin above a valid two-move sequence despite cumulative Runtime movement completion tolerance');
 
 const sequenceProbeSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
 assert.match(sequenceProbeSource, /completeActivityMission\(evaluation\)/,
@@ -132,6 +132,9 @@ assert.match(sequenceProbeSource, /SEQUENCE_REPEAT_ACHIEVED/,
   'real-Webots proof must repeat the canonical valid sequence to expose completion/landing races');
 assert.match(sequenceProbeSource, /SEQUENCE_ALTERNATIVE_ACHIEVED/,
   'real-Webots proof must accept a second valid sequence shape with the same observable outcome');
+assert.match(sequenceProbeSource,
+  /await backend\.move\('forward', 0\.1\);\n    await backend\.land\(\);\n    await backend\.takeoff\(0\.5\);\n    await backend\.move\('forward', 0\.1\);\n    await backend\.land\(\);\n    await backend\.completeActivityMission\(evaluation\);/,
+  'alternative real-Webots proof must change the valid action sequence without adding a third cumulative move tolerance');
 assert.match(sequenceProbeSource, /move\('forward', 0\.1\)/,
   'real-Webots proof must exercise the fixed movement parameter exposed by Activity 1');
 
