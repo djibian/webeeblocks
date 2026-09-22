@@ -111,8 +111,10 @@ assert.strictEqual(preciseX, precisePadX);
 assert.strictEqual(preciseY, precisePadY);
 assert.strictEqual(visibleHalf, precisePadW / 2);
 assert.strictEqual(precisePadW, precisePadD);
-assert.strictEqual(preciseXTol, visibleHalf - bodyClearance);
-assert.strictEqual(preciseYTol, visibleHalf - bodyClearance);
+assert.ok(Math.abs(preciseXTol - (visibleHalf - bodyClearance)) < 1e-12,
+  'Activity 2 X acceptance must equal visible half-extent minus body clearance');
+assert.ok(Math.abs(preciseYTol - (visibleHalf - bodyClearance)) < 1e-12,
+  'Activity 2 Y acceptance must equal visible half-extent minus body clearance');
 assert.ok(bodyClearance >= 0.046,
   'whole-craft success must reserve at least the approximate Crazyflie half-span inside the visible zone');
 assert.ok(preciseXTol >= 0.06 && preciseYTol >= 0.06,
