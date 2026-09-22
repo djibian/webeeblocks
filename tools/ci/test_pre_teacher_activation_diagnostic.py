@@ -71,6 +71,69 @@ def test_pre_teacher_failure_is_one_bounded_non_authority_frame() -> None:
         peer.close()
 
 
+def test_pre_proposal_epoch_failure_remains_diagnosable() -> None:
+    host, peer = socket.socketpair()
+
+    def unavailable_epoch() -> str:
+        raise RuntimeError("post-reset epoch unavailable")
+
+    channel = decision.PostResetTeacherDecisionChannel(host, unavailable_epoch)
+    authorizer = authorization.TrustedTeacherAuthorizer()
+    binding = authorization.PhysicalRunBinding(
+        profile_id="activity-1",
+        ast_binding='{"program":[]}',
+        connection_epoch="epoch-after",
+    )
+    try:
+        try:
+            channel.receive_authorization_for_binding(
+                authorizer,
+                binding,
+                decision_timeout_seconds=0.5,
+            )
+        except decision.TeacherDecisionChannelError as exc:
+            require(
+                "connection epoch is unavailable for teacher decision" in str(exc),
+                "pre-proposal epoch failure lost its causal reason",
+            )
+            require(
+                channel.publish_pre_teacher_failure(exc) is True,
+                "pre-proposal validation failure must remain eligible for diagnostic publication",
+            )
+        else:
+            raise AssertionError("pre-proposal epoch failure unexpectedly started teacher exchange")
+
+        message = _read_json_line(peer)
+        require(
+            message.get("op") == "pre-teacher-activation-failure"
+            and message.get("executionAuthority") is False,
+            "pre-proposal epoch failure did not produce the bounded non-authority diagnostic",
+        )
+        require(
+            "connection epoch is unavailable for teacher decision" in str(message.get("error")),
+            "pre-proposal diagnostic lost the epoch failure cause",
+        )
+        prepared = launcher.PreparedProgram(
+            profile_id="activity-1",
+            ast_binding='{"program":[]}',
+            connection_epoch="epoch-before",
+        )
+        try:
+            launcher._teacher_proposal(message, prepared)
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require(
+                str(exc).startswith("trusted activation failed before teacher decision: ")
+                and "connection epoch is unavailable for teacher decision" in str(exc),
+                "launcher did not surface the exact pre-proposal activation failure",
+            )
+        else:
+            raise AssertionError("launcher mistook pre-proposal diagnostic for a teacher proposal")
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
 def test_teacher_exchange_start_irrevocably_disables_failure_frame() -> None:
     host, peer = socket.socketpair()
     channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
@@ -195,12 +258,14 @@ def test_common_takeoff_controller_defers_protocol_state_to_channel() -> None:
 
 def main() -> int:
     test_pre_teacher_failure_is_one_bounded_non_authority_frame()
+    test_pre_proposal_epoch_failure_remains_diagnosable()
     test_teacher_exchange_start_irrevocably_disables_failure_frame()
     test_launcher_surfaces_exact_pre_teacher_failure()
     test_common_takeoff_controller_defers_protocol_state_to_channel()
     print(
         "PASS pre-teacher activation diagnostic: one bounded failure frame before teacher exchange, "
-        "no protocol mixing after exchange start, exact socket boundary preserved, and causal launcher surfacing"
+        "pre-proposal validation remains diagnosable, no protocol mixing after exchange start, "
+        "exact socket boundary preserved, and causal launcher surfacing"
     )
     return 0
 
