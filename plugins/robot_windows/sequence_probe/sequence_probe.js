@@ -56,6 +56,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.takeoff(0.5);
     await backend.move('forward', 0.2);
     await backend.land();
+    await backend.completeActivityMission(evaluation);
     const achieved = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_ACHIEVED', achieved);
 
@@ -73,6 +74,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await backend.takeoff(0.5);
     await backend.land();
+    await backend.completeActivityMission(evaluation);
     const notAchieved = await waitForOutcome(backend, evaluation, 'not-achieved', 8000);
     await report('SEQUENCE_NOT_ACHIEVED', notAchieved);
     await report('SEQUENCE_MISSION_TEST_COMPLETE', {first:achieved.status, second:notAchieved.status});
