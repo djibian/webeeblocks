@@ -266,6 +266,14 @@ def test_post_reset_teacher_binding_contract() -> None:
     )
 
 
+def test_pre_teacher_activation_diagnostic_contract() -> None:
+    _run_contract(
+        "tools/ci/test_pre_teacher_activation_diagnostic.py",
+        "PASS pre-teacher activation diagnostic",
+        "pre-teacher activation diagnostic regression failed",
+    )
+
+
 def test_post_reset_capability_bridge_contract() -> None:
     _run_contract(
         "tools/ci/test_post_reset_capability_bridge.py",
@@ -283,6 +291,7 @@ def main() -> int:
     test_binding_validation()
     test_trusted_teacher_decision_channel_contract()
     test_post_reset_teacher_binding_contract()
+    test_pre_teacher_activation_diagnostic_contract()
     test_post_reset_capability_bridge_contract()
     print(
         "PASS host-only teacher run authorization: one explicit decision binds one exact "
