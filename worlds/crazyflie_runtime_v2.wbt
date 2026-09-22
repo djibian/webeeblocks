@@ -9,7 +9,7 @@ WorldInfo {
   basicTimeStep 32
   randomSeed 1
   optimalThreadCount 1
-  title "WebeeBlocks — obstacle réactif"
+  title "WebeeBlocks — progression robotique"
 }
 Viewpoint {
   orientation -0.45 0.47 0.76 1.05
@@ -19,6 +19,36 @@ Viewpoint {
 TexturedBackground { }
 TexturedBackgroundLight { }
 Floor { size 4 4 }
+
+# The first progression activity uses these visual-only pads. The target sits
+# before the existing red obstacle so several forward distances can satisfy the
+# world-state mission without encoding one expected Blockly solution.
+DEF SEQUENCE_START_PAD Pose {
+  translation 0 0 0.003
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.12 0.38 0.90
+        emissiveColor 0.02 0.05 0.14
+        roughness 0.55
+      }
+      geometry Box { size 0.18 0.18 0.006 }
+    }
+  ]
+}
+DEF SEQUENCE_TARGET_PAD Pose {
+  translation 0.25 0 0.003
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.12 0.72 0.28
+        emissiveColor 0.02 0.10 0.03
+        roughness 0.55
+      }
+      geometry Box { size 0.18 0.18 0.006 }
+    }
+  ]
+}
 
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
@@ -41,7 +71,7 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
-Crazyflie {
+DEF WEBEEBLOCKS_CRAZYFLIE Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
@@ -161,4 +191,10 @@ Crazyflie {
       ]
     }
   ]
+}
+
+Robot {
+  name "Progression sequence evaluator"
+  controller "progression_sequence_evaluator"
+  supervisor TRUE
 }
