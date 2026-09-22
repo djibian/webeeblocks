@@ -1,7 +1,7 @@
 {
   "controller": {
     "path": "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
-    "sha256": "476e10f2ee4b609d63db06ed9e54eef1f63145ce9ade6bbc5d241f1a09a2072b",
+    "sha256": "3e57477633346374a0cd615152dd2ca32b476734f18c1534caba3928beb2a5d1",
     "size": 224688
   },
   "format": "webeeblocks-qualification-generated-lock-v1",
