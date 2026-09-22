@@ -153,6 +153,8 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
             "SEQUENCE_ACHIEVED",
             "SEQUENCE_RESET_FRESH",
             "SEQUENCE_NOT_ACHIEVED",
+            "SEQUENCE_SECOND_RESET_FRESH",
+            "SEQUENCE_ALTERNATIVE_ACHIEVED",
             "SEQUENCE_MISSION_TEST_COMPLETE",
         )
         missing = [name for name in required if name not in names]
@@ -162,20 +164,31 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
         achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ACHIEVED")
         fresh = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_RESET_FRESH")
         not_achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_NOT_ACHIEVED")
+        fresh_again = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_SECOND_RESET_FRESH")
+        alternative = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ALTERNATIVE_ACHIEVED")
+        complete = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_MISSION_TEST_COMPLETE")
         if achieved != {"status": "achieved"}:
             return fail(f"unexpected target-zone outcome: {achieved}")
         if fresh != {"code": "OUTCOME_UNAVAILABLE"}:
-            return fail(f"sequence outcome survived reset: {fresh}")
+            return fail(f"sequence outcome survived first reset: {fresh}")
         if not_achieved != {"status": "not-achieved"}:
             return fail(f"unexpected start-zone landing outcome: {not_achieved}")
+        if fresh_again != {"code": "OUTCOME_UNAVAILABLE"}:
+            return fail(f"sequence outcome survived second reset: {fresh_again}")
+        if alternative != {"status": "achieved"}:
+            return fail(f"alternative valid sequence was rejected: {alternative}")
+        if complete != {"first": "achieved", "second": "not-achieved", "third": "achieved"}:
+            return fail(f"unexpected sequence mission summary: {complete}")
         if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved" not in webots_log:
             return fail("target-zone achievement publication is absent from Webots evidence")
         if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=not-achieved" not in webots_log:
             return fail("off-target terminal publication is absent from Webots evidence")
+        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=achieved" not in webots_log:
+            return fail("alternative target-zone achievement publication is absent from Webots evidence")
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-6000:])
 
-        print("PASS first progression sequence mission: observable target-zone success, off-target failure, and reset-fresh outcome in real R2025a")
+        print("PASS first progression sequence mission: fixed-distance alternative sequences, off-target failure, and reset-fresh observable outcomes in real R2025a")
         return 0
     finally:
         cleanup_temp_world()
