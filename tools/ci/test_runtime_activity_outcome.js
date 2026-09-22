@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
+const Profiles = require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles.js');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 
 const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
@@ -51,6 +52,56 @@ async function until(predicate, label) {
     await new Promise(r => setTimeout(r, 0));
   }
   throw new Error('timeout ' + label);
+}
+
+function proveScenarioMissionObjectiveSeparation() {
+  const catalog = {takeoff:{}};
+  const mission = 'Dépose le colis dans la zone d’arrivée.';
+  const objective = 'Construire une séquence ordonnée d’actions.';
+  const profile = {
+    id:'scenario-model-v1',
+    world:'worlds/runtime.wbt',
+    brief:{visible:true,title:'Mission',mission},
+    pedagogy:{objective},
+    toolbox:['takeoff'],
+    parameterBounds:{},
+    fieldOptions:{},
+    hardware:[],
+    timer:{enabled:false},
+    evaluation:{type:'mission-state-v1',oracle:'scenario-model-v1'},
+    runtime:{allowedStatementKinds:['takeoff'],rangeDirections:[],moveDirections:[],verticalDirections:[]}
+  };
+
+  assert.strictEqual(Profiles.validateProfile(profile, catalog), true,
+    'a redesigned activity must accept a distinct student mission plus internal pedagogical objective');
+  const resolved = Profiles.resolveProfile(profile, catalog);
+  assert.strictEqual(resolved.brief.mission, mission);
+  assert.strictEqual(resolved.pedagogy.objective, objective);
+  assert.notStrictEqual(resolved.brief.mission, resolved.pedagogy.objective,
+    'student mission must not collapse into the internal pedagogical objective');
+  assert.strictEqual(resolved.brief.goal, mission,
+    'legacy Robot Window presentation must receive only the student mission compatibility projection');
+  assert.strictEqual(profile.brief.goal, undefined,
+    'resolving a redesigned profile must not mutate the declarative source by inserting a legacy goal');
+
+  const missingObjective = JSON.parse(JSON.stringify(profile));
+  delete missingObjective.pedagogy;
+  assert.throws(() => Profiles.validateProfile(missingObjective, catalog), /pedagogy must be an object/,
+    'a student mission without a separate internal objective must fail closed');
+
+  const mismatchedProjection = JSON.parse(JSON.stringify(profile));
+  mismatchedProjection.brief.goal = 'Objectif interne exposé par erreur';
+  assert.throws(() => Profiles.validateProfile(mismatchedProjection, catalog), /brief.goal must match brief.mission/,
+    'a legacy presentation field must not diverge from the student mission');
+
+  const legacy = JSON.parse(JSON.stringify(profile));
+  delete legacy.brief.mission;
+  delete legacy.pedagogy;
+  legacy.brief.goal = 'Exercice existant';
+  legacy.evaluation = {type:'training-objective'};
+  assert.strictEqual(Profiles.validateProfile(legacy, catalog), true,
+    'legacy activity profiles must remain valid until redesigned one by one');
+  assert.strictEqual(Profiles.resolveProfile(legacy, catalog).brief.goal, 'Exercice existant');
 }
 
 function proveOverlappingResetFreshnessContract() {
@@ -251,11 +302,12 @@ function proveRealWebotsOutcomeFreshness() {
     'unknown mission states must not be presented as success'
   );
 
+  proveScenarioMissionObjectiveSeparation();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
   proveRealWebotsOutcomeFreshness();
-  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
+  console.log('PASS backend-neutral activity mission outcome contract, scenario mission/objective separation, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);
