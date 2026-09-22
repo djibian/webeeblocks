@@ -19,8 +19,8 @@ assert.match(interposeSource,
   /#define wb_robot_wwi_send webeeblocks_file_broker_send/,
   'Runtime-v2 controller responses must pass through the attempt-freshness transport interposer');
 assert.match(brokerRuntimeSource,
-  /extern "C" void webeeblocks_file_broker_send\(const void \*data, int size\)/,
-  'the send interposer must preserve the Webots binary WWI transport signature');
+  /extern "C" void webeeblocks_file_broker_send\(const char \*data, int size\)/,
+  'the send interposer must preserve the exact Webots WWI transport signature');
 assert.match(brokerRuntimeSource,
   /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/,
   'live world channel must publish an attempt identity');

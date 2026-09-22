@@ -168,14 +168,13 @@ void observeRuntimeResponse(const char *message) {
   gPendingResetRequest = -1;
 }
 
-const char *nullTerminatedMessage(const void *data, int size) {
+const char *nullTerminatedMessage(const char *data, int size) {
   if (!data || size < 1)
     return nullptr;
-  const char *text = static_cast<const char *>(data);
   const void *terminator = std::memchr(data, '\0', static_cast<size_t>(size));
-  if (terminator != text + size - 1)
+  if (terminator != data + size - 1)
     return nullptr;
-  return text;
+  return data;
 }
 }  // namespace
 
@@ -210,7 +209,7 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
   return nullptr;
 }
 
-extern "C" void webeeblocks_file_broker_send(const void *data, int size) {
+extern "C" void webeeblocks_file_broker_send(const char *data, int size) {
   const char *message = nullTerminatedMessage(data, size);
   if (message && std::strcmp(message, kRuntimeReady) == 0)
     ensureActivityChannel();
