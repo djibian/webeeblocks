@@ -56,8 +56,8 @@ Each execution works in its own isolated worktree/checkout and branch context.
   when reconstruction establishes that its work is integrated, or durable
   applicable project evidence under the existing provenance and authority rules
   establishes that its remaining work is abandoned, obsolete or superseded; no
-  open PR or other still-applicable work depends on it; and no unique useful work
-  still requires durable preservation. Any unique useful work that remains
+  open PR or other still-applicable work depends on it; and no unique useful
+  work still requires durable preservation. Any unique useful work that remains
   relevant must be integrated or otherwise preserved by an appropriate durable
   reference before deletion.
 - Branch deletion must be an atomic conditional ref deletion against the exact
