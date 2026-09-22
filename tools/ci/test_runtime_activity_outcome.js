@@ -4,14 +4,38 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
+const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 
 const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
+const brokerRuntimeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_runtime.cpp'), 'utf8');
+const interposeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_interpose.h'), 'utf8');
 assert.match(mainSource,
   /runtimeRunning = false;\s*runtimeTerminal = true;\s*var missionOutcome = await WebeeBlocksRuntimeOutcome\.evaluateMission\(runtimeProfile, runtimeBackend\);/,
   'Runtime-v2 completion must become terminal before mission evaluation without reopening actions while the outcome is pending');
 assert.match(mainSource,
   /if \(missionOutcome\)\s*setRuntimeStatus\(missionOutcome\.state, missionOutcome\.detail\);\s*else\s*setRuntimeStatus\('TERMINÉ', 'Programme exécuté'\);/,
   'mission outcome presentation must preserve the existing non-mission completion path');
+assert.match(interposeSource,
+  /#define wb_robot_wwi_send webeeblocks_file_broker_send/,
+  'Runtime-v2 controller responses must pass through the attempt-freshness transport interposer');
+assert.match(brokerRuntimeSource,
+  /extern "C" void webeeblocks_file_broker_send\(const char \*data, int size\)/,
+  'the send interposer must preserve the exact Webots WWI transport signature');
+assert.match(brokerRuntimeSource,
+  /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/,
+  'live world channel must publish an attempt identity');
+assert.match(brokerRuntimeSource,
+  /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s/,
+  'live world provider must consume attempt-bound oracle/status evidence');
+assert.match(brokerRuntimeSource,
+  /attempt != gActivityAttempt[\s\S]*STALE_OUTCOME/,
+  'provider must reject terminal evidence from a previous simulation attempt');
+assert.match(brokerRuntimeSource,
+  /std::strcmp\(payload, "OK"\) == 0[\s\S]*(?:\+\+gActivityAttempt|gActivityAttempt = 0)[\s\S]*publishActivityAttempt\(\)/,
+  'a successful Reset must rotate the attempt identity and clear prior terminal evidence before the UI resumes');
+assert.match(brokerRuntimeSource,
+  /if \(resetRequestId\(message, &resetId\) && gPendingResetRequest < 1\)\s*gPendingResetRequest = resetId;/,
+  'a later Reset request must not replace the identity of the already in-flight Reset');
 
 function deferred() {
   let resolve;
@@ -26,6 +50,70 @@ async function until(predicate, label) {
     await new Promise(r => setTimeout(r, 0));
   }
   throw new Error('timeout ' + label);
+}
+
+function proveOverlappingResetFreshnessContract() {
+  let attempt = 1;
+  let pendingReset = -1;
+
+  function observeResetRequest(id) {
+    if (id >= 1 && pendingReset < 1)
+      pendingReset = id;
+  }
+
+  function observeRuntimeResponse(id, payload) {
+    if (pendingReset < 1 || id !== pendingReset)
+      return;
+    if (payload === 'OK')
+      attempt += 1;
+    pendingReset = -1;
+  }
+
+  observeResetRequest(10);
+  observeResetRequest(11);
+  assert.strictEqual(pendingReset, 10,
+    'RESET B must not overwrite RESET A while A is still in flight');
+
+  observeRuntimeResponse(11, 'ERR BUSY');
+  assert.strictEqual(pendingReset, 10,
+    'RESET B BUSY must not clear the pending identity of RESET A');
+  assert.strictEqual(attempt, 1,
+    'a rejected overlapping Reset must not rotate the attempt identity');
+
+  observeRuntimeResponse(10, 'OK');
+  assert.strictEqual(pendingReset, -1,
+    'RESET A terminal response must release the pending Reset slot');
+  assert.strictEqual(attempt, 2,
+    'RESET A OK must rotate the attempt identity after an overlapping RESET B BUSY');
+}
+
+async function proveWwiOutcomeTransport() {
+  const sent = [];
+  const backend = new WwiBackend({send: message => sent.push(String(message))}, {timeoutMs:1000});
+  const evaluation = {type:'mission-state-v1', oracle:'world-observation-v1'};
+
+  const achieved = backend.readActivityOutcome(evaluation);
+  assert.strictEqual(sent[0], 'WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 OUTCOME world-observation-v1');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 STATE achieved');
+  assert.deepStrictEqual(await achieved, {status:'achieved'});
+
+  const stale = backend.readActivityOutcome(evaluation);
+  assert.strictEqual(sent[1], 'WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 OUTCOME world-observation-v1');
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR STALE_OUTCOME');
+  await assert.rejects(stale, error => error && error.code === 'STALE_OUTCOME');
+
+  const invalidState = backend.readActivityOutcome(evaluation);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 STATE mystery');
+  await assert.rejects(invalidState, /invalid activity outcome state/,
+    'unknown live-world terminal states must fail closed at the transport boundary');
+
+  const beforeInvalidOracle = sent.length;
+  await assert.rejects(
+    () => backend.readActivityOutcome({type:'mission-state-v1', oracle:'bad oracle'}),
+    /invalid activity outcome oracle/,
+    'oracle identifiers must not be able to inject WWI protocol tokens'
+  );
+  assert.strictEqual(sent.length, beforeInvalidOracle, 'invalid oracle unexpectedly emitted a WWI request');
 }
 
 async function provePendingMissionOutcomeKeepsActionsGated() {
@@ -153,8 +241,10 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
     'unknown mission states must not be presented as success'
   );
 
+  proveOverlappingResetFreshnessContract();
+  await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
-  console.log('PASS backend-neutral activity mission outcome contract, Runtime-v2 completion wiring, and pending-outcome action gating');
+  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);

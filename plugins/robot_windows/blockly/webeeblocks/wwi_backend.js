@@ -7,6 +7,9 @@
   'use strict';
 
   var PREFIX = 'WEBEEBLOCKS_RUNTIME_V2';
+  var MISSION_EVALUATION_TYPE = 'mission-state-v1';
+  var OUTCOME_STATES = Object.freeze({achieved:true, 'not-achieved':true, interrupted:true});
+  var ORACLE_TOKEN = /^[A-Za-z0-9_.-]{1,63}$/;
 
   function RuntimeV2BackendError(code) {
     this.name = 'RuntimeV2BackendError';
@@ -115,7 +118,7 @@
       });
       return true;
     }
-    var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|ERR ([A-Z0-9_]+))$/);
+    var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)|ERR ([A-Z0-9_]+))$/);
     if (!match)
       return true;
     var id = Number(match[1]);
@@ -132,8 +135,13 @@
         pending.reject(new Error('Runtime v2 invalid numeric response id=' + id));
       else
         pending.resolve(value);
+    } else if (match[4] !== undefined) {
+      if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, match[4]))
+        pending.reject(new Error('Runtime v2 invalid activity outcome state id=' + id));
+      else
+        pending.resolve(match[4]);
     } else {
-      pending.reject(new RuntimeV2BackendError(match[4]));
+      pending.reject(new RuntimeV2BackendError(match[5]));
     }
     return true;
   };
@@ -151,6 +159,19 @@
   RuntimeV2WwiBackend.prototype.setLight = function(color) { return this._guardSimulationStopped() || this._request(['LIGHT', String(color)]); };
   RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
+  RuntimeV2WwiBackend.prototype.readActivityOutcome = function(evaluation) {
+    if (!evaluation || evaluation.type !== MISSION_EVALUATION_TYPE)
+      return Promise.reject(new Error('Runtime v2 unsupported activity outcome evaluation'));
+    var oracle = evaluation.oracle;
+    if (typeof oracle !== 'string' || !ORACLE_TOKEN.test(oracle))
+      return Promise.reject(new Error('Runtime v2 invalid activity outcome oracle'));
+    var self = this;
+    return this._guardSimulationStopped() || this._request(['OUTCOME', oracle]).then(function(status) {
+      if (!Object.prototype.hasOwnProperty.call(OUTCOME_STATES, status))
+        throw new Error('Runtime v2 invalid activity outcome state');
+      return {status: status};
+    });
+  };
   RuntimeV2WwiBackend.prototype.stopSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationStop !== true)
       return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
