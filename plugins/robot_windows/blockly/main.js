@@ -324,7 +324,7 @@ document.getElementById("projectTitle").addEventListener("keydown", (e) => {
 window.onload = async function() {
     ensureChallengePanel();
     setChallengeDisplay('READY', null, null);
-    const module = await import('https://cyberbotics.com/wwi/R2025a/RobotWindow.js');
+    const module = await import('../blockly_v2/webots/RobotWindow.js');
     window.robotWindow = new module.default();
     window.robotWindow.receive = receiveMessage;
     // The Crazyflie runtime path does not require the historical WebSocket sidecar.
