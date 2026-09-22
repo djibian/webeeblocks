@@ -45,6 +45,13 @@ async function expectFreshAfterReset(backend, evaluation) {
   }
 }
 
+async function flyCanonicalSequence(backend) {
+  await backend.takeoff(0.5);
+  await backend.move('forward', 0.1);
+  await backend.move('forward', 0.1);
+  await backend.land();
+}
+
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message: event.message, filename: event.filename, lineno: event.lineno});
 });
@@ -66,10 +73,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
     // Activity 1 fixes movement distance at 0.1 m so parameter choice cannot
     // solve the task. Two short forward actions are one valid sequence shape.
-    await backend.takeoff(0.5);
-    await backend.move('forward', 0.1);
-    await backend.move('forward', 0.1);
-    await backend.land();
+    await flyCanonicalSequence(backend);
     await backend.completeActivityMission(evaluation);
     const achieved = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_ACHIEVED', achieved);
@@ -77,6 +81,18 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.resetSimulation();
     const fresh = await expectFreshAfterReset(backend, evaluation);
     await report('SEQUENCE_RESET_FRESH', fresh);
+
+    // Repeat the exact same valid sequence after reset. This is deliberately
+    // redundant evidence for the completion/landing boundary: a one-off green
+    // run must not hide a physics-settling race in the mission oracle.
+    await flyCanonicalSequence(backend);
+    await backend.completeActivityMission(evaluation);
+    const repeat = await waitForOutcome(backend, evaluation, 'achieved', 8000);
+    await report('SEQUENCE_REPEAT_ACHIEVED', repeat);
+
+    await backend.resetSimulation();
+    const repeatFresh = await expectFreshAfterReset(backend, evaluation);
+    await report('SEQUENCE_REPEAT_RESET_FRESH', repeatFresh);
 
     // A complete executable sequence that lands back outside the target must
     // remain a world-state failure rather than a solution-shape judgement.
@@ -102,9 +118,10 @@ window.addEventListener('unhandledrejection', function(event) {
     const alternative = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_ALTERNATIVE_ACHIEVED', alternative);
     await report('SEQUENCE_MISSION_TEST_COMPLETE', {
-      first:achieved.status,
-      second:notAchieved.status,
-      third:alternative.status
+      canonical:achieved.status,
+      repeat:repeat.status,
+      negative:notAchieved.status,
+      alternative:alternative.status
     });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});

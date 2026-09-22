@@ -108,7 +108,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
+timeout -k 5s 70s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
 
         env = os.environ.copy()
@@ -134,11 +134,11 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
-            return fail(f"Webots sequence mission exited with {run_result.returncode}", webots_log[-6000:])
+            return fail(f"Webots sequence mission exited with {run_result.returncode}", webots_log[-8000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
-            return fail("missing browser sequence evidence", webots_log[-6000:])
+            return fail("missing browser sequence evidence", webots_log[-8000:])
         try:
             events = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         except Exception as exc:
@@ -146,12 +146,15 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
 
         errors = [event for event in events if event.get("event") in ("ERROR", "WINDOW_ERROR", "UNHANDLED_REJECTION")]
         if errors:
-            return fail("browser sequence probe reported an error", json.dumps(errors[0], ensure_ascii=False))
+            detail = json.dumps(errors[0], ensure_ascii=False) + "\n--- Webots tail ---\n" + webots_log[-8000:]
+            return fail("browser sequence probe reported an error", detail)
         names = [event.get("event") for event in events]
         required = (
             "SEQUENCE_PROBE_READY",
             "SEQUENCE_ACHIEVED",
             "SEQUENCE_RESET_FRESH",
+            "SEQUENCE_REPEAT_ACHIEVED",
+            "SEQUENCE_REPEAT_RESET_FRESH",
             "SEQUENCE_NOT_ACHIEVED",
             "SEQUENCE_SECOND_RESET_FRESH",
             "SEQUENCE_ALTERNATIVE_ACHIEVED",
@@ -163,6 +166,8 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
 
         achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ACHIEVED")
         fresh = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_RESET_FRESH")
+        repeat = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_REPEAT_ACHIEVED")
+        repeat_fresh = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_REPEAT_RESET_FRESH")
         not_achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_NOT_ACHIEVED")
         fresh_again = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_SECOND_RESET_FRESH")
         alternative = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ALTERNATIVE_ACHIEVED")
@@ -171,24 +176,30 @@ timeout -k 5s 50s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
             return fail(f"unexpected target-zone outcome: {achieved}")
         if fresh != {"code": "OUTCOME_UNAVAILABLE"}:
             return fail(f"sequence outcome survived first reset: {fresh}")
+        if repeat != {"status": "achieved"}:
+            return fail(f"repeated canonical sequence was rejected: {repeat}")
+        if repeat_fresh != {"code": "OUTCOME_UNAVAILABLE"}:
+            return fail(f"repeated sequence outcome survived reset: {repeat_fresh}")
         if not_achieved != {"status": "not-achieved"}:
             return fail(f"unexpected start-zone landing outcome: {not_achieved}")
         if fresh_again != {"code": "OUTCOME_UNAVAILABLE"}:
-            return fail(f"sequence outcome survived second reset: {fresh_again}")
+            return fail(f"sequence outcome survived second negative-control reset: {fresh_again}")
         if alternative != {"status": "achieved"}:
             return fail(f"alternative valid sequence was rejected: {alternative}")
-        if complete != {"first": "achieved", "second": "not-achieved", "third": "achieved"}:
+        if complete != {"canonical": "achieved", "repeat": "achieved", "negative": "not-achieved", "alternative": "achieved"}:
             return fail(f"unexpected sequence mission summary: {complete}")
         if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved" not in webots_log:
-            return fail("target-zone achievement publication is absent from Webots evidence")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=not-achieved" not in webots_log:
+            return fail("first target-zone achievement publication is absent from Webots evidence")
+        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=achieved" not in webots_log:
+            return fail("repeated target-zone achievement publication is absent from Webots evidence")
+        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved" not in webots_log:
             return fail("off-target terminal publication is absent from Webots evidence")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=achieved" not in webots_log:
+        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=4 status=achieved" not in webots_log:
             return fail("alternative target-zone achievement publication is absent from Webots evidence")
         if "ERROR:" in webots_log:
-            return fail("Webots emitted an ERROR line", webots_log[-6000:])
+            return fail("Webots emitted an ERROR line", webots_log[-8000:])
 
-        print("PASS first progression sequence mission: fixed-distance alternative sequences, off-target failure, and reset-fresh observable outcomes in real R2025a")
+        print("PASS first progression sequence mission: repeated canonical fixed-distance sequence, distinct alternative sequence, off-target failure, and reset-fresh observable outcomes in real R2025a")
         return 0
     finally:
         cleanup_temp_world()

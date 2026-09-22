@@ -89,22 +89,47 @@ assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_COMPLETION_V1/,
   'world evaluator must bind terminal judgement to the exact mission completion marker');
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s/);
 assert.match(evaluatorSource, /progression-sequence-v1/);
+assert.match(evaluatorSource, /WEBEEBLOCKS_SEQUENCE_TIMEOUT/,
+  'a rejected completed attempt must preserve enough world-state evidence to diagnose the bounded oracle');
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
 const receivingPad = worldSource.match(
-  /translation 0\.25 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
+  /translation ([0-9.]+) 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
 assert.ok(receivingPad, 'Activity 1 visible green receiving pad geometry must remain explicit');
+const targetX = evaluatorSource.match(/#define SEQUENCE_TARGET_X ([0-9.]+)/);
 const targetXTolerance = evaluatorSource.match(/#define SEQUENCE_TARGET_X_TOLERANCE ([0-9.]+)/);
 const targetYTolerance = evaluatorSource.match(/#define SEQUENCE_TARGET_Y_TOLERANCE ([0-9.]+)/);
-assert.ok(targetXTolerance && targetYTolerance,
-  'Activity 1 evaluator target tolerances must remain explicit');
-assert.strictEqual(Number(targetXTolerance[1]), Number(receivingPad[1]) / 2,
+assert.ok(targetX && targetXTolerance && targetYTolerance,
+  'Activity 1 evaluator target geometry must remain explicit');
+const padCenterX = Number(receivingPad[1]);
+const padWidth = Number(receivingPad[2]);
+const padDepth = Number(receivingPad[3]);
+assert.strictEqual(Number(targetX[1]), padCenterX,
+  'Activity 1 X target must match the visible receiving-pad center');
+assert.strictEqual(Number(targetXTolerance[1]), padWidth / 2,
   'Activity 1 X acceptance must match the visible receiving-pad half-width');
-assert.strictEqual(Number(targetYTolerance[1]), Number(receivingPad[2]) / 2,
+assert.strictEqual(Number(targetYTolerance[1]), padDepth / 2,
   'Activity 1 Y acceptance must match the visible receiving-pad half-depth');
+
+const flightRuntimeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
+const positionTolerance = flightRuntimeSource.match(/#define POSITION_TOL ([0-9.]+)/);
+assert.ok(positionTolerance, 'Runtime movement completion tolerance must remain explicit');
+const moveDistance = p1.parameterBounds.webeeblocks_v2_move.DISTANCE.min;
+const moveTolerance = Number(positionTolerance[1]);
+const targetMinX = padCenterX - padWidth / 2;
+const targetMaxX = padCenterX + padWidth / 2;
+const twoMoveConservativeLower = 2 * (moveDistance - moveTolerance);
+const threeMoveNominalWithTolerance = 3 * moveDistance + moveTolerance;
+assert.ok(targetMinX <= twoMoveConservativeLower - 0.01 + Number.EPSILON,
+  'visible arrival zone must leave margin below a valid two-move sequence despite Runtime movement completion tolerance');
+assert.ok(targetMaxX >= threeMoveNominalWithTolerance - Number.EPSILON,
+  'visible arrival zone must keep a distinct three-move fixed-distance sequence comfortably valid');
+
 const sequenceProbeSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/sequence_probe/sequence_probe.js'), 'utf8');
 assert.match(sequenceProbeSource, /completeActivityMission\(evaluation\)/,
   'real-Webots sequence probe must cross the integrated execution-completion boundary');
+assert.match(sequenceProbeSource, /SEQUENCE_REPEAT_ACHIEVED/,
+  'real-Webots proof must repeat the canonical valid sequence to expose completion/landing races');
 assert.match(sequenceProbeSource, /SEQUENCE_ALTERNATIVE_ACHIEVED/,
   'real-Webots proof must accept a second valid sequence shape with the same observable outcome');
 assert.match(sequenceProbeSource, /move\('forward', 0\.1\)/,
@@ -170,7 +195,7 @@ async function exerciseEmbeddedStartActivityPath() {
 
 (async function() {
   await exerciseEmbeddedStartActivityPath();
-  console.log('PASS first progression activity preserves Start-activity compatibility, explicit student mission/pedagogy separation, fixed non-discriminating parameters, visible-pad-aligned world-state evaluation, reset freshness, and multiple valid sequence shapes without accepting later profiles');
+  console.log('PASS first progression activity preserves Start-activity compatibility, explicit student mission/pedagogy separation, fixed non-discriminating parameters, tolerance-aware visible-pad-aligned world-state evaluation, reset freshness, repeated valid execution, and multiple valid sequence shapes without accepting later profiles');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

@@ -149,6 +149,12 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
     }
 
     if (wb_robot_get_time() - completion_time >= SEQUENCE_SETTLE_TIMEOUT) {
+      printf("WEBEEBLOCKS_SEQUENCE_TIMEOUT attempt=%llu x=%.6f y=%.6f z=%.6f vx=%.6f vy=%.6f vz=%.6f airborne=%d landed=%d stationary=%d in_target=%d\n",
+             active_attempt,
+             position[0], position[1], position[2],
+             velocity[0], velocity[1], velocity[2],
+             airborne_seen, landed, stationary, in_target);
+      fflush(stdout);
       sequence_publish_outcome(custom_data, active_attempt, "not-achieved");
       reported = 1;
     }
