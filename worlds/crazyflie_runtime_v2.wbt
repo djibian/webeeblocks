@@ -32,11 +32,11 @@ Solid {
   ]
 }
 DEF PROGRESSION_SEQUENCE_TARGET Solid {
-  translation 0.25 0 0.005
+  translation 0.23 0 0.005
   children [
     Shape {
       appearance PBRAppearance { baseColor 0.15 0.72 0.28 roughness 0.75 }
-      geometry Box { size 0.30 0.32 0.01 }
+      geometry Box { size 0.32 0.32 0.01 }
     }
   ]
 }
@@ -62,7 +62,7 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
-DEF WEBEEBLOCKS_CRAZYFLIE Crazyflie {
+Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
