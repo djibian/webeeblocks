@@ -7,15 +7,26 @@ exact Ready head d55633ec94738156f27895b7fe51fa262f0bd2a1 reselected from the
 post-reset DOM, but run 35654272131 still reproduced a same-coordinate
 repeat-to-takeoff retarget immediately after the public tooltip rendered.
 
+Ready run 35657149471 then exposed a narrower selector/delivery mismatch on head
+e16d5bb1e24efc421f61f6d970abadbc40c56c78: the ranked point at (287,208) had
+only the repeat blocklyPath in the filtered elementsFromPoint stack, but the
+immediately following exact delivery prerequisite found that elementFromPoint
+itself did not resolve to repeat.pathObject.svgPath.  A candidate used for real
+pointer delivery must therefore satisfy both constraints at selection time.
+
 Keep that necessary post-reset reselection and the integrated #493 candidate set,
 minimum 3 px entry / 2 px settle contract, and exactly three real pointer moves.
 Instead of accepting the first qualifying repeat point (which deterministically
-selects the connected-block seam at about (200, 201)), rank the same finite
+selects the connected-block seam at about (200,201)), rank the same finite
 candidate set by measured exclusive browser hit-test clearance and choose the
-largest available margin.  The ranking horizon is 16 px: the existing largest
-normal offset (13 px) plus the existing 3 px entry requirement.  It is a bounded
-measurement/tie-break horizon, not a new pass threshold: candidates still need
-only the existing 3 px minimum.
+largest available margin.  The bounded 16 px scoring horizon is the existing
+largest normal offset (13 px) plus the existing 3 px entry requirement.  It ranks
+candidates but does not introduce a stronger acceptance threshold.
+
+The exclusivity predicate also requires document.elementFromPoint() to be the
+exact repeat SVG path, matching the already-existing delivery contract rather
+than accepting a filtered stack whose top hit is some different element.  This
+criterion applies equally to entry, settle and the measured clearance points.
 
 This targets the durable failure boundary without inventing a larger mandatory
 clearance.  No extra pointer move is emitted, no tooltip/workspace state is
@@ -34,6 +45,17 @@ import probe
 import probe_entry
 import probe_post_hover_entry as integrated
 
+
+_OLD_SAME_EXCLUSIVE = r''' const sameExclusive=(path,x,y)=>{
+   const paths=blocklyPathsAt(x,y);
+   return paths.length===1&&paths[0]===path;
+ };'''
+
+_NEW_SAME_EXCLUSIVE = r''' const sameExclusive=(path,x,y)=>{
+   if(document.elementFromPoint(x,y)!==path)return false;
+   const paths=blocklyPathsAt(x,y);
+   return paths.length===1&&paths[0]===path;
+ };'''
 
 _OLD_REPEAT_SELECTION = r''' const entry=stablePoint(repeatPath,3);
  if(!entry)throw new Error('no exclusive stable interior hover point on exact Blockly tooltip-bound repeat path');
@@ -141,6 +163,7 @@ _NEW_SETTLE_STACK = "   settleStack:stackSummary(settle.x,settle.y),"
 def _ranked_repeat_hover_rect() -> str:
     expression = integrated._RESET_REPEAT_HOVER_RECT
     replacements = (
+        (_OLD_SAME_EXCLUSIVE, _NEW_SAME_EXCLUSIVE),
         (_OLD_REPEAT_SELECTION, _NEW_REPEAT_SELECTION),
         (_OLD_RETURN, _NEW_RETURN),
         (_OLD_SETTLE_STACK, _NEW_SETTLE_STACK),
