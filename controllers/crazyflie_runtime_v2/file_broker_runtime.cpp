@@ -178,9 +178,11 @@ bool handleOutcomeRequest(const char *message) {
 bool resetRequestId(const char *message, int *id) {
   if (!message || !id)
     return false;
-  char extra[2] = {0};
   int parsedId = -1;
-  if (std::sscanf(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d RESET %1s", &parsedId, extra) != 1 || parsedId < 1)
+  char command[32] = {0};
+  char extra[2] = {0};
+  if (std::sscanf(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s %1s", &parsedId, command, extra) != 2 ||
+      parsedId < 1 || std::strcmp(command, "RESET") != 0)
     return false;
   *id = parsedId;
   return true;
