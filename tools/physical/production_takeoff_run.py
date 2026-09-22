@@ -136,6 +136,7 @@ class ProductionTakeoffRunController:
 
         receipt: teacher_run_authorization.TeacherRunAuthorization | None = None
         watchdog: watchdog_liveness.EmergencyWatchdogLivenessGuard | None = None
+        teacher_exchange_started = False
         try:
             established = self._execution.run_reset_establishment(
                 lambda: self._powered_factory.establish(
@@ -156,6 +157,9 @@ class ProductionTakeoffRunController:
                 ast_binding=ast,
                 connection_epoch=established.connection_epoch,
             )
+            # Once the teacher protocol starts, diagnostic output on this socket is
+            # permanently forbidden so no failure frame can be mixed into a proposal.
+            teacher_exchange_started = True
             receipt = self._teacher_channel.receive_authorization_for_binding(
                 self._teacher_authorizer,
                 binding,
@@ -231,6 +235,13 @@ class ProductionTakeoffRunController:
             self._active = active
             return active
         except Exception as exc:
+            if not teacher_exchange_started:
+                try:
+                    self._teacher_channel.publish_pre_teacher_failure(exc)
+                except Exception:
+                    # Diagnostic transport is non-authority and best-effort. It must
+                    # never replace or weaken the original fail-closed activation.
+                    pass
             if watchdog is not None and watchdog.active:
                 try:
                     watchdog.stop_for_terminal_reboot()
