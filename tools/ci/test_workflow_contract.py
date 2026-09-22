@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract for V4 CI and human-checkpoint topology."""
+"""Static contract for V5 CI and human-checkpoint topology."""
 
 from pathlib import Path
 import re
