@@ -19,6 +19,18 @@ static int sequence_parse_attempt(const char *data, unsigned long long *attempt)
   return sscanf(data, "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu %1s", attempt, trailing) == 1;
 }
 
+static int sequence_parse_completion(const char *data, unsigned long long *attempt) {
+  if (!data || !attempt)
+    return 0;
+  char oracle[64] = {0};
+  char trailing[2] = {0};
+  if (sscanf(data,
+             "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt=%llu oracle=%63s %1s",
+             attempt, oracle, trailing) != 2)
+    return 0;
+  return strcmp(oracle, SEQUENCE_ORACLE) == 0;
+}
+
 static WbNodeRef sequence_find_named_node(WbNodeRef node, const char *target_name) {
   if (!node)
     return NULL;
@@ -102,20 +114,23 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
     const double *velocity = wb_supervisor_node_get_velocity(crazyflie);
     if (!position || !velocity)
       continue;
-    const double horizontal_speed = hypot(velocity[0], velocity[1]);
-    const double vertical_speed = fabs(velocity[2]);
 
     if (position[2] >= origin_z + SEQUENCE_AIRBORNE_DELTA)
       airborne_seen = 1;
-    if (!airborne_seen)
-      continue;
-    if (position[2] > origin_z + SEQUENCE_LANDED_DELTA ||
-        horizontal_speed > SEQUENCE_MAX_LANDING_SPEED || vertical_speed > SEQUENCE_MAX_LANDING_SPEED)
+
+    unsigned long long completed_attempt = 0;
+    if (!sequence_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
       continue;
 
+    const double horizontal_speed = hypot(velocity[0], velocity[1]);
+    const double vertical_speed = fabs(velocity[2]);
+    const int landed = position[2] <= origin_z + SEQUENCE_LANDED_DELTA;
+    const int stationary = horizontal_speed <= SEQUENCE_MAX_LANDING_SPEED &&
+                           vertical_speed <= SEQUENCE_MAX_LANDING_SPEED;
     const int in_target = fabs(position[0] - SEQUENCE_TARGET_X) <= SEQUENCE_TARGET_X_TOLERANCE &&
                           fabs(position[1]) <= SEQUENCE_TARGET_Y_TOLERANCE;
-    sequence_publish_outcome(custom_data, active_attempt, in_target ? "achieved" : "not-achieved");
+    const int achieved = airborne_seen && landed && stationary && in_target;
+    sequence_publish_outcome(custom_data, active_attempt, achieved ? "achieved" : "not-achieved");
     reported = 1;
   }
 
