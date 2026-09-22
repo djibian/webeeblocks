@@ -8,6 +8,7 @@
 #define SEQUENCE_AIRBORNE_DELTA 0.20
 #define SEQUENCE_LANDED_DELTA 0.07
 #define SEQUENCE_MAX_LANDING_SPEED 0.12
+#define SEQUENCE_SETTLE_TIMEOUT 1.5
 #define SEQUENCE_TARGET_X 0.25
 #define SEQUENCE_TARGET_X_TOLERANCE 0.09
 #define SEQUENCE_TARGET_Y_TOLERANCE 0.12
@@ -89,6 +90,8 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
   unsigned long long active_attempt = 0;
   int has_attempt = 0;
   int airborne_seen = 0;
+  int completion_seen = 0;
+  double completion_time = 0.0;
   int reported = 0;
 
   printf("WEBEEBLOCKS_SEQUENCE_EVALUATOR_READY target_x=%.3f target_y=0.000\n", SEQUENCE_TARGET_X);
@@ -102,6 +105,8 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
         active_attempt = observed_attempt;
         has_attempt = 1;
         airborne_seen = 0;
+        completion_seen = 0;
+        completion_time = 0.0;
         reported = 0;
         printf("WEBEEBLOCKS_SEQUENCE_ATTEMPT attempt=%llu\n", active_attempt);
         fflush(stdout);
@@ -118,9 +123,16 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
     if (position[2] >= origin_z + SEQUENCE_AIRBORNE_DELTA)
       airborne_seen = 1;
 
-    unsigned long long completed_attempt = 0;
-    if (!sequence_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
-      continue;
+    if (!completion_seen) {
+      unsigned long long completed_attempt = 0;
+      if (!sequence_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
+        continue;
+      completion_seen = 1;
+      completion_time = wb_robot_get_time();
+      printf("WEBEEBLOCKS_SEQUENCE_COMPLETION attempt=%llu settle_timeout=%.3f\n",
+             active_attempt, SEQUENCE_SETTLE_TIMEOUT);
+      fflush(stdout);
+    }
 
     const double horizontal_speed = hypot(velocity[0], velocity[1]);
     const double vertical_speed = fabs(velocity[2]);
@@ -130,8 +142,16 @@ int webeeblocks_progression_sequence_evaluator_main(void) {
     const int in_target = fabs(position[0] - SEQUENCE_TARGET_X) <= SEQUENCE_TARGET_X_TOLERANCE &&
                           fabs(position[1]) <= SEQUENCE_TARGET_Y_TOLERANCE;
     const int achieved = airborne_seen && landed && stationary && in_target;
-    sequence_publish_outcome(custom_data, active_attempt, achieved ? "achieved" : "not-achieved");
-    reported = 1;
+    if (achieved) {
+      sequence_publish_outcome(custom_data, active_attempt, "achieved");
+      reported = 1;
+      continue;
+    }
+
+    if (wb_robot_get_time() - completion_time >= SEQUENCE_SETTLE_TIMEOUT) {
+      sequence_publish_outcome(custom_data, active_attempt, "not-achieved");
+      reported = 1;
+    }
   }
 
   wb_robot_cleanup();
