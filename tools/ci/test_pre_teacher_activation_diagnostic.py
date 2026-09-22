@@ -134,6 +134,54 @@ def test_pre_proposal_epoch_failure_remains_diagnosable() -> None:
         peer.close()
 
 
+def test_oversized_proposal_remains_diagnosable_before_teacher_bytes() -> None:
+    host, peer = socket.socketpair()
+    channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
+    authorizer = authorization.TrustedTeacherAuthorizer()
+    binding = authorization.PhysicalRunBinding(
+        profile_id="activity-1",
+        ast_binding="x" * 9000,
+        connection_epoch="epoch-after",
+    )
+    try:
+        try:
+            channel.receive_authorization_for_binding(
+                authorizer,
+                binding,
+                decision_timeout_seconds=0.5,
+            )
+        except decision.TeacherDecisionChannelError as exc:
+            require(
+                "teacher decision message is too large" in str(exc),
+                "oversized pre-send proposal lost its exact failure cause",
+            )
+            require(
+                channel.terminal is False,
+                "oversized proposal must fail before consuming the one-shot channel",
+            )
+            require(
+                channel.publish_pre_teacher_failure(exc) is True,
+                "oversized pre-send proposal must remain eligible for the diagnostic",
+            )
+        else:
+            raise AssertionError("oversized proposal unexpectedly started teacher exchange")
+
+        message = _read_json_line(peer)
+        require(
+            message.get("op") == "pre-teacher-activation-failure"
+            and message.get("executionAuthority") is False,
+            "oversized proposal did not yield exactly the non-authority diagnostic",
+        )
+        require(
+            "teacher decision message is too large" in str(message.get("error")),
+            "oversized proposal diagnostic lost the pre-send failure cause",
+        )
+        _require_no_more_data(peer)
+    finally:
+        channel.close()
+        peer.close()
+
+
 def test_teacher_exchange_start_irrevocably_disables_failure_frame() -> None:
     host, peer = socket.socketpair()
     channel = decision.PostResetTeacherDecisionChannel(host, lambda: "epoch-after")
@@ -259,13 +307,14 @@ def test_common_takeoff_controller_defers_protocol_state_to_channel() -> None:
 def main() -> int:
     test_pre_teacher_failure_is_one_bounded_non_authority_frame()
     test_pre_proposal_epoch_failure_remains_diagnosable()
+    test_oversized_proposal_remains_diagnosable_before_teacher_bytes()
     test_teacher_exchange_start_irrevocably_disables_failure_frame()
     test_launcher_surfaces_exact_pre_teacher_failure()
     test_common_takeoff_controller_defers_protocol_state_to_channel()
     print(
         "PASS pre-teacher activation diagnostic: one bounded failure frame before teacher exchange, "
-        "pre-proposal validation remains diagnosable, no protocol mixing after exchange start, "
-        "exact socket boundary preserved, and causal launcher surfacing"
+        "pre-proposal validation and oversized pre-send failures remain diagnosable, no protocol mixing "
+        "after send begins, exact socket boundary preserved, and causal launcher surfacing"
     )
     return 0
 
