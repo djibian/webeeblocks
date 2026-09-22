@@ -192,7 +192,7 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
     if (handleOutcomeRequest(message))
       continue;
     int resetId = -1;
-    if (resetRequestId(message, &resetId))
+    if (resetRequestId(message, &resetId) && gPendingResetRequest < 1)
       gPendingResetRequest = resetId;
     if (!isBrokerMessage(message))
       return message;
