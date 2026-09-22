@@ -94,7 +94,7 @@ assert.match(evaluatorSource, /WEBEEBLOCKS_SEQUENCE_TIMEOUT/,
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
 const receivingPad = worldSource.match(
-  /translation ([0-9.]+) 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
+  /translation (0\.25) 0 0\.002[\s\S]*?baseColor 0\.10 0\.72 0\.28[\s\S]*?geometry Box \{ size ([0-9.]+) ([0-9.]+) 0\.004 \}/);
 assert.ok(receivingPad, 'Activity 1 visible green receiving pad geometry must remain explicit');
 const targetX = evaluatorSource.match(/#define SEQUENCE_TARGET_X ([0-9.]+)/);
 const targetXTolerance = evaluatorSource.match(/#define SEQUENCE_TARGET_X_TOLERANCE ([0-9.]+)/);
