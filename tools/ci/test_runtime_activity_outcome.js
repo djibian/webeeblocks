@@ -37,6 +37,12 @@ assert.match(brokerRuntimeSource,
 assert.match(brokerRuntimeSource,
   /if \(resetRequestId\(message, &resetId\) && gPendingResetRequest < 1\)\s*gPendingResetRequest = resetId;/,
   'a later Reset request must not replace the identity of the already in-flight Reset');
+assert.match(brokerRuntimeSource,
+  /std::sscanf\(message, "WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s %1s", &parsedId, command, extra\) != 2[\s\S]*std::strcmp\(command, "RESET"\) != 0/,
+  'attempt rotation must be armed only by an exact RESET command token with no trailing arguments');
+assert.doesNotMatch(brokerRuntimeSource,
+  /WEBEEBLOCKS_RUNTIME_V2 REQUEST %d RESET %1s/,
+  'Reset recognition must not rely on sscanf assignment count before checking the RESET literal');
 
 function deferred() {
   let resolve;
@@ -51,6 +57,62 @@ async function until(predicate, label) {
     await new Promise(r => setTimeout(r, 0));
   }
   throw new Error('timeout ' + label);
+}
+
+function proveExactResetClassificationContract() {
+  let attempt = 1;
+  let pendingReset = -1;
+
+  function observeRequest(message) {
+    const match = String(message).match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) ([A-Z]+)$/);
+    if (!match || match[2] !== 'RESET' || pendingReset >= 1)
+      return;
+    pendingReset = Number(match[1]);
+  }
+
+  function observeRuntimeResponse(id, payload) {
+    if (pendingReset < 1 || id !== pendingReset)
+      return;
+    if (payload === 'OK')
+      attempt += 1;
+    pendingReset = -1;
+  }
+
+  const ordinary = [
+    ['WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.5', 1],
+    ['WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 MOVE forward 0.1', 2],
+    ['WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 LAND', 3]
+  ];
+  ordinary.forEach(([request, id]) => {
+    observeRequest(request);
+    assert.strictEqual(pendingReset, -1,
+      'ordinary TAKEOFF/MOVE/LAND request must not arm activity-attempt rotation');
+    observeRuntimeResponse(id, 'OK');
+    assert.strictEqual(attempt, 1,
+      'ordinary successful action must not rotate the activity attempt');
+  });
+
+  observeRequest('WEBEEBLOCKS_RUNTIME_V2 REQUEST 4 RESET extra');
+  assert.strictEqual(pendingReset, -1,
+    'RESET with trailing arguments must fail closed as an attempt-rotation trigger');
+
+  observeRequest('WEBEEBLOCKS_RUNTIME_V2 REQUEST 10 RESET');
+  assert.strictEqual(pendingReset, 10);
+  observeRuntimeResponse(10, 'ERR RESET_TIMEOUT');
+  assert.strictEqual(attempt, 1,
+    'failed exact Reset must not rotate the activity attempt');
+  assert.strictEqual(pendingReset, -1,
+    'failed exact Reset must release its pending identity');
+
+  observeRequest('WEBEEBLOCKS_RUNTIME_V2 REQUEST 11 RESET');
+  observeRuntimeResponse(11, 'OK');
+  assert.strictEqual(attempt, 2,
+    'successful exact Reset must rotate the activity attempt exactly once');
+  assert.strictEqual(pendingReset, -1);
+
+  observeRuntimeResponse(11, 'OK');
+  assert.strictEqual(attempt, 2,
+    'duplicate or unrelated responses after Reset completion must not rotate again');
 }
 
 function proveOverlappingResetFreshnessContract() {
@@ -251,11 +313,12 @@ function proveRealWebotsOutcomeFreshness() {
     'unknown mission states must not be presented as success'
   );
 
+  proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
   proveRealWebotsOutcomeFreshness();
-  console.log('PASS backend-neutral activity mission outcome contract, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
+  console.log('PASS backend-neutral activity mission outcome contract, exact Reset classification, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);
