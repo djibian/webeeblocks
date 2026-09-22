@@ -34,6 +34,17 @@ async function waitForOutcome(backend, evaluation, expected, timeoutMs) {
   throw new Error('timeout waiting for outcome ' + expected);
 }
 
+async function expectFreshAfterReset(backend, evaluation) {
+  try {
+    const stale = await backend.readActivityOutcome(evaluation);
+    throw new Error('previous sequence outcome survived reset: ' + JSON.stringify(stale));
+  } catch (error) {
+    if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
+      throw error;
+    return {code:error.code};
+  }
+}
+
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message: event.message, filename: event.filename, lineno: event.lineno});
 });
@@ -53,31 +64,48 @@ window.addEventListener('unhandledrejection', function(event) {
     const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
 
+    // Activity 1 fixes movement distance at 0.1 m so parameter choice cannot
+    // solve the task. Two short forward actions are one valid sequence shape.
     await backend.takeoff(0.5);
-    await backend.move('forward', 0.2);
+    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.1);
     await backend.land();
     await backend.completeActivityMission(evaluation);
     const achieved = await waitForOutcome(backend, evaluation, 'achieved', 8000);
     await report('SEQUENCE_ACHIEVED', achieved);
 
     await backend.resetSimulation();
-    let staleCode = null;
-    try {
-      const stale = await backend.readActivityOutcome(evaluation);
-      throw new Error('previous sequence outcome survived reset: ' + JSON.stringify(stale));
-    } catch (error) {
-      if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
-        throw error;
-      staleCode = error.code;
-    }
-    await report('SEQUENCE_RESET_FRESH', {code:staleCode});
+    const fresh = await expectFreshAfterReset(backend, evaluation);
+    await report('SEQUENCE_RESET_FRESH', fresh);
 
+    // A complete executable sequence that lands back outside the target must
+    // remain a world-state failure rather than a solution-shape judgement.
     await backend.takeoff(0.5);
     await backend.land();
     await backend.completeActivityMission(evaluation);
     const notAchieved = await waitForOutcome(backend, evaluation, 'not-achieved', 8000);
     await report('SEQUENCE_NOT_ACHIEVED', notAchieved);
-    await report('SEQUENCE_MISSION_TEST_COMPLETE', {first:achieved.status, second:notAchieved.status});
+
+    await backend.resetSimulation();
+    const freshAgain = await expectFreshAfterReset(backend, evaluation);
+    await report('SEQUENCE_SECOND_RESET_FRESH', freshAgain);
+
+    // Three identical fixed-distance moves are a different valid block sequence
+    // with the same observable mission result, proving the oracle is not tied to
+    // one expected Blockly/AST shape.
+    await backend.takeoff(0.5);
+    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.1);
+    await backend.move('forward', 0.1);
+    await backend.land();
+    await backend.completeActivityMission(evaluation);
+    const alternative = await waitForOutcome(backend, evaluation, 'achieved', 8000);
+    await report('SEQUENCE_ALTERNATIVE_ACHIEVED', alternative);
+    await report('SEQUENCE_MISSION_TEST_COMPLETE', {
+      first:achieved.status,
+      second:notAchieved.status,
+      third:alternative.status
+    });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
   }
