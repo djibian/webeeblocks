@@ -62,8 +62,9 @@ def main() -> int:
         return fail("Runtime v2 world Robot Window identity is ambiguous")
     for marker in (
         "WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN",
-        "DEF CRAZYFLIE Crazyflie",
-        'controller "progression_sequence_evaluator"',
+        'name "Crazyflie WebeeBlocks"',
+        'name "Progression sequence evaluator"',
+        '"sequence-evaluator-v1"',
     ):
         if marker not in source_world:
             return fail(f"missing sequence world marker: {marker}")
@@ -78,20 +79,16 @@ def main() -> int:
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
 
-        build_logs = []
-        for controller in ("crazyflie_runtime_v2", "progression_sequence_evaluator"):
-            built = run([
-                "docker", "run", "--rm",
-                "-v", f"{ROOT}:/workspace",
-                "-w", f"/workspace/controllers/{controller}",
-                WEBOTS_IMAGE,
-                "bash", "-lc", "make clean && make",
-            ], capture=True)
-            build_logs.append(f"===== {controller} =====\n{built.stdout or ''}")
-            if built.returncode:
-                (ARTIFACT_ROOT / "build.log").write_text("\n".join(build_logs), encoding="utf-8")
-                return fail(f"{controller} build failed", (built.stdout or "")[-6000:])
-        (ARTIFACT_ROOT / "build.log").write_text("\n".join(build_logs), encoding="utf-8")
+        built = run([
+            "docker", "run", "--rm",
+            "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/crazyflie_runtime_v2",
+            WEBOTS_IMAGE,
+            "bash", "-lc", "make clean && make",
+        ], capture=True)
+        (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
+        if built.returncode:
+            return fail("dual-role Runtime v2/evaluator build failed", (built.stdout or "")[-6000:])
 
         inner = r'''
 set -e

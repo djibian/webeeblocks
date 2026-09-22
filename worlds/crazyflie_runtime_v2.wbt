@@ -70,7 +70,7 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
-DEF CRAZYFLIE Crazyflie {
+Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
   window "blockly_v2"
@@ -195,7 +195,10 @@ DEF CRAZYFLIE Crazyflie {
 # WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN
 Robot {
   name "Progression sequence evaluator"
-  controller "progression_sequence_evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "sequence-evaluator-v1"
+  ]
   supervisor TRUE
 }
 # WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END

@@ -1,4 +1,4 @@
-C_SOURCES = crazyflie_runtime_v2.c ../crazyflie_square/pid_controller.c
+C_SOURCES = crazyflie_runtime_v2.c progression_sequence_evaluator.c ../crazyflie_square/pid_controller.c
 CFLAGS = -I../crazyflie_square
 
 # Firefox direct project files use the local Qt broker on supported desktop

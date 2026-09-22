@@ -47,13 +47,16 @@ assert.match(projectUiSource, /profile\.brief\.goal/);
 
 const worldSource = fs.readFileSync(path.resolve(__dirname, '../../worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 assert.match(worldSource, /WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN/);
-assert.match(worldSource, /DEF CRAZYFLIE Crazyflie/);
-assert.match(worldSource, /controller "progression_sequence_evaluator"/);
-const evaluatorSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/progression_sequence_evaluator/progression_sequence_evaluator.c'), 'utf8');
+assert.match(worldSource, /name "Crazyflie WebeeBlocks"/);
+assert.match(worldSource, /name "Progression sequence evaluator"[\s\S]*controller "crazyflie_runtime_v2"[\s\S]*"sequence-evaluator-v1"/);
+const runtimeEntrySource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c'), 'utf8');
+assert.match(runtimeEntrySource, /sequence-evaluator-v1/);
+assert.match(runtimeEntrySource, /webeeblocks_progression_sequence_evaluator_main/);
+const evaluatorSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/progression_sequence_evaluator.c'), 'utf8');
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1/);
 assert.match(evaluatorSource, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%s status=%s/);
 assert.match(evaluatorSource, /progression-sequence-v1/);
 assert.doesNotMatch(evaluatorSource, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'world evaluator must not inspect Blockly or expected solution shape');
 
-console.log('PASS first progression activity separates student mission from pedagogy and binds a world-state mission oracle without accepting later profiles');
+console.log('PASS first progression activity separates student mission from pedagogy and binds a distinct world-state evaluator process without accepting later profiles');
