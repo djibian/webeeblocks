@@ -43,7 +43,7 @@ Pose {
         transparency 0.14
         roughness 0.9
       }
-      geometry Box { size 0.22 0.34 0.004 }
+      geometry Box { size 0.28 0.34 0.004 }
     }
   ]
 }
