@@ -31,9 +31,48 @@ from teacher_run_authorization import (
     TrustedTeacherAuthorizer,
 )
 
+_PRE_TEACHER_FAILURE_MAX_CHARS = 1024
+
 
 class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
     """One host-first exact-binding decision on the #288 trusted socket."""
+
+    def publish_pre_teacher_failure(
+        self,
+        error: object,
+        *,
+        timeout_seconds: float = 1.0,
+    ) -> bool:
+        """Publish one bounded non-authority failure before any teacher exchange.
+
+        This diagnostic is deliberately mutually exclusive with the host-first
+        teacher protocol. Whichever path marks the channel started first owns the
+        socket permanently; a later diagnostic can never be mixed into an
+        already-started teacher exchange.
+        """
+        timeout = _require_timeout(timeout_seconds)
+        message = str(error).strip()
+        if not message:
+            message = type(error).__name__ or "trusted activation failed"
+        if len(message) > _PRE_TEACHER_FAILURE_MAX_CHARS:
+            message = message[:_PRE_TEACHER_FAILURE_MAX_CHARS]
+
+        with self._lock:
+            if self._terminal or self._started:
+                return False
+            self._started = True
+            self._terminal = True
+            self._terminal_reason = "pre-teacher activation failed"
+
+        self._send_json_line(
+            {
+                "op": "pre-teacher-activation-failure",
+                "error": message,
+                "executionAuthority": False,
+            },
+            timeout,
+        )
+        return True
 
     def receive_authorization_for_binding(
         self,
