@@ -11,9 +11,11 @@
 #define PRECISE_MAX_LANDING_SPEED 0.12
 #define PRECISE_SETTLE_TIMEOUT 1.5
 #define PRECISE_TARGET_X 0.30
-#define PRECISE_TARGET_Y 0.20
-#define PRECISE_TARGET_X_TOLERANCE 0.10
-#define PRECISE_TARGET_Y_TOLERANCE 0.10
+#define PRECISE_TARGET_Y 0.40
+#define PRECISE_TARGET_X_TOLERANCE 0.07
+#define PRECISE_TARGET_Y_TOLERANCE 0.07
+#define PRECISE_VISIBLE_TARGET_HALF_EXTENT 0.12
+#define PRECISE_BODY_CLEARANCE 0.05
 #define FIRST_OBSTACLE_X 0.45
 #define FIRST_OBSTACLE_X_HALF 0.03
 #define FIRST_OBSTACLE_Y_HALF 0.06
@@ -152,6 +154,16 @@ int webeeblocks_progression_precise_evaluator_main(void) {
       }
     }
 
+    /* Contact with the red obstacle is an irreversible mission failure and may
+       cause the flight Runtime to enter its fail-safe before normal executable
+       completion. Publish the world-state negative immediately so the attempt
+       remains observably not-achieved rather than losing its mission result. */
+    if (collision_seen) {
+      precise_publish_outcome(custom_data, active_attempt, "not-achieved");
+      reported = 1;
+      continue;
+    }
+
     if (!completion_seen) {
       unsigned long long completed_attempt = 0;
       if (!precise_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
@@ -167,7 +179,7 @@ int webeeblocks_progression_precise_evaluator_main(void) {
                            vertical_speed <= PRECISE_MAX_LANDING_SPEED;
     const int in_target = fabs(position[0] - PRECISE_TARGET_X) <= PRECISE_TARGET_X_TOLERANCE &&
                           fabs(position[1] - PRECISE_TARGET_Y) <= PRECISE_TARGET_Y_TOLERANCE;
-    const int achieved = airborne_seen && !collision_seen && landed && stationary && in_target;
+    const int achieved = airborne_seen && landed && stationary && in_target;
     if (achieved) {
       precise_publish_outcome(custom_data, active_attempt, "achieved");
       reported = 1;
