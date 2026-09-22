@@ -21,6 +21,9 @@ if exist "%WB_REG_STATE%" (
   if errorlevel 1 goto :registry_recovery_failed
 )
 
+call :is_chrome_target
+if errorlevel 1 goto :launch
+
 call :webots_running
 if not errorlevel 1 goto :concurrent_webots
 
@@ -56,6 +59,8 @@ reg.exe add "%WB_REG_KEY%" /v newBrowserWindow /t REG_DWORD /d 0 /f >nul 2>&1
 if errorlevel 1 goto :registry_override_failed
 
 set "PATH=%WB_LOCAL_ROOT%;%PATH%"
+
+:launch
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Launch-WebeeBlocks.ps1"
 set "WB_LAUNCH_EXIT=%ERRORLEVEL%"
 
@@ -68,6 +73,11 @@ if not "%WB_LAUNCH_EXIT%"=="0" (
   pause
 )
 exit /b %WB_LAUNCH_EXIT%
+
+:is_chrome_target
+powershell.exe -NoLogo -NoProfile -Command ^
+  "$ErrorActionPreference='SilentlyContinue'; $webots=(Get-ItemProperty -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Cyberbotics\Webots-R2025a\RobotWindow' -Name browser).browser; if (-not [string]::IsNullOrWhiteSpace([string]$webots)) { if ([string]$webots -match '(?i)chrome') { exit 0 }; exit 1 }; $choice=(Get-ItemProperty -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice' -Name ProgId).ProgId; if ([string]::IsNullOrWhiteSpace([string]$choice)) { exit 1 }; if ([string]$choice -match '(?i)chrome') { exit 0 }; $command=(Get-ItemProperty -LiteralPath ('Registry::HKEY_CLASSES_ROOT\' + $choice + '\shell\open\command')).'(default)'; if ([string]$command -match '(?i)chrome(?:\.exe)?') { exit 0 }; exit 1"
+exit /b %ERRORLEVEL%
 
 :write_browser_helper
 > "%WB_BROWSER_HELPER%" echo @echo off || exit /b 1
