@@ -174,16 +174,18 @@ def test_launcher_surfaces_exact_pre_teacher_failure() -> None:
         raise AssertionError("oversized pre-teacher failure unexpectedly passed")
 
 
-def test_common_takeoff_controller_owns_diagnostic_boundary() -> None:
+def test_common_takeoff_controller_defers_protocol_state_to_channel() -> None:
     source = (PHYSICAL / "production_takeoff_run.py").read_text(encoding="utf-8")
-    start = source.index("teacher_exchange_started = False")
-    enter = source.index("teacher_exchange_started = True", start)
-    exchange = source.index("receive_authorization_for_binding", enter)
-    fallback = source.index("if not teacher_exchange_started:", exchange)
+    exchange = source.index("receive_authorization_for_binding")
+    fallback = source.index("except Exception as exc:", exchange)
     publish = source.index("publish_pre_teacher_failure(exc)", fallback)
     require(
-        start < enter < exchange < fallback < publish,
-        "common takeoff controller must publish diagnostics only before teacher exchange starts",
+        exchange < fallback < publish,
+        "common takeoff controller must offer failures to the channel after activation failure",
+    )
+    require(
+        "teacher_exchange_started" not in source,
+        "controller must not mirror the teacher channel protocol state",
     )
     require(
         "_PreTeacherDiagnosticSocket" not in source,
@@ -195,7 +197,7 @@ def main() -> int:
     test_pre_teacher_failure_is_one_bounded_non_authority_frame()
     test_teacher_exchange_start_irrevocably_disables_failure_frame()
     test_launcher_surfaces_exact_pre_teacher_failure()
-    test_common_takeoff_controller_owns_diagnostic_boundary()
+    test_common_takeoff_controller_defers_protocol_state_to_channel()
     print(
         "PASS pre-teacher activation diagnostic: one bounded failure frame before teacher exchange, "
         "no protocol mixing after exchange start, exact socket boundary preserved, and causal launcher surfacing"
