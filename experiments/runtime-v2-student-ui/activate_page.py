@@ -64,6 +64,37 @@ while time.time() < end:
 else:
     raise RuntimeError('Robot Window page did not become visibly focused after Page.bringToFront: ' + json.dumps(state, sort_keys=True))
 
+# The real Runtime v2 page exposes its debug/observation row only after the WWI
+# backend becomes ready. That row changes the workspace's screen geometry. Do
+# not start any coordinate-sensitive browser input while the product is still in
+# INITIALISATION: exact-path coordinates captured before PRÊT can become stale
+# solely because the product completes its normal ready transition.
+end = time.time() + 40.0
+runtime_state = None
+while time.time() < end:
+    runtime_state = c.eval(r'''(() => {
+      const backend=(typeof runtimeBackend!=='undefined') ? runtimeBackend : null;
+      const panel=document.getElementById('debugPanel');
+      const svg=document.querySelector('.blocklySvg');
+      const debugSupported=!!(backend&&backend.capabilities&&backend.capabilities.simulationDebug===true);
+      return {
+        state:String((document.body&&document.body.dataset&&document.body.dataset.runtimeState)||''),
+        detail:String((document.getElementById('runtimeDetail')||{}).textContent||''),
+        backendReady:!!(backend&&backend.ready),
+        debugSupported:debugSupported,
+        debugPanelHidden:panel ? panel.hidden===true : null,
+        debugLayoutReady:!debugSupported || !!(panel&&panel.hidden===false),
+        workspaceTop:svg ? svg.getBoundingClientRect().top : null
+      };
+    })()''')
+    if (runtime_state and runtime_state.get('state') == 'PRÊT'
+            and runtime_state.get('backendReady')
+            and runtime_state.get('debugLayoutReady')):
+        break
+    time.sleep(0.05)
+else:
+    raise RuntimeError('Runtime v2 did not reach its public ready layout before browser input: ' + json.dumps(runtime_state, sort_keys=True, ensure_ascii=False))
+
 c.eval(r'''(() => {
   const key='__webeeblocksCiPointerActivation';
   if(window[key]&&window[key].cleanup)window[key].cleanup();
@@ -87,4 +118,4 @@ else:
     raise RuntimeError('focused Robot Window did not receive public mousemove input: ' + json.dumps(pointer, sort_keys=True))
 
 c.eval("window.__webeeblocksCiPointerActivation.cleanup();delete window.__webeeblocksCiPointerActivation;true")
-print('WEBEEBLOCKS_STUDENT_UI_INPUT_READY ' + json.dumps({'page': state, 'pointer': pointer}, sort_keys=True))
+print('WEBEEBLOCKS_STUDENT_UI_INPUT_READY ' + json.dumps({'page': state, 'runtime': runtime_state, 'pointer': pointer}, sort_keys=True, ensure_ascii=False))
