@@ -140,6 +140,7 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "REACTIVE_FIXED_LEFT_NOT_ACHIEVED", "REACTIVE_FIXED_LEFT_RESET_FRESH",
             "REACTIVE_UNROLLED_OBO_ACHIEVED", "REACTIVE_UNROLLED_OBO_RESET_FRESH",
             "REACTIVE_UNROLLED_BOB_ACHIEVED", "REACTIVE_UNROLLED_BOB_RESET_FRESH",
+            "REACTIVE_BYPASS_NOT_ACHIEVED", "REACTIVE_BYPASS_RESET_FRESH",
             "REACTIVE_MISSION_TEST_COMPLETE",
         )
         names = [event.get("event") for event in events]
@@ -153,13 +154,15 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         for name in ("REACTIVE_ONE_MEASUREMENT_NOT_ACHIEVED", "REACTIVE_FIXED_FORWARD_NOT_ACHIEVED", "REACTIVE_FIXED_LEFT_NOT_ACHIEVED"):
             if details[name] != {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
+        if details["REACTIVE_BYPASS_NOT_ACHIEVED"] != {"status":"not-achieved"}:
+            return fail(f"collision-free row bypass did not remain outside mission success: {details['REACTIVE_BYPASS_NOT_ACHIEVED']}")
         for name in required:
             if name.endswith("RESET_FRESH") and details[name] != {"code":"OUTCOME_UNAVAILABLE"}:
                 return fail(f"outcome survived reset at {name}: {details[name]}")
         if details["REACTIVE_MISSION_TEST_COMPLETE"] != {
             "repeated_bob":"achieved", "repeated_obo":"achieved", "one_measurement":"not-achieved",
             "fixed_forward":"not-achieved", "fixed_left":"not-achieved",
-            "unrolled_obo":"achieved", "unrolled_bob":"achieved"
+            "unrolled_obo":"achieved", "unrolled_bob":"achieved", "bypass":"not-achieved"
         }:
             return fail(f"unexpected Activity 5 summary: {details['REACTIVE_MISSION_TEST_COMPLETE']}")
 
@@ -173,13 +176,15 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "WEBEEBLOCKS_REACTIVE_RESULT attempt=5 status=not-achieved",
             "WEBEEBLOCKS_REACTIVE_RESULT attempt=6 status=achieved",
             "WEBEEBLOCKS_REACTIVE_RESULT attempt=7 status=achieved",
+            "WEBEEBLOCKS_REACTIVE_CONFIG attempt=8 pattern=OBO",
+            "WEBEEBLOCKS_REACTIVE_RESULT attempt=8 status=not-achieved",
         ):
             if marker not in webots_log:
                 return fail(f"missing Webots Activity 5 marker: {marker}", webots_log[-16000:])
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 5 warehouse rows: one repeated fresh-sensing program succeeds across B-O-B/O-B-O patterns, one-measurement and fixed routes fail, equivalent unrolled fresh sensing succeeds, and reset freshness holds in real R2025a")
+        print("PASS Activity 5 warehouse rows: one repeated fresh-sensing program succeeds across B-O-B/O-B-O patterns, one-measurement/fixed routes and a collision-free row bypass fail, equivalent unrolled fresh sensing succeeds, and reset freshness holds in real R2025a")
         return 0
     finally:
         cleanup()
