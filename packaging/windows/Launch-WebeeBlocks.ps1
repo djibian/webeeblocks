@@ -80,7 +80,21 @@ function New-WebeeBlocksRobotWindowSession {
     }
     $sessionWorldText = $WorldText.Replace($sourceMarker, ('window "' + $name + '"'))
     [System.IO.File]::WriteAllText($sessionWorld, $sessionWorldText, [System.Text.UTF8Encoding]::new($false))
-    Copy-Item -LiteralPath $PerspectivePath -Destination $sessionPerspective
+
+    # Do not let Webots invoke the managed/default browser. The launcher opens
+    # the exact Robot Window URL itself in the dedicated local Chrome profile.
+    $perspectiveText = [System.IO.File]::ReadAllText($PerspectivePath, [System.Text.Encoding]::UTF8)
+    $sessionPerspectiveText = [regex]::Replace(
+      $perspectiveText,
+      '(?m)^robotWindow:\s+Crazyflie WebeeBlocks\s*\r?\n?',
+      ''
+    )
+    if ($sessionPerspectiveText -eq $perspectiveText -or
+        [regex]::Matches($sessionPerspectiveText, '(?m)^robotWindow:').Count -ne 0) {
+      throw 'La perspective de session ne peut pas neutraliser proprement l ouverture automatique de la Robot Window.'
+    }
+    [System.IO.File]::WriteAllText($sessionPerspective, $sessionPerspectiveText, [System.Text.UTF8Encoding]::new($false))
+
     return [PSCustomObject]@{
       Name = $name
       Root = $root
@@ -236,6 +250,100 @@ function Stop-WebeeBlocksLocalServer {
   $Server.Listener.Stop()
 }
 
+function Get-WebeeBlocksWebotsPort {
+  for ($attempt = 0; $attempt -lt 20; $attempt++) {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+      $listener.Start()
+      $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+      if ($port -gt 0 -and $port -le 65525) { return $port }
+    }
+    finally {
+      $listener.Stop()
+    }
+  }
+  throw 'WebeeBlocks n a pas trouve de port local utilisable pour le serveur Webots.'
+}
+
+function Get-WebeeBlocksRobotWindowUri {
+  param(
+    $Session,
+    [int]$Port
+  )
+  $robotName = [System.Uri]::EscapeDataString('Crazyflie WebeeBlocks')
+  return [System.Uri]::new("http://127.0.0.1:$Port/robot_windows/$($Session.Name)/$($Session.Name).html?name=$robotName")
+}
+
+function Wait-WebeeBlocksRobotWindow {
+  param(
+    $Session,
+    [int]$RequestedPort,
+    [System.Diagnostics.Process]$Process
+  )
+
+  $deadline = [DateTime]::UtcNow.AddSeconds(30)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    for ($offset = 0; $offset -le 10; $offset++) {
+      $port = $RequestedPort + $offset
+      if ($port -gt 65535) { break }
+      $uri = Get-WebeeBlocksRobotWindowUri -Session $Session -Port $port
+      $response = $null
+      try {
+        $request = [System.Net.HttpWebRequest]::Create($uri)
+        $request.KeepAlive = $false
+        $request.Timeout = 300
+        $request.ReadWriteTimeout = 300
+        $response = [System.Net.HttpWebResponse]$request.GetResponse()
+        if ($response.StatusCode -eq [System.Net.HttpStatusCode]::OK) {
+          return [PSCustomObject]@{ Uri = $uri; Port = $port }
+        }
+      }
+      catch [System.Net.WebException] { }
+      finally {
+        if ($null -ne $response) { $response.Close() }
+      }
+    }
+
+    $Process.Refresh()
+    if ($Process.HasExited) {
+      throw "Webots s est termine avant que la Robot Window locale soit disponible (code $($Process.ExitCode))."
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  throw 'La Robot Window Webots locale n est pas devenue accessible a temps.'
+}
+
+function Get-WebeeBlocksChromeLaunch {
+  $chrome = $env:WEBEEBLOCKS_CHROME_EXE
+  $profile = $env:WEBEEBLOCKS_CHROME_PROFILE
+  if ([string]::IsNullOrWhiteSpace($chrome) -or -not (Test-Path -LiteralPath $chrome -PathType Leaf)) {
+    throw 'Le lanceur Chrome local WebeeBlocks est introuvable.'
+  }
+  if ([string]::IsNullOrWhiteSpace($profile) -or -not (Test-Path -LiteralPath $profile -PathType Container)) {
+    throw 'Le profil Chrome local WebeeBlocks est introuvable.'
+  }
+  if ($chrome.Contains('"') -or $profile.Contains('"')) {
+    throw 'Un chemin Chrome contient un guillemet non pris en charge.'
+  }
+  return [PSCustomObject]@{ Executable = $chrome; Profile = $profile }
+}
+
+function Start-WebeeBlocksChromeWindow {
+  param(
+    $Chrome,
+    [System.Uri]$Uri
+  )
+  $profileArgument = '--user-data-dir="' + $Chrome.Profile + '"'
+  $uriArgument = '"' + $Uri.AbsoluteUri + '"'
+  Start-Process -FilePath $Chrome.Executable -ArgumentList @(
+    $profileArgument,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--new-window',
+    $uriArgument
+  ) | Out-Null
+}
+
 function Convert-RobotWindowChildUrls {
   param(
     [string]$Html,
@@ -370,8 +478,6 @@ function Assert-LocalServerRecoversFromAbortedRequest {
     throw 'Le serveur local n a pas traite la requete HTTP interrompue.'
   }
 
-  # The aborted client must be contained locally; the same listener/session must
-  # still serve exact packaged bytes to the next valid request.
   Assert-LocalServerFile -Server $Server -RelativePath $RelativePath -ExpectedContentType $ExpectedContentType
 }
 
@@ -414,9 +520,6 @@ if ($ValidateOnly) {
   $sessionA = $null
   $sessionB = $null
   try {
-    # Keep the first launch alive while constructing a complete second launch.
-    # Distinct top-level Robot Window identities make stale browser documents
-    # unable to retain the first launch's ephemeral child-asset origin.
     $serverA = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
     $sessionA = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective
     $rewrittenA = Set-WebeeBlocksSessionHtml -Session $sessionA -Port $serverA.Port
@@ -431,7 +534,6 @@ if ($ValidateOnly) {
     if ($serverA.Port -eq $serverB.Port) {
       throw 'Deux serveurs WebeeBlocks simultanes ont reutilise le meme port ephemere.'
     }
-    $sourcePerspectiveHash = (Get-FileHash -LiteralPath $worldPerspective -Algorithm SHA256).Hash
     foreach ($probe in @(
       [PSCustomObject]@{ Server = $serverA; Session = $sessionA; Html = $rewrittenA },
       [PSCustomObject]@{ Server = $serverB; Session = $sessionB; Html = $rewrittenB }
@@ -445,9 +547,17 @@ if ($ValidateOnly) {
       if (-not (Test-Path -LiteralPath $probe.Session.Perspective -PathType Leaf)) {
         throw 'La perspective de session WebeeBlocks est absente.'
       }
-      $sessionPerspectiveHash = (Get-FileHash -LiteralPath $probe.Session.Perspective -Algorithm SHA256).Hash
-      if ($sessionPerspectiveHash -ne $sourcePerspectiveHash) {
-        throw 'La perspective de session ne preserve pas exactement la perspective de classe.'
+      $sessionPerspectiveText = [System.IO.File]::ReadAllText($probe.Session.Perspective, [System.Text.Encoding]::UTF8)
+      if ([regex]::Matches($sessionPerspectiveText, '(?m)^robotWindow:').Count -ne 0) {
+        throw 'La perspective de session autorise encore Webots a ouvrir le navigateur par defaut.'
+      }
+      if (-not $sessionPerspectiveText.StartsWith('Webots Project File version R2025a', [System.StringComparison]::Ordinal)) {
+        throw 'La perspective de session ne preserve pas le format R2025a.'
+      }
+      $probeUri = Get-WebeeBlocksRobotWindowUri -Session $probe.Session -Port 54321
+      $expectedPath = "/robot_windows/$($probe.Session.Name)/$($probe.Session.Name).html"
+      if ($probeUri.AbsolutePath -ne $expectedPath -or $probeUri.Query -ne '?name=Crazyflie%20WebeeBlocks') {
+        throw "URL Robot Window directe inattendue : $($probeUri.AbsoluteUri)"
       }
       $faviconMarker = '<link rel="icon" href="data:,">'
       if ([regex]::Matches($probe.Html, [regex]::Escape($faviconMarker)).Count -ne 1) {
@@ -485,7 +595,7 @@ if ($ValidateOnly) {
       throw 'Le nettoyage de session WebeeBlocks a laisse un artefact temporaire.'
     }
   }
-  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime local_http=loopback-ephemeral-session-isolated-connection-close"
+  Write-Host "WEBEEBLOCKS_WINDOWS_LAUNCHER_OK webots=$webots world=$world version=R2025a mode=realtime browser=direct-local-chrome local_http=loopback-ephemeral-session-isolated-connection-close"
   exit 0
 }
 
@@ -493,13 +603,17 @@ $server = $null
 $session = $null
 $webotsProcess = $null
 try {
+  $chrome = Get-WebeeBlocksChromeLaunch
   $server = Start-WebeeBlocksLocalServer -Root $PSScriptRoot
   $session = New-WebeeBlocksRobotWindowSession -RobotWindow $robotWindow -WorldText $worldText -PerspectivePath $worldPerspective
   Set-WebeeBlocksSessionHtml -Session $session -Port $server.Port | Out-Null
 
   if ($session.World.Contains('"')) { throw 'Le chemin du monde de session contient un guillemet non pris en charge.' }
   $worldArgument = '"' + $session.World + '"'
-  $webotsProcess = Start-Process -FilePath $webots -ArgumentList @('--mode=realtime', $worldArgument) -WorkingDirectory $PSScriptRoot -PassThru
+  $requestedPort = Get-WebeeBlocksWebotsPort
+  $webotsProcess = Start-Process -FilePath $webots -ArgumentList @("--port=$requestedPort", '--mode=realtime', $worldArgument) -WorkingDirectory $PSScriptRoot -PassThru
+  $robotWindowEndpoint = Wait-WebeeBlocksRobotWindow -Session $session -RequestedPort $requestedPort -Process $webotsProcess
+  Start-WebeeBlocksChromeWindow -Chrome $chrome -Uri $robotWindowEndpoint.Uri
   Write-Host "WebeeBlocks demarre. La simulation et la fenetre Blockly vont s'initialiser automatiquement."
 
   while (-not $webotsProcess.WaitForExit(15)) {
