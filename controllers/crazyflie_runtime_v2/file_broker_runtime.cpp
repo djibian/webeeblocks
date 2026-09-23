@@ -71,6 +71,24 @@ void publishActivityCompletion(const char *oracle) {
   wb_supervisor_field_set_sf_string(gActivityCustomData, marker);
 }
 
+bool hasCurrentActivityOutcome(const char *oracle) {
+  if (!gActivityCustomData || !isSafeOracle(oracle))
+    return false;
+  const char *data = wb_supervisor_field_get_sf_string(gActivityCustomData);
+  unsigned long long attempt = 0;
+  char publishedOracle[64] = {0};
+  char status[32] = {0};
+  char trailing[2] = {0};
+  if (!data || std::sscanf(data,
+      "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",
+      &attempt, publishedOracle, status, trailing) != 3)
+    return false;
+  if (attempt != gActivityAttempt || std::strcmp(publishedOracle, oracle) != 0)
+    return false;
+  return std::strcmp(status, "achieved") == 0 || std::strcmp(status, "not-achieved") == 0 ||
+         std::strcmp(status, "interrupted") == 0;
+}
+
 bool ensureActivityChannel(void) {
   if (gActivityChannelInitialized)
     return gActivityCustomData != 0;
@@ -118,7 +136,8 @@ bool handleMissionCompletionRequest(const char *message) {
     sendRuntimeError(id, "OUTCOME_UNAVAILABLE");
     return true;
   }
-  publishActivityCompletion(oracle);
+  if (!hasCurrentActivityOutcome(oracle))
+    publishActivityCompletion(oracle);
   char response[192];
   std::snprintf(response, sizeof(response), "WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d OK", id);
   wb_robot_wwi_send_text(response);
