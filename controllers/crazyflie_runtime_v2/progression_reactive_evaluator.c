@@ -19,9 +19,9 @@
 #define REACTIVE_STEP_Y 0.30
 #define REACTIVE_BARRIER_OFFSET_X 0.15
 #define REACTIVE_BARRIER_Z 0.55
+#define REACTIVE_OPEN_BARRIER_Z -1.00
 #define REACTIVE_BARRIER_HALF_EXTENT 0.07
-#define REACTIVE_BARRIER_Z_MIN 0.0
-#define REACTIVE_BARRIER_Z_MAX 1.10
+#define REACTIVE_BARRIER_HALF_HEIGHT 0.55
 #define CONTACT_TOLERANCE 0.004
 
 static const int REACTIVE_PATTERNS[REACTIVE_PATTERN_COUNT][REACTIVE_ROWS] = {
@@ -88,8 +88,7 @@ static int reactive_near(const double *position, double x, double y, double tole
 static int reactive_contact_is_barrier(const double point[3], const double barrier[3]) {
   return fabs(point[0] - barrier[0]) <= REACTIVE_BARRIER_HALF_EXTENT + CONTACT_TOLERANCE &&
          fabs(point[1] - barrier[1]) <= REACTIVE_BARRIER_HALF_EXTENT + CONTACT_TOLERANCE &&
-         point[2] >= REACTIVE_BARRIER_Z_MIN - CONTACT_TOLERANCE &&
-         point[2] <= REACTIVE_BARRIER_Z_MAX + CONTACT_TOLERANCE;
+         fabs(point[2] - barrier[2]) <= REACTIVE_BARRIER_HALF_HEIGHT + CONTACT_TOLERANCE;
 }
 
 static void reactive_publish_outcome(WbFieldRef custom_data, unsigned long long attempt, const char *status) {
@@ -116,14 +115,15 @@ static void reactive_configure_attempt(unsigned long long attempt,
   for (int row = 0; row < REACTIVE_ROWS; ++row) {
     const double decision_x = REACTIVE_START_X + REACTIVE_STEP_X * row;
     barrier_positions[row][0] = decision_x + REACTIVE_BARRIER_OFFSET_X;
+    barrier_positions[row][1] = y;
     /*
-     * A blocked row puts its parcel in the active lane.  An open row parks the
-     * same physical parcel one lane to the right, outside the only allowed
-     * sidestep direction.  Parking it to the left made an already-passed open
-     * row collide with a later legitimate left sidestep (for example B-O-B).
+     * The Runtime world is shared by all progression activities and every
+     * mission evaluator sees the same attempt marker.  A row that is open must
+     * therefore remove its physical parcel from the navigable/sensed world,
+     * rather than parking it in another XY lane where an earlier activity could
+     * collide with it.  Blocked rows stay at the visible active-lane height.
      */
-    barrier_positions[row][1] = y + (blocked[row] ? 0.0 : -REACTIVE_STEP_Y);
-    barrier_positions[row][2] = REACTIVE_BARRIER_Z;
+    barrier_positions[row][2] = blocked[row] ? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;
     wb_supervisor_field_set_sf_vec3f(barrier_fields[row], barrier_positions[row]);
     if (blocked[row])
       y += REACTIVE_STEP_Y;
