@@ -27,6 +27,11 @@ function harness(options = {}) {
     if (command === 'OUTCOME') {
       assert.strictEqual(match[3], 'progression-precise-movement-v1');
       payload = response;
+    } else if (command === 'COMPLETE') {
+      assert.strictEqual(match[3], 'progression-precise-movement-v1');
+      if (options.completeResult)
+        response = options.completeResult;
+      payload = 'OK';
     } else if (command === 'RESET') {
       response = 'ERR OUTCOME_UNAVAILABLE';
       payload = 'OK';
@@ -35,7 +40,13 @@ function harness(options = {}) {
     }
     if (!options.pending)
       Promise.resolve().then(() => backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + id + ' ' + payload));
-  }}, {simulationReset:options.physical !== true, simulationStop:true, timeoutMs:1000});
+  }}, {
+    simulationReset:options.physical !== true,
+    simulationStop:true,
+    timeoutMs:1000,
+    outcomeSettleMs:0,
+    outcomePollMs:0
+  });
   backend.ready = true;
   const context = {
     console:{log(){},error(){}},
@@ -85,7 +96,7 @@ async function proveMissionFailure() {
   assert.strictEqual(collision.element('resetSimulation').disabled, false);
   assert.strictEqual(collision.sent.length, 1);
   assert.match(collision.sent[0], / OUTCOME progression-precise-movement-v1$/,
-    'read the latched collision outcome without overwriting it with COMPLETE');
+    'prefer an already latched exact-oracle collision outcome without COMPLETE');
   const diagnostic = collision.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic');
   assert.strictEqual(diagnostic.detail.machineCode, 'UNSAFE_OR_TIMEOUT');
   assert.strictEqual(diagnostic.detail.technicalMessage, 'original execution failure');
@@ -96,19 +107,36 @@ async function proveMissionFailure() {
   await collision.context.runProgram();
   assert.strictEqual(collision.element('runtimeState').textContent, 'ARRÊTÉ',
     'a previous negative must not survive a reset when the new attempt has no world result');
-  assert.strictEqual(collision.sent.length, 3);
+  assert.strictEqual(collision.sent.length, 5);
   assert.match(collision.sent[1], / RESET$/);
+  assert.match(collision.sent[2], / OUTCOME progression-precise-movement-v1$/);
+  assert.match(collision.sent[3], / COMPLETE progression-precise-movement-v1$/);
+  assert.match(collision.sent[4], / OUTCOME progression-precise-movement-v1$/);
+
+  for (const initial of ['ERR OUTCOME_UNAVAILABLE', 'ERR OUTCOME_MISMATCH']) {
+    const finalized = harness({response:initial, completeResult:'STATE not-achieved'});
+    await finalized.context.runProgram();
+    assert.strictEqual(finalized.element('runtimeState').textContent, 'MISSION NON RÉUSSIE', initial);
+    assert.strictEqual(finalized.element('runtimeDetail').textContent, 'Mission non accomplie', initial);
+    assert.strictEqual(finalized.sent.length, 3, initial);
+    assert.match(finalized.sent[0], / OUTCOME progression-precise-movement-v1$/);
+    assert.match(finalized.sent[1], / COMPLETE progression-precise-movement-v1$/,
+      'only unavailable/mismatched current evidence may name the selected oracle after fail-safe');
+    assert.match(finalized.sent[2], / OUTCOME progression-precise-movement-v1$/);
+    assert.strictEqual(finalized.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
+      'UNSAFE_OR_TIMEOUT', 'mission finalization must preserve the original execution diagnostic');
+  }
 
   for (const response of [
-    'ERR OUTCOME_UNAVAILABLE', 'ERR STALE_OUTCOME', 'ERR OUTCOME_MISMATCH',
-    'ERR INVALID_OUTCOME', 'STATE achieved', 'STATE interrupted', 'STATE mystery'
+    'ERR STALE_OUTCOME', 'ERR INVALID_OUTCOME',
+    'STATE achieved', 'STATE interrupted', 'STATE mystery'
   ]) {
     const unproven = harness({response});
     await unproven.context.runProgram();
     assert.strictEqual(unproven.element('runtimeState').textContent, 'ARRÊTÉ', response);
     assert.strictEqual(unproven.element('runtimeDetail').textContent, 'L’action n’a pas pu être terminée', response);
     assert.strictEqual(unproven.context.runtimeTerminal, true);
-    assert.strictEqual(unproven.sent.length, 1, 'failed evidence read must not retry or emit COMPLETE');
+    assert.strictEqual(unproven.sent.length, 1, 'stale, malformed or non-negative evidence must fail closed without COMPLETE');
     assert.strictEqual(unproven.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
       'UNSAFE_OR_TIMEOUT', 'preserve the original error rather than replace it with an evidence-read error');
   }
@@ -136,7 +164,7 @@ async function proveMissionFailure() {
   await running;
   assert.strictEqual(pending.element('runtimeState').textContent, 'MISSION NON RÉUSSIE');
   assert.strictEqual(pending.element('resetSimulation').disabled, false);
-  console.log('PASS production mission failure UI: current collision negative, no COMPLETE, invalid/stale/positive fallback, user-stop and physical boundaries, Reset freshness');
+  console.log('PASS production mission failure UI: exact latched negative fast path, bounded unavailable/mismatch completion, fail-closed stale/invalid/non-negative evidence, user-stop and physical boundaries, Reset freshness');
 }
 
 module.exports = proveMissionFailure;
