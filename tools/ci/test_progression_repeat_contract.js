@@ -47,12 +47,17 @@ for (const token of [
   'WEBEEBLOCKS_REPEAT_ORDER_FAILURE',
   'repeat_publish_outcome(custom_data, active_attempt, "not-achieved")',
   'next_beacon == 3',
+  'strcmp(oracle, REPEAT_ORACLE) == 0',
 ]) assert(evaluator.includes(token), 'evaluator contract drifted: ' + token);
 assert(!/(Blockly|controls_repeat_ext|workspace|AST)/.test(evaluator), 'world oracle inspects solution representation');
+const completionGuard = evaluator.indexOf('if (!completion_seen)');
+const terminalFailure = evaluator.indexOf('if (collision_seen || order_failed)');
+assert(completionGuard >= 0 && terminalFailure > completionGuard,
+  'repeat evaluator must latch collision/order facts but publish only after exact-oracle completion');
 
 const entry = fs.readFileSync(path.join(root, 'controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
 const makefile = fs.readFileSync(path.join(root, 'controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
 assert(entry.includes('repeat-evaluator-v1') && entry.includes('webeeblocks_progression_repeat_evaluator_main'), 'runtime entry does not dispatch repeat evaluator');
 assert(makefile.includes('progression_repeat_evaluator.c'), 'repeat evaluator absent from Runtime build');
 
-console.log('PASS progression repeat contract: mission/objective separation, cumulative toolbox, repeated world geometry, behavior-only oracle and Runtime dispatch');
+console.log('PASS progression repeat contract: mission/objective separation, cumulative toolbox, repeated world geometry, exact-oracle-scoped behavior-only evaluator and Runtime dispatch');
