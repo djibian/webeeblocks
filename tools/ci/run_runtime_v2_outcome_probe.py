@@ -10,12 +10,13 @@ def main() -> int:
     proofs = (
         "tools/ci/run_runtime_v2_outcome_freshness.py",
         "tools/ci/run_progression_sequence_mission.py",
+        "tools/ci/run_progression_repeat_mission.py",
     )
     for proof in proofs:
         result = subprocess.run([sys.executable, proof], cwd=ROOT, check=False)
         if result.returncode:
             return result.returncode
-    print("PASS real-Webots activity outcome foundation and first executable progression sequence mission")
+    print("PASS real-Webots activity outcome foundation and executable progression missions 1-3")
     return 0
 
 
