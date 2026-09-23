@@ -1,0 +1,78 @@
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '../..');
+const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activities.js'));
+const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
+
+const profile = Profiles.resolveById(Activities.DOCUMENT, 'progression-reactive-v1', Activities.BLOCK_CATALOG);
+const runtimeProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
+assert.strictEqual(profile.world, runtimeProfile.world);
+assert.strictEqual(profile.brief.title, '5 — Traverser les rangées');
+assert.strictEqual(profile.brief.mission,
+  'Le drone doit traverser plusieurs rangées de l’entrepôt pour rejoindre la zone de livraison. Des colis peuvent bloquer certaines rangées. Fais-le avancer jusqu’à la zone d’arrivée et terminer posé sans toucher de colis, même si les blocages ne sont pas les mêmes d’une rangée à l’autre.');
+assert.strictEqual(profile.brief.goal, profile.brief.mission);
+assert.strictEqual(profile.pedagogy.objective,
+  'Répéter un cycle de mesure, décision et déplacement afin de réobserver la situation avant chaque rangée, en réutilisant les acquis des activités précédentes.');
+assert.notStrictEqual(profile.brief.mission, profile.pedagogy.objective);
+assert.doesNotMatch(profile.brief.mission, /répète|mesure|capteur|condition|si alors|boucle|algorithme/i,
+  'student mission must describe the problem rather than prescribe the solution');
+assert.deepStrictEqual(profile.evaluation, {type:'mission-state-v1', oracle:'progression-reactive-v1'});
+assert.deepStrictEqual(profile.toolbox, [
+  'webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number',
+  'webeeblocks_v2_range','controls_if','logic_compare','webeeblocks_v2_land'
+]);
+assert.deepStrictEqual(profile.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
+assert.deepStrictEqual(profile.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+assert.deepStrictEqual(profile.runtime.allowedStatementKinds, ['takeoff','move','repeat','if','land']);
+assert.deepStrictEqual(profile.runtime.rangeDirections, ['front']);
+assert.deepStrictEqual(profile.runtime.moveDirections, ['forward','left']);
+assert.deepStrictEqual(profile.runtime.astBounds['repeat.count'], {min:1,max:10});
+
+const project = JSON.parse(fs.readFileSync(path.join(ROOT, 'activities/progression/05-reactive.wbb'), 'utf8'));
+assert.strictEqual(project.activity.id, 'progression-reactive-v1');
+assert.deepStrictEqual(project.workspace.blocks.blocks, []);
+
+const world = fs.readFileSync(path.join(ROOT, 'worlds/crazyflie_runtime_v2.wbt'), 'utf8');
+assert.match(world, /WEBEEBLOCKS_REACTIVE_MISSION_V1_BEGIN/);
+assert.match(world, /WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_BEGIN[\s\S]*WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_END/);
+assert.match(world, /DEF ACTIVITY5_BARRIER_1 Solid/);
+assert.match(world, /DEF ACTIVITY5_BARRIER_2 Solid/);
+assert.match(world, /DEF ACTIVITY5_BARRIER_3 Solid/);
+assert.match(world, /translation 1\.80 1\.90 0\.002[\s\S]*translation 1\.80 2\.20 0\.002/,
+  'both deterministic arrival zones must be visible mission objects');
+assert.match(world, /name "Progression reactive evaluator"[\s\S]*"reactive-evaluator-v1"/);
+
+const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_reactive_evaluator.c'), 'utf8');
+assert.match(evaluator, /#define REACTIVE_ORACLE "progression-reactive-v1"/);
+assert.match(evaluator, /blocked\[0\] = odd \? 1 : 0/);
+assert.match(evaluator, /blocked\[1\] = odd \? 0 : 1/);
+assert.match(evaluator, /blocked\[2\] = odd \? 1 : 0/,
+  'retained deterministic patterns must alternate B-O-B and O-B-O across attempts');
+assert.match(evaluator, /checkpoint_index == REACTIVE_ROWS/);
+assert.match(evaluator, /wb_supervisor_node_get_contact_points/);
+assert.match(evaluator, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1/);
+assert.doesNotMatch(evaluator, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
+  'mission oracle must observe world behavior, never student solution shape');
+
+const entry = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
+const makefile = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
+assert.match(entry, /reactive-evaluator-v1/);
+assert.match(makefile, /progression_reactive_evaluator\.c/);
+
+const probe = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/reactive_probe/reactive_probe.js'), 'utf8');
+assert.match(probe, /WebeeBlocksInterpreter\.run/);
+assert.match(probe, /kind:'repeat', count:3/);
+assert.match(probe, /frontBlockedCondition\(\)/);
+assert.match(probe, /REACTIVE_BOB_ACHIEVED/);
+assert.match(probe, /REACTIVE_OBO_ACHIEVED/);
+assert.match(probe, /REACTIVE_ONE_MEASUREMENT_NOT_ACHIEVED/);
+assert.match(probe, /REACTIVE_FIXED_FORWARD_NOT_ACHIEVED/);
+assert.match(probe, /REACTIVE_FIXED_LEFT_NOT_ACHIEVED/);
+assert.match(probe, /REACTIVE_UNROLLED_OBO_ACHIEVED/);
+assert.match(probe, /REACTIVE_UNROLLED_BOB_ACHIEVED/,
+  'behavior-only evidence must accept equivalent unrolled programs that refresh sensing at every row');
+assert.match(probe, /OUTCOME_UNAVAILABLE/);
+
+console.log('PASS Activity 5 contract: a concrete multi-row warehouse mission requires fresh per-row decisions, retains B-O-B/O-B-O deterministic patterns, rejects stale/fixed behavior, accepts equivalent unrolled fresh sensing, and keeps the oracle behavior-only');
