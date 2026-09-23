@@ -11,13 +11,15 @@ const runtimeProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obsta
 assert.strictEqual(profile.world, runtimeProfile.world);
 assert.strictEqual(profile.brief.title, '4 — Franchir une porte mobile');
 assert.strictEqual(profile.brief.mission,
-  'Une porte mobile protège l’accès à la zone de livraison. Selon sa position, le passage devant le drone peut être libre ou fermé. Fais rejoindre au drone la zone d’arrivée et terminer posé, sans toucher la porte ni les obstacles, quelle que soit la position de la porte au départ.');
+  'Une porte mobile protège l’accès à la zone de livraison. Après la zone bleue de contrôle, deux passages sont balisés et la porte en ferme un au départ. Fais franchir au drone le passage resté ouvert puis rejoindre la zone d’arrivée et terminer posé, sans toucher la porte ni les obstacles, quelle que soit la position de la porte.');
 assert.strictEqual(profile.brief.goal, profile.brief.mission);
 assert.strictEqual(profile.pedagogy.objective,
   'Mesurer la distance devant le drone au point de décision, la comparer à un seuil et choisir un itinéraire avec une condition simple en réutilisant les paramètres de déplacement.');
 assert.notStrictEqual(profile.brief.mission, profile.pedagogy.objective);
 assert.doesNotMatch(profile.brief.mission, /utilise|mesure|compare|condition|bloc|algorithme/i,
   'student mission must describe the problem rather than prescribe the solution');
+assert.match(profile.brief.mission, /deux passages sont balisés[\s\S]*passage resté ouvert/,
+  'student mission must make the evaluator route gates explicit observable mission objects');
 assert.deepStrictEqual(profile.evaluation, {type:'mission-state-v1', oracle:'progression-simple-decision-v1'});
 assert.deepStrictEqual(profile.toolbox, [
   'webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_range',
@@ -33,6 +35,11 @@ assert.deepStrictEqual(profile.runtime.rangeDirections, ['front']);
 
 const world = fs.readFileSync(path.join(ROOT, 'worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 assert.match(world, /WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_BEGIN/);
+assert.match(world, /WEBEEBLOCKS_SIMPLE_DECISION_PASSAGES_V1_BEGIN[\s\S]*WEBEEBLOCKS_SIMPLE_DECISION_PASSAGES_V1_END/);
+assert.match(world, /translation 1\.30 0\.80 0\.002[\s\S]*geometry Box \{ size 0\.18 0\.18 0\.004 \}/,
+  'forward passage gate must be visibly materialized at the evaluator route coordinate');
+assert.match(world, /translation 1\.00 1\.10 0\.002[\s\S]*geometry Box \{ size 0\.18 0\.18 0\.004 \}/,
+  'left passage gate must be visibly materialized at the evaluator route coordinate');
 assert.match(world, /DEF ACTIVITY4_BARRIER Solid \{[\s\S]*name "Activity 4 mobile barrier"/);
 assert.match(world, /translation 1\.40 1\.20 0\.002[\s\S]*baseColor 0\.10 0\.72 0\.28/,
   'Activity 4 destination must remain visibly materialized');
@@ -40,6 +47,11 @@ assert.match(world, /name "Progression simple decision evaluator"[\s\S]*"simple-
 
 const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_simple_decision_evaluator.c'), 'utf8');
 assert.match(evaluator, /#define DECISION_ORACLE "progression-simple-decision-v1"/);
+assert.match(evaluator, /#define DECISION_ROUTE_TOLERANCE 0\.09/);
+assert.match(evaluator, /#define DECISION_FORWARD_ROUTE_X 1\.30/);
+assert.match(evaluator, /#define DECISION_FORWARD_ROUTE_Y 0\.80/);
+assert.match(evaluator, /#define DECISION_LEFT_ROUTE_X 1\.00/);
+assert.match(evaluator, /#define DECISION_LEFT_ROUTE_Y 1\.10/);
 assert.match(evaluator, /DECISION_FORWARD_BLOCKED\[3\] = \{1\.20, 0\.80/);
 assert.match(evaluator, /DECISION_LEFT_BLOCKED\[3\] = \{1\.00, 1\.00/);
 assert.match(evaluator, /active_attempt % 2ULL/,
@@ -67,7 +79,9 @@ assert.match(probe, /DECISION_HARDCODED_LEFT_NOT_ACHIEVED/);
 assert.match(probe, /DECISION_ALTERNATIVE_BLOCKED_ACHIEVED/);
 assert.match(probe, /DECISION_ALTERNATIVE_OPEN_ACHIEVED/);
 assert.match(probe, /DECISION_WRONG_DECISION_NOT_ACHIEVED/);
+assert.match(probe, /DECISION_BYPASS_NOT_ACHIEVED/,
+  'real-R2025a evidence must reject a collision-free destination bypass that skips the explicit passage gates');
 assert.match(probe, /probeActivityMissionFailure/);
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 4 contract: mobile-door world creates one front-sensing binary decision, mission stays solution-neutral, oracle is behavior-only, and deterministic cross-configuration evidence is wired');
+console.log('PASS Activity 4 contract: the two route gates are explicit world/mission objects, the mobile door creates one front-sensing binary decision, the oracle stays behavior-only, and deterministic cross-configuration plus bypass evidence is wired');
