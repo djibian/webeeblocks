@@ -120,6 +120,49 @@ Pose {
 }
 # WEBEEBLOCKS_REPEAT_MISSION_V1_END
 
+# WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_BEGIN
+Pose {
+  translation 1.00 0.80 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.22 0.48 0.88
+        transparency 0.30
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.40 1.20 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.72 0.28
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY4_BARRIER Solid {
+  translation 1.20 0.80 0.55
+  name "Activity 4 mobile barrier"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.90 0.08 0.08
+        roughness 0.5
+      }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_END
+
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
   children [
@@ -295,3 +338,14 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_REPEAT_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression simple decision evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "simple-decision-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_END
