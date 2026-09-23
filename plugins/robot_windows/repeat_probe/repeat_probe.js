@@ -107,9 +107,9 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, repeat, 'REPEAT_SKIP_RESET_FRESH');
     await backend.takeoff(0.5);
+    await backend.move('left', 0.6);
+    await backend.move('left', 0.6);
     await backend.move('forward', 0.4);
-    await backend.move('left', 0.6);
-    await backend.move('left', 0.6);
     await backend.completeActivityMission(repeat);
     const outOfOrder = await waitForOutcome(backend, repeat, 'not-achieved', 8000);
     await report('REPEAT_OUT_OF_ORDER_NOT_ACHIEVED', outOfOrder);
