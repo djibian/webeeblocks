@@ -133,6 +133,7 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
 
         required = (
             "REACTIVE_PROBE_READY",
+            "REACTIVE_FAILURE_PROBE_WITHOUT_COLLISION_UNAVAILABLE",
             "REACTIVE_BOB_ACHIEVED", "REACTIVE_BOB_RESET_FRESH",
             "REACTIVE_OBO_ACHIEVED", "REACTIVE_OBO_RESET_FRESH",
             "REACTIVE_BBO_ACHIEVED", "REACTIVE_BBO_RESET_FRESH",
@@ -151,6 +152,11 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         if missing:
             return fail(f"missing causal Activity 5 events: {missing}", json.dumps(names))
         details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
+        if details["REACTIVE_FAILURE_PROBE_WITHOUT_COLLISION_UNAVAILABLE"] != {"code":"OUTCOME_UNAVAILABLE"}:
+            return fail(
+                "failure probe without irreversible collision synthesized an Activity 5 outcome: "
+                + str(details["REACTIVE_FAILURE_PROBE_WITHOUT_COLLISION_UNAVAILABLE"])
+            )
         for name in (
             "REACTIVE_BOB_ACHIEVED", "REACTIVE_OBO_ACHIEVED", "REACTIVE_BBO_ACHIEVED", "REACTIVE_OOB_ACHIEVED",
             "REACTIVE_SINGLE_OBSERVATION_BOB_ACHIEVED", "REACTIVE_SINGLE_OBSERVATION_OBO_ACHIEVED",
@@ -209,7 +215,7 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 5 warehouse rows: repeated fresh sensing succeeds across B-O-B/O-B-O/B-B-O/O-O-B, one initial observation fails when later rows diverge, fixed routes and a collision-free row bypass fail, equivalent unrolled fresh sensing succeeds, and reset freshness holds in real R2025a")
+        print("PASS Activity 5 warehouse rows: repeated fresh sensing succeeds across B-O-B/O-B-O/B-B-O/O-O-B, one initial observation fails when later rows diverge, failure probes without collision stay unavailable, fixed routes and a collision-free row bypass fail, equivalent unrolled fresh sensing succeeds, and reset freshness holds in real R2025a")
         return 0
     finally:
         cleanup()
