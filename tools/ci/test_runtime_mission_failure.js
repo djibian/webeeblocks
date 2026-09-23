@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -60,7 +61,20 @@ function harness(options = {}) {
   return {context, backend, element, sent, events};
 }
 
+function proveNativeBrokerRetention() {
+  const script = path.resolve(__dirname, 'test_runtime_mission_broker.py');
+  const result = childProcess.spawnSync(process.env.PYTHON || 'python3', [script], {
+    cwd:path.resolve(__dirname, '../..'), encoding:'utf8'
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  assert.strictEqual(result.status, 0,
+    'native broker regression must compile and preserve only exact current terminal mission evidence');
+}
+
 async function proveMissionFailure() {
+  proveNativeBrokerRetention();
+
   const collision = harness();
   await collision.context.runProgram();
   assert.strictEqual(collision.element('runtimeState').textContent, 'MISSION NON RÉUSSIE',
