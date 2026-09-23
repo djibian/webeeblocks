@@ -176,26 +176,33 @@ int webeeblocks_progression_repeat_evaluator_main(void) {
           printf("WEBEEBLOCKS_REPEAT_BEACON attempt=%llu beacon=%d\n", active_attempt, next_beacon);
           fflush(stdout);
         } else if (zone > next_beacon) {
+          if (!order_failed) {
+            printf("WEBEEBLOCKS_REPEAT_ORDER_FAILURE attempt=%llu expected=%d observed=%d\n",
+                   active_attempt, next_beacon + 1, zone + 1);
+            fflush(stdout);
+          }
           order_failed = 1;
-          printf("WEBEEBLOCKS_REPEAT_ORDER_FAILURE attempt=%llu expected=%d observed=%d\n",
-                 active_attempt, next_beacon + 1, zone + 1);
-          fflush(stdout);
         }
       }
     }
 
-    if (collision_seen || order_failed) {
-      repeat_publish_outcome(custom_data, active_attempt, "not-achieved");
-      reported = 1;
-      continue;
-    }
-
+    /* Several progression evaluators share the Crazyflie's customData transport.
+       Latch Activity-3 world facts immediately, but do not publish a terminal
+       result until the broker has named this exact oracle for this exact attempt.
+       This prevents an inactive evaluator from overwriting another activity's
+       terminal evidence in the shared world. */
     if (!completion_seen) {
       unsigned long long completed_attempt = 0;
       if (!repeat_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
         continue;
       completion_seen = 1;
       completion_time = wb_robot_get_time();
+    }
+
+    if (collision_seen || order_failed) {
+      repeat_publish_outcome(custom_data, active_attempt, "not-achieved");
+      reported = 1;
+      continue;
     }
 
     const double horizontal_speed = hypot(velocity[0], velocity[1]);
