@@ -27,7 +27,7 @@ def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subpr
 
 
 def fail(message: str, detail: str | None = None) -> int:
-    print(f"FAIL first progression sequence mission: {message}", file=sys.stderr)
+    print(f"FAIL progression mission evidence: {message}", file=sys.stderr)
     if detail:
         print(detail, file=sys.stderr)
     return 1
@@ -55,19 +55,22 @@ def main() -> int:
     for command in checks:
         result = run(command, capture=True)
         if result.returncode:
-            return fail("sequence mission source validation failed", result.stdout)
+            return fail("progression mission source validation failed", result.stdout)
 
     source_world = (ROOT / "worlds" / "crazyflie_runtime_v2.wbt").read_text(encoding="utf-8")
     if source_world.count('window "blockly_v2"') != 1:
         return fail("Runtime v2 world Robot Window identity is ambiguous")
     for marker in (
         "WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN",
+        "WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN",
         'name "Crazyflie WebeeBlocks"',
         'name "Progression sequence evaluator"',
         '"sequence-evaluator-v1"',
+        'name "Progression precise movement evaluator"',
+        '"precise-evaluator-v1"',
     ):
         if marker not in source_world:
-            return fail(f"missing sequence world marker: {marker}")
+            return fail(f"missing progression world marker: {marker}")
     TEMP_WORLD.write_text(source_world.replace('window "blockly_v2"', 'window "sequence_probe"', 1), encoding="utf-8")
     TEMP_PROJECT.write_text(
         "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
@@ -88,7 +91,7 @@ def main() -> int:
         ], capture=True)
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
-            return fail("dual-role Runtime v2/evaluator build failed", (built.stdout or "")[-6000:])
+            return fail("Runtime v2/progression evaluators build failed", (built.stdout or "")[-6000:])
 
         inner = r'''
 set -e
@@ -108,7 +111,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 100s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
+timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
 
         env = os.environ.copy()
@@ -134,20 +137,20 @@ timeout -k 5s 100s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
-            return fail(f"Webots sequence mission exited with {run_result.returncode}", webots_log[-8000:])
+            return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
-            return fail("missing browser sequence evidence", webots_log[-8000:])
+            return fail("missing browser progression evidence", webots_log[-14000:])
         try:
             events = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         except Exception as exc:
-            return fail(f"invalid browser sequence evidence: {exc}")
+            return fail(f"invalid browser progression evidence: {exc}")
 
         errors = [event for event in events if event.get("event") in ("ERROR", "WINDOW_ERROR", "UNHANDLED_REJECTION")]
         if errors:
-            detail = json.dumps(errors[0], ensure_ascii=False) + "\n--- Webots tail ---\n" + webots_log[-8000:]
-            return fail("browser sequence probe reported an error", detail)
+            detail = json.dumps(errors[0], ensure_ascii=False) + "\n--- Webots tail ---\n" + webots_log[-14000:]
+            return fail("browser progression probe reported an error", detail)
         names = [event.get("event") for event in events]
         required = (
             "SEQUENCE_PROBE_READY",
@@ -159,47 +162,71 @@ timeout -k 5s 100s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "SEQUENCE_SECOND_RESET_FRESH",
             "SEQUENCE_ALTERNATIVE_ACHIEVED",
             "SEQUENCE_MISSION_TEST_COMPLETE",
+            "PRECISE_INITIAL_RESET_FRESH",
+            "PRECISE_ACHIEVED",
+            "PRECISE_RESET_FRESH",
+            "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
+            "PRECISE_UNDERSHOOT_RESET_FRESH",
+            "PRECISE_OVERSHOOT_NOT_ACHIEVED",
+            "PRECISE_OVERSHOOT_RESET_FRESH",
+            "PRECISE_LATERAL_NOT_ACHIEVED",
+            "PRECISE_LATERAL_RESET_FRESH",
+            "PRECISE_COLLISION_NOT_ACHIEVED",
+            "PRECISE_COLLISION_RESET_FRESH",
+            "PRECISE_ALTERNATIVE_ACHIEVED",
+            "PRECISE_MISSION_TEST_COMPLETE",
         )
         missing = [name for name in required if name not in names]
         if missing:
-            return fail(f"missing causal sequence events: {missing}", json.dumps(names))
+            return fail(f"missing causal progression events: {missing}", json.dumps(names))
 
-        achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ACHIEVED")
-        fresh = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_RESET_FRESH")
-        repeat = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_REPEAT_ACHIEVED")
-        repeat_fresh = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_REPEAT_RESET_FRESH")
-        not_achieved = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_NOT_ACHIEVED")
-        fresh_again = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_SECOND_RESET_FRESH")
-        alternative = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_ALTERNATIVE_ACHIEVED")
-        complete = next(event["detail"] for event in events if event.get("event") == "SEQUENCE_MISSION_TEST_COMPLETE")
-        if achieved != {"status": "achieved"}:
-            return fail(f"unexpected target-zone outcome: {achieved}")
-        if fresh != {"code": "OUTCOME_UNAVAILABLE"}:
-            return fail(f"sequence outcome survived first reset: {fresh}")
-        if repeat != {"status": "achieved"}:
-            return fail(f"repeated canonical sequence was rejected: {repeat}")
-        if repeat_fresh != {"code": "OUTCOME_UNAVAILABLE"}:
-            return fail(f"repeated sequence outcome survived reset: {repeat_fresh}")
-        if not_achieved != {"status": "not-achieved"}:
-            return fail(f"unexpected start-zone landing outcome: {not_achieved}")
-        if fresh_again != {"code": "OUTCOME_UNAVAILABLE"}:
-            return fail(f"sequence outcome survived second negative-control reset: {fresh_again}")
-        if alternative != {"status": "achieved"}:
-            return fail(f"alternative valid sequence was rejected: {alternative}")
-        if complete != {"canonical": "achieved", "repeat": "achieved", "negative": "not-achieved", "alternative": "achieved"}:
-            return fail(f"unexpected sequence mission summary: {complete}")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved" not in webots_log:
-            return fail("first target-zone achievement publication is absent from Webots evidence")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=achieved" not in webots_log:
-            return fail("repeated target-zone achievement publication is absent from Webots evidence")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved" not in webots_log:
-            return fail("off-target terminal publication is absent from Webots evidence")
-        if "WEBEEBLOCKS_SEQUENCE_RESULT attempt=4 status=achieved" not in webots_log:
-            return fail("alternative target-zone achievement publication is absent from Webots evidence")
+        details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
+        for name in ("SEQUENCE_ACHIEVED", "SEQUENCE_REPEAT_ACHIEVED", "SEQUENCE_ALTERNATIVE_ACHIEVED",
+                     "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
+            if details[name] != {"status": "achieved"}:
+                return fail(f"unexpected achieved event {name}: {details[name]}")
+        for name in ("SEQUENCE_NOT_ACHIEVED", "PRECISE_UNDERSHOOT_NOT_ACHIEVED",
+                     "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
+            if details[name] != {"status": "not-achieved"}:
+                return fail(f"unexpected negative event {name}: {details[name]}")
+        if details["PRECISE_COLLISION_NOT_ACHIEVED"] != {
+            "status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT", "completion_preserved":True
+        }:
+            return fail(f"unexpected collision event: {details['PRECISE_COLLISION_NOT_ACHIEVED']}")
+        for name in ("SEQUENCE_RESET_FRESH", "SEQUENCE_REPEAT_RESET_FRESH", "SEQUENCE_SECOND_RESET_FRESH",
+                     "PRECISE_INITIAL_RESET_FRESH", "PRECISE_RESET_FRESH", "PRECISE_UNDERSHOOT_RESET_FRESH",
+                     "PRECISE_OVERSHOOT_RESET_FRESH", "PRECISE_LATERAL_RESET_FRESH", "PRECISE_COLLISION_RESET_FRESH"):
+            if details[name] != {"code": "OUTCOME_UNAVAILABLE"}:
+                return fail(f"outcome survived reset at {name}: {details[name]}")
+        if details["SEQUENCE_MISSION_TEST_COMPLETE"] != {
+            "canonical": "achieved", "repeat": "achieved", "negative": "not-achieved", "alternative": "achieved"
+        }:
+            return fail(f"unexpected sequence mission summary: {details['SEQUENCE_MISSION_TEST_COMPLETE']}")
+        if details["PRECISE_MISSION_TEST_COMPLETE"] != {
+            "canonical": "achieved", "undershoot": "not-achieved", "overshoot": "not-achieved",
+            "lateral": "not-achieved", "collision": "not-achieved", "alternative": "achieved"
+        }:
+            return fail(f"unexpected precise mission summary: {details['PRECISE_MISSION_TEST_COMPLETE']}")
+
+        for marker in (
+            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=2 status=achieved",
+            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved",
+            "WEBEEBLOCKS_SEQUENCE_RESULT attempt=4 status=achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=5 status=achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=6 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=7 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=8 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_COLLISION attempt=9",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=9 status=not-achieved",
+            "WEBEEBLOCKS_PRECISE_RESULT attempt=10 status=achieved",
+        ):
+            if marker not in webots_log:
+                return fail(f"missing Webots progression marker: {marker}", webots_log[-14000:])
         if "ERROR:" in webots_log:
-            return fail("Webots emitted an ERROR line", webots_log[-8000:])
+            return fail("Webots emitted an ERROR line", webots_log[-14000:])
 
-        print("PASS first progression sequence mission: repeated canonical fixed-distance sequence, distinct alternative sequence, off-target failure, and reset-fresh observable outcomes in real R2025a")
+        print("PASS progression missions: Activity 1 sequencing plus Activity 2 whole-craft precision, undershoot, overshoot, lateral miss, collision fail-safe, alternative decomposition and reset freshness in real R2025a")
         return 0
     finally:
         cleanup_temp_world()

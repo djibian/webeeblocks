@@ -49,6 +49,22 @@ Pose {
 }
 # WEBEEBLOCKS_SEQUENCE_MISSION_V1_END
 
+# WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN
+Pose {
+  translation 0.30 0.40 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.72 0.10
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_END
+
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
   children [
@@ -202,3 +218,14 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression precise movement evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "precise-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_END

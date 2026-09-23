@@ -76,17 +76,18 @@ function setRuntimeStatus(state, detail) {
   updateRuntimeActions();
 }
 
-function setRuntimeFailure(error) {
+function setRuntimeFailure(error, missionOutcome) {
   var outcome = WebeeBlocksRuntimeOutcome.classify(error);
+  var presentation = missionOutcome || outcome;
   console.error(error);
   window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-diagnostic', {
     detail: {
-      studentState: outcome.state,
+      studentState: presentation.state,
       machineCode: outcome.machineCode,
       technicalMessage: error && error.message ? error.message : String(error)
     }
   }));
-  setRuntimeStatus(outcome.state, outcome.detail);
+  setRuntimeStatus(presentation.state, presentation.detail);
 }
 
 function categoryLabel(category) {
@@ -326,7 +327,9 @@ async function runProgram() {
   } catch (error) {
     runtimeRunning = false;
     runtimeTerminal = !WebeeBlocksRuntimeOutcome.isRetryable(error);
-    setRuntimeFailure(error);
+    var missionFailure = runtimeStopRequested ? null :
+      await WebeeBlocksRuntimeOutcome.readMissionFailure(runtimeProfile, runtimeBackend, error);
+    setRuntimeFailure(error, missionFailure);
   } finally {
     if (runtimeDebug) runtimeDebug.finish();
     stepMode.disabled = false;

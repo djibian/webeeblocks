@@ -8,24 +8,37 @@ source = source_path.read_text(encoding="utf-8")
 
 # The fixed Color LED render proves the deck attached to the product Crazyflie.
 # Product worlds may also host independent supervisor/evaluator robots. Remove
-# only the explicitly bounded progression evaluator fixture before selecting the
-# Crazyflie controller so unrelated product observers cannot make this visual
-# probe ambiguous or execute alongside it.
-sequence_begin = "# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN"
-sequence_end = "# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END"
-if source.count(sequence_begin) != source.count(sequence_end):
-    raise AssertionError("unbalanced sequence evaluator markers")
-if source.count(sequence_begin) > 1:
-    raise AssertionError("expected at most one sequence evaluator fixture")
+# only explicitly bounded evaluator fixtures before selecting the Crazyflie
+# controller so unrelated observers cannot make this visual probe ambiguous.
+evaluators = (
+    (
+        "# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END",
+        'name "Progression sequence evaluator"',
+        '"sequence-evaluator-v1"',
+    ),
+    (
+        "# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_END",
+        'name "Progression precise movement evaluator"',
+        '"precise-evaluator-v1"',
+    ),
+)
 
 visual_source = source
-if sequence_begin in source:
-    start = source.index(sequence_begin)
-    end = source.index(sequence_end, start) + len(sequence_end)
-    evaluator = source[start:end]
-    if 'name "Progression sequence evaluator"' not in evaluator or 'controller "crazyflie_runtime_v2"' not in evaluator:
-        raise AssertionError("unexpected sequence evaluator fixture")
-    visual_source = source[:start] + source[end:]
+for begin, end_marker, expected_name, expected_arg in evaluators:
+    if visual_source.count(begin) != visual_source.count(end_marker):
+        raise AssertionError(f"unbalanced evaluator markers: {begin}")
+    if visual_source.count(begin) > 1:
+        raise AssertionError(f"expected at most one evaluator fixture: {begin}")
+    if begin not in visual_source:
+        continue
+    start = visual_source.index(begin)
+    end = visual_source.index(end_marker, start) + len(end_marker)
+    evaluator = visual_source[start:end]
+    if expected_name not in evaluator or 'controller "crazyflie_runtime_v2"' not in evaluator or expected_arg not in evaluator:
+        raise AssertionError(f"unexpected evaluator fixture: {begin}")
+    visual_source = visual_source[:start] + visual_source[end:]
 
 required = [
     "# WEBEEBLOCKS_COLOR_LED_DECK_VISUAL_V1_BEGIN",
@@ -58,8 +71,9 @@ if 'controller "crazyflie_runtime_v2"' in render or 'window "blockly_v2"' in ren
     raise AssertionError("product controller/window leaked into fixed visual probe")
 if render.count('controller "color_led_visual_probe"') != 1:
     raise AssertionError("fixed visual probe controller missing")
-if sequence_begin in render or sequence_end in render or 'name "Progression sequence evaluator"' in render:
-    raise AssertionError("unrelated sequence evaluator leaked into fixed visual probe")
+for begin, end_marker, expected_name, _ in evaluators:
+    if begin in render or end_marker in render or expected_name in render:
+        raise AssertionError("unrelated evaluator leaked into fixed visual probe")
 
 target_path.write_text(render, encoding="utf-8")
 print(target_path)

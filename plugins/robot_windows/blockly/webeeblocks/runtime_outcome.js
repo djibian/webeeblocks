@@ -73,12 +73,32 @@
     return classifyMission(await backend.readActivityOutcome(evaluation));
   }
 
+  async function readMissionFailure(profile, backend, error) {
+    var evaluation = profile && profile.evaluation;
+    if (!error || error.code !== 'UNSAFE_OR_TIMEOUT' || !supportsMissionEvaluation(evaluation) ||
+        !backend || !backend.capabilities || backend.capabilities.simulationReset !== true ||
+        typeof backend.readActivityOutcome !== 'function')
+      return null;
+    // A collision may publish an attempt-bound negative before the flight
+    // fail-safe rejects execution. Read that evidence without sending COMPLETE,
+    // which would overwrite the world's already latched result. The backend
+    // remains responsible for exact attempt/oracle freshness. Missing evidence
+    // or any other state must preserve the original execution failure.
+    try {
+      var outcome = classifyMission(await backend.readActivityOutcome(evaluation));
+      return outcome.status === 'not-achieved' ? outcome : null;
+    } catch (outcomeError) {
+      return null;
+    }
+  }
+
   return {
     classify: classify,
     isRetryable: isRetryable,
     MISSION_EVALUATION_TYPE: MISSION_EVALUATION_TYPE,
     supportsMissionEvaluation: supportsMissionEvaluation,
     classifyMission: classifyMission,
-    evaluateMission: evaluateMission
+    evaluateMission: evaluateMission,
+    readMissionFailure: readMissionFailure
   };
 });
