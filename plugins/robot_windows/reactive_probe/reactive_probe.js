@@ -33,6 +33,17 @@ async function waitForOutcome(backend, evaluation, expected, timeoutMs) {
 }
 
 async function proveFailureProbeUnavailableWithoutCollision(backend, evaluation) {
+  // Prime the activity channel first, then leave the attempt marker visible for
+  // multiple Webots basic steps so the evaluator has definitely latched the
+  // current attempt before the transient FAILURE marker replaces it.
+  try {
+    const unexpected = await backend.readActivityOutcome(evaluation);
+    throw new Error('unexpected outcome while priming Activity 5 attempt: ' + JSON.stringify(unexpected));
+  } catch (error) {
+    if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
+      throw error;
+  }
+  await sleep(120);
   await backend.probeActivityMissionFailure(evaluation);
   try {
     const unexpected = await backend.readActivityOutcome(evaluation);
