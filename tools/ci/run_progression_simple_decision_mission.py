@@ -59,6 +59,7 @@ def main() -> int:
         return fail("Runtime v2 world Robot Window identity is ambiguous")
     for marker in (
         "WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_BEGIN",
+        "WEBEEBLOCKS_SIMPLE_DECISION_PASSAGES_V1_BEGIN",
         "WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_BEGIN",
         "DEF ACTIVITY4_BARRIER Solid",
         'name "Crazyflie WebeeBlocks"',
@@ -137,6 +138,7 @@ timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "DECISION_ALTERNATIVE_BLOCKED_ACHIEVED", "DECISION_ALT_BLOCKED_RESET_FRESH",
             "DECISION_ALTERNATIVE_OPEN_ACHIEVED", "DECISION_ALT_OPEN_RESET_FRESH",
             "DECISION_WRONG_DECISION_NOT_ACHIEVED", "DECISION_WRONG_RESET_FRESH",
+            "DECISION_BYPASS_NOT_ACHIEVED",
             "DECISION_MISSION_TEST_COMPLETE",
         )
         names = [event.get("event") for event in events]
@@ -157,6 +159,8 @@ timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         ):
             if details[name] != {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
+        if details["DECISION_BYPASS_NOT_ACHIEVED"] != {"status":"not-achieved"}:
+            return fail(f"explicit-passage bypass was not rejected by mission state: {details['DECISION_BYPASS_NOT_ACHIEVED']}")
         for name in (
             "DECISION_BLOCKED_RESET_FRESH", "DECISION_OPEN_RESET_FRESH", "DECISION_FORWARD_RESET_FRESH",
             "DECISION_LEFT_RESET_FRESH", "DECISION_ALT_BLOCKED_RESET_FRESH", "DECISION_ALT_OPEN_RESET_FRESH",
@@ -167,7 +171,8 @@ timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         if details["DECISION_MISSION_TEST_COMPLETE"] != {
             "blocked":"achieved", "open":"achieved", "hard_forward":"not-achieved",
             "hard_left":"not-achieved", "alternative_blocked":"achieved",
-            "alternative_open":"achieved", "wrong_decision":"not-achieved"
+            "alternative_open":"achieved", "wrong_decision":"not-achieved",
+            "bypass":"not-achieved"
         }:
             return fail(f"unexpected Activity 4 summary: {details['DECISION_MISSION_TEST_COMPLETE']}")
 
@@ -181,13 +186,14 @@ timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "WEBEEBLOCKS_DECISION_RESULT attempt=5 status=achieved",
             "WEBEEBLOCKS_DECISION_RESULT attempt=6 status=achieved",
             "WEBEEBLOCKS_DECISION_RESULT attempt=7 status=not-achieved",
+            "WEBEEBLOCKS_DECISION_RESULT attempt=8 status=not-achieved",
         ):
             if marker not in webots_log:
                 return fail(f"missing Webots Activity 4 marker: {marker}", webots_log[-14000:])
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-14000:])
 
-        print("PASS Activity 4 mobile door: one shared sensing/decision program succeeds in both deterministic configurations, fixed/wrong decisions fail, alternative behavior succeeds, and reset freshness holds in real R2025a")
+        print("PASS Activity 4 mobile door: one shared sensing/decision program succeeds in both deterministic configurations, fixed/wrong decisions and an explicit-passage bypass fail, alternative behavior succeeds, and reset freshness holds in real R2025a")
         return 0
     finally:
         cleanup()
