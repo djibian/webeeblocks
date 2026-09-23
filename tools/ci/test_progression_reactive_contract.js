@@ -75,6 +75,9 @@ const probe = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/reactive_pr
 assert.match(probe, /WebeeBlocksInterpreter\.run/);
 assert.match(probe, /kind:'repeat', count:3/);
 assert.match(probe, /frontBlockedCondition\(\)/);
+assert.match(probe,
+  /proveFailureProbeUnavailableWithoutCollision[\s\S]*readActivityOutcome\(evaluation\)[\s\S]*sleep\(120\)[\s\S]*probeActivityMissionFailure\(evaluation\)/,
+  'the real-Webots no-collision failure probe must first expose the current attempt marker long enough for the evaluator to latch it');
 assert.match(probe, /REACTIVE_BOB_ACHIEVED/);
 assert.match(probe, /REACTIVE_OBO_ACHIEVED/);
 assert.match(probe, /REACTIVE_BBO_ACHIEVED/);
