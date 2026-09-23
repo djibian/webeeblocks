@@ -154,17 +154,28 @@ Get-ChildItem -LiteralPath (Join-Path $testRoot 'plugins') -Recurse -File -Filte
 $windowsPowerShellMajor = (& powershell.exe -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.Major' | Out-String).Trim()
 Assert-Release ($LASTEXITCODE -eq 0 -and $windowsPowerShellMajor -eq '5') "Expected Windows PowerShell 5.1 for the packaged launcher, got major version '$windowsPowerShellMajor'."
 
-# Exercise the exact packaged CMD -> Windows PowerShell local-profile probe on a
-# real Windows runner. The production PowerShell launcher is replaced only in
-# this isolated harness so no interactive Webots session is required. This
-# catches CMD quoting/escaping failures before a real-machine checkpoint.
+# Exercise the exact packaged CMD local-profile selection on a real Windows
+# runner. The production PowerShell launcher is replaced only in this isolated
+# harness so no interactive Webots session is required. The stub records the
+# Chrome executable/profile environment handed off by the CMD. Existing Webots
+# RobotWindow preferences are deliberately seeded and must remain byte-for-byte
+# semantically unchanged: the supported launch path no longer mutates them.
 $launcherHarness = Join-Path $env:RUNNER_TEMP 'WebeeBlocks launcher profile probe with spaces'
 if (Test-Path -LiteralPath $launcherHarness) {
   Remove-Item -LiteralPath $launcherHarness -Recurse -Force
 }
 New-Item -ItemType Directory -Path $launcherHarness | Out-Null
-Copy-Item -LiteralPath (Join-Path $testRoot 'Launch-WebeeBlocks.cmd') -Destination (Join-Path $launcherHarness 'Launch-WebeeBlocks.cmd')
-Set-Content -LiteralPath (Join-Path $launcherHarness 'Launch-WebeeBlocks.ps1') -Value 'exit 0' -Encoding Ascii
+$launcherCmdPath = Join-Path $launcherHarness 'Launch-WebeeBlocks.cmd'
+Copy-Item -LiteralPath (Join-Path $testRoot 'Launch-WebeeBlocks.cmd') -Destination $launcherCmdPath
+$launcherCmdText = Get-Content -LiteralPath $launcherCmdPath -Raw
+Assert-Release ($launcherCmdText -notmatch '(?i)\breg\.exe\b') 'Packaged CMD must not mutate Webots RobotWindow registry preferences.'
+Assert-Release ($launcherCmdText -notmatch 'WebeeBlocks-Chrome\.cmd') 'Packaged CMD must not depend on a generated Chrome helper.'
+Set-Content -LiteralPath (Join-Path $launcherHarness 'Launch-WebeeBlocks.ps1') -Value @'
+$root = Split-Path $MyInvocation.MyCommand.Path -Parent
+Set-Content -LiteralPath (Join-Path $root 'chrome-exe.txt') -Value $env:WEBEEBLOCKS_CHROME_EXE -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $root 'chrome-profile.txt') -Value $env:WEBEEBLOCKS_CHROME_PROFILE -Encoding UTF8
+exit 0
+'@ -Encoding Ascii
 
 $fakeProgramFiles = Join-Path $launcherHarness 'Program Files'
 $fakeChrome = Join-Path $fakeProgramFiles 'Google\Chrome\Application\chrome.exe'
@@ -188,10 +199,10 @@ try {
   $env:ProgramFiles = $fakeProgramFiles
   New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
 
-  & reg.exe add $registryKey /v browser /t REG_SZ /d chrome.exe /f *> $null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the Chrome RobotWindow browser preference for the launcher probe.' }
+  & reg.exe add $registryKey /v browser /t REG_SZ /d 'sentinel-browser.exe' /f *> $null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the RobotWindow browser sentinel for the launcher probe.' }
   & reg.exe add $registryKey /v newBrowserWindow /t REG_DWORD /d 1 /f *> $null
-  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the RobotWindow window-mode preference for the launcher probe.' }
+  if ($LASTEXITCODE -ne 0) { throw 'Could not seed the RobotWindow window-mode sentinel for the launcher probe.' }
 
   Push-Location $launcherHarness
   try {
@@ -207,11 +218,16 @@ try {
   Assert-Release (Test-Path -LiteralPath $localProfile -PathType Container) 'Packaged CMD did not create the dedicated local Chrome profile directory.'
   $probeFiles = @(Get-ChildItem -LiteralPath $localProfile -File -Filter '.webeeblocks-write-*.tmp' -ErrorAction SilentlyContinue)
   Assert-Release ($probeFiles.Count -eq 0) 'Packaged CMD left its Chrome profile write probe behind.'
-  Assert-Release (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'WebeeBlocks\WebeeBlocks-Chrome.cmd') -PathType Leaf) 'Packaged CMD did not create the local Chrome helper after the profile probe.'
 
-  $restoredRobotWindow = Get-ItemProperty -LiteralPath $registryProviderKey
-  Assert-Release ([string]$restoredRobotWindow.browser -eq 'chrome.exe') 'Packaged CMD did not restore the prior RobotWindow browser preference.'
-  Assert-Release ([int]$restoredRobotWindow.newBrowserWindow -eq 1) 'Packaged CMD did not restore the prior RobotWindow window-mode preference.'
+  $observedChrome = (Get-Content -LiteralPath (Join-Path $launcherHarness 'chrome-exe.txt') -Raw).Trim()
+  $observedProfile = (Get-Content -LiteralPath (Join-Path $launcherHarness 'chrome-profile.txt') -Raw).Trim()
+  Assert-Release ($observedChrome -eq $fakeChrome) "Packaged CMD handed off the wrong Chrome executable: $observedChrome"
+  Assert-Release ($observedProfile -eq $localProfile) "Packaged CMD handed off the wrong dedicated local Chrome profile: $observedProfile"
+  Assert-Release (-not (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'WebeeBlocks\WebeeBlocks-Chrome.cmd'))) 'Packaged CMD unexpectedly generated a Chrome helper.'
+
+  $untouchedRobotWindow = Get-ItemProperty -LiteralPath $registryProviderKey
+  Assert-Release ([string]$untouchedRobotWindow.browser -eq 'sentinel-browser.exe') 'Packaged CMD modified the prior RobotWindow browser preference.'
+  Assert-Release ([int]$untouchedRobotWindow.newBrowserWindow -eq 1) 'Packaged CMD modified the prior RobotWindow window-mode preference.'
 }
 finally {
   $env:LOCALAPPDATA = $oldLocalAppData
