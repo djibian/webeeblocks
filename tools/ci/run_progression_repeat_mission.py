@@ -169,6 +169,33 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         ):
             if marker not in webots_log:
                 return fail(f"missing Webots repeat marker: {marker}", webots_log[-14000:])
+
+        wrong_distance_lines = [
+            line for line in webots_log.splitlines()
+            if line.startswith("WEBEEBLOCKS_REPEAT_TIMEOUT attempt=5 ")
+        ]
+        if len(wrong_distance_lines) != 1:
+            return fail(
+                "wrong-distance case did not terminate through one isolated mission timeout",
+                "\n".join(wrong_distance_lines) + "\n" + webots_log[-14000:],
+            )
+        wrong_distance_timeout = wrong_distance_lines[0]
+        for marker in ("next_beacon=0", "landed=1", "stationary=1", "in_arrival=1"):
+            if marker not in wrong_distance_timeout:
+                return fail(
+                    f"wrong-distance miss was not causally isolated: missing {marker}",
+                    wrong_distance_timeout,
+                )
+        for marker in (
+            "WEBEEBLOCKS_REPEAT_BEACON attempt=5",
+            "WEBEEBLOCKS_REPEAT_ORDER_FAILURE attempt=5",
+            "WEBEEBLOCKS_REPEAT_COLLISION attempt=5",
+        ):
+            if marker in webots_log:
+                return fail(
+                    f"wrong-distance case triggered an unintended cause: {marker}",
+                    wrong_distance_timeout + "\n" + webots_log[-14000:],
+                )
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-14000:])
 

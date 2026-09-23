@@ -116,13 +116,14 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, repeat, 'REPEAT_ORDER_RESET_FRESH');
     await backend.takeoff(0.5);
-    await backend.move('forward', 0.1);
-    await backend.move('left', 0.6);
+    await backend.move('forward', 0.2);
+    await backend.move('left', 0.4);
     await backend.move('forward', 0.2);
     await backend.move('left', 0.6);
     await backend.move('forward', 0.2);
     await backend.move('left', 0.6);
-    await backend.move('forward', 0.3);
+    await backend.move('forward', 0.2);
+    await backend.move('left', 0.2);
     await backend.land();
     await backend.completeActivityMission(repeat);
     const wrongDistance = await waitForOutcome(backend, repeat, 'not-achieved', 8000);
