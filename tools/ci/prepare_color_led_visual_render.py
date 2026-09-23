@@ -23,6 +23,12 @@ evaluators = (
         'name "Progression precise movement evaluator"',
         '"precise-evaluator-v1"',
     ),
+    (
+        "# WEBEEBLOCKS_REPEAT_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_REPEAT_EVALUATOR_V1_END",
+        'name "Progression repeat evaluator"',
+        '"repeat-evaluator-v1"',
+    ),
 )
 
 visual_source = source
