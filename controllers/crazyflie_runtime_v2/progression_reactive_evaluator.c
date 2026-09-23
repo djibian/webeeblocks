@@ -228,7 +228,7 @@ int webeeblocks_progression_reactive_evaluator_main(void) {
 
     if (!completion_seen) {
       unsigned long long failure_attempt = 0;
-      if (reactive_parse_failure_probe(data, &failure_attempt) && failure_attempt == active_attempt) {
+      if (reactive_parse_failure_probe(data, &failure_attempt) && failure_attempt == active_attempt && collision_seen) {
         reactive_publish_outcome(custom_data, active_attempt, "not-achieved");
         reported = 1;
         continue;
