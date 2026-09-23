@@ -6,6 +6,7 @@ const path = require('path');
 const vm = require('vm');
 const Outcome = require('../../plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js');
 const WwiBackend = require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
+const proveMissionFailure = require('./test_runtime_mission_failure.js');
 
 const mainSource = fs.readFileSync(path.resolve(__dirname, '../../plugins/robot_windows/blockly_v2/main.js'), 'utf8');
 const brokerRuntimeSource = fs.readFileSync(path.resolve(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_runtime.cpp'), 'utf8');
@@ -317,6 +318,7 @@ function proveRealWebotsOutcomeFreshness() {
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
   await provePendingMissionOutcomeKeepsActionsGated();
+  await proveMissionFailure();
   proveRealWebotsOutcomeFreshness();
   console.log('PASS backend-neutral activity mission outcome contract, exact Reset classification, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
