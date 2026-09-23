@@ -84,12 +84,20 @@ assert.match(world, /name "Progression reactive evaluator"[\s\S]*"reactive-evalu
 const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_reactive_evaluator.c'), 'utf8');
 assert.match(evaluator, /#define REACTIVE_ORACLE "progression-reactive-v1"/);
 assert.match(evaluator, /#define REACTIVE_PATTERN_COUNT 4/);
+assert.match(evaluator, /#define REACTIVE_OPEN_BARRIER_Z -1\.00/,
+  'open Activity 5 rows must park their physical parcel below the shared navigable world');
 assert.match(evaluator, /\{1, 0, 1\}, \/\* B-O-B \*\//);
 assert.match(evaluator, /\{0, 1, 0\}, \/\* O-B-O \*\//);
 assert.match(evaluator, /\{1, 1, 0\}, \/\* B-B-O: same first row as B-O-B, different later row \*\//);
 assert.match(evaluator, /\{0, 0, 1\}  \/\* O-O-B: same first row as O-B-O, different later row \*\//,
   'retained deterministic patterns must include same-first-observation variants so the first row cannot identify later blockages');
 assert.match(evaluator, /normalized % REACTIVE_PATTERN_COUNT/);
+assert.match(evaluator,
+  /barrier_positions\[row\]\[1\] = y;[\s\S]*barrier_positions\[row\]\[2\] = blocked\[row\] \? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;/,
+  'open-row parcels must be removed vertically instead of being parked in another XY lane that can interfere with another shared-world activity');
+assert.match(evaluator,
+  /fabs\(point\[2\] - barrier\[2\]\) <= REACTIVE_BARRIER_HALF_HEIGHT \+ CONTACT_TOLERANCE/,
+  'collision attribution must follow the actual barrier Z so below-floor inactive parcels cannot alias ordinary floor contacts');
 assert.match(evaluator, /checkpoint_index == REACTIVE_ROWS/);
 assert.match(evaluator, /wb_supervisor_node_get_contact_points/);
 assert.match(evaluator, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1/);
@@ -129,4 +137,4 @@ assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_BBO_NOT_ACHIEVED
   'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, the bounded floor extension physically supports the retained upper landing without changing the canonical 4x4 floor localization contract, and the oracle remains behavior-only');
+console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, inactive open-row parcels are removed below the shared navigable world, the bounded floor extension physically supports the retained upper landing without changing the canonical 4x4 floor localization contract, and the oracle remains behavior-only');
