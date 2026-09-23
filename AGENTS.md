@@ -199,8 +199,7 @@ parallelism. Candidates are bounded results, not broad issues, roadmap nodes,
 subsystems or project domains. Product value, unblocking, completion value,
 information gain, remaining marginal work, useful independent parallelism and
 material interference may inform the set, but do not form a numerical utility
-function or deterministic tie-breaking chain. Interference describes coupling
-of effects, not presumed duplication by unseen executions. Clear domination
+function or deterministic tie-breaking chain. Interference describes concrete coupling in the mutation or validation surface of bounded results, such as files, contracts, mutable oracles, worlds, CI machinery or interfaces whose mutation or validation would materially couple those results. When current durable project state exposes such overlap, treat it as a negative strength signal when constructing the strong useful candidate set, never as evidence of unseen Controller presence, ownership or reservation. Lesser interference is not a deterministic tie-breaker and overlap does not by itself exclude a candidate: materially stronger results and work needed to complete or repair useful existing work may still overlap, and comparable strong candidates that remain are dispersed using the execution-local dispersion key. Clear domination
 requires a material reason why selecting another strong candidate now would
 produce substantially less useful progress, defer an important obligation or
 unblock opportunity, or perform known-unnecessary work; roadmap order, age,
