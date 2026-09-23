@@ -116,7 +116,13 @@ static void reactive_configure_attempt(unsigned long long attempt,
   for (int row = 0; row < REACTIVE_ROWS; ++row) {
     const double decision_x = REACTIVE_START_X + REACTIVE_STEP_X * row;
     barrier_positions[row][0] = decision_x + REACTIVE_BARRIER_OFFSET_X;
-    barrier_positions[row][1] = y + (blocked[row] ? 0.0 : REACTIVE_STEP_Y);
+    /*
+     * A blocked row puts its parcel in the active lane.  An open row parks the
+     * same physical parcel one lane to the right, outside the only allowed
+     * sidestep direction.  Parking it to the left made an already-passed open
+     * row collide with a later legitimate left sidestep (for example B-O-B).
+     */
+    barrier_positions[row][1] = y + (blocked[row] ? 0.0 : -REACTIVE_STEP_Y);
     barrier_positions[row][2] = REACTIVE_BARRIER_Z;
     wb_supervisor_field_set_sf_vec3f(barrier_fields[row], barrier_positions[row]);
     if (blocked[row])
