@@ -7,6 +7,7 @@
 
 #define REACTIVE_ORACLE "progression-reactive-v1"
 #define REACTIVE_ROWS 3
+#define REACTIVE_PATTERN_COUNT 4
 #define REACTIVE_AIRBORNE_DELTA 0.20
 #define REACTIVE_LANDED_DELTA 0.07
 #define REACTIVE_MAX_LANDING_SPEED 0.12
@@ -22,6 +23,13 @@
 #define REACTIVE_BARRIER_Z_MIN 0.0
 #define REACTIVE_BARRIER_Z_MAX 1.10
 #define CONTACT_TOLERANCE 0.004
+
+static const int REACTIVE_PATTERNS[REACTIVE_PATTERN_COUNT][REACTIVE_ROWS] = {
+  {1, 0, 1}, /* B-O-B */
+  {0, 1, 0}, /* O-B-O */
+  {1, 1, 0}, /* B-B-O: same first row as B-O-B, different later row */
+  {0, 0, 1}  /* O-O-B: same first row as O-B-O, different later row */
+};
 
 static int reactive_parse_attempt(const char *data, unsigned long long *attempt) {
   if (!data || !attempt)
@@ -100,10 +108,10 @@ static void reactive_configure_attempt(unsigned long long attempt,
                                        double checkpoints[REACTIVE_ROWS][2],
                                        int blocked[REACTIVE_ROWS],
                                        double *arrival_y) {
-  const int odd = (attempt % 2ULL) == 1ULL;
-  blocked[0] = odd ? 1 : 0;
-  blocked[1] = odd ? 0 : 1;
-  blocked[2] = odd ? 1 : 0;
+  const unsigned long long normalized = attempt > 0 ? attempt - 1ULL : 0ULL;
+  const int pattern_index = (int)(normalized % REACTIVE_PATTERN_COUNT);
+  for (int row = 0; row < REACTIVE_ROWS; ++row)
+    blocked[row] = REACTIVE_PATTERNS[pattern_index][row];
   double y = REACTIVE_START_Y;
   for (int row = 0; row < REACTIVE_ROWS; ++row) {
     const double decision_x = REACTIVE_START_X + REACTIVE_STEP_X * row;
@@ -165,8 +173,8 @@ int webeeblocks_progression_reactive_evaluator_main(void) {
   double completion_time = 0.0;
   int reported = 0;
 
-  printf("WEBEEBLOCKS_REACTIVE_EVALUATOR_READY rows=%d start_x=%.3f start_y=%.3f\n",
-         REACTIVE_ROWS, REACTIVE_START_X, REACTIVE_START_Y);
+  printf("WEBEEBLOCKS_REACTIVE_EVALUATOR_READY rows=%d patterns=%d start_x=%.3f start_y=%.3f\n",
+         REACTIVE_ROWS, REACTIVE_PATTERN_COUNT, REACTIVE_START_X, REACTIVE_START_Y);
   fflush(stdout);
 
   while (wb_robot_step(step) != -1) {
