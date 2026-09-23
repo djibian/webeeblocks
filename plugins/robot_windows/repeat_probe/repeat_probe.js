@@ -44,11 +44,6 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
   }
 }
 
-async function repeatedMotif(backend) {
-  await backend.move('forward', 0.2);
-  await backend.move('left', 0.6);
-}
-
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message:event.message, filename:event.filename, lineno:event.lineno});
 });
@@ -66,11 +61,20 @@ window.addEventListener('unhandledrejection', function(event) {
     const repeat = {type:'mission-state-v1', oracle:'progression-repeat-v1'};
     await report('REPEAT_PROBE_READY', {ready:backend.ready});
 
-    await backend.takeoff(0.5);
-    for (let index = 0; index < 3; ++index)
-      await repeatedMotif(backend);
-    await backend.move('forward', 0.2);
-    await backend.land();
+    const repeatedProgram = {
+      version:1,
+      semantics:'webeeblocks-ast-v1',
+      program:[
+        {kind:'takeoff', height_m:0.5},
+        {kind:'repeat', count:3, body:[
+          {kind:'move', direction:'forward', distance_m:0.2},
+          {kind:'move', direction:'left', distance_m:0.6}
+        ]},
+        {kind:'move', direction:'forward', distance_m:0.2},
+        {kind:'land'}
+      ]
+    };
+    await WebeeBlocksInterpreter.run(repeatedProgram, backend);
     await backend.completeActivityMission(repeat);
     const loopShaped = await waitForOutcome(backend, repeat, 'achieved', 8000);
     await report('REPEAT_LOOP_SHAPED_ACHIEVED', loopShaped);
