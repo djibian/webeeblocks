@@ -34,6 +34,7 @@
     this.readyWaiters = [];
     this.simulationStopped = false;
     this.completedMissionOracle = null;
+    this.failureProbeMissionOracle = null;
     var capabilities = {
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],
@@ -180,6 +181,19 @@
     var self = this;
     return this._request(['COMPLETE', oracle]).then(function(value) {
       self.completedMissionOracle = oracle;
+      self.failureProbeMissionOracle = null;
+      return value;
+    });
+  };
+  RuntimeV2WwiBackend.prototype.probeActivityMissionFailure = function(evaluation) {
+    var oracle;
+    try { oracle = this._missionOracle(evaluation); }
+    catch (error) { return Promise.reject(error); }
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    var self = this;
+    return this._request(['FAILURE', oracle]).then(function(value) {
+      self.failureProbeMissionOracle = oracle;
       return value;
     });
   };
@@ -197,7 +211,7 @@
         return {status: status};
       });
     }
-    if (this.completedMissionOracle !== oracle)
+    if (this.completedMissionOracle !== oracle && this.failureProbeMissionOracle !== oracle)
       return requestOnce();
     var deadline = Date.now() + Math.max(0, this.outcomeSettleMs);
     function poll() {
@@ -222,6 +236,7 @@
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
     this._cancelPendingForReset();
     this.completedMissionOracle = null;
+    this.failureProbeMissionOracle = null;
     this.ready = false;
     var self = this;
     return this._request(['RESET']).then(function(value) {

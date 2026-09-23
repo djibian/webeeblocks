@@ -45,19 +45,36 @@ for (const token of [
   '#define REPEAT_ARRIVAL_X 0.80',
   '#define REPEAT_ARRIVAL_Y 1.80',
   'WEBEEBLOCKS_REPEAT_ORDER_FAILURE',
+  'WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1',
+  'repeat_parse_failure_probe',
   'repeat_publish_outcome(custom_data, active_attempt, "not-achieved")',
   'next_beacon == 3',
   'strcmp(oracle, REPEAT_ORACLE) == 0',
 ]) assert(evaluator.includes(token), 'evaluator contract drifted: ' + token);
 assert(!/(Blockly|controls_repeat_ext|workspace|AST)/.test(evaluator), 'world oracle inspects solution representation');
 const completionGuard = evaluator.indexOf('if (!completion_seen)');
-const terminalFailure = evaluator.indexOf('if (collision_seen || order_failed)');
-assert(completionGuard >= 0 && terminalFailure > completionGuard,
-  'repeat evaluator must latch collision/order facts but publish only after exact-oracle completion');
+const failureProbe = evaluator.indexOf('repeat_parse_failure_probe', completionGuard);
+const terminalFailure = evaluator.indexOf('if (collision_seen || order_failed)', completionGuard);
+assert(completionGuard >= 0 && failureProbe > completionGuard && terminalFailure > failureProbe,
+  'repeat evaluator must separate exact-oracle failure probing from executable completion');
+assert(/repeat_parse_failure_probe\(data,[\s\S]*collision_seen \|\| order_failed[\s\S]*repeat_publish_outcome\(custom_data, active_attempt, "not-achieved"\)/.test(evaluator),
+  'failure probe may publish only an already-latched irreversible Activity-3 failure');
+
+const probe = fs.readFileSync(path.join(root, 'plugins/robot_windows/repeat_probe/repeat_probe.js'), 'utf8');
+assert(probe.includes('WebeeBlocksInterpreter.run(repeatedProgram, backend)'), 'loop-shaped evidence does not exercise the shared interpreter');
+assert(/move\('left', 0\.6\)[\s\S]*move\('left', 0\.6\)[\s\S]*move\('forward', 0\.4\)[\s\S]*REPEAT_OUT_OF_ORDER_NOT_ACHIEVED/.test(probe),
+  'out-of-order negative must reach beacon 2 without reusing the dedicated origin collision trajectory');
+assert(/collisionError\.code !== 'UNSAFE_OR_TIMEOUT'[\s\S]*probeActivityMissionFailure\(repeat\)[\s\S]*failure_scoped:true/.test(probe),
+  'collision negative must use exact-oracle non-completion failure probing');
+
+const outcome = fs.readFileSync(path.join(root, 'plugins/robot_windows/blockly/webeeblocks/runtime_outcome.js'), 'utf8');
+assert(outcome.includes('probeActivityMissionFailure'), 'Runtime outcome layer lacks bounded mission-failure probing');
+assert(!/readMissionFailure[\s\S]*completeActivityMission\(evaluation\)/.test(outcome),
+  'UNSAFE_OR_TIMEOUT recovery must not manufacture an executable mission-completion boundary');
 
 const entry = fs.readFileSync(path.join(root, 'controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
 const makefile = fs.readFileSync(path.join(root, 'controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
 assert(entry.includes('repeat-evaluator-v1') && entry.includes('webeeblocks_progression_repeat_evaluator_main'), 'runtime entry does not dispatch repeat evaluator');
 assert(makefile.includes('progression_repeat_evaluator.c'), 'repeat evaluator absent from Runtime build');
 
-console.log('PASS progression repeat contract: mission/objective separation, cumulative toolbox, repeated world geometry, exact-oracle-scoped behavior-only evaluator and Runtime dispatch');
+console.log('PASS progression repeat contract: mission/objective separation, cumulative toolbox, repeated world geometry, exact-oracle completion/failure-scoped behavior-only evaluator and Runtime dispatch');

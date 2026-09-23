@@ -43,6 +43,18 @@ static int repeat_parse_completion(const char *data, unsigned long long *attempt
   return strcmp(oracle, REPEAT_ORACLE) == 0;
 }
 
+static int repeat_parse_failure_probe(const char *data, unsigned long long *attempt) {
+  if (!data || !attempt)
+    return 0;
+  char oracle[64] = {0};
+  char trailing[2] = {0};
+  if (sscanf(data,
+             "WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt=%llu oracle=%63s %1s",
+             attempt, oracle, trailing) != 2)
+    return 0;
+  return strcmp(oracle, REPEAT_ORACLE) == 0;
+}
+
 static WbNodeRef repeat_find_named_node(WbNodeRef node, const char *target_name) {
   if (!node)
     return NULL;
@@ -187,11 +199,20 @@ int webeeblocks_progression_repeat_evaluator_main(void) {
     }
 
     /* Several progression evaluators share the Crazyflie's customData transport.
-       Latch Activity-3 world facts immediately, but do not publish a terminal
-       result until the broker has named this exact oracle for this exact attempt.
-       This prevents an inactive evaluator from overwriting another activity's
-       terminal evidence in the shared world. */
+       Latch Activity-3 world facts immediately, but publish only after an exact
+       Activity-3 completion or failure-probe marker names this oracle/attempt.
+       FAILURE is not executable completion: it may answer only from an already
+       irreversible world failure, preventing inactive evaluators from deciding
+       another activity while preserving Runtime's original timeout semantics. */
     if (!completion_seen) {
+      unsigned long long failure_attempt = 0;
+      if (repeat_parse_failure_probe(data, &failure_attempt) && failure_attempt == active_attempt &&
+          (collision_seen || order_failed)) {
+        repeat_publish_outcome(custom_data, active_attempt, "not-achieved");
+        reported = 1;
+        continue;
+      }
+
       unsigned long long completed_attempt = 0;
       if (!repeat_parse_completion(data, &completed_attempt) || completed_attempt != active_attempt)
         continue;

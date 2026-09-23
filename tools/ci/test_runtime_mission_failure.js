@@ -27,6 +27,10 @@ function harness(options = {}) {
     if (command === 'OUTCOME') {
       assert.strictEqual(match[3], 'progression-precise-movement-v1');
       payload = response;
+    } else if (command === 'FAILURE') {
+      assert.strictEqual(match[3], 'progression-precise-movement-v1');
+      response = options.failureResult || 'ERR OUTCOME_UNAVAILABLE';
+      payload = 'OK';
     } else if (command === 'COMPLETE') {
       assert.strictEqual(match[3], 'progression-precise-movement-v1');
       if (options.completeResult)
@@ -80,7 +84,7 @@ function proveNativeBrokerRetention() {
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   assert.strictEqual(result.status, 0,
-    'native broker regression must compile and preserve only exact current terminal mission evidence');
+    'native broker regression must preserve exact current terminal mission evidence and scope failure probes');
 }
 
 async function proveMissionFailure() {
@@ -96,7 +100,7 @@ async function proveMissionFailure() {
   assert.strictEqual(collision.element('resetSimulation').disabled, false);
   assert.strictEqual(collision.sent.length, 1);
   assert.match(collision.sent[0], / OUTCOME progression-precise-movement-v1$/,
-    'prefer an already latched exact-oracle collision outcome without COMPLETE');
+    'prefer an already latched exact-oracle collision outcome without any synthetic boundary');
   const diagnostic = collision.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic');
   assert.strictEqual(diagnostic.detail.machineCode, 'UNSAFE_OR_TIMEOUT');
   assert.strictEqual(diagnostic.detail.technicalMessage, 'original execution failure');
@@ -106,25 +110,40 @@ async function proveMissionFailure() {
   assert.strictEqual(collision.element('runtimeState').textContent, 'PRÊT');
   await collision.context.runProgram();
   assert.strictEqual(collision.element('runtimeState').textContent, 'ARRÊTÉ',
-    'a previous negative must not survive a reset when the new attempt has no world result');
+    'a previous negative must not survive a reset when the new attempt has no world failure');
   assert.strictEqual(collision.sent.length, 5);
   assert.match(collision.sent[1], / RESET$/);
   assert.match(collision.sent[2], / OUTCOME progression-precise-movement-v1$/);
-  assert.match(collision.sent[3], / COMPLETE progression-precise-movement-v1$/);
+  assert.match(collision.sent[3], / FAILURE progression-precise-movement-v1$/);
   assert.match(collision.sent[4], / OUTCOME progression-precise-movement-v1$/);
+  assert.ok(!collision.sent.some(message => / COMPLETE progression-precise-movement-v1$/.test(message)),
+    'execution failure must never manufacture a mission completion boundary');
 
   for (const initial of ['ERR OUTCOME_UNAVAILABLE', 'ERR OUTCOME_MISMATCH']) {
-    const finalized = harness({response:initial, completeResult:'STATE not-achieved'});
-    await finalized.context.runProgram();
-    assert.strictEqual(finalized.element('runtimeState').textContent, 'MISSION NON RÉUSSIE', initial);
-    assert.strictEqual(finalized.element('runtimeDetail').textContent, 'Mission non accomplie', initial);
-    assert.strictEqual(finalized.sent.length, 3, initial);
-    assert.match(finalized.sent[0], / OUTCOME progression-precise-movement-v1$/);
-    assert.match(finalized.sent[1], / COMPLETE progression-precise-movement-v1$/,
-      'only unavailable/mismatched current evidence may name the selected oracle after fail-safe');
-    assert.match(finalized.sent[2], / OUTCOME progression-precise-movement-v1$/);
-    assert.strictEqual(finalized.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
-      'UNSAFE_OR_TIMEOUT', 'mission finalization must preserve the original execution diagnostic');
+    const unproven = harness({response:initial});
+    await unproven.context.runProgram();
+    assert.strictEqual(unproven.element('runtimeState').textContent, 'ARRÊTÉ', initial);
+    assert.strictEqual(unproven.element('runtimeDetail').textContent, 'L’action n’a pas pu être terminée', initial);
+    assert.strictEqual(unproven.sent.length, 3, initial);
+    assert.match(unproven.sent[0], / OUTCOME progression-precise-movement-v1$/);
+    assert.match(unproven.sent[1], / FAILURE progression-precise-movement-v1$/,
+      'missing/mismatched evidence may only name the selected oracle through the non-completion failure probe');
+    assert.match(unproven.sent[2], / OUTCOME progression-precise-movement-v1$/);
+    assert.ok(!unproven.sent.some(message => / COMPLETE progression-precise-movement-v1$/.test(message)), initial);
+    assert.strictEqual(unproven.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
+      'UNSAFE_OR_TIMEOUT', 'unproven mission failure must preserve the original execution diagnostic');
+  }
+
+  for (const initial of ['ERR OUTCOME_UNAVAILABLE', 'ERR OUTCOME_MISMATCH']) {
+    const probed = harness({response:initial, failureResult:'STATE not-achieved'});
+    await probed.context.runProgram();
+    assert.strictEqual(probed.element('runtimeState').textContent, 'MISSION NON RÉUSSIE', initial);
+    assert.strictEqual(probed.element('runtimeDetail').textContent, 'Mission non accomplie', initial);
+    assert.strictEqual(probed.sent.length, 3, initial);
+    assert.match(probed.sent[1], / FAILURE progression-precise-movement-v1$/);
+    assert.ok(!probed.sent.some(message => / COMPLETE progression-precise-movement-v1$/.test(message)), initial);
+    assert.strictEqual(probed.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
+      'UNSAFE_OR_TIMEOUT', 'causal world failure must preserve the original execution diagnostic');
   }
 
   for (const response of [
@@ -136,7 +155,7 @@ async function proveMissionFailure() {
     assert.strictEqual(unproven.element('runtimeState').textContent, 'ARRÊTÉ', response);
     assert.strictEqual(unproven.element('runtimeDetail').textContent, 'L’action n’a pas pu être terminée', response);
     assert.strictEqual(unproven.context.runtimeTerminal, true);
-    assert.strictEqual(unproven.sent.length, 1, 'stale, malformed or non-negative evidence must fail closed without COMPLETE');
+    assert.strictEqual(unproven.sent.length, 1, 'stale, malformed or non-negative evidence must fail closed without a failure probe');
     assert.strictEqual(unproven.events.find(event => event.type === 'webeeblocks-runtime-v2-diagnostic').detail.machineCode,
       'UNSAFE_OR_TIMEOUT', 'preserve the original error rather than replace it with an evidence-read error');
   }
@@ -164,7 +183,7 @@ async function proveMissionFailure() {
   await running;
   assert.strictEqual(pending.element('runtimeState').textContent, 'MISSION NON RÉUSSIE');
   assert.strictEqual(pending.element('resetSimulation').disabled, false);
-  console.log('PASS production mission failure UI: exact latched negative fast path, bounded unavailable/mismatch completion, fail-closed stale/invalid/non-negative evidence, user-stop and physical boundaries, Reset freshness');
+  console.log('PASS production mission failure UI: exact latched negative fast path, non-completion failure probe, fail-closed missing/mismatch/stale/invalid/non-negative evidence, user-stop and physical boundaries, Reset freshness');
 }
 
 module.exports = proveMissionFailure;

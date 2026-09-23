@@ -144,7 +144,7 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             if details[name] != {"status":"not-achieved"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
         if details["REPEAT_COLLISION_NOT_ACHIEVED"] != {
-            "status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT", "completion_scoped":True
+            "status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT", "failure_scoped":True
         }:
             return fail(f"unexpected collision event: {details['REPEAT_COLLISION_NOT_ACHIEVED']}")
         for name in ("REPEAT_LOOP_RESET_FRESH", "REPEAT_UNROLLED_RESET_FRESH", "REPEAT_SKIP_RESET_FRESH",
@@ -172,7 +172,7 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-14000:])
 
-        print("PASS Activity 3 repeated motif: loop-shaped and unrolled achievements, skipped/out-of-order/wrong-distance/collision negatives, exact-oracle completion scoping, and reset freshness in real R2025a")
+        print("PASS Activity 3 repeated motif: loop-shaped and unrolled achievements, skipped/out-of-order/wrong-distance/collision negatives, exact-oracle completion/failure scoping, and reset freshness in real R2025a")
         return 0
     finally:
         cleanup()

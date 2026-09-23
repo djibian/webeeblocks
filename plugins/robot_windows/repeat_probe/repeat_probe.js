@@ -138,10 +138,10 @@ window.addEventListener('unhandledrejection', function(event) {
     }
     if (!collisionError || collisionError.code !== 'UNSAFE_OR_TIMEOUT')
       throw new Error('expected obstacle contact fail-safe, got: ' + String(collisionError));
-    await backend.completeActivityMission(repeat);
+    await backend.probeActivityMissionFailure(repeat);
     const collision = await waitForOutcome(backend, repeat, 'not-achieved', 8000);
     await report('REPEAT_COLLISION_NOT_ACHIEVED', {
-      status:collision.status, runtime_code:collisionError.code, completion_scoped:true
+      status:collision.status, runtime_code:collisionError.code, failure_scoped:true
     });
 
     await resetAndProveFresh(backend, repeat, 'REPEAT_COLLISION_RESET_FRESH');

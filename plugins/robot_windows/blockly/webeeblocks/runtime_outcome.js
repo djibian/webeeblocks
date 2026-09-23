@@ -80,31 +80,31 @@
         typeof backend.readActivityOutcome !== 'function')
       return null;
 
-    // Prefer an already-latched exact-attempt/exact-oracle world result. This
-    // preserves the collision fast path used by existing evaluators and avoids
-    // inventing a completion boundary when the world has already decided.
+    // Prefer an already-latched exact-attempt/exact-oracle world result. Existing
+    // evaluators that publish an irreversible failure before Runtime fail-safe can
+    // therefore be consumed without inventing any later completion boundary.
     try {
       var latched = classifyMission(await backend.readActivityOutcome(evaluation));
       return latched.status === 'not-achieved' ? latched : null;
     } catch (outcomeError) {
-      // A shared world may contain another evaluator's terminal marker, or the
-      // selected evaluator may deliberately wait for the exact oracle completion
-      // before publishing. Only those two non-terminal situations may be
-      // finalized here. Stale/malformed evidence still fails closed and preserves
-      // the original flight error.
+      // Missing or another oracle's terminal marker is not itself mission-failure
+      // evidence. It may only trigger a bounded, oracle-specific failure probe;
+      // stale/malformed evidence and backends without that probe fall back to the
+      // original execution failure exactly as before.
       if (!outcomeError || (outcomeError.code !== 'OUTCOME_UNAVAILABLE' && outcomeError.code !== 'OUTCOME_MISMATCH') ||
-          typeof backend.completeActivityMission !== 'function')
+          typeof backend.probeActivityMissionFailure !== 'function')
         return null;
     }
 
     try {
-      // The broker preserves a valid terminal result for this exact attempt and
-      // oracle; otherwise COMPLETE names the selected evaluator. The production
-      // WWI backend then performs its bounded OUTCOME_UNAVAILABLE settling poll.
-      await backend.completeActivityMission(evaluation);
-      var completed = classifyMission(await backend.readActivityOutcome(evaluation));
-      return completed.status === 'not-achieved' ? completed : null;
-    } catch (completionError) {
+      // FAILURE names the selected oracle for the current attempt but does not
+      // assert executable completion. A world evaluator may answer only from an
+      // irreversible failure it had already observed; otherwise OUTCOME remains
+      // unavailable and the original UNSAFE_OR_TIMEOUT classification is kept.
+      await backend.probeActivityMissionFailure(evaluation);
+      var probed = classifyMission(await backend.readActivityOutcome(evaluation));
+      return probed.status === 'not-achieved' ? probed : null;
+    } catch (probeError) {
       return null;
     }
   }
