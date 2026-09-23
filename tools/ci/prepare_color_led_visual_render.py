@@ -35,6 +35,12 @@ evaluators = (
         'name "Progression simple decision evaluator"',
         '"simple-decision-evaluator-v1"',
     ),
+    (
+        "# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_END",
+        'name "Progression reactive evaluator"',
+        '"reactive-evaluator-v1"',
+    ),
 )
 
 visual_source = source
