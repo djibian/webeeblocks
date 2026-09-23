@@ -32,6 +32,18 @@ async function waitForOutcome(backend, evaluation, expected, timeoutMs) {
   throw new Error('timeout waiting for outcome ' + expected);
 }
 
+async function proveFailureProbeUnavailableWithoutCollision(backend, evaluation) {
+  await backend.probeActivityMissionFailure(evaluation);
+  try {
+    const unexpected = await backend.readActivityOutcome(evaluation);
+    throw new Error('failure probe synthesized outcome without irreversible failure: ' + JSON.stringify(unexpected));
+  } catch (error) {
+    if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
+      throw error;
+    await report('REACTIVE_FAILURE_PROBE_WITHOUT_COLLISION_UNAVAILABLE', {code:error.code});
+  }
+}
+
 async function resetAndProveFresh(backend, evaluation, eventName) {
   await backend.resetSimulation();
   try {
@@ -174,6 +186,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.waitUntilReady();
     const evaluation = {type:'mission-state-v1', oracle:'progression-reactive-v1'};
     await report('REACTIVE_PROBE_READY', {ready:backend.ready});
+    await proveFailureProbeUnavailableWithoutCollision(backend, evaluation);
 
     const repeatedBob = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_BOB_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_BOB_RESET_FRESH');
