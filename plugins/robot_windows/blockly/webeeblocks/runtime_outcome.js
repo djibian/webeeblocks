@@ -79,15 +79,32 @@
         !backend || !backend.capabilities || backend.capabilities.simulationReset !== true ||
         typeof backend.readActivityOutcome !== 'function')
       return null;
-    // A collision may publish an attempt-bound negative before the flight
-    // fail-safe rejects execution. Read that evidence without sending COMPLETE,
-    // which would overwrite the world's already latched result. The backend
-    // remains responsible for exact attempt/oracle freshness. Missing evidence
-    // or any other state must preserve the original execution failure.
+
+    // Prefer an already-latched exact-attempt/exact-oracle world result. Existing
+    // evaluators that publish an irreversible failure before Runtime fail-safe can
+    // therefore be consumed without inventing any later completion boundary.
     try {
-      var outcome = classifyMission(await backend.readActivityOutcome(evaluation));
-      return outcome.status === 'not-achieved' ? outcome : null;
+      var latched = classifyMission(await backend.readActivityOutcome(evaluation));
+      return latched.status === 'not-achieved' ? latched : null;
     } catch (outcomeError) {
+      // Missing or another oracle's terminal marker is not itself mission-failure
+      // evidence. It may only trigger a bounded, oracle-specific failure probe;
+      // stale/malformed evidence and backends without that probe fall back to the
+      // original execution failure exactly as before.
+      if (!outcomeError || (outcomeError.code !== 'OUTCOME_UNAVAILABLE' && outcomeError.code !== 'OUTCOME_MISMATCH') ||
+          typeof backend.probeActivityMissionFailure !== 'function')
+        return null;
+    }
+
+    try {
+      // FAILURE names the selected oracle for the current attempt but does not
+      // assert executable completion. A world evaluator may answer only from an
+      // irreversible failure it had already observed; otherwise OUTCOME remains
+      // unavailable and the original UNSAFE_OR_TIMEOUT classification is kept.
+      await backend.probeActivityMissionFailure(evaluation);
+      var probed = classifyMission(await backend.readActivityOutcome(evaluation));
+      return probed.status === 'not-achieved' ? probed : null;
+    } catch (probeError) {
       return null;
     }
   }

@@ -35,8 +35,9 @@ assert.deepStrictEqual(p2.runtime.astBounds['move.distance_m'], {min:0.1,max:0.6
 const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id.startsWith('progression-') &&
   profile.id !== 'progression-sequence-v1' &&
-  profile.id !== 'progression-precise-movement-v1');
-assert.strictEqual(remainingProgression.length, 6);
+  profile.id !== 'progression-precise-movement-v1' &&
+  profile.id !== 'progression-repeat-v1');
+assert.strictEqual(remainingProgression.length, 5);
 remainingProgression.forEach(profile => {
   assert.strictEqual(profile.evaluation.type, 'training-objective');
   assert.strictEqual(profile.brief.mission, undefined);

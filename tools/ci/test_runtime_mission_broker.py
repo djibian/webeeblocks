@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Compile the production native broker against injected Webots transport stubs.
 
-The probe locks the mission-channel invariant that COMPLETE must not erase an
-already-published terminal result for the current attempt and oracle, while
-stale, malformed, cross-oracle, or invalid results remain non-authoritative.
+The probe locks two mission-channel invariants:
+- COMPLETE must not erase an already-published terminal result for the current
+  attempt and oracle, while stale/malformed/cross-oracle results are not promoted;
+- FAILURE may name one exact current-attempt oracle without asserting executable
+  completion, preserving an already-matching terminal result and otherwise
+  publishing only the bounded failure-probe marker consumed by world evaluators.
 """
 from __future__ import annotations
 
@@ -166,6 +169,41 @@ int main() {
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-precise-movement-v1 status=mystery");
   expect_unavailable_after_complete("malformed terminal evidence");
 
+  // FAILURE preserves already-authoritative exact-oracle terminal evidence and
+  // never rewrites it into a synthetic completion/probe marker.
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-repeat-v1 status=not-achieved";
+  const std::string exact_failure = custom_data;
+  process({
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 22 FAILURE progression-repeat-v1",
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 23 OUTCOME progression-repeat-v1"
+  });
+  assert(custom_data == exact_failure);
+  assert(sent_text.size() == 2);
+  assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 22 OK");
+  assert(sent_text[1] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 23 STATE not-achieved");
+
+  // Missing/cross-oracle evidence may be replaced only with a non-completion
+  // failure-probe marker for the exact current attempt and requested oracle.
+  reset_harness();
+  custom_data =
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-precise-movement-v1 status=not-achieved";
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 24 FAILURE progression-repeat-v1"});
+  assert(custom_data ==
+    "WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt=1 oracle=progression-repeat-v1");
+  assert(sent_text.size() == 1);
+  assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 OK");
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 25 OUTCOME progression-repeat-v1"});
+  assert(sent_text.size() == 2);
+  assert(sent_text[1] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 25 ERR OUTCOME_UNAVAILABLE");
+
+  reset_harness();
+  process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 26 FAILURE bad/oracle"});
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  assert(sent_text.size() == 1);
+  assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 26 ERR INVALID_MISSION_REQUEST");
+
   reset_harness();
   custom_data =
     "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-precise-movement-v1 status=not-achieved";
@@ -181,7 +219,7 @@ int main() {
   assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 31 ERR OUTCOME_UNAVAILABLE");
 
   webeeblocks_file_broker_robot_cleanup();
-  std::cout << "PASS native mission broker: COMPLETE preserves only current matching terminal outcomes; stale/cross/malformed evidence is not promoted; Reset rotates freshness\n";
+  std::cout << "PASS native mission broker: COMPLETE preserves exact terminal outcomes; FAILURE scopes non-completion world probes; stale/cross/malformed evidence is not promoted; Reset rotates freshness\n";
   return 0;
 }
 '''
