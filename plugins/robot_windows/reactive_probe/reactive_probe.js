@@ -71,7 +71,11 @@ function frontBlockedCondition() {
   return {
     kind:'compare', op:'LT',
     left:{kind:'range', direction:'front', unit:'m'},
-    right:{kind:'number', value:1}
+    // The current-row parcel is about 0.10 m away at the decision point, while
+    // an open row can still see a later parcel about 0.41 m away. Keep this
+    // reference strategy local to the row being crossed instead of looking
+    // through an open row and reacting to a later blockage.
+    right:{kind:'number', value:0.2}
   };
 }
 
