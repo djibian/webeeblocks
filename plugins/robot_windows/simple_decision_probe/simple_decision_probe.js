@@ -90,6 +90,21 @@ function fixedProgram(first, second) {
   };
 }
 
+function bypassProgram() {
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:[
+      {kind:'takeoff', height_m:0.5},
+      {kind:'move', direction:'left', distance_m:1.2},
+      {kind:'move', direction:'left', distance_m:0.1},
+      {kind:'move', direction:'forward', distance_m:1.2},
+      {kind:'move', direction:'forward', distance_m:0.2},
+      {kind:'land'}
+    ]
+  };
+}
+
 async function executeCase(backend, evaluation, program, expected, eventName, expectRuntimeFailure) {
   let runtimeError = null;
   try {
@@ -158,6 +173,9 @@ window.addEventListener('unhandledrejection', function(event) {
       backend, evaluation, wrongDecision, 'not-achieved', 'DECISION_WRONG_DECISION_NOT_ACHIEVED', true);
 
     await resetAndProveFresh(backend, evaluation, 'DECISION_WRONG_RESET_FRESH');
+    const bypass = await executeCase(
+      backend, evaluation, bypassProgram(), 'not-achieved', 'DECISION_BYPASS_NOT_ACHIEVED', false);
+
     await report('DECISION_MISSION_TEST_COMPLETE', {
       blocked:blocked.status,
       open:open.status,
@@ -165,7 +183,8 @@ window.addEventListener('unhandledrejection', function(event) {
       hard_left:hardLeft.status,
       alternative_blocked:alternateBlocked.status,
       alternative_open:alternateOpen.status,
-      wrong_decision:wrong.status
+      wrong_decision:wrong.status,
+      bypass:bypass.status
     });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
