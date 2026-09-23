@@ -60,6 +60,9 @@ assert.match(evaluator, /normalized % REACTIVE_PATTERN_COUNT/);
 assert.match(evaluator, /checkpoint_index == REACTIVE_ROWS/);
 assert.match(evaluator, /wb_supervisor_node_get_contact_points/);
 assert.match(evaluator, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1/);
+assert.match(evaluator,
+  /reactive_parse_failure_probe\(data, &failure_attempt\) && failure_attempt == active_attempt && collision_seen/,
+  'failure probing must only synthesize not-achieved from irreversible collision evidence');
 assert.doesNotMatch(evaluator, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'mission oracle must observe world behavior, never student solution shape');
 
@@ -90,4 +93,4 @@ assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_BBO_NOT_ACHIEVED
   'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, and the oracle remains behavior-only');
+console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, and the oracle remains behavior-only');
