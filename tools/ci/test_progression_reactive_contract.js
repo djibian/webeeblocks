@@ -13,6 +13,8 @@ assert.strictEqual(profile.brief.title, '5 — Traverser les rangées');
 assert.strictEqual(profile.brief.mission,
   'Le drone doit traverser plusieurs rangées de l’entrepôt pour rejoindre la zone de livraison. Des colis peuvent bloquer certaines rangées. Fais-le avancer jusqu’à la zone d’arrivée et terminer posé sans toucher de colis, même si les blocages ne sont pas les mêmes d’une rangée à l’autre.');
 assert.strictEqual(profile.brief.goal, profile.brief.mission);
+assert.match(profile.brief.mission, /traverser plusieurs rangées/,
+  'the student mission must make crossing the visible warehouse rows part of success');
 assert.strictEqual(profile.pedagogy.objective,
   'Répéter un cycle de mesure, décision et déplacement afin de réobserver la situation avant chaque rangée, en réutilisant les acquis des activités précédentes.');
 assert.notStrictEqual(profile.brief.mission, profile.pedagogy.objective);
@@ -37,6 +39,8 @@ assert.deepStrictEqual(project.workspace.blocks.blocks, []);
 const world = fs.readFileSync(path.join(ROOT, 'worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 assert.match(world, /WEBEEBLOCKS_REACTIVE_MISSION_V1_BEGIN/);
 assert.match(world, /WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_BEGIN[\s\S]*WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_END/);
+assert.match(world, /translation 1\.20 1\.75 0\.002[\s\S]*translation 1\.50 1\.90 0\.002[\s\S]*translation 1\.80 2\.05 0\.002/,
+  'all evaluator row checkpoints must be represented by visible warehouse-row mission objects');
 assert.match(world, /DEF ACTIVITY5_BARRIER_1 Solid/);
 assert.match(world, /DEF ACTIVITY5_BARRIER_2 Solid/);
 assert.match(world, /DEF ACTIVITY5_BARRIER_3 Solid/);
@@ -73,6 +77,8 @@ assert.match(probe, /REACTIVE_FIXED_LEFT_NOT_ACHIEVED/);
 assert.match(probe, /REACTIVE_UNROLLED_OBO_ACHIEVED/);
 assert.match(probe, /REACTIVE_UNROLLED_BOB_ACHIEVED/,
   'behavior-only evidence must accept equivalent unrolled programs that refresh sensing at every row');
+assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_NOT_ACHIEVED/,
+  'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: a concrete multi-row warehouse mission requires fresh per-row decisions, retains B-O-B/O-B-O deterministic patterns, rejects stale/fixed behavior, accepts equivalent unrolled fresh sensing, and keeps the oracle behavior-only');
+console.log('PASS Activity 5 contract: a concrete multi-row warehouse mission requires fresh per-row decisions, retains B-O-B/O-B-O deterministic patterns, rejects stale/fixed and row-bypass behavior, accepts equivalent unrolled fresh sensing, and keeps the oracle behavior-only');
