@@ -79,15 +79,32 @@
         !backend || !backend.capabilities || backend.capabilities.simulationReset !== true ||
         typeof backend.readActivityOutcome !== 'function')
       return null;
-    // A collision may publish an attempt-bound negative before the flight
-    // fail-safe rejects execution. Read that evidence without sending COMPLETE,
-    // which would overwrite the world's already latched result. The backend
-    // remains responsible for exact attempt/oracle freshness. Missing evidence
-    // or any other state must preserve the original execution failure.
+
+    // Prefer an already-latched exact-attempt/exact-oracle world result. This
+    // preserves the collision fast path used by existing evaluators and avoids
+    // inventing a completion boundary when the world has already decided.
     try {
-      var outcome = classifyMission(await backend.readActivityOutcome(evaluation));
-      return outcome.status === 'not-achieved' ? outcome : null;
+      var latched = classifyMission(await backend.readActivityOutcome(evaluation));
+      return latched.status === 'not-achieved' ? latched : null;
     } catch (outcomeError) {
+      // A shared world may contain another evaluator's terminal marker, or the
+      // selected evaluator may deliberately wait for the exact oracle completion
+      // before publishing. Only those two non-terminal situations may be
+      // finalized here. Stale/malformed evidence still fails closed and preserves
+      // the original flight error.
+      if (!outcomeError || (outcomeError.code !== 'OUTCOME_UNAVAILABLE' && outcomeError.code !== 'OUTCOME_MISMATCH') ||
+          typeof backend.completeActivityMission !== 'function')
+        return null;
+    }
+
+    try {
+      // The broker preserves a valid terminal result for this exact attempt and
+      // oracle; otherwise COMPLETE names the selected evaluator. The production
+      // WWI backend then performs its bounded OUTCOME_UNAVAILABLE settling poll.
+      await backend.completeActivityMission(evaluation);
+      var completed = classifyMission(await backend.readActivityOutcome(evaluation));
+      return completed.status === 'not-achieved' ? completed : null;
+    } catch (completionError) {
       return null;
     }
   }
