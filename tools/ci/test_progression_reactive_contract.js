@@ -39,15 +39,37 @@ assert.deepStrictEqual(project.workspace.blocks.blocks, []);
 const world = fs.readFileSync(path.join(ROOT, 'worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 const floorMatch = world.match(/Floor\s*\{\s*size\s+([0-9.]+)\s+([0-9.]+)\s*\}/);
 assert.ok(floorMatch, 'the shared Runtime v2 world must declare an explicit rectangular floor');
-const floorHalfX = Number(floorMatch[1]) / 2;
-const floorHalfY = Number(floorMatch[2]) / 2;
+const floorWidth = Number(floorMatch[1]);
+const floorHeight = Number(floorMatch[2]);
+assert.deepStrictEqual([floorWidth, floorHeight], [4, 4],
+  'the shared source floor literal must stay compatible with the existing offline classroom and physical localizers');
+const floorHalfX = floorWidth / 2;
+const floorHalfY = floorHeight / 2;
 const activity5LandingBodyMargin = 0.08;
-const activity5MaxVisibleX = 1.80 + 0.12;
-const activity5MaxVisibleY = 2.20 + 0.12;
-assert.ok(activity5MaxVisibleX + activity5LandingBodyMargin <= floorHalfX,
-  'the complete Activity 5 landing footprint plus craft margin must remain inside the physical floor on X');
-assert.ok(activity5MaxVisibleY + activity5LandingBodyMargin <= floorHalfY,
-  'the complete Activity 5 landing footprint plus craft margin must remain inside the physical floor on Y');
+const activity5LandingHalfExtent = 0.12;
+const activity5LandingX = 1.80;
+const activity5LandingY = 2.20;
+const activity5LandingMinX = activity5LandingX - activity5LandingHalfExtent - activity5LandingBodyMargin;
+const activity5LandingMaxX = activity5LandingX + activity5LandingHalfExtent + activity5LandingBodyMargin;
+const activity5LandingMinY = activity5LandingY - activity5LandingHalfExtent - activity5LandingBodyMargin;
+const activity5LandingMaxY = activity5LandingY + activity5LandingHalfExtent + activity5LandingBodyMargin;
+assert.ok(activity5LandingMaxX <= floorHalfX,
+  'the complete Activity 5 landing footprint plus craft margin must remain inside the canonical floor on X');
+assert.ok(activity5LandingMinY >= floorHalfY - 1e-9,
+  'the overflow landing footprint must begin at the canonical floor boundary rather than leaving a physical gap');
+assert.match(world,
+  /WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_BEGIN[\s\S]*DEF ACTIVITY5_FLOOR_EXTENSION Solid \{[\s\S]*translation 1\.25 2\.25 -0\.025[\s\S]*geometry Box \{ size 1\.5 0\.5 0\.05 \}[\s\S]*boundingObject Box \{ size 1\.5 0\.5 0\.05 \}[\s\S]*WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_END/,
+  'Activity 5 must explicitly materialize the bounded physical floor extension required by its retained upper landing state');
+const extensionCenterX = 1.25;
+const extensionCenterY = 2.25;
+const extensionHalfX = 1.5 / 2;
+const extensionHalfY = 0.5 / 2;
+assert.ok(activity5LandingMinX >= extensionCenterX - extensionHalfX &&
+          activity5LandingMaxX <= extensionCenterX + extensionHalfX,
+  'the Activity 5 floor extension must support the complete landing footprint plus craft margin on X');
+assert.ok(activity5LandingMinY >= extensionCenterY - extensionHalfY - 1e-9 &&
+          activity5LandingMaxY <= extensionCenterY + extensionHalfY + 1e-9,
+  'the Activity 5 floor extension must support the complete landing footprint plus craft margin on Y');
 assert.match(world, /WEBEEBLOCKS_REACTIVE_MISSION_V1_BEGIN/);
 assert.match(world, /WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_BEGIN[\s\S]*WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_END/);
 assert.match(world, /translation 1\.20 1\.75 0\.002[\s\S]*translation 1\.50 1\.90 0\.002[\s\S]*translation 1\.80 2\.05 0\.002/,
@@ -107,4 +129,4 @@ assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_BBO_NOT_ACHIEVED
   'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, the complete landing footprint stays inside the physical floor, and the oracle remains behavior-only');
+console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, the bounded floor extension physically supports the retained upper landing without changing the canonical 4x4 floor localization contract, and the oracle remains behavior-only');
