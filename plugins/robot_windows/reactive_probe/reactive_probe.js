@@ -82,19 +82,21 @@ function repeatedReactiveProgram() {
   };
 }
 
-function oneMeasurementProgram() {
+function singleObservationPatternProgram() {
   return {
     version:1, semantics:'webeeblocks-ast-v1',
     program:approach().concat([
       {kind:'if', condition:frontBlockedCondition(), then:[
-        {kind:'repeat', count:3, body:[
-          {kind:'move', direction:'left', distance_m:0.3},
-          {kind:'move', direction:'forward', distance_m:0.3}
-        ]}
+        {kind:'move', direction:'left', distance_m:0.3},
+        {kind:'move', direction:'forward', distance_m:0.3},
+        {kind:'move', direction:'forward', distance_m:0.3},
+        {kind:'move', direction:'left', distance_m:0.3},
+        {kind:'move', direction:'forward', distance_m:0.3}
       ], else:[
-        {kind:'repeat', count:3, body:[
-          {kind:'move', direction:'forward', distance_m:0.3}
-        ]}
+        {kind:'move', direction:'forward', distance_m:0.3},
+        {kind:'move', direction:'left', distance_m:0.3},
+        {kind:'move', direction:'forward', distance_m:0.3},
+        {kind:'move', direction:'forward', distance_m:0.3}
       ]},
       {kind:'land'}
     ])
@@ -131,7 +133,7 @@ function rowBypassProgram() {
       {kind:'move', direction:'left', distance_m:0.1},
       {kind:'move', direction:'forward', distance_m:1.2},
       {kind:'move', direction:'forward', distance_m:0.6},
-      {kind:'move', direction:'left', distance_m:0.6},
+      {kind:'move', direction:'left', distance_m:0.9},
       {kind:'land'}
     ]
   };
@@ -173,38 +175,45 @@ window.addEventListener('unhandledrejection', function(event) {
     const evaluation = {type:'mission-state-v1', oracle:'progression-reactive-v1'};
     await report('REACTIVE_PROBE_READY', {ready:backend.ready});
 
-    const repeatedA = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_BOB_ACHIEVED', false);
+    const repeatedBob = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_BOB_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_BOB_RESET_FRESH');
-    const repeatedB = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_OBO_ACHIEVED', false);
-
+    const repeatedObo = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_OBO_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_OBO_RESET_FRESH');
-    const stale = await executeCase(backend, evaluation, oneMeasurementProgram(), 'not-achieved', 'REACTIVE_ONE_MEASUREMENT_NOT_ACHIEVED', true);
+    const repeatedBbo = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_BBO_ACHIEVED', false);
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_BBO_RESET_FRESH');
+    const repeatedOob = await executeCase(backend, evaluation, repeatedReactiveProgram(), 'achieved', 'REACTIVE_OOB_ACHIEVED', false);
 
-    await resetAndProveFresh(backend, evaluation, 'REACTIVE_ONE_MEASUREMENT_RESET_FRESH');
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_OOB_RESET_FRESH');
+    const singleBob = await executeCase(backend, evaluation, singleObservationPatternProgram(), 'achieved', 'REACTIVE_SINGLE_OBSERVATION_BOB_ACHIEVED', false);
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_SINGLE_OBSERVATION_BOB_RESET_FRESH');
+    const singleObo = await executeCase(backend, evaluation, singleObservationPatternProgram(), 'achieved', 'REACTIVE_SINGLE_OBSERVATION_OBO_ACHIEVED', false);
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_SINGLE_OBSERVATION_OBO_RESET_FRESH');
+    const singleBbo = await executeCase(backend, evaluation, singleObservationPatternProgram(), 'not-achieved', 'REACTIVE_SINGLE_OBSERVATION_BBO_NOT_ACHIEVED', true);
+
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_SINGLE_OBSERVATION_BBO_RESET_FRESH');
     const fixedForward = await executeCase(backend, evaluation, fixedProgram(false), 'not-achieved', 'REACTIVE_FIXED_FORWARD_NOT_ACHIEVED', true);
-
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_FIXED_FORWARD_RESET_FRESH');
     const fixedLeft = await executeCase(backend, evaluation, fixedProgram(true), 'not-achieved', 'REACTIVE_FIXED_LEFT_NOT_ACHIEVED', true);
 
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_FIXED_LEFT_RESET_FRESH');
-    const unrolledA = await executeCase(backend, evaluation, unrolledFreshProgram(), 'achieved', 'REACTIVE_UNROLLED_OBO_ACHIEVED', false);
+    const unrolled = await executeCase(backend, evaluation, unrolledFreshProgram(), 'achieved', 'REACTIVE_UNROLLED_OBO_ACHIEVED', false);
 
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_UNROLLED_OBO_RESET_FRESH');
-    const unrolledB = await executeCase(backend, evaluation, unrolledFreshProgram(), 'achieved', 'REACTIVE_UNROLLED_BOB_ACHIEVED', false);
+    const bypass = await executeCase(backend, evaluation, rowBypassProgram(), 'not-achieved', 'REACTIVE_BYPASS_BBO_NOT_ACHIEVED', false);
 
-    await resetAndProveFresh(backend, evaluation, 'REACTIVE_UNROLLED_BOB_RESET_FRESH');
-    const bypass = await executeCase(backend, evaluation, rowBypassProgram(), 'not-achieved', 'REACTIVE_BYPASS_NOT_ACHIEVED', false);
-
-    await resetAndProveFresh(backend, evaluation, 'REACTIVE_BYPASS_RESET_FRESH');
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_BYPASS_BBO_RESET_FRESH');
     await report('REACTIVE_MISSION_TEST_COMPLETE', {
-      repeated_bob:repeatedA.status,
-      repeated_obo:repeatedB.status,
-      one_measurement:stale.status,
+      repeated_bob:repeatedBob.status,
+      repeated_obo:repeatedObo.status,
+      repeated_bbo:repeatedBbo.status,
+      repeated_oob:repeatedOob.status,
+      single_observation_bob:singleBob.status,
+      single_observation_obo:singleObo.status,
+      single_observation_bbo:singleBbo.status,
       fixed_forward:fixedForward.status,
       fixed_left:fixedLeft.status,
-      unrolled_obo:unrolledA.status,
-      unrolled_bob:unrolledB.status,
-      bypass:bypass.status
+      unrolled_obo:unrolled.status,
+      bypass_bbo:bypass.status
     });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
