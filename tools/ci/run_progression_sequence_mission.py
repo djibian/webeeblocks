@@ -189,7 +189,9 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
                      "PRECISE_OVERSHOOT_NOT_ACHIEVED", "PRECISE_LATERAL_NOT_ACHIEVED"):
             if details[name] != {"status": "not-achieved"}:
                 return fail(f"unexpected negative event {name}: {details[name]}")
-        if details["PRECISE_COLLISION_NOT_ACHIEVED"] != {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"}:
+        if details["PRECISE_COLLISION_NOT_ACHIEVED"] != {
+            "status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT", "completion_preserved":True
+        }:
             return fail(f"unexpected collision event: {details['PRECISE_COLLISION_NOT_ACHIEVED']}")
         for name in ("SEQUENCE_RESET_FRESH", "SEQUENCE_REPEAT_RESET_FRESH", "SEQUENCE_SECOND_RESET_FRESH",
                      "PRECISE_INITIAL_RESET_FRESH", "PRECISE_RESET_FRESH", "PRECISE_UNDERSHOOT_RESET_FRESH",
