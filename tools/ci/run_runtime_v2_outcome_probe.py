@@ -12,14 +12,15 @@ def proofs_for_job(job: str) -> tuple[str, ...]:
     progression = (
         "tools/ci/run_progression_sequence_mission.py",
         "tools/ci/run_progression_repeat_mission.py",
+        "tools/ci/run_progression_simple_decision_mission.py",
     )
     # The canonical Runtime suite already runs this full outcome/progression
     # probe in the sibling runtime-v2-core job on the same exact target SHA.
-    # Do not spend the runtime-v2-webots job's bounded integration budget on
-    # the same long real-Webots progression missions a second time; that job
-    # still proves outcome freshness here before its own render/dynamic-Webots
-    # integration evidence.
-    if job == "runtime-v2-webots":
+    # Do not spend the bounded student-ui or runtime-v2-webots integration
+    # budgets on the same long real-Webots progression missions a second time;
+    # those jobs still prove outcome freshness here before their own dedicated
+    # UI/render/dynamic-Webots evidence.
+    if job in ("runtime-v2-webots", "student-ui"):
         return (freshness,)
     return (freshness, *progression)
 
@@ -33,7 +34,7 @@ def main() -> int:
     if len(proofs) == 1:
         print("PASS real-Webots activity outcome foundation; progression missions are proved by runtime-v2-core on the same exact CI target")
     else:
-        print("PASS real-Webots activity outcome foundation and executable progression missions 1-3")
+        print("PASS real-Webots activity outcome foundation and executable progression missions 1-4")
     return 0
 
 
