@@ -50,10 +50,13 @@ assert.match(world, /name "Progression reactive evaluator"[\s\S]*"reactive-evalu
 
 const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_reactive_evaluator.c'), 'utf8');
 assert.match(evaluator, /#define REACTIVE_ORACLE "progression-reactive-v1"/);
-assert.match(evaluator, /blocked\[0\] = odd \? 1 : 0/);
-assert.match(evaluator, /blocked\[1\] = odd \? 0 : 1/);
-assert.match(evaluator, /blocked\[2\] = odd \? 1 : 0/,
-  'retained deterministic patterns must alternate B-O-B and O-B-O across attempts');
+assert.match(evaluator, /#define REACTIVE_PATTERN_COUNT 4/);
+assert.match(evaluator, /\{1, 0, 1\}, \/\* B-O-B \*\//);
+assert.match(evaluator, /\{0, 1, 0\}, \/\* O-B-O \*\//);
+assert.match(evaluator, /\{1, 1, 0\}, \/\* B-B-O: same first row as B-O-B, different later row \*\//);
+assert.match(evaluator, /\{0, 0, 1\}  \/\* O-O-B: same first row as O-B-O, different later row \*\//,
+  'retained deterministic patterns must include same-first-observation variants so the first row cannot identify later blockages');
+assert.match(evaluator, /normalized % REACTIVE_PATTERN_COUNT/);
 assert.match(evaluator, /checkpoint_index == REACTIVE_ROWS/);
 assert.match(evaluator, /wb_supervisor_node_get_contact_points/);
 assert.match(evaluator, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1/);
@@ -71,14 +74,20 @@ assert.match(probe, /kind:'repeat', count:3/);
 assert.match(probe, /frontBlockedCondition\(\)/);
 assert.match(probe, /REACTIVE_BOB_ACHIEVED/);
 assert.match(probe, /REACTIVE_OBO_ACHIEVED/);
-assert.match(probe, /REACTIVE_ONE_MEASUREMENT_NOT_ACHIEVED/);
+assert.match(probe, /REACTIVE_BBO_ACHIEVED/);
+assert.match(probe, /REACTIVE_OOB_ACHIEVED/,
+  'the repeated fresh-sensing program must cover every retained deterministic pattern');
+assert.match(probe, /singleObservationPatternProgram\(\)/);
+assert.match(probe, /REACTIVE_SINGLE_OBSERVATION_BOB_ACHIEVED/);
+assert.match(probe, /REACTIVE_SINGLE_OBSERVATION_OBO_ACHIEVED/);
+assert.match(probe, /REACTIVE_SINGLE_OBSERVATION_BBO_NOT_ACHIEVED/,
+  'one initial observation may solve the two reference patterns but must fail a later-different pattern with the same first observation');
 assert.match(probe, /REACTIVE_FIXED_FORWARD_NOT_ACHIEVED/);
 assert.match(probe, /REACTIVE_FIXED_LEFT_NOT_ACHIEVED/);
-assert.match(probe, /REACTIVE_UNROLLED_OBO_ACHIEVED/);
-assert.match(probe, /REACTIVE_UNROLLED_BOB_ACHIEVED/,
-  'behavior-only evidence must accept equivalent unrolled programs that refresh sensing at every row');
-assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_NOT_ACHIEVED/,
+assert.match(probe, /REACTIVE_UNROLLED_OBO_ACHIEVED/,
+  'behavior-only evidence must accept an equivalent unrolled program that refreshes sensing at every row');
+assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_BBO_NOT_ACHIEVED/,
   'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: a concrete multi-row warehouse mission requires fresh per-row decisions, retains B-O-B/O-B-O deterministic patterns, rejects stale/fixed and row-bypass behavior, accepts equivalent unrolled fresh sensing, and keeps the oracle behavior-only');
+console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, and the oracle remains behavior-only');
