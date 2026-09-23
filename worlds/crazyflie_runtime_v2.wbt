@@ -18,7 +18,21 @@ Viewpoint {
 }
 TexturedBackground { }
 TexturedBackgroundLight { }
-Floor { size 5 5 }
+Floor { size 4 4 }
+
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_BEGIN
+DEF ACTIVITY5_FLOOR_EXTENSION Solid {
+  translation 1.25 2.25 -0.025
+  name "Activity 5 warehouse floor extension"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }
+      geometry Box { size 1.5 0.5 0.05 }
+    }
+  ]
+  boundingObject Box { size 1.5 0.5 0.05 }
+}
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_END
 
 # WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN
 Pose {
