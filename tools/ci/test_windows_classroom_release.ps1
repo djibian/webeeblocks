@@ -181,6 +181,15 @@ $fakeProgramFiles = Join-Path $launcherHarness 'Program Files'
 $fakeChrome = Join-Path $fakeProgramFiles 'Google\Chrome\Application\chrome.exe'
 New-Item -ItemType Directory -Path (Split-Path $fakeChrome -Parent) -Force | Out-Null
 Set-Content -LiteralPath $fakeChrome -Value '' -Encoding Ascii
+$launcherProbeCmd = Join-Path $launcherHarness 'Run-Launch-WebeeBlocks-Probe.cmd'
+$fakeProgramFilesForCmd = $fakeProgramFiles.Replace('%', '%%')
+Set-Content -LiteralPath $launcherProbeCmd -Value @"
+@echo off
+setlocal EnableExtensions DisableDelayedExpansion
+set "ProgramFiles=$fakeProgramFilesForCmd"
+call "%~dp0Launch-WebeeBlocks.cmd" <nul
+exit /b %errorlevel%
+"@ -Encoding Ascii
 
 $registryKey = 'HKCU\Software\Cyberbotics\Webots-R2025a\RobotWindow'
 $registryProviderKey = 'Registry::HKEY_CURRENT_USER\Software\Cyberbotics\Webots-R2025a\RobotWindow'
@@ -193,10 +202,8 @@ if ($registryExisted) {
 }
 
 $oldLocalAppData = $env:LOCALAPPDATA
-$oldProgramFiles = $env:ProgramFiles
 try {
   $env:LOCALAPPDATA = Join-Path $launcherHarness 'Local AppData'
-  $env:ProgramFiles = $fakeProgramFiles
   New-Item -ItemType Directory -Path $env:LOCALAPPDATA -Force | Out-Null
 
   & reg.exe add $registryKey /v browser /t REG_SZ /d 'sentinel-browser.exe' /f *> $null
@@ -206,7 +213,7 @@ try {
 
   Push-Location $launcherHarness
   try {
-    & $env:ComSpec /d /c 'Launch-WebeeBlocks.cmd <nul'
+    & $env:ComSpec /d /c 'Run-Launch-WebeeBlocks-Probe.cmd'
     $launcherCmdExit = $LASTEXITCODE
   }
   finally {
@@ -231,7 +238,6 @@ try {
 }
 finally {
   $env:LOCALAPPDATA = $oldLocalAppData
-  $env:ProgramFiles = $oldProgramFiles
   & reg.exe delete $registryKey /f *> $null
   if ($registryExisted -and (Test-Path -LiteralPath $registryBackup -PathType Leaf)) {
     & reg.exe import $registryBackup *> $null
