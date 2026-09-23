@@ -29,11 +29,9 @@ assert(profile.runtime.allowedStatementKinds.includes('repeat'), 'repeat stateme
 const world = fs.readFileSync(path.join(root, 'worlds/crazyflie_runtime_v2.wbt'), 'utf8');
 for (const marker of [
   'WEBEEBLOCKS_REPEAT_MISSION_V1_BEGIN',
+  'WEBEEBLOCKS_REPEAT_MISSION_V1_END',
   'WEBEEBLOCKS_REPEAT_EVALUATOR_V1_BEGIN',
-  'Progression repeat beacon 1',
-  'Progression repeat beacon 2',
-  'Progression repeat beacon 3',
-  'Progression repeat arrival',
+  'WEBEEBLOCKS_REPEAT_EVALUATOR_V1_END',
   '"repeat-evaluator-v1"',
 ]) assert(world.includes(marker), 'missing world marker: ' + marker);
 for (const coordinate of ['translation 0.20 0.60', 'translation 0.40 1.20', 'translation 0.60 1.80', 'translation 0.80 1.80'])
