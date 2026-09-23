@@ -10,7 +10,7 @@
 #define REPEAT_LANDED_DELTA 0.07
 #define REPEAT_MAX_LANDING_SPEED 0.12
 #define REPEAT_SETTLE_TIMEOUT 1.5
-#define REPEAT_ZONE_TOLERANCE 0.09
+#define REPEAT_ZONE_TOLERANCE 0.07
 #define REPEAT_ARRIVAL_X 0.80
 #define REPEAT_ARRIVAL_Y 1.80
 #define REPEAT_ARRIVAL_TOLERANCE 0.10
@@ -158,6 +158,11 @@ int webeeblocks_progression_repeat_evaluator_main(void) {
     WbContactPoint *contacts = wb_supervisor_node_get_contact_points(crazyflie, true, &contact_count);
     for (int index = 0; index < contact_count; ++index) {
       if (repeat_contact_is_first_obstacle(contacts[index].point)) {
+        if (!collision_seen) {
+          printf("WEBEEBLOCKS_REPEAT_COLLISION attempt=%llu x=%.6f y=%.6f z=%.6f\n",
+                 active_attempt, contacts[index].point[0], contacts[index].point[1], contacts[index].point[2]);
+          fflush(stdout);
+        }
         collision_seen = 1;
         break;
       }
@@ -172,6 +177,9 @@ int webeeblocks_progression_repeat_evaluator_main(void) {
           fflush(stdout);
         } else if (zone > next_beacon) {
           order_failed = 1;
+          printf("WEBEEBLOCKS_REPEAT_ORDER_FAILURE attempt=%llu expected=%d observed=%d\n",
+                 active_attempt, next_beacon + 1, zone + 1);
+          fflush(stdout);
         }
       }
     }
