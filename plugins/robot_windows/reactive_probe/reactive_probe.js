@@ -122,6 +122,21 @@ function unrolledFreshProgram() {
   return {version:1, semantics:'webeeblocks-ast-v1', program:program};
 }
 
+function rowBypassProgram() {
+  return {
+    version:1, semantics:'webeeblocks-ast-v1',
+    program:[
+      {kind:'takeoff', height_m:0.5},
+      {kind:'move', direction:'left', distance_m:1.2},
+      {kind:'move', direction:'left', distance_m:0.1},
+      {kind:'move', direction:'forward', distance_m:1.2},
+      {kind:'move', direction:'forward', distance_m:0.6},
+      {kind:'move', direction:'left', distance_m:0.6},
+      {kind:'land'}
+    ]
+  };
+}
+
 async function executeCase(backend, evaluation, program, expected, eventName, allowRuntimeFailure) {
   let runtimeError = null;
   try {
@@ -178,6 +193,9 @@ window.addEventListener('unhandledrejection', function(event) {
     const unrolledB = await executeCase(backend, evaluation, unrolledFreshProgram(), 'achieved', 'REACTIVE_UNROLLED_BOB_ACHIEVED', false);
 
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_UNROLLED_BOB_RESET_FRESH');
+    const bypass = await executeCase(backend, evaluation, rowBypassProgram(), 'not-achieved', 'REACTIVE_BYPASS_NOT_ACHIEVED', false);
+
+    await resetAndProveFresh(backend, evaluation, 'REACTIVE_BYPASS_RESET_FRESH');
     await report('REACTIVE_MISSION_TEST_COMPLETE', {
       repeated_bob:repeatedA.status,
       repeated_obo:repeatedB.status,
@@ -185,7 +203,8 @@ window.addEventListener('unhandledrejection', function(event) {
       fixed_forward:fixedForward.status,
       fixed_left:fixedLeft.status,
       unrolled_obo:unrolledA.status,
-      unrolled_bob:unrolledB.status
+      unrolled_bob:unrolledB.status,
+      bypass:bypass.status
     });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
