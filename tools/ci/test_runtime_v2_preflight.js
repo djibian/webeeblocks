@@ -124,7 +124,6 @@ async function proveUnavailableBackendCapabilityIsStudentCorrectable() {
   assert.strictEqual(backendActions, 2, 'corrected program did not execute normally');
 }
 
-
 function proveProgressionStarterFiles() {
   const expected = [
     ['01-sequence.wbb', 'progression-sequence-v1'],
@@ -205,9 +204,12 @@ function proveProgressionProfilesAndFieldOptions() {
     'reactive profile must preserve the simple-decision numeric domain');
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
   assert.deepStrictEqual(p3.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front']);
-  assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left']);
+  assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left','right']);
   assert.deepStrictEqual(p4.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','left','right']);
   assert.deepStrictEqual(p4.runtime.rangeDirections, ['front','left','right']);
+  assert.deepStrictEqual(p4.runtime.moveDirections, ['forward','left','right']);
+  assert.deepStrictEqual(p5.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left','right']);
+  assert.deepStrictEqual(p5.runtime.moveDirections, ['forward','left','right']);
   assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','back','left','right']);
   assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
   assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','back','left','right']);
@@ -304,6 +306,10 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left']);
   const flyoutRange = flyoutWorkspace.newBlock('webeeblocks_v2_range');
   assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front']);
+
+  controller.setProfile(p4, flyoutWorkspace);
+  assert.deepStrictEqual(flyoutMove.getField('DIRECTION').getOptions(false).map(option => option[1]), ['forward','left','right']);
+  assert.deepStrictEqual(flyoutRange.getField('DIRECTION').getOptions(false).map(option => option[1]), ['front','left','right']);
 
   controller.setProfile(p5, flyoutWorkspace);
   const flyoutArithmetic = flyoutWorkspace.newBlock('math_arithmetic');

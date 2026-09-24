@@ -301,6 +301,74 @@ DEF ACTIVITY5_BARRIER_3 Solid {
 }
 # WEBEEBLOCKS_REACTIVE_MISSION_V1_END
 
+# WEBEEBLOCKS_COMBINED_DECISIONS_MISSION_V1_BEGIN
+Pose {
+  translation 1.40 -0.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.22 0.48 0.88 transparency 0.24 roughness 0.9 }
+      geometry Box { size 0.20 0.20 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_BEGIN
+Pose {
+  translation 1.70 -0.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.40 -0.30 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.40 -0.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_END
+Pose {
+  translation 1.80 -0.30 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY6_FRONT_BARRIER Solid {
+  translation 1.65 -0.60 0.55
+  name "Activity 6 front passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY6_LEFT_BARRIER Solid {
+  translation 1.40 -0.35 0.55
+  name "Activity 6 left passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY6_RIGHT_BARRIER Solid {
+  translation 1.40 -0.85 0.55
+  name "Activity 6 right passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_MISSION_V1_END
+
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
   children [
@@ -498,3 +566,14 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression combined decisions evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "combined-decisions-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_END

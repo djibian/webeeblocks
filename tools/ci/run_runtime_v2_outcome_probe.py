@@ -14,6 +14,7 @@ def proofs_for_job(job: str) -> tuple[str, ...]:
         "tools/ci/run_progression_repeat_mission.py",
         "tools/ci/run_progression_simple_decision_mission.py",
         "tools/ci/run_progression_reactive_mission.py",
+        "tools/ci/run_progression_combined_decisions_mission.py",
     )
     # The canonical Runtime suite already runs this full outcome/progression
     # probe in the sibling runtime-v2-core job on the same exact target SHA.
@@ -35,7 +36,7 @@ def main() -> int:
     if len(proofs) == 1:
         print("PASS real-Webots activity outcome foundation; progression missions are proved by runtime-v2-core on the same exact CI target")
     else:
-        print("PASS real-Webots activity outcome foundation and executable progression missions 1-5")
+        print("PASS real-Webots activity outcome foundation and executable progression missions 1-6")
     return 0
 
 
