@@ -147,10 +147,10 @@ exit "$runner_rc"
             "MEMORY_OVERWRITE_PROBE_READY",
             "MEMORY_OVERWRITE_LARGE_FRESH",
             "MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED",
+            "MEMORY_LATERAL_REREAD_SMALL_FRESH",
+            "MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED",
             "MEMORY_COLLISION_FRESH",
             "MEMORY_COLLISION_NOT_ACHIEVED",
-            "MEMORY_LATERAL_REREAD_LARGE_FRESH",
-            "MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED",
             "MEMORY_FINAL_BAY_FRESH",
             "MEMORY_FINAL_BAY_NOT_ACHIEVED",
             "MEMORY_OVERWRITE_TEST_COMPLETE",
@@ -164,16 +164,16 @@ exit "$runner_rc"
             return fail(f"negative probe did not become ready: {details['MEMORY_OVERWRITE_PROBE_READY']}")
         for fresh in (
             "MEMORY_OVERWRITE_LARGE_FRESH",
+            "MEMORY_LATERAL_REREAD_SMALL_FRESH",
             "MEMORY_COLLISION_FRESH",
-            "MEMORY_LATERAL_REREAD_LARGE_FRESH",
             "MEMORY_FINAL_BAY_FRESH",
         ):
             if details[fresh] != {"code":"OUTCOME_UNAVAILABLE"}:
                 return fail(f"{fresh} did not start from a fresh outcome: {details[fresh]}")
         for negative in (
             "MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED",
+            "MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED",
             "MEMORY_COLLISION_NOT_ACHIEVED",
-            "MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED",
         ):
             if details[negative] not in (
                 {"status":"not-achieved"},
@@ -185,7 +185,7 @@ exit "$runner_rc"
         if details["MEMORY_OVERWRITE_TEST_COMPLETE"] != {
             "overwritten_large":"not-achieved",
             "collision":"not-achieved",
-            "lateral_reread_large":"not-achieved",
+            "lateral_reread_small":"not-achieved",
             "wrong_final_bay":"not-achieved",
         }:
             return fail(f"unexpected Activity 7 negative summary: {details['MEMORY_OVERWRITE_TEST_COMPLETE']}")
@@ -196,11 +196,11 @@ exit "$runner_rc"
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=1 route=right valid=1",
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=2 route=right valid=0",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=2 status=not-achieved",
-            "WEBEEBLOCKS_MEMORY_COLLISION attempt=3",
+            "WEBEEBLOCKS_MEMORY_CONFIG attempt=3 pattern=small-far",
+            "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=3",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=right valid=0",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=3 status=not-achieved",
-            "WEBEEBLOCKS_MEMORY_CONFIG attempt=4 pattern=large-near",
-            "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=4",
-            "WEBEEBLOCKS_MEMORY_ROUTE attempt=4 index=1 route=left valid=0",
+            "WEBEEBLOCKS_MEMORY_COLLISION attempt=4",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=4 status=not-achieved",
             "WEBEEBLOCKS_MEMORY_CONFIG attempt=5 pattern=small-far",
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1",
@@ -219,7 +219,7 @@ exit "$runner_rc"
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 7 negative boundaries: replacing stored memory before decision two, a physical collision, a later lateral reacquisition attempt, and landing outside the final bay each produce observable not-achieved outcomes in real R2025a")
+        print("PASS Activity 7 negative boundaries: replacing stored memory before decision two, a lateral old-bypass reacquisition strategy, a physical collision, and landing outside the final bay each produce observable not-achieved outcomes in real R2025a")
         return 0
     finally:
         cleanup()
