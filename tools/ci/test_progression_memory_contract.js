@@ -72,18 +72,22 @@ assert.match(negativeProbe, /overwrittenBeforeSecondDecisionProgram/);
 assert.match(negativeProbe, /collisionProgram/);
 assert.match(negativeProbe, /lateralRereadProgram/);
 assert.match(negativeProbe,
-  /function lateralRereadProgram\(\)[\s\S]*?direction:'left', distance_m:0\.2[\s\S]*?direction:'forward', distance_m:0\.65[\s\S]*?kind:'set_variable', variable:parcelVariable, value:rangeFront\(\)[\s\S]*?direction:'right', distance_m:0\.2[\s\S]*?firstSort\(smallFromStored\(\)\)[\s\S]*?secondSort\(smallFromStored\(\)\)/,
-  'lateral reacquisition proof must read and store the late range while still off-center, before returning to the decision centerline');
+  /function smallFromLateReacquisition\(\)[\s\S]*?op:'LT'[\s\S]*?left:variableValue\(\)[\s\S]*?right:number\(1\.0\)/,
+  'lateral reacquisition counterexample must exploit the old downstream visible-panel relation rather than reuse the departure predicate');
+assert.match(negativeProbe,
+  /function lateralRereadProgram\(\)[\s\S]*?direction:'left', distance_m:0\.2[\s\S]*?direction:'forward', distance_m:0\.65[\s\S]*?kind:'set_variable', variable:parcelVariable, value:rangeFront\(\)[\s\S]*?direction:'right', distance_m:0\.2[\s\S]*?firstSort\(smallFromLateReacquisition\(\)\)[\s\S]*?secondSort\(smallFromLateReacquisition\(\)\)/,
+  'lateral reacquisition proof must read while off-center and classify the late value using the relation exposed by the old bypass');
 assert.match(negativeProbe, /wrongFinalBayProgram/);
 assert.match(negativeProbe, /MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_COLLISION_NOT_ACHIEVED/);
-assert.match(negativeProbe, /MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED/);
+assert.match(negativeProbe, /MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_FINAL_BAY_NOT_ACHIEVED/);
 
 const negativeRunner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_memory_overwrite.py'), 'utf8');
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_COLLISION attempt=3/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=4/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=4 index=1 route=left valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_CONFIG attempt=3 pattern=small-far/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=3/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=right valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_COLLISION attempt=4/);
 assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1/);
 assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=2 route=right valid=1/);
 assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_TIMEOUT attempt=5/);
@@ -92,4 +96,4 @@ assert.match(negativeRunner, /landed=1/);
 assert.match(negativeRunner, /stationary=1/);
 assert.match(negativeRunner, /arrival=0/);
 
-console.log('PASS Activity 7 contract: departure causally removes the parcel reference even after lateral movement, two later decisions reuse the generic memory surface, and collision/final-bay negative behavior is causally proved without solution-shape inspection');
+console.log('PASS Activity 7 contract: departure causally removes the parcel reference, the lateral counterexample would exploit the superseded visible-panel bypass but now fails, and collision/final-bay negative behavior is causally proved without solution-shape inspection');
