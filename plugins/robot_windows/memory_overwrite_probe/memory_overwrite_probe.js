@@ -52,8 +52,8 @@ function variableValue() { return {kind:'variable_get', variable:parcelVariable}
 function smallFromStored() {
   return {kind:'compare', op:'GT', left:variableValue(), right:number(1.0)};
 }
-function smallFromFreshRange() {
-  return {kind:'compare', op:'GT', left:rangeFront(), right:number(1.0)};
+function smallFromLateReacquisition() {
+  return {kind:'compare', op:'LT', left:variableValue(), right:number(1.0)};
 }
 function approachAndMeasure() {
   return [
@@ -132,9 +132,9 @@ function lateralRereadProgram() {
       {kind:'move', direction:'forward', distance_m:0.65},
       {kind:'set_variable', variable:parcelVariable, value:rangeFront()},
       {kind:'move', direction:'right', distance_m:0.2},
-      firstSort(smallFromStored()),
+      firstSort(smallFromLateReacquisition()),
       {kind:'move', direction:'forward', distance_m:0.25},
-      secondSort(smallFromStored()),
+      secondSort(smallFromLateReacquisition()),
       {kind:'move', direction:'forward', distance_m:0.15},
       {kind:'land'}
     ]
@@ -195,13 +195,13 @@ window.addEventListener('unhandledrejection', function(event) {
     const overwritten = await executeNegativeCase(
       backend, evaluation, overwrittenBeforeSecondDecisionProgram(), 'MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED');
 
+    await resetAndProveFresh(backend, evaluation, 'MEMORY_LATERAL_REREAD_SMALL_FRESH');
+    const lateralReread = await executeNegativeCase(
+      backend, evaluation, lateralRereadProgram(), 'MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED');
+
     await resetAndProveFresh(backend, evaluation, 'MEMORY_COLLISION_FRESH');
     const collision = await executeNegativeCase(
       backend, evaluation, collisionProgram(), 'MEMORY_COLLISION_NOT_ACHIEVED');
-
-    await resetAndProveFresh(backend, evaluation, 'MEMORY_LATERAL_REREAD_LARGE_FRESH');
-    const lateralReread = await executeNegativeCase(
-      backend, evaluation, lateralRereadProgram(), 'MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED');
 
     await resetAndProveFresh(backend, evaluation, 'MEMORY_FINAL_BAY_FRESH');
     const finalBay = await executeNegativeCase(
@@ -210,7 +210,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await report('MEMORY_OVERWRITE_TEST_COMPLETE', {
       overwritten_large:overwritten.status,
       collision:collision.status,
-      lateral_reread_large:lateralReread.status,
+      lateral_reread_small:lateralReread.status,
       wrong_final_bay:finalBay.status
     });
   } catch (error) {
