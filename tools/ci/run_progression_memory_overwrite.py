@@ -24,7 +24,7 @@ def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subpr
 
 
 def fail(message: str, detail: str | None = None) -> int:
-    print(f"FAIL overwritten-memory evidence: {message}", file=sys.stderr)
+    print(f"FAIL Activity 7 negative evidence: {message}", file=sys.stderr)
     if detail:
         print(detail, file=sys.stderr)
     return 1
@@ -47,7 +47,7 @@ def main() -> int:
 
     checked = run(["node", "--check", "plugins/robot_windows/memory_overwrite_probe/memory_overwrite_probe.js"], capture=True)
     if checked.returncode:
-        return fail("overwrite probe syntax failed", checked.stdout)
+        return fail("negative probe syntax failed", checked.stdout)
 
     source_world = (ROOT / "worlds" / "crazyflie_runtime_v2.wbt").read_text(encoding="utf-8")
     if source_world.count('window "blockly_v2"') != 1:
@@ -98,7 +98,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 240s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_memory_overwrite.wbt &
+timeout -k 5s 420s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_memory_overwrite.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
   if grep -Fq 'MEMORY_OVERWRITE_TEST_COMPLETE' "$events" 2>/dev/null; then
@@ -128,43 +128,67 @@ exit "$runner_rc"
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
         if result.returncode == 124:
-            return fail("Webots overwritten-memory proof exceeded the 240s budget", webots_log[-16000:])
+            return fail("Webots Activity 7 negative proof exceeded the 420s budget", webots_log[-16000:])
         if result.returncode != 0:
-            return fail(f"Webots overwritten-memory proof exited with {result.returncode}", webots_log[-16000:])
+            return fail(f"Webots Activity 7 negative proof exited with {result.returncode}", webots_log[-16000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
-            return fail("missing overwritten-memory browser evidence", webots_log[-16000:])
+            return fail("missing Activity 7 negative browser evidence", webots_log[-16000:])
         try:
             events = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines() if line.strip()]
         except Exception as exc:
-            return fail(f"invalid overwritten-memory browser evidence: {exc}")
+            return fail(f"invalid Activity 7 negative browser evidence: {exc}")
         errors = [event for event in events if event.get("event") in ("ERROR", "WINDOW_ERROR", "UNHANDLED_REJECTION")]
         if errors:
-            return fail("overwritten-memory browser probe reported an error", json.dumps(errors[0], ensure_ascii=False) + "\n" + webots_log[-16000:])
+            return fail("Activity 7 negative browser probe reported an error", json.dumps(errors[0], ensure_ascii=False) + "\n" + webots_log[-16000:])
 
         required = (
             "MEMORY_OVERWRITE_PROBE_READY",
             "MEMORY_OVERWRITE_LARGE_FRESH",
             "MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED",
+            "MEMORY_COLLISION_FRESH",
+            "MEMORY_COLLISION_NOT_ACHIEVED",
+            "MEMORY_LATERAL_REREAD_LARGE_FRESH",
+            "MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED",
+            "MEMORY_FINAL_BAY_FRESH",
+            "MEMORY_FINAL_BAY_NOT_ACHIEVED",
             "MEMORY_OVERWRITE_TEST_COMPLETE",
         )
         names = [event.get("event") for event in events]
         missing = [name for name in required if name not in names]
         if missing:
-            return fail(f"missing overwritten-memory events: {missing}", json.dumps(names))
+            return fail(f"missing Activity 7 negative events: {missing}", json.dumps(names))
         details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
         if details["MEMORY_OVERWRITE_PROBE_READY"] != {"ready": True}:
-            return fail(f"overwrite probe did not become ready: {details['MEMORY_OVERWRITE_PROBE_READY']}")
-        if details["MEMORY_OVERWRITE_LARGE_FRESH"] != {"code":"OUTCOME_UNAVAILABLE"}:
-            return fail(f"overwrite proof did not start from a fresh outcome: {details['MEMORY_OVERWRITE_LARGE_FRESH']}")
-        if details["MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED"] not in (
-            {"status":"not-achieved"},
-            {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"},
+            return fail(f"negative probe did not become ready: {details['MEMORY_OVERWRITE_PROBE_READY']}")
+        for fresh in (
+            "MEMORY_OVERWRITE_LARGE_FRESH",
+            "MEMORY_COLLISION_FRESH",
+            "MEMORY_LATERAL_REREAD_LARGE_FRESH",
+            "MEMORY_FINAL_BAY_FRESH",
         ):
-            return fail(f"overwriting the remembered value did not refute the large mission: {details['MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED']}")
-        if details["MEMORY_OVERWRITE_TEST_COMPLETE"] != {"overwritten_large":"not-achieved"}:
-            return fail(f"unexpected overwritten-memory summary: {details['MEMORY_OVERWRITE_TEST_COMPLETE']}")
+            if details[fresh] != {"code":"OUTCOME_UNAVAILABLE"}:
+                return fail(f"{fresh} did not start from a fresh outcome: {details[fresh]}")
+        for negative in (
+            "MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED",
+            "MEMORY_COLLISION_NOT_ACHIEVED",
+            "MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED",
+        ):
+            if details[negative] not in (
+                {"status":"not-achieved"},
+                {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"},
+            ):
+                return fail(f"unexpected negative result for {negative}: {details[negative]}")
+        if details["MEMORY_FINAL_BAY_NOT_ACHIEVED"] != {"status":"not-achieved"}:
+            return fail(f"wrong final bay did not remain an ordinary completed mission failure: {details['MEMORY_FINAL_BAY_NOT_ACHIEVED']}")
+        if details["MEMORY_OVERWRITE_TEST_COMPLETE"] != {
+            "overwritten_large":"not-achieved",
+            "collision":"not-achieved",
+            "lateral_reread_large":"not-achieved",
+            "wrong_final_bay":"not-achieved",
+        }:
+            return fail(f"unexpected Activity 7 negative summary: {details['MEMORY_OVERWRITE_TEST_COMPLETE']}")
 
         for marker in (
             "WEBEEBLOCKS_MEMORY_CONFIG attempt=2 pattern=large-near",
@@ -172,13 +196,30 @@ exit "$runner_rc"
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=1 route=right valid=1",
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=2 route=right valid=0",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=2 status=not-achieved",
+            "WEBEEBLOCKS_MEMORY_COLLISION attempt=3",
+            "WEBEEBLOCKS_MEMORY_RESULT attempt=3 status=not-achieved",
+            "WEBEEBLOCKS_MEMORY_CONFIG attempt=4 pattern=large-near",
+            "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=4",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=4 index=1 route=left valid=0",
+            "WEBEEBLOCKS_MEMORY_RESULT attempt=4 status=not-achieved",
+            "WEBEEBLOCKS_MEMORY_CONFIG attempt=5 pattern=small-far",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=2 route=right valid=1",
+            "WEBEEBLOCKS_MEMORY_RESULT attempt=5 status=not-achieved",
         ):
             if marker not in webots_log:
-                return fail(f"missing overwritten-memory Webots marker: {marker}", webots_log[-16000:])
+                return fail(f"missing Activity 7 negative Webots marker: {marker}", webots_log[-16000:])
+        final_timeout = next(
+            (line for line in webots_log.splitlines() if "WEBEEBLOCKS_MEMORY_TIMEOUT attempt=5" in line), "")
+        if not final_timeout:
+            return fail("wrong-final-bay proof did not settle through the completion path", webots_log[-16000:])
+        for token in ("collision=0", "landed=1", "stationary=1", "arrival=0"):
+            if token not in final_timeout:
+                return fail(f"wrong-final-bay proof is missing {token}", final_timeout)
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 7 memory persistence: after a correct first large-parcel decision, overwriting the departure measurement before the second sorting decision produces the wrong second route and observable not-achieved outcome in real R2025a")
+        print("PASS Activity 7 negative boundaries: replacing stored memory before decision two, a physical collision, a later lateral reacquisition attempt, and landing outside the final bay each produce observable not-achieved outcomes in real R2025a")
         return 0
     finally:
         cleanup()

@@ -42,9 +42,16 @@ assert.match(evaluator, /ACTIVITY7_SECOND_LARGE_ROUTE/);
 assert.match(evaluator, /ACTIVITY7_ARRIVAL_PAD/);
 assert.match(evaluator, /wb_supervisor_field_import_mf_node_from_string/);
 assert.match(evaluator, /MEMORY_PANEL_HIDDEN_Z/);
+assert.match(evaluator, /memory_station_seen && !memory_panel_hidden &&\s*position\[0\] >= MEMORY_PANEL_HIDE_X\)/,
+  'reference disappearance must depend on leaving the loading area, not staying on its centerline');
+assert.doesNotMatch(evaluator,
+  /position\[0\] >= MEMORY_PANEL_HIDE_X\s*&&\s*fabs\(position\[1\] - MEMORY_STATION_Y\)/,
+  'lateral movement must not bypass reference disappearance');
 assert.match(evaluator, /memory_first_valid_route_seen/);
 assert.match(evaluator, /memory_second_valid_route_seen/);
+assert.match(evaluator, /memory_collision_seen/);
 assert.match(evaluator, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE/);
+assert.match(evaluator, /WEBEEBLOCKS_MEMORY_COLLISION/);
 assert.match(evaluator, /WEBEEBLOCKS_ACTIVITY_OUTCOME_V1/);
 assert.doesNotMatch(evaluator, /Blockly|workspace|allowedStatementKinds|webeeblocks_v2_/,
   'Activity 7 mission oracle must observe world behavior, never student solution shape');
@@ -59,4 +66,27 @@ assert.match(probe, /MEMORY_REREAD_LARGE_NOT_ACHIEVED/);
 assert.match(probe, /MEMORY_ALT_SMALL_ACHIEVED/);
 assert.match(probe, /MEMORY_ALT_LARGE_ACHIEVED/);
 
-console.log('PASS Activity 7 contract: the student gets a complete parcel-gauge mission whose reference disappears before two observable sorting choices, while the oracle remains behavior-only and the generic variable surface stays cumulative');
+const negativeProbe = fs.readFileSync(
+  path.join(ROOT, 'plugins/robot_windows/memory_overwrite_probe/memory_overwrite_probe.js'), 'utf8');
+assert.match(negativeProbe, /overwrittenBeforeSecondDecisionProgram/);
+assert.match(negativeProbe, /collisionProgram/);
+assert.match(negativeProbe, /lateralRereadProgram/);
+assert.match(negativeProbe, /wrongFinalBayProgram/);
+assert.match(negativeProbe, /MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED/);
+assert.match(negativeProbe, /MEMORY_COLLISION_NOT_ACHIEVED/);
+assert.match(negativeProbe, /MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED/);
+assert.match(negativeProbe, /MEMORY_FINAL_BAY_NOT_ACHIEVED/);
+
+const negativeRunner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_memory_overwrite.py'), 'utf8');
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_COLLISION attempt=3/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=4/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=4 index=1 route=left valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=2 route=right valid=1/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_TIMEOUT attempt=5/);
+assert.match(negativeRunner, /collision=0/);
+assert.match(negativeRunner, /landed=1/);
+assert.match(negativeRunner, /stationary=1/);
+assert.match(negativeRunner, /arrival=0/);
+
+console.log('PASS Activity 7 contract: departure causally removes the parcel reference even after lateral movement, two later decisions reuse the generic memory surface, and collision/final-bay negative behavior is causally proved without solution-shape inspection');

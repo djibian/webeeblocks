@@ -49,6 +49,7 @@
 #define MEMORY_LANDED_DELTA 0.07
 #define MEMORY_MAX_LANDING_SPEED 0.12
 #define MEMORY_SETTLE_TIMEOUT 1.5
+#define MEMORY_COLLISION_HEIGHT_DELTA 0.08
 #define CONTACT_TOLERANCE 0.004
 
 enum CombinedRoute {
@@ -267,6 +268,7 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
   int memory_second_decision_seen = 0;
   int memory_second_valid_route_seen = 0;
   int memory_wrong_route_seen = 0;
+  int memory_collision_seen = 0;
   int memory_completion_seen = 0;
   double memory_completion_time = 0.0;
   int memory_reported = 0;
@@ -325,6 +327,7 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
       memory_second_decision_seen = 0;
       memory_second_valid_route_seen = 0;
       memory_wrong_route_seen = 0;
+      memory_collision_seen = 0;
       memory_completion_seen = 0;
       memory_completion_time = 0.0;
       memory_reported = 0;
@@ -450,6 +453,21 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
     if (!memory_reported) {
       if (position[2] >= origin_z + COMBINED_AIRBORNE_DELTA)
         memory_airborne_seen = 1;
+
+      int memory_contact_count = 0;
+      WbContactPoint *memory_contacts = wb_supervisor_node_get_contact_points(crazyflie, true, &memory_contact_count);
+      for (int index = 0; index < memory_contact_count && !memory_collision_seen; ++index) {
+        if (memory_contacts[index].point[2] > origin_z + MEMORY_COLLISION_HEIGHT_DELTA) {
+          memory_collision_seen = 1;
+          printf("WEBEEBLOCKS_MEMORY_COLLISION attempt=%llu x=%.6f y=%.6f z=%.6f\n",
+                 active_attempt,
+                 memory_contacts[index].point[0],
+                 memory_contacts[index].point[1],
+                 memory_contacts[index].point[2]);
+          fflush(stdout);
+        }
+      }
+
       if (memory_airborne_seen && !memory_station_seen &&
           near_xy(position, MEMORY_STATION_X, MEMORY_STATION_Y, MEMORY_STATION_TOLERANCE)) {
         memory_station_seen = 1;
@@ -457,8 +475,7 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
         fflush(stdout);
       }
       if (memory_station_seen && !memory_panel_hidden &&
-          position[0] >= MEMORY_PANEL_HIDE_X &&
-          fabs(position[1] - MEMORY_STATION_Y) <= MEMORY_STATION_TOLERANCE) {
+          position[0] >= MEMORY_PANEL_HIDE_X) {
         memory_panel_position[2] = MEMORY_PANEL_HIDDEN_Z;
         wb_supervisor_field_set_sf_vec3f(memory_panel_translation, memory_panel_position);
         memory_panel_hidden = 1;
@@ -516,7 +533,8 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
 
       unsigned long long memory_failure_attempt = 0;
       if (parse_oracle_message(data, "FAILURE_PROBE", MEMORY_ORACLE, &memory_failure_attempt) &&
-          memory_failure_attempt == active_attempt && memory_wrong_route_seen) {
+          memory_failure_attempt == active_attempt &&
+          (memory_collision_seen || memory_wrong_route_seen)) {
         publish_outcome(custom_data, active_attempt, MEMORY_ORACLE, "not-achieved",
                         "WEBEEBLOCKS_MEMORY_RESULT");
         memory_reported = 1;
@@ -530,7 +548,7 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
       }
 
       if (!memory_reported && memory_completion_seen) {
-        if (memory_wrong_route_seen) {
+        if (memory_collision_seen || memory_wrong_route_seen) {
           publish_outcome(custom_data, active_attempt, MEMORY_ORACLE, "not-achieved",
                           "WEBEEBLOCKS_MEMORY_RESULT");
           memory_reported = 1;
@@ -545,16 +563,16 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
           const int achieved = memory_airborne_seen && memory_station_seen && memory_panel_hidden &&
                                memory_first_decision_seen && memory_first_valid_route_seen &&
                                memory_second_decision_seen && memory_second_valid_route_seen &&
-                               landed && stationary && in_arrival;
+                               !memory_collision_seen && landed && stationary && in_arrival;
           if (achieved) {
             publish_outcome(custom_data, active_attempt, MEMORY_ORACLE, "achieved",
                             "WEBEEBLOCKS_MEMORY_RESULT");
             memory_reported = 1;
           } else if (wb_robot_get_time() - memory_completion_time >= MEMORY_SETTLE_TIMEOUT) {
-            printf("WEBEEBLOCKS_MEMORY_TIMEOUT attempt=%llu station=%d hidden=%d first=%d first_route=%d second=%d second_route=%d x=%.6f y=%.6f z=%.6f landed=%d stationary=%d arrival=%d\n",
+            printf("WEBEEBLOCKS_MEMORY_TIMEOUT attempt=%llu station=%d hidden=%d first=%d first_route=%d second=%d second_route=%d collision=%d x=%.6f y=%.6f z=%.6f landed=%d stationary=%d arrival=%d\n",
                    active_attempt, memory_station_seen, memory_panel_hidden,
                    memory_first_decision_seen, memory_first_valid_route_seen,
-                   memory_second_decision_seen, memory_second_valid_route_seen,
+                   memory_second_decision_seen, memory_second_valid_route_seen, memory_collision_seen,
                    position[0], position[1], position[2], landed, stationary, in_arrival);
             fflush(stdout);
             publish_outcome(custom_data, active_attempt, MEMORY_ORACLE, "not-achieved",

@@ -52,6 +52,9 @@ function variableValue() { return {kind:'variable_get', variable:parcelVariable}
 function smallFromStored() {
   return {kind:'compare', op:'GT', left:variableValue(), right:number(1.0)};
 }
+function smallFromFreshRange() {
+  return {kind:'compare', op:'GT', left:rangeFront(), right:number(1.0)};
+}
 function approachAndMeasure() {
   return [
     {kind:'takeoff', height_m:0.5},
@@ -105,11 +108,55 @@ function overwrittenBeforeSecondDecisionProgram() {
     ])
   };
 }
+function collisionProgram() {
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:[
+      {kind:'takeoff', height_m:0.5},
+      {kind:'move', direction:'right', distance_m:0.6},
+      {kind:'move', direction:'forward', distance_m:1.2},
+      {kind:'move', direction:'forward', distance_m:0.6}
+    ]
+  };
+}
+function lateralRereadProgram() {
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:[
+      {kind:'takeoff', height_m:0.5},
+      {kind:'move', direction:'right', distance_m:1.2},
+      {kind:'move', direction:'right', distance_m:0.3},
+      {kind:'move', direction:'left', distance_m:0.2},
+      {kind:'move', direction:'forward', distance_m:0.65},
+      {kind:'move', direction:'right', distance_m:0.2},
+      firstSort(smallFromFreshRange()),
+      {kind:'move', direction:'forward', distance_m:0.25},
+      secondSort(smallFromFreshRange()),
+      {kind:'move', direction:'forward', distance_m:0.15},
+      {kind:'land'}
+    ]
+  };
+}
+function wrongFinalBayProgram() {
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:approachAndMeasure().concat([
+      firstSort(smallFromStored()),
+      {kind:'move', direction:'forward', distance_m:0.25},
+      secondSort(smallFromStored()),
+      {kind:'move', direction:'right', distance_m:0.25},
+      {kind:'land'}
+    ])
+  };
+}
 
-async function executeCase(backend, evaluation) {
+async function executeNegativeCase(backend, evaluation, program, eventName) {
   let runtimeError = null;
   try {
-    await WebeeBlocksInterpreter.run(overwrittenBeforeSecondDecisionProgram(), backend);
+    await WebeeBlocksInterpreter.run(program, backend);
   } catch (error) {
     runtimeError = error;
   }
@@ -121,7 +168,7 @@ async function executeCase(backend, evaluation) {
     await backend.completeActivityMission(evaluation);
   }
   const outcome = await waitForOutcome(backend, evaluation, 'not-achieved', 10000);
-  await report('MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED',
+  await report(eventName,
     runtimeError ? {status:outcome.status, runtime_code:runtimeError.code} : outcome);
   return outcome;
 }
@@ -142,9 +189,29 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.waitUntilReady();
     const evaluation = {type:'mission-state-v1', oracle:'progression-memory-v1'};
     await report('MEMORY_OVERWRITE_PROBE_READY', {ready:backend.ready});
+
     await resetAndProveFresh(backend, evaluation, 'MEMORY_OVERWRITE_LARGE_FRESH');
-    const outcome = await executeCase(backend, evaluation);
-    await report('MEMORY_OVERWRITE_TEST_COMPLETE', {overwritten_large:outcome.status});
+    const overwritten = await executeNegativeCase(
+      backend, evaluation, overwrittenBeforeSecondDecisionProgram(), 'MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED');
+
+    await resetAndProveFresh(backend, evaluation, 'MEMORY_COLLISION_FRESH');
+    const collision = await executeNegativeCase(
+      backend, evaluation, collisionProgram(), 'MEMORY_COLLISION_NOT_ACHIEVED');
+
+    await resetAndProveFresh(backend, evaluation, 'MEMORY_LATERAL_REREAD_LARGE_FRESH');
+    const lateralReread = await executeNegativeCase(
+      backend, evaluation, lateralRereadProgram(), 'MEMORY_LATERAL_REREAD_LARGE_NOT_ACHIEVED');
+
+    await resetAndProveFresh(backend, evaluation, 'MEMORY_FINAL_BAY_FRESH');
+    const finalBay = await executeNegativeCase(
+      backend, evaluation, wrongFinalBayProgram(), 'MEMORY_FINAL_BAY_NOT_ACHIEVED');
+
+    await report('MEMORY_OVERWRITE_TEST_COMPLETE', {
+      overwritten_large:overwritten.status,
+      collision:collision.status,
+      lateral_reread_large:lateralReread.status,
+      wrong_final_bay:finalBay.status
+    });
   } catch (error) {
     await report('ERROR', {message:error && error.message ? error.message : String(error), code:error && error.code ? error.code : null});
   }
