@@ -117,13 +117,13 @@ static void reactive_configure_attempt(unsigned long long attempt,
     barrier_positions[row][0] = decision_x + REACTIVE_BARRIER_OFFSET_X;
     barrier_positions[row][1] = y;
     /*
-     * The Runtime world is shared by all progression activities and every
-     * mission evaluator sees the same attempt marker.  A row that is open must
-     * therefore remove its physical parcel from the navigable/sensed world,
-     * rather than parking it in another XY lane where an earlier activity could
-     * collide with it.  Blocked rows stay at the visible active-lane height.
+     * Only the parcel for the current decision row is allowed to participate
+     * in front-range sensing. Future parcels stay below the shared navigable
+     * world until the previous row checkpoint is crossed, so the exact
+     * student-profile integer threshold can distinguish the current row rather
+     * than seeing through an open row and reacting to a later blockage.
      */
-    barrier_positions[row][2] = blocked[row] ? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;
+    barrier_positions[row][2] = row == 0 && blocked[row] ? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;
     wb_supervisor_field_set_sf_vec3f(barrier_fields[row], barrier_positions[row]);
     if (blocked[row])
       y += REACTIVE_STEP_Y;
@@ -229,6 +229,12 @@ int webeeblocks_progression_reactive_evaluator_main(void) {
                       REACTIVE_CHECKPOINT_TOLERANCE)) {
       ++checkpoint_index;
       printf("WEBEEBLOCKS_REACTIVE_ROW attempt=%llu completed=%d\n", active_attempt, checkpoint_index);
+      if (checkpoint_index < REACTIVE_ROWS) {
+        barrier_positions[checkpoint_index][2] = blocked[checkpoint_index] ? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;
+        wb_supervisor_field_set_sf_vec3f(barrier_fields[checkpoint_index], barrier_positions[checkpoint_index]);
+        printf("WEBEEBLOCKS_REACTIVE_ROW_READY attempt=%llu row=%d blocked=%d\n",
+               active_attempt, checkpoint_index + 1, blocked[checkpoint_index]);
+      }
       fflush(stdout);
     }
 
