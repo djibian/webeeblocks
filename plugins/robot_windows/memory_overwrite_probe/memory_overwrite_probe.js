@@ -130,10 +130,11 @@ function lateralRereadProgram() {
       {kind:'move', direction:'right', distance_m:0.3},
       {kind:'move', direction:'left', distance_m:0.2},
       {kind:'move', direction:'forward', distance_m:0.65},
+      {kind:'set_variable', variable:parcelVariable, value:rangeFront()},
       {kind:'move', direction:'right', distance_m:0.2},
-      firstSort(smallFromFreshRange()),
+      firstSort(smallFromStored()),
       {kind:'move', direction:'forward', distance_m:0.25},
-      secondSort(smallFromFreshRange()),
+      secondSort(smallFromStored()),
       {kind:'move', direction:'forward', distance_m:0.15},
       {kind:'land'}
     ]
