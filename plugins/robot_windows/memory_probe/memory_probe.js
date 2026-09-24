@@ -66,6 +66,7 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
 }
 
 const parcelVariable = {id:'parcel-reference', name:'gabarit mémorisé'};
+const alternateParcelVariable = {id:'alternate-reference', name:'mesure de départ'};
 
 function number(value) {
   return {kind:'number', value:value};
@@ -75,28 +76,34 @@ function rangeFront() {
   return {kind:'range', direction:'front', unit:'m'};
 }
 
-function variableValue() {
-  return {kind:'variable_get', variable:parcelVariable};
+function variableValue(variable) {
+  return {kind:'variable_get', variable:variable || parcelVariable};
 }
 
-function smallFromStored(alternate) {
-  if (alternate)
-    return {kind:'compare', op:'LT', left:number(1.0), right:variableValue()};
-  return {kind:'compare', op:'GT', left:variableValue(), right:number(1.0)};
+function smallFromStored() {
+  return {kind:'compare', op:'GT', left:variableValue(parcelVariable), right:number(1.0)};
+}
+
+function smallFromAlternative() {
+  return {kind:'compare', op:'LT', left:number(1.1), right:variableValue(alternateParcelVariable)};
 }
 
 function smallFromFreshRange() {
   return {kind:'compare', op:'GT', left:rangeFront(), right:number(1.0)};
 }
 
-function approachAndMeasure(valueExpression) {
+function approachAndStore(variable, valueExpression) {
   return [
     {kind:'takeoff', height_m:0.5},
     {kind:'move', direction:'right', distance_m:1.2},
     {kind:'move', direction:'right', distance_m:0.3},
-    {kind:'set_variable', variable:parcelVariable, value:valueExpression},
+    {kind:'set_variable', variable:variable, value:valueExpression},
     {kind:'move', direction:'forward', distance_m:0.65}
   ];
+}
+
+function approachAndMeasure(valueExpression) {
+  return approachAndStore(parcelVariable, valueExpression);
 }
 
 function firstSort(condition) {
@@ -133,16 +140,34 @@ function secondSort(condition) {
   };
 }
 
-function rememberedProgram(alternate) {
-  const storedCondition1 = smallFromStored(alternate);
-  const storedCondition2 = smallFromStored(alternate);
+function rememberedProgram() {
   return {
     version:1,
     semantics:'webeeblocks-ast-v1',
     program:approachAndMeasure(rangeFront()).concat([
-      firstSort(storedCondition1),
+      firstSort(smallFromStored()),
       {kind:'move', direction:'forward', distance_m:0.25},
-      secondSort(storedCondition2),
+      secondSort(smallFromStored()),
+      {kind:'move', direction:'forward', distance_m:0.15},
+      {kind:'land'}
+    ])
+  };
+}
+
+function alternativeRememberedProgram() {
+  const shiftedRange = {
+    kind:'arithmetic',
+    op:'ADD',
+    left:rangeFront(),
+    right:number(0.1)
+  };
+  return {
+    version:1,
+    semantics:'webeeblocks-ast-v1',
+    program:approachAndStore(alternateParcelVariable, shiftedRange).concat([
+      firstSort(smallFromAlternative()),
+      {kind:'move', direction:'forward', distance_m:0.25},
+      secondSort(smallFromAlternative()),
       {kind:'move', direction:'forward', distance_m:0.15},
       {kind:'land'}
     ])
@@ -201,10 +226,10 @@ window.addEventListener('unhandledrejection', function(event) {
     await proveFailureProbeUnavailableWithoutFailure(backend, evaluation);
 
     const storedSmall = await executeCase(
-      backend, evaluation, rememberedProgram(false), 'achieved', 'MEMORY_STORED_SMALL_ACHIEVED', false);
+      backend, evaluation, rememberedProgram(), 'achieved', 'MEMORY_STORED_SMALL_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'MEMORY_STORED_SMALL_RESET_FRESH');
     const storedLarge = await executeCase(
-      backend, evaluation, rememberedProgram(false), 'achieved', 'MEMORY_STORED_LARGE_ACHIEVED', false);
+      backend, evaluation, rememberedProgram(), 'achieved', 'MEMORY_STORED_LARGE_ACHIEVED', false);
 
     await resetAndProveFresh(backend, evaluation, 'MEMORY_REREAD_SMALL_FRESH');
     const rereadSmall = await executeCase(
@@ -215,10 +240,10 @@ window.addEventListener('unhandledrejection', function(event) {
 
     await resetAndProveFresh(backend, evaluation, 'MEMORY_ALT_SMALL_FRESH');
     const altSmall = await executeCase(
-      backend, evaluation, rememberedProgram(true), 'achieved', 'MEMORY_ALT_SMALL_ACHIEVED', false);
+      backend, evaluation, alternativeRememberedProgram(), 'achieved', 'MEMORY_ALT_SMALL_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'MEMORY_ALT_SMALL_RESET_FRESH');
     const altLarge = await executeCase(
-      backend, evaluation, rememberedProgram(true), 'achieved', 'MEMORY_ALT_LARGE_ACHIEVED', false);
+      backend, evaluation, alternativeRememberedProgram(), 'achieved', 'MEMORY_ALT_LARGE_ACHIEVED', false);
 
     await resetAndProveFresh(backend, evaluation, 'MEMORY_FINAL_RESET_FRESH');
     await report('MEMORY_MISSION_TEST_COMPLETE', {
