@@ -100,7 +100,7 @@ function leftRoute() {
 function rightRoute() {
   return [
     {kind:'move', direction:'right', distance_m:0.3},
-    {kind:'move', direction:'forward', distance_m:0.4},
+    {kind:'move', direction:'forward', distance_m:0.5},
     {kind:'move', direction:'left', distance_m:0.6}
   ];
 }
