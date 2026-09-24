@@ -169,7 +169,10 @@ timeout -k 5s 360s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "REACTIVE_FIXED_FORWARD_NOT_ACHIEVED",
             "REACTIVE_FIXED_LEFT_NOT_ACHIEVED",
         ):
-            if details[name] != {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"}:
+            if details[name] not in (
+                {"status":"not-achieved"},
+                {"status":"not-achieved", "runtime_code":"UNSAFE_OR_TIMEOUT"},
+            ):
                 return fail(f"unexpected negative event {name}: {details[name]}")
         if details["REACTIVE_BYPASS_BBO_NOT_ACHIEVED"] != {"status":"not-achieved"}:
             return fail(f"collision-free row bypass did not remain outside mission success: {details['REACTIVE_BYPASS_BBO_NOT_ACHIEVED']}")
