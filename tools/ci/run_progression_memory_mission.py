@@ -68,7 +68,7 @@ def main() -> int:
         source_world.replace('window "blockly_v2"', 'window "memory_probe"', 1),
         encoding="utf-8",
     )
-    TEMP_PROJECT.write_text("Webots Project File version R2025a\\nrobotWindow: Crazyflie WebeeBlocks\\n", encoding="utf-8")
+    TEMP_PROJECT.write_text("Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n", encoding="utf-8")
 
     try:
         pull = run(["docker", "pull", WEBOTS_IMAGE], capture=True)
@@ -93,12 +93,12 @@ chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 artifact_dir=/workspace/ci-artifacts/progression-memory-mission
 events="$artifact_dir/browser-events.jsonl"
 mkdir -p "$artifact_dir" /root/.config/Cyberbotics
-printf "%s\\n" \\
-  "[RobotWindow]" \\
-  "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \\
-  "newBrowserWindow=false" \\
+printf "%s\n" \
+  "[RobotWindow]" \
+  "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
+  "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
-python3 /workspace/tools/ci/runtime_wwi_event_server.py \\
+python3 /workspace/tools/ci/runtime_wwi_event_server.py \
   --output "$events" &
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
@@ -131,7 +131,7 @@ exit "$runner_rc"
         ], cwd=ROOT, env=os.environ.copy(), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         webots_log = result.stdout or ""
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
-        (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\\n", encoding="utf-8")
+        (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
         if result.returncode == 124:
             return fail("Webots Activity 7 mission exceeded the 540s proof budget before mission-complete evidence", webots_log[-16000:])
         if result.returncode != 0:
@@ -146,7 +146,7 @@ exit "$runner_rc"
             return fail(f"invalid browser Activity 7 evidence: {exc}")
         errors = [event for event in events if event.get("event") in ("ERROR", "WINDOW_ERROR", "UNHANDLED_REJECTION")]
         if errors:
-            return fail("Activity 7 browser probe reported an error", json.dumps(errors[0], ensure_ascii=False) + "\\n" + webots_log[-16000:])
+            return fail("Activity 7 browser probe reported an error", json.dumps(errors[0], ensure_ascii=False) + "\n" + webots_log[-16000:])
 
         required = (
             "MEMORY_PROBE_READY",
