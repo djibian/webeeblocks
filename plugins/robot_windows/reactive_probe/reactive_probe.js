@@ -71,11 +71,12 @@ function frontBlockedCondition() {
   return {
     kind:'compare', op:'LT',
     left:{kind:'range', direction:'front', unit:'m'},
-    // The current-row parcel is about 0.10 m away at the decision point, while
-    // an open row can still see a later parcel about 0.41 m away. Keep this
-    // reference strategy local to the row being crossed instead of looking
-    // through an open row and reacting to a later blockage.
-    right:{kind:'number', value:0.2}
+    // Future parcels remain below the sensed world until their row becomes the
+    // current decision. A blocked current row is close, while an open current
+    // row returns clear space, so the integer threshold admitted by the exact
+    // student profile is sufficient and the proof no longer depends on a
+    // fractional literal unavailable in Blockly for this activity.
+    right:{kind:'number', value:1.0}
   };
 }
 
@@ -217,7 +218,6 @@ window.addEventListener('unhandledrejection', function(event) {
     const singleObo = await executeCase(backend, evaluation, singleObservationPatternProgram(), 'achieved', 'REACTIVE_SINGLE_OBSERVATION_OBO_ACHIEVED', false);
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_SINGLE_OBSERVATION_OBO_RESET_FRESH');
     const singleBbo = await executeCase(backend, evaluation, singleObservationPatternProgram(), 'not-achieved', 'REACTIVE_SINGLE_OBSERVATION_BBO_NOT_ACHIEVED', true);
-
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_SINGLE_OBSERVATION_BBO_RESET_FRESH');
     const fixedForward = await executeCase(backend, evaluation, fixedProgram(false), 'not-achieved', 'REACTIVE_FIXED_FORWARD_NOT_ACHIEVED', true);
     await resetAndProveFresh(backend, evaluation, 'REACTIVE_FIXED_FORWARD_RESET_FRESH');
