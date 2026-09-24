@@ -38,21 +38,21 @@ assert.match(world, /DEF ACTIVITY6_LEFT_BARRIER Solid/);
 assert.match(world, /DEF ACTIVITY6_RIGHT_BARRIER Solid/);
 const routeMarkers = world.match(/WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_BEGIN([\s\S]*?)WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_END/);
 assert.ok(routeMarkers, 'Activity 6 must materialize its visible route-marker group');
-assert.match(routeMarkers[1], /translation 1\.70 0\.60 0\.002/,
-  'the evaluator forward checkpoint must have a visible route marker');
-assert.match(routeMarkers[1], /translation 1\.40 0\.90 0\.002/,
-  'the evaluator left checkpoint must have a visible route marker');
-assert.match(routeMarkers[1], /translation 1\.40 0\.30 0\.002/,
-  'the evaluator right checkpoint must have a visible route marker');
+assert.match(routeMarkers[1], /translation 1\.70 -0\.60 0\.002/,
+  'the evaluator forward checkpoint must have a visible route marker in the isolated junction');
+assert.match(routeMarkers[1], /translation 1\.40 -0\.30 0\.002/,
+  'the evaluator left checkpoint must have a visible route marker in the isolated junction');
+assert.match(routeMarkers[1], /translation 1\.40 -0\.90 0\.002/,
+  'the evaluator right checkpoint must have a visible route marker in the isolated junction');
 assert.match(world, /name "Progression combined decisions evaluator"[\s\S]*"combined-decisions-evaluator-v1"/);
 
 const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_combined_decisions_evaluator.c'), 'utf8');
 assert.match(evaluator, /#define COMBINED_ORACLE "progression-combined-decisions-v1"/);
-assert.match(evaluator, /#define COMBINED_FORWARD_ROUTE_X 1\.70\s*\n#define COMBINED_FORWARD_ROUTE_Y 0\.60/,
+assert.match(evaluator, /#define COMBINED_FORWARD_ROUTE_X 1\.70\s*\n#define COMBINED_FORWARD_ROUTE_Y -0\.60/,
   'forward evaluator checkpoint must stay bound to the visible forward route marker');
-assert.match(evaluator, /#define COMBINED_LEFT_ROUTE_X 1\.40\s*\n#define COMBINED_LEFT_ROUTE_Y 0\.90/,
+assert.match(evaluator, /#define COMBINED_LEFT_ROUTE_X 1\.40\s*\n#define COMBINED_LEFT_ROUTE_Y -0\.30/,
   'left evaluator checkpoint must stay bound to the visible left route marker');
-assert.match(evaluator, /#define COMBINED_RIGHT_ROUTE_X 1\.40\s*\n#define COMBINED_RIGHT_ROUTE_Y 0\.30/,
+assert.match(evaluator, /#define COMBINED_RIGHT_ROUTE_X 1\.40\s*\n#define COMBINED_RIGHT_ROUTE_Y -0\.90/,
   'right evaluator checkpoint must stay bound to the visible right route marker');
 assert.match(evaluator, /COMBINED_ROUTE_FORWARD/);
 assert.match(evaluator, /COMBINED_ROUTE_LEFT/);
