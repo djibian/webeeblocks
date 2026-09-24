@@ -330,6 +330,15 @@ Pose {
     }
   ]
 }
+Pose {
+  translation 1.40 0.30 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
 # WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_END
 Pose {
   translation 1.80 0.90 0.002
