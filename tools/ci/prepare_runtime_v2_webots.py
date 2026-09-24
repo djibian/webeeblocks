@@ -419,7 +419,9 @@ script = r'''
       throw new Error('out-of-envelope Webots speed was not rejected fail-closed');
     await report('SPEED_REJECT_OK', {speed_m_s:0.36, code:'INVALID_SPEED'});
 
-    await runtimeBackend.takeoff(0.35);
+    // Keep the speed witness above the 1.10 m FIRST_OBSTACLE so this proof
+    // isolates horizontal speed semantics from obstacle/contact variability.
+    await runtimeBackend.takeoff(1.30);
     await runtimeBackend.setSpeed(0.10);
     await runtimeBackend.move('forward', 0.30);
     await runtimeBackend.setSpeed(0.35);
@@ -428,7 +430,7 @@ script = r'''
     await report('SPEED_SELECTION_OK', {slow_m_s:0.10, fast_m_s:0.35, distance_m:0.30});
 
     await runtimeBackend.resetSimulation();
-    await runtimeBackend.takeoff(0.35);
+    await runtimeBackend.takeoff(1.30);
     await runtimeBackend.move('forward', 0.30);
     await runtimeBackend.land();
     await report('SPEED_RESET_OK', {default_m_s:0.35, distance_m:0.30});

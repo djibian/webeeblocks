@@ -37,8 +37,9 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-sequence-v1' &&
   profile.id !== 'progression-precise-movement-v1' &&
   profile.id !== 'progression-repeat-v1' &&
-  profile.id !== 'progression-simple-decision-v1');
-assert.strictEqual(remainingProgression.length, 4);
+  profile.id !== 'progression-simple-decision-v1' &&
+  profile.id !== 'progression-reactive-v1');
+assert.strictEqual(remainingProgression.length, 3);
 remainingProgression.forEach(profile => {
   assert.strictEqual(profile.evaluation.type, 'training-objective');
   assert.strictEqual(profile.brief.mission, undefined);

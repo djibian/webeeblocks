@@ -20,6 +20,20 @@ TexturedBackground { }
 TexturedBackgroundLight { }
 Floor { size 4 4 }
 
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_BEGIN
+DEF ACTIVITY5_FLOOR_EXTENSION Solid {
+  translation 1.25 2.25 -0.025
+  name "Activity 5 warehouse floor extension"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }
+      geometry Box { size 1.5 0.5 0.05 }
+    }
+  ]
+  boundingObject Box { size 1.5 0.5 0.05 }
+}
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_END
+
 # WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN
 Pose {
   translation 0 0 0.002
@@ -190,6 +204,102 @@ DEF ACTIVITY4_BARRIER Solid {
   boundingObject Box { size 0.14 0.14 1.10 }
 }
 # WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_END
+
+# WEBEEBLOCKS_REACTIVE_MISSION_V1_BEGIN
+Pose {
+  translation 0.90 1.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.22 0.48 0.88
+        transparency 0.28
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_BEGIN
+Pose {
+  translation 1.20 1.75 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.48 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.50 1.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.78 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.80 2.05 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.48 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_END
+Pose {
+  translation 1.80 1.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.12 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.80 2.20 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.12 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY5_BARRIER_1 Solid {
+  translation 1.05 1.60 0.55
+  name "Activity 5 row 1 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY5_BARRIER_2 Solid {
+  translation 1.35 2.20 0.55
+  name "Activity 5 row 2 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY5_BARRIER_3 Solid {
+  translation 1.65 1.90 0.55
+  name "Activity 5 row 3 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_REACTIVE_MISSION_V1_END
 
 DEF FIRST_OBSTACLE Solid {
   translation 0.45 0 0.55
@@ -377,3 +487,14 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression reactive evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "reactive-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_END

@@ -91,18 +91,40 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget c
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
-mkdir -p /workspace/ci-artifacts/progression-simple-decision-mission /root/.config/Cyberbotics
+artifact_dir=/workspace/ci-artifacts/progression-simple-decision-mission
+events="$artifact_dir/browser-events.jsonl"
+mkdir -p "$artifact_dir" /root/.config/Cyberbotics
 printf "%s\n" \
   "[RobotWindow]" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
   "newBrowserWindow=false" \
   > /root/.config/Cyberbotics/Webots-R2025a.conf
 python3 /workspace/tools/ci/runtime_wwi_event_server.py \
-  --output /workspace/ci-artifacts/progression-simple-decision-mission/browser-events.jsonl &
+  --output "$events" &
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_simple_decision.wbt
+# The headless Webots process does not exit when the browser-side proof has
+# finished. Keep a hard fail-closed budget, but terminate the run as soon as
+# the durable completion event exists instead of waiting for timeout after a
+# successful proof.
+timeout -k 5s 540s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_simple_decision.wbt &
+webots_runner=$!
+while kill -0 "$webots_runner" 2>/dev/null; do
+  if grep -Fq 'DECISION_MISSION_TEST_COMPLETE' "$events" 2>/dev/null; then
+    kill "$webots_runner" 2>/dev/null || true
+    set +e
+    wait "$webots_runner"
+    set -e
+    exit 0
+  fi
+  sleep 0.25
+done
+set +e
+wait "$webots_runner"
+runner_rc=$?
+set -e
+exit "$runner_rc"
 '''.strip()
         result = subprocess.run([
             "docker", "run", "--rm",
@@ -115,7 +137,9 @@ timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         webots_log = result.stdout or ""
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
-        if result.returncode not in (0, 124):
+        if result.returncode == 124:
+            return fail("Webots Activity 4 mission exceeded the 540s proof budget before mission-complete evidence", webots_log[-14000:])
+        if result.returncode != 0:
             return fail(f"Webots Activity 4 mission exited with {result.returncode}", webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
