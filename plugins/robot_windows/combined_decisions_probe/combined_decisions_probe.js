@@ -75,7 +75,7 @@ function clearCondition(direction) {
 function approach() {
   return [
     {kind:'takeoff', height_m:0.5},
-    {kind:'move', direction:'left', distance_m:0.6},
+    {kind:'move', direction:'right', distance_m:0.6},
     {kind:'repeat', count:2, body:[
       {kind:'move', direction:'forward', distance_m:0.7}
     ]}
