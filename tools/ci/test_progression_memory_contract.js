@@ -71,6 +71,9 @@ const negativeProbe = fs.readFileSync(
 assert.match(negativeProbe, /overwrittenBeforeSecondDecisionProgram/);
 assert.match(negativeProbe, /collisionProgram/);
 assert.match(negativeProbe, /lateralRereadProgram/);
+assert.match(negativeProbe,
+  /function lateralRereadProgram\(\)[\s\S]*?direction:'left', distance_m:0\.2[\s\S]*?direction:'forward', distance_m:0\.65[\s\S]*?kind:'set_variable', variable:parcelVariable, value:rangeFront\(\)[\s\S]*?direction:'right', distance_m:0\.2[\s\S]*?firstSort\(smallFromStored\(\)\)[\s\S]*?secondSort\(smallFromStored\(\)\)/,
+  'lateral reacquisition proof must read and store the late range while still off-center, before returning to the decision centerline');
 assert.match(negativeProbe, /wrongFinalBayProgram/);
 assert.match(negativeProbe, /MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_COLLISION_NOT_ACHIEVED/);
