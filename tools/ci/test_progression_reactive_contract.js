@@ -31,6 +31,13 @@ assert.deepStrictEqual(profile.runtime.allowedStatementKinds, ['takeoff','move',
 assert.deepStrictEqual(profile.runtime.rangeDirections, ['front']);
 assert.deepStrictEqual(profile.runtime.moveDirections, ['forward','left']);
 assert.deepStrictEqual(profile.runtime.astBounds['repeat.count'], {min:1,max:10});
+const numberBounds = profile.parameterBounds.math_number.NUM;
+const referenceThreshold = 1.0;
+assert.ok(referenceThreshold >= numberBounds.min && referenceThreshold <= numberBounds.max,
+  'the real-Webots reference sensing threshold must be representable by the exact Activity 5 student number field');
+const thresholdSteps = (referenceThreshold - numberBounds.min) / numberBounds.step;
+assert.ok(Math.abs(thresholdSteps - Math.round(thresholdSteps)) < 1e-9,
+  'the real-Webots reference sensing threshold must lie on the exact Activity 5 student number-field step grid');
 
 const project = JSON.parse(fs.readFileSync(path.join(ROOT, 'activities/progression/05-reactive.wbb'), 'utf8'));
 assert.strictEqual(project.activity.id, 'progression-reactive-v1');
@@ -85,7 +92,7 @@ const evaluator = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime
 assert.match(evaluator, /#define REACTIVE_ORACLE "progression-reactive-v1"/);
 assert.match(evaluator, /#define REACTIVE_PATTERN_COUNT 4/);
 assert.match(evaluator, /#define REACTIVE_OPEN_BARRIER_Z -1\.00/,
-  'open Activity 5 rows must park their physical parcel below the shared navigable world');
+  'inactive Activity 5 parcels must stay below the shared navigable world');
 assert.match(evaluator, /\{1, 0, 1\}, \/\* B-O-B \*\//);
 assert.match(evaluator, /\{0, 1, 0\}, \/\* O-B-O \*\//);
 assert.match(evaluator, /\{1, 1, 0\}, \/\* B-B-O: same first row as B-O-B, different later row \*\//);
@@ -93,8 +100,11 @@ assert.match(evaluator, /\{0, 0, 1\}  \/\* O-O-B: same first row as O-B-O, diffe
   'retained deterministic patterns must include same-first-observation variants so the first row cannot identify later blockages');
 assert.match(evaluator, /normalized % REACTIVE_PATTERN_COUNT/);
 assert.match(evaluator,
-  /barrier_positions\[row\]\[1\] = y;[\s\S]*barrier_positions\[row\]\[2\] = blocked\[row\] \? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;/,
-  'open-row parcels must be removed vertically instead of being parked in another XY lane that can interfere with another shared-world activity');
+  /barrier_positions\[row\]\[2\] = row == 0 && blocked\[row\] \? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;/,
+  'only a blocked current first-row parcel may initially participate in front-range sensing; future parcels must remain inactive');
+assert.match(evaluator,
+  /if \(checkpoint_index < REACTIVE_ROWS\) \{[\s\S]*barrier_positions\[checkpoint_index\]\[2\] = blocked\[checkpoint_index\] \? REACTIVE_BARRIER_Z : REACTIVE_OPEN_BARRIER_Z;[\s\S]*wb_supervisor_field_set_sf_vec3f\(barrier_fields\[checkpoint_index\], barrier_positions\[checkpoint_index\]\);/,
+  'the next row parcel must only become sensor-visible after the preceding row checkpoint has been crossed');
 assert.match(evaluator,
   /fabs\(point\[2\] - barrier\[2\]\) <= REACTIVE_BARRIER_HALF_HEIGHT \+ CONTACT_TOLERANCE/,
   'collision attribution must follow the actual barrier Z so below-floor inactive parcels cannot alias ordinary floor contacts');
@@ -116,6 +126,8 @@ const probe = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/reactive_pr
 assert.match(probe, /WebeeBlocksInterpreter\.run/);
 assert.match(probe, /kind:'repeat', count:3/);
 assert.match(probe, /frontBlockedCondition\(\)/);
+assert.match(probe, /right:\{kind:'number', value:1\.0\}/,
+  'the real-Webots repeated-sensing witness must use the exact profile-authorable threshold checked above');
 assert.match(probe,
   /proveFailureProbeUnavailableWithoutCollision[\s\S]*readActivityOutcome\(evaluation\)[\s\S]*sleep\(120\)[\s\S]*probeActivityMissionFailure\(evaluation\)/,
   'the real-Webots no-collision failure probe must first expose the current attempt marker long enough for the evaluator to latch it');
@@ -137,4 +149,8 @@ assert.match(probe, /rowBypassProgram\(\)[\s\S]*REACTIVE_BYPASS_BBO_NOT_ACHIEVED
   'real evidence must reject a collision-free route that reaches the arrival without traversing the visible warehouse rows');
 assert.match(probe, /OUTCOME_UNAVAILABLE/);
 
-console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing succeeds across all patterns, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, inactive open-row parcels are removed below the shared navigable world, the bounded floor extension physically supports the retained upper landing without changing the canonical 4x4 floor localization contract, and the oracle remains behavior-only');
+const semanticAst = fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast.js'), 'utf8');
+assert.match(semanticAst, /repeat count must be an integer literal/,
+  'any broader number-field grid must not weaken the independent integer repeat-count semantic invariant');
+
+console.log('PASS Activity 5 contract: four deterministic warehouse patterns prevent first-observation pattern inference, repeated fresh sensing uses a profile-authorable threshold and succeeds across all patterns, future parcels become sensor-visible only when their row becomes current, a single-observation route fails when a later row changes, fixed and row-bypass behavior fail, equivalent unrolled fresh sensing succeeds, failure probing stays collision-scoped, the bounded floor extension physically supports the retained upper landing without changing the canonical 4x4 floor localization contract, and the oracle remains behavior-only');
