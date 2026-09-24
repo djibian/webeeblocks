@@ -14,15 +14,15 @@
 #define COMBINED_ROUTE_TOLERANCE 0.10
 #define COMBINED_ARRIVAL_TOLERANCE 0.11
 #define COMBINED_DECISION_X 1.40
-#define COMBINED_DECISION_Y 0.60
+#define COMBINED_DECISION_Y -0.60
 #define COMBINED_FORWARD_ROUTE_X 1.70
-#define COMBINED_FORWARD_ROUTE_Y 0.60
+#define COMBINED_FORWARD_ROUTE_Y -0.60
 #define COMBINED_LEFT_ROUTE_X 1.40
-#define COMBINED_LEFT_ROUTE_Y 0.90
+#define COMBINED_LEFT_ROUTE_Y -0.30
 #define COMBINED_RIGHT_ROUTE_X 1.40
-#define COMBINED_RIGHT_ROUTE_Y 0.30
+#define COMBINED_RIGHT_ROUTE_Y -0.90
 #define COMBINED_ARRIVAL_X 1.80
-#define COMBINED_ARRIVAL_Y 0.90
+#define COMBINED_ARRIVAL_Y -0.30
 #define COMBINED_BARRIER_Z 0.55
 #define COMBINED_OPEN_BARRIER_Z -1.00
 #define COMBINED_BARRIER_HALF_EXTENT 0.07
@@ -173,9 +173,9 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
   wb_supervisor_node_enable_contact_points_tracking(crazyflie, step, true);
 
   const double base_positions[3][3] = {
-    {1.65, 0.60, COMBINED_BARRIER_Z},
-    {1.40, 0.85, COMBINED_BARRIER_Z},
-    {1.40, 0.35, COMBINED_BARRIER_Z}
+    {1.65, -0.60, COMBINED_BARRIER_Z},
+    {1.40, -0.35, COMBINED_BARRIER_Z},
+    {1.40, -0.85, COMBINED_BARRIER_Z}
   };
   double barrier_positions[3][3] = {{0}};
   unsigned long long active_attempt = 0;
