@@ -41,6 +41,12 @@ evaluators = (
         'name "Progression reactive evaluator"',
         '"reactive-evaluator-v1"',
     ),
+    (
+        "# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_END",
+        'name "Progression combined decisions evaluator"',
+        '"combined-decisions-evaluator-v1"',
+    ),
 )
 
 visual_source = source
