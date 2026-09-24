@@ -105,7 +105,6 @@ evidence.
 Research / later work:
 
 - **#70 — world altitude over surface discontinuities**
-- **#87 — Firefox direct `.wbb` parity**
 - **#72 — teacher-authorized final real-flight activity**, gated by the
   pedagogical progression and proven physical backend/capabilities.
 
@@ -137,10 +136,9 @@ responsiveness or connection degradation. Exact artifact/run provenance and
 machine/browser/Webots facts remain on issue #81.
 
 W1/W2 therefore establish the current Chrome low-end baseline; they do not
-implicitly prove final Firefox/Edge parity or every future artifact. Issue #81 is
-closed as completed on that explicit supported boundary; later materially changed
-releases may require bounded revalidation without reopening unsupported-browser
-claims.
+implicitly prove Edge parity or every future artifact. Issue #81 is closed as
+completed on that explicit supported boundary; later materially changed releases
+may require bounded revalidation without reopening unsupported-browser claims.
 
 ### Product findings discovered during W2
 
@@ -166,8 +164,8 @@ low-end Windows PC, the Robot Window opened without window hunting, and offline
 relaunch worked after preparation/cache.
 
 Chrome remains the reference browser for the current product-development phase.
-Known Edge and Firefox gaps do not block Chrome-based product slices; Firefox
-final same-file semantics remain tracked by #87.
+Direct `.wbb` Firefox parity is now established on Linux and on the supported
+Windows classroom path by the owner-authoritative #481 PASS; #87 is closed.
 
 The current-main F1 inventory on #79 found no remaining student-visible English
 surface: the local official French Blockly messages, Runtime/project/debug UI,
@@ -272,9 +270,10 @@ justified by the current evidence.
 - student feedback: provide simple mission achieved / not achieved / interrupted
   feedback without automatic diagnosis, hints, strategy suggestions or persistent
   attempt/progress history
-- variable gap: provide one generic change-variable-by-value capability so
-  increment/decrement, counters and accumulators do not require task-specific
-  magic blocks
+- variable capability: standard Blockly `variables_set` / `variables_get` /
+  `math_change` already lower through the backend-neutral variable assignment and
+  arithmetic path and are covered by Runtime/project round-trip tests. Do not add
+  task-specific increment/decrement primitives merely to satisfy #487
 - acceptance: re-evaluate the existing representative activities one by one;
   retain those meeting the contract, redesign weak scenarios/worlds and replace
   those that cannot be made pedagogically coherent. For each activity be able to
@@ -379,12 +378,19 @@ justified by the current evidence.
   PROTO URLs to system project paths absent from the supported Ubuntu package.
   No teacher approval, motor action or deck/flight qualification occurred, so the
   trusted physical semantics are not refuted by this result
-- next repair boundary: close the qualification-world asset dependency
-  deterministically in the exact bundle, reusing the pinned R2025a localization
-  and package mechanisms where possible, and prove that every transitive
-  world/PROTO asset is present without fallback to absent system project files.
-  Only after that repair is integrated is a fresh exact-artifact representative
-  checkpoint eligible
+- qualification-world repair: integrated #441 closes the deterministic asset
+  dependency exposed by #433. The packaged qualification world/PROTO/assets and
+  matching Robot Window perspective are self-contained and verified without
+  fallback to absent system R2025a project paths. This repairs machine packaging
+  only and does not convert #433 into physical qualification evidence
+- current checkpoint boundary: representative real-device qualification remains
+  `UNPROVEN` pending a fresh exact-SHA `physical-capabilities-representative`
+  checkpoint. The generic one-open-human-test rule currently prevents a second
+  request while #519 (`windows-low-end`, target
+  `c932c410e8793e2ff9687c1dc7c16c386fd1c98f`) remains unresolved. After #519 is
+  durably resolved, reconstruct current main, qualification support/cache evidence
+  and the global `TEST_REQUIRED` set before deciding whether a fresh request is
+  eligible; never reuse an earlier failed/stale qualification artifact
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the
@@ -471,30 +477,31 @@ justified by the current evidence.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: first repair the #433 qualification-world asset closure so the exact
-  representative bundle no longer falls back to absent system R2025a project
-  paths; then qualify the integrated physical envelope on representative real
-  hardware. The trusted host already owns the live session, #278 responder,
-  exact #267 teacher binding, #262/#266 powered-session/watchdog lifecycle,
-  #276/#308/#341 effect substrate and #362 dynamic Multi-ranger composition; new
-  physical capability slices must consume those boundaries rather than expose
-  caller-held provenance or add effect methods to the read-only browser
-  capability bearer. Multi-ranger and bottom Color LED now have deterministic
-  trusted-host integration but remain real-device unqualified. Stock auto-arming
-  can return the vehicle to ReadyToFly after the landing/reset cycle, so a host
-  disarm request is not a durable post-mission lockout. The pinned watchdog has
-  no disable/reset command after first activation, so its trusted keepalive
-  lifecycle spans the reusable powered physical session; simply stopping
-  keepalives after a normal land would eventually enter the latching emergency-
-  stop/locked state and require reboot. Powered-session watchdog certainty
-  survives guard replacement and Crazyradio reconnect: reconnect/new epoch
-  invalidates connection evidence but does not reset firmware watchdog state.
-  After ambiguous activation/maintenance, a missed keepalive deadline, locked
-  state or other lifecycle uncertainty, ordinary authority stays fail-closed
-  until explicit STM+deck reset is separately proven, followed by a new connection
-  epoch and complete re-preflight. That reset is a motor-cut recovery boundary,
-  not a normal abort action, and must never be triggered opportunistically while
-  physical flight may still be active
+- depends: integrated #441 already closes the #433 qualification-world asset
+  defect. The remaining gate is a fresh exact-artifact representative real-device
+  qualification of the integrated physical envelope; opening that checkpoint is
+  subject to the generic one-open-human-test rule, currently occupied by #519.
+  The trusted host already owns the live session, #278 responder, exact #267
+  teacher binding, #262/#266 powered-session/watchdog lifecycle, #276/#308/#341
+  effect substrate and #362 dynamic Multi-ranger composition; new physical
+  capability slices must consume those boundaries rather than expose caller-held
+  provenance or add effect methods to the read-only browser capability bearer.
+  Multi-ranger and bottom Color LED now have deterministic trusted-host
+  integration but remain real-device unqualified. Stock auto-arming can return
+  the vehicle to ReadyToFly after the landing/reset cycle, so a host disarm
+  request is not a durable post-mission lockout. The pinned watchdog has no
+  disable/reset command after first activation, so its trusted keepalive lifecycle
+  spans the reusable powered physical session; simply stopping keepalives after a
+  normal land would eventually enter the latching emergency-stop/locked state and
+  require reboot. Powered-session watchdog certainty survives guard replacement
+  and Crazyradio reconnect: reconnect/new epoch invalidates connection evidence
+  but does not reset firmware watchdog state. After ambiguous activation/
+  maintenance, a missed keepalive deadline, locked state or other lifecycle
+  uncertainty, ordinary authority stays fail-closed until explicit STM+deck reset
+  is separately proven, followed by a new connection epoch and complete
+  re-preflight. That reset is a motor-cut recovery boundary, not a normal abort
+  action, and must never be triggered opportunistically while physical flight may
+  still be active
 - proof direction: preserve backend-neutral AST continuity and qualify the
   integrated trusted-host envelope on representative real hardware before the
   final #72 activity relies on it. Reuse #256/#268 semantics/timing and one fresh
@@ -511,34 +518,25 @@ justified by the current evidence.
   explicit checkpoint, not an implication of deterministic host composition
 - expand only when this becomes near-term work.
 
-### FF — Firefox same-file project semantics
+### FF — Firefox same-file project semantics established
 
-- parent: #87
-- integrated product result: the native Qt file broker through the local
-  Webots/WWI path is in production, and Linux Firefox acceptance proves direct
-  `.wbb` Open / Save As / same-file Save, neutral cancellation, fail-closed
-  invalid/incompatible Open and no numbered-download fallback while preserving
-  the Chromium File System Access path
-- Windows evidence: owner-authoritative #392 closed `FAIL` on exact target
-  `2229c5b9b4c5f162301357cb883639dd914e7ca5`. Once the controller ran, manually
-  opening Firefox connected to the ready Runtime, but automatic Robot Window
-  opening failed for the isolated per-session world. Earlier Windows evidence on
-  the #338 artifact had already shown the direct `.wbb` path working once startup
-  succeeded, so that broker contract remains to be requalified rather than
-  treated as refuted. The initial one-off controller executable refusal remains
-  causally `UNPROVEN` and is a separate release-distribution risk
-- source repair: integrated #432 copies the canonical Webots perspective into the
-  isolated session's matching `.wbproj` name, preserving the native Firefox file
-  broker, Chromium File System Access path, asset proxy and Runtime semantics
-- current proof boundary: trusted `[TEST_REQUIRED]` #438 is the sole open human
-  checkpoint, bound to exact current `main@3b8b67337fe1df4c569069e0174a3e07d3893e24`,
-  evidence run `35101396769` and the exact `WebeeBlocks-Windows-R2025a` artifact.
-  Its procedure requalifies automatic Firefox opening plus direct Firefox `.wbb`
-  and Chrome File System Access semantics on the classroom UI/packaging after
-  integrated #432 and #435. A PASS or FAIL must come from that exact human run;
-  do not infer either result from successful machine preparation or CI
-- preserve evidence: do not restart the already-settled C8–C26 Qt research or
-  redesign the integrated native broker without new contradictory evidence.
+- parent: #87 (closed)
+- integrated product result: the native Qt/WWI broker preserves direct `.wbb`
+  Open / Save As / same-file Save, neutral cancellation, fail-closed invalid or
+  incompatible Open and no numbered-download fallback while Chromium keeps its
+  File System Access path
+- Linux evidence: canonical real Webots R2025a + Firefox acceptance established
+  the native dialog/file contract without restarting the historical C8–C26 Qt
+  research
+- Windows evidence: after the startup and native-dialog foreground repair chain,
+  owner-authoritative checkpoint #481 recorded `PASS` on exact integrated target
+  `2a3a4629cd1e1d0f254bf63a24c5184a496d67eb`. On the reference Windows 11 +
+  Webots R2025a + Firefox path, WebeeBlocks reached `PRÊT`; native Save As and Open
+  appeared spontaneously in the foreground; cancellations stayed neutral; Save
+  rewrote the exact same `.wbb` without a new dialog or numbered duplicate; and
+  reopening restored the saved project
+- boundary: #87 is complete. The separate Chrome/offline mapped-profile defect is
+  tracked by #476 and must not be folded back into Firefox broker semantics.
 
 ### R — final real-flight activity
 
