@@ -6,7 +6,7 @@
 #include <webots/supervisor.h>
 
 #define COMBINED_ORACLE "progression-combined-decisions-v1"
-#define COMBINED_PATTERN_COUNT 4
+#define COMBINED_PATTERN_COUNT 3
 #define COMBINED_AIRBORNE_DELTA 0.20
 #define COMBINED_LANDED_DELTA 0.07
 #define COMBINED_MAX_LANDING_SPEED 0.12
@@ -19,6 +19,8 @@
 #define COMBINED_FORWARD_ROUTE_Y 0.60
 #define COMBINED_LEFT_ROUTE_X 1.40
 #define COMBINED_LEFT_ROUTE_Y 0.90
+#define COMBINED_RIGHT_ROUTE_X 1.40
+#define COMBINED_RIGHT_ROUTE_Y 0.30
 #define COMBINED_ARRIVAL_X 1.80
 #define COMBINED_ARRIVAL_Y 0.90
 #define COMBINED_BARRIER_Z 0.55
@@ -29,7 +31,8 @@
 
 enum CombinedRoute {
   COMBINED_ROUTE_FORWARD = 0,
-  COMBINED_ROUTE_LEFT = 1
+  COMBINED_ROUTE_LEFT = 1,
+  COMBINED_ROUTE_RIGHT = 2
 };
 
 typedef struct {
@@ -41,17 +44,28 @@ typedef struct {
 } CombinedPattern;
 
 /*
- * P1 and P2 intentionally share the same front/left observations while the
- * right observation changes which continuation is valid.  That is the
- * behavior-only counterexample which makes a front+left-only decision
- * insufficient without requiring any particular Blockly expression shape.
+ * Each retained configuration has one physically open immediate corridor.  The
+ * matrix therefore exercises all three student-visible directions without
+ * making success depend on a hidden solution shape: any program that reaches
+ * the valid route checkpoint and the common arrival zone is accepted.
  */
 static const CombinedPattern COMBINED_PATTERNS[COMBINED_PATTERN_COUNT] = {
-  {0, 0, 1, COMBINED_ROUTE_FORWARD, "OOB-forward"},
-  {0, 0, 0, COMBINED_ROUTE_LEFT,    "OOO-left"},
+  {0, 1, 1, COMBINED_ROUTE_FORWARD, "OBB-forward"},
   {1, 0, 1, COMBINED_ROUTE_LEFT,    "BOB-left"},
-  {0, 1, 0, COMBINED_ROUTE_FORWARD, "OBO-forward"}
+  {1, 1, 0, COMBINED_ROUTE_RIGHT,   "BBO-right"}
 };
+
+static const char *combined_route_name(enum CombinedRoute route) {
+  switch (route) {
+    case COMBINED_ROUTE_FORWARD:
+      return "forward";
+    case COMBINED_ROUTE_LEFT:
+      return "left";
+    case COMBINED_ROUTE_RIGHT:
+      return "right";
+  }
+  return "unknown";
+}
 
 static int combined_parse_attempt(const char *data, unsigned long long *attempt) {
   if (!data || !attempt)
@@ -207,7 +221,7 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
       printf("WEBEEBLOCKS_COMBINED_CONFIG attempt=%llu pattern=%s front=%d left=%d right=%d valid=%s\n",
              active_attempt, pattern->name,
              pattern->front_blocked, pattern->left_blocked, pattern->right_blocked,
-             pattern->valid_route == COMBINED_ROUTE_FORWARD ? "forward" : "left");
+             combined_route_name(pattern->valid_route));
       fflush(stdout);
     }
     if (!has_attempt || reported)
@@ -246,17 +260,23 @@ int webeeblocks_progression_combined_decisions_evaluator_main(void) {
                                            COMBINED_ROUTE_TOLERANCE);
       const int on_left = combined_near(position, COMBINED_LEFT_ROUTE_X, COMBINED_LEFT_ROUTE_Y,
                                         COMBINED_ROUTE_TOLERANCE);
-      const enum CombinedRoute selected = on_forward ? COMBINED_ROUTE_FORWARD : COMBINED_ROUTE_LEFT;
-      if (on_forward || on_left) {
+      const int on_right = combined_near(position, COMBINED_RIGHT_ROUTE_X, COMBINED_RIGHT_ROUTE_Y,
+                                         COMBINED_ROUTE_TOLERANCE);
+      if (on_forward || on_left || on_right) {
+        enum CombinedRoute selected = COMBINED_ROUTE_FORWARD;
+        if (on_left)
+          selected = COMBINED_ROUTE_LEFT;
+        else if (on_right)
+          selected = COMBINED_ROUTE_RIGHT;
         const CombinedPattern *pattern = &COMBINED_PATTERNS[pattern_index];
         if (selected == pattern->valid_route) {
           valid_route_seen = 1;
           printf("WEBEEBLOCKS_COMBINED_ROUTE attempt=%llu route=%s valid=1\n",
-                 active_attempt, selected == COMBINED_ROUTE_FORWARD ? "forward" : "left");
+                 active_attempt, combined_route_name(selected));
         } else {
           wrong_route_seen = 1;
           printf("WEBEEBLOCKS_COMBINED_ROUTE attempt=%llu route=%s valid=0\n",
-                 active_attempt, selected == COMBINED_ROUTE_FORWARD ? "forward" : "left");
+                 active_attempt, combined_route_name(selected));
         }
         fflush(stdout);
       }
