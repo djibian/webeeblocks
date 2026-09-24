@@ -385,12 +385,10 @@ justified by the current evidence.
   only and does not convert #433 into physical qualification evidence
 - current checkpoint boundary: representative real-device qualification remains
   `UNPROVEN` pending a fresh exact-SHA `physical-capabilities-representative`
-  checkpoint. The generic one-open-human-test rule currently prevents a second
-  request while #519 (`windows-low-end`, target
-  `c932c410e8793e2ff9687c1dc7c16c386fd1c98f`) remains unresolved. After #519 is
-  durably resolved, reconstruct current main, qualification support/cache evidence
-  and the global `TEST_REQUIRED` set before deciding whether a fresh request is
-  eligible; never reuse an earlier failed/stale qualification artifact
+  checkpoint. Before requesting one, reconstruct current main, qualification
+  support/cache evidence and the global `TEST_REQUIRED` set; the generic
+  one-open-human-test rule remains mandatory and earlier failed/stale
+  qualification artifacts must never be reused
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the
@@ -443,7 +441,7 @@ justified by the current evidence.
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune
   ToF/barometer/S3 thresholds, modify product Runtime/controller behavior, add
-  `rangeUp`/full z-f-r by default, or infer/authorize motorized flight
+  `rangeUp`/full z-f/r by default, or infer/authorize motorized flight
 - consequence: #70 remains Lab-only until the characterization/confirmation
   evidence supports an explicit scientific decision.
 
@@ -479,29 +477,28 @@ justified by the current evidence.
   capability or any command path
 - depends: integrated #441 already closes the #433 qualification-world asset
   defect. The remaining gate is a fresh exact-artifact representative real-device
-  qualification of the integrated physical envelope; opening that checkpoint is
-  subject to the generic one-open-human-test rule, currently occupied by #519.
-  The trusted host already owns the live session, #278 responder, exact #267
-  teacher binding, #262/#266 powered-session/watchdog lifecycle, #276/#308/#341
-  effect substrate and #362 dynamic Multi-ranger composition; new physical
-  capability slices must consume those boundaries rather than expose caller-held
-  provenance or add effect methods to the read-only browser capability bearer.
-  Multi-ranger and bottom Color LED now have deterministic trusted-host
-  integration but remain real-device unqualified. Stock auto-arming can return
-  the vehicle to ReadyToFly after the landing/reset cycle, so a host disarm
-  request is not a durable post-mission lockout. The pinned watchdog has no
-  disable/reset command after first activation, so its trusted keepalive lifecycle
-  spans the reusable powered physical session; simply stopping keepalives after a
-  normal land would eventually enter the latching emergency-stop/locked state and
-  require reboot. Powered-session watchdog certainty survives guard replacement
-  and Crazyradio reconnect: reconnect/new epoch invalidates connection evidence
-  but does not reset firmware watchdog state. After ambiguous activation/
-  maintenance, a missed keepalive deadline, locked state or other lifecycle
-  uncertainty, ordinary authority stays fail-closed until explicit STM+deck reset
-  is separately proven, followed by a new connection epoch and complete
-  re-preflight. That reset is a motor-cut recovery boundary, not a normal abort
-  action, and must never be triggered opportunistically while physical flight may
-  still be active
+  qualification of the integrated physical envelope, subject to the generic
+  one-open-human-test rule after reconstructing the live checkpoint set. The
+  trusted host already owns the live session, #278 responder, exact #267 teacher
+  binding, #262/#266 powered-session/watchdog lifecycle, #276/#308/#341 effect
+  substrate and #362 dynamic Multi-ranger composition; new physical capability
+  slices must consume those boundaries rather than expose caller-held provenance
+  or add effect methods to the read-only browser capability bearer. Multi-ranger
+  and bottom Color LED now have deterministic trusted-host integration but remain
+  real-device unqualified. Stock auto-arming can return the vehicle to ReadyToFly
+  after the landing/reset cycle, so a host disarm request is not a durable post-
+  mission lockout. The pinned watchdog has no disable/reset command after first
+  activation, so its trusted keepalive lifecycle spans the reusable powered
+  physical session; simply stopping keepalives after a normal land would
+  eventually enter the latching emergency-stop/locked state and require reboot.
+  Powered-session watchdog certainty survives guard replacement and Crazyradio
+  reconnect: reconnect/new epoch invalidates connection evidence but does not
+  reset firmware watchdog state. After ambiguous activation/maintenance, a missed
+  keepalive deadline, locked state or other lifecycle uncertainty, ordinary
+  authority stays fail-closed until explicit STM+deck reset is separately proven,
+  followed by a new connection epoch and complete re-preflight. That reset is a
+  motor-cut recovery boundary, not a normal abort action, and must never be
+  triggered opportunistically while physical flight may still be active
 - proof direction: preserve backend-neutral AST continuity and qualify the
   integrated trusted-host envelope on representative real hardware before the
   final #72 activity relies on it. Reuse #256/#268 semantics/timing and one fresh
