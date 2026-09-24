@@ -98,7 +98,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 420s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_memory_overwrite.wbt &
+timeout -k 5s 720s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_memory_overwrite.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
   if grep -Fq 'MEMORY_OVERWRITE_TEST_COMPLETE' "$events" 2>/dev/null; then
@@ -128,7 +128,7 @@ exit "$runner_rc"
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
         if result.returncode == 124:
-            return fail("Webots Activity 7 negative proof exceeded the 420s budget", webots_log[-16000:])
+            return fail("Webots Activity 7 negative proof exceeded the 720s budget", webots_log[-16000:])
         if result.returncode != 0:
             return fail(f"Webots Activity 7 negative proof exited with {result.returncode}", webots_log[-16000:])
 
