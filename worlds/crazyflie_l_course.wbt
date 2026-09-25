@@ -1,9 +1,6 @@
 #VRML_SIM R2025a utf8
 
-EXTERNPROTO "webots://projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
-EXTERNPROTO "webots://projects/objects/backgrounds/protos/TexturedBackground.proto"
-EXTERNPROTO "webots://projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
-EXTERNPROTO "webots://projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "../tools/physical/qualification_crazyflie_r2025a.proto"
 
 WorldInfo {
   basicTimeStep 32
@@ -14,14 +11,31 @@ Viewpoint {
   position -3 -3 3
   follow "Crazyflie"
 }
-TexturedBackground {
+Background {
+  skyColor [ 0.75 0.83 0.92 ]
 }
-TexturedBackgroundLight {
+DirectionalLight {
+  direction -0.4 -0.5 -1
+  intensity 1.5
 }
-Floor {
-  size 6 6
+Solid {
+  translation 0 0 -0.025
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.65 0.68 0.72
+        roughness 0.8
+      }
+      geometry Box {
+        size 6 6 0.05
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6 6 0.05
+  }
 }
-Crazyflie {
+QualificationCrazyflieR2025a {
   name "Crazyflie"
   controller "crazyflie_l_course"
   supervisor TRUE
