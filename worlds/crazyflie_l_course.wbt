@@ -1,6 +1,6 @@
 #VRML_SIM R2025a utf8
 
-EXTERNPROTO "../tools/physical/qualification_crazyflie_r2025a.proto"
+EXTERNPROTO "../tools/physical/QualificationCrazyflieR2025a.proto"
 
 WorldInfo {
   basicTimeStep 32
