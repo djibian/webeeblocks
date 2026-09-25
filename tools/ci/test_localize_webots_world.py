@@ -68,6 +68,24 @@ class LocalizeWebotsWorldTests(unittest.TestCase):
             self.assertIn("synchronization TRUE", generated)
             self.assertIn("experiment — A Y-small", generated)
 
+    def test_active_l_course_proto_binding_matches_webots_declaration(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        world_path = root / "worlds" / "crazyflie_l_course.wbt"
+        world = world_path.read_text(encoding="utf-8")
+        relative_proto = "../tools/physical/QualificationCrazyflieR2025a.proto"
+        self.assertEqual(world.count(f'EXTERNPROTO "{relative_proto}"'), 1)
+        self.assertNotIn("raw.githubusercontent.com/cyberbotics/webots/", world)
+        self.assertNotIn("webots://", world)
+
+        proto_path = (world_path.parent / relative_proto).resolve()
+        self.assertTrue(proto_path.is_file())
+        self.assertEqual(proto_path.name, "QualificationCrazyflieR2025a.proto")
+        proto = proto_path.read_text(encoding="utf-8")
+        self.assertIn(f"PROTO {proto_path.stem} [", proto)
+
+        canonical = root / "tools" / "physical" / "qualification_crazyflie_r2025a.proto"
+        self.assertEqual(proto_path.read_bytes(), canonical.read_bytes())
+
     def test_primitive_matrix_runtime_is_pinned_and_offline(self) -> None:
         self.assertEqual(WEBOTS_SHA, "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b")
         self.assertEqual(WEBOTS_CHECKOUT, ".ci-webots-r2025a")
