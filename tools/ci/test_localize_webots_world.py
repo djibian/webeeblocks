@@ -72,7 +72,7 @@ class LocalizeWebotsWorldTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         world_path = root / "worlds" / "crazyflie_l_course.wbt"
         world = world_path.read_text(encoding="utf-8")
-        relative_proto = "../tools/physical/QualificationCrazyflieR2025a.proto"
+        relative_proto = "protos/QualificationCrazyflieR2025a.proto"
         self.assertEqual(world.count(f'EXTERNPROTO "{relative_proto}"'), 1)
         self.assertNotIn("raw.githubusercontent.com/cyberbotics/webots/", world)
         self.assertNotIn("webots://", world)
@@ -85,6 +85,10 @@ class LocalizeWebotsWorldTests(unittest.TestCase):
 
         canonical = root / "tools" / "physical" / "qualification_crazyflie_r2025a.proto"
         self.assertEqual(proto_path.read_bytes(), canonical.read_bytes())
+        self.assertFalse(
+            (root / "tools" / "physical" / "QualificationCrazyflieR2025a.proto").exists(),
+            "case-only sibling paths are not portable to the supported Windows checkout",
+        )
 
     def test_primitive_matrix_runtime_is_pinned_and_offline(self) -> None:
         self.assertEqual(WEBOTS_SHA, "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b")
