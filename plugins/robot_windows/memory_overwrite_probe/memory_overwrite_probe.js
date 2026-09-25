@@ -114,8 +114,6 @@ function collisionProgram() {
     semantics:'webeeblocks-ast-v1',
     program:[
       {kind:'takeoff', height_m:0.5},
-      {kind:'move', direction:'right', distance_m:0.6},
-      {kind:'move', direction:'forward', distance_m:1.2},
       {kind:'move', direction:'forward', distance_m:0.6}
     ]
   };
