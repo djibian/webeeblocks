@@ -177,6 +177,10 @@ The exact final challenge remains dependent on demonstrated physical capabilitie
 
 WebeeBlocks is **autonomous and local/offline-first** for school use.
 
+Here, **offline-first means independent of Internet/external online services for the core classroom runtime, not independent of the school's local infrastructure**. The supported classroom environment may rely on normal school-local services required to open a student session and access the student's personal network folder (for example a mapped `U:` drive). A total loss of the school LAN, when students cannot normally log in or access that storage, is outside the supported runtime condition and must not be used as an acceptance requirement by itself.
+
+Core execution, simulation, project **Open / Save / Save As** and activity use must not require Internet access, Moodle, cloud storage, CDN assets, external APIs or another online service once the supported school session/environment is available. A project target that is itself network-hosted naturally remains subject to availability of that school-local storage.
+
 Moodle integration is optional and lightweight. Moodle may distribute activity resources and may receive a submitted WebeeBlocks project file, but WebeeBlocks does not depend on Moodle for its core runtime.
 
 WebeeBlocks does not maintain student accounts, attempt histories, completion histories, grades or mastery levels.
