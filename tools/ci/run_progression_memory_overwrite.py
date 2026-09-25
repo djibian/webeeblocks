@@ -98,7 +98,10 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
-timeout -k 5s 720s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_memory_overwrite.wbt &
+# These proofs assert simulated world state and Runtime-v2 outcomes, not wall-clock
+# pacing. Fast mode preserves the same 32 ms Webots steps while avoiding a
+# multi-case wall-time budget becoming the acceptance boundary.
+timeout -k 5s 720s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/ci_progression_memory_overwrite.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
   if grep -Fq 'MEMORY_OVERWRITE_TEST_COMPLETE' "$events" 2>/dev/null; then
