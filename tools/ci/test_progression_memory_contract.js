@@ -75,8 +75,8 @@ assert.match(negativeProbe,
   /function smallFromLateReacquisition\(\)[\s\S]*?op:'LT'[\s\S]*?left:variableValue\(\)[\s\S]*?right:number\(1\.0\)/,
   'lateral reacquisition counterexample must exploit the old downstream visible-panel relation rather than reuse the departure predicate');
 assert.match(negativeProbe,
-  /function lateralRereadProgram\(\)[\s\S]*?direction:'left', distance_m:0\.2[\s\S]*?direction:'forward', distance_m:0\.65[\s\S]*?kind:'set_variable', variable:parcelVariable, value:rangeFront\(\)[\s\S]*?direction:'right', distance_m:0\.2[\s\S]*?firstSort\(smallFromLateReacquisition\(\)\)[\s\S]*?secondSort\(smallFromLateReacquisition\(\)\)/,
-  'lateral reacquisition proof must read while off-center and classify the late value using the relation exposed by the old bypass');
+  /function lateralRereadProgram\(\)[\s\S]*?direction:'left', distance_m:0\.2[\s\S]*?direction:'forward', distance_m:0\.65[\s\S]*?kind:'set_variable', variable:parcelVariable, value:rangeFront\(\)[\s\S]*?direction:'right', distance_m:0\.2[\s\S]*?firstSort\(smallFromLateReacquisition\(\)\)/,
+  'lateral reacquisition proof must read while off-center and use the relation exposed by the old bypass for the first downstream class-dependent choice');
 assert.match(negativeProbe, /wrongFinalBayProgram/);
 assert.match(negativeProbe, /MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_COLLISION_NOT_ACHIEVED/);
