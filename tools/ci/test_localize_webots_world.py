@@ -68,6 +68,21 @@ class LocalizeWebotsWorldTests(unittest.TestCase):
             self.assertIn("synchronization TRUE", generated)
             self.assertIn("experiment — A Y-small", generated)
 
+    def test_active_l_course_world_uses_only_local_r2025a_assets(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        world = (root / "worlds" / "crazyflie_l_course.wbt").read_text(encoding="utf-8")
+
+        expected_refs = {f'{LOCAL_PREFIX}{asset}' for asset in REQUIRED_PROJECT_ASSETS}
+        actual_refs = {
+            line.split('"', 2)[1]
+            for line in world.splitlines()
+            if line.startswith('EXTERNPROTO "')
+        }
+        self.assertEqual(actual_refs, expected_refs)
+        self.assertEqual(world.count(LOCAL_PREFIX), len(REQUIRED_PROJECT_ASSETS))
+        self.assertNotIn("raw.githubusercontent.com/cyberbotics/webots/", world)
+        self.assertNotIn(REMOTE_PREFIX, world)
+
     def test_primitive_matrix_runtime_is_pinned_and_offline(self) -> None:
         self.assertEqual(WEBOTS_SHA, "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b")
         self.assertEqual(WEBOTS_CHECKOUT, ".ci-webots-r2025a")
