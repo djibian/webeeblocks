@@ -102,9 +102,7 @@ function overwrittenBeforeSecondDecisionProgram() {
       firstSort(smallFromStored()),
       {kind:'move', direction:'forward', distance_m:0.25},
       {kind:'set_variable', variable:parcelVariable, value:number(2.0)},
-      secondSort(smallFromStored()),
-      {kind:'move', direction:'forward', distance_m:0.15},
-      {kind:'land'}
+      secondSort(smallFromStored())
     ])
   };
 }
@@ -130,11 +128,7 @@ function lateralRereadProgram() {
       {kind:'move', direction:'forward', distance_m:0.65},
       {kind:'set_variable', variable:parcelVariable, value:rangeFront()},
       {kind:'move', direction:'right', distance_m:0.2},
-      firstSort(smallFromLateReacquisition()),
-      {kind:'move', direction:'forward', distance_m:0.25},
-      secondSort(smallFromLateReacquisition()),
-      {kind:'move', direction:'forward', distance_m:0.15},
-      {kind:'land'}
+      firstSort(smallFromLateReacquisition())
     ]
   };
 }
