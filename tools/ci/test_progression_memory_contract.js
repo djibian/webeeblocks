@@ -82,15 +82,20 @@ assert.match(negativeProbe, /MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_COLLISION_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED/);
 assert.match(negativeProbe, /MEMORY_FINAL_BAY_NOT_ACHIEVED/);
+assert.match(negativeProbe,
+  /await proveFresh\(backend, evaluation, 'MEMORY_LATERAL_REREAD_SMALL_FRESH'\)[\s\S]*?lateralRereadProgram\(\)[\s\S]*?await resetAndProveFresh\(backend, evaluation, 'MEMORY_OVERWRITE_LARGE_FRESH'\)/,
+  'the fresh first small-parcel counterexample must execute before any Reset, with later cases rotated only after durable outcomes');
 
 const negativeRunner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_memory_overwrite.py'), 'utf8');
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_CONFIG attempt=3 pattern=small-far/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=3/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=right valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_CONFIG attempt=1 pattern=small-far/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=1/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=1 index=1 route=right valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_CONFIG attempt=2 pattern=large-near/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=2 route=right valid=0/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=left valid=1/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=2 route=right valid=1/);
+assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_TIMEOUT attempt=3/);
 assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_COLLISION attempt=4/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=2 route=right valid=1/);
-assert.match(negativeRunner, /WEBEEBLOCKS_MEMORY_TIMEOUT attempt=5/);
 assert.match(negativeRunner, /collision=0/);
 assert.match(negativeRunner, /landed=1/);
 assert.match(negativeRunner, /stationary=1/);
