@@ -114,7 +114,8 @@ function overwrittenBeforeSecondDecisionProgram() {
       firstSort(smallFromStored()),
       {kind:'move', direction:'forward', distance_m:0.25},
       {kind:'set_variable', variable:parcelVariable, value:number(2.0)},
-      secondSort(smallFromStored())
+      secondSort(smallFromStored()),
+      {kind:'land'}
     ])
   };
 }
@@ -124,7 +125,8 @@ function collisionProgram() {
     semantics:'webeeblocks-ast-v1',
     program:[
       {kind:'takeoff', height_m:0.5},
-      {kind:'move', direction:'forward', distance_m:0.6}
+      {kind:'move', direction:'forward', distance_m:0.6},
+      {kind:'land'}
     ]
   };
 }
@@ -140,7 +142,8 @@ function lateralRereadProgram() {
       {kind:'move', direction:'forward', distance_m:0.65},
       {kind:'set_variable', variable:parcelVariable, value:rangeFront()},
       {kind:'move', direction:'right', distance_m:0.2},
-      firstSort(smallFromLateReacquisition())
+      firstSort(smallFromLateReacquisition()),
+      {kind:'land'}
     ]
   };
 }
