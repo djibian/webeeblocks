@@ -207,26 +207,26 @@ exit "$runner_rc"
             return fail(f"unexpected Activity 7 negative summary: {details['MEMORY_OVERWRITE_TEST_COMPLETE']}")
 
         for marker in (
+            "WEBEEBLOCKS_MEMORY_CONFIG attempt=1 pattern=small-far",
+            "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=1",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=1 index=1 route=right valid=0",
+            "WEBEEBLOCKS_MEMORY_RESULT attempt=1 status=not-achieved",
             "WEBEEBLOCKS_MEMORY_CONFIG attempt=2 pattern=large-near",
             "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=2",
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=1 route=right valid=1",
             "WEBEEBLOCKS_MEMORY_ROUTE attempt=2 index=2 route=right valid=0",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=2 status=not-achieved",
             "WEBEEBLOCKS_MEMORY_CONFIG attempt=3 pattern=small-far",
-            "WEBEEBLOCKS_MEMORY_REFERENCE_UNAVAILABLE attempt=3",
-            "WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=right valid=0",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=1 route=left valid=1",
+            "WEBEEBLOCKS_MEMORY_ROUTE attempt=3 index=2 route=right valid=1",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=3 status=not-achieved",
             "WEBEEBLOCKS_MEMORY_COLLISION attempt=4",
             "WEBEEBLOCKS_MEMORY_RESULT attempt=4 status=not-achieved",
-            "WEBEEBLOCKS_MEMORY_CONFIG attempt=5 pattern=small-far",
-            "WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=1 route=left valid=1",
-            "WEBEEBLOCKS_MEMORY_ROUTE attempt=5 index=2 route=right valid=1",
-            "WEBEEBLOCKS_MEMORY_RESULT attempt=5 status=not-achieved",
         ):
             if marker not in webots_log:
                 return fail(f"missing Activity 7 negative Webots marker: {marker}", webots_log[-16000:])
         final_timeout = next(
-            (line for line in webots_log.splitlines() if "WEBEEBLOCKS_MEMORY_TIMEOUT attempt=5" in line), "")
+            (line for line in webots_log.splitlines() if "WEBEEBLOCKS_MEMORY_TIMEOUT attempt=3" in line), "")
         if not final_timeout:
             return fail("wrong-final-bay proof did not settle through the completion path", webots_log[-16000:])
         for token in ("collision=0", "landed=1", "stationary=1", "arrival=0"):
@@ -235,7 +235,7 @@ exit "$runner_rc"
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 7 negative boundaries: replacing stored memory before decision two, a lateral old-bypass reacquisition strategy, a physical collision, and landing outside the final bay each produce observable not-achieved outcomes in real R2025a")
+        print("PASS Activity 7 negative boundaries: a deliberate lateral old-bypass reacquisition strategy, replacing stored memory before decision two, landing outside the final bay, and a physical collision each produce observable not-achieved outcomes in real R2025a")
         return 0
     finally:
         cleanup()
