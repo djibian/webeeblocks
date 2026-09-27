@@ -32,6 +32,18 @@ async function waitForOutcome(backend, evaluation, expected, timeoutMs) {
   throw new Error('timeout waiting for outcome ' + expected);
 }
 
+async function proveFresh(backend, evaluation, eventName) {
+  try {
+    const stale = await backend.readActivityOutcome(evaluation);
+    throw new Error('unexpected Activity 7 outcome before first negative case: ' + JSON.stringify(stale));
+  } catch (error) {
+    if (!error || error.code !== 'OUTCOME_UNAVAILABLE')
+      throw error;
+    await sleep(180);
+    await report(eventName, {code:error.code});
+  }
+}
+
 async function resetAndProveFresh(backend, evaluation, eventName) {
   await backend.resetSimulation();
   try {
@@ -183,21 +195,25 @@ window.addEventListener('unhandledrejection', function(event) {
     const evaluation = {type:'mission-state-v1', oracle:'progression-memory-v1'};
     await report('MEMORY_OVERWRITE_PROBE_READY', {ready:backend.ready});
 
+    // A newly launched mission is already a fresh attempt. Exercise the small-parcel
+    // lateral reacquisition counterexample before any Reset, then rotate attempts
+    // only between completed cases. This avoids making an otherwise unnecessary
+    // pre-case Reset part of the negative acceptance boundary.
+    await proveFresh(backend, evaluation, 'MEMORY_LATERAL_REREAD_SMALL_FRESH');
+    const lateralReread = await executeNegativeCase(
+      backend, evaluation, lateralRereadProgram(), 'MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED');
+
     await resetAndProveFresh(backend, evaluation, 'MEMORY_OVERWRITE_LARGE_FRESH');
     const overwritten = await executeNegativeCase(
       backend, evaluation, overwrittenBeforeSecondDecisionProgram(), 'MEMORY_OVERWRITE_LARGE_NOT_ACHIEVED');
 
-    await resetAndProveFresh(backend, evaluation, 'MEMORY_LATERAL_REREAD_SMALL_FRESH');
-    const lateralReread = await executeNegativeCase(
-      backend, evaluation, lateralRereadProgram(), 'MEMORY_LATERAL_REREAD_SMALL_NOT_ACHIEVED');
+    await resetAndProveFresh(backend, evaluation, 'MEMORY_FINAL_BAY_FRESH');
+    const finalBay = await executeNegativeCase(
+      backend, evaluation, wrongFinalBayProgram(), 'MEMORY_FINAL_BAY_NOT_ACHIEVED');
 
     await resetAndProveFresh(backend, evaluation, 'MEMORY_COLLISION_FRESH');
     const collision = await executeNegativeCase(
       backend, evaluation, collisionProgram(), 'MEMORY_COLLISION_NOT_ACHIEVED');
-
-    await resetAndProveFresh(backend, evaluation, 'MEMORY_FINAL_BAY_FRESH');
-    const finalBay = await executeNegativeCase(
-      backend, evaluation, wrongFinalBayProgram(), 'MEMORY_FINAL_BAY_NOT_ACHIEVED');
 
     await report('MEMORY_OVERWRITE_TEST_COMPLETE', {
       overwritten_large:overwritten.status,
