@@ -264,12 +264,35 @@ function incompleteProgram() {
   };
 }
 
-async function executeCase(backend, evaluation, program, expected, eventName, allowRuntimeFailure) {
+async function executeCase(backend, evaluation, program, expected, eventName, allowRuntimeFailure, departureEvidence) {
   let runtimeError = null;
+  let departureRange = null;
+  const originalReadRange = backend.readRange;
+  if (departureEvidence) {
+    backend.readRange = function(direction) {
+      return originalReadRange.call(backend, direction).then(function(value) {
+        if (departureRange === null && direction === 'front')
+          departureRange = value;
+        return value;
+      });
+    };
+  }
   try {
     await WebeeBlocksInterpreter.run(program, backend);
   } catch (error) {
     runtimeError = error;
+  } finally {
+    if (departureEvidence)
+      backend.readRange = originalReadRange;
+  }
+  if (departureEvidence) {
+    if (!Number.isFinite(departureRange))
+      throw new Error('missing Activity 8 departure range evidence');
+    if (departureEvidence.parcel === 'small' && !(departureRange > 1.0))
+      throw new Error('Activity 8 small parcel range is not distinguishable: ' + departureRange);
+    if (departureEvidence.parcel === 'large' && !(departureRange < 1.0))
+      throw new Error('Activity 8 large parcel range is not distinguishable: ' + departureRange);
+    await report(departureEvidence.event, {meters:departureRange});
   }
   if (runtimeError) {
     if (!allowRuntimeFailure || runtimeError.code !== 'UNSAFE_OR_TIMEOUT')
@@ -302,9 +325,15 @@ window.addEventListener('unhandledrejection', function(event) {
     await proveFailureProbeUnavailableWithoutFailure(backend, evaluation);
 
     const integrated = [];
-    integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_ACHIEVED', false));
+    integrated.push(await executeCase(
+      backend, evaluation, integratedStrategy(), 'achieved',
+      'AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_ACHIEVED', false,
+      {parcel:'small', event:'AUTONOMOUS_DEPARTURE_SMALL_RANGE'}));
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_RESET_FRESH');
-    integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED', false));
+    integrated.push(await executeCase(
+      backend, evaluation, integratedStrategy(), 'achieved',
+      'AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED', false,
+      {parcel:'large', event:'AUTONOMOUS_DEPARTURE_LARGE_RANGE'}));
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_RESET_FRESH');
     integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED', false));
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_RESET_FRESH');
