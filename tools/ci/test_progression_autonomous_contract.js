@@ -37,10 +37,12 @@ const evaluator = fs.readFileSync(
   path.join(ROOT, 'controllers/crazyflie_runtime_v2/progression_autonomous_evaluator.c'), 'utf8');
 assert.match(evaluator, /#define AUTONOMOUS_ORACLE "progression-autonomous-strategy-v1"/);
 assert.match(evaluator, /AUTONOMOUS_PATTERN_COUNT 4/);
-assert.match(evaluator, /small-BE-forward/);
-assert.match(evaluator, /large-EB-left/);
-assert.match(evaluator, /small-BB-right/);
-assert.match(evaluator, /large-EE-forward/);
+assert.match(evaluator, /\{1, 1, 0, AUTONOMOUS_ROUTE_FORWARD, "small-BE-forward"\}/);
+assert.match(evaluator, /\{0, 1, 0, AUTONOMOUS_ROUTE_FORWARD, "large-BE-forward"\}/);
+assert.match(evaluator, /\{1, 1, 1, AUTONOMOUS_ROUTE_RIGHT,\s+"small-BB-right"\}/);
+assert.match(evaluator, /\{0, 1, 1, AUTONOMOUS_ROUTE_RIGHT,\s+"large-BB-right"\}/);
+assert.doesNotMatch(evaluator, /large-EB-left|large-EE-forward/,
+  'Activity 8 downstream configuration must not reveal parcel class');
 assert.match(evaluator, /#define AUTONOMOUS_CENTER_Y -2\.50/);
 assert.match(evaluator, /#define AUTONOMOUS_LEFT_Y -2\.15/);
 assert.match(evaluator, /#define AUTONOMOUS_RIGHT_Y -2\.85/);
@@ -107,6 +109,11 @@ assert.match(probe, /function noMemoryShortcut\(\)/);
 assert.match(probe, /function reachRowsWithoutMemory\(\)/);
 assert.match(probe, /function noMemoryShortcut\(\)[\s\S]*?reachRowsWithoutMemory\(\)/,
   'no-memory counterexample must genuinely omit departure storage');
+assert.match(probe, /function downstreamInferenceShortcut\(\)/);
+assert.match(probe, /function downstreamInferenceShortcut\(\)[\s\S]*?reachRowsWithoutMemory\(\)\.concat\([\s\S]*?set_variable[\s\S]*?downstreamGuessVariable[\s\S]*?range\('front'\)/,
+  'downstream-inference counterexample must omit departure storage and acquire its guess only after reaching the rows');
+assert.match(probe, /function downstreamInferenceShortcut\(\)[\s\S]*?rememberedDelivery\([\s\S]*?downstreamGuessVariable/,
+  'downstream-inference counterexample must use the later observation to choose its delivery bay');
 assert.match(probe, /function frontOnlyShortcut\(\)/);
 assert.match(probe, /function incompleteProgram\(\)/);
 assert.match(probe, /AUTONOMOUS_DEPARTURE_SMALL_RANGE/);
@@ -131,15 +138,19 @@ assert.match(rightJunctionSource, /direction:'right', distance_m:0\.35[\s\S]*dir
 assert.match(deliverySource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
   'Activity 8 delivery witness must stay aligned with the widened 0.35 m final bays');
 
+assert.match(probe, /AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED/);
+assert.match(probe, /AUTONOMOUS_INTEGRATED_LARGE_BB_RIGHT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_FIXED_ROUTE_NOT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_NO_MEMORY_LARGE_NOT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_FRONT_ONLY_RIGHT_NOT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_INCOMPLETE_NOT_ACHIEVED/);
+assert.match(probe, /AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_ACHIEVED/);
+assert.match(probe, /AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_NOT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED/);
-assert.match(probe, /AUTONOMOUS_ALT_LARGE_EB_LEFT_ACHIEVED/);
+assert.match(probe, /AUTONOMOUS_ALT_LARGE_BE_FORWARD_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_ALT_SMALL_BB_RIGHT_ACHIEVED/);
-assert.match(probe, /AUTONOMOUS_ALT_LARGE_EE_FORWARD_ACHIEVED/);
+assert.match(probe, /AUTONOMOUS_ALT_LARGE_BB_RIGHT_ACHIEVED/);
 
 const runner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_autonomous_mission.py'), 'utf8');
 assert.match(runner, /AUTONOMOUS_MISSION_TEST_COMPLETE/);
@@ -151,13 +162,17 @@ assert.match(runner, /reference_x=1\.150/);
 assert.match(runner, /reference_x=0\.250/);
 assert.match(runner, /reference_hidden=1 mask_x=0\.250/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward/);
-assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-EB-left/);
+assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-BE-forward/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=3 pattern=small-BB-right/);
+assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=4 pattern=large-BB-right/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_ROUTE attempt=3 route=right valid=1/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_TIMEOUT attempt=8/);
+assert.match(runner, /AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_ACHIEVED/);
+assert.match(runner, /AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_NOT_ACHIEVED/);
+assert.match(runner, /downstream_inference.*\["achieved", "not-achieved"\]/);
 assert.match(runner, /fixed_route.*not-achieved/);
 assert.match(runner, /no_memory.*not-achieved/);
 assert.match(runner, /front_only.*not-achieved/);
 assert.match(runner, /incomplete.*not-achieved/);
 
-console.log('PASS Activity 8 contract: an explicit warehouse delivery mission owns its parcel signal and removes it after departure, synthesizes only previously learned mechanisms, accepts only observable world success, rejects fixed/no-memory/front-only/incomplete shortcuts, and admits a distinct valid stored-value strategy');
+console.log('PASS Activity 8 contract: an explicit warehouse delivery mission owns and removes its parcel signal, pairs identical downstream configurations with both parcel classes, proves downstream sensing cannot reconstruct the unavailable departure fact, accepts observable world success for distinct stored-value strategies, and rejects fixed/no-memory/front-only/incomplete shortcuts');
