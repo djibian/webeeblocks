@@ -97,10 +97,10 @@ function takeParcelAndReachRows(variable, storedExpression) {
   return [
     {kind:'takeoff', height_m:0.5},
     {kind:'move', direction:'right', distance_m:1.2},
-    {kind:'move', direction:'right', distance_m:0.3},
+    {kind:'move', direction:'right', distance_m:0.8},
     {kind:'set_variable', variable:variable, value:storedExpression},
-    {kind:'move', direction:'forward', distance_m:0.2},
-    {kind:'move', direction:'right', distance_m:1.0}
+    {kind:'move', direction:'right', distance_m:0.5},
+    {kind:'move', direction:'forward', distance_m:0.2}
   ];
 }
 
@@ -108,9 +108,9 @@ function reachRowsWithoutMemory() {
   return [
     {kind:'takeoff', height_m:0.5},
     {kind:'move', direction:'right', distance_m:1.2},
-    {kind:'move', direction:'right', distance_m:0.3},
-    {kind:'move', direction:'forward', distance_m:0.2},
-    {kind:'move', direction:'right', distance_m:1.0}
+    {kind:'move', direction:'right', distance_m:0.8},
+    {kind:'move', direction:'right', distance_m:0.5},
+    {kind:'move', direction:'forward', distance_m:0.2}
   ];
 }
 
