@@ -171,7 +171,7 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(pDecision.toolbox.every(type => p3.toolbox.includes(type)), 'reactive profile must combine simple decision with repetition');
   assert(p3.toolbox.every(type => p4.toolbox.includes(type)), 'profile 4 must be cumulative over profile 3');
   assert(p4.toolbox.every(type => p5.toolbox.includes(type)), 'profile 5 must be cumulative over profile 4');
-  assert(p5.toolbox.every(type => p6.toolbox.includes(type)), 'profile 6 must be cumulative over profile 5');
+  assert.deepStrictEqual(p6.toolbox, p5.toolbox, 'Activity 8 synthesis must preserve the complete Activity 7 toolbox without adding a new primitive');
   assert(!p1.toolbox.includes('controls_repeat_ext'));
   assert(p2.toolbox.includes('controls_repeat_ext'));
   assert(!p2.toolbox.includes('webeeblocks_v2_range'));
@@ -181,11 +181,11 @@ function proveProgressionProfilesAndFieldOptions() {
   assert(p4.toolbox.includes('logic_operation'));
   assert(p5.toolbox.includes('variables_set') && p5.toolbox.includes('variables_get'));
   assert.deepStrictEqual(p5.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
-  assert(p6.toolbox.includes('webeeblocks_v2_vertical'));
-  assert(p6.toolbox.includes('webeeblocks_v2_turn'));
-  assert(p6.toolbox.includes('webeeblocks_v2_wait'));
-  assert(p6.toolbox.includes('webeeblocks_v2_light'));
-  assert(!p6.toolbox.includes('webeeblocks_v2_speed'), 'compact progression does not need speed selection in its open-strategy profile');
+  assert(!p6.toolbox.includes('webeeblocks_v2_vertical'));
+  assert(!p6.toolbox.includes('webeeblocks_v2_turn'));
+  assert(!p6.toolbox.includes('webeeblocks_v2_wait'));
+  assert(!p6.toolbox.includes('webeeblocks_v2_light'));
+  assert(!p6.toolbox.includes('webeeblocks_v2_speed'));
   assert(!p1.hardware.includes('multi-ranger-deck'));
   assert(!p2.hardware.includes('multi-ranger-deck'));
   assert(p3.hardware.includes('multi-ranger-deck'));
@@ -210,13 +210,15 @@ function proveProgressionProfilesAndFieldOptions() {
   assert.deepStrictEqual(p4.runtime.moveDirections, ['forward','left','right']);
   assert.deepStrictEqual(p5.fieldOptions.webeeblocks_v2_move.DIRECTION, ['forward','left','right']);
   assert.deepStrictEqual(p5.runtime.moveDirections, ['forward','left','right']);
-  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, ['front','back','left','right']);
-  assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, ['ADD','MINUS','MULTIPLY','DIVIDE']);
-  assert.deepStrictEqual(p6.runtime.rangeDirections, ['front','back','left','right']);
-  assert.deepStrictEqual(p6.runtime.moveDirections, ['forward','back','left','right']);
-  assert.deepStrictEqual(p6.runtime.verticalDirections, ['up','down']);
+  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_move.DIRECTION, p5.fieldOptions.webeeblocks_v2_move.DIRECTION);
+  assert.deepStrictEqual(p6.fieldOptions.webeeblocks_v2_range.DIRECTION, p5.fieldOptions.webeeblocks_v2_range.DIRECTION);
+  assert.deepStrictEqual(p6.fieldOptions.math_arithmetic.OP, p5.fieldOptions.math_arithmetic.OP);
+  assert.deepStrictEqual(p6.runtime.rangeDirections, p5.runtime.rangeDirections);
+  assert.deepStrictEqual(p6.runtime.moveDirections, p5.runtime.moveDirections);
+  assert.deepStrictEqual(p6.runtime.verticalDirections, p5.runtime.verticalDirections);
+  assert.deepStrictEqual(p6.runtime.allowedStatementKinds, p5.runtime.allowedStatementKinds);
   assert(p6.runtime.allowedStatementKinds.includes('set_variable'));
-  assert(p6.runtime.allowedStatementKinds.includes('set_light'));
+  assert(!p6.runtime.allowedStatementKinds.includes('set_light'));
   assert(!p6.runtime.allowedStatementKinds.includes('set_speed'));
   assert.deepStrictEqual(p2.parameterBounds.math_number.NUM, {min:1,max:10,step:1});
   assert.deepStrictEqual(p3.parameterBounds.math_number.NUM, p2.parameterBounds.math_number.NUM,
