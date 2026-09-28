@@ -119,9 +119,9 @@ function reactiveRow() {
     condition:clear('front'),
     then:[{kind:'move', direction:'forward', distance_m:0.3}],
     else:[
-      {kind:'move', direction:'left', distance_m:0.25},
+      {kind:'move', direction:'left', distance_m:0.35},
       {kind:'move', direction:'forward', distance_m:0.3},
-      {kind:'move', direction:'right', distance_m:0.25}
+      {kind:'move', direction:'right', distance_m:0.35}
     ]
   };
 }
@@ -132,17 +132,17 @@ function forwardJunctionRoute() {
 
 function leftJunctionRoute() {
   return [
-    {kind:'move', direction:'left', distance_m:0.25},
+    {kind:'move', direction:'left', distance_m:0.35},
     {kind:'move', direction:'forward', distance_m:0.3},
-    {kind:'move', direction:'right', distance_m:0.25}
+    {kind:'move', direction:'right', distance_m:0.35}
   ];
 }
 
 function rightJunctionRoute() {
   return [
-    {kind:'move', direction:'right', distance_m:0.25},
+    {kind:'move', direction:'right', distance_m:0.35},
     {kind:'move', direction:'forward', distance_m:0.3},
-    {kind:'move', direction:'left', distance_m:0.25}
+    {kind:'move', direction:'left', distance_m:0.35}
   ];
 }
 
@@ -173,11 +173,11 @@ function rememberedDelivery(condition) {
     kind:'if',
     condition:condition,
     then:[
-      {kind:'move', direction:'left', distance_m:0.25},
+      {kind:'move', direction:'left', distance_m:0.35},
       {kind:'move', direction:'forward', distance_m:0.3}
     ],
     else:[
-      {kind:'move', direction:'right', distance_m:0.25},
+      {kind:'move', direction:'right', distance_m:0.35},
       {kind:'move', direction:'forward', distance_m:0.3}
     ]
   };
@@ -236,7 +236,7 @@ function noMemoryShortcut() {
       kind:'if',
       condition:{kind:'compare', op:'GT', left:number(1), right:number(0)},
       then:[
-        {kind:'move', direction:'left', distance_m:0.25},
+        {kind:'move', direction:'left', distance_m:0.35},
         {kind:'move', direction:'forward', distance_m:0.3}
       ],
       else:[]
