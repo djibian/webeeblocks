@@ -166,8 +166,10 @@ exit "$runner_rc"
         required = (
             "AUTONOMOUS_PROBE_READY",
             "AUTONOMOUS_FAILURE_PROBE_WITHOUT_FAILURE_UNAVAILABLE",
+            "AUTONOMOUS_DEPARTURE_SMALL_RANGE",
             "AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_ACHIEVED",
             "AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_RESET_FRESH",
+            "AUTONOMOUS_DEPARTURE_LARGE_RANGE",
             "AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED",
             "AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_RESET_FRESH",
             "AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED",
@@ -201,6 +203,20 @@ exit "$runner_rc"
             return fail(f"Activity 8 probe did not become ready: {details['AUTONOMOUS_PROBE_READY']}")
         if details["AUTONOMOUS_FAILURE_PROBE_WITHOUT_FAILURE_UNAVAILABLE"] != {"code":"OUTCOME_UNAVAILABLE"}:
             return fail("Activity 8 failure probe synthesized an outcome without irreversible failure")
+
+        small_detail = details["AUTONOMOUS_DEPARTURE_SMALL_RANGE"]
+        large_detail = details["AUTONOMOUS_DEPARTURE_LARGE_RANGE"]
+        small_range = small_detail.get("meters") if isinstance(small_detail, dict) else None
+        large_range = large_detail.get("meters") if isinstance(large_detail, dict) else None
+        numeric = lambda value: isinstance(value, (int, float)) and not isinstance(value, bool)
+        if not numeric(small_range) or not numeric(large_range):
+            return fail(f"invalid Activity 8 departure range evidence: small={small_detail} large={large_detail}")
+        if not small_range > 1.0 or not large_range < 1.0 or not small_range > large_range + 0.5:
+            return fail(
+                "Activity 8 owned parcel signal does not causally distinguish the two classes",
+                f"small_range={small_range} large_range={large_range}",
+            )
+
         for fresh in (name for name in required if name.endswith("_FRESH")):
             if details[fresh] != {"code":"OUTCOME_UNAVAILABLE"}:
                 return fail(f"outcome survived reset at {fresh}: {details[fresh]}")
@@ -243,9 +259,11 @@ exit "$runner_rc"
             return fail(f"unexpected Activity 8 summary: {details['AUTONOMOUS_MISSION_TEST_COMPLETE']}")
 
         markers = (
-            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward parcel=small reference_x=1.150",
+            "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=1 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=1 status=achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-EB-left",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-EB-left parcel=large reference_x=0.250",
+            "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=2 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=2 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=3 pattern=small-BB-right",
             "WEBEEBLOCKS_AUTONOMOUS_ROUTE attempt=3 route=right valid=1",
@@ -269,7 +287,7 @@ exit "$runner_rc"
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 8 autonomous synthesis: one integrated strategy succeeds across the four retained parcel/row/junction configurations, a structurally distinct stored-value strategy is also accepted, and fixed-route, no-memory, front-only and incomplete shortcuts fail from observable world state in real R2025a")
+        print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, one integrated strategy succeeds across four retained parcel/row/junction configurations, a structurally distinct stored-value strategy is also accepted, and fixed-route, no-memory, front-only and incomplete shortcuts fail from observable world state in real R2025a")
         return 0
     finally:
         cleanup()
