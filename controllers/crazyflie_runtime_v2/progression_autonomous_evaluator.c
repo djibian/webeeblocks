@@ -17,8 +17,8 @@
 #define AUTONOMOUS_STATION_TOLERANCE 0.13
 #define AUTONOMOUS_REFERENCE_HIDE_X 0.12
 #define AUTONOMOUS_CENTER_Y -2.50
-#define AUTONOMOUS_LEFT_Y -2.25
-#define AUTONOMOUS_RIGHT_Y -2.75
+#define AUTONOMOUS_LEFT_Y -2.15
+#define AUTONOMOUS_RIGHT_Y -2.85
 #define AUTONOMOUS_ROW1_X 0.50
 #define AUTONOMOUS_ROW2_X 0.80
 #define AUTONOMOUS_JUNCTION_X 0.80
@@ -130,22 +130,22 @@ static int import_autonomous_world(WbNodeRef root,
   const char *nodes[] = {
     "DEF ACTIVITY8_FLOOR_EXTENSION Solid { translation 0.80 -2.50 -0.025 name \"Activity 8 autonomous warehouse floor\" children [ Shape { appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 } geometry Box { size 2.00 1.20 0.05 } } ] boundingObject Box { size 2.00 1.20 0.05 } }",
     "DEF ACTIVITY8_ROW1_FORWARD_PAD Pose { translation 0.50 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.25 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW2_FORWARD_PAD Pose { translation 0.80 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_ROW2_DETOUR_PAD Pose { translation 0.80 -2.25 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_ROW2_DETOUR_PAD Pose { translation 0.80 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_JUNCTION_PAD Pose { translation 0.80 -2.50 0.003 children [ Shape { appearance PBRAppearance { baseColor 0.22 0.48 0.88 transparency 0.20 roughness 0.9 } geometry Box { size 0.20 0.20 0.004 } } ] }",
     "DEF ACTIVITY8_FORWARD_ROUTE_PAD Pose { translation 1.10 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_LEFT_ROUTE_PAD Pose { translation 1.10 -2.25 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_RIGHT_ROUTE_PAD Pose { translation 1.10 -2.75 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_SMALL_DELIVERY_PAD Pose { translation 1.40 -2.25 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
-    "DEF ACTIVITY8_LARGE_DELIVERY_PAD Pose { translation 1.40 -2.75 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.52 0.08 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
+    "DEF ACTIVITY8_LEFT_ROUTE_PAD Pose { translation 1.10 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_RIGHT_ROUTE_PAD Pose { translation 1.10 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_SMALL_DELIVERY_PAD Pose { translation 1.40 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
+    "DEF ACTIVITY8_LARGE_DELIVERY_PAD Pose { translation 1.40 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.52 0.08 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
     "DEF ACTIVITY8_ROW1_CENTER_BARRIER Solid { translation 0.45 -2.50 -1.00 name \"Activity 8 row 1 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_ROW1_LEFT_BARRIER Solid { translation 0.35 -2.25 -1.00 name \"Activity 8 row 1 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW1_LEFT_BARRIER Solid { translation 0.35 -2.15 -1.00 name \"Activity 8 row 1 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_ROW2_CENTER_BARRIER Solid { translation 0.75 -2.50 -1.00 name \"Activity 8 row 2 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_ROW2_LEFT_BARRIER Solid { translation 0.65 -2.25 -1.00 name \"Activity 8 row 2 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW2_LEFT_BARRIER Solid { translation 0.65 -2.15 -1.00 name \"Activity 8 row 2 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_FRONT_BARRIER Solid { translation 1.05 -2.50 -1.00 name \"Activity 8 junction front blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_JUNCTION_LEFT_BARRIER Solid { translation 0.80 -2.25 -1.00 name \"Activity 8 junction left blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_JUNCTION_RIGHT_BARRIER Solid { translation 0.80 -2.75 -1.00 name \"Activity 8 junction right blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }"
+    "DEF ACTIVITY8_JUNCTION_LEFT_BARRIER Solid { translation 0.80 -2.15 -1.00 name \"Activity 8 junction left blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
+    "DEF ACTIVITY8_JUNCTION_RIGHT_BARRIER Solid { translation 0.80 -2.85 -1.00 name \"Activity 8 junction right blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }"
   };
   const int count = (int)(sizeof(nodes) / sizeof(nodes[0]));
   for (int index = 0; index < count; ++index)
