@@ -49,9 +49,9 @@ typedef struct {
 
 static const AutonomousPattern AUTONOMOUS_PATTERNS[AUTONOMOUS_PATTERN_COUNT] = {
   {1, 1, 0, AUTONOMOUS_ROUTE_FORWARD, "small-BE-forward"},
-  {0, 0, 1, AUTONOMOUS_ROUTE_LEFT,    "large-EB-left"},
+  {0, 1, 0, AUTONOMOUS_ROUTE_FORWARD, "large-BE-forward"},
   {1, 1, 1, AUTONOMOUS_ROUTE_RIGHT,   "small-BB-right"},
-  {0, 0, 0, AUTONOMOUS_ROUTE_FORWARD, "large-EE-forward"}
+  {0, 1, 1, AUTONOMOUS_ROUTE_RIGHT,   "large-BB-right"}
 };
 
 static const char *route_name(enum AutonomousRoute route) {
