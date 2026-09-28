@@ -170,11 +170,11 @@ exit "$runner_rc"
             "AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_ACHIEVED",
             "AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_RESET_FRESH",
             "AUTONOMOUS_DEPARTURE_LARGE_RANGE",
-            "AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED",
-            "AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_RESET_FRESH",
+            "AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_RESET_FRESH",
             "AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED",
             "AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_RESET_FRESH",
-            "AUTONOMOUS_INTEGRATED_LARGE_EE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_INTEGRATED_LARGE_BB_RIGHT_ACHIEVED",
             "AUTONOMOUS_FIXED_ROUTE_FRESH",
             "AUTONOMOUS_FIXED_ROUTE_NOT_ACHIEVED",
             "AUTONOMOUS_NO_MEMORY_FRESH",
@@ -183,14 +183,18 @@ exit "$runner_rc"
             "AUTONOMOUS_FRONT_ONLY_RIGHT_NOT_ACHIEVED",
             "AUTONOMOUS_INCOMPLETE_FRESH",
             "AUTONOMOUS_INCOMPLETE_NOT_ACHIEVED",
-            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_FRESH",
-            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED",
-            "AUTONOMOUS_ALT_LARGE_EB_LEFT_FRESH",
-            "AUTONOMOUS_ALT_LARGE_EB_LEFT_ACHIEVED",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_FRESH",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_ACHIEVED",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_FRESH",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_NOT_ACHIEVED",
             "AUTONOMOUS_ALT_SMALL_BB_RIGHT_FRESH",
             "AUTONOMOUS_ALT_SMALL_BB_RIGHT_ACHIEVED",
-            "AUTONOMOUS_ALT_LARGE_EE_FORWARD_FRESH",
-            "AUTONOMOUS_ALT_LARGE_EE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_ALT_LARGE_BB_RIGHT_FRESH",
+            "AUTONOMOUS_ALT_LARGE_BB_RIGHT_ACHIEVED",
+            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_FRESH",
+            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_ALT_LARGE_BE_FORWARD_FRESH",
+            "AUTONOMOUS_ALT_LARGE_BE_FORWARD_ACHIEVED",
             "AUTONOMOUS_FINAL_RESET_FRESH",
             "AUTONOMOUS_MISSION_TEST_COMPLETE",
         )
@@ -223,13 +227,14 @@ exit "$runner_rc"
 
         for achieved in (
             "AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_ACHIEVED",
-            "AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED",
+            "AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_ACHIEVED",
             "AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED",
-            "AUTONOMOUS_INTEGRATED_LARGE_EE_FORWARD_ACHIEVED",
-            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED",
-            "AUTONOMOUS_ALT_LARGE_EB_LEFT_ACHIEVED",
+            "AUTONOMOUS_INTEGRATED_LARGE_BB_RIGHT_ACHIEVED",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_ACHIEVED",
             "AUTONOMOUS_ALT_SMALL_BB_RIGHT_ACHIEVED",
-            "AUTONOMOUS_ALT_LARGE_EE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_ALT_LARGE_BB_RIGHT_ACHIEVED",
+            "AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED",
+            "AUTONOMOUS_ALT_LARGE_BE_FORWARD_ACHIEVED",
         ):
             if details[achieved] != {"status":"achieved"}:
                 return fail(f"unexpected achieved Activity 8 event {achieved}: {details[achieved]}")
@@ -245,6 +250,7 @@ exit "$runner_rc"
         for ordinary_negative in (
             "AUTONOMOUS_NO_MEMORY_LARGE_NOT_ACHIEVED",
             "AUTONOMOUS_INCOMPLETE_NOT_ACHIEVED",
+            "AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_NOT_ACHIEVED",
         ):
             if details[ordinary_negative] != {"status":"not-achieved"}:
                 return fail(f"unexpected completed Activity 8 failure {ordinary_negative}: {details[ordinary_negative]}")
@@ -254,6 +260,7 @@ exit "$runner_rc"
             "no_memory":"not-achieved",
             "front_only":"not-achieved",
             "incomplete":"not-achieved",
+            "downstream_inference":["achieved", "not-achieved"],
             "alternate":["achieved", "achieved", "achieved", "achieved"],
         }:
             return fail(f"unexpected Activity 8 summary: {details['AUTONOMOUS_MISSION_TEST_COMPLETE']}")
@@ -262,13 +269,14 @@ exit "$runner_rc"
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward parcel=small reference_x=1.150",
             "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=1 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=1 status=achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-EB-left parcel=large reference_x=0.250",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-BE-forward parcel=large reference_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=2 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=2 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=3 pattern=small-BB-right",
             "WEBEEBLOCKS_AUTONOMOUS_ROUTE attempt=3 route=right valid=1",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=3 status=achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=4 pattern=large-EE-forward",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=4 pattern=large-BB-right",
+            "WEBEEBLOCKS_AUTONOMOUS_ROUTE attempt=4 route=right valid=1",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=4 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=5 status=not-achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=6 status=not-achieved",
@@ -276,10 +284,14 @@ exit "$runner_rc"
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=7 status=not-achieved",
             "WEBEEBLOCKS_AUTONOMOUS_TIMEOUT attempt=8",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=8 status=not-achieved",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=9 pattern=small-BE-forward",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=9 status=achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=10 status=achieved",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=10 pattern=large-BE-forward",
+            "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=10 status=not-achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=11 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=12 status=achieved",
+            "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=13 status=achieved",
+            "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=14 status=achieved",
         )
         for marker in markers:
             if marker not in webots_log:
@@ -287,7 +299,7 @@ exit "$runner_rc"
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
-        print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, one integrated strategy succeeds across four retained parcel/row/junction configurations, a structurally distinct stored-value strategy is also accepted, and fixed-route, no-memory, front-only and incomplete shortcuts fail from observable world state in real R2025a")
+        print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, pairs identical downstream worlds with both parcel classes, proves downstream sensing cannot replace departure memory, accepts two distinct stored-value strategies, and rejects fixed-route, front-only and incomplete shortcuts from observable world state in real R2025a")
         return 0
     finally:
         cleanup()
