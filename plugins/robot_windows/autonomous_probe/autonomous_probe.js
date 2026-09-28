@@ -67,6 +67,7 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
 
 const parcelVariable = {id:'activity8-parcel', name:'gabarit mémorisé'};
 const alternateParcelVariable = {id:'activity8-parcel-alt', name:'référence de départ'};
+const downstreamGuessVariable = {id:'activity8-downstream-guess', name:'indice aval'};
 
 function number(value) {
   return {kind:'number', value:value};
@@ -244,6 +245,22 @@ function noMemoryShortcut() {
   );
 }
 
+function downstreamInferenceShortcut() {
+  return completeProgram(
+    reachRowsWithoutMemory().concat([
+      {kind:'set_variable', variable:downstreamGuessVariable, value:range('front')}
+    ]),
+    [{kind:'repeat', count:2, body:[reactiveRow()]}],
+    frontLeftJunctionDecision(),
+    rememberedDelivery({
+      kind:'compare',
+      op:'LT',
+      left:variableValue(downstreamGuessVariable),
+      right:number(0.30)
+    })
+  );
+}
+
 function frontOnlyShortcut() {
   return completeProgram(
     takeParcelAndReachRows(parcelVariable, range('front')),
@@ -332,12 +349,12 @@ window.addEventListener('unhandledrejection', function(event) {
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_SMALL_BE_FORWARD_RESET_FRESH');
     integrated.push(await executeCase(
       backend, evaluation, integratedStrategy(), 'achieved',
-      'AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_ACHIEVED', false,
+      'AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_ACHIEVED', false,
       {parcel:'large', event:'AUTONOMOUS_DEPARTURE_LARGE_RANGE'}));
-    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_LARGE_EB_LEFT_RESET_FRESH');
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_LARGE_BE_FORWARD_RESET_FRESH');
     integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED', false));
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_RESET_FRESH');
-    integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_LARGE_EE_FORWARD_ACHIEVED', false));
+    integrated.push(await executeCase(backend, evaluation, integratedStrategy(), 'achieved', 'AUTONOMOUS_INTEGRATED_LARGE_BB_RIGHT_ACHIEVED', false));
 
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_FIXED_ROUTE_FRESH');
     const fixedRoute = await executeCase(backend, evaluation, fixedRouteShortcut(), 'not-achieved', 'AUTONOMOUS_FIXED_ROUTE_NOT_ACHIEVED', true);
@@ -351,15 +368,21 @@ window.addEventListener('unhandledrejection', function(event) {
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_INCOMPLETE_FRESH');
     const incomplete = await executeCase(backend, evaluation, incompleteProgram(), 'not-achieved', 'AUTONOMOUS_INCOMPLETE_NOT_ACHIEVED', false);
 
+    const downstreamInference = [];
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_FRESH');
+    downstreamInference.push(await executeCase(backend, evaluation, downstreamInferenceShortcut(), 'achieved', 'AUTONOMOUS_DOWNSTREAM_INFERENCE_SMALL_BE_ACHIEVED', false));
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_FRESH');
+    downstreamInference.push(await executeCase(backend, evaluation, downstreamInferenceShortcut(), 'not-achieved', 'AUTONOMOUS_DOWNSTREAM_INFERENCE_LARGE_BE_NOT_ACHIEVED', false));
+
     const alternate = [];
-    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_SMALL_BE_FORWARD_FRESH');
-    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED', false));
-    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_LARGE_EB_LEFT_FRESH');
-    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_LARGE_EB_LEFT_ACHIEVED', false));
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_SMALL_BB_RIGHT_FRESH');
     alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_SMALL_BB_RIGHT_ACHIEVED', false));
-    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_LARGE_EE_FORWARD_FRESH');
-    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_LARGE_EE_FORWARD_ACHIEVED', false));
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_LARGE_BB_RIGHT_FRESH');
+    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_LARGE_BB_RIGHT_ACHIEVED', false));
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_SMALL_BE_FORWARD_FRESH');
+    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_SMALL_BE_FORWARD_ACHIEVED', false));
+    await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_ALT_LARGE_BE_FORWARD_FRESH');
+    alternate.push(await executeCase(backend, evaluation, alternativeStrategy(), 'achieved', 'AUTONOMOUS_ALT_LARGE_BE_FORWARD_ACHIEVED', false));
 
     await resetAndProveFresh(backend, evaluation, 'AUTONOMOUS_FINAL_RESET_FRESH');
     await report('AUTONOMOUS_MISSION_TEST_COMPLETE', {
@@ -368,6 +391,7 @@ window.addEventListener('unhandledrejection', function(event) {
       no_memory:noMemory.status,
       front_only:frontOnly.status,
       incomplete:incomplete.status,
+      downstream_inference:downstreamInference.map(result => result.status),
       alternate:alternate.map(result => result.status)
     });
   } catch (error) {
