@@ -51,6 +51,16 @@ assert.match(evaluator, /ACTIVITY8_RIGHT_ROUTE_PAD Pose \{ translation 1\.10 -2\
 assert.match(evaluator, /ACTIVITY8_SMALL_DELIVERY_PAD Pose \{ translation 1\.40 -2\.15/);
 assert.match(evaluator, /ACTIVITY8_LARGE_DELIVERY_PAD Pose \{ translation 1\.40 -2\.85/);
 assert.match(evaluator, /ACTIVITY8_FLOOR_EXTENSION/);
+assert.match(evaluator, /ACTIVITY8_PARCEL_REFERENCE/);
+assert.match(evaluator, /ACTIVITY8_REFERENCE_MASK/);
+assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_SMALL_X 1\.15/);
+assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_LARGE_X 0\.25/);
+assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_HIDE_X 0\.40/);
+assert.match(evaluator, /reference_x = pattern->small_parcel \? AUTONOMOUS_REFERENCE_SMALL_X : AUTONOMOUS_REFERENCE_LARGE_X/);
+assert.match(evaluator, /wb_supervisor_field_set_sf_vec3f\(reference_translation, hidden_reference\)/);
+assert.match(evaluator, /wb_supervisor_field_set_sf_vec3f\(reference_mask_translation, visible_mask\)/);
+assert.doesNotMatch(evaluator, /ACTIVITY7_REFERENCE_PANEL|MEMORY_PATTERN/,
+  'Activity 8 parcel evidence must be owned by Activity 8 rather than coupled to Activity 7');
 assert.match(evaluator, /ACTIVITY8_ROW1_CENTER_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_ROW2_CENTER_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_JUNCTION_FRONT_BARRIER/);
@@ -99,6 +109,10 @@ assert.match(probe, /function noMemoryShortcut\(\)[\s\S]*?reachRowsWithoutMemory
   'no-memory counterexample must genuinely omit departure storage');
 assert.match(probe, /function frontOnlyShortcut\(\)/);
 assert.match(probe, /function incompleteProgram\(\)/);
+assert.match(probe, /AUTONOMOUS_DEPARTURE_SMALL_RANGE/);
+assert.match(probe, /AUTONOMOUS_DEPARTURE_LARGE_RANGE/);
+assert.match(probe, /departureEvidence\.parcel === 'small'[\s\S]*departureRange > 1\.0/);
+assert.match(probe, /departureEvidence\.parcel === 'large'[\s\S]*departureRange < 1\.0/);
 
 const reactiveRowSource = probe.slice(
   probe.indexOf('function reactiveRow()'), probe.indexOf('function forwardJunctionRoute()'));
@@ -129,6 +143,13 @@ assert.match(probe, /AUTONOMOUS_ALT_LARGE_EE_FORWARD_ACHIEVED/);
 
 const runner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_autonomous_mission.py'), 'utf8');
 assert.match(runner, /AUTONOMOUS_MISSION_TEST_COMPLETE/);
+assert.match(runner, /AUTONOMOUS_DEPARTURE_SMALL_RANGE/);
+assert.match(runner, /AUTONOMOUS_DEPARTURE_LARGE_RANGE/);
+assert.match(runner, /small_range > 1\.0/);
+assert.match(runner, /large_range < 1\.0/);
+assert.match(runner, /reference_x=1\.150/);
+assert.match(runner, /reference_x=0\.250/);
+assert.match(runner, /reference_hidden=1 mask_x=0\.250/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-EB-left/);
 assert.match(runner, /WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=3 pattern=small-BB-right/);
@@ -139,4 +160,4 @@ assert.match(runner, /no_memory.*not-achieved/);
 assert.match(runner, /front_only.*not-achieved/);
 assert.match(runner, /incomplete.*not-achieved/);
 
-console.log('PASS Activity 8 contract: an explicit warehouse delivery mission synthesizes only previously learned mechanisms; acceptance depends only on world state, rejects fixed/no-memory/front-only/incomplete shortcuts, and admits a distinct valid stored-value strategy');
+console.log('PASS Activity 8 contract: an explicit warehouse delivery mission owns its parcel signal and removes it after departure, synthesizes only previously learned mechanisms, accepts only observable world success, rejects fixed/no-memory/front-only/incomplete shortcuts, and admits a distinct valid stored-value strategy');
