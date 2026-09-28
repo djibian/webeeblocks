@@ -577,3 +577,14 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression autonomous strategy evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "autonomous-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_END

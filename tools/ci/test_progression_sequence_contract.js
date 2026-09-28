@@ -40,12 +40,9 @@ const remainingProgression = Activities.DOCUMENT.activities.filter(profile =>
   profile.id !== 'progression-simple-decision-v1' &&
   profile.id !== 'progression-reactive-v1' &&
   profile.id !== 'progression-combined-decisions-v1' &&
-  profile.id !== 'progression-memory-v1');
-assert.strictEqual(remainingProgression.length, 1);
-remainingProgression.forEach(profile => {
-  assert.strictEqual(profile.evaluation.type, 'training-objective');
-  assert.strictEqual(profile.brief.mission, undefined);
-});
+  profile.id !== 'progression-memory-v1' &&
+  profile.id !== 'progression-autonomous-strategy-v1');
+assert.strictEqual(remainingProgression.length, 0);
 
 for (const missionProfile of [p1, p2]) {
   const missingMission = JSON.parse(JSON.stringify(missionProfile));

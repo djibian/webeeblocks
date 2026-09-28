@@ -47,6 +47,12 @@ evaluators = (
         'name "Progression combined decisions evaluator"',
         '"combined-decisions-evaluator-v1"',
     ),
+    (
+        "# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_BEGIN",
+        "# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_END",
+        'name "Progression autonomous strategy evaluator"',
+        '"autonomous-evaluator-v1"',
+    ),
 )
 
 visual_source = source
