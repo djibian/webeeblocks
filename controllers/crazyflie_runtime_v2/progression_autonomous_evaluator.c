@@ -15,7 +15,10 @@
 #define AUTONOMOUS_STATION_X 0.0
 #define AUTONOMOUS_STATION_Y -1.50
 #define AUTONOMOUS_STATION_TOLERANCE 0.13
-#define AUTONOMOUS_REFERENCE_HIDE_X 0.12
+#define AUTONOMOUS_REFERENCE_HIDE_X 0.40
+#define AUTONOMOUS_REFERENCE_SMALL_X 1.15
+#define AUTONOMOUS_REFERENCE_LARGE_X 0.25
+#define AUTONOMOUS_REFERENCE_MASK_X 0.25
 #define AUTONOMOUS_CENTER_Y -2.50
 #define AUTONOMOUS_LEFT_Y -2.15
 #define AUTONOMOUS_RIGHT_Y -2.85
@@ -123,12 +126,16 @@ static void publish_outcome(WbFieldRef custom_data,
 }
 
 static int import_autonomous_world(WbNodeRef root,
-                                   WbFieldRef barrier_fields[7]) {
+                                   WbFieldRef barrier_fields[7],
+                                   WbFieldRef *reference_translation_out,
+                                   WbFieldRef *reference_mask_translation_out) {
   WbFieldRef children = wb_supervisor_node_get_field(root, "children");
   if (!children)
     return 0;
   const char *nodes[] = {
     "DEF ACTIVITY8_FLOOR_EXTENSION Solid { translation 0.80 -2.50 -0.025 name \"Activity 8 autonomous warehouse floor\" children [ Shape { appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 } geometry Box { size 2.00 1.20 0.05 } } ] boundingObject Box { size 2.00 1.20 0.05 } }",
+    "DEF ACTIVITY8_PARCEL_REFERENCE Solid { translation 0 -1.50 -1.00 name \"Activity 8 parcel gauge reference panel\" children [ Shape { appearance PBRAppearance { baseColor 0.18 0.70 0.82 roughness 0.5 } geometry Box { size 0.10 0.50 1.10 } } ] boundingObject Box { size 0.10 0.50 1.10 } }",
+    "DEF ACTIVITY8_REFERENCE_MASK Solid { translation 0 -1.50 -1.00 name \"Activity 8 post-departure reference mask\" children [ Shape { appearance PBRAppearance { baseColor 0.38 0.40 0.44 roughness 0.7 } geometry Box { size 0.10 0.50 1.10 } } ] boundingObject Box { size 0.10 0.50 1.10 } }",
     "DEF ACTIVITY8_ROW1_FORWARD_PAD Pose { translation 0.50 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW2_FORWARD_PAD Pose { translation 0.80 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
@@ -150,6 +157,15 @@ static int import_autonomous_world(WbNodeRef root,
   const int count = (int)(sizeof(nodes) / sizeof(nodes[0]));
   for (int index = 0; index < count; ++index)
     wb_supervisor_field_import_mf_node_from_string(children, -1, nodes[index]);
+
+  WbNodeRef reference = wb_supervisor_node_get_from_def("ACTIVITY8_PARCEL_REFERENCE");
+  WbNodeRef reference_mask = wb_supervisor_node_get_from_def("ACTIVITY8_REFERENCE_MASK");
+  if (!reference || !reference_mask)
+    return 0;
+  *reference_translation_out = wb_supervisor_node_get_field(reference, "translation");
+  *reference_mask_translation_out = wb_supervisor_node_get_field(reference_mask, "translation");
+  if (!*reference_translation_out || !*reference_mask_translation_out)
+    return 0;
 
   const char *barrier_defs[7] = {
     "ACTIVITY8_ROW1_CENTER_BARRIER",
@@ -190,7 +206,11 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
   WbNodeRef root = wb_supervisor_node_get_root();
   WbNodeRef crazyflie = find_named_node(root, "Crazyflie WebeeBlocks");
   WbFieldRef barrier_fields[7] = {0};
-  if (!crazyflie || !import_autonomous_world(root, barrier_fields)) {
+  WbFieldRef reference_translation = NULL;
+  WbFieldRef reference_mask_translation = NULL;
+  if (!crazyflie || !import_autonomous_world(root, barrier_fields,
+                                              &reference_translation,
+                                              &reference_mask_translation)) {
     fprintf(stderr, "WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_ERROR missing Crazyflie or Activity 8 mission node\n");
     wb_robot_cleanup();
     return 2;
@@ -245,6 +265,12 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       set_barrier(barrier_fields[6], AUTONOMOUS_JUNCTION_X, AUTONOMOUS_RIGHT_Y,
                   pattern->junction_route != AUTONOMOUS_ROUTE_RIGHT);
 
+      const double reference_x = pattern->small_parcel ? AUTONOMOUS_REFERENCE_SMALL_X : AUTONOMOUS_REFERENCE_LARGE_X;
+      const double reference_position[3] = {reference_x, AUTONOMOUS_STATION_Y, AUTONOMOUS_BARRIER_Z};
+      const double mask_hidden_position[3] = {AUTONOMOUS_REFERENCE_MASK_X, AUTONOMOUS_STATION_Y, AUTONOMOUS_HIDDEN_Z};
+      wb_supervisor_field_set_sf_vec3f(reference_translation, reference_position);
+      wb_supervisor_field_set_sf_vec3f(reference_mask_translation, mask_hidden_position);
+
       airborne_seen = 0;
       station_seen = 0;
       reference_unavailable = 0;
@@ -257,8 +283,9 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       completion_time = 0.0;
       reported = 0;
 
-      printf("WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=%llu pattern=%s parcel=%s row1=%s row2=%s junction=%s\n",
+      printf("WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=%llu pattern=%s parcel=%s reference_x=%.3f row1=%s row2=%s junction=%s\n",
              active_attempt, pattern->name, pattern->small_parcel ? "small" : "large",
+             reference_x,
              pattern->row1_blocked ? "blocked" : "open",
              pattern->row2_blocked ? "blocked" : "open",
              route_name(pattern->junction_route));
@@ -282,8 +309,13 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       fflush(stdout);
     }
     if (station_seen && !reference_unavailable && position[0] >= AUTONOMOUS_REFERENCE_HIDE_X) {
+      const double hidden_reference[3] = {AUTONOMOUS_REFERENCE_MASK_X, AUTONOMOUS_STATION_Y, AUTONOMOUS_HIDDEN_Z};
+      const double visible_mask[3] = {AUTONOMOUS_REFERENCE_MASK_X, AUTONOMOUS_STATION_Y, AUTONOMOUS_BARRIER_Z};
+      wb_supervisor_field_set_sf_vec3f(reference_translation, hidden_reference);
+      wb_supervisor_field_set_sf_vec3f(reference_mask_translation, visible_mask);
       reference_unavailable = 1;
-      printf("WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=%llu\n", active_attempt);
+      printf("WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=%llu reference_hidden=1 mask_x=%.3f\n",
+             active_attempt, AUTONOMOUS_REFERENCE_MASK_X);
       fflush(stdout);
     }
 
