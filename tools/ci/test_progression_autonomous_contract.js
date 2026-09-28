@@ -41,6 +41,15 @@ assert.match(evaluator, /small-BE-forward/);
 assert.match(evaluator, /large-EB-left/);
 assert.match(evaluator, /small-BB-right/);
 assert.match(evaluator, /large-EE-forward/);
+assert.match(evaluator, /#define AUTONOMOUS_CENTER_Y -2\.50/);
+assert.match(evaluator, /#define AUTONOMOUS_LEFT_Y -2\.15/);
+assert.match(evaluator, /#define AUTONOMOUS_RIGHT_Y -2\.85/);
+assert.match(evaluator, /ACTIVITY8_ROW1_DETOUR_PAD Pose \{ translation 0\.50 -2\.15/);
+assert.match(evaluator, /ACTIVITY8_ROW2_DETOUR_PAD Pose \{ translation 0\.80 -2\.15/);
+assert.match(evaluator, /ACTIVITY8_LEFT_ROUTE_PAD Pose \{ translation 1\.10 -2\.15/);
+assert.match(evaluator, /ACTIVITY8_RIGHT_ROUTE_PAD Pose \{ translation 1\.10 -2\.85/);
+assert.match(evaluator, /ACTIVITY8_SMALL_DELIVERY_PAD Pose \{ translation 1\.40 -2\.15/);
+assert.match(evaluator, /ACTIVITY8_LARGE_DELIVERY_PAD Pose \{ translation 1\.40 -2\.85/);
 assert.match(evaluator, /ACTIVITY8_FLOOR_EXTENSION/);
 assert.match(evaluator, /ACTIVITY8_ROW1_CENTER_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_ROW2_CENTER_BARRIER/);
@@ -90,6 +99,24 @@ assert.match(probe, /function noMemoryShortcut\(\)[\s\S]*?reachRowsWithoutMemory
   'no-memory counterexample must genuinely omit departure storage');
 assert.match(probe, /function frontOnlyShortcut\(\)/);
 assert.match(probe, /function incompleteProgram\(\)/);
+
+const reactiveRowSource = probe.slice(
+  probe.indexOf('function reactiveRow()'), probe.indexOf('function forwardJunctionRoute()'));
+const leftJunctionSource = probe.slice(
+  probe.indexOf('function leftJunctionRoute()'), probe.indexOf('function rightJunctionRoute()'));
+const rightJunctionSource = probe.slice(
+  probe.indexOf('function rightJunctionRoute()'), probe.indexOf('function frontLeftJunctionDecision()'));
+const deliverySource = probe.slice(
+  probe.indexOf('function rememberedDelivery(condition)'), probe.indexOf('function completeProgram('));
+assert.match(reactiveRowSource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
+  'Activity 8 row detour witness must stay aligned with the widened 0.35 m side lane');
+assert.match(leftJunctionSource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
+  'Activity 8 left-route witness must stay aligned with the widened 0.35 m side lane');
+assert.match(rightJunctionSource, /direction:'right', distance_m:0\.35[\s\S]*direction:'left', distance_m:0\.35/,
+  'Activity 8 right-route witness must stay aligned with the widened 0.35 m side lane');
+assert.match(deliverySource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
+  'Activity 8 delivery witness must stay aligned with the widened 0.35 m final bays');
+
 assert.match(probe, /AUTONOMOUS_INTEGRATED_SMALL_BB_RIGHT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_FIXED_ROUTE_NOT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_NO_MEMORY_LARGE_NOT_ACHIEVED/);
