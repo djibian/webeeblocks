@@ -43,8 +43,6 @@ def expect_probe_error(callable_, pattern: str) -> None:
     raise AssertionError(f"expected ProbeError containing {pattern!r}")
 
 
-
-
 def test_device_type_query() -> None:
     class FakeCRTPPort:
         PLATFORM = 13
@@ -121,6 +119,97 @@ def test_device_type_query() -> None:
     )
     require(timeout.removed, "device-type callback cleanup after timeout")
 
+
+def test_bounded_session_setup() -> None:
+    class FakeCaller:
+        def __init__(self) -> None:
+            self.callbacks = []
+
+        def add_callback(self, callback) -> None:
+            self.callbacks.append(callback)
+
+        def remove_callback(self, callback) -> None:
+            self.callbacks.remove(callback)
+
+        def call(self, *args) -> None:
+            for callback in list(self.callbacks):
+                callback(*args)
+
+    class FakeRawCrazyflie:
+        def __init__(self, mode: str) -> None:
+            self.mode = mode
+            self.connected = FakeCaller()
+            self.connection_failed = FakeCaller()
+            self.disconnected = FakeCaller()
+            self.fully_connected = FakeCaller()
+            self.open_count = 0
+            self.close_count = 0
+            self.uri = None
+
+        def open_link(self, uri: str) -> None:
+            self.open_count += 1
+            self.uri = uri
+            if self.mode in ("connected-no-params", "success"):
+                self.connected.call(uri)
+            if self.mode == "success":
+                self.fully_connected.call(uri)
+
+        def close_link(self) -> None:
+            self.close_count += 1
+            if self.uri is not None:
+                self.disconnected.call(self.uri)
+
+    def require_callbacks_removed(cf: FakeRawCrazyflie, context: str) -> None:
+        for caller in (cf.connected, cf.connection_failed, cf.disconnected, cf.fully_connected):
+            require(caller.callbacks == [], f"{context}: setup callback leak")
+
+    never_connect = FakeRawCrazyflie("never-connect")
+    connect_adapter = probe._BoundedCrazyflieConnection(
+        "radio://0/80/2M/E7E7E7E7E7",
+        never_connect,
+        0.001,
+    )
+    expect_probe_error(connect_adapter.open_link, "connection/TOC setup timed out")
+    require(never_connect.open_count == 1, "connection timeout starts exactly one link attempt")
+    require(never_connect.close_count == 1, "connection timeout closes the raw link exactly once")
+    require(not connect_adapter.is_link_open(), "connection timeout leaves adapter closed")
+    require_callbacks_removed(never_connect, "connection timeout")
+
+    no_params = FakeRawCrazyflie("connected-no-params")
+    params_adapter = probe._BoundedCrazyflieConnection(
+        "radio://0/80/2M/E7E7E7E7E7",
+        no_params,
+        0.001,
+    )
+    params_adapter.open_link()
+    require(params_adapter.is_link_open(), "TOC completion opens the bounded adapter")
+    expect_probe_error(params_adapter.wait_for_params, "parameter snapshot timed out")
+    require(no_params.open_count == 1, "parameter timeout does not retry link establishment")
+    require(no_params.close_count == 1, "parameter timeout closes the raw link exactly once")
+    require(not params_adapter.is_link_open(), "parameter timeout leaves adapter closed")
+    require_callbacks_removed(no_params, "parameter timeout")
+
+    successful = FakeRawCrazyflie("success")
+    success_adapter = probe._BoundedCrazyflieConnection(
+        "radio://0/80/2M/E7E7E7E7E7",
+        successful,
+        0.01,
+    )
+    success_adapter.open_link()
+    success_adapter.wait_for_params()
+    require(success_adapter.is_link_open(), "bounded setup accepts connected plus fully-connected events")
+    success_adapter.close_link()
+    require(successful.open_count == 1 and successful.close_count == 1, "successful setup remains one-shot")
+    require(not success_adapter.is_link_open(), "explicit bounded adapter close")
+    require_callbacks_removed(successful, "successful setup")
+
+    expect_probe_error(
+        lambda: probe.ReadOnlyCapabilitySession(
+            "radio://0/80/2M/E7E7E7E7E7",
+            setup_timeout_seconds=0.0,
+        ),
+        "session setup timeout must be positive",
+    )
 
 
 def test_live_capability_session() -> None:
@@ -280,8 +369,10 @@ def test_live_capability_session() -> None:
         "failed session setup must close the live link",
     )
 
+
 def main() -> int:
     test_device_type_query()
+    test_bounded_session_setup()
     test_live_capability_session()
     descriptor = probe.build_descriptor("11", BASE_VALUES)
 
