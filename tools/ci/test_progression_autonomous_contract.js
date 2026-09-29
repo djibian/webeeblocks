@@ -46,8 +46,8 @@ assert.doesNotMatch(evaluator, /large-EB-left|large-EE-forward/,
 assert.match(evaluator, /#define AUTONOMOUS_CENTER_Y -2\.50/);
 assert.match(evaluator, /#define AUTONOMOUS_LEFT_Y -2\.15/);
 assert.match(evaluator, /#define AUTONOMOUS_RIGHT_Y -2\.85/);
-assert.match(evaluator, /ACTIVITY8_ROW1_DETOUR_PAD Pose \{ translation 0\.50 -2\.15/);
-assert.match(evaluator, /ACTIVITY8_ROW2_DETOUR_PAD Pose \{ translation 0\.80 -2\.15/);
+assert.match(evaluator, /ACTIVITY8_ROW1_DETOUR_PAD Pose \{ translation 0\.50 -2\.85/);
+assert.match(evaluator, /ACTIVITY8_ROW2_DETOUR_PAD Pose \{ translation 0\.80 -2\.85/);
 assert.match(evaluator, /ACTIVITY8_LEFT_ROUTE_PAD Pose \{ translation 1\.10 -2\.15/);
 assert.match(evaluator, /ACTIVITY8_RIGHT_ROUTE_PAD Pose \{ translation 1\.10 -2\.85/);
 assert.match(evaluator, /ACTIVITY8_SMALL_DELIVERY_PAD Pose \{ translation 1\.40 -2\.15/);
@@ -68,8 +68,8 @@ assert.ok(maskBox, 'reference mask must retain a physical bounding object');
 const maskHalfWidth = Number(maskBox[2]) / 2;
 const sweptHalfWidth = 0.10;
 const maskY = -2.00;
-assert.ok(maskY - maskHalfWidth > -2.15 + sweptHalfWidth,
-  'post-departure mask must clear the full Activity 8 first-detour envelope');
+assert.ok(maskY - maskHalfWidth > -2.85 + sweptHalfWidth,
+  'post-departure mask must clear the full Activity 8 right-detour envelope');
 assert.ok(maskY + maskHalfWidth < -1.75 - sweptHalfWidth,
   'post-departure mask must preserve the Activity 7 right-route envelope');
 assert.ok(-2.35 + sweptHalfWidth < maskY - maskHalfWidth,
@@ -80,10 +80,16 @@ assert.match(evaluator, /wb_supervisor_field_set_sf_vec3f\(reference_mask_transl
 assert.doesNotMatch(evaluator, /ACTIVITY7_REFERENCE_PANEL|MEMORY_PATTERN/,
   'Activity 8 parcel evidence must be owned by Activity 8 rather than coupled to Activity 7');
 assert.match(evaluator, /ACTIVITY8_ROW1_CENTER_BARRIER/);
+assert.match(evaluator, /ACTIVITY8_ROW1_RIGHT_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_ROW2_CENTER_BARRIER/);
+assert.match(evaluator, /ACTIVITY8_ROW2_RIGHT_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_JUNCTION_FRONT_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_JUNCTION_LEFT_BARRIER/);
 assert.match(evaluator, /ACTIVITY8_JUNCTION_RIGHT_BARRIER/);
+assert.match(evaluator, /set_barrier\(barrier_fields\[3\], 0\.65, AUTONOMOUS_RIGHT_Y, !pattern->row2_blocked\)/,
+  'blocked row 2 must leave its repeated right-detour lane open');
+assert.match(evaluator, /set_barrier\(barrier_fields\[6\], AUTONOMOUS_JUNCTION_X, AUTONOMOUS_RIGHT_Y,\s*pattern->junction_route != AUTONOMOUS_ROUTE_RIGHT\)/,
+  'BB-right patterns must keep the row-2 right-detour lane open through the co-located junction boundary');
 assert.match(evaluator, /ACTIVITY8_SMALL_DELIVERY_PAD/);
 assert.match(evaluator, /ACTIVITY8_LARGE_DELIVERY_PAD/);
 assert.match(evaluator, /reference_unavailable/);
@@ -145,8 +151,8 @@ const rightJunctionSource = probe.slice(
   probe.indexOf('function rightJunctionRoute()'), probe.indexOf('function frontLeftJunctionDecision()'));
 const deliverySource = probe.slice(
   probe.indexOf('function rememberedDelivery(condition)'), probe.indexOf('function completeProgram('));
-assert.match(reactiveRowSource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
-  'Activity 8 row detour witness must stay aligned with the widened 0.35 m side lane');
+assert.match(reactiveRowSource, /direction:'right', distance_m:0\.35[\s\S]*direction:'left', distance_m:0\.35/,
+  'Activity 8 row detour witness must stay aligned with the widened 0.35 m right side lane');
 assert.match(leftJunctionSource, /direction:'left', distance_m:0\.35[\s\S]*direction:'right', distance_m:0\.35/,
   'Activity 8 left-route witness must stay aligned with the widened 0.35 m side lane');
 assert.match(rightJunctionSource, /direction:'right', distance_m:0\.35[\s\S]*direction:'left', distance_m:0\.35/,

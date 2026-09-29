@@ -137,9 +137,9 @@ static int import_autonomous_world(WbNodeRef root,
     "DEF ACTIVITY8_PARCEL_REFERENCE Solid { translation 0 -2.00 -1.00 name \"Activity 8 parcel gauge reference panel\" children [ Shape { appearance PBRAppearance { baseColor 0.18 0.70 0.82 roughness 0.5 } geometry Box { size 0.10 0.20 1.10 } } ] boundingObject Box { size 0.10 0.20 1.10 } }",
     "DEF ACTIVITY8_REFERENCE_MASK Solid { translation 0 -2.00 -1.00 name \"Activity 8 post-departure reference mask\" children [ Shape { appearance PBRAppearance { baseColor 0.38 0.40 0.44 roughness 0.7 } geometry Box { size 0.10 0.04 1.10 } } ] boundingObject Box { size 0.10 0.04 1.10 } }",
     "DEF ACTIVITY8_ROW1_FORWARD_PAD Pose { translation 0.50 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW2_FORWARD_PAD Pose { translation 0.80 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
-    "DEF ACTIVITY8_ROW2_DETOUR_PAD Pose { translation 0.80 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
+    "DEF ACTIVITY8_ROW2_DETOUR_PAD Pose { translation 0.80 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_JUNCTION_PAD Pose { translation 0.80 -2.50 0.003 children [ Shape { appearance PBRAppearance { baseColor 0.22 0.48 0.88 transparency 0.20 roughness 0.9 } geometry Box { size 0.20 0.20 0.004 } } ] }",
     "DEF ACTIVITY8_FORWARD_ROUTE_PAD Pose { translation 1.10 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_LEFT_ROUTE_PAD Pose { translation 1.10 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
@@ -147,9 +147,9 @@ static int import_autonomous_world(WbNodeRef root,
     "DEF ACTIVITY8_SMALL_DELIVERY_PAD Pose { translation 1.40 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
     "DEF ACTIVITY8_LARGE_DELIVERY_PAD Pose { translation 1.40 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.52 0.08 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
     "DEF ACTIVITY8_ROW1_CENTER_BARRIER Solid { translation 0.35 -2.50 -1.00 name \"Activity 8 row 1 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
-    "DEF ACTIVITY8_ROW1_LEFT_BARRIER Solid { translation 0.35 -2.15 -1.00 name \"Activity 8 row 1 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW1_RIGHT_BARRIER Solid { translation 0.35 -2.85 -1.00 name \"Activity 8 row 1 right detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_ROW2_CENTER_BARRIER Solid { translation 0.65 -2.50 -1.00 name \"Activity 8 row 2 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
-    "DEF ACTIVITY8_ROW2_LEFT_BARRIER Solid { translation 0.65 -2.15 -1.00 name \"Activity 8 row 2 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW2_RIGHT_BARRIER Solid { translation 0.65 -2.85 -1.00 name \"Activity 8 row 2 right detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_FRONT_BARRIER Solid { translation 0.95 -2.50 -1.00 name \"Activity 8 junction front blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_LEFT_BARRIER Solid { translation 0.80 -2.15 -1.00 name \"Activity 8 junction left blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_RIGHT_BARRIER Solid { translation 0.80 -2.85 -1.00 name \"Activity 8 junction right blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }"
@@ -169,9 +169,9 @@ static int import_autonomous_world(WbNodeRef root,
 
   const char *barrier_defs[7] = {
     "ACTIVITY8_ROW1_CENTER_BARRIER",
-    "ACTIVITY8_ROW1_LEFT_BARRIER",
+    "ACTIVITY8_ROW1_RIGHT_BARRIER",
     "ACTIVITY8_ROW2_CENTER_BARRIER",
-    "ACTIVITY8_ROW2_LEFT_BARRIER",
+    "ACTIVITY8_ROW2_RIGHT_BARRIER",
     "ACTIVITY8_JUNCTION_FRONT_BARRIER",
     "ACTIVITY8_JUNCTION_LEFT_BARRIER",
     "ACTIVITY8_JUNCTION_RIGHT_BARRIER"
@@ -255,9 +255,9 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       const AutonomousPattern *pattern = &AUTONOMOUS_PATTERNS[pattern_index];
 
       set_barrier(barrier_fields[0], 0.35, AUTONOMOUS_CENTER_Y, pattern->row1_blocked);
-      set_barrier(barrier_fields[1], 0.35, AUTONOMOUS_LEFT_Y, !pattern->row1_blocked);
+      set_barrier(barrier_fields[1], 0.35, AUTONOMOUS_RIGHT_Y, !pattern->row1_blocked);
       set_barrier(barrier_fields[2], 0.65, AUTONOMOUS_CENTER_Y, pattern->row2_blocked);
-      set_barrier(barrier_fields[3], 0.65, AUTONOMOUS_LEFT_Y, !pattern->row2_blocked);
+      set_barrier(barrier_fields[3], 0.65, AUTONOMOUS_RIGHT_Y, !pattern->row2_blocked);
       set_barrier(barrier_fields[4], 0.95, AUTONOMOUS_CENTER_Y,
                   pattern->junction_route != AUTONOMOUS_ROUTE_FORWARD);
       set_barrier(barrier_fields[5], AUTONOMOUS_JUNCTION_X, AUTONOMOUS_LEFT_Y,
@@ -337,18 +337,18 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
     if (reference_unavailable && row_progress == 0 && !wrong_route_seen) {
       const int forward = near_xy(position, AUTONOMOUS_ROW1_X, AUTONOMOUS_CENTER_Y,
                                   AUTONOMOUS_ROUTE_TOLERANCE);
-      const int detour = near_xy(position, AUTONOMOUS_ROW1_X, AUTONOMOUS_LEFT_Y,
+      const int detour = near_xy(position, AUTONOMOUS_ROW1_X, AUTONOMOUS_RIGHT_Y,
                                  AUTONOMOUS_ROUTE_TOLERANCE);
       if (forward || detour) {
         const int valid = pattern->row1_blocked ? detour : forward;
         if (valid) {
           row_progress = 1;
           printf("WEBEEBLOCKS_AUTONOMOUS_ROW attempt=%llu index=1 route=%s valid=1\n",
-                 active_attempt, detour ? "left" : "forward");
+                 active_attempt, detour ? "right" : "forward");
         } else {
           wrong_route_seen = 1;
           printf("WEBEEBLOCKS_AUTONOMOUS_ROW attempt=%llu index=1 route=%s valid=0\n",
-                 active_attempt, detour ? "left" : "forward");
+                 active_attempt, detour ? "right" : "forward");
         }
         fflush(stdout);
       }
@@ -357,18 +357,18 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
     if (row_progress == 1 && !wrong_route_seen) {
       const int forward = near_xy(position, AUTONOMOUS_ROW2_X, AUTONOMOUS_CENTER_Y,
                                   AUTONOMOUS_ROUTE_TOLERANCE);
-      const int detour = near_xy(position, AUTONOMOUS_ROW2_X, AUTONOMOUS_LEFT_Y,
+      const int detour = near_xy(position, AUTONOMOUS_ROW2_X, AUTONOMOUS_RIGHT_Y,
                                  AUTONOMOUS_ROUTE_TOLERANCE);
       if (forward || detour) {
         const int valid = pattern->row2_blocked ? detour : forward;
         if (valid) {
           row_progress = 2;
           printf("WEBEEBLOCKS_AUTONOMOUS_ROW attempt=%llu index=2 route=%s valid=1\n",
-                 active_attempt, detour ? "left" : "forward");
+                 active_attempt, detour ? "right" : "forward");
         } else {
           wrong_route_seen = 1;
           printf("WEBEEBLOCKS_AUTONOMOUS_ROW attempt=%llu index=2 route=%s valid=0\n",
-                 active_attempt, detour ? "left" : "forward");
+                 active_attempt, detour ? "right" : "forward");
         }
         fflush(stdout);
       }
