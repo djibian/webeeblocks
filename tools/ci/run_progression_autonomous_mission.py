@@ -269,7 +269,7 @@ exit "$runner_rc"
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward parcel=small reference_x=1.150",
             "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=1 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=1 status=achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-BE-forward parcel=large reference_x=0.250",
+            "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=2 pattern=large-BE-forward parcel=large reference_x=0.350",
             "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=2 reference_hidden=1 mask_x=0.250",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=2 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=3 pattern=small-BB-right",
