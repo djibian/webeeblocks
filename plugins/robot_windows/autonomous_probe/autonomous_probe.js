@@ -85,6 +85,13 @@ function clear(direction) {
   return {kind:'compare', op:'GT', left:range(direction), right:number(0.30)};
 }
 
+// Side-mounted junction blockers can read slightly above the generic 0.30 m
+// row threshold at the junction. Keep the alternate witness conservative while
+// remaining far below the 2.0 m open-side observation proved in real R2025a.
+function junctionSideClear(direction) {
+  return {kind:'compare', op:'GT', left:range(direction), right:number(0.35)};
+}
+
 function smallFromStored() {
   return {kind:'compare', op:'GT', left:variableValue(parcelVariable), right:number(1.0)};
 }
@@ -157,8 +164,8 @@ function frontLeftJunctionDecision() {
 
 function rightFirstJunctionDecision() {
   return {
-    kind:'if', condition:clear('right'), then:rightJunctionRoute(), else:[
-      {kind:'if', condition:clear('left'), then:leftJunctionRoute(), else:forwardJunctionRoute()}
+    kind:'if', condition:junctionSideClear('right'), then:rightJunctionRoute(), else:[
+      {kind:'if', condition:junctionSideClear('left'), then:leftJunctionRoute(), else:forwardJunctionRoute()}
     ]
   };
 }
