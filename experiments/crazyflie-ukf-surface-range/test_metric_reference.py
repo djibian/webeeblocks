@@ -87,6 +87,9 @@ class ReferenceTests(unittest.TestCase):
                 self.assertLessEqual(bound[0], midpoint)
                 self.assertGreaterEqual(bound[1], midpoint)
         spec["events"][0]["start_reference_s"] = [36, 36.1]
+        # Keep this fixture valid under the strengthened temporal witness rule;
+        # this test isolates affine rate/offset correlation, not hold rejection.
+        spec["events"][0]["z_after_hold_start_reference_s"] = [37, 37]
         event = self.result(spec)["events"][0]
         self.assertLess(event["start_device_s"][0], event["start_device_s"][1])
 
@@ -147,8 +150,11 @@ class ReferenceTests(unittest.TestCase):
 
     def test_post_transition_hold_uses_full_clock_uncertainty_not_midpoint(self):
         spec = example()
-        spec["clock"]["anchors"][0].update(reference_s=[0, 0.05], device_s=[0, 0.1])
-        spec["clock"]["anchors"][1].update(reference_s=[99.95, 100], device_s=[99.9, 100])
+        # Keep the reference domain bracketing calibration at t=0; introduce
+        # uncertainty only in the device observations so failure reaches the
+        # intended full-clock hold-coverage check rather than extrapolation.
+        spec["clock"]["anchors"][0]["device_s"] = [0, 0.1]
+        spec["clock"]["anchors"][1]["device_s"] = [99.9, 100]
         spec["events"][0].update(z_after_hold_start_reference_s=[37.24, 37.24])
         with self.assertRaisesRegex(ValueError, "vehicle-Z hold"):
             self.result(spec)
