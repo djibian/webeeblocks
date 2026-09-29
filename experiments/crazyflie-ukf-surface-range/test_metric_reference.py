@@ -25,7 +25,10 @@ def example():
                       {"reference_s": [100, 100], "device_s": [100, 100], "witness": witness}]},
         "calibration": {"start_reference_s": [0, 0], "end_reference_s": [32, 32], "witness": witness},
         "events": [{"id": "entry", "kind": "mixed", "start_reference_s": [36, 36],
-                    "end_reference_s": [37, 37], "z_before_m": [1, 1], "z_after_m": [1.1, 1.1],
+                    "end_reference_s": [37, 37],
+                    "z_after_hold_start_reference_s": [37.1, 37.1],
+                    "z_after_hold_end_reference_s": [38, 38],
+                    "z_before_m": [1, 1], "z_after_m": [1.1, 1.1],
                     "surface_before_m": [0, 0], "surface_after_m": [0.2, 0.2], "witness": witness}],
     }
 
@@ -37,12 +40,15 @@ class ReferenceTests(unittest.TestCase):
     def test_signed_mixed_round_trip_and_same_arithmetic_for_every_label(self):
         spec = example()
         reverse = copy.deepcopy(spec["events"][0])
-        reverse.update(id="exit", start_reference_s=[40, 40], end_reference_s=[41, 41])
+        reverse.update(id="exit", start_reference_s=[40, 40], end_reference_s=[41, 41],
+                       z_after_hold_start_reference_s=[41.1, 41.1],
+                       z_after_hold_end_reference_s=[42, 42])
         for before, after in (("z_before_m", "z_after_m"), ("surface_before_m", "surface_after_m")):
             reverse[before], reverse[after] = reverse[after], reverse[before]
         spec["events"].append(reverse)
         result = self.result(spec)
         for event, sign in zip(result["events"], (1, -1)):
+            self.assertTrue(event["post_transition_reference_window_covered"])
             for field, expected in (("reference_delta_z_m", sign * Fraction(1, 10)),
                                     ("reference_delta_surface_m", sign * Fraction(1, 5)),
                                     ("reference_delta_clearance_m", -sign * Fraction(1, 10))):
@@ -74,8 +80,6 @@ class ReferenceTests(unittest.TestCase):
         polygon, domain = subject.clocks(spec["clock"]["anchors"], {"reference"})
         bound = subject.mapped([50, 50], polygon, domain)
         self.assertEqual(bound, (Fraction(499, 10), Fraction(501, 10)))
-        # Independent analytic check: convex interpolation of uncertain endpoint
-        # observations. An axis-aligned rate/offset box would be needlessly wider.
         for left in range(21):
             for right in range(21):
                 d0, d1 = Fraction(left, 100), Fraction(9980 + right, 100)
@@ -128,6 +132,26 @@ class ReferenceTests(unittest.TestCase):
             change(spec)
             with self.assertRaises(ValueError):
                 self.result(spec)
+
+    def test_post_transition_vehicle_z_hold_must_cover_complete_window(self):
+        for change in (
+            lambda s: s["events"][0].update(z_after_hold_start_reference_s=[37.3, 37.3]),
+            lambda s: s["events"][0].update(z_after_hold_end_reference_s=[37.7, 37.7]),
+            lambda s: s["events"][0].update(z_after_hold_start_reference_s=[37.8, 37.8],
+                                               z_after_hold_end_reference_s=[37.7, 37.7]),
+        ):
+            spec = example()
+            change(spec)
+            with self.assertRaisesRegex(ValueError, "vehicle-Z hold"):
+                self.result(spec)
+
+    def test_post_transition_hold_uses_full_clock_uncertainty_not_midpoint(self):
+        spec = example()
+        spec["clock"]["anchors"][0].update(reference_s=[0, 0.05], device_s=[0, 0.1])
+        spec["clock"]["anchors"][1].update(reference_s=[99.95, 100], device_s=[99.9, 100])
+        spec["events"][0].update(z_after_hold_start_reference_s=[37.24, 37.24])
+        with self.assertRaisesRegex(ValueError, "vehicle-Z hold"):
+            self.result(spec)
 
     def test_post_window_cannot_extend_past_sync_even_when_raw_capture_continues(self):
         spec = example()

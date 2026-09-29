@@ -30,13 +30,21 @@ The other fields are:
 | `clock.barometer_source` | ID of the hash-checked continuous capture CSV |
 | `clock.anchors` | At least two ordered, disjoint synchronization observations; each has `reference_s`, `device_s`, and `witness` |
 | `calibration` | `start_reference_s`, `end_reference_s`, and a witness for the prior stationary interval |
-| `events[]` | Unique `id`, descriptive `kind`, `start_reference_s`, `end_reference_s`, `z_before_m`, `z_after_m`, `surface_before_m`, `surface_after_m`, and `witness` |
+| `events[]` | Unique `id`, descriptive `kind`, `start_reference_s`, `end_reference_s`, `z_after_hold_start_reference_s`, `z_after_hold_end_reference_s`, `z_before_m`, `z_after_m`, `surface_before_m`, `surface_after_m`, and `witness` |
 
 Kinds are `stationary`, `terrain`, `vertical`, and `mixed`. They label results;
 they do not select a different calculation or establish truth. Both signs of
-terrain/vertical/mixed movement remain required by the eventual physical protocol.
-The synthetic `example()` in `test_metric_reference.py` gives the complete shape;
-its numbers and witness text are not measurements or a prepared checkpoint.
+terrain/vertical/mixed movement remain required by the physical protocol in
+`X3_CHARACTERIZATION_PROCEDURE.md`. The synthetic `example()` in
+`test_metric_reference.py` gives the complete input shape; its values and witness
+text are not measurements or a prepared checkpoint.
+
+The two `z_after_hold_*` fields are not another sensor. They are independent-clock
+bounds for the beginning and end of a continuously observed guide interval during
+which the same conservative `z_after_m` bound is asserted for the same vehicle
+body reference. They exist only so the processor can prove that the physical Z
+reference used for the temporal comparison actually spans the analyzed
+post-transition window instead of coming from a later plateau reading.
 
 ## Computation
 
@@ -56,10 +64,16 @@ the bracketing observations. Non-affine drift between anchors remains unproven.
 
 Every admissible event must have positive duration, ordered two-second plateaus,
 at least 30 seconds of prior calibration, and a post-window covered by the raw
-recording. The output retains intervals for the fixed pressure probe's before
-and after window starts. **It does not choose their midpoints or run a pressure
-calculation on an optimistically selected timing.** A future consumer must account
-for the entire timing range or explicitly keep the comparison unproven.
+recording. In addition, under **every** admissible affine clock, the declared
+continuous vehicle-Z hold must start no later than `event_end + 0.25 s` and remain
+valid through at least `event_end + 0.75 s`. Failure of either bound rejects the
+input as `UNPROVEN` instead of allowing a late `z_after_m` observation to stand in
+for the 1 s reference.
+
+The output retains intervals for the fixed pressure probe's before/after window
+starts and for the beginning/end of the declared vehicle-Z hold. It does not
+choose timing midpoints or run a pressure calculation on an optimistically
+selected alignment. A future consumer must account for the complete timing range.
 
 The same interval subtraction produces signed reference Δz, Δh and Δclearance
 for every kind. Shared measurement correlations can make these conservative
@@ -77,19 +91,25 @@ inconsistent inputs fail closed and existing results are never overwritten.
 
 ## Proof boundary
 
-`COMPUTED_CONDITIONAL` proves only the annotated interval calculation. Every
-result has `physical_reference_validated:false`, `affine_clock_validated:false`,
-`independent_displacement_verdict:UNPROVEN`, and `physical_verdict:null`. The
-component neither measures the proposed bounds nor converts them into acceptance
-authority. Live synchronization, physical reference accuracy/stillness, sensor
-producer timing and the independent IMU/barometer predictor remain to establish.
+`COMPUTED_CONDITIONAL` proves only the annotated interval calculation and the
+temporal coverage of the supplied post-transition Z annotation. It does **not**
+prove that the human/physical annotation is true. Every result retains
+`physical_reference_validated:false`, `affine_clock_validated:false`,
+`independent_displacement_verdict:UNPROVEN`, and `physical_verdict:null`.
+
+The component neither measures the proposed bounds nor converts them into
+acceptance authority. Physical guide accuracy/stillness, affine-clock adequacy,
+sensor producer timing and the independent IMU/barometer predictor remain
+separate evidentiary questions. An uncertainty interval crossing a predeclared
+5 cm or 1 s quantity remains `UNPROVEN`.
 
 The tests use synthetic data to check signed mixed movement, identical arithmetic
-across labels, correlated clock bounds, inconsistent/ambiguous timing, source
-integrity and exclusive output. No real-device claim follows from them.
+across labels, correlated clock bounds, inconsistent/ambiguous timing,
+post-transition Z-window coverage, source integrity and exclusive output. No
+real-device claim follows from them.
 
 This supplies one reference-processing component. It does not prepare or request
-a human checkpoint, package the full runtime/predictor, change #251 firmware or
-parameters, alter CI/governance, or implement another publication path. The
-integrated #296/#298 mechanism remains the raw-publication path; its provenance
-also stays distinct from the owner-authoritative physical verdict.
+a human checkpoint, change #251 firmware or parameters, alter CI/governance, or
+implement another publication path. The integrated #296/#298 mechanism remains
+the raw-publication path; its provenance also stays distinct from the owner-
+authoritative physical verdict.
