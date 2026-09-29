@@ -155,6 +155,16 @@ def analyze(spec, duration, reference_ids):
             raise ValueError("uncertain episodes must remain ordered with two-second plateaus")
         if end[1] + Fraction(3, 4) > covered_end:
             raise ValueError("recording/synchronization does not cover every admissible post-event window")
+
+        hold_start = mapped(event["z_after_hold_start_reference_s"], polygon, domain)
+        hold_end = mapped(event["z_after_hold_end_reference_s"], polygon, domain)
+        if hold_end[0] <= hold_start[1]:
+            raise ValueError("post-transition vehicle-Z hold must have positive guaranteed duration")
+        if hold_start[1] > end[0] + Fraction(1, 4) or hold_end[0] < end[1] + Fraction(3, 4):
+            raise ValueError(
+                "independent vehicle-Z hold does not cover every admissible post-event window"
+            )
+
         previous_end = end[1]
         zb, za = interval(event["z_before_m"]), interval(event["z_after_m"])
         hb, ha = interval(event["surface_before_m"]), interval(event["surface_after_m"])
@@ -165,6 +175,9 @@ def analyze(spec, duration, reference_ids):
                        "start_device_s": enclosure(start), "end_device_s": enclosure(end),
                        "before_window_start_s": enclosure(tuple(t - Fraction(1, 2) for t in start)),
                        "after_window_start_s": enclosure(tuple(t + Fraction(1, 4) for t in end)),
+                       "z_after_hold_start_device_s": enclosure(hold_start),
+                       "z_after_hold_end_device_s": enclosure(hold_end),
+                       "post_transition_reference_window_covered": True,
                        "reference_delta_z_m": enclosure(delta(zb, za)),
                        "reference_delta_surface_m": enclosure(delta(hb, ha)),
                        "reference_delta_clearance_m": enclosure(delta(cb, ca))})
@@ -178,6 +191,7 @@ def analyze(spec, duration, reference_ids):
             "independent_displacement_verdict": "UNPROVEN", "physical_verdict": None,
             "scope": "conditional external-reference envelopes; no sensor prediction or acceptance verdict",
             "limits": ["Bounds and physical stillness are annotations, not machine-verified measurements.",
+                       "Post-transition hold timing is checked, but physical Z stability remains an external witness annotation.",
                        "Clock interpolation assumes one positive affine clock between observed anchors.",
                        "Device log time is not sensor producer time; latency and aliasing remain unproven.",
                        "Interval arithmetic preserves supplied bounds; it assigns no confidence level.",

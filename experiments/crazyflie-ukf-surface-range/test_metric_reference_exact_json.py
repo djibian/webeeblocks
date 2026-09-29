@@ -20,7 +20,10 @@ def base_spec():
                       {"reference_s": [100, 100], "device_s": [100, 100], "witness": witness}]},
         "calibration": {"start_reference_s": [0, 0], "end_reference_s": [32, 32], "witness": witness},
         "events": [{"id": "entry", "kind": "mixed", "start_reference_s": [36, 36],
-                    "end_reference_s": [37, 37], "z_before_m": [1, 1], "z_after_m": [1.1, 1.1],
+                    "end_reference_s": [37, 37],
+                    "z_after_hold_start_reference_s": [37.1, 37.1],
+                    "z_after_hold_end_reference_s": [38, 38],
+                    "z_before_m": [1, 1], "z_after_m": [1.1, 1.1],
                     "surface_before_m": [0, 0], "surface_after_m": [0.2, 0.2], "witness": witness}],
     }
 
