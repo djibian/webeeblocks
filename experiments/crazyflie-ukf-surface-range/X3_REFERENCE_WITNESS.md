@@ -58,7 +58,11 @@ Required row kinds are:
 - `plateau_before` / `plateau_after`: independent guide/surface intervals that
   support the before/after metric values for an event;
 - `event_start` / `event_end`: independent-clock bounds for the corresponding
-  transition.
+  transition;
+- `z_after_hold_start` / `z_after_hold_end`: required whenever the 1 s temporal
+  falsification quantity is evaluated; they bound the independent-clock start/end
+  of a continuously observed post-transition vehicle-Z hold and repeat one common
+  conservative vehicle-Z envelope covering the complete hold.
 
 Every non-sync row has a unique `row_id`, scenario/trial identity and a specific
 note sufficient to locate the physical observation. Record intervals
@@ -66,10 +70,19 @@ note sufficient to locate the physical observation. Record intervals
 resolution genuinely justify identical endpoints. Uncertainty is represented by
 widening the interval, never by storing a best estimate and discarding the bound.
 
+For each temporal hold, both hold rows use the same scenario/trial identity and
+repeat the same `vehicle_z_low_m` / `vehicle_z_high_m` interval. Their notes state
+that this interval conservatively contains every observed value of the same body
+reference throughout the complete hold, rather than representing two isolated
+endpoint readings. If one conservative interval cannot cover the whole hold, the
+1 s comparison is `UNPROVEN`.
+
 At minimum, each retained trial has enough rows to support its before plateau,
-transition start/end and after plateau. Retain every validly started trial as
-required by `X3_CHARACTERIZATION_PREREGISTRATION.md`; do not delete unfavorable
-rows or select a best trace.
+transition start/end and after plateau. A trial used for the 1 s comparison also
+has the two hold rows above. Retain every validly started trial as required by
+`X3_CHARACTERIZATION_PREREGISTRATION.md` and the fixed schedule in
+`X3_CHARACTERIZATION_PROCEDURE.md`; do not delete unfavorable rows or select a
+best trace.
 
 ## 3. Synchronizing the external clock to Crazyflie log time
 
@@ -127,7 +140,8 @@ bound, otherwise the affected comparison is `UNPROVEN`.
 
 ## 4. Scenario observations
 
-Use the scenario set and trial-retention rule from the pre-registration:
+Use the scenario set and fixed trial-retention rule from
+`X3_CHARACTERIZATION_PROCEDURE.md`:
 
 - stationary (`delta z = 0`, `delta h = 0`);
 - terrain-only (approximately constant vehicle world Z, non-zero surface change);
@@ -141,10 +155,12 @@ intervals. For surface-height plateaus, measure the local surface from the same
 world datum and record conservative intervals. These measurements are independent
 of `stateEstimate.z`, S3 state, downward range and the predictor.
 
-The guide is a discrete before/after metric reference, not a continuous ground
-truth trajectory. Therefore this witness supports the pre-registered displacement
-and transition-time questions only where its retained intervals and clock anchors
-cover them. It must not be promoted into an unobserved continuous-Z claim.
+The guide remains primarily a discrete before/after metric reference, not a
+continuous ground-truth trajectory. For the bounded 1 s question only, the two
+hold rows retain a short continuous post-transition observation whose one
+conservative vehicle-Z interval covers the entire declared hold. This local hold
+must not be promoted into an unobserved continuous-Z trajectory before, between or
+after the retained bounds.
 
 ## 5. Transformation into `metric-reference-input.v1`
 
@@ -162,11 +178,20 @@ JSON beside it. The transformation is mechanical:
   one clock anchor; the witness locator names both exact row ranges;
 - derive calibration start/end only from the corresponding retained witness rows;
 - derive event start/end from `event_start` / `event_end` rows;
-- derive `z_before_m` / `z_after_m` from the corresponding vehicle guide plateau
-  intervals and `surface_before_m` / `surface_after_m` from the corresponding
-  surface plateau intervals;
-- the event witness locator lists the exact raw reference rows supporting those
-  four metric intervals and transition-time intervals.
+- derive `z_before_m` from the before-plateau vehicle guide interval;
+- for a temporal comparison, derive `z_after_m` from the common conservative
+  vehicle-Z envelope repeated by the corresponding `z_after_hold_start` and
+  `z_after_hold_end` rows, and derive
+  `z_after_hold_start_reference_s` / `z_after_hold_end_reference_s` from those
+  rows' independent-clock intervals;
+- where no temporal comparison is claimed, derive `z_after_m` from the retained
+  after-plateau guide interval and leave the 1 s result `UNPROVEN` rather than
+  inventing hold bounds;
+- derive `surface_before_m` / `surface_after_m` from the corresponding surface
+  plateau intervals;
+- the event witness locator lists the exact raw reference rows supporting the
+  vehicle/surface intervals, transition-time intervals and, when present, both
+  continuous-hold bounds.
 
 The generated specification is usable only when the unchanged processor can prove
 all of its admissibility conditions from the retained interval evidence and the
@@ -180,6 +205,9 @@ full affine-clock envelope. In particular, under **every** admissible clock:
   start (`end_device_low > start_device_high`);
 - the final and every intermediate post-event window remains covered, including
   `end_device_high + 0.75 s <= covered_end`;
+- when the 1 s quantity is evaluated, the mapped continuous-hold start is no later
+  than every admissible `event_end + 0.25 s` bound and the mapped hold end remains
+  valid through every admissible `event_end + 0.75 s` bound;
 - the supplied vehicle/surface intervals never allow the vehicle reference point
   below the measured surface.
 
@@ -205,7 +233,8 @@ Characterization may use calibration data to freeze:
 - guide-reading convention and uncertainty calculation;
 - human timing allowance;
 - synchronization-gesture detector and row-bracketing rule;
-- exact CSV-to-metric-reference transformation rule;
+- exact CSV-to-metric-reference transformation rule, including the two hold-row
+  semantics when the 1 s quantity is evaluated;
 - all other processing/envelope choices permitted by the pre-registration.
 
 Before untouched confirmation begins, durably freeze those choices and their
@@ -220,7 +249,8 @@ The exact checkpoint evidence bundle must retain at least:
 
 - the complete raw Crazyflie capture directory, including the exact IMU rows used
   for synchronization;
-- `reference-witness.csv` unchanged from collection;
+- `reference-witness.csv` unchanged from collection, including both hold rows for
+  every event whose temporal quantity is interpreted;
 - metadata describing the guide/frame survey and datum, body reference,
   manipulator/observer roles, independent clock and predeclared
   resolutions/uncertainties;
