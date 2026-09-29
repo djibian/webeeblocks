@@ -143,6 +143,22 @@ assert.match(probe, /AUTONOMOUS_DEPARTURE_LARGE_RANGE/);
 assert.match(probe, /departureEvidence\.parcel === 'small'[\s\S]*departureRange > 1\.0/);
 assert.match(probe, /departureEvidence\.parcel === 'large'[\s\S]*departureRange < 1\.0/);
 
+const genericClearSource = probe.slice(
+  probe.indexOf('function clear(direction)'), probe.indexOf('function junctionSideClear(direction)'));
+const junctionSideClearSource = probe.slice(
+  probe.indexOf('function junctionSideClear(direction)'), probe.indexOf('function smallFromStored()'));
+const rightFirstDecisionSource = probe.slice(
+  probe.indexOf('function rightFirstJunctionDecision()'), probe.indexOf('function frontOnlyJunctionDecision()'));
+assert.match(genericClearSource, /right:number\(0\.30\)/,
+  'row/front sensing must retain the established 0.30 m threshold');
+assert.match(junctionSideClearSource, /right:number\(0\.35\)/,
+  'alternate junction side sensing must reject the observed ~0.329 m blocked-side reading');
+assert.match(rightFirstDecisionSource,
+  /junctionSideClear\('right'\)[\s\S]*junctionSideClear\('left'\)/,
+  'right-first alternate strategy must use the conservative junction-side discriminator on both side observations');
+assert.doesNotMatch(rightFirstDecisionSource, /condition:clear\('(right|left)'\)/,
+  'right-first alternate strategy must not reuse the less conservative row/front threshold for side blockers');
+
 const reactiveRowSource = probe.slice(
   probe.indexOf('function reactiveRow()'), probe.indexOf('function forwardJunctionRoute()'));
 const leftJunctionSource = probe.slice(
