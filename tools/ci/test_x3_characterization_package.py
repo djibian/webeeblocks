@@ -15,7 +15,10 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "package_x3_characterization.py"
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
-CAPTURE = ROOT / "experiments" / "crazyflie-ukf-surface-range" / "capture_independent_inputs.py"
+EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
+CAPTURE = EXPERIMENT / "capture_independent_inputs.py"
+METRIC_REFERENCE_TEST = EXPERIMENT / "test_metric_reference.py"
+METRIC_REFERENCE_EXACT_JSON_TEST = EXPERIMENT / "test_metric_reference_exact_json.py"
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
 FIRMWARE_FIXTURE = QUALIFICATION_SUPPORT / "x3-firmware" / "cf2.bin"
@@ -31,6 +34,8 @@ REAL_BUNDLE_PROOF_PATHS = frozenset(
         "tools/physical/reference_probe_lock.txt",
         "tools/physical/qualification_runtime_lock.txt",
         "experiments/crazyflie-ukf-surface-range/capture_independent_inputs.py",
+        "experiments/crazyflie-ukf-surface-range/metric_reference.py",
+        "experiments/crazyflie-ukf-surface-range/X3_CHARACTERIZATION_PROCEDURE.md",
         "experiments/crazyflie-ukf-surface-range/X3_REFERENCE_WITNESS.md",
         "experiments/crazyflie-ukf-surface-range/X3_REFERENCE_WITNESS_TEMPLATE.csv",
         "experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh",
@@ -126,6 +131,18 @@ def verify_manifest_oracles() -> None:
         manifest.verify_bundle(bundle)
 
 
+def verify_metric_reference_oracles() -> None:
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    for test in (METRIC_REFERENCE_TEST, METRIC_REFERENCE_EXACT_JSON_TEST):
+        subprocess.run(
+            [sys.executable, "-B", str(test)],
+            cwd=EXPERIMENT,
+            env=env,
+            check=True,
+        )
+    print("PASS: X3 metric-reference interval and exact-JSON regressions")
+
+
 def _pr_changed_paths() -> tuple[str, ...]:
     if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
         return ()
@@ -187,6 +204,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         )
 
         for required_name in (
+            "X3_CHARACTERIZATION_PROCEDURE.md",
             "X3_REFERENCE_WITNESS.md",
             "X3_REFERENCE_WITNESS_TEMPLATE.csv",
         ):
@@ -194,6 +212,8 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
         for required in (
             "reference_witness=measured-guide-csv-v1\n",
+            "trial_rule=fixed-three-cycle-v1\n",
+            "post_transition_z_reference=continuous-hold-required-v1\n",
             "evidence_profile=physical-csv-text-v1\n",
             "human_checkpoint=request-not-issued\n",
         ):
@@ -218,6 +238,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         )
         after = file_snapshot(bundle)
         require(after == before, "complete X3 --verify-environment path mutated exact bundle bytes/file set")
+
         subprocess.run(
             [sys.executable, "-B", str(verifier), str(bundle)],
             cwd=bundle,
@@ -262,6 +283,7 @@ def main() -> int:
         expect_package_error(lambda: package.verify_wheels(wheelhouse), "exactly locked wheels")
 
     verify_manifest_oracles()
+    verify_metric_reference_oracles()
 
     source = MODULE_PATH.read_text(encoding="utf-8")
     for required in (
@@ -273,11 +295,15 @@ def main() -> int:
         '"archive", "--format=tar", EXPECTED_CFLIB_COMMIT, "cflib"',
         'MANIFEST_NAME = "MANIFEST.json"',
         'VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"',
+        'PROCEDURE = EXPERIMENT / "X3_CHARACTERIZATION_PROCEDURE.md"',
         'REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"',
         'REFERENCE_WITNESS_TEMPLATE = EXPERIMENT / "X3_REFERENCE_WITNESS_TEMPLATE.csv"',
+        'copy_file(PROCEDURE, bundle / "X3_CHARACTERIZATION_PROCEDURE.md")',
         'copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")',
         'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
         '"reference_witness=measured-guide-csv-v1"',
+        '"trial_rule=fixed-three-cycle-v1"',
+        '"post_transition_z_reference=continuous-hold-required-v1"',
         '"evidence_profile=physical-csv-text-v1"',
         '"human_checkpoint=request-not-issued"',
         "physical_effect=none-during-packaging",
