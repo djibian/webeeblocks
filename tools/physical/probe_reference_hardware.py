@@ -47,6 +47,7 @@ VERSION_CHANNEL = 1
 VERSION_GET_DEVICE_TYPE_NAME = 2
 EXACT_DEVICE_TYPE_NAME = "Crazyflie 2.1"
 EXACT_AIRFRAME_MODEL = "crazyflie-2.1"
+DEFAULT_SESSION_SETUP_TIMEOUT_SECONDS = 10.0
 
 
 class ProbeError(RuntimeError):
@@ -75,8 +76,6 @@ def _read_required_parameters(get_value: Callable[[str], object]) -> dict[str, o
             raise ProbeError(f"required read-only parameter unavailable: {name}")
         values[name] = value
     return values
-
-
 
 
 def _normalize_device_type_name(value: object) -> str:
@@ -236,6 +235,116 @@ def _installed_cflib_version() -> str:
         return "unknown"
 
 
+class _BoundedCrazyflieConnection:
+    """Synchronous-shaped adapter with explicit setup bounds over cflib callbacks."""
+
+    def __init__(self, uri: str, cf: object, timeout_seconds: float) -> None:
+        if timeout_seconds <= 0.0:
+            raise ProbeError("session setup timeout must be positive")
+        self._uri = uri
+        self.cf = cf
+        self._timeout_seconds = float(timeout_seconds)
+        self._connected_event = Event()
+        self._params_event = Event()
+        self._link_open = False
+        self._error_message: str | None = None
+        self._callbacks_added = False
+
+    def _connected(self, _uri: str) -> None:
+        self._link_open = True
+        self._connected_event.set()
+
+    def _connection_failed(self, _uri: str, message: object) -> None:
+        self._link_open = False
+        self._error_message = str(message)
+        self._connected_event.set()
+
+    def _disconnected(self, _uri: str) -> None:
+        self._link_open = False
+
+    def _all_params_updated(self, _uri: str) -> None:
+        self._params_event.set()
+
+    def _add_callbacks(self) -> None:
+        if self._callbacks_added:
+            return
+        self.cf.connected.add_callback(self._connected)
+        self.cf.connection_failed.add_callback(self._connection_failed)
+        self.cf.disconnected.add_callback(self._disconnected)
+        self.cf.fully_connected.add_callback(self._all_params_updated)
+        self._callbacks_added = True
+
+    def _remove_callbacks(self) -> None:
+        if not self._callbacks_added:
+            return
+        for caller, callback in (
+            (self.cf.connected, self._connected),
+            (self.cf.connection_failed, self._connection_failed),
+            (self.cf.disconnected, self._disconnected),
+            (self.cf.fully_connected, self._all_params_updated),
+        ):
+            try:
+                caller.remove_callback(callback)
+            except ValueError:
+                pass
+        self._callbacks_added = False
+
+    def _abort_setup(self) -> None:
+        try:
+            self.cf.close_link()
+        finally:
+            self._link_open = False
+            self._connected_event.clear()
+            self._params_event.clear()
+            self._remove_callbacks()
+
+    def open_link(self) -> None:
+        if self._link_open:
+            raise ProbeError("read-only capability link is already open")
+        self._connected_event.clear()
+        self._params_event.clear()
+        self._error_message = None
+        self._add_callbacks()
+        try:
+            self.cf.open_link(self._uri)
+        except Exception:
+            self._abort_setup()
+            raise
+        if not self._connected_event.wait(self._timeout_seconds):
+            self._abort_setup()
+            raise ProbeError(
+                f"Crazyflie connection/TOC setup timed out after {self._timeout_seconds:g} s"
+            )
+        if not self._link_open:
+            message = self._error_message or "connection setup failed"
+            self._abort_setup()
+            raise ProbeError(f"Crazyflie connection/TOC setup failed: {message}")
+
+    def wait_for_params(self) -> None:
+        if not self._link_open:
+            raise ProbeError("Crazyflie connection closed before parameter snapshot")
+        if not self._params_event.wait(self._timeout_seconds):
+            self._abort_setup()
+            raise ProbeError(
+                f"Crazyflie parameter snapshot timed out after {self._timeout_seconds:g} s"
+            )
+        if not self._link_open:
+            raise ProbeError("Crazyflie connection closed during parameter snapshot")
+
+    def is_link_open(self) -> bool:
+        return self._link_open
+
+    def close_link(self) -> None:
+        try:
+            if self._link_open:
+                self.cf.close_link()
+        finally:
+            self._link_open = False
+            self._connected_event.clear()
+            self._params_event.clear()
+            self._remove_callbacks()
+
+
 class ReadOnlyCapabilitySession:
     """Persistent non-authority capability adapter for one live Crazyflie link.
 
@@ -260,15 +369,19 @@ class ReadOnlyCapabilitySession:
         epoch_factory: Callable[[], str] | None = None,
         cflib_version_reader: Callable[[], str] | None = None,
         descriptor_reader: Callable[[object], dict[str, object]] | None = None,
+        setup_timeout_seconds: float = DEFAULT_SESSION_SETUP_TIMEOUT_SECONDS,
     ) -> None:
         if not uri.startswith("radio://"):
             raise ProbeError("P0b requires an explicit Crazyradio radio:// URI")
+        if setup_timeout_seconds <= 0.0:
+            raise ProbeError("session setup timeout must be positive")
         self._uri = uri
         self._scf_factory = scf_factory
         self._driver_init = driver_init
         self._epoch_factory = epoch_factory or (lambda: secrets.token_hex(16))
         self._cflib_version_reader = cflib_version_reader or _installed_cflib_version
         self._descriptor_reader = descriptor_reader or _read_connected_descriptor
+        self._setup_timeout_seconds = float(setup_timeout_seconds)
         self._drivers_initialized = False
         self._scf: object | None = None
         self._disconnect_callback: Callable[[str], None] | None = None
@@ -294,10 +407,13 @@ class ReadOnlyCapabilitySession:
             return self._scf_factory(self._uri)
         try:
             from cflib.crazyflie import Crazyflie
-            from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
         except ImportError as exc:
             raise ProbeError("cflib is required for the live read-only probe") from exc
-        return SyncCrazyflie(self._uri, cf=Crazyflie())
+        return _BoundedCrazyflieConnection(
+            self._uri,
+            Crazyflie(),
+            self._setup_timeout_seconds,
+        )
 
     def _invalidate(self, expected_scf: object) -> None:
         with self._state_lock:
