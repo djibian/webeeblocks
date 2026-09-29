@@ -146,11 +146,11 @@ static int import_autonomous_world(WbNodeRef root,
     "DEF ACTIVITY8_RIGHT_ROUTE_PAD Pose { translation 1.10 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_SMALL_DELIVERY_PAD Pose { translation 1.40 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
     "DEF ACTIVITY8_LARGE_DELIVERY_PAD Pose { translation 1.40 -2.85 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.92 0.52 0.08 transparency 0.10 roughness 0.9 } geometry Box { size 0.26 0.26 0.004 } } ] }",
-    "DEF ACTIVITY8_ROW1_CENTER_BARRIER Solid { translation 0.30 -2.50 -1.00 name \"Activity 8 row 1 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW1_CENTER_BARRIER Solid { translation 0.35 -2.50 -1.00 name \"Activity 8 row 1 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
     "DEF ACTIVITY8_ROW1_LEFT_BARRIER Solid { translation 0.35 -2.15 -1.00 name \"Activity 8 row 1 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_ROW2_CENTER_BARRIER Solid { translation 0.60 -2.50 -1.00 name \"Activity 8 row 2 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
+    "DEF ACTIVITY8_ROW2_CENTER_BARRIER Solid { translation 0.65 -2.50 -1.00 name \"Activity 8 row 2 forward blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
     "DEF ACTIVITY8_ROW2_LEFT_BARRIER Solid { translation 0.65 -2.15 -1.00 name \"Activity 8 row 2 detour blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
-    "DEF ACTIVITY8_JUNCTION_FRONT_BARRIER Solid { translation 0.90 -2.50 -1.00 name \"Activity 8 junction front blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
+    "DEF ACTIVITY8_JUNCTION_FRONT_BARRIER Solid { translation 0.95 -2.50 -1.00 name \"Activity 8 junction front blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.04 0.14 1.10 } } ] boundingObject Box { size 0.04 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_LEFT_BARRIER Solid { translation 0.80 -2.15 -1.00 name \"Activity 8 junction left blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }",
     "DEF ACTIVITY8_JUNCTION_RIGHT_BARRIER Solid { translation 0.80 -2.85 -1.00 name \"Activity 8 junction right blocker\" children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ] boundingObject Box { size 0.14 0.14 1.10 } }"
   };
@@ -254,11 +254,11 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       pattern_index = (int)(normalized % AUTONOMOUS_PATTERN_COUNT);
       const AutonomousPattern *pattern = &AUTONOMOUS_PATTERNS[pattern_index];
 
-      set_barrier(barrier_fields[0], 0.30, AUTONOMOUS_CENTER_Y, pattern->row1_blocked);
+      set_barrier(barrier_fields[0], 0.35, AUTONOMOUS_CENTER_Y, pattern->row1_blocked);
       set_barrier(barrier_fields[1], 0.35, AUTONOMOUS_LEFT_Y, !pattern->row1_blocked);
-      set_barrier(barrier_fields[2], 0.60, AUTONOMOUS_CENTER_Y, pattern->row2_blocked);
+      set_barrier(barrier_fields[2], 0.65, AUTONOMOUS_CENTER_Y, pattern->row2_blocked);
       set_barrier(barrier_fields[3], 0.65, AUTONOMOUS_LEFT_Y, !pattern->row2_blocked);
-      set_barrier(barrier_fields[4], 0.90, AUTONOMOUS_CENTER_Y,
+      set_barrier(barrier_fields[4], 0.95, AUTONOMOUS_CENTER_Y,
                   pattern->junction_route != AUTONOMOUS_ROUTE_FORWARD);
       set_barrier(barrier_fields[5], AUTONOMOUS_JUNCTION_X, AUTONOMOUS_LEFT_Y,
                   pattern->junction_route != AUTONOMOUS_ROUTE_LEFT);
