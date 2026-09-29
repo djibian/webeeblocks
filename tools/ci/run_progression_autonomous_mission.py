@@ -265,6 +265,17 @@ exit "$runner_rc"
         }:
             return fail(f"unexpected Activity 8 summary: {details['AUTONOMOUS_MISSION_TEST_COMPLETE']}")
 
+        # Both parcel classes must lose the reference after their departure
+        # reading, before forward motion to the first decision/detour begins.
+        for attempt in (1, 2):
+            attempt_start = webots_log.find(f"WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt={attempt} ")
+            hidden = webots_log.find(
+                f"WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt={attempt} ", attempt_start)
+            departure_read = webots_log.find("TRACE RANGE front value=", attempt_start)
+            first_forward = webots_log.find("TRACE MOVE forward distance=0.200000000", attempt_start)
+            if not (0 <= attempt_start < departure_read < hidden < first_forward):
+                return fail(f"Activity 8 attempt {attempt} did not hide its reference between departure sensing and the first detour", webots_log)
+
         markers = (
             "WEBEEBLOCKS_AUTONOMOUS_CONFIG attempt=1 pattern=small-BE-forward parcel=small reference_x=1.150",
             "WEBEEBLOCKS_AUTONOMOUS_REFERENCE_UNAVAILABLE attempt=1 reference_hidden=1 mask_x=0.250",

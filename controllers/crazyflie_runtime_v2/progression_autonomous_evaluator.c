@@ -15,7 +15,7 @@
 #define AUTONOMOUS_STATION_X 0.0
 #define AUTONOMOUS_STATION_Y -2.00
 #define AUTONOMOUS_STATION_TOLERANCE 0.13
-#define AUTONOMOUS_REFERENCE_HIDE_X 0.40
+#define AUTONOMOUS_REFERENCE_HIDE_Y -2.35
 #define AUTONOMOUS_REFERENCE_SMALL_X 1.15
 #define AUTONOMOUS_REFERENCE_LARGE_X 0.35
 #define AUTONOMOUS_REFERENCE_MASK_X 0.25
@@ -135,7 +135,7 @@ static int import_autonomous_world(WbNodeRef root,
   const char *nodes[] = {
     "DEF ACTIVITY8_FLOOR_EXTENSION Solid { translation 0.80 -2.50 -0.025 name \"Activity 8 autonomous warehouse floor\" children [ Shape { appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 } geometry Box { size 2.00 1.20 0.05 } } ] boundingObject Box { size 2.00 1.20 0.05 } }",
     "DEF ACTIVITY8_PARCEL_REFERENCE Solid { translation 0 -2.00 -1.00 name \"Activity 8 parcel gauge reference panel\" children [ Shape { appearance PBRAppearance { baseColor 0.18 0.70 0.82 roughness 0.5 } geometry Box { size 0.10 0.20 1.10 } } ] boundingObject Box { size 0.10 0.20 1.10 } }",
-    "DEF ACTIVITY8_REFERENCE_MASK Solid { translation 0 -2.00 -1.00 name \"Activity 8 post-departure reference mask\" children [ Shape { appearance PBRAppearance { baseColor 0.38 0.40 0.44 roughness 0.7 } geometry Box { size 0.10 0.20 1.10 } } ] boundingObject Box { size 0.10 0.20 1.10 } }",
+    "DEF ACTIVITY8_REFERENCE_MASK Solid { translation 0 -2.00 -1.00 name \"Activity 8 post-departure reference mask\" children [ Shape { appearance PBRAppearance { baseColor 0.38 0.40 0.44 roughness 0.7 } geometry Box { size 0.10 0.04 1.10 } } ] boundingObject Box { size 0.10 0.04 1.10 } }",
     "DEF ACTIVITY8_ROW1_FORWARD_PAD Pose { translation 0.50 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW1_DETOUR_PAD Pose { translation 0.50 -2.15 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
     "DEF ACTIVITY8_ROW2_FORWARD_PAD Pose { translation 0.80 -2.50 0.002 children [ Shape { appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.22 roughness 0.9 } geometry Box { size 0.18 0.18 0.004 } } ] }",
@@ -308,7 +308,10 @@ int webeeblocks_progression_autonomous_evaluator_main(void) {
       printf("WEBEEBLOCKS_AUTONOMOUS_STATION attempt=%llu\n", active_attempt);
       fflush(stdout);
     }
-    if (station_seen && !reference_unavailable && position[0] >= AUTONOMOUS_REFERENCE_HIDE_X) {
+    /* Leaving the loading lane hides the parcel before the first row detour.
+     * Waiting for forward progress leaves the large reference beside that
+     * detour. The replacement mask is narrow enough to clear the whole craft. */
+    if (station_seen && !reference_unavailable && position[1] <= AUTONOMOUS_REFERENCE_HIDE_Y) {
       const double hidden_reference[3] = {AUTONOMOUS_REFERENCE_MASK_X, AUTONOMOUS_STATION_Y, AUTONOMOUS_HIDDEN_Z};
       const double visible_mask[3] = {AUTONOMOUS_REFERENCE_MASK_X, AUTONOMOUS_STATION_Y, AUTONOMOUS_BARRIER_Z};
       wb_supervisor_field_set_sf_vec3f(reference_translation, hidden_reference);

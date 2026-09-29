@@ -57,7 +57,23 @@ assert.match(evaluator, /ACTIVITY8_PARCEL_REFERENCE/);
 assert.match(evaluator, /ACTIVITY8_REFERENCE_MASK/);
 assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_SMALL_X 1\.15/);
 assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_LARGE_X 0\.35/);
-assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_HIDE_X 0\.40/);
+assert.match(evaluator, /#define AUTONOMOUS_REFERENCE_HIDE_Y -2\.35/);
+assert.match(evaluator, /station_seen && !reference_unavailable && position\[1\] <= AUTONOMOUS_REFERENCE_HIDE_Y/);
+// Bound the replacement solid against both adjacent valid flight lanes.
+// R2025a Crazyflie radius 0.05 m + Runtime position tolerance 0.03 m,
+// conservatively rounded outward to a 0.10 m swept half-width.
+const maskNode = evaluator.split('\n').find(line => line.includes('DEF ACTIVITY8_REFERENCE_MASK Solid'));
+const maskBox = maskNode.match(/boundingObject Box \{ size ([\d.]+) ([\d.]+) ([\d.]+)/);
+assert.ok(maskBox, 'reference mask must retain a physical bounding object');
+const maskHalfWidth = Number(maskBox[2]) / 2;
+const sweptHalfWidth = 0.10;
+const maskY = -2.00;
+assert.ok(maskY - maskHalfWidth > -2.15 + sweptHalfWidth,
+  'post-departure mask must clear the full Activity 8 first-detour envelope');
+assert.ok(maskY + maskHalfWidth < -1.75 - sweptHalfWidth,
+  'post-departure mask must preserve the Activity 7 right-route envelope');
+assert.ok(-2.35 + sweptHalfWidth < maskY - maskHalfWidth,
+  'the craft must already clear the mask when it becomes visible');
 assert.match(evaluator, /reference_x = pattern->small_parcel \? AUTONOMOUS_REFERENCE_SMALL_X : AUTONOMOUS_REFERENCE_LARGE_X/);
 assert.match(evaluator, /wb_supervisor_field_set_sf_vec3f\(reference_translation, hidden_reference\)/);
 assert.match(evaluator, /wb_supervisor_field_set_sf_vec3f\(reference_mask_translation, visible_mask\)/);
