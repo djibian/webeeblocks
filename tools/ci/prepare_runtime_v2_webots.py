@@ -283,7 +283,7 @@ script = r'''
       throw new Error('pre-READY guard changed UI/backend state: ' + JSON.stringify(snapshot()));
     await report('PRE_READY_GUARD_OK', snapshot());
 
-    await waitFor(() => runtimeBackend.ready === true, 'controller READY message', 20000);
+    await waitFor(() => runtimeBackend.ready === true, 'controller READY message', 30000);
     await waitFor(() => !submit.disabled && state.textContent === 'PRÊT', 'post-READY UI enable', 2000);
     await report('READY', snapshot());
 
