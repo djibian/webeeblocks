@@ -108,6 +108,35 @@ For every capture:
    synchronization gesture late enough to bracket every interpreted interval;
 10. retain all raw and external-reference bytes exactly as collected.
 
+### 4.1 Binding the continuous hold to the canonical witness CSV
+
+The canonical CSV header from `X3_REFERENCE_WITNESS_TEMPLATE.csv` is unchanged.
+For every analyzed event, append two additional direct-observation rows with
+`row_kind` equal to `z_after_hold_start` and `z_after_hold_end`. Both rows must
+carry the same `scenario_id` and `trial_id` as the event and must be named in the
+event witness locator used by the metric-reference input.
+
+- `z_after_hold_start` records the conservative independent-clock interval at
+  which continuous observation of the post-transition body reference began;
+- `z_after_hold_end` records the conservative independent-clock interval at
+  which that continuous observation ended;
+- both rows repeat the same conservative `vehicle_z_low_m` /
+  `vehicle_z_high_m` envelope that bounds every observed value of that body
+  reference throughout the complete hold; their notes state that the interval is
+  a continuous-hold envelope rather than two isolated endpoint readings.
+
+These two row kinds extend the witness vocabulary for this concrete procedure;
+they do not change the CSV columns. The mechanical transformation maps their
+reference-time intervals respectively to `z_after_hold_start_reference_s` and
+`z_after_hold_end_reference_s`, and uses their shared vehicle-Z envelope as the
+post-transition Z witness. If one conservative envelope cannot cover the whole
+observed hold, or the two rows disagree, that event is procedurally incomplete
+and its 1 s comparison remains `UNPROVEN`.
+
+This is a bounded post-transition hold witness, not a continuous ground-truth
+trajectory. It must not be promoted into a claim about unobserved motion outside
+the retained hold interval.
+
 The temporal reference requirement is fail-closed. Under **every** admissible
 affine clock, the continuously observed vehicle-Z hold must begin no later than
 `event_end + 0.25 s` and remain valid through at least
@@ -158,7 +187,8 @@ procedure-complete capture without selecting traces after the outcome.
 For every procedure-complete capture, mechanically transform the retained witness
 into `webeeblocks.x3.metric-reference-input.v1` according to
 `X3_REFERENCE_WITNESS.md` and `METRIC_REFERENCE.md`, including the two mandatory
-post-transition hold-time fields from section 4.
+post-transition hold-time fields from section 4 and the exact witness rows from
+section 4.1.
 
 `metric_reference.py` must fail closed when the complete post-transition
 vehicle-Z hold does not cover the analyzed timing window. Its result remains
@@ -210,7 +240,8 @@ Retain every started characterization and confirmation capture, including
 procedure failures and unfavorable outcomes, plus:
 
 - raw continuous Crazyflie streams;
-- append-only external witness CSV;
+- append-only external witness CSV, including every `z_after_hold_start` and
+  `z_after_hold_end` row;
 - apparatus/datum/role/resolution/uncertainty metadata;
 - exact metric-reference input/output;
 - exact processing inputs/outputs actually used;
