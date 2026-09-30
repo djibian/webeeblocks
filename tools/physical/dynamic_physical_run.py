@@ -12,6 +12,9 @@ worker lifetime and the dynamic backend observers.  Any interpreter/backend
 failure is returned as a fail-closed error so the surrounding trusted host can
 enter its existing terminal shutdown/recovery path rather than continue ordinary
 execution after a partially evaluated dynamic program.
+
+As part of the trusted physical host path, changes here intentionally participate
+in the repository's physical-qualification CI scope.
 """
 
 from __future__ import annotations
