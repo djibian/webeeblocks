@@ -20,13 +20,14 @@ Usage:
     --request-sha <40-char-sha> \
     --seconds <30..300> \
     --output <new-directory> \
-    --props-removed \
-    --installed-bin-confirmed
+    --preparation-record <preparation.json> \
+    --props-removed
 
-This runner only records props-off X3 evidence through the bundled collector.
-It never flashes firmware, changes estimator parameters, publishes evidence, or
-performs a motorized action. The operator must explicitly confirm that the props
-are removed and that the exact bundled cf2.bin has already been installed.
+This runner is the read-only acquisition gate. It never flashes firmware,
+changes parameters, arms, invokes a commander or performs a motorized action.
+A PREPARED record from prepare_x3_independent_capture.sh is mandatory and is
+verified against the exact bundle, URI, firmware and parameter contract before
+the collector connects. The collector independently reads the live values again.
 EOF
   exit 2
 }
@@ -43,8 +44,8 @@ CHECKPOINT_URL=""
 REQUEST_SHA=""
 DURATION_SECONDS=""
 OUTPUT=""
+PREPARATION_RECORD=""
 PROPS_REMOVED=0
-INSTALLED_BIN_CONFIRMED=0
 
 if [ "$#" -eq 1 ] && [ "$1" = "--verify-environment" ]; then
   VERIFY_ONLY=1
@@ -76,23 +77,29 @@ else
         OUTPUT="$2"
         shift 2
         ;;
+      --preparation-record)
+        [ "$#" -ge 2 ] || usage
+        PREPARATION_RECORD="$2"
+        shift 2
+        ;;
       --props-removed)
         PROPS_REMOVED=1
-        shift
-        ;;
-      --installed-bin-confirmed)
-        INSTALLED_BIN_CONFIRMED=1
         shift
         ;;
       *) usage ;;
     esac
   done
   [ -n "$URI" ] && [ -n "$CHECKPOINT_URL" ] && [ -n "$REQUEST_SHA" ] && \
-    [ -n "$DURATION_SECONDS" ] && [ -n "$OUTPUT" ] || usage
-  [ "$PROPS_REMOVED" -eq 1 ] && [ "$INSTALLED_BIN_CONFIRMED" -eq 1 ] || usage
+    [ -n "$DURATION_SECONDS" ] && [ -n "$OUTPUT" ] && \
+    [ -n "$PREPARATION_RECORD" ] || usage
+  [ "$PROPS_REMOVED" -eq 1 ] || usage
   case "$OUTPUT" in
     /*) ;;
     *) OUTPUT="$CALLER_PWD/$OUTPUT" ;;
+  esac
+  case "$PREPARATION_RECORD" in
+    /*) ;;
+    *) PREPARATION_RECORD="$CALLER_PWD/$PREPARATION_RECORD" ;;
   esac
 fi
 
@@ -115,6 +122,7 @@ BUNDLE_TARGET_SHA="${TARGET_LINES[0]}"
 test -s "$HERE/cf2.bin"
 test "$(sha256sum "$HERE/cf2.bin" | awk '{print $1}')" = "$EXPECTED_FIRMWARE_SHA256"
 test -s "$HERE/capture_independent_inputs.py"
+test -s "$HERE/prepare_x3_independent_capture.py"
 test -d "$HERE/cflib-source/cflib"
 test -d "$HERE/wheels"
 
@@ -178,6 +186,10 @@ for module in (libusb_package, importlib_resources, numpy, usb):
 print("PASS: exact offline X3 cflib runtime closure is isolated")
 PY
 
+bash -n "$HERE/prepare_x3_independent_capture.sh"
+PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
+  python3 -B -S "$HERE/prepare_x3_independent_capture.py" --self-test
+
 DESCRIBE_JSON="$(PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
   python3 -B -S "$HERE/capture_independent_inputs.py" --describe)"
 python3 -B - "$DESCRIBE_JSON" "$EXPECTED_TEST_PROFILE" <<'PY'
@@ -218,6 +230,14 @@ fi
 if ! [[ "$URI" =~ ^radio://[0-9]+/[0-9]+/(250K|1M|2M)(/[0-9A-Fa-f]+)?$ ]]; then
   usage
 fi
+test -s "$PREPARATION_RECORD"
+
+PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
+python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
+  --verify-record "$PREPARATION_RECORD" \
+  --uri "$URI" \
+  --firmware-bin "$HERE/cf2.bin" \
+  --provenance "$HERE/PROVENANCE.txt"
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/capture_independent_inputs.py" \
@@ -229,5 +249,10 @@ python3 -B -S "$HERE/capture_independent_inputs.py" \
   --seconds "$DURATION_SECONDS" \
   --props-removed \
   --installed-bin-confirmed
+
+test -d "$OUTPUT"
+test ! -e "$OUTPUT/preparation-record.json"
+cp -- "$PREPARATION_RECORD" "$OUTPUT/preparation-record.json"
+sha256sum "$OUTPUT/preparation-record.json" > "$OUTPUT/preparation-record.sha256"
 
 verify_bundle
