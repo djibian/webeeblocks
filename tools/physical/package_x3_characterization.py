@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the exact offline #70 X3 props-off characterization bundle.
 
-Machine preparation only: this helper never opens Crazyradio, flashes firmware,
+Machine preparation only: this packager never opens Crazyradio, flashes firmware,
 changes parameters, publishes evidence, mints execution authority or requests a
 human checkpoint.
 """
@@ -29,6 +29,8 @@ BUNDLE_NAME = "WebeeBlocks-X3-Characterization"
 MANIFEST_NAME = "MANIFEST.json"
 MANIFEST_FORMAT = "webeeblocks-x3-characterization-manifest-v1"
 LOCK = ROOT / "tools" / "physical" / "reference_probe_lock.txt"
+PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
+PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
@@ -38,6 +40,7 @@ PRESSURE_PROBE = EXPERIMENT / "frozen_pressure_probe.py"
 METRIC_REFERENCE_DOC = EXPERIMENT / "METRIC_REFERENCE.md"
 PREREGISTRATION = EXPERIMENT / "X3_CHARACTERIZATION_PREREGISTRATION.md"
 PROCEDURE = EXPERIMENT / "X3_CHARACTERIZATION_PROCEDURE.md"
+PREPARE_PROCEDURE = EXPERIMENT / "X3_PREPARE_VERIFY_ACQUIRE.md"
 CHECKPOINT_SUPPORT = EXPERIMENT / "X3_CHECKPOINT_SUPPORT.md"
 REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"
 REFERENCE_WITNESS_TEMPLATE = EXPERIMENT / "X3_REFERENCE_WITNESS_TEMPLATE.csv"
@@ -181,6 +184,8 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     bundle.mkdir(parents=True)
 
     copy_file(firmware_bin, bundle / "cf2.bin")
+    copy_file(PREPARE, bundle / "prepare_x3_independent_capture.py", executable=True)
+    copy_file(PREPARE_RUNNER, bundle / "prepare_x3_independent_capture.sh", executable=True)
     copy_file(CAPTURE, bundle / "capture_independent_inputs.py", executable=True)
     copy_file(RUNNER, bundle / "run_x3_independent_capture.sh", executable=True)
     copy_file(VERIFIER, bundle / "verify_x3_characterization_bundle.py", executable=True)
@@ -189,6 +194,7 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(METRIC_REFERENCE_DOC, bundle / "METRIC_REFERENCE.md")
     copy_file(PREREGISTRATION, bundle / "X3_CHARACTERIZATION_PREREGISTRATION.md")
     copy_file(PROCEDURE, bundle / "X3_CHARACTERIZATION_PROCEDURE.md")
+    copy_file(PREPARE_PROCEDURE, bundle / "X3_PREPARE_VERIFY_ACQUIRE.md")
     copy_file(CHECKPOINT_SUPPORT, bundle / "X3_CHECKPOINT_SUPPORT.md")
     copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")
     copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")
@@ -206,6 +212,8 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
         f"cflib_tree={EXPECTED_CFLIB_TREE}",
         f"cflib_subtree={EXPECTED_CFLIB_SUBTREE}",
         f"runtime={RUNTIME}",
+        "preparation=exact-flash-readback-required-v1",
+        "acquisition=read-only-second-gate-v1",
         "reference_processing=conditional-only",
         "reference_witness=measured-guide-csv-v1",
         "trial_rule=fixed-three-cycle-v1",
