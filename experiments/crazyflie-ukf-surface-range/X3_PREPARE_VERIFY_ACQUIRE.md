@@ -88,6 +88,12 @@ required values from the Crazyflie and refuses capture on a mismatch. Neither
 the capture runner nor `capture_independent_inputs.py` flashes firmware or
 writes parameters.
 
+The low-level collector retains its historical `--installed-bin-confirmed`
+argument, but that is no longer an operator-memory assertion in the trusted
+handoff. Only `run_x3_independent_capture.sh` supplies it, after mechanically
+verifying the exact preparation record and bundled firmware. Directly supplying
+that low-level flag is not a substitute for the preparation gate.
+
 A valid preparation record is therefore necessary but not sufficient for a
 capture: both the retained preparation evidence and the collector's live
 verification must succeed.
