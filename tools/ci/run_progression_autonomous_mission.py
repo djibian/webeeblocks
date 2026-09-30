@@ -291,7 +291,7 @@ exit "$runner_rc"
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=4 status=achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=5 status=not-achieved",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=6 status=not-achieved",
-            "WEBEEBLOCKS_AUTONOMOUS_ROUTE attempt=7 route=left valid=0",
+            "WEBEEBLOCKS_AUTONOMOUS_COLLISION attempt=7",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=7 status=not-achieved",
             "WEBEEBLOCKS_AUTONOMOUS_TIMEOUT attempt=8",
             "WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=8 status=not-achieved",
