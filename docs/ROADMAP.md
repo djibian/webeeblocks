@@ -13,15 +13,16 @@ here.
 
 ## Product priority
 
-1. **#487 — executable pedagogical scenarios and cumulative learning progression**
-2. **#157 — broader useful reference-capability coverage**
+1. **#157 — representative real-device qualification and useful reference-capability coverage**
 
-#66 established the declarative activity/profile architecture and compact-
-progression structure, but new product evidence in #487 supersedes interpreting
-that result as proof that the current activity scenarios are pedagogically
-complete. #81 (Windows classroom deployment), #80 (one-click unified classroom
-interface) and #79 (fully French student interface) remain validated baselines,
-not active priority nodes.
+#487 is now a validated product baseline rather than an active priority node.
+Activities 1–8 were materialized through the shared declarative profile/Runtime
+path with explicit student missions, cumulative prerequisite reuse and executable
+behavior-only world outcomes; the final synthesis slice was integrated in #529
+and #487 is closed as completed. Reopen that progression boundary only for new
+contradictory pedagogical or product evidence. #81 (Windows classroom deployment),
+#80 (one-click unified classroom interface) and #79 (fully French student
+interface) likewise remain validated baselines, not active priority nodes.
 
 The #157 simulation-side C1b boundary is now established for every currently
 justified student-facing generic capability. Integrated #193/#196 establish the
@@ -231,7 +232,7 @@ justified by the current evidence.
   work has since closed every currently justified simulation-side generic
   capability gap; physical continuity/proof remains separate.
 
-### B1 — declarative activity model established; pedagogical acceptance reopened
+### B1 — declarative activity model and cumulative progression established
 
 - parent: #66
 - evidence: integrated #181 on `main@8eab31ca448a966063e53f039f340238ecfec833`
@@ -248,40 +249,42 @@ justified by the current evidence.
   project/profile loader. Starting a packaged activity clears the current save
   target so student work requires an explicit Save As; no second activity
   catalogue, unlock/progress state or new Runtime semantics is introduced
-- superseding evidence: #487 establishes that structural progression and named
-  objectives do **not** prove pedagogically complete activity scenarios. The
-  current activities must be re-evaluated against explicit student missions,
-  worlds that make the new concept genuinely useful/necessary, cumulative reuse
-  of prior concepts and executable mission outcomes
+- pedagogical completion: #487 plus integrated #512/#515/#516/#518/#521/#522/
+  #524/#529 materialize the eight retained activities one by one as concrete
+  cumulative missions. Student-facing mission text is separated from the internal
+  pedagogical objective, live-world evaluators judge observable current-attempt
+  outcomes rather than Blockly/AST shape, and deterministic real-Webots evidence
+  covers the retained success/failure/shortcut boundaries. #487 is closed as
+  completed
 - finality: the teacher-authorized final real-flight activity remains separately
   gated under #72 by physical backend/capability proof and any #70 result required
-  by the chosen mission; B1 establishment does not claim real-flight readiness.
+  by the chosen mission; this established progression does not claim real-flight
+  readiness.
 
-### B2 — executable pedagogical scenarios and cumulative progression
+### B2 — executable pedagogical scenarios and cumulative progression established
 
-- parent: #487
-- target: approximately 8–12 substantial problem situations, where quality and
-  cumulative learning take precedence over activity count
-- activity contract: every retained activity has a complete student-facing
-  scenario/mission distinct from its internal pedagogical objective; its world,
-  geometry, events, sensor availability or other constraints create the need for
-  the target concept; prior concepts are naturally reused; success/failure is
-  evaluated from observable mission state rather than expected Blockly/AST shape
-- student feedback: provide simple mission achieved / not achieved / interrupted
-  feedback without automatic diagnosis, hints, strategy suggestions or persistent
-  attempt/progress history
-- variable capability: standard Blockly `variables_set` / `variables_get` /
-  `math_change` already lower through the backend-neutral variable assignment and
-  arithmetic path and are covered by Runtime/project round-trip tests. Do not add
-  task-specific increment/decrement primitives merely to satisfy #487
-- acceptance: re-evaluate the existing representative activities one by one;
-  retain those meeting the contract, redesign weak scenarios/worlds and replace
-  those that cannot be made pedagogically coherent. For each activity be able to
-  state `new concept -> world property that makes it necessary -> student mission
-  -> prior concepts reused -> executable success criteria`
-- non-goals: no accounts, automatic unlocks, mastery database, grading system,
-  leaderboard, intelligent tutor, solution-shape oracle or world proliferation
-  for its own sake.
+- parent: #487 (closed completed)
+- established result: eight substantial cumulative problem situations now retain
+  complete student-facing missions distinct from internal pedagogical objectives;
+  their shared-world geometry/configurations create the intended programming need
+  while naturally reusing earlier concepts
+- executable outcome boundary: `mission-state-v1` feedback is derived from
+  observable current-attempt world state with reset freshness; equivalent valid
+  solution shapes remain accepted, while retained deterministic negative cases
+  reject missed mission state, collisions and representative shortcuts without
+  inspecting Blockly/AST structure
+- cumulative evidence: #512 sequence, #515 precise movement, #516 repetition,
+  #518 simple decision, #521 repeated reaction, #522 multi-perception, #524 memory
+  across time and #529 open autonomous synthesis form the retained eight-activity
+  progression; the final activity explicitly accepts strategy diversity rather
+  than encoding a reference solution
+- student feedback remains deliberately small: achieved / not achieved /
+  interrupted, without automatic diagnosis, hints, strategy suggestions or
+  persistent attempt/progress history
+- consequence: no active #487 redesign work remains without new contradictory
+  pedagogical/product evidence. Preserve the same non-goals: no accounts,
+  automatic unlocks, mastery database, grading system, leaderboard, intelligent
+  tutor, solution-shape oracle or world proliferation for its own sake.
 
 ### C1b — broaden reference Crazyflie/deck capability coverage
 
