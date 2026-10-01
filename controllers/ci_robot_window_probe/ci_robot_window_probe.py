@@ -1,10 +1,10 @@
-from controller import Robot
+from controller import Supervisor
 
 READY = "WEBEEBLOCKS_CI_WINDOW_READY"
 CONTROLLER_TO_WINDOW = "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW"
 ACK = "WEBEEBLOCKS_CI_WINDOW_ACK"
 
-robot = Robot()
+robot = Supervisor()
 timestep = int(robot.getBasicTimeStep())
 print("WEBEEBLOCKS_CI_ROBOT_WINDOW_CONTROLLER_STARTED", flush=True)
 
@@ -18,5 +18,8 @@ while robot.step(timestep) != -1:
             print("WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT", flush=True)
         elif message == ACK:
             print("WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK", flush=True)
+            if robot.step(timestep) == -1:
+                raise RuntimeError("Webots ended before the proved WWI markers could drain")
+            robot.simulationQuit(0)
             raise SystemExit(0)
         message = robot.wwiReceiveText()
