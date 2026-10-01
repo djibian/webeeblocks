@@ -9,5 +9,6 @@ Viewpoint {
 Robot {
   name "ci-probe"
   controller "ci_robot_window_probe"
+  supervisor TRUE
   window "blockly"
 }
