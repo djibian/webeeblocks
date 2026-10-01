@@ -77,15 +77,17 @@ runner for exact #251. Its support contract remains:
 - exact cflib commit `45fdb784c9d13074c42835f3b5ac1d12133bf873`;
 - exact cflib source tree `a78cf78d2b4aba51a0fa2b03de0260664b523401`;
 - exact `cflib` subtree `750e850390753de14019f0e1f55d4fbc44317699`;
-- exact offline wheel closure from `tools/physical/reference_probe_lock.txt`;
+- exact offline X3 wheel closure from `tools/physical/x3_runtime_lock.txt`,
+  including the pinned `packaging` dependency required by `cflib.bootloader`;
 - bundled #251 `cf2.bin`, collector, provenance and manifest.
 
-The runner verifies the bundle/runtime closure before acquisition.
-`--verify-environment` is hardware-free. Recording requires an explicit Crazyradio
-URI, canonical checkpoint URL, exact request SHA, duration and new output
-directory, with explicit props-removed and exact-binary-installed confirmations.
-It does not flash, write parameters, reset the estimator, issue commander motion,
-publish evidence or manufacture a physical verdict.
+The preparation and acquisition runners verify the bundle/runtime closure before
+any physical action or acquisition. `--verify-environment` is hardware-free and
+must import the same bootloader closure used by preparation. Recording requires
+an explicit Crazyradio URI, canonical checkpoint URL, exact request SHA, duration
+and new output directory, with explicit props-removed and exact-binary-installed
+confirmations. It does not flash, write parameters, reset the estimator, issue
+commander motion, publish evidence or manufacture a physical verdict.
 
 The integrated collector already retains the minimum characterization information
 required by the owner direction: continuous barometer/pressure/temperature,
