@@ -18,6 +18,8 @@ while robot.step(timestep) != -1:
             print("WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT", flush=True)
         elif message == ACK:
             print("WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK", flush=True)
+            if robot.step(timestep) == -1:
+                raise RuntimeError("Webots ended before the proved WWI markers could drain")
             robot.simulationQuit(0)
             raise SystemExit(0)
         message = robot.wwiReceiveText()
