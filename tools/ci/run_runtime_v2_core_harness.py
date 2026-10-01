@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import html, http.server, json, os, pathlib, re, shutil, socketserver, subprocess, sys, threading, time
+import html, http.server, json, os, pathlib, re, shutil, signal, socketserver, subprocess, sys, threading, time
 HERE=pathlib.Path(__file__).resolve().parent; REPO_ROOT=HERE.parents[1]; HARNESS=pathlib.Path('tools/ci/runtime_v2_core_harness.html')
+HARNESS_DEADLINE_SECONDS=11*60
+def _deadline(_signum,_frame):
+    print(f'FAIL Runtime v2 core harness exceeded {HARNESS_DEADLINE_SECONDS}s hard deadline',file=sys.stderr,flush=True)
+    raise TimeoutError(f'Runtime v2 core harness exceeded {HARNESS_DEADLINE_SECONDS}s hard deadline')
 def browser_binary():
     for candidate in (os.environ.get('CHROME_BIN'),'google-chrome','google-chrome-stable','chromium','chromium-browser'):
         if candidate and shutil.which(candidate): return shutil.which(candidate) or candidate
@@ -9,6 +13,10 @@ def browser_binary():
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
 def main():
+    for stream in (sys.stdout,sys.stderr):
+        if hasattr(stream,'reconfigure'): stream.reconfigure(line_buffering=True)
+    if hasattr(signal,'SIGALRM'):
+        signal.signal(signal.SIGALRM,_deadline); signal.alarm(HARNESS_DEADLINE_SECONDS)
     os.chdir(REPO_ROOT)
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
