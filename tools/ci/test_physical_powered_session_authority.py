@@ -296,14 +296,27 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
         power_switch_factory=FakePowerSwitch,
     )
     require(calls == [], "helper construction must not power-cycle hardware")
-    reset()
+    original_sleep = authority.sleep
+    try:
+        authority.sleep = lambda seconds: calls.append(("stabilize", seconds))
+        reset()
+    finally:
+        authority.sleep = original_sleep
     require(
         calls == [
             ("construct", "radio://0/80/2M/E7E7E7E7E7"),
             "cycle",
             "close",
+            (
+                "stabilize",
+                authority._POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS,
+            ),
         ],
-        "explicit reset delegates once and releases the PowerSwitch transport",
+        "explicit reset must release PowerSwitch before bounded post-SYSON stabilization",
+    )
+    require(
+        authority._POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS == 5.0,
+        "#541 real-device evidence requires the proven 5 s post-SYSON stabilization",
     )
 
     failing_calls: list[str] = []
@@ -355,6 +368,46 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
     require(
         close_failure_calls == ["construct", "cycle", "close"],
         "cleanup failure is observed after the exact reset attempt",
+    )
+
+    stabilization_calls: list[object] = []
+
+    class StabilizationPowerSwitch:
+        def __init__(self, _uri: str) -> None:
+            stabilization_calls.append("construct")
+
+        def stm_power_cycle(self) -> None:
+            stabilization_calls.append("cycle")
+
+        def close(self) -> None:
+            stabilization_calls.append("close")
+
+    stabilization_reset = authority.make_cflib_stm_deck_power_cycle(
+        "radio://0/80/2M/E7E7E7E7E7",
+        power_switch_factory=StabilizationPowerSwitch,
+    )
+
+    def fail_stabilization(seconds: float) -> None:
+        stabilization_calls.append(("stabilize", seconds))
+        raise RuntimeError("host sleep failed")
+
+    original_sleep = authority.sleep
+    try:
+        authority.sleep = fail_stabilization
+        expect_error(stabilization_reset, "post-SYSON STM+deck stabilization failed")
+    finally:
+        authority.sleep = original_sleep
+    require(
+        stabilization_calls == [
+            "construct",
+            "cycle",
+            "close",
+            (
+                "stabilize",
+                authority._POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS,
+            ),
+        ],
+        "stabilization uncertainty must fail closed only after releasing PowerSwitch",
     )
 
     expect_error(

@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from secrets import token_hex
 from threading import Lock
+from time import sleep
 from typing import Callable, Mapping
 
 from watchdog_liveness import PoweredSessionWatchdogAuthority
@@ -40,6 +41,7 @@ _STATE_TERMINAL = "terminal"
 _MIN_SUPERVISOR_PROTOCOL_VERSION = 12
 _EXACT_AIRFRAME_MODEL = "crazyflie-2.1"
 _FACTORY_TOKEN = object()
+_POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS = 5.0
 
 
 class PoweredSessionAuthorityError(RuntimeError):
@@ -417,5 +419,18 @@ def make_cflib_stm_deck_power_cycle(
 
         if failure is not None:
             raise failure
+
+        # The nRF can acknowledge SYSON before the STM and attached decks are
+        # ready to serve platform/TOC requests. Real-device checkpoint #541
+        # reproduced this boundary: an immediate reconnect stalled after radio
+        # link establishment, while the same 1 s cflib OFF/ON cycle followed by
+        # 5 s of host-owned post-SYSON stabilization restored the complete
+        # Crazyflie 2.1 + Flow Deck V2 + Multi-ranger session.
+        try:
+            sleep(_POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS)
+        except Exception as exc:
+            raise PoweredSessionAuthorityError(
+                "post-SYSON STM+deck stabilization failed"
+            ) from exc
 
     return reset
