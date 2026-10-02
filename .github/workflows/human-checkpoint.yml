@@ -311,8 +311,8 @@ jobs:
             test -f "$support_wheels/$filename"
             cp "$support_wheels/$filename" "$wheelhouse/$filename"
             printf '%s  %s\n' "$digest" "$wheelhouse/$filename" >> "$expected"
-          done < tools/physical/reference_probe_lock.txt
-          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 4
+          done < tools/physical/x3_runtime_lock.txt
+          test "$(find "$wheelhouse" -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 5
           sha256sum -c "$expected"
 
       - name: Build and verify exact X3 characterization artifact
@@ -334,6 +334,7 @@ jobs:
             --output-root ci-artifacts/x3-characterization
           bundle=ci-artifacts/x3-characterization/WebeeBlocks-X3-Characterization
           python3 -B tools/physical/verify_x3_characterization_bundle.py "$bundle"
+          PYTHONDONTWRITEBYTECODE=1 bash "$bundle/prepare_x3_independent_capture.sh" --verify-environment
           PYTHONDONTWRITEBYTECODE=1 bash "$bundle/run_x3_independent_capture.sh" --verify-environment
           python3 -B tools/physical/verify_x3_characterization_bundle.py "$bundle"
 

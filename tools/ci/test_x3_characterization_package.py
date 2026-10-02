@@ -14,6 +14,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "package_x3_characterization.py"
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
+PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
 CAPTURE = EXPERIMENT / "capture_independent_inputs.py"
@@ -28,10 +29,12 @@ REAL_BUNDLE_PROOF_PATHS = frozenset(
         ".github/workflows/human-checkpoint.yml",
         "tools/ci/test_x3_characterization_package.py",
         "tools/physical/package_x3_characterization.py",
+        "tools/physical/prepare_x3_independent_capture.py",
+        "tools/physical/prepare_x3_independent_capture.sh",
         "tools/physical/run_x3_independent_capture.sh",
         "tools/physical/verify_x3_characterization_bundle.py",
         "tools/physical/prepare_x3_firmware_fixture.py",
-        "tools/physical/reference_probe_lock.txt",
+        "tools/physical/x3_runtime_lock.txt",
         "tools/physical/qualification_runtime_lock.txt",
         "experiments/crazyflie-ukf-surface-range/capture_independent_inputs.py",
         "experiments/crazyflie-ukf-surface-range/metric_reference.py",
@@ -220,6 +223,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             require(required in provenance, f"assembled X3 bundle provenance missing {required.strip()}")
 
         verifier = bundle / "verify_x3_characterization_bundle.py"
+        prepare_runner = bundle / "prepare_x3_independent_capture.sh"
         runner = bundle / "run_x3_independent_capture.sh"
         verification_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
 
@@ -231,13 +235,19 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         )
         before = file_snapshot(bundle)
         subprocess.run(
+            ["bash", str(prepare_runner), "--verify-environment"],
+            cwd=bundle,
+            env=verification_env,
+            check=True,
+        )
+        subprocess.run(
             ["bash", str(runner), "--verify-environment"],
             cwd=bundle,
             env=verification_env,
             check=True,
         )
         after = file_snapshot(bundle)
-        require(after == before, "complete X3 --verify-environment path mutated exact bundle bytes/file set")
+        require(after == before, "complete X3 --verify-environment paths mutated exact bundle bytes/file set")
 
         subprocess.run(
             [sys.executable, "-B", str(verifier), str(bundle)],
@@ -251,7 +261,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
 
 def main() -> int:
     rows = package.locked_wheels()
-    require(len(rows) == 4, "X3 runtime must retain exactly four locked wheels")
+    require(len(rows) == 5, "X3 runtime must retain exactly five locked wheels")
     require(
         {row[1] for row in rows}
         == {
@@ -259,6 +269,7 @@ def main() -> int:
             "libusb_package-1.0.26.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
             "importlib_resources-6.5.2-py3-none-any.whl",
             "numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "packaging-25.0-py3-none-any.whl",
         },
         "X3 package wheel identity changed",
     )
@@ -294,6 +305,7 @@ def main() -> int:
         '"status", "--porcelain", "--untracked-files=no"',
         '"archive", "--format=tar", EXPECTED_CFLIB_COMMIT, "cflib"',
         'MANIFEST_NAME = "MANIFEST.json"',
+        'LOCK = ROOT / "tools" / "physical" / "x3_runtime_lock.txt"',
         'VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"',
         'PROCEDURE = EXPERIMENT / "X3_CHARACTERIZATION_PROCEDURE.md"',
         'REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"',
@@ -301,6 +313,7 @@ def main() -> int:
         'copy_file(PROCEDURE, bundle / "X3_CHARACTERIZATION_PROCEDURE.md")',
         'copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")',
         'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
+        'copy_file(LOCK, bundle / "x3_runtime_lock.txt")',
         '"reference_witness=measured-guide-csv-v1"',
         '"trial_rule=fixed-three-cycle-v1"',
         '"post_transition_z_reference=continuous-hold-required-v1"',
@@ -320,11 +333,22 @@ def main() -> int:
         "id: x3-runtime-cache",
         "steps.x3-runtime-cache.outputs.cache-hit",
         "python3 tools/physical/prepare_x3_firmware_fixture.py",
+        "done < tools/physical/x3_runtime_lock.txt",
         "python3 tools/physical/package_x3_characterization.py",
+        'bash "$bundle/prepare_x3_independent_capture.sh" --verify-environment',
         "name: WebeeBlocks-X3-Characterization",
         "needs.validate.outputs.test_profile != 'x3-independent-props-off'",
     ):
         require(required in human, f"trusted X3 checkpoint preparation missing: {required}")
+
+    prepare_runner = PREPARE_RUNNER.read_text(encoding="utf-8")
+    for required in (
+        'test -f "$HERE/x3_runtime_lock.txt"',
+        "packaging",
+        "from cflib.bootloader import Bootloader, Target",
+        "--verify-environment",
+    ):
+        require(required in prepare_runner, f"X3 preparation runner contract missing: {required}")
 
     runner = RUNNER.read_text(encoding="utf-8")
     verifier_call = 'python3 -B "$HERE/verify_x3_characterization_bundle.py" "$HERE"'
@@ -334,6 +358,9 @@ def main() -> int:
         package.EXPECTED_CFLIB_TREE,
         package.EXPECTED_CFLIB_SUBTREE,
         'EXPECTED_TEST_PROFILE="x3-independent-props-off"',
+        'test -s "$HERE/x3_runtime_lock.txt"',
+        "packaging",
+        "from cflib.bootloader import Bootloader, Target",
         "--verify-environment",
         "--props-removed",
         "--installed-bin-confirmed",

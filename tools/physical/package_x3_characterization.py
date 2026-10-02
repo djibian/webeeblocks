@@ -28,7 +28,7 @@ PROFILE = "x3-independent-props-off"
 BUNDLE_NAME = "WebeeBlocks-X3-Characterization"
 MANIFEST_NAME = "MANIFEST.json"
 MANIFEST_FORMAT = "webeeblocks-x3-characterization-manifest-v1"
-LOCK = ROOT / "tools" / "physical" / "reference_probe_lock.txt"
+LOCK = ROOT / "tools" / "physical" / "x3_runtime_lock.txt"
 PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
 PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
@@ -89,10 +89,10 @@ def locked_wheels() -> tuple[tuple[str, str, str], ...]:
             continue
         parts = tuple(part.strip() for part in line.split("|"))
         if len(parts) != 3 or not re.fullmatch(r"[0-9a-f]{64}", parts[2]):
-            raise PackageError("malformed reference runtime lock")
+            raise PackageError("malformed X3 runtime lock")
         rows.append((parts[0], parts[1], parts[2]))
-    if len(rows) != 4:
-        raise PackageError("exact four-wheel reference runtime lock required")
+    if len(rows) != 5:
+        raise PackageError("exact five-wheel X3 runtime lock required")
     return tuple(rows)
 
 
@@ -198,7 +198,7 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(CHECKPOINT_SUPPORT, bundle / "X3_CHECKPOINT_SUPPORT.md")
     copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")
     copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")
-    copy_file(LOCK, bundle / "reference_probe_lock.txt")
+    copy_file(LOCK, bundle / "x3_runtime_lock.txt")
     export_cflib(cflib_root, bundle / "cflib-source")
     (bundle / "wheels").mkdir()
     for wheel in wheels:

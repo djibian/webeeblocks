@@ -123,6 +123,7 @@ test -s "$HERE/cf2.bin"
 test "$(sha256sum "$HERE/cf2.bin" | awk '{print $1}')" = "$EXPECTED_FIRMWARE_SHA256"
 test -s "$HERE/capture_independent_inputs.py"
 test -s "$HERE/prepare_x3_independent_capture.py"
+test -s "$HERE/x3_runtime_lock.txt"
 test -d "$HERE/cflib-source/cflib"
 test -d "$HERE/wheels"
 
@@ -148,8 +149,8 @@ mkdir -p "$ISOLATED_SITE"
 shopt -s nullglob
 WHEELS=("$HERE"/wheels/*.whl)
 shopt -u nullglob
-if [ "${#WHEELS[@]}" -ne 4 ]; then
-  echo "FAIL: exact four-wheel cflib runtime closure required" >&2
+if [ "${#WHEELS[@]}" -ne 5 ]; then
+  echo "FAIL: exact five-wheel X3 cflib runtime closure required" >&2
   exit 2
 fi
 
@@ -168,21 +169,24 @@ site = pathlib.Path(sys.argv[2]).resolve()
 
 import cflib
 import cflib.crtp
+from cflib.bootloader import Bootloader, Target
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
 import libusb_package
 import importlib_resources
 import numpy
+import packaging
 import usb
 
 if source not in pathlib.Path(cflib.__file__).resolve().parents:
     raise SystemExit(f"FAIL: cflib escaped exact bundled source: {cflib.__file__}")
-for module in (libusb_package, importlib_resources, numpy, usb):
+for module in (libusb_package, importlib_resources, numpy, packaging, usb):
     module_path = pathlib.Path(module.__file__).resolve()
     if site not in module_path.parents:
         raise SystemExit(
             f"FAIL: dependency escaped isolated wheelhouse: {module.__name__} -> {module_path}"
         )
+assert Bootloader and Target and Crazyflie and LogConfig
 print("PASS: exact offline X3 cflib runtime closure is isolated")
 PY
 

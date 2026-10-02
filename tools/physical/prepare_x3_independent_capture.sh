@@ -37,7 +37,7 @@ verify_bundle() {
 verify_static_inputs() {
   test -f "$HERE/cf2.bin"
   test -f "$HERE/PROVENANCE.txt"
-  test -f "$HERE/reference_probe_lock.txt"
+  test -f "$HERE/x3_runtime_lock.txt"
   test -f "$HERE/prepare_x3_independent_capture.py"
   test -d "$HERE/cflib-source/cflib"
   test -d "$HERE/wheels"
@@ -63,8 +63,8 @@ make_runtime() {
   ISOLATED_SITE="$ISOLATED_ROOT/site"
   mkdir -p "$ISOLATED_SITE"
 
-  mapfile -t LOCK_ROWS < <(grep -Ev '^[[:space:]]*(#|$)' "$HERE/reference_probe_lock.txt")
-  test "${#LOCK_ROWS[@]}" -eq 4
+  mapfile -t LOCK_ROWS < <(grep -Ev '^[[:space:]]*(#|$)' "$HERE/x3_runtime_lock.txt")
+  test "${#LOCK_ROWS[@]}" -eq 5
 
   local specs=()
   local spec filename digest
@@ -90,13 +90,23 @@ make_runtime() {
   export PYTHONDONTWRITEBYTECODE=1
 
   python3 -B -S - <<'PY'
-import cflib
-import usb
 from pathlib import Path
+
+import cflib
+import packaging
+import usb
+from cflib.bootloader import Bootloader, Target
+from cflib.crazyflie import Crazyflie
+from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+
 if not Path(cflib.__file__).resolve().as_posix().endswith("/cflib-source/cflib/__init__.py"):
     raise SystemExit("cflib did not load from exact bundled source")
-if not Path(usb.__file__).resolve().as_posix().endswith("/site/usb/__init__.py"):
-    raise SystemExit("pyusb did not load from isolated locked wheels")
+for module in (packaging, usb):
+    if "/site/" not in Path(module.__file__).resolve().as_posix():
+        raise SystemExit(f"{module.__name__} did not load from isolated locked wheels")
+# Importing these symbols is the hardware-free proof that the exact physical
+# preparation import closure is complete. No object is constructed here.
+assert Bootloader and Target and Crazyflie and SyncCrazyflie
 PY
 }
 
