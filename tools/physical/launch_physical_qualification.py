@@ -621,15 +621,18 @@ class PhysicalQualificationSession:
                 "outcome is ambiguous and the one-shot decision cannot be retried"
             ) from exc
 
-        # Only a definitely completed send can enable the ordinary execution path.
-        self._teacher_sealed = True
-        self._teacher_approved = approved is True
+        # The host mints positive authority only after observing EOF on the
+        # teacher write side. Treat a local half-close failure as unresolved:
+        # the decision remains one-shot/non-retriable, but ordinary execution
+        # must stay disabled.
         try:
             self._teacher.shutdown(socket.SHUT_WR)
         except OSError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision was sent; local channel half-close is uncertain"
             ) from exc
+        self._teacher_sealed = True
+        self._teacher_approved = approved is True
 
     def execute_approved_program(self, *, timeout_seconds: float = 30.0) -> None:
         if (

@@ -329,8 +329,10 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
         "executionAuthority": False,
     }
     teacher = _ShutdownFailingTeacher()
+    caller = _RecordingCaller()
     session._prepared = prepared
     session._teacher = teacher  # type: ignore[assignment]
+    session._caller = caller  # type: ignore[assignment]
 
     try:
         session.decide(proposal, approved=True)
@@ -340,8 +342,8 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
         raise AssertionError("synthetic teacher half-close failure unexpectedly succeeded")
 
     require(session._teacher_decision_attempted is True, "teacher decision attempt must be one-shot")
-    require(session._teacher_sealed is True, "successful send must irrevocably consume the teacher decision")
-    require(session._teacher_approved is True, "successful APPROVE send must enable only the positive path")
+    require(session._teacher_sealed is False, "uncertain half-close must not establish a sealed exchange")
+    require(session._teacher_approved is False, "uncertain half-close must not establish positive approval")
     require(len(teacher.messages) == 1, "exactly one teacher decision may be transmitted")
     sent = json.loads(teacher.messages[0].decode("utf-8"))
     require(sent["approved"] is True, "first transmitted decision must preserve explicit approval")
@@ -353,6 +355,13 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
     else:
         raise AssertionError("teacher decision retry unexpectedly remained available after successful send")
     require(len(teacher.messages) == 1, "half-close uncertainty must never permit a second teacher decision")
+    try:
+        session.execute_approved_program(timeout_seconds=0.1)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("uncertain teacher half-close unexpectedly enabled execution")
+    require(caller.messages == [], "uncertain half-close must emit no ordinary execution request")
     session.close()
     require(teacher.closed, "session cleanup must still close uncertain teacher channel")
 
