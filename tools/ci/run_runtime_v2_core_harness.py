@@ -9,6 +9,8 @@ def browser_binary():
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
 def main():
+    for stream in (sys.stdout,sys.stderr):
+        if hasattr(stream,'reconfigure'): stream.reconfigure(line_buffering=True)
     os.chdir(REPO_ROOT)
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
@@ -41,10 +43,11 @@ def main():
     if variable_test.returncode:
         print('FAIL Runtime v2 variables/memory contract',file=sys.stderr);print(variable_test.stdout,file=sys.stderr);print(variable_test.stderr,file=sys.stderr);return variable_test.returncode
     print(variable_test.stdout.strip())
-    activity_outcome_test=subprocess.run(['node','tools/ci/test_runtime_activity_outcome.js'],text=True,capture_output=True)
+    # This child owns the long real-Webots progression chain. Inherit stdout/stderr
+    # so every completed mission remains visible while the healthy run continues.
+    activity_outcome_test=subprocess.run(['node','tools/ci/test_runtime_activity_outcome.js'])
     if activity_outcome_test.returncode:
-        print('FAIL Runtime activity mission outcome contract',file=sys.stderr);print(activity_outcome_test.stdout,file=sys.stderr);print(activity_outcome_test.stderr,file=sys.stderr);return activity_outcome_test.returncode
-    print(activity_outcome_test.stdout.strip())
+        print('FAIL Runtime activity mission outcome contract',file=sys.stderr);return activity_outcome_test.returncode
     physical_capability_test=subprocess.run(['node','tools/ci/test_physical_capability_contract.js'],text=True,capture_output=True)
     if physical_capability_test.returncode:
         print('FAIL read-only physical capability contract',file=sys.stderr);print(physical_capability_test.stdout,file=sys.stderr);print(physical_capability_test.stderr,file=sys.stderr);return physical_capability_test.returncode
