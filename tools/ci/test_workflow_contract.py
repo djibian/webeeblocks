@@ -212,6 +212,49 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('"experiments/crazyflie-ukf-surface-range/**"', selector)
         self.assertIn('".github/workflows/ci-webots.yml"', selector)
 
+
+    def test_robot_window_roundtrip_ack_proof_survives_webots_shutdown(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        job = suite.split("\n  robot-window-roundtrip:\n", 1)[1].split(
+            "\n  webots-smoke:\n", 1
+        )[0]
+        controller = (
+            ROOT / "controllers" / "ci_robot_window_probe" / "ci_robot_window_probe.py"
+        ).read_text(encoding="utf-8")
+
+        proof = "robot-window-roundtrip-proof.txt"
+        self.assertIn("timeout-minutes: 8", job)
+        self.assertIn("timeout -k 5s 60s", job)
+        self.assertIn('grep -Fq "BROWSER_LAUNCHED"', job)
+        self.assertIn('grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"', job)
+        self.assertIn('grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"', job)
+        self.assertIn(f"rm -f ci-artifacts/{proof}", job)
+        self.assertIn(f"PROOF=ci-artifacts/{proof}", job)
+        self.assertIn(
+            'grep -Fx "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$PROOF"',
+            job,
+        )
+        self.assertIn(
+            'grep -Fx "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$PROOF"',
+            job,
+        )
+        self.assertNotIn(
+            'grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"',
+            job,
+        )
+        self.assertNotIn(
+            'grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$LOG"',
+            job,
+        )
+
+        self.assertIn(proof, controller)
+        self.assertIn('elif message == ACK:', controller)
+        self.assertIn('temp_proof.replace(PROOF)', controller)
+        self.assertLess(
+            controller.index('temp_proof.replace(PROOF)'),
+            controller.index('robot.simulationQuit(0)'),
+        )
+
     def test_windows_release_requires_full_or_non_pr_and_is_pinned(self) -> None:
         orchestrator = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")

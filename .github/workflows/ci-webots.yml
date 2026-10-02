@@ -2161,6 +2161,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ci-artifacts
+          rm -f ci-artifacts/robot-window-roundtrip-proof.txt
           echo "CI_BEFORE_WEBOTS" | tee ci-artifacts/robot-window.log
           echo "Command: Webots R2025a + explicit Google Chrome Robot Window browser" | tee -a ci-artifacts/robot-window.log
           set +e
@@ -2199,6 +2200,7 @@ jobs:
         shell: bash
         run: |
           LOG=ci-artifacts/robot-window.log
+          PROOF=ci-artifacts/robot-window-roundtrip-proof.txt
 
           grep -F "CI_BEFORE_WEBOTS" "$LOG"
           grep -F "CI_BROWSER=/usr/bin/google-chrome" "$LOG"
@@ -2214,8 +2216,11 @@ jobs:
 
           grep -F "WEBEEBLOCKS_CI_WINDOW_TO_CONTROLLER_OK" "$LOG"
           grep -F "WEBEEBLOCKS_CI_CONTROLLER_TO_WINDOW_SENT" "$LOG"
-          grep -F "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$LOG"
-          grep -F "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$LOG"
+
+          test -s "$PROOF"
+          grep -Fx "WEBEEBLOCKS_CI_WWI_RX=WEBEEBLOCKS_CI_WINDOW_ACK" "$PROOF"
+          grep -Fx "WEBEEBLOCKS_CI_ROBOT_WINDOW_ROUNDTRIP_OK" "$PROOF"
+          cat "$PROOF"
           echo "PASS: actual Blockly Robot Window loaded R2025a RobotWindow.js and completed window -> controller -> window -> controller WWI round trip."
 
       - name: Upload Robot Window diagnostics
