@@ -166,7 +166,12 @@ class PostResetTeacherDecisionChannel(TrustedTeacherDecisionChannel):
         receipt: TeacherRunAuthorization | None = None
         try:
             self._send_prepared_proposal_frame(proposal_frame)
-            response = self._recv_json_line(timeout)
+            # This proposal is presented to a human after the expensive reset/
+            # revalidation path. Human deliberation has no application deadline:
+            # keep the trusted socket open until one decision arrives or the peer
+            # closes. The bounded timeout still applies to proposal emission and
+            # to sealing the exchange after a decision has been received.
+            response = self._recv_json_line(None)
 
             if set(response) != {
                 "op",
