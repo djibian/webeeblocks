@@ -14,6 +14,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "package_x3_characterization.py"
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
+PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
 PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
@@ -341,12 +342,30 @@ def main() -> int:
     ):
         require(required in human, f"trusted X3 checkpoint preparation missing: {required}")
 
+    prepare_source = PREPARE.read_text(encoding="utf-8")
+    for required in (
+        'RESET_PARAMETER = "ukf.resetEstimation"',
+        'RESET_CTYPE = "uint8_t"',
+        "RESET_HOLD_SECONDS = 0.25",
+        "RESET_SETTLE_SECONDS = 5.0",
+        '"stateEstimate.z": (-1.0, 5.0)',
+        '"stateEstimate.vz": (-1.0, 1.0)',
+        "pulse_estimator_reset",
+        "evaluate_health_samples",
+        "--health-check",
+        '"estimator_reset": "ukf.resetEstimation:uint8_t:1->0:0.25s"',
+    ):
+        require(required in prepare_source, f"X3 fresh-reset preparation contract missing: {required}")
+
     prepare_runner = PREPARE_RUNNER.read_text(encoding="utf-8")
     for required in (
         'test -f "$HERE/x3_runtime_lock.txt"',
         "packaging",
         "from cflib.bootloader import Bootloader, Target",
         "--verify-environment",
+        "ukf.resetEstimation",
+        "0.25 s",
+        "fixed 5 s",
     ):
         require(required in prepare_runner, f"X3 preparation runner contract missing: {required}")
 
@@ -364,6 +383,7 @@ def main() -> int:
         "--verify-environment",
         "--props-removed",
         "--installed-bin-confirmed",
+        "--health-check",
         "export PYTHONDONTWRITEBYTECODE=1",
         verifier_call,
     ):
