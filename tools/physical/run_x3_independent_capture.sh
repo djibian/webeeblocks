@@ -26,8 +26,10 @@ Usage:
 This runner is the read-only acquisition gate. It never flashes firmware,
 changes parameters, arms, invokes a commander or performs a motorized action.
 A PREPARED record from prepare_x3_independent_capture.sh is mandatory and is
-verified against the exact bundle, URI, firmware and parameter contract before
-the collector connects. The collector independently reads the live values again.
+verified against the exact bundle, URI, firmware, fresh-reset and parameter
+contract before the collector connects. The runner then performs a read-only
+live estimator-health gate; only after that succeeds does the collector connect
+and independently read the four frozen parameter values again.
 EOF
   exit 2
 }
@@ -242,6 +244,11 @@ python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
   --uri "$URI" \
   --firmware-bin "$HERE/cf2.bin" \
   --provenance "$HERE/PROVENANCE.txt"
+
+PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
+python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
+  --health-check \
+  --uri "$URI"
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/capture_independent_inputs.py" \
