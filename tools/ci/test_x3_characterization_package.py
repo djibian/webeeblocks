@@ -24,6 +24,7 @@ CAPTURE = EXPERIMENT / "capture_independent_inputs.py"
 METRIC_REFERENCE_TEST = EXPERIMENT / "test_metric_reference.py"
 METRIC_REFERENCE_EXACT_JSON_TEST = EXPERIMENT / "test_metric_reference_exact_json.py"
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
 FIRMWARE_FIXTURE = QUALIFICATION_SUPPORT / "x3-firmware" / "cf2.bin"
 RESET_PROVENANCE_251 = EXPERIMENT / "evidence" / "checkpoint-251" / "raw" / "README.txt"
@@ -449,6 +450,8 @@ def main() -> int:
         "ukf.resetEstimation",
         "0.25 s",
         "fixed 5 s",
+        'test -f "$HERE/x3_no_commander_link.py"',
+        'python3 -B -S "$HERE/x3_no_commander_link.py"',
     ):
         require(required in prepare_runner, f"X3 preparation runner contract missing: {required}")
 
@@ -469,6 +472,8 @@ def main() -> int:
         "--health-check",
         "export PYTHONDONTWRITEBYTECODE=1",
         verifier_call,
+        'test -s "$HERE/x3_no_commander_link.py"',
+        'python3 -B -S "$HERE/x3_no_commander_link.py"',
     ):
         require(required in runner, f"X3 runner contract missing: {required}")
     require(
@@ -478,6 +483,15 @@ def main() -> int:
     require("sha256sum -c" not in runner, "runner must not accept manifest-listed files while ignoring extras")
     for forbidden in ("set_value", "send_position_setpoint", "send_hover_setpoint"):
         require(forbidden not in runner, f"X3 runner unexpectedly exposes effect surface: {forbidden}")
+
+    ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+    for required in (
+        "tools/physical/prepare_x3_independent_capture.py",
+        "tools/physical/x3_no_commander_link.py",
+        "tools/ci/test_x3_reset_firmware_semantics.py",
+        "python3 tools/ci/test_x3_reset_firmware_semantics.py .x3-crazyflie-firmware",
+    ):
+        require(required in ci_workflow, f"canonical CI missing X3 reset-semantics wiring: {required}")
 
     capture = CAPTURE.read_text(encoding="utf-8")
     for required in (
