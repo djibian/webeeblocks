@@ -24,6 +24,19 @@ METRIC_REFERENCE_EXACT_JSON_TEST = EXPERIMENT / "test_metric_reference_exact_jso
 HUMAN_WORKFLOW = ROOT / ".github" / "workflows" / "human-checkpoint.yml"
 QUALIFICATION_SUPPORT = ROOT / ".ci-support" / "qualification-runtime"
 FIRMWARE_FIXTURE = QUALIFICATION_SUPPORT / "x3-firmware" / "cf2.bin"
+RESET_PROVENANCE_251 = EXPERIMENT / "evidence" / "checkpoint-251" / "raw" / "README.txt"
+RESET_PROVENANCE_236 = (
+    EXPERIMENT / "evidence" / "checkpoint-236" / "raw"
+    / "S3-8561ec3-checkpoint-236-evidence" / "README.txt"
+)
+RESET_SESSION = (
+    EXPERIMENT / "evidence" / "checkpoint-180" / "raw"
+    / "S3-173b7c5-bundle" / "s3_session.py"
+)
+RESET_TOC = (
+    EXPERIMENT / "evidence" / "checkpoint-180" / "raw"
+    / "S3-173b7c5-bundle" / "results-20ms" / "cache" / "E5446F4B.json"
+)
 
 REAL_BUNDLE_PROOF_PATHS = frozenset(
     {
@@ -145,6 +158,39 @@ def verify_metric_reference_oracles() -> None:
             check=True,
         )
     print("PASS: X3 metric-reference interval and exact-JSON regressions")
+
+
+def verify_reset_provenance_oracles() -> None:
+    checkpoint_251 = RESET_PROVENANCE_251.read_text(encoding="utf-8")
+    checkpoint_236 = RESET_PROVENANCE_236.read_text(encoding="utf-8")
+    session = RESET_SESSION.read_text(encoding="utf-8")
+    toc = json.loads(RESET_TOC.read_text(encoding="utf-8"))
+
+    reset = ((toc.get("ukf") or {}).get("resetEstimation") or {})
+    require(reset.get("ctype") == "uint8_t", "retained UKF reset TOC type must be uint8_t")
+
+    on = 'set_param_and_wait(cf, "ukf.resetEstimation", 1)'
+    hold = "time.sleep(0.25)"
+    off = 'set_param_and_wait(cf, "ukf.resetEstimation", 0)'
+    settle = "for remaining in range(5, 0, -1):"
+    for required in (on, hold, off, settle):
+        require(required in session, f"retained reset procedure missing: {required}")
+    require(
+        session.index(on) < session.index(hold) < session.index(off) < session.index(settle),
+        "retained reset pulse/settle order changed",
+    )
+
+    require(
+        "fresh-reset stationary validation" in checkpoint_251
+        and "first stationary precheck, excluded because estimator had already drifted" in checkpoint_251,
+        "#251 must retain fresh-reset healthy vs pre-reset divergent provenance",
+    )
+    require(
+        "resetEstimation pulsed before valid scenarios" in checkpoint_236
+        and "estimator was already divergent/NaN" in checkpoint_236,
+        "#236 must retain reset-vs-divergence provenance",
+    )
+    print("PASS: retained X3 reset type, pulse, settle and valid-run provenance verified")
 
 
 def _pr_changed_paths() -> tuple[str, ...]:
@@ -298,6 +344,7 @@ def main() -> int:
 
     verify_manifest_oracles()
     verify_metric_reference_oracles()
+    verify_reset_provenance_oracles()
 
     source = MODULE_PATH.read_text(encoding="utf-8")
     for required in (
