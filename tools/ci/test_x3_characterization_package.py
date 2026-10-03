@@ -395,6 +395,7 @@ def main() -> int:
 
     prepare_source = PREPARE.read_text(encoding="utf-8")
     for required in (
+        'SCHEMA = "webeeblocks.x3.preparation.v2"',
         'RESET_PARAMETER = "ukf.resetEstimation"',
         'RESET_CTYPE = "uint8_t"',
         "RESET_HOLD_SECONDS = 0.25",
