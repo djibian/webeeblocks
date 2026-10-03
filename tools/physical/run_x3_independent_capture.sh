@@ -8,6 +8,7 @@ EXPECTED_FIRMWARE_SHA256="67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3ab
 EXPECTED_CFLIB_COMMIT="45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE="a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE="750e850390753de14019f0e1f55d4fbc44317699"
+EXPECTED_UPSTREAM_FIRMWARE_COMMIT="54f31e243a0b28b67efef5ba20dbb6d9890a5478"
 EXPECTED_TEST_PROFILE="x3-independent-props-off"
 
 usage() {
@@ -114,6 +115,7 @@ grep -Fxq "cflib_tree=$EXPECTED_CFLIB_TREE" PROVENANCE.txt
 grep -Fxq "cflib_subtree=$EXPECTED_CFLIB_SUBTREE" PROVENANCE.txt
 grep -Fxq 'runtime=ubuntu-22.04-python-3.10-x86_64' PROVENANCE.txt
 grep -Fxq "firmware_bin_sha256=$EXPECTED_FIRMWARE_SHA256" PROVENANCE.txt
+grep -Fxq "upstream_firmware_commit=$EXPECTED_UPSTREAM_FIRMWARE_COMMIT" PROVENANCE.txt
 mapfile -t TARGET_LINES < <(sed -n 's/^repository_target_sha=//p' PROVENANCE.txt)
 if [ "${#TARGET_LINES[@]}" -ne 1 ] || ! [[ "${TARGET_LINES[0]}" =~ ^[0-9a-f]{40}$ ]]; then
   echo "FAIL: exactly one valid repository_target_sha is required" >&2
@@ -125,6 +127,7 @@ test -s "$HERE/cf2.bin"
 test "$(sha256sum "$HERE/cf2.bin" | awk '{print $1}')" = "$EXPECTED_FIRMWARE_SHA256"
 test -s "$HERE/capture_independent_inputs.py"
 test -s "$HERE/prepare_x3_independent_capture.py"
+test -s "$HERE/x3_no_commander_link.py"
 test -s "$HERE/x3_runtime_lock.txt"
 test -d "$HERE/cflib-source/cflib"
 test -d "$HERE/wheels"
@@ -193,6 +196,7 @@ print("PASS: exact offline X3 cflib runtime closure is isolated")
 PY
 
 bash -n "$HERE/prepare_x3_independent_capture.sh"
+python3 -B -S "$HERE/x3_no_commander_link.py"
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
   python3 -B -S "$HERE/prepare_x3_independent_capture.py" --self-test
 
