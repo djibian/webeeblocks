@@ -28,8 +28,10 @@ instrumentation:
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
 - before characterization acquisition, reconstruct the valid #251 starting state
-  with one fresh `ukf.resetEstimation` `uint8_t` pulse `1 -> 0`, holding
-  `1` for 0.25 s, followed by the fixed stationary settle and broad
+  with one fresh `ukf.resetEstimation` `uint8_t` request: client write `1`,
+  bounded fresh observation of the pinned firmware consuming and auto-clearing
+  it to `0`, then the historical explicit client `0` release after the
+  0.25 s client delay, followed by the fixed stationary settle and broad
   estimator-health verification;
 - props removed for the complete characterization.
 
