@@ -6,6 +6,7 @@ EXPECTED_FIRMWARE_SHA256="67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3ab
 EXPECTED_CFLIB_COMMIT="45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE="a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE="750e850390753de14019f0e1f55d4fbc44317699"
+EXPECTED_UPSTREAM_FIRMWARE_COMMIT="54f31e243a0b28b67efef5ba20dbb6d9890a5478"
 EXPECTED_TEST_PROFILE="x3-independent-props-off"
 
 usage() {
@@ -21,12 +22,17 @@ This is a distinct pre-acquisition effect phase. With --props-removed it:
   1. verifies the exact signed-by-manifest X3 bundle and runtime;
   2. flashes only the exact bundled #251 cf2.bin to cf2/stm32/fw;
   3. writes only the four predeclared X3 configuration parameters when needed;
-  4. reads all four values back with their exact parameter types;
-  5. writes preparation.json.
+  4. requests ukf.resetEstimation uint8_t=1, requires a fresh observation of
+     the firmware-owned auto-clear to 0 within 0.25 s, then preserves the
+     historical explicit client 0 release after the 0.25 s client delay;
+  5. waits the fixed 5 s post-reset settling interval and verifies broad,
+     predeclared estimator-health bounds;
+  6. writes preparation.json.
 
 It never arms, invokes a commander, runs motors, tunes parameters or starts a
-scientific capture. Do not power-cycle the Crazyflie between PREPARED and the
-read-only acquisition that consumes preparation.json.
+scientific capture. Keep the Crazyflie stationary during post-reset settling.
+Do not power-cycle the Crazyflie between PREPARED and the read-only acquisition
+that consumes preparation.json.
 EOF
 }
 
@@ -39,12 +45,14 @@ verify_static_inputs() {
   test -f "$HERE/PROVENANCE.txt"
   test -f "$HERE/x3_runtime_lock.txt"
   test -f "$HERE/prepare_x3_independent_capture.py"
+  test -f "$HERE/x3_no_commander_link.py"
   test -d "$HERE/cflib-source/cflib"
   test -d "$HERE/wheels"
 
   test "$(sha256sum "$HERE/cf2.bin" | awk '{print $1}')" = "$EXPECTED_FIRMWARE_SHA256"
   grep -Fxq "test_profile=$EXPECTED_TEST_PROFILE" "$HERE/PROVENANCE.txt"
   grep -Fxq "firmware_bin_sha256=$EXPECTED_FIRMWARE_SHA256" "$HERE/PROVENANCE.txt"
+  grep -Fxq "upstream_firmware_commit=$EXPECTED_UPSTREAM_FIRMWARE_COMMIT" "$HERE/PROVENANCE.txt"
   grep -Fxq "cflib_commit=$EXPECTED_CFLIB_COMMIT" "$HERE/PROVENANCE.txt"
   grep -Fxq "cflib_tree=$EXPECTED_CFLIB_TREE" "$HERE/PROVENANCE.txt"
   grep -Fxq "cflib_subtree=$EXPECTED_CFLIB_SUBTREE" "$HERE/PROVENANCE.txt"
@@ -97,7 +105,6 @@ import packaging
 import usb
 from cflib.bootloader import Bootloader, Target
 from cflib.crazyflie import Crazyflie
-from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 
 if not Path(cflib.__file__).resolve().as_posix().endswith("/cflib-source/cflib/__init__.py"):
     raise SystemExit("cflib did not load from exact bundled source")
@@ -106,7 +113,7 @@ for module in (packaging, usb):
         raise SystemExit(f"{module.__name__} did not load from isolated locked wheels")
 # Importing these symbols is the hardware-free proof that the exact physical
 # preparation import closure is complete. No object is constructed here.
-assert Bootloader and Target and Crazyflie and SyncCrazyflie
+assert Bootloader and Target and Crazyflie
 PY
 }
 
@@ -155,6 +162,7 @@ done
 verify_bundle
 verify_static_inputs
 make_runtime
+python3 -B -S "$HERE/x3_no_commander_link.py"
 python3 -B -S "$HERE/prepare_x3_independent_capture.py" --self-test
 
 if [[ "$MODE" == "verify" ]]; then

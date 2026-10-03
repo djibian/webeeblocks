@@ -27,9 +27,16 @@ instrumentation:
 - `ukf.qualityGateTof=20`;
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
+- before characterization acquisition, reconstruct the valid #251 starting state
+  with one fresh `ukf.resetEstimation` `uint8_t` request: client write `1`,
+  bounded fresh observation of the pinned firmware consuming and auto-clearing
+  it to `0`, then the historical explicit client `0` release after the
+  0.25 s client delay, followed by the fixed stationary settle and broad
+  estimator-health verification;
 - props removed for the complete characterization.
 
-No estimator retuning, Runtime/controller change, `rangeUp` fusion, full `z/f/r`
+The fresh reset is initialization, not tuning. No estimator retuning,
+Runtime/controller change, `rangeUp` fusion, full `z/f/r`
 expansion, or motorized action belongs to this experiment. A future logging-only
 instrumented artifact, if objectively required, must receive a distinct exact
 identity rather than replacing or repurposing #251.

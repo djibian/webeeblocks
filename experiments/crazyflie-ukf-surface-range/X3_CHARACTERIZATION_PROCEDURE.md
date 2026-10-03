@@ -23,15 +23,22 @@ Use only the bundle-proven #251 props-off artifact/configuration:
 - `ukf.qualityGateTof=20`;
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
+- preparation must include the retained valid-#251 fresh
+  `ukf.resetEstimation` `uint8_t` request: client write `1`, bounded fresh
+  observation of the pinned firmware consuming and auto-clearing it to `0`,
+  then the historical explicit client `0` release after the 0.25 s client
+  delay, followed by the fixed stationary settle and broad estimator-health gate;
 - props removed for every capture.
 
-No ToF/barometer/S3 retuning, Runtime/controller change, `rangeUp` fusion, full
+The reset reconstructs the valid starting state and is not tuning. No
+ToF/barometer/S3 retuning, Runtime/controller change, `rangeUp` fusion, full
 `z/f/r` expansion or motorized action belongs to this experiment. The Crazyflie
 is hand-carried.
 
 Before a physical session, the packaged verifier and environment check must pass.
-A preparation failure is not a reason to bypass verification or substitute a
-new runtime.
+The Crazyflie must remain stationary during the post-reset settle. A preparation
+or live pre-acquisition health failure is not a reason to bypass verification,
+retry blindly or substitute a new runtime.
 
 ## 2. Apparatus and uncertainty predeclaration
 

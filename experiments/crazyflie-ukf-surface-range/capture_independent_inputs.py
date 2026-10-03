@@ -3,8 +3,8 @@
 
 This is acquisition support, not a checkpoint request, estimator or physical
 verdict. Imports cflib only for an explicit recording. Never flashes, changes
-parameters, resets the estimator or invokes a commander. cflib's normal link
-close can still emit its documented safety-zero setpoint.
+parameters, resets the estimator or emits a Commander/setpoint packet. The
+one-shot X3 teardown bypasses pinned cflib's normal safety-zero close emission.
 """
 
 from __future__ import annotations
@@ -171,6 +171,7 @@ def record(args) -> int:
     import cflib.crtp
     from cflib.crazyflie import Crazyflie
     from cflib.crazyflie.log import LogConfig
+    from x3_no_commander_link import close_link_without_commander
 
     args.output.mkdir(parents=True, exist_ok=False)
     write_json_once(args.output / "capture-start.json", {
@@ -244,7 +245,7 @@ def record(args) -> int:
                     except Exception as exc:
                         recorder.fail(f"log stop failed: {exc}")
         finally:
-            cf.close_link()
+            close_link_without_commander(cf)
     except (Exception, KeyboardInterrupt) as exc:
         error = f"{type(exc).__name__}: {exc}"
     finally:

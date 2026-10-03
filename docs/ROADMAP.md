@@ -417,29 +417,40 @@ justified by the current evidence.
   collecting new physical information. The frozen predictor remains a conditional
   confirmation tool; characterization cannot retroactively validate its stronger
   bound flags
-- established preparation: the reviewed pre-registration/support definition fixes
-  the unchanged #251 props-off firmware/configuration, calibration-versus-
-  confirmation split, stationary/terrain/true-vertical/mixed cases, all-trial
-  retention and the 5 cm / 1 s falsification quantities. Integrated #426 adds the
-  concrete measured-guide + independent-clock witness, explicit uncertainty and
-  affine-clock fail-closed mapping into the exact characterization bundle
+- established preparation intent: the reviewed pre-registration/support
+  definition fixes the unchanged #251 props-off firmware/configuration,
+  calibration-versus-confirmation split, stationary/terrain/true-vertical/mixed
+  cases, all-trial retention and the 5 cm / 1 s falsification quantities.
+  Integrated #426 adds the concrete measured-guide + independent-clock witness,
+  explicit uncertainty and affine-clock fail-closed mapping into the exact
+  characterization bundle. Owner-authoritative checkpoint #550 then exposed a
+  concrete preparation defect: the no-reset handoff could leave UKF grossly
+  divergent before terrain motion, while valid #251/#236 evidence had used a
+  fresh `ukf.resetEstimation` request. #551 is therefore the current preparation
+  prerequisite: deterministic reset request + bounded proof of firmware-owned
+  auto-clear + historical explicit client release + fixed settle + broad health
+  evidence, with a second read-only health gate immediately before acquisition;
+  the X3 one-shot teardown must bypass pinned cflib's normal close-time Commander
+  setpoint so preparation and acquisition emit no Commander packet
 - trusted checkpoint path: integrated #428 enables checkpoint-only
   `x3-independent-props-off` backed by `WebeeBlocks-X3-Characterization`. Exact
   requested-SHA checkout, pinned cflib/#251 support, locked offline runtime,
   bundle verification, Runtime/Webots evidence, digest/provenance and the generic
   one-open-human-test rule remain mandatory; packaging itself remains request-
   neutral and grants no execution or motorized authority
-- next indispensable evidence: one complete props-off human characterization
-  bundle against the independent metric/time reference, retaining all validly
-  started raw trials across stationary, terrain, true-vertical and mixed cases.
+- next indispensable evidence: after #551 is integrated and a fresh exact-SHA
+  checkpoint is generated (never reusing #550), one complete props-off human
+  characterization bundle against the independent metric/time reference,
+  retaining all validly started raw trials across stationary, terrain,
+  true-vertical and mixed cases.
   Calibration-only processing/envelopes are then frozen before untouched
   confirmation and the separate scientific decision. An uncertainty interval
   crossing a predeclared target is `UNPROVEN`, never PASS
-- checkpoint gating: #433 is closed `FAIL` before `PREPARE` and no longer blocks
-  another checkpoint merely by occupying the one-open-human-test slot. This does
-  not create a queue or make X3 automatically next: any X3 request still requires
-  an exact trusted checkpoint decision from reconstructed current dependencies,
-  and the generic one-open-human-test rule remains mandatory
+- checkpoint gating: #550 is closed owner-authoritative `FAIL` and therefore
+  no longer occupies the one-open-human-test slot, but its artifact/fingerprint
+  is historical failure evidence only. A new X3 request requires the #551 repair
+  integrated on an exact SHA plus reconstructed current dependencies; the generic
+  one-open-human-test rule remains mandatory and no queue is created
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune

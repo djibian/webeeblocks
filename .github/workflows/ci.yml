@@ -257,7 +257,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             while IFS= read -r path; do
               case "$path" in
-                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|.github/workflows/ci.yml)
+                experiments/crazyflie-ukf-surface-range/X3_PRELPF_TIMING_OBSERVER.md|experiments/crazyflie-ukf-surface-range/apply_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_x3_prelpf_build_oracle.sh|experiments/crazyflie-ukf-surface-range/test_x3_prelpf_timing_observer.py|experiments/crazyflie-ukf-surface-range/run_s3_build_oracle.sh|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_veto_discriminator.py|experiments/crazyflie-ukf-surface-range/apply_surface_offset_s3_timing_observer.py|tools/physical/prepare_x3_independent_capture.py|tools/physical/x3_no_commander_link.py|tools/ci/test_x3_characterization_package.py|tools/ci/test_x3_reset_firmware_semantics.py|.github/workflows/ci.yml)
                   run=true
                   break
                   ;;
@@ -275,6 +275,9 @@ jobs:
           path: .x3-crazyflie-firmware
           submodules: recursive
           fetch-depth: 1
+      - name: Verify pinned X3 reset firmware semantics
+        if: steps.x3-scope.outputs.run == 'true'
+        run: python3 tools/ci/test_x3_reset_firmware_semantics.py .x3-crazyflie-firmware
       - name: Build isolated X3 observer diagnostic
         if: steps.x3-scope.outputs.run == 'true'
         shell: bash
