@@ -23,8 +23,10 @@ checkpoint #251:
 - `ukf.qualityGateTof` as `float` value `20.0`;
 - `ukf.baroNoise` as `float` value `6.25`;
 - `ukf.surfaceOffsetS3` as `uint8_t` value `1`;
-- one fresh `ukf.resetEstimation` `uint8_t` pulse `1 -> 0`, holding `1`
-  for exactly 0.25 s, matching the retained valid #251/#236 procedure;
+- one fresh `ukf.resetEstimation` `uint8_t` request: write `1`, require a
+  fresh observation of the pinned firmware consuming the request and auto-clearing
+  it to `0` within 0.25 s, then retain the historical explicit client write of
+  `0` after the 0.25 s client delay;
 - a fixed 5 s stationary post-reset settle followed by a broad fail-closed
   estimator-health observation;
 - props removed throughout preparation and acquisition.
@@ -60,8 +62,11 @@ operator to remember which binary was previously installed. It then inspects
 the live parameter TOC, requires the exact parameter types above, writes only a
 required frozen value that differs, and performs a fresh read-back of every
 required value. It then requires `ukf.resetEstimation` to be writable
-`uint8_t`, pulses `1`, waits 0.25 s, pulses `0`, verifies the final `0`,
-waits the fixed 5 s stationary settle, and checks these broad predeclared
+`uint8_t`, writes `1`, and requires a bounded fresh read to observe the
+firmware-owned auto-clear to `0` before the client can manufacture that
+postcondition. The helper preserves the retained procedure's explicit client
+`0` write after the 0.25 s client delay, verifies the final `0`, waits the
+fixed 5 s stationary settle, and checks these broad predeclared
 gross-sanity bounds: `roll/pitch in [-45,+45] deg`, `stateEstimate.z in
 [-1,+5] m`, and `stateEstimate.vz in [-1,+1] m/s`, with at least 10 finite
 samples over a fixed 2 s / 100 ms observation. These are intentionally much
@@ -83,7 +88,9 @@ The output directory is append-only for this attempt and contains
 - every required parameter type/value;
 - observed values before and after reconstruction;
 - the exact set of frozen parameters actually written;
-- the exact reset parameter/type, `1 -> 0` pulse, 0.25 s hold and final read-back;
+- the exact reset parameter/type, acknowledged client request `1`, bounded
+  firmware-owned auto-clear observation to `0`, historical 0.25 s client
+  release delay, explicit client `0` release and final read-back;
 - the fixed post-reset settle and broad estimator-health evidence;
 - absence of persistence/arming/commander/motor/scientific-retry effects.
 
@@ -99,11 +106,14 @@ runtime identity and parameter contract.
 
 After validating the preparation record, the acquisition runner performs a
 fresh **read-only live estimator-health gate** using the same broad predeclared
-bounds. This catches a later divergence before the scientific collector starts.
+bounds and the dedicated no-Commander transport teardown. This catches a later
+divergence before the scientific collector starts without emitting cflib's normal
+close-time safety-zero setpoint.
 The collector then performs another independent live gate by reading the four
-required frozen values and refusing capture on a mismatch. Neither the capture
-runner nor `capture_independent_inputs.py` flashes firmware, pulses reset or
-writes parameters.
+required frozen values and refusing capture on a mismatch, and it uses the same
+no-Commander teardown. Neither the capture runner nor
+`capture_independent_inputs.py` flashes firmware, pulses reset, writes
+parameters or emits a Commander/setpoint packet.
 
 The low-level collector retains its historical `--installed-bin-confirmed`
 argument, but that is no longer an operator-memory assertion in the trusted
