@@ -49,9 +49,11 @@ defect that cannot be closed without logging-only instrumentation:
 - `ukf.qualityGateTof=20`;
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
-- one fresh `ukf.resetEstimation` `uint8_t` pulse `1 -> 0` with a 0.25 s
-  active hold, followed by the retained fixed stationary settle used by valid
-  #251/#236 evidence;
+- one fresh `ukf.resetEstimation` `uint8_t` request: client write `1`,
+  bounded fresh observation of the pinned firmware consuming and auto-clearing
+  it to `0`, then the retained explicit client `0` release after the 0.25 s
+  client delay, followed by the fixed stationary settle used by valid #251/#236
+  evidence;
 - props removed throughout.
 
 The reset reconstructs estimator state; it is not estimator retuning. No
@@ -89,14 +91,16 @@ The preparation and acquisition runners verify the bundle/runtime closure before
 any physical action or acquisition. `--verify-environment` is hardware-free and
 must import the same bootloader closure used by preparation. The effectful
 preparation phase alone may flash the exact firmware, establish the four frozen
-parameters, perform the exact historical fresh UKF reset and retain its
-post-reset health evidence. Recording requires an explicit Crazyradio URI,
+parameters, prove the firmware-owned consumption/auto-clear of the exact
+historical fresh UKF reset and retain its post-reset health evidence. Recording requires an explicit Crazyradio URI,
 canonical checkpoint URL, exact request SHA, duration and new output directory,
 with explicit props-removed and verified preparation-record evidence. Immediately
 before the collector starts, the acquisition runner performs a fresh **read-only**
-estimator-health observation. The acquisition runner/collector do not flash,
-write parameters, reset the estimator, issue commander motion, publish evidence
-or manufacture a physical verdict.
+estimator-health observation. Both that gate and the collector use the dedicated
+one-shot no-Commander teardown instead of pinned cflib's normal close path, which
+would emit a safety-zero setpoint. The acquisition runner/collector do not flash,
+write parameters, reset the estimator, emit a Commander/setpoint packet, publish
+evidence or manufacture a physical verdict.
 
 The integrated collector already retains the minimum characterization information
 required by the owner direction: continuous barometer/pressure/temperature,

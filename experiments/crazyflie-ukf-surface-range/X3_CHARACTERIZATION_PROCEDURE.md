@@ -24,8 +24,10 @@ Use only the bundle-proven #251 props-off artifact/configuration:
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
 - preparation must include the retained valid-#251 fresh
-  `ukf.resetEstimation` `uint8_t` pulse `1 -> 0` with 0.25 s active hold,
-  followed by the fixed stationary settle and broad estimator-health gate;
+  `ukf.resetEstimation` `uint8_t` request: client write `1`, bounded fresh
+  observation of the pinned firmware consuming and auto-clearing it to `0`,
+  then the historical explicit client `0` release after the 0.25 s client
+  delay, followed by the fixed stationary settle and broad estimator-health gate;
 - props removed for every capture.
 
 The reset reconstructs the valid starting state and is not tuning. No

@@ -426,9 +426,12 @@ justified by the current evidence.
   characterization bundle. Owner-authoritative checkpoint #550 then exposed a
   concrete preparation defect: the no-reset handoff could leave UKF grossly
   divergent before terrain motion, while valid #251/#236 evidence had used a
-  fresh `ukf.resetEstimation` pulse. #551 is therefore the current preparation
-  prerequisite: deterministic fresh reset + fixed settle + broad health evidence,
-  with a second read-only health gate immediately before acquisition
+  fresh `ukf.resetEstimation` request. #551 is therefore the current preparation
+  prerequisite: deterministic reset request + bounded proof of firmware-owned
+  auto-clear + historical explicit client release + fixed settle + broad health
+  evidence, with a second read-only health gate immediately before acquisition;
+  the X3 one-shot teardown must bypass pinned cflib's normal close-time Commander
+  setpoint so preparation and acquisition emit no Commander packet
 - trusted checkpoint path: integrated #428 enables checkpoint-only
   `x3-independent-props-off` backed by `WebeeBlocks-X3-Characterization`. Exact
   requested-SHA checkout, pinned cflib/#251 support, locked offline runtime,
