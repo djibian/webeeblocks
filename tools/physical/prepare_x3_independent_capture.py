@@ -21,12 +21,15 @@ import threading
 import time
 from typing import Any
 
+from x3_no_commander_link import close_link_without_commander
+
 FIRMWARE_TARGET = "6562ad827bf0c8bf2c9b609edad36f3e15652133"
 FIRMWARE_BIN_SHA256 = "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
 TEST_PROFILE = "x3-independent-props-off"
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
+UPSTREAM_FIRMWARE_COMMIT = "54f31e243a0b28b67efef5ba20dbb6d9890a5478"
 SCHEMA = "webeeblocks.x3.preparation.v2"
 PARAMETERS: dict[str, dict[str, Any]] = {
     "stabilizer.estimator": {"ctype": "uint8_t", "value": 3},
@@ -38,7 +41,9 @@ RESET_PARAMETER = "ukf.resetEstimation"
 RESET_CTYPE = "uint8_t"
 RESET_ACTIVE = 1
 RESET_INACTIVE = 0
-RESET_HOLD_SECONDS = 0.25
+RESET_AUTOCLEAR_TIMEOUT_SECONDS = 0.25
+RESET_CLIENT_RELEASE_DELAY_SECONDS = 0.25
+RESET_AUTOCLEAR_POLL_SECONDS = 0.02
 RESET_SETTLE_SECONDS = 5.0
 HEALTH_OBSERVE_SECONDS = 2.0
 HEALTH_PERIOD_MS = 100
@@ -223,7 +228,56 @@ def configure_required_parameters(adapter: object) -> dict[str, dict[str, object
     return records
 
 
-def pulse_estimator_reset(adapter: object, sleeper=time.sleep) -> dict[str, object]:
+def wait_for_firmware_reset_autoclear(
+    adapter: object,
+    *,
+    started_at: float,
+    sleeper=time.sleep,
+    clock=time.monotonic,
+) -> dict[str, object]:
+    deadline = started_at + RESET_AUTOCLEAR_TIMEOUT_SECONDS
+    observations = 0
+    while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            raise PreparationError(
+                "firmware-owned reset auto-clear was not observed before timeout"
+            )
+        raw = adapter.read_fresh(
+            RESET_PARAMETER,
+            timeout=min(0.05, max(0.01, remaining)),
+        )
+        observed_at = clock()
+        observations += 1
+        value = normalize_value(RESET_CTYPE, raw)
+        if value == RESET_INACTIVE:
+            if observed_at > deadline:
+                raise PreparationError(
+                    "firmware-owned reset auto-clear arrived after timeout"
+                )
+            return {
+                "observed_value": value,
+                "observation_count": observations,
+                "elapsed_seconds": observed_at - started_at,
+            }
+        if value != RESET_ACTIVE:
+            raise PreparationError(
+                f"unexpected reset transition value before auto-clear: {raw!r}"
+            )
+        remaining = deadline - clock()
+        if remaining <= 0:
+            raise PreparationError(
+                "firmware-owned reset auto-clear was not observed before timeout"
+            )
+        sleeper(min(RESET_AUTOCLEAR_POLL_SECONDS, remaining))
+
+
+def pulse_estimator_reset(
+    adapter: object,
+    *,
+    sleeper=time.sleep,
+    clock=time.monotonic,
+) -> dict[str, object]:
     ctype, writable, before = adapter.describe(RESET_PARAMETER)
     if ctype != RESET_CTYPE:
         raise PreparationError(
@@ -236,7 +290,32 @@ def pulse_estimator_reset(adapter: object, sleeper=time.sleep) -> dict[str, obje
     active_ack = adapter.write(RESET_PARAMETER, RESET_ACTIVE)
     if not same_value(ctype, active_ack, RESET_ACTIVE):
         raise PreparationError(f"reset activation acknowledgement mismatch: {active_ack!r}")
-    sleeper(RESET_HOLD_SECONDS)
+
+    started_at = clock()
+    try:
+        auto_clear = wait_for_firmware_reset_autoclear(
+            adapter,
+            started_at=started_at,
+            sleeper=sleeper,
+            clock=clock,
+        )
+    except PreparationError as exc:
+        # Fail closed, but still issue the historical explicit zero release so a
+        # failed preparation cannot intentionally leave a reset request asserted.
+        try:
+            adapter.write(RESET_PARAMETER, RESET_INACTIVE)
+        except Exception as cleanup_exc:
+            raise PreparationError(
+                f"{exc}; reset release cleanup also failed: {cleanup_exc}"
+            ) from exc
+        raise
+
+    remaining_release_delay = (
+        RESET_CLIENT_RELEASE_DELAY_SECONDS - (clock() - started_at)
+    )
+    if remaining_release_delay > 0:
+        sleeper(remaining_release_delay)
+
     inactive_ack = adapter.write(RESET_PARAMETER, RESET_INACTIVE)
     if not same_value(ctype, inactive_ack, RESET_INACTIVE):
         raise PreparationError(f"reset release acknowledgement mismatch: {inactive_ack!r}")
@@ -247,10 +326,18 @@ def pulse_estimator_reset(adapter: object, sleeper=time.sleep) -> dict[str, obje
     return {
         "parameter": RESET_PARAMETER,
         "ctype": RESET_CTYPE,
+        "firmware_commit": UPSTREAM_FIRMWARE_COMMIT,
         "observed_before": before,
-        "active_value": RESET_ACTIVE,
-        "hold_seconds": RESET_HOLD_SECONDS,
-        "inactive_value": RESET_INACTIVE,
+        "request_value": RESET_ACTIVE,
+        "request_ack": active_ack,
+        "firmware_autoclear_value": RESET_INACTIVE,
+        "firmware_autoclear_timeout_seconds": RESET_AUTOCLEAR_TIMEOUT_SECONDS,
+        "firmware_autoclear_observed": True,
+        "firmware_autoclear_observation_count": auto_clear["observation_count"],
+        "firmware_autoclear_elapsed_seconds": auto_clear["elapsed_seconds"],
+        "client_release_value": RESET_INACTIVE,
+        "client_release_delay_seconds": RESET_CLIENT_RELEASE_DELAY_SECONDS,
+        "release_ack": inactive_ack,
         "observed_after": after,
     }
 
@@ -364,38 +451,68 @@ def flash_exact_firmware(uri: str, firmware_bin: Path) -> None:
             pass
 
 
+def open_live_crazyflie(uri: str) -> object:
+    import cflib.crtp
+    from cflib.crazyflie import Crazyflie
+
+    cflib.crtp.init_drivers()
+    cf = Crazyflie(rw_cache=None)
+    ready = threading.Event()
+    errors: list[str] = []
+    cf.fully_connected.add_callback(lambda *_: ready.set())
+    cf.connection_failed.add_callback(
+        lambda _uri, message: errors.append(f"connection failed: {message}")
+    )
+    cf.connection_lost.add_callback(
+        lambda _uri, message: errors.append(f"connection lost: {message}")
+    )
+    try:
+        cf.open_link(uri)
+        deadline = time.monotonic() + 30.0
+        while not ready.is_set():
+            if errors:
+                raise PreparationError(errors[0])
+            if time.monotonic() >= deadline:
+                raise PreparationError(
+                    "connection/parameter download did not complete within 30 s"
+                )
+            time.sleep(0.02)
+        if errors:
+            raise PreparationError(errors[0])
+        return cf
+    except Exception:
+        close_link_without_commander(cf)
+        raise
+
+
 def configure_live(
     uri: str,
 ) -> tuple[dict[str, dict[str, object]], dict[str, object], dict[str, object]]:
-    from cflib.crazyflie import Crazyflie
-    from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
-
+    cf = open_live_crazyflie(uri)
     try:
-        with SyncCrazyflie(uri, cf=Crazyflie(rw_cache=None)) as scf:
-            adapter = CflibParamAdapter(scf.cf)
-            parameters = configure_required_parameters(adapter)
-            reset = pulse_estimator_reset(adapter)
-            health = collect_live_health(scf.cf, settle_seconds=RESET_SETTLE_SECONDS)
-            return parameters, reset, health
+        adapter = CflibParamAdapter(cf)
+        parameters = configure_required_parameters(adapter)
+        reset = pulse_estimator_reset(adapter)
+        health = collect_live_health(cf, settle_seconds=RESET_SETTLE_SECONDS)
+        return parameters, reset, health
     except PreparationError:
         raise
     except Exception as exc:
         raise PreparationError(f"post-flash configuration/reset failed: {exc}") from exc
+    finally:
+        close_link_without_commander(cf)
 
 
 def verify_live_health(uri: str) -> dict[str, object]:
-    import cflib.crtp
-    from cflib.crazyflie import Crazyflie
-    from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
-
+    cf = open_live_crazyflie(uri)
     try:
-        cflib.crtp.init_drivers()
-        with SyncCrazyflie(uri, cf=Crazyflie(rw_cache=None)) as scf:
-            return collect_live_health(scf.cf, settle_seconds=0.0)
+        return collect_live_health(cf, settle_seconds=0.0)
     except PreparationError:
         raise
     except Exception as exc:
         raise PreparationError(f"live estimator health verification failed: {exc}") from exc
+    finally:
+        close_link_without_commander(cf)
 
 
 def build_record(
@@ -417,6 +534,7 @@ def build_record(
         "props_removed": True,
         "firmware": {
             "tested_source_sha": FIRMWARE_TARGET,
+            "upstream_firmware_commit": UPSTREAM_FIRMWARE_COMMIT,
             "bundled_cf2_sha256": FIRMWARE_BIN_SHA256,
             "flash_target": "cf2/stm32/fw",
             "flash_completed": True,
@@ -435,7 +553,7 @@ def build_record(
                 name for name, row in parameters.items() if row["action"] == "written"
             ],
             "persistent_store": False,
-            "estimator_reset": "ukf.resetEstimation:uint8_t:1->0:0.25s",
+            "estimator_reset": "ukf.resetEstimation:uint8_t:request1->firmware-autoclear0;client0@0.25s",
             "arming": False,
             "commander": False,
             "motors": False,
@@ -478,6 +596,7 @@ def validate_record(
         raise PreparationError("preparation record firmware section missing")
     expected_firmware = {
         "tested_source_sha": FIRMWARE_TARGET,
+        "upstream_firmware_commit": UPSTREAM_FIRMWARE_COMMIT,
         "bundled_cf2_sha256": FIRMWARE_BIN_SHA256,
         "flash_target": "cf2/stm32/fw",
         "flash_completed": True,
@@ -518,15 +637,39 @@ def validate_record(
     expected_reset = {
         "parameter": RESET_PARAMETER,
         "ctype": RESET_CTYPE,
-        "active_value": RESET_ACTIVE,
-        "hold_seconds": RESET_HOLD_SECONDS,
-        "inactive_value": RESET_INACTIVE,
+        "firmware_commit": UPSTREAM_FIRMWARE_COMMIT,
+        "request_value": RESET_ACTIVE,
+        "firmware_autoclear_value": RESET_INACTIVE,
+        "firmware_autoclear_timeout_seconds": RESET_AUTOCLEAR_TIMEOUT_SECONDS,
+        "firmware_autoclear_observed": True,
+        "client_release_value": RESET_INACTIVE,
+        "client_release_delay_seconds": RESET_CLIENT_RELEASE_DELAY_SECONDS,
     }
     for key, expected in expected_reset.items():
         if reset.get(key) != expected:
             raise PreparationError(f"preparation record estimator reset mismatch: {key}")
+    if not same_value(RESET_CTYPE, reset.get("request_ack"), RESET_ACTIVE):
+        raise PreparationError("preparation record estimator reset request acknowledgement mismatch")
+    if not same_value(RESET_CTYPE, reset.get("release_ack"), RESET_INACTIVE):
+        raise PreparationError("preparation record estimator reset release acknowledgement mismatch")
     if not same_value(RESET_CTYPE, reset.get("observed_after"), RESET_INACTIVE):
         raise PreparationError("preparation record estimator reset final value mismatch")
+    reset_elapsed = reset.get("firmware_autoclear_elapsed_seconds")
+    if (
+        isinstance(reset_elapsed, bool)
+        or not isinstance(reset_elapsed, (int, float))
+        or not math.isfinite(reset_elapsed)
+        or reset_elapsed < 0
+        or reset_elapsed > RESET_AUTOCLEAR_TIMEOUT_SECONDS
+    ):
+        raise PreparationError("preparation record estimator reset auto-clear timing invalid")
+    reset_observations = reset.get("firmware_autoclear_observation_count")
+    if (
+        isinstance(reset_observations, bool)
+        or not isinstance(reset_observations, int)
+        or reset_observations < 1
+    ):
+        raise PreparationError("preparation record estimator reset auto-clear observation missing")
 
     health = record.get("estimator_health")
     if not isinstance(health, dict) or health.get("status") != "HEALTHY":
@@ -559,7 +702,7 @@ def validate_record(
     for key in ("persistent_store", "arming", "commander", "motors", "scientific_retry"):
         if effects.get(key) is not False:
             raise PreparationError(f"forbidden preparation effect recorded: {key}")
-    if effects.get("estimator_reset") != "ukf.resetEstimation:uint8_t:1->0:0.25s":
+    if effects.get("estimator_reset") != "ukf.resetEstimation:uint8_t:request1->firmware-autoclear0;client0@0.25s":
         raise PreparationError("preparation record estimator reset effect mismatch")
     if effects.get("firmware_flash") != "exact-bundled-stm32":
         raise PreparationError("preparation record firmware effect mismatch")
@@ -577,9 +720,12 @@ class FakeAdapter:
         rows: dict[str, tuple[str, bool, object]],
         *,
         read_override: dict[str, object] | None = None,
+        firmware_autoclear: bool = False,
     ) -> None:
         self.rows = dict(rows)
         self.read_override = read_override or {}
+        self.firmware_autoclear = firmware_autoclear
+        self.reset_pending = False
         self.writes: list[tuple[str, object]] = []
 
     def describe(self, name: str) -> tuple[str, bool, str]:
@@ -594,11 +740,23 @@ class FakeAdapter:
             raise PreparationError(f"required parameter is not writable: {name}")
         self.rows[name] = (ctype, writable, value)
         self.writes.append((name, value))
+        if name == RESET_PARAMETER and same_value(ctype, value, RESET_ACTIVE):
+            self.reset_pending = True
+        if name == RESET_PARAMETER and same_value(ctype, value, RESET_INACTIVE):
+            self.reset_pending = False
         return str(value)
 
     def read_fresh(self, name: str, timeout: float = 3.0) -> str:
         if name in self.read_override:
             return str(self.read_override[name])
+        if (
+            name == RESET_PARAMETER
+            and self.reset_pending
+            and self.firmware_autoclear
+        ):
+            ctype, writable, _ = self.rows[name]
+            self.rows[name] = (ctype, writable, RESET_INACTIVE)
+            self.reset_pending = False
         return str(self.rows[name][2])
 
 
@@ -614,16 +772,48 @@ def self_test() -> None:
 
     reset_rows = dict(exact)
     reset_rows[RESET_PARAMETER] = (RESET_CTYPE, True, RESET_INACTIVE)
-    reset_adapter = FakeAdapter(reset_rows)
+    reset_adapter = FakeAdapter(reset_rows, firmware_autoclear=True)
+    fake_now = [0.0]
     slept: list[float] = []
-    reset_record = pulse_estimator_reset(reset_adapter, sleeper=slept.append)
+
+    def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+        fake_now[0] += seconds
+
+    reset_record = pulse_estimator_reset(
+        reset_adapter,
+        sleeper=fake_sleep,
+        clock=lambda: fake_now[0],
+    )
     if reset_adapter.writes[-2:] != [
         (RESET_PARAMETER, RESET_ACTIVE),
         (RESET_PARAMETER, RESET_INACTIVE),
     ]:
-        raise AssertionError("fresh estimator reset pulse was not exact")
-    if slept != [RESET_HOLD_SECONDS] or reset_record["observed_after"] != "0":
-        raise AssertionError("fresh estimator reset timing/read-back changed")
+        raise AssertionError("fresh estimator reset request/release sequence changed")
+    if reset_record["firmware_autoclear_observed"] is not True:
+        raise AssertionError("firmware-owned reset auto-clear was not proved")
+    if reset_record["firmware_autoclear_elapsed_seconds"] > RESET_AUTOCLEAR_TIMEOUT_SECONDS:
+        raise AssertionError("firmware-owned reset auto-clear exceeded its bound")
+    if abs(sum(slept) - RESET_CLIENT_RELEASE_DELAY_SECONDS) > 1e-9:
+        raise AssertionError("historical client release delay changed")
+    if reset_record["observed_after"] != "0":
+        raise AssertionError("fresh estimator reset final read-back changed")
+
+    no_consume_adapter = FakeAdapter(reset_rows, firmware_autoclear=False)
+    fake_now = [0.0]
+    try:
+        pulse_estimator_reset(
+            no_consume_adapter,
+            sleeper=lambda seconds: fake_now.__setitem__(0, fake_now[0] + seconds),
+            clock=lambda: fake_now[0],
+        )
+    except PreparationError as exc:
+        if "auto-clear was not observed" not in str(exc):
+            raise
+    else:
+        raise AssertionError("unconsumed estimator reset unexpectedly passed")
+    if no_consume_adapter.writes[-1] != (RESET_PARAMETER, RESET_INACTIVE):
+        raise AssertionError("failed reset did not issue explicit zero cleanup")
 
     healthy = [
         {
