@@ -23,6 +23,7 @@ EXPECTED_FIRMWARE_SHA256 = "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
+UPSTREAM_FIRMWARE_COMMIT = "54f31e243a0b28b67efef5ba20dbb6d9890a5478"
 RUNTIME = "ubuntu-22.04-python-3.10-x86_64"
 PROFILE = "x3-independent-props-off"
 BUNDLE_NAME = "WebeeBlocks-X3-Characterization"
@@ -30,6 +31,7 @@ MANIFEST_NAME = "MANIFEST.json"
 MANIFEST_FORMAT = "webeeblocks-x3-characterization-manifest-v1"
 LOCK = ROOT / "tools" / "physical" / "x3_runtime_lock.txt"
 PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
+NO_COMMANDER_LINK = ROOT / "tools" / "physical" / "x3_no_commander_link.py"
 PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
@@ -185,6 +187,7 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
 
     copy_file(firmware_bin, bundle / "cf2.bin")
     copy_file(PREPARE, bundle / "prepare_x3_independent_capture.py", executable=True)
+    copy_file(NO_COMMANDER_LINK, bundle / "x3_no_commander_link.py", executable=True)
     copy_file(PREPARE_RUNNER, bundle / "prepare_x3_independent_capture.sh", executable=True)
     copy_file(CAPTURE, bundle / "capture_independent_inputs.py", executable=True)
     copy_file(RUNNER, bundle / "run_x3_independent_capture.sh", executable=True)
@@ -208,12 +211,13 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
         f"repository_target_sha={source_sha}",
         f"test_profile={PROFILE}",
         f"firmware_bin_sha256={EXPECTED_FIRMWARE_SHA256}",
+        f"upstream_firmware_commit={UPSTREAM_FIRMWARE_COMMIT}",
         f"cflib_commit={EXPECTED_CFLIB_COMMIT}",
         f"cflib_tree={EXPECTED_CFLIB_TREE}",
         f"cflib_subtree={EXPECTED_CFLIB_SUBTREE}",
         f"runtime={RUNTIME}",
-        "preparation=exact-flash-readback-fresh-reset-health-v2",
-        "acquisition=read-only-parameter-and-health-gates-v2",
+        "preparation=exact-flash-readback-firmware-autoclear-health-v3",
+        "acquisition=no-commander-parameter-and-health-gates-v3",
         "reference_processing=conditional-only",
         "reference_witness=measured-guide-csv-v1",
         "trial_rule=fixed-three-cycle-v1",
