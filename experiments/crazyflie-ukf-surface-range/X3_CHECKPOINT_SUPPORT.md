@@ -49,9 +49,13 @@ defect that cannot be closed without logging-only instrumentation:
 - `ukf.qualityGateTof=20`;
 - `ukf.baroNoise=6.25`;
 - `ukf.surfaceOffsetS3=1`;
+- one fresh `ukf.resetEstimation` `uint8_t` pulse `1 -> 0` with a 0.25 s
+  active hold, followed by the retained fixed stationary settle used by valid
+  #251/#236 evidence;
 - props removed throughout.
 
-No estimator retuning, S3 threshold/persistence tuning, `rangeUp` fusion, full
+The reset reconstructs estimator state; it is not estimator retuning. No
+estimator retuning, S3 threshold/persistence tuning, `rangeUp` fusion, full
 `z/f/r` expansion, Runtime/controller change or motorized action belongs to this
 experiment.
 
@@ -83,11 +87,16 @@ runner for exact #251. Its support contract remains:
 
 The preparation and acquisition runners verify the bundle/runtime closure before
 any physical action or acquisition. `--verify-environment` is hardware-free and
-must import the same bootloader closure used by preparation. Recording requires
-an explicit Crazyradio URI, canonical checkpoint URL, exact request SHA, duration
-and new output directory, with explicit props-removed and exact-binary-installed
-confirmations. It does not flash, write parameters, reset the estimator, issue
-commander motion, publish evidence or manufacture a physical verdict.
+must import the same bootloader closure used by preparation. The effectful
+preparation phase alone may flash the exact firmware, establish the four frozen
+parameters, perform the exact historical fresh UKF reset and retain its
+post-reset health evidence. Recording requires an explicit Crazyradio URI,
+canonical checkpoint URL, exact request SHA, duration and new output directory,
+with explicit props-removed and verified preparation-record evidence. Immediately
+before the collector starts, the acquisition runner performs a fresh **read-only**
+estimator-health observation. The acquisition runner/collector do not flash,
+write parameters, reset the estimator, issue commander motion, publish evidence
+or manufacture a physical verdict.
 
 The integrated collector already retains the minimum characterization information
 required by the owner direction: continuous barometer/pressure/temperature,
@@ -184,6 +193,17 @@ falsification quantities:
 They are experiment targets, not classifier thresholds or flight-acceptance
 criteria. A confirmation uncertainty interval crossing a target is `UNPROVEN`,
 not PASS.
+
+## #550 failure and repaired checkpoint prerequisite
+
+Checkpoint #550 failed before usable terrain characterization because the
+no-reset preparation could leave the UKF grossly divergent even while the
+transport/log collector remained operational. Retained #251/#236 provenance
+shows the valid runs used a fresh `ukf.resetEstimation` pulse and excluded a
+pre-reset divergent batch. Therefore any future X3 checkpoint must package and
+verify the repaired fresh-reset preparation plus the read-only pre-acquisition
+health gate. #550's artifact/fingerprint is historical failure evidence and
+must not be reused.
 
 ## Human-checkpoint and publication boundary
 
