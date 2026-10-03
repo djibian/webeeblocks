@@ -21,12 +21,16 @@ This is a distinct pre-acquisition effect phase. With --props-removed it:
   1. verifies the exact signed-by-manifest X3 bundle and runtime;
   2. flashes only the exact bundled #251 cf2.bin to cf2/stm32/fw;
   3. writes only the four predeclared X3 configuration parameters when needed;
-  4. reads all four values back with their exact parameter types;
-  5. writes preparation.json.
+  4. pulses the exact historical ukf.resetEstimation uint8_t 1 -> 0 reset,
+     holding 1 for 0.25 s;
+  5. waits the fixed 5 s post-reset settling interval and verifies broad,
+     predeclared estimator-health bounds;
+  6. writes preparation.json.
 
 It never arms, invokes a commander, runs motors, tunes parameters or starts a
-scientific capture. Do not power-cycle the Crazyflie between PREPARED and the
-read-only acquisition that consumes preparation.json.
+scientific capture. Keep the Crazyflie stationary during post-reset settling.
+Do not power-cycle the Crazyflie between PREPARED and the read-only acquisition
+that consumes preparation.json.
 EOF
 }
 
