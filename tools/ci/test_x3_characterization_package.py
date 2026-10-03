@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "physical" / "package_x3_characterization.py"
 VERIFIER_PATH = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
+NO_COMMANDER_LINK = ROOT / "tools" / "physical" / "x3_no_commander_link.py"
+RESET_FIRMWARE_TEST = ROOT / "tools" / "ci" / "test_x3_reset_firmware_semantics.py"
 PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
 EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
@@ -44,6 +46,8 @@ REAL_BUNDLE_PROOF_PATHS = frozenset(
         "tools/ci/test_x3_characterization_package.py",
         "tools/physical/package_x3_characterization.py",
         "tools/physical/prepare_x3_independent_capture.py",
+        "tools/physical/x3_no_commander_link.py",
+        "tools/ci/test_x3_reset_firmware_semantics.py",
         "tools/physical/prepare_x3_independent_capture.sh",
         "tools/physical/run_x3_independent_capture.sh",
         "tools/physical/verify_x3_characterization_bundle.py",
@@ -75,6 +79,7 @@ def load_module(name: str, path: Path):
 
 package = load_module("package_x3_characterization", MODULE_PATH)
 manifest = load_module("verify_x3_characterization_bundle", VERIFIER_PATH)
+no_commander_link = load_module("x3_no_commander_link_test", NO_COMMANDER_LINK)
 
 
 def require(condition: bool, message: str) -> None:
@@ -193,6 +198,13 @@ def verify_reset_provenance_oracles() -> None:
     print("PASS: retained X3 reset type, pulse, settle and valid-run provenance verified")
 
 
+def verify_no_commander_teardown_oracle() -> None:
+    no_commander_link.self_test()
+    helper = NO_COMMANDER_LINK.read_text(encoding="utf-8")
+    require("def close_link_without_commander" in helper, "X3 no-Commander teardown helper missing")
+    print("PASS: X3 no-Commander teardown regression verified")
+
+
 def _pr_changed_paths() -> tuple[str, ...]:
     if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
         return ()
@@ -231,6 +243,13 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
         package.sha256(FIRMWARE_FIXTURE) == package.EXPECTED_FIRMWARE_SHA256,
         "cached X3 firmware fixture does not match exact #251 cf2.bin",
     )
+    pinned_cflib = (cflib_root / "cflib" / "crazyflie" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    require(
+        "self.commander.send_setpoint(0, 0, 0, 0)" in pinned_cflib,
+        "pinned cflib close semantics changed; X3 no-Commander bypass must be re-reviewed",
+    )
 
     with tempfile.TemporaryDirectory(prefix="webeeblocks-x3-real-bundle-") as temp_text:
         temp = Path(temp_text)
@@ -257,12 +276,14 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             "X3_CHARACTERIZATION_PROCEDURE.md",
             "X3_REFERENCE_WITNESS.md",
             "X3_REFERENCE_WITNESS_TEMPLATE.csv",
+            "x3_no_commander_link.py",
         ):
             require((bundle / required_name).is_file(), f"assembled X3 bundle missing {required_name}")
         provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
         for required in (
-            "preparation=exact-flash-readback-fresh-reset-health-v2\n",
-            "acquisition=read-only-parameter-and-health-gates-v2\n",
+            f"upstream_firmware_commit={package.UPSTREAM_FIRMWARE_COMMIT}\n",
+            "preparation=exact-flash-readback-firmware-autoclear-health-v3\n",
+            "acquisition=no-commander-parameter-and-health-gates-v3\n",
             "reference_witness=measured-guide-csv-v1\n",
             "trial_rule=fixed-three-cycle-v1\n",
             "post_transition_z_reference=continuous-hold-required-v1\n",
@@ -345,6 +366,7 @@ def main() -> int:
     verify_manifest_oracles()
     verify_metric_reference_oracles()
     verify_reset_provenance_oracles()
+    verify_no_commander_teardown_oracle()
 
     source = MODULE_PATH.read_text(encoding="utf-8")
     for required in (
@@ -356,6 +378,7 @@ def main() -> int:
         '"archive", "--format=tar", EXPECTED_CFLIB_COMMIT, "cflib"',
         'MANIFEST_NAME = "MANIFEST.json"',
         'LOCK = ROOT / "tools" / "physical" / "x3_runtime_lock.txt"',
+        'NO_COMMANDER_LINK = ROOT / "tools" / "physical" / "x3_no_commander_link.py"',
         'VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"',
         'PROCEDURE = EXPERIMENT / "X3_CHARACTERIZATION_PROCEDURE.md"',
         'REFERENCE_WITNESS = EXPERIMENT / "X3_REFERENCE_WITNESS.md"',
@@ -364,8 +387,9 @@ def main() -> int:
         'copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")',
         'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
         'copy_file(LOCK, bundle / "x3_runtime_lock.txt")',
-        '"preparation=exact-flash-readback-fresh-reset-health-v2"',
-        '"acquisition=read-only-parameter-and-health-gates-v2"',
+        'copy_file(NO_COMMANDER_LINK, bundle / "x3_no_commander_link.py", executable=True)',
+        '"preparation=exact-flash-readback-firmware-autoclear-health-v3"',
+        '"acquisition=no-commander-parameter-and-health-gates-v3"',
         '"reference_witness=measured-guide-csv-v1"',
         '"trial_rule=fixed-three-cycle-v1"',
         '"post_transition_z_reference=continuous-hold-required-v1"',
@@ -398,16 +422,23 @@ def main() -> int:
         'SCHEMA = "webeeblocks.x3.preparation.v2"',
         'RESET_PARAMETER = "ukf.resetEstimation"',
         'RESET_CTYPE = "uint8_t"',
-        "RESET_HOLD_SECONDS = 0.25",
+        'UPSTREAM_FIRMWARE_COMMIT = "54f31e243a0b28b67efef5ba20dbb6d9890a5478"',
+        "RESET_AUTOCLEAR_TIMEOUT_SECONDS = 0.25",
+        "RESET_CLIENT_RELEASE_DELAY_SECONDS = 0.25",
         "RESET_SETTLE_SECONDS = 5.0",
         '"stateEstimate.z": (-1.0, 5.0)',
         '"stateEstimate.vz": (-1.0, 1.0)',
+        "wait_for_firmware_reset_autoclear",
         "pulse_estimator_reset",
+        "firmware_autoclear_observed",
         "evaluate_health_samples",
         "--health-check",
-        '"estimator_reset": "ukf.resetEstimation:uint8_t:1->0:0.25s"',
+        '"estimator_reset": "ukf.resetEstimation:uint8_t:request1->firmware-autoclear0;client0@0.25s"',
+        "close_link_without_commander(cf)",
     ):
         require(required in prepare_source, f"X3 fresh-reset preparation contract missing: {required}")
+    require("SyncCrazyflie" not in prepare_source, "X3 preparation must not use cflib close_link wrapper")
+    require("cf.close_link()" not in prepare_source, "X3 preparation must not call cflib Commander-emitting close")
 
     prepare_runner = PREPARE_RUNNER.read_text(encoding="utf-8")
     for required in (
@@ -455,8 +486,19 @@ def main() -> int:
         '"imu": (10, ("acc.x", "acc.y", "acc.z", "gyro.x", "gyro.y", "gyro.z"))',
         "--props-removed",
         "--installed-bin-confirmed",
+        "close_link_without_commander(cf)",
     ):
         require(required in capture, f"collector contract missing: {required}")
+    require("cf.close_link()" not in capture, "X3 collector must not call cflib Commander-emitting close")
+
+    reset_test = RESET_FIRMWARE_TEST.read_text(encoding="utf-8")
+    for required in (
+        'EXPECTED_COMMIT = "54f31e243a0b28b67efef5ba20dbb6d9890a5478"',
+        'EXPECTED_ESTIMATOR_BLOB = "57c0e8405c07b63a29538019895ed17d0a379440"',
+        'PARAM_ADD(PARAM_UINT8, resetEstimation, &resetNavigation)',
+        'paramSetInt(paramGetVarId("ukf", "resetEstimation"), 0);',
+    ):
+        require(required in reset_test, f"pinned reset-semantics oracle missing: {required}")
 
     verify_real_bundle_execution(head, rows)
 
