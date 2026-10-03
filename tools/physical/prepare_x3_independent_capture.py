@@ -93,6 +93,7 @@ def load_provenance(path: Path) -> dict[str, str]:
         "repository_target_sha": None,
         "test_profile": TEST_PROFILE,
         "firmware_bin_sha256": FIRMWARE_BIN_SHA256,
+        "upstream_firmware_commit": UPSTREAM_FIRMWARE_COMMIT,
         "cflib_commit": EXPECTED_CFLIB_COMMIT,
         "cflib_tree": EXPECTED_CFLIB_TREE,
         "cflib_subtree": EXPECTED_CFLIB_SUBTREE,
