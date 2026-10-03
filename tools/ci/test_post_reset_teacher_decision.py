@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import socket
 from threading import Thread
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 PHYSICAL = ROOT / "tools" / "physical"
@@ -139,6 +140,62 @@ def test_host_first_exact_post_reset_binding_mints_receipt() -> None:
     require(receipt.binding == exact and receipt.active, "receipt binds exact post-reset run")
     require(decision.terminal, "one teacher decision consumes the channel")
     teacher_sock.close()
+    decision.close()
+
+
+def test_human_deliberation_has_no_application_timeout() -> None:
+    host_sock, teacher_sock = socket.socketpair()
+    epoch = Epoch()
+    decision = post_reset.PostResetTeacherDecisionChannel(host_sock, epoch)
+    authorizer = auth.TrustedTeacherAuthorizer()
+    exact = binding()
+
+    def peer() -> None:
+        proposal = read_line(teacher_sock)
+        # Deliberately exceed the tiny transport timeout passed below. The
+        # host-first proposal must remain writable while a human decides.
+        time.sleep(0.08)
+        send_line(teacher_sock, decision_for(proposal))
+        teacher_sock.shutdown(socket.SHUT_WR)
+
+    worker = Thread(target=peer, daemon=True)
+    worker.start()
+    receipt = decision.receive_authorization_for_binding(
+        authorizer,
+        exact,
+        decision_timeout_seconds=0.02,
+    )
+    worker.join(timeout=1.0)
+
+    require(receipt.binding == exact and receipt.active, "delayed explicit approval must still bind exactly")
+    require(decision.terminal, "delayed approval still consumes exactly one decision")
+    teacher_sock.close()
+    decision.close()
+
+
+def test_peer_close_before_decision_fails_closed() -> None:
+    host_sock, teacher_sock = socket.socketpair()
+    decision = post_reset.PostResetTeacherDecisionChannel(host_sock, Epoch())
+    authorizer = auth.TrustedTeacherAuthorizer()
+
+    def peer() -> None:
+        read_line(teacher_sock)
+        teacher_sock.shutdown(socket.SHUT_RDWR)
+        teacher_sock.close()
+
+    worker = Thread(target=peer, daemon=True)
+    worker.start()
+    expect_error(
+        lambda: decision.receive_authorization_for_binding(
+            authorizer,
+            binding(),
+            decision_timeout_seconds=0.05,
+        ),
+        "closed before a complete message",
+    )
+    worker.join(timeout=1.0)
+    require(not authorizer.has_active_run, "peer close before decision mints no authority")
+    require(decision.terminal, "peer close makes the one-shot decision channel terminal")
     decision.close()
 
 
@@ -291,6 +348,8 @@ def test_protocol_extension_has_no_effect_surface() -> None:
 
 def main() -> int:
     test_host_first_exact_post_reset_binding_mints_receipt()
+    test_human_deliberation_has_no_application_timeout()
+    test_peer_close_before_decision_fails_closed()
     test_stale_pre_reset_epoch_fails_before_publication()
     test_teacher_cannot_substitute_host_proposed_binding()
     test_reconnect_denial_and_late_data_fail_closed()

@@ -227,6 +227,52 @@ class _ShutdownFailingTeacher:
         self.closed = True
 
 
+class _SendFailingTeacher:
+    def __init__(self) -> None:
+        self.send_calls = 0
+        self.closed = False
+
+    def sendall(self, _payload: bytes) -> None:
+        self.send_calls += 1
+        raise OSError("synthetic peer-close write failure")
+
+    def shutdown(self, _how: int) -> None:
+        return
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _RecordingTeacher:
+    def __init__(self) -> None:
+        self.messages: list[bytes] = []
+        self.closed = False
+
+    def sendall(self, payload: bytes) -> None:
+        self.messages.append(bytes(payload))
+
+    def shutdown(self, _how: int) -> None:
+        return
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _RecordingCaller:
+    def __init__(self) -> None:
+        self.messages: list[bytes] = []
+        self.closed = False
+
+    def sendall(self, payload: bytes) -> None:
+        self.messages.append(bytes(payload))
+
+    def shutdown(self, _how: int) -> None:
+        return
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def test_startup_failure_cleans_resources_acquired_before_bootstrap_failure() -> None:
     session = launcher.PhysicalQualificationSession(
         uri="radio://0/80/2M/E7E7E7E7E7",
@@ -283,8 +329,10 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
         "executionAuthority": False,
     }
     teacher = _ShutdownFailingTeacher()
+    caller = _RecordingCaller()
     session._prepared = prepared
     session._teacher = teacher  # type: ignore[assignment]
+    session._caller = caller  # type: ignore[assignment]
 
     try:
         session.decide(proposal, approved=True)
@@ -293,7 +341,9 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
     else:
         raise AssertionError("synthetic teacher half-close failure unexpectedly succeeded")
 
-    require(session._teacher_sealed is True, "successful send must irrevocably consume the teacher decision")
+    require(session._teacher_decision_attempted is True, "teacher decision attempt must be one-shot")
+    require(session._teacher_sealed is False, "uncertain half-close must not establish a sealed exchange")
+    require(session._teacher_approved is False, "uncertain half-close must not establish positive approval")
     require(len(teacher.messages) == 1, "exactly one teacher decision may be transmitted")
     sent = json.loads(teacher.messages[0].decode("utf-8"))
     require(sent["approved"] is True, "first transmitted decision must preserve explicit approval")
@@ -305,8 +355,110 @@ def test_teacher_decision_send_is_irrevocable_before_fallible_half_close() -> No
     else:
         raise AssertionError("teacher decision retry unexpectedly remained available after successful send")
     require(len(teacher.messages) == 1, "half-close uncertainty must never permit a second teacher decision")
+    try:
+        session.execute_approved_program(timeout_seconds=0.1)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("uncertain teacher half-close unexpectedly enabled execution")
+    require(caller.messages == [], "uncertain half-close must emit no ordinary execution request")
     session.close()
     require(teacher.closed, "session cleanup must still close uncertain teacher channel")
+
+
+def test_failed_teacher_decision_write_is_terminal_and_not_retriable() -> None:
+    session = launcher.PhysicalQualificationSession(
+        uri="radio://0/80/2M/E7E7E7E7E7",
+        webots_executable="unused-webots",
+    )
+    ast = canonical_static_ast()
+    prepared = launcher.PreparedProgram(
+        profile_id="activity-1",
+        ast_binding=ast,
+        connection_epoch="epoch-before",
+    )
+    proposal = {
+        "op": "teacher-run-binding-proposal",
+        "requestId": "teacher-1",
+        "challengeId": "challenge-1",
+        "profileId": "activity-1",
+        "astBinding": ast,
+        "connectionEpoch": "epoch-after",
+        "executionAuthority": False,
+    }
+    teacher = _SendFailingTeacher()
+    caller = _RecordingCaller()
+    session._prepared = prepared
+    session._teacher = teacher  # type: ignore[assignment]
+    session._caller = caller  # type: ignore[assignment]
+
+    try:
+        session.decide(proposal, approved=True)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("outcome is ambiguous" in str(exc), "failed write must report ambiguous one-shot outcome")
+    else:
+        raise AssertionError("synthetic teacher write failure unexpectedly succeeded")
+
+    require(session._teacher_decision_attempted is True, "failed write must consume the one-shot attempt")
+    require(session._teacher_sealed is False, "failed write must not establish completed delivery")
+    require(session._teacher_approved is False, "failed write must not establish positive approval")
+    require(teacher.send_calls == 1, "ambiguous teacher write must be attempted exactly once")
+
+    try:
+        session.decide(proposal, approved=True)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("ambiguous teacher write unexpectedly allowed a retry")
+    require(teacher.send_calls == 1, "ambiguous teacher write must never be retried")
+
+    try:
+        session.execute_approved_program(timeout_seconds=0.1)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("ambiguous approval write unexpectedly enabled execution")
+    require(caller.messages == [], "no ordinary execution request may follow ambiguous teacher approval")
+    session.close()
+
+
+def test_denied_teacher_decision_never_enables_execution() -> None:
+    session = launcher.PhysicalQualificationSession(
+        uri="radio://0/80/2M/E7E7E7E7E7",
+        webots_executable="unused-webots",
+    )
+    ast = canonical_static_ast()
+    prepared = launcher.PreparedProgram(
+        profile_id="activity-1",
+        ast_binding=ast,
+        connection_epoch="epoch-before",
+    )
+    proposal = {
+        "op": "teacher-run-binding-proposal",
+        "requestId": "teacher-1",
+        "challengeId": "challenge-1",
+        "profileId": "activity-1",
+        "astBinding": ast,
+        "connectionEpoch": "epoch-after",
+        "executionAuthority": False,
+    }
+    teacher = _RecordingTeacher()
+    caller = _RecordingCaller()
+    session._prepared = prepared
+    session._teacher = teacher  # type: ignore[assignment]
+    session._caller = caller  # type: ignore[assignment]
+
+    session.decide(proposal, approved=False)
+    require(session._teacher_sealed is True, "DENY must consume the exact teacher decision")
+    require(session._teacher_approved is False, "DENY must never establish positive approval")
+    try:
+        session.execute_approved_program(timeout_seconds=0.1)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("positively approved" in str(exc), "DENY must fail before ordinary execution IPC")
+    else:
+        raise AssertionError("DENY unexpectedly enabled physical execution requests")
+    require(caller.messages == [], "DENY must emit no ordinary execution request")
+    session.close()
 
 
 def _write_fake_host(path: Path, transcript: Path) -> None:
@@ -464,6 +616,8 @@ def main() -> int:
     test_execution_request_count_uses_static_dynamic_host_boundary()
     test_startup_failure_cleans_resources_acquired_before_bootstrap_failure()
     test_teacher_decision_send_is_irrevocable_before_fallible_half_close()
+    test_failed_teacher_decision_write_is_terminal_and_not_retriable()
+    test_denied_teacher_decision_never_enables_execution()
     test_full_launcher_composes_real_window_distinct_teacher_and_parameter_free_execution()
     print(
         "PASS physical qualification launcher: real Robot Window bootstrap, distinct teacher channel, "

@@ -507,7 +507,9 @@ class PhysicalQualificationSession:
         self._caller: socket.socket | None = None
         self._teacher: socket.socket | None = None
         self._prepared: PreparedProgram | None = None
+        self._teacher_decision_attempted = False
         self._teacher_sealed = False
+        self._teacher_approved = False
 
     def _spawn_host(self) -> dict[str, object]:
         caller_host, caller_peer = socket.socketpair()
@@ -598,23 +600,50 @@ class PhysicalQualificationSession:
         return prepared, proposal
 
     def decide(self, proposal: dict[str, object], *, approved: bool) -> None:
-        if self._teacher is None or self._prepared is None or self._teacher_sealed:
+        if (
+            self._teacher is None
+            or self._prepared is None
+            or self._teacher_decision_attempted
+        ):
             raise PhysicalQualificationLauncherError("teacher decision is not available")
         checked = _teacher_proposal(proposal, self._prepared)
-        _write_socket_line(self._teacher, teacher_decision_reply(checked, approved))
-        # sendall returning makes the one-shot decision an irrevocable outcome:
-        # never allow a retry even if the following local half-close is uncertain.
-        self._teacher_sealed = True
+        reply = teacher_decision_reply(checked, approved)
+
+        # From the first operation that can emit decision bytes onward, the
+        # one-shot decision is consumed even if sendall() reports an ambiguous
+        # failure. A retry could duplicate a partially delivered approval.
+        self._teacher_decision_attempted = True
+        try:
+            _write_socket_line(self._teacher, reply)
+        except PhysicalQualificationLauncherError as exc:
+            raise PhysicalQualificationLauncherError(
+                "teacher decision channel write failed or peer closed; "
+                "outcome is ambiguous and the one-shot decision cannot be retried"
+            ) from exc
+
+        # The host mints positive authority only after observing EOF on the
+        # teacher write side. Treat a local half-close failure as unresolved:
+        # the decision remains one-shot/non-retriable, but ordinary execution
+        # must stay disabled.
         try:
             self._teacher.shutdown(socket.SHUT_WR)
         except OSError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision was sent; local channel half-close is uncertain"
             ) from exc
+        self._teacher_sealed = True
+        self._teacher_approved = approved is True
 
     def execute_approved_program(self, *, timeout_seconds: float = 30.0) -> None:
-        if self._caller is None or self._prepared is None or not self._teacher_sealed:
-            raise PhysicalQualificationLauncherError("approved exact program is not ready for execution")
+        if (
+            self._caller is None
+            or self._prepared is None
+            or not self._teacher_sealed
+            or self._teacher_approved is not True
+        ):
+            raise PhysicalQualificationLauncherError(
+                "positively approved exact program is not ready for execution"
+            )
         count = execution_request_count(self._prepared.ast_binding)
         for index in range(count):
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
