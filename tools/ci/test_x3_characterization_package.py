@@ -215,6 +215,8 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             require((bundle / required_name).is_file(), f"assembled X3 bundle missing {required_name}")
         provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
         for required in (
+            "preparation=exact-flash-readback-fresh-reset-health-v2\n",
+            "acquisition=read-only-parameter-and-health-gates-v2\n",
             "reference_witness=measured-guide-csv-v1\n",
             "trial_rule=fixed-three-cycle-v1\n",
             "post_transition_z_reference=continuous-hold-required-v1\n",
@@ -315,6 +317,8 @@ def main() -> int:
         'copy_file(REFERENCE_WITNESS, bundle / "X3_REFERENCE_WITNESS.md")',
         'copy_file(REFERENCE_WITNESS_TEMPLATE, bundle / "X3_REFERENCE_WITNESS_TEMPLATE.csv")',
         'copy_file(LOCK, bundle / "x3_runtime_lock.txt")',
+        '"preparation=exact-flash-readback-fresh-reset-health-v2"',
+        '"acquisition=read-only-parameter-and-health-gates-v2"',
         '"reference_witness=measured-guide-csv-v1"',
         '"trial_rule=fixed-three-cycle-v1"',
         '"post_transition_z_reference=continuous-hold-required-v1"',
