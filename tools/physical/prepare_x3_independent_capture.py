@@ -27,7 +27,7 @@ TEST_PROFILE = "x3-independent-props-off"
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
-SCHEMA = "webeeblocks.x3.preparation.v1"
+SCHEMA = "webeeblocks.x3.preparation.v2"
 PARAMETERS: dict[str, dict[str, Any]] = {
     "stabilizer.estimator": {"ctype": "uint8_t", "value": 3},
     "ukf.qualityGateTof": {"ctype": "float", "value": 20.0},
