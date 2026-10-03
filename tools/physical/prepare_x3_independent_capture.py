@@ -890,6 +890,37 @@ def self_test() -> None:
 
     with tempfile.TemporaryDirectory(prefix="webeeblocks-x3-prep-selftest-") as text:
         root = Path(text)
+        provenance = root / "PROVENANCE.txt"
+        provenance.write_text(
+            "\n".join(
+                (
+                    "repository_target_sha=" + "1" * 40,
+                    "test_profile=" + TEST_PROFILE,
+                    "firmware_bin_sha256=" + FIRMWARE_BIN_SHA256,
+                    "upstream_firmware_commit=" + UPSTREAM_FIRMWARE_COMMIT,
+                    "cflib_commit=" + EXPECTED_CFLIB_COMMIT,
+                    "cflib_tree=" + EXPECTED_CFLIB_TREE,
+                    "cflib_subtree=" + EXPECTED_CFLIB_SUBTREE,
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        if load_provenance(provenance)["upstream_firmware_commit"] != UPSTREAM_FIRMWARE_COMMIT:
+            raise AssertionError("exact upstream firmware provenance was not retained")
+        stale = provenance.read_text(encoding="utf-8").replace(
+            "upstream_firmware_commit=" + UPSTREAM_FIRMWARE_COMMIT + "\n",
+            "",
+        )
+        provenance.write_text(stale, encoding="utf-8")
+        try:
+            load_provenance(provenance)
+        except PreparationError as exc:
+            if "upstream_firmware_commit" not in str(exc):
+                raise
+        else:
+            raise AssertionError("missing upstream firmware provenance must fail closed")
+
         fixture = root / "fixture.bin"
         fixture.write_bytes(b"not-the-x3-firmware")
         try:
