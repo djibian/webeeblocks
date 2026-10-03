@@ -61,8 +61,12 @@ the live parameter TOC, requires the exact parameter types above, writes only a
 required frozen value that differs, and performs a fresh read-back of every
 required value. It then requires `ukf.resetEstimation` to be writable
 `uint8_t`, pulses `1`, waits 0.25 s, pulses `0`, verifies the final `0`,
-waits the fixed 5 s stationary settle, and checks broad predeclared health
-bounds for roll, pitch, world-Z and VZ.
+waits the fixed 5 s stationary settle, and checks these broad predeclared
+gross-sanity bounds: `roll/pitch in [-45,+45] deg`, `stateEstimate.z in
+[-1,+5] m`, and `stateEstimate.vz in [-1,+1] m/s`, with at least 10 finite
+samples over a fixed 2 s / 100 ms observation. These are intentionally much
+wider than the retained healthy #251 stationary evidence; they reject an
+already-divergent estimator but are not scientific acceptance thresholds.
 
 There is no automatic retry. A flash, connection, missing-parameter, type,
 write/reset acknowledgement, reset final-state, health-observation or read-back
