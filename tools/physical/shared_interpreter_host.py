@@ -58,6 +58,26 @@ class SharedInterpreterHostError(RuntimeError):
     """Fail-closed error for the host-owned shared interpreter adapter."""
 
 
+def _diagnostic_site(value: object) -> dict[str, object]:
+    # Diagnostic data is never used to select an action or prove authority.
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"path", "kind", "role"}
+        or not isinstance(value["path"], list)
+        or len(value["path"]) > 64
+        or any(
+            not ((type(part) is int and 0 <= part <= 100000)
+                 or (isinstance(part, str) and len(part) <= 40))
+            for part in value["path"]
+        )
+        or not isinstance(value["kind"], str)
+        or len(value["kind"]) > 40
+        or value["role"] not in ("statement", "expression")
+    ):
+        raise SharedInterpreterHostError("shared interpreter diagnostic site is malformed")
+    return value
+
+
 class PhysicalInterpreterBackend(Protocol):
     def takeoff(self, height_m: float): ...
     def land(self): ...
@@ -308,13 +328,14 @@ class BoundSharedInterpreter:
                 message = self._read(pump)
                 message_type = message.get("type")
                 if message_type == "call":
-                    if set(message) != {"type", "id", "method", "args"}:
+                    if set(message) != {"type", "id", "method", "args", "site"}:
                         raise SharedInterpreterHostError(
                             "shared interpreter call is malformed"
                         )
                     call_id = message["id"]
                     method = message["method"]
                     args = message["args"]
+                    site = _diagnostic_site(message["site"])
                     if (
                         not isinstance(call_id, int)
                         or isinstance(call_id, bool)
@@ -328,11 +349,14 @@ class BoundSharedInterpreter:
                     expected_call_id += 1
                     try:
                         value = self._dispatch(method, args)
-                    except SharedInterpreterHostError:
-                        self._write(
-                            process,
-                            {"type": "return", "id": call_id, "ok": False},
-                        )
+                    except SharedInterpreterHostError as exc:
+                        exc.physical_call = {"id": call_id, "method": method, **site}
+                        # Never let a secondary broken worker pipe erase the
+                        # original physical/backend failure.
+                        try:
+                            self._write(process, {"type": "return", "id": call_id, "ok": False})
+                        except SharedInterpreterHostError:
+                            pass
                         raise
                     self._write(
                         process,
@@ -349,6 +373,17 @@ class BoundSharedInterpreter:
                     raise SharedInterpreterHostError(
                         "shared interpreter protocol is malformed"
                     )
+                if message.get("ok") is False and set(message) == {"type", "ok", "error"}:
+                    detail = message["error"]
+                    if (isinstance(detail, dict) and set(detail) == {"name", "message", "site"}
+                        and isinstance(detail["name"], str) and len(detail["name"]) <= 80
+                        and isinstance(detail["message"], str) and len(detail["message"]) <= 400):
+                        error = SharedInterpreterHostError(
+                            "shared interpreter failed closed: " + detail["name"] + ": " + detail["message"]
+                        )
+                        if detail["site"] is not None:
+                            error.physical_call = _diagnostic_site(detail["site"])
+                        raise error
                 if (
                     message.get("ok") is not True
                     or set(message) != {"type", "ok", "result"}

@@ -43,6 +43,7 @@ if __name__ == "__main__":
             sys.path.insert(0, str(physical))
 
         from physical_execution_domain import PhysicalExecutionDomain
+        from physical_diagnostics import failure_evidence
         from physical_run_dispatch import activate_validated_run
         from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
@@ -147,7 +148,7 @@ if __name__ == "__main__":
                             assertion_timeout_seconds=assertion_timeout_seconds,
                         )
                 except Exception as exc:
-                    activation_state["error"] = str(exc)
+                    activation_state["error"] = exc
                 finally:
                     activation_complete.set()
 
@@ -225,6 +226,7 @@ if __name__ == "__main__":
                                 "executionAuthority": False,
                             }
                         else:
+                            failure_binding = staged_state["binding"]
                             try:
                                 # Validation starts one bounded trusted activation transaction.
                                 # Do not race that already-started transaction by reacquiring
@@ -235,20 +237,28 @@ if __name__ == "__main__":
                                 with lifecycle_lock:
                                     active_controller = activation_state["active_run"]
                                     if active_controller is None:
+                                        if activation_state["error"] is not None:
+                                            raise activation_state["error"]
                                         raise RuntimeError(
                                             "authorized in-flight execution is unavailable"
                                         )
+                                    active = active_controller.active_run
+                                    if active is not None:
+                                        failure_binding = active.teacher_authorization.binding
                                     result = active_controller.execute_next_inflight()
                                     if getattr(result, "accepted", None) is not True:
                                         raise RuntimeError(
                                             "authorized in-flight effect was rejected"
                                         )
-                            except Exception:
+                            except Exception as exc:
                                 response = {
                                     "requestId": request_id,
                                     "ok": False,
                                     "error": "authorized in-flight execution failed closed",
                                     "executionAuthority": False,
+                                    "diagnostic": failure_evidence(
+                                        exc, binding=failure_binding, phase=execution_domain.phase
+                                    ),
                                 }
                             else:
                                 response = {

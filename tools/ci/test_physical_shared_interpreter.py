@@ -300,7 +300,7 @@ def test_private_protocol_rejects_substitution_and_silence() -> None:
 'use strict';
 const fs=require('fs');
 const b=Buffer.alloc(65536); fs.readSync(0,b,0,b.length,null);
-process.stdout.write(JSON.stringify({type:'call',id:1,method:'readRange',args:['down']})+'\\n');
+process.stdout.write(JSON.stringify({type:'call',id:1,method:'readRange',args:['down'],site:{path:['program',1,'value'],kind:'range',role:'expression'}})+'\\n');
 setInterval(()=>{},1000);
 """,
         backend,
@@ -332,7 +332,7 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
     require("interpreter.js" in worker_source, "worker does not load product interpreter")
     require("Interpreter.validateProgram(ast)" in worker_source, "worker bypasses shared validation")
     require("validate-bound-program" in host_source + worker_source, "pre-effect validation mode is unavailable")
-    require("Interpreter.run(ast, backend)" in worker_source, "worker bypasses shared run()")
+    require("Interpreter.run(ast, backend," in worker_source, "worker bypasses shared run()")
     for forbidden in ("case 'if'", "case 'repeat'", "statement.kind", "expression.kind"):
         require(forbidden not in worker_source, f"worker duplicates evaluator: {forbidden}")
     for forbidden in ("cflib", "send_packet", "setpoint", "commander"):
@@ -343,11 +343,33 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
     require("requireMethod(backend,'readRange')" in interpreter_source, "range path changed")
 
 
+def test_backend_failure_preserves_cause_and_exact_ast_location() -> None:
+    from physical_diagnostics import failure_evidence
+
+    class BrokenRange(FakeBackend):
+        def readRange(self, direction):
+            raise ValueError("range.front raw_mm=8190 firmware_timestamp_ms=314")
+
+    try:
+        BoundSharedInterpreter(binding(representative_ast()), BrokenRange()).run()
+    except SharedInterpreterHostError as exc:
+        evidence = failure_evidence(exc)
+        require(evidence["causes"][-1]["type"] == "ValueError", "root exception was masked")
+        require("raw_mm=8190" in evidence["causes"][-1]["message"], "sensor fact was masked")
+        call = evidence["causes"][0]["call"]
+        require(call["method"] == "readRange" and call["id"] == 2, "call correlation was lost")
+        require(call["path"] == ["program", 1, "value"], "AST location was lost")
+        require(call["role"] == "expression" and call["kind"] == "range", "node identity was lost")
+    else:
+        raise AssertionError("injected range failure was accepted")
+
+
 def main() -> int:
     test_real_shared_interpreter_owns_control_flow_and_sensor_demand()
     test_validation_only_preflight_reuses_shared_language_contract_before_effect()
     test_dynamic_safety_and_language_validation_precede_backend_use()
     test_range_data_and_backend_failure_fail_closed()
+    test_backend_failure_preserves_cause_and_exact_ast_location()
     test_private_protocol_rejects_substitution_and_silence()
     test_surface_contains_no_second_language_engine_or_caller_semantics()
     print(

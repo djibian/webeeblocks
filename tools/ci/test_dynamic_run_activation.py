@@ -425,6 +425,11 @@ def test_post_takeoff_range_failure_enters_terminal_recovery() -> None:
         RANGE_FAIL = False
 
     require(replies[2]["ok"] is False, "post-takeoff range failure was accepted")
+    diagnostic = replies[2]["diagnostic"]
+    require(diagnostic["connectionEpoch"] == "epoch-after", "failure lost exact post-reset epoch")
+    require(diagnostic["causes"][-1]["message"] == "injected fresh range failure", "host masked root cause")
+    require(any(cause.get("call", {}).get("method") == "readRange" for cause in diagnostic["causes"]),
+            "host masked failing interpreter call")
     require(replies[3]["ok"] is False, "terminal dynamic failure allowed later execution")
     require(
         base.EVENTS.count(("transport-send", "epoch-after")) == 1,
