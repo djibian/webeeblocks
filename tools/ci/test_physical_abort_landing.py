@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """No hardware: production shutdown with real authority/transport/completion domains."""
 from pathlib import Path
+from contextlib import redirect_stderr
+from hashlib import sha256
+from io import StringIO
+import json
 import struct
 import sys
 
@@ -35,6 +39,23 @@ def controller_for(fixture):
     return owner
 
 
+def shutdown_with_causal_log(owner, fixture):
+    log = StringIO()
+    with redirect_stderr(log):
+        owner.shutdown()
+        owner.shutdown()
+    records = [json.loads(line.removeprefix("HOST_RECOVERY "))
+               for line in log.getvalue().splitlines() if line.startswith("HOST_RECOVERY ")]
+    require(len(records) == 1, "recovery outcome lost/duplicated independently of caller IPC")
+    record = records[0]
+    binding = fixture.authorization.binding
+    require(record["outcome"] == owner.recovery_outcome and record["phase"] == fixture.domain.phase,
+            "recovery log misreported outcome/physical phase")
+    require(record["connectionEpoch"] == binding.connection_epoch
+            and record["astSha256"] == sha256(binding.ast_binding.encode()).hexdigest(),
+            "recovery log lost exact run correlation")
+
+
 def test_lands_with_revoked_program_while_watchdog_is_live():
     fixture, _ = fixtures.make_fixture("abort-known-flight")
     owner = controller_for(fixture)
@@ -53,7 +74,7 @@ def test_lands_with_revoked_program_while_watchdog_is_live():
 
     fixture.cf.send_packet = send
     try:
-        owner.shutdown()
+        shutdown_with_causal_log(owner, fixture)
         require(owner.recovery_outcome.startswith("landed:"), owner.recovery_outcome)
         request = bytes(fixture.cf.send_calls[0][0][0].data)
         command, group, descent, relative, yaw, use_yaw, speed = struct.unpack("<BBf?f?f", request)
@@ -88,8 +109,7 @@ def test_uncertain_prerequisites_never_emit_or_retry():
             elif scenario == "effect":
                 with fixture.domain.effect_transaction(lambda: None) as effect:
                     effect.mark_emitted()  # no known effect outcome
-            owner.shutdown()
-            owner.shutdown()
+            shutdown_with_causal_log(owner, fixture)
             require(not fixture.cf.send_calls, "uncertainty emitted recovery: " + scenario)
             require(not fixture.authorization.active, "uncertainty restored teacher authority")
             require(not owner.recovery_outcome.startswith("landed:"), "false landing claim")
@@ -103,8 +123,7 @@ def test_failed_recovery_is_one_shot_and_does_not_claim_landing():
         owner = controller_for(fixture)
         fixtures.queue_pre_land(fixture)
         try:
-            owner.shutdown()
-            owner.shutdown()
+            shutdown_with_causal_log(owner, fixture)
             require(len(fixture.cf.send_calls) == 1, "failed safety landing was retried")
             require(not owner.recovery_outcome.startswith("landed:"), "failed landing reported success")
             require(not fixture.authorization.active, "failed landing resurrected authority")

@@ -20,8 +20,11 @@ only stage the non-authority profile/AST intent before this controller is called
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from math import isfinite
 import struct
+import sys
 from typing import Callable
 
 import high_level_ack
@@ -373,3 +376,17 @@ class ProductionTakeoffRunController:
                 active.watchdog_guard.stop_for_terminal_reboot()
             except Exception:
                 pass
+        # Caller EOF/timeout may have removed every IPC response path. Retain
+        # the safety outcome in the host log without making logging an effect
+        # prerequisite or mistaking a failed/blocked recovery for completion.
+        binding = active.teacher_authorization.binding
+        try:
+            print("HOST_RECOVERY " + json.dumps({
+                "outcome": self._recovery_outcome,
+                "phase": active.execution_domain.phase,
+                "connectionEpoch": binding.connection_epoch,
+                "profileId": binding.profile_id,
+                "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
+            }, sort_keys=True), file=sys.stderr, flush=True)
+        except (OSError, ValueError):
+            pass
