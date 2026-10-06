@@ -20,6 +20,8 @@ pre-request callback that finishes late from becoming fresh evidence.
 
 from __future__ import annotations
 
+from math import isfinite
+
 from threading import Condition, Lock
 from time import monotonic
 from typing import Callable, NamedTuple
@@ -284,7 +286,8 @@ class FreshRangeObserver:
 
     def open(self, *, timeout_seconds: float = 0.7) -> None:
         """Start one read-only log stream and establish a timestamp baseline."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:
@@ -378,7 +381,8 @@ class FreshRangeObserver:
 
     def read(self, *, timeout_seconds: float = 0.7) -> RangeObservation:
         """Return one newly arrived post-call sample from the bound epoch."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:
@@ -419,8 +423,17 @@ class FreshRangeObserver:
                 firmware_timestamp_ms=timestamp,
                 direction=self._direction,
                 raw_mm=raw_mm,
-                range_m=range_mm_to_m(raw_mm),
+                range_m=self._convert_observed_range(raw_mm, timestamp, epoch),
             )
+
+    def _convert_observed_range(self, raw_mm: int, timestamp: int, epoch: str) -> float:
+        try:
+            return range_mm_to_m(raw_mm)
+        except RangeReadError as exc:
+            raise RangeReadError(
+                f"{self._variable}: raw_mm={raw_mm}, firmware_timestamp_ms={timestamp}, "
+                f"connection_epoch={epoch}: {exc}"
+            ) from exc
 
     def close(self) -> None:
         """Stop/delete the stream; uncertain teardown poisons this observer."""

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr
+from io import StringIO
+import json
 from math import isclose
 from pathlib import Path
 from types import SimpleNamespace
@@ -425,7 +427,15 @@ def test_post_takeoff_range_failure_enters_terminal_recovery() -> None:
         RANGE_FAIL = False
 
     require(replies[2]["ok"] is False, "post-takeoff range failure was accepted")
+    diagnostic = replies[2]["diagnostic"]
+    require(diagnostic["connectionEpoch"] == "epoch-after", "failure lost exact post-reset epoch")
+    require(diagnostic["causes"][-1]["message"] == "injected fresh range failure", "host masked root cause")
+    require(any(cause.get("call", {}).get("method") == "readRange" for cause in diagnostic["causes"]),
+            "host masked failing interpreter call")
     require(replies[3]["ok"] is False, "terminal dynamic failure allowed later execution")
+    require(replies[3]["diagnostic"]["connectionEpoch"] == "epoch-after"
+            and replies[3]["diagnostic"]["bindingStage"] == "active",
+            "terminal rejection reverted diagnostic correlation to the pre-reset epoch")
     require(
         base.EVENTS.count(("transport-send", "epoch-after")) == 1,
         "failure path changed the one causal takeoff boundary",
@@ -459,6 +469,9 @@ def test_shared_language_invalidity_fails_before_reset_or_takeoff() -> None:
 
     require(replies[0]["ok"] is True, "run-context bridge should remain diagnostic")
     require(replies[2]["ok"] is False, "language-invalid program acquired execution")
+    require(replies[2]["diagnostic"]["bindingStage"] == "staged", "staged binding mislabeled active")
+    require(all(c["type"] != "PhysicalProgramSequenceError" for c in replies[2]["diagnostic"]["causes"]),
+            "expected static/dynamic dispatch became a false causal failure")
     require(
         not any(
             isinstance(event, tuple) and event and event[0] == "bridge-begin"
@@ -473,7 +486,32 @@ def test_shared_language_invalidity_fails_before_reset_or_takeoff() -> None:
     )
 
 
+def test_causal_host_log_survives_lost_execution_reply() -> None:
+    global RANGE_FAIL
+    RANGE_FAIL = True
+    base.EVENTS.clear()
+    install_dynamic_fakes()
+    log = StringIO()
+    try:
+        with redirect_stderr(log):
+            replies = host.run_host_sequence(dynamic_ast(), steps=1, discard_execution_reply=True)
+    finally:
+        RANGE_FAIL = False
+    require(len(replies) == 2, "execution error unexpectedly arrived through lost caller channel")
+    records = [json.loads(line.removeprefix("HOST_DIAGNOSTIC "))
+               for line in log.getvalue().splitlines() if line.startswith("HOST_DIAGNOSTIC ")]
+    require(len(records) == 1, "host lost or duplicated terminal causal evidence")
+    diagnostic = records[0]
+    require(diagnostic["requestId"] == "step-1" and diagnostic["connectionEpoch"] == "epoch-after",
+            "lost-reply diagnostic cannot be correlated")
+    require(diagnostic["causes"][-1]["message"] == "injected fresh range failure",
+            "lost caller erased the initiating error")
+    require(any(c.get("call", {}).get("method") == "readRange" for c in diagnostic["causes"]),
+            "lost caller erased the AST operation")
+
+
 def main() -> int:
+    test_causal_host_log_survives_lost_execution_reply()
     test_dispatch_preserves_static_path_and_routes_only_dynamic_ast()
     test_production_host_runs_one_dynamic_program_from_fresh_range()
     test_post_takeoff_range_failure_enters_terminal_recovery()

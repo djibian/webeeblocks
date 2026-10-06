@@ -109,6 +109,17 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
             self._force_completion_uncertainty(permit)
             raise
 
+    def _landing_request(self, binding) -> bytes:
+        try:
+            bound_command = landing_command.derive_bound_landing_command(binding.ast_binding)
+        except landing_command.LandingCommandError as exc:
+            raise ControlledLandingTransportError(str(exc)) from exc
+        if bound_command.ast_binding != binding.ast_binding:
+            raise ControlledLandingTransportError(
+                "derived landing command differs from current-program provenance"
+            )
+        return bytes(bound_command.request)
+
     def send_controlled_landing(
         self,
         *,
@@ -132,17 +143,7 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
             # being acquired.
             initial_binding = self._read_current_binding()
             self._assert_binding_authority(initial_binding)
-            try:
-                bound_command = landing_command.derive_bound_landing_command(
-                    initial_binding.ast_binding
-                )
-            except landing_command.LandingCommandError as exc:
-                raise ControlledLandingTransportError(str(exc)) from exc
-            if bound_command.ast_binding != initial_binding.ast_binding:
-                raise ControlledLandingTransportError(
-                    "derived landing command differs from current-program provenance"
-                )
-            request = bytes(bound_command.request)
+            request = self._landing_request(initial_binding)
             packet = setpoint_hl_transport._default_packet_factory(request)
             self._validate_packet(packet, request)
 
@@ -193,9 +194,10 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                     )
 
                 callback_installed = False
+                primary_error = None
                 try:
-                    add_callback(setpoint_hl_transport._SETPOINT_HL_PORT, on_reply)
                     callback_installed = True
+                    add_callback(setpoint_hl_transport._SETPOINT_HL_PORT, on_reply)
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
                     send_packet(packet)
@@ -208,6 +210,9 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                         completion_permit = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
+                except BaseException as exc:
+                    primary_error = exc
+                    raise
                 finally:
                     if callback_installed:
                         try:
@@ -215,8 +220,10 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                                 setpoint_hl_transport._SETPOINT_HL_PORT,
                                 on_reply,
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._ack.invalidate_transport("HighLevel callback cleanup failed: " + str(exc))
+                            if primary_error is None:
+                                raise ControlledLandingTransportError("HighLevel callback cleanup failed") from exc
 
         if result is None:
             raise ControlledLandingTransportError(

@@ -270,6 +270,10 @@ class TrustedSetpointHlTransport:
             ast_binding=binding.ast_binding,
             connection_epoch=binding.connection_epoch,
         )
+        self._assert_powered_flying(binding)
+
+    def _assert_powered_flying(self, binding) -> None:
+        """Same physical safety checks for ordinary effects and terminal recovery."""
         if binding.connection_epoch != self._bound_connection_epoch:
             raise SetpointHlTransportError("current run binding belongs to a different connection epoch")
         if self._powered_session.connection_epoch != self._bound_connection_epoch:
@@ -480,9 +484,10 @@ class TrustedSetpointHlTransport:
                 if not callable(add_callback) or not callable(remove_callback) or not callable(send_packet):
                     raise SetpointHlTransportError("Crazyflie SETPOINT_HL callback/send surface is unavailable")
                 callback_installed = False
+                primary_error = None
                 try:
-                    add_callback(_SETPOINT_HL_PORT, on_reply)
                     callback_installed = True
+                    add_callback(_SETPOINT_HL_PORT, on_reply)
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
                     send_packet(packet)
@@ -495,12 +500,17 @@ class TrustedSetpointHlTransport:
                         completion_permit = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
+                except BaseException as exc:
+                    primary_error = exc
+                    raise
                 finally:
                     if callback_installed:
                         try:
                             remove_callback(_SETPOINT_HL_PORT, on_reply)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._ack.invalidate_transport("HighLevel callback cleanup failed: " + str(exc))
+                            if primary_error is None:
+                                raise SetpointHlTransportError("HighLevel callback cleanup failed") from exc
 
         if result is None or planned_duration is None:
             raise SetpointHlTransportError("SETPOINT_HL acknowledgement result is unavailable")

@@ -55,12 +55,15 @@ class FreshYawObserver:
         self._connection_epoch_reader = connection_epoch_reader
         self._log_config_factory = log_config_factory
         self._read_lock = Lock()
+        self._arrival_lock = Lock()
         self._condition = Condition(Lock())
         self._bound_connection_epoch: str | None = None
         self._config: object | None = None
         self._opened = False
         self._sequence = 0
-        self._latest: tuple[int, float] | None = None
+        self._request_generation = 0
+        self._poisoned_reason: str | None = None
+        self._latest: tuple[int, float, int] | None = None
         self._stream_error: YawReadError | None = None
 
     @property
@@ -75,6 +78,10 @@ class FreshYawObserver:
     @property
     def is_open(self) -> bool:
         return self._opened
+
+    def _require_not_poisoned(self) -> None:
+        if self._poisoned_reason is not None:
+            raise YawReadError("yaw observer is poisoned by uncertain teardown: " + self._poisoned_reason)
 
     def _read_epoch(self) -> str:
         try:
@@ -115,13 +122,17 @@ class FreshYawObserver:
         self._set_error("Crazyflie disconnected during yaw observation")
 
     def _on_data(self, timestamp: object, data: object, config: object) -> None:
+        with self._arrival_lock:
+            arrival_generation = self._request_generation
         if config is not self._config:
             return
         try:
-            if not isinstance(timestamp, int) or timestamp < 0 or timestamp > _TIMESTAMP_MASK:
+            if type(timestamp) is not int or timestamp < 0 or timestamp > _TIMESTAMP_MASK:
                 raise YawReadError("yaw sample has an invalid firmware timestamp")
             if not isinstance(data, dict) or YAW_VARIABLE not in data:
                 raise YawReadError("yaw sample is missing stateEstimate.yaw")
+            if type(data[YAW_VARIABLE]) not in (int, float):
+                raise YawReadError("yaw sample is not numeric")
             yaw_deg = float(data[YAW_VARIABLE])
             if not isfinite(yaw_deg):
                 raise YawReadError("yaw sample is not finite")
@@ -134,7 +145,7 @@ class FreshYawObserver:
             if self._stream_error is not None:
                 return
             self._sequence += 1
-            self._latest = (timestamp, yaw_deg)
+            self._latest = (timestamp, yaw_deg, arrival_generation)
             self._condition.notify_all()
 
     def _wait_for_sample(
@@ -142,6 +153,7 @@ class FreshYawObserver:
         *,
         after_sequence: int,
         after_timestamp: int | None,
+        request_generation: int,
         timeout_seconds: float,
     ) -> tuple[int, float]:
         deadline = monotonic() + timeout_seconds
@@ -150,8 +162,8 @@ class FreshYawObserver:
                 if self._stream_error is not None:
                     raise self._stream_error
                 if self._sequence > after_sequence and self._latest is not None:
-                    timestamp, yaw_deg = self._latest
-                    if after_timestamp is None or _timestamp_is_later(timestamp, after_timestamp):
+                    timestamp, yaw_deg, generation = self._latest
+                    if generation == request_generation and (after_timestamp is None or _timestamp_is_later(timestamp, after_timestamp)):
                         return timestamp, yaw_deg
                 remaining = deadline - monotonic()
                 if remaining <= 0:
@@ -160,15 +172,19 @@ class FreshYawObserver:
 
     def open(self, *, timeout_seconds: float = 0.5) -> None:
         """Start one session log stream and establish a fresh timestamp baseline."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise YawReadError("yaw timeout must be positive")
 
         with self._read_lock:
+            self._require_not_poisoned()
             if self._opened:
                 self._verify_epoch()
                 return
 
             self._bound_connection_epoch = self._read_epoch()
+            with self._arrival_lock:
+                self._request_generation = 0
             with self._condition:
                 self._sequence = 0
                 self._latest = None
@@ -191,6 +207,7 @@ class FreshYawObserver:
                 self._wait_for_sample(
                     after_sequence=0,
                     after_timestamp=None,
+                    request_generation=0,
                     timeout_seconds=timeout_seconds,
                 )
                 self._verify_epoch()
@@ -220,50 +237,60 @@ class FreshYawObserver:
         error_registered: bool,
         disconnect_registered: bool,
     ) -> None:
+        errors = []
         for action in (getattr(config, "stop", None), getattr(config, "delete", None)):
             if callable(action):
                 try:
                     action()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    errors.append(str(exc))
         if data_registered:
             try:
                 config.data_received_cb.remove_callback(self._on_data)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(str(exc))
         if error_registered:
             try:
                 config.error_cb.remove_callback(self._on_log_error)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(str(exc))
         if disconnect_registered:
             try:
                 self._cf.disconnected.remove_callback(self._on_disconnect)
-            except Exception:
-                pass
+            except Exception as exc:
+                errors.append(str(exc))
+        if errors:
+            self._poisoned_reason = "; ".join(errors)
         self._config = None
         self._opened = False
 
     def read(self, *, timeout_seconds: float = 0.5) -> YawObservation:
         """Return one newly arrived post-call yaw sample from the bound epoch."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise YawReadError("yaw timeout must be positive")
 
         with self._read_lock:
+            self._require_not_poisoned()
             if not self._opened or self._config is None or self._bound_connection_epoch is None:
                 raise YawReadError("yaw observer is not open")
             self._verify_epoch()
-            with self._condition:
-                if self._stream_error is not None:
-                    raise self._stream_error
-                baseline_sequence = self._sequence
-                if self._latest is None:
-                    raise YawReadError("yaw observer has no established baseline")
-                baseline_timestamp = self._latest[0]
+            # Fence callback entry, not the end of parsing a potentially delayed sample.
+            with self._arrival_lock:
+                self._request_generation += 1
+                request_generation = self._request_generation
+                with self._condition:
+                    if self._stream_error is not None:
+                        raise self._stream_error
+                    baseline_sequence = self._sequence
+                    if self._latest is None:
+                        raise YawReadError("yaw observer has no established baseline")
+                    baseline_timestamp = self._latest[0]
 
             timestamp, yaw_deg = self._wait_for_sample(
                 after_sequence=baseline_sequence,
                 after_timestamp=baseline_timestamp,
+                request_generation=request_generation,
                 timeout_seconds=timeout_seconds,
             )
             epoch = self._verify_epoch()
@@ -299,4 +326,5 @@ class FreshYawObserver:
             self._config = None
             self._opened = False
             if errors:
+                self._poisoned_reason = "; ".join(errors)
                 raise YawReadError("could not close yaw observer cleanly: " + "; ".join(errors))

@@ -622,6 +622,25 @@ def test_no_physical_effect_or_browser_surface() -> None:
         )
 
 
+def test_exception_after_acceptance_invalidates_completion_permit():
+    execution = domain.PhysicalExecutionDomain()
+    execution.run_reset_establishment(lambda: object())
+    try:
+        with execution.effect_transaction(lambda: None) as effect:
+            effect.mark_emitted()
+            permit = effect.mark_accepted()
+            raise RuntimeError("listener teardown failed")
+    except RuntimeError:
+        pass
+    require(execution.phase == domain.RECOVERY_REQUIRED, "exception left abandoned accepted effect")
+    try:
+        execution.complete_accepted_effect(permit, domain.FLYING, lambda: True)
+    except domain.PhysicalExecutionDomainError:
+        pass
+    else:
+        raise AssertionError("abandoned completion permit became authority")
+
+
 def main() -> int:
     test_new_process_requires_reset_establishment()
     test_reset_failure_is_fail_closed()
@@ -636,6 +655,7 @@ def main() -> int:
     test_observation_is_flying_only_phase_neutral_and_precondition_bound()
     test_observation_blocks_independent_effect_and_reset_sections()
     test_no_physical_effect_or_browser_surface()
+    test_exception_after_acceptance_invalidates_completion_permit()
     print(
         "PASS trusted physical reset/effect/observation exclusion is process-local, "
         "fail-closed, phase-neutral for fresh observations and emits no physical effect"

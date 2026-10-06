@@ -268,7 +268,9 @@ def test_host_and_adapter_preserve_authority_ownership_boundaries() -> None:
         "activate_validated_run(",
         'staged_state["binding"] = PhysicalRunBinding(',
         "active_controller.shutdown()",
-        "PostResetCapabilityHttpBridge(session)",
+        "_CallerBoundBridge(PostResetCapabilityHttpBridge)",
+        "_CallerBoundBridge(session)",
+        "caller_lifetime.assert_open()",
     ):
         require(required in host, "production host missing lifecycle ownership: " + required)
     require(
@@ -356,6 +358,9 @@ def test_physical_qualification_launcher_contract() -> None:
 
 
 def main() -> int:
+    # Fresh process: existing composition tests intentionally install broad
+    # fakes; the recovery oracle retains the real safety/transport domains.
+    subprocess.run([sys.executable, "tools/ci/test_physical_abort_landing.py"], check=True)
     test_real_controller_orders_post_reset_authority_before_takeoff()
     test_stale_candidate_fails_before_reset()
     test_host_and_adapter_preserve_authority_ownership_boundaries()

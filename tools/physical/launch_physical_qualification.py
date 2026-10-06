@@ -24,6 +24,8 @@ from dataclasses import dataclass
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from math import isfinite
+from time import monotonic
 import os
 from pathlib import Path
 import queue
@@ -44,6 +46,7 @@ BASE_WORLD = ROOT / "worlds" / "crazyflie_runtime_v2.wbt"
 BROWSER_HELPER = PHYSICAL / "physical_qualification_runtime.js"
 MAX_JSON_BYTES = 65536
 PRE_TEACHER_FAILURE_MAX_CHARS = 1024
+EXECUTION_REQUEST_TIMEOUT_SECONDS = 30.0
 
 
 class PhysicalQualificationLauncherError(RuntimeError):
@@ -57,13 +60,18 @@ def _require_text(value: object, name: str) -> str:
 
 
 def _read_socket_line(sock: socket.socket, *, timeout_seconds: float) -> dict[str, object]:
-    if timeout_seconds <= 0:
+    if (type(timeout_seconds) not in (int, float)
+        or not isfinite(timeout_seconds) or timeout_seconds <= 0):
         raise PhysicalQualificationLauncherError("socket timeout must be positive")
     old_timeout = sock.gettimeout()
-    sock.settimeout(timeout_seconds)
+    deadline = monotonic() + timeout_seconds
     data = bytearray()
     try:
         while len(data) <= MAX_JSON_BYTES:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise TimeoutError("trusted channel message deadline expired")
+            sock.settimeout(remaining)
             chunk = sock.recv(1)
             if not chunk:
                 raise PhysicalQualificationLauncherError("trusted channel closed before JSON line")
@@ -423,6 +431,50 @@ def execution_request_count(ast_binding: str) -> int:
     return count
 
 
+def validate_qualification_wait_budget(ast_binding: str) -> None:
+    """Reject waits already incompatible with the unchanged request deadline.
+
+    This is a structural admission check, not a duration guarantee or an
+    evaluator: no expressions/sensors are evaluated and both branches count.
+    Radio, observation and motion latency still obey the runtime deadline.
+    """
+    count = execution_request_count(ast_binding)
+    program = json.loads(ast_binding)["program"]
+    from physical_dynamic_preflight import MAX_CONTROL_DEPTH
+
+    def waits(sequence: object, depth: int = 0) -> float:
+        if depth > MAX_CONTROL_DEPTH or not isinstance(sequence, list):
+            raise PhysicalQualificationLauncherError("prepared wait budget has invalid control structure")
+        total = 0.0
+        for node in sequence:
+            if not isinstance(node, dict):
+                raise PhysicalQualificationLauncherError("prepared wait budget has invalid statement")
+            kind = node.get("kind")
+            if kind == "wait":
+                seconds = node.get("seconds")
+                if type(seconds) not in (int, float) or not isfinite(seconds) or seconds < 0:
+                    raise PhysicalQualificationLauncherError("prepared wait duration is invalid")
+                total += seconds
+            elif kind == "repeat":
+                repeats = node.get("count")
+                if (type(repeats) not in (int, float) or not isfinite(repeats)
+                    or not float(repeats).is_integer() or not 1 <= repeats <= 20):
+                    raise PhysicalQualificationLauncherError("prepared wait repetition is invalid")
+                total += repeats * waits(node.get("body"), depth + 1)
+            elif kind == "if":
+                total += max(waits(node.get("then"), depth + 1),
+                             waits(node.get("else", []), depth + 1))
+        return total
+
+    # Static statements have separate requests; dynamic execution has only one.
+    longest = max((waits([node]) for node in program), default=0.0) if count > 1 else waits(program)
+    if longest >= EXECUTION_REQUEST_TIMEOUT_SECONDS:
+        raise PhysicalQualificationLauncherError(
+            "prepared program waits can exhaust the 30-second execution request deadline; "
+            "qualification rejected before teacher authorization"
+        )
+
+
 def _teacher_proposal(value: dict[str, object], prepared: PreparedProgram) -> dict[str, object]:
     if value.get("op") == "pre-teacher-activation-failure":
         if set(value) != {"op", "error", "executionAuthority"}:
@@ -510,6 +562,7 @@ class PhysicalQualificationSession:
         self._teacher_decision_attempted = False
         self._teacher_sealed = False
         self._teacher_approved = False
+        self._execution_attempted = False
 
     def _spawn_host(self) -> dict[str, object]:
         caller_host, caller_peer = socket.socketpair()
@@ -577,6 +630,7 @@ class PhysicalQualificationSession:
         if self._prepared is not None:
             raise PhysicalQualificationLauncherError("qualification program is already prepared")
         prepared = self._bridge.request_preparation(timeout_seconds=timeout_seconds)
+        validate_qualification_wait_budget(prepared.ast_binding)
         request_id = secrets.token_urlsafe(18)
         _write_socket_line(self._caller, {
             "op": "validate-run-context",
@@ -634,17 +688,20 @@ class PhysicalQualificationSession:
         self._teacher_sealed = True
         self._teacher_approved = approved is True
 
-    def execute_approved_program(self, *, timeout_seconds: float = 30.0) -> None:
+    def execute_approved_program(self, *, timeout_seconds: float = EXECUTION_REQUEST_TIMEOUT_SECONDS) -> None:
         if (
             self._caller is None
             or self._prepared is None
             or not self._teacher_sealed
             or self._teacher_approved is not True
+            or self._execution_attempted
         ):
             raise PhysicalQualificationLauncherError(
                 "positively approved exact program is not ready for execution"
             )
         count = execution_request_count(self._prepared.ast_binding)
+        # Consume before the first write: an ambiguous IPC result is never replayable.
+        self._execution_attempted = True
         for index in range(count):
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
             _write_socket_line(self._caller, {
@@ -655,8 +712,12 @@ class PhysicalQualificationSession:
             if response.get("requestId") != request_id or response.get("executionAuthority") is not False:
                 raise PhysicalQualificationLauncherError("in-flight reply lost exact correlation/non-authority")
             if response.get("ok") is not True:
+                diagnostic = response.get("diagnostic")
+                detail = ""
+                if isinstance(diagnostic, dict):
+                    detail = "\nHOST_DIAGNOSTIC " + json.dumps(diagnostic, ensure_ascii=True, sort_keys=True)
                 raise PhysicalQualificationLauncherError(
-                    "trusted parameter-free program execution failed closed at step " + str(index + 1)
+                    "trusted parameter-free program execution failed closed at step " + str(index + 1) + detail
                 )
 
     def close(self) -> None:
@@ -676,6 +737,25 @@ class PhysicalQualificationSession:
             except OSError:
                 pass
             self._teacher = None
+        if self._host is not None:
+            try:
+                self._host.wait(timeout=10.0)
+            except subprocess.TimeoutExpired as exc:
+                if self._teacher_decision_attempted:
+                    # The host owns powered-session liveness and bounded abort
+                    # recovery. Killing it here can cut an airborne vehicle.
+                    # Keep its browser/resources too; timeout remains a failure.
+                    raise PhysicalQualificationLauncherError(
+                        "trusted host teardown is unresolved after 10 seconds; "
+                        "host left alive for safe recovery; no retry is authorized"
+                    ) from exc
+                self._host.terminate()
+                try:
+                    self._host.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    self._host.kill()
+                    self._host.wait(timeout=5.0)
+            self._host = None
         if self._webots is not None:
             if self._webots.poll() is None:
                 self._webots.terminate()
@@ -685,17 +765,6 @@ class PhysicalQualificationSession:
                     self._webots.kill()
                     self._webots.wait(timeout=5.0)
             self._webots = None
-        if self._host is not None:
-            try:
-                self._host.wait(timeout=10.0)
-            except subprocess.TimeoutExpired:
-                self._host.terminate()
-                try:
-                    self._host.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._host.kill()
-                    self._host.wait(timeout=5.0)
-            self._host = None
         if self._bridge is not None:
             self._bridge.close()
             self._bridge = None
@@ -708,7 +777,14 @@ class PhysicalQualificationSession:
         return self
 
     def __exit__(self, _kind, _value, _traceback) -> None:
-        self.close()
+        try:
+            self.close()
+        except Exception as cleanup_error:
+            if _value is not None:
+                raise PhysicalQualificationLauncherError(
+                    str(_value) + "; terminal teardown also failed: " + str(cleanup_error)
+                ) from _value
+            raise
 
 
 def _binding_summary(prepared: PreparedProgram, proposal: dict[str, object]) -> str:

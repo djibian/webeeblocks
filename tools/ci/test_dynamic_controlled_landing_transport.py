@@ -207,7 +207,33 @@ def test_terminal_landing_uses_completed_dynamic_path_altitude() -> None:
         fixture.close()
 
 
+def test_callback_cleanup_failure_never_returns_success():
+    fixture, transport = make_fixture("cleanup-failure")
+    operation = transport.send_controlled_landing
+    domain = fixture.domain
+    def fail(*args):
+        raise RuntimeError("injected removal failure")
+    fixture.cf.remove_port_callback = fail
+    try:
+        try:
+            operation()
+        except Exception as exc:
+            require("callback cleanup failed" in str(exc), str(exc))
+        else:
+            raise AssertionError("uncertain listener teardown reported success")
+        require(fixture.ack.poisoned, "uncertain callback teardown did not poison epoch")
+        require(len(fixture.cf.send_calls) == 1, "cleanup failure repeated command")
+        try:
+            operation()
+        except Exception:
+            pass
+        require(len(fixture.cf.send_calls) == 1, "poisoned effect was retried")
+    finally:
+        fixture.close()
+
+
 def main() -> int:
+    test_callback_cleanup_failure_never_returns_success()
     test_initial_altitude_is_derived_only_from_exact_teacher_ast()
     test_vertical_completion_advances_runtime_nominal_altitude()
     test_rejected_or_out_of_bounds_vertical_does_not_advance_state()

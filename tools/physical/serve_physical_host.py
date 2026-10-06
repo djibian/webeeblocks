@@ -42,7 +42,9 @@ if __name__ == "__main__":
         if str(physical) not in sys.path:
             sys.path.insert(0, str(physical))
 
+        from caller_lifetime import CallerLifetime
         from physical_execution_domain import PhysicalExecutionDomain
+        from physical_diagnostics import failure_evidence
         from physical_run_dispatch import activate_validated_run
         from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
@@ -102,8 +104,17 @@ if __name__ == "__main__":
             None if args.teacher_fd is None else socket.socket(fileno=args.teacher_fd)
         )
 
+        caller_lifetime = CallerLifetime(caller_reader, max_message_bytes=max_message_bytes)
+
+        class _CallerBoundBridge(PostResetCapabilityHttpBridge):
+            def assert_current_program(self, **kwargs):
+                caller_lifetime.assert_open()
+                evidence = super().assert_current_program(**kwargs)
+                caller_lifetime.assert_open()
+                return evidence
+
         with ReadOnlyCapabilitySession(args.uri) as session:
-            bridge = PostResetCapabilityHttpBridge(session)
+            bridge = _CallerBoundBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
@@ -118,6 +129,7 @@ if __name__ == "__main__":
                 "started": False,
                 "active_run": None,
                 "error": None,
+                "last_execution_binding": None,
             }
             activation_thread = None
 
@@ -147,7 +159,7 @@ if __name__ == "__main__":
                             assertion_timeout_seconds=assertion_timeout_seconds,
                         )
                 except Exception as exc:
-                    activation_state["error"] = str(exc)
+                    activation_state["error"] = exc
                 finally:
                     activation_complete.set()
 
@@ -195,7 +207,7 @@ if __name__ == "__main__":
                     return False
 
             try:
-                for line in caller_reader:
+                for line in caller_lifetime:
                     if len(line.encode("utf-8")) > max_message_bytes:
                         break
                     try:
@@ -225,6 +237,7 @@ if __name__ == "__main__":
                                 "executionAuthority": False,
                             }
                         else:
+                            failure_binding = activation_state["last_execution_binding"] or staged_state["binding"]
                             try:
                                 # Validation starts one bounded trusted activation transaction.
                                 # Do not race that already-started transaction by reacquiring
@@ -235,20 +248,41 @@ if __name__ == "__main__":
                                 with lifecycle_lock:
                                     active_controller = activation_state["active_run"]
                                     if active_controller is None:
+                                        if activation_state["error"] is not None:
+                                            raise activation_state["error"]
                                         raise RuntimeError(
                                             "authorized in-flight execution is unavailable"
                                         )
+                                    active = active_controller.active_run
+                                    if active is not None:
+                                        failure_binding = active.teacher_authorization.binding
+                                        activation_state["last_execution_binding"] = failure_binding
                                     result = active_controller.execute_next_inflight()
                                     if getattr(result, "accepted", None) is not True:
                                         raise RuntimeError(
                                             "authorized in-flight effect was rejected"
                                         )
-                            except Exception:
+                            except Exception as exc:
+                                diagnostic = failure_evidence(
+                                    exc, binding=failure_binding, phase=execution_domain.phase
+                                )
+                                diagnostic["bindingStage"] = (
+                                    "active" if activation_state["last_execution_binding"] is not None else "staged"
+                                )
+                                # Preserve the original failure independently of a
+                                # caller socket which may already have disappeared.
+                                try:
+                                    print("HOST_DIAGNOSTIC " + json.dumps({
+                                        "requestId": request_id, **diagnostic,
+                                    }, sort_keys=True), file=sys.stderr, flush=True)
+                                except (OSError, ValueError):
+                                    pass  # Logging cannot replace the causal error.
                                 response = {
                                     "requestId": request_id,
                                     "ok": False,
                                     "error": "authorized in-flight execution failed closed",
                                     "executionAuthority": False,
+                                    "diagnostic": diagnostic,
                                 }
                             else:
                                 response = {
@@ -334,6 +368,7 @@ if __name__ == "__main__":
                         break
             finally:
                 host_stopping.set()
+                caller_lifetime.stop()
                 staged_ready.set()
 
                 if activation_thread is not None:
@@ -341,11 +376,19 @@ if __name__ == "__main__":
 
                 active_controller = activation_state["active_run"]
                 _activation_error = activation_state["error"]
+                teardown_error = None
                 if active_controller is not None:
                     try:
                         active_controller.shutdown()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        teardown_error = type(exc).__name__ + ": " + str(exc)[:400]
+                # This survives caller EOF, when IPC can no longer carry a reply.
+                print("HOST_TEARDOWN " + json.dumps({
+                    "phase": execution_domain.phase,
+                    "callerClosure": caller_lifetime.close_reason,
+                    "activationError": str(_activation_error)[:400] if _activation_error else None,
+                    "teardownError": teardown_error,
+                }, sort_keys=True), file=sys.stderr, flush=True)
 
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
@@ -358,6 +401,10 @@ if __name__ == "__main__":
 
                 del _activation_error
 
+                try:
+                    caller_socket.shutdown(socket.SHUT_RD)
+                except OSError:
+                    pass
                 try:
                     caller_reader.close()
                     caller_writer.close()

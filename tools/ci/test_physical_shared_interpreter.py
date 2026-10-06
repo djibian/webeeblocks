@@ -300,7 +300,7 @@ def test_private_protocol_rejects_substitution_and_silence() -> None:
 'use strict';
 const fs=require('fs');
 const b=Buffer.alloc(65536); fs.readSync(0,b,0,b.length,null);
-process.stdout.write(JSON.stringify({type:'call',id:1,method:'readRange',args:['down']})+'\\n');
+process.stdout.write(JSON.stringify({type:'call',id:1,method:'readRange',args:['down'],site:{path:['program',1,'value'],kind:'range',role:'expression'}})+'\\n');
 setInterval(()=>{},1000);
 """,
         backend,
@@ -330,9 +330,9 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
         ROOT / "plugins/robot_windows/blockly/webeeblocks/interpreter.js"
     ).read_text(encoding="utf-8")
     require("interpreter.js" in worker_source, "worker does not load product interpreter")
-    require("Interpreter.validateProgram(ast)" in worker_source, "worker bypasses shared validation")
+    require("Interpreter.validateExecutionBudget(ast)" in worker_source, "worker bypasses shared validation")
     require("validate-bound-program" in host_source + worker_source, "pre-effect validation mode is unavailable")
-    require("Interpreter.run(ast, backend)" in worker_source, "worker bypasses shared run()")
+    require("Interpreter.run(ast, backend," in worker_source, "worker bypasses shared run()")
     for forbidden in ("case 'if'", "case 'repeat'", "statement.kind", "expression.kind"):
         require(forbidden not in worker_source, f"worker duplicates evaluator: {forbidden}")
     for forbidden in ("cflib", "send_packet", "setpoint", "commander"):
@@ -343,11 +343,133 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
     require("requireMethod(backend,'readRange')" in interpreter_source, "range path changed")
 
 
+def test_backend_failure_preserves_cause_and_exact_ast_location() -> None:
+    from physical_diagnostics import failure_evidence
+
+    class BrokenRange(FakeBackend):
+        def readRange(self, direction):
+            raise ValueError("range.front raw_mm=8190 firmware_timestamp_ms=314")
+
+    try:
+        BoundSharedInterpreter(binding(representative_ast()), BrokenRange()).run()
+    except SharedInterpreterHostError as exc:
+        evidence = failure_evidence(exc)
+        require(evidence["causes"][-1]["type"] == "ValueError", "root exception was masked")
+        require("raw_mm=8190" in evidence["causes"][-1]["message"], "sensor fact was masked")
+        call = evidence["causes"][0]["call"]
+        require(call["method"] == "readRange" and call["id"] == 2, "call correlation was lost")
+        require(call["path"] == ["program", 1, "value"], "AST location was lost")
+        require(call["role"] == "expression" and call["kind"] == "range", "node identity was lost")
+    else:
+        raise AssertionError("injected range failure was accepted")
+def test_shared_budget_counts_expressions_branches_and_terminal_land():
+    import subprocess
+    script = r"""
+const assert = require('assert');
+const interpreter = require('./plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const ast = program => ({version:1, semantics:'webeeblocks-ast-v1', program});
+const takeoff = {kind:'takeoff',height_m:0.5}, land = {kind:'land'};
+const wait = {kind:'wait',seconds:0.1};
+assert.equal(interpreter.validateExecutionBudget(ast([takeoff,...Array(998).fill(wait),land])),1000);
+assert.throws(()=>interpreter.validateExecutionBudget(ast([takeoff,...Array(999).fill(wait),land])),/budget/);
+const choice = {kind:'if',condition:{kind:'compare',op:'LT',left:{kind:'number',value:0},right:{kind:'number',value:1}},then:[wait],else:[]};
+assert.equal(interpreter.validateExecutionBudget(ast([takeoff,choice,land])),7);
+choice.else=Array(995).fill(wait);
+assert.throws(()=>interpreter.validateExecutionBudget(ast([takeoff,choice,land])),/budget/);
+"""
+    subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
+
+
+def test_runtime_budget_is_rejected_before_takeoff():
+    body = [{"kind": "wait", "seconds": 0.1}]
+    for _ in range(3):
+        body = [{"kind": "repeat", "count": 20, "body": body}]
+    ast = {"version": 1, "semantics": "webeeblocks-ast-v1", "program": [
+        {"kind": "takeoff", "height_m": 0.5}, *body, {"kind": "land"}]}
+    try:
+        subject.validate_bound_shared_program(binding(ast))
+    except subject.SharedInterpreterHostError:
+        pass
+    else:
+        raise AssertionError("guaranteed runtime-budget failure admitted before takeoff")
+
+
+def test_fatal_worker_stderr_and_validation_causes_survive():
+    from physical_diagnostics import failure_evidence
+    original = subject._WORKER
+    with tempfile.TemporaryDirectory() as temp:
+        worker = Path(temp) / "fatal.js"
+        worker.write_text("process.stderr.write('FATAL sentinel internal loader error'); process.exit(23);", encoding="utf-8")
+        subject._WORKER = worker
+        try:
+            for validate_only in (False, True):
+                try:
+                    if validate_only:
+                        subject.validate_bound_shared_program(binding(representative_ast()))
+                    else:
+                        BoundSharedInterpreter(binding(representative_ast()), FakeBackend()).run()
+                except SharedInterpreterHostError as exc:
+                    detail = failure_evidence(exc)["causes"][0]["worker"]
+                    require("FATAL sentinel" in detail["stderrTail"], "fatal Node diagnostic discarded")
+                    require(not detail["stderrTruncated"], "small fatal stderr incorrectly truncated")
+                else:
+                    raise AssertionError("fatal worker accepted")
+        finally:
+            subject._WORKER = original
+    ast = representative_ast()
+    ast["program"][1]["value"] = {"kind": "arithmetic", "op": "POWER",
+                                      "left": {"kind": "number", "value": 1},
+                                      "right": {"kind": "number", "value": 2}}
+    try:
+        subject.validate_bound_shared_program(binding(ast))
+    except SharedInterpreterHostError as exc:
+        require("unsupported arithmetic operation POWER" in str(exc), "validation cause was masked")
+    else:
+        raise AssertionError("invalid expression accepted")
+
+
+def test_large_worker_stderr_is_drained_and_bounded():
+    from physical_diagnostics import failure_evidence
+    original = subject._WORKER
+    with tempfile.TemporaryDirectory() as temp:
+        worker = Path(temp) / "noisy.js"
+        worker.write_text("process.stderr.write('x'.repeat(200000)+'FATAL tail'); process.exitCode=19;", encoding="utf-8")
+        subject._WORKER = worker
+        try:
+            try:
+                BoundSharedInterpreter(binding(representative_ast()), FakeBackend()).run()
+            except SharedInterpreterHostError as exc:
+                detail = failure_evidence(exc)["causes"][0]["worker"]
+                require(detail["stderrTruncated"] and len(detail["stderrTail"]) <= 4096, "unbounded stderr capture")
+                require("FATAL tail" in detail["stderrTail"], "stderr pipe stalled before fatal tail")
+            else:
+                raise AssertionError("noisy failed worker accepted")
+        finally:
+            subject._WORKER = original
+
+
+def test_bounded_diagnostics_advertise_truncation():
+    from physical_diagnostics import failure_evidence
+    error = ValueError("x" * 500)
+    for _ in range(15):
+        outer = RuntimeError("wrapper")
+        outer.__cause__ = error
+        error = outer
+    require(failure_evidence(error)["causeChainTruncated"], "cause limit was silent")
+    require(failure_evidence(ValueError("x" * 500))["causes"][0]["messageTruncated"], "message limit was silent")
+
+
 def main() -> int:
+    test_runtime_budget_is_rejected_before_takeoff()
+    test_shared_budget_counts_expressions_branches_and_terminal_land()
+    test_fatal_worker_stderr_and_validation_causes_survive()
+    test_bounded_diagnostics_advertise_truncation()
+    test_large_worker_stderr_is_drained_and_bounded()
     test_real_shared_interpreter_owns_control_flow_and_sensor_demand()
     test_validation_only_preflight_reuses_shared_language_contract_before_effect()
     test_dynamic_safety_and_language_validation_precede_backend_use()
     test_range_data_and_backend_failure_fail_closed()
+    test_backend_failure_preserves_cause_and_exact_ast_location()
     test_private_protocol_rejects_substitution_and_silence()
     test_surface_contains_no_second_language_engine_or_caller_semantics()
     print(

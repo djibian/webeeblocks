@@ -10,8 +10,9 @@ Deterministic shared-language and conservative dynamic-physical validation happe
 before reset or takeoff.  The one real takeoff remains owned by
 ``ProductionTakeoffRunController``; the interpreter's takeoff callback is only a
 verification inside ``TrustedDynamicPhysicalBackend``.  Any failure after that
-causal takeoff terminates the powered-session/watchdog authority through the
-existing controller shutdown path rather than permitting ordinary continuation.
+causal takeoff revokes ordinary continuation. Controller shutdown first attempts
+one controlled landing when the independent physical state remains certain,
+then terminates the powered-session/watchdog authority.
 
 Importing this module performs no physical effect.
 """
@@ -53,7 +54,7 @@ class DynamicRunActivationError(PhysicalRunActivationError):
 
 
 def _terminal_shutdown(controller: ProductionTakeoffRunController) -> None:
-    """Enter the existing powered-session terminal recovery path best-effort."""
+    """Revoke the program and attempt eligible controlled terminal recovery."""
     try:
         controller.shutdown()
     except Exception:
@@ -264,6 +265,10 @@ def activate_validated_dynamic_run(
         )
 
     class _HostBoundDynamicInflightTransport(TrustedDynamicControlledLandingTransport):
+        def send_controlled_landing(self, **kwargs):
+            controller.mark_landing_started()
+            return super().send_controlled_landing(**kwargs)
+
         def _read_current_binding(self) -> PhysicalRunBinding:
             current = self.teacher_binding
             try:
@@ -316,6 +321,7 @@ def activate_validated_dynamic_run(
             supervisor_reader=active_run.supervisor_reader,
             connection_epoch_reader=session.read_connection_epoch,
         )
+        controller.bind_completed_altitude(lambda: inflight_transport.nominal_altitude_m)
         color_transport = _HostBoundColorLedTransport(
             crazyflie=active_run.crazyflie,
             execution_domain=active_run.execution_domain,
@@ -379,18 +385,23 @@ def activate_validated_dynamic_run(
                 return result
             except Exception as exc:
                 self._terminal = True
+                # Recovery runs before potentially fallible observer teardown,
+                # while the exact powered session still has live keepalives.
+                _terminal_shutdown(controller)
                 if not self._closed:
                     try:
                         self._run.close()
                     except Exception:
                         pass
                     self._closed = True
-                _terminal_shutdown(controller)
                 raise DynamicRunActivationError(
-                    "post-takeoff dynamic physical execution failed closed into terminal recovery"
+                    "post-takeoff dynamic physical execution failed closed; recovery="
+                    + controller.recovery_outcome
                 ) from exc
 
         def shutdown(self) -> None:
+            self._terminal = True
+            _terminal_shutdown(controller)
             close_error = None
             if not self._closed:
                 try:
@@ -398,7 +409,6 @@ def activate_validated_dynamic_run(
                 except Exception as exc:
                     close_error = exc
                 self._closed = True
-            _terminal_shutdown(controller)
             if close_error is not None:
                 raise DynamicRunActivationError(
                     "dynamic physical observer teardown is uncertain"

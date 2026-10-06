@@ -421,7 +421,16 @@ def test_local_validation_and_no_authority_surface() -> None:
         )
 
 
+def test_non_finite_deadlines_have_no_log_effect():
+    for value in (True, float("nan"), float("inf"), "1"):
+        observer, cf, _epoch, config = make_observer()
+        expect_error(lambda: observer.open(timeout_seconds=value), "timeout must be positive")
+        expect_error(lambda: observer.read(timeout_seconds=value), "timeout must be positive")
+        require(not cf.log.configs and not config.started, "invalid timeout had effects")
+
+
 def main() -> int:
+    test_non_finite_deadlines_have_no_log_effect()
     test_exact_direction_mapping_and_conversion()
     test_pinned_cflib_unavailable_boundary_is_not_clamped()
     test_cached_and_duplicate_samples_are_not_fresh()
