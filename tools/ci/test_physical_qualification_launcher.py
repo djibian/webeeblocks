@@ -190,6 +190,57 @@ def test_execution_request_count_uses_static_dynamic_host_boundary() -> None:
     require(launcher.execution_request_count(canonical_dynamic_ast()) == 1, "dynamic interpreter run must be one parameter-free request")
 
 
+def test_wait_deadline_admission_precedes_all_host_and_teacher_exchange() -> None:
+    from physical_dynamic_preflight import validate_bound_dynamic_program
+    def binding(middle):
+        ast = json.loads(canonical_dynamic_ast())
+        ast["program"][1:-1] = middle
+        return json.dumps(ast, separators=(",", ":"), sort_keys=True)
+
+    wait = {"kind": "wait", "seconds": 5}
+    for repeats in (6, 8):
+        repeated = {"kind": "repeat", "count": repeats, "body": [wait]}
+        for middle in ([repeated], [{"kind": "if", "condition": {"kind": "compare", "op": "GT",
+                                     "left": {"kind": "range", "direction": "front", "unit": "m"},
+                                     "right": {"kind": "number", "value": 0.8}},
+                                     "then": [repeated], "else": []}]):
+            ast = binding(middle)
+            validate_bound_dynamic_program(ast)  # Otherwise valid physical paths.
+            class Bridge:
+                def request_preparation(self, **_kwargs):
+                    return launcher.PreparedProgram("activity-1", ast, "epoch-before")
+            session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+            caller = _RecordingCaller()
+            teacher = _ShutdownFailingTeacher()
+            session._bridge, session._caller, session._teacher = Bridge(), caller, teacher
+            try:
+                session.prepare()
+            except launcher.PhysicalQualificationLauncherError as exc:
+                require("before teacher authorization" in str(exc), "wrong admission failure")
+            else:
+                raise AssertionError("waits exhausting the whole request were admitted")
+            require(caller.messages == [] and teacher.messages == [], "rejection occurred after host/teacher exchange")
+            require(not session._teacher_decision_attempted and session._prepared is None,
+                    "failed admission established authority/preparation")
+
+    # Separate static waits have separate deadlines; no aggregate static cap.
+    launcher.validate_qualification_wait_budget(binding([wait] * 8))
+    launcher.validate_qualification_wait_budget(canonical_dynamic_ast())
+    launcher.validate_qualification_wait_budget(binding([
+        {"kind": "repeat", "count": 5, "body": [wait]},
+    ]))
+    # Bound the structural proof without expanding repeats or evaluating branches.
+    nested = wait
+    for _ in range(18):
+        nested = {"kind": "repeat", "count": 20, "body": [nested]}
+    try:
+        launcher.validate_qualification_wait_budget(binding([nested]))
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("nested wait overflow admitted")
+
+
 class _FakeSocketResource:
     def __init__(self) -> None:
         self.closed = False
@@ -726,6 +777,7 @@ def test_teardown_failure_preserves_original_execution_diagnostic():
 
 
 def main() -> int:
+    test_wait_deadline_admission_precedes_all_host_and_teacher_exchange()
     test_teardown_failure_preserves_original_execution_diagnostic()
     test_execution_write_is_one_shot_even_when_delivery_is_ambiguous()
     test_socket_deadline_is_total_and_finite()

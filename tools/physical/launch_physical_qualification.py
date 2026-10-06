@@ -46,6 +46,7 @@ BASE_WORLD = ROOT / "worlds" / "crazyflie_runtime_v2.wbt"
 BROWSER_HELPER = PHYSICAL / "physical_qualification_runtime.js"
 MAX_JSON_BYTES = 65536
 PRE_TEACHER_FAILURE_MAX_CHARS = 1024
+EXECUTION_REQUEST_TIMEOUT_SECONDS = 30.0
 
 
 class PhysicalQualificationLauncherError(RuntimeError):
@@ -430,6 +431,50 @@ def execution_request_count(ast_binding: str) -> int:
     return count
 
 
+def validate_qualification_wait_budget(ast_binding: str) -> None:
+    """Reject waits already incompatible with the unchanged request deadline.
+
+    This is a structural admission check, not a duration guarantee or an
+    evaluator: no expressions/sensors are evaluated and both branches count.
+    Radio, observation and motion latency still obey the runtime deadline.
+    """
+    count = execution_request_count(ast_binding)
+    program = json.loads(ast_binding)["program"]
+    from physical_dynamic_preflight import MAX_CONTROL_DEPTH
+
+    def waits(sequence: object, depth: int = 0) -> float:
+        if depth > MAX_CONTROL_DEPTH or not isinstance(sequence, list):
+            raise PhysicalQualificationLauncherError("prepared wait budget has invalid control structure")
+        total = 0.0
+        for node in sequence:
+            if not isinstance(node, dict):
+                raise PhysicalQualificationLauncherError("prepared wait budget has invalid statement")
+            kind = node.get("kind")
+            if kind == "wait":
+                seconds = node.get("seconds")
+                if type(seconds) not in (int, float) or not isfinite(seconds) or seconds < 0:
+                    raise PhysicalQualificationLauncherError("prepared wait duration is invalid")
+                total += seconds
+            elif kind == "repeat":
+                repeats = node.get("count")
+                if (type(repeats) not in (int, float) or not isfinite(repeats)
+                    or not float(repeats).is_integer() or not 1 <= repeats <= 20):
+                    raise PhysicalQualificationLauncherError("prepared wait repetition is invalid")
+                total += repeats * waits(node.get("body"), depth + 1)
+            elif kind == "if":
+                total += max(waits(node.get("then"), depth + 1),
+                             waits(node.get("else", []), depth + 1))
+        return total
+
+    # Static statements have separate requests; dynamic execution has only one.
+    longest = max((waits([node]) for node in program), default=0.0) if count > 1 else waits(program)
+    if longest >= EXECUTION_REQUEST_TIMEOUT_SECONDS:
+        raise PhysicalQualificationLauncherError(
+            "prepared program waits can exhaust the 30-second execution request deadline; "
+            "qualification rejected before teacher authorization"
+        )
+
+
 def _teacher_proposal(value: dict[str, object], prepared: PreparedProgram) -> dict[str, object]:
     if value.get("op") == "pre-teacher-activation-failure":
         if set(value) != {"op", "error", "executionAuthority"}:
@@ -585,6 +630,7 @@ class PhysicalQualificationSession:
         if self._prepared is not None:
             raise PhysicalQualificationLauncherError("qualification program is already prepared")
         prepared = self._bridge.request_preparation(timeout_seconds=timeout_seconds)
+        validate_qualification_wait_budget(prepared.ast_binding)
         request_id = secrets.token_urlsafe(18)
         _write_socket_line(self._caller, {
             "op": "validate-run-context",
@@ -642,7 +688,7 @@ class PhysicalQualificationSession:
         self._teacher_sealed = True
         self._teacher_approved = approved is True
 
-    def execute_approved_program(self, *, timeout_seconds: float = 30.0) -> None:
+    def execute_approved_program(self, *, timeout_seconds: float = EXECUTION_REQUEST_TIMEOUT_SECONDS) -> None:
         if (
             self._caller is None
             or self._prepared is None
