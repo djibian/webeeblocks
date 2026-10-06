@@ -42,6 +42,7 @@ if __name__ == "__main__":
         if str(physical) not in sys.path:
             sys.path.insert(0, str(physical))
 
+        from caller_lifetime import CallerLifetime
         from physical_execution_domain import PhysicalExecutionDomain
         from physical_run_dispatch import activate_validated_run
         from post_reset_capability_bridge import PostResetCapabilityHttpBridge
@@ -102,8 +103,17 @@ if __name__ == "__main__":
             None if args.teacher_fd is None else socket.socket(fileno=args.teacher_fd)
         )
 
+        caller_lifetime = CallerLifetime(caller_reader, max_message_bytes=max_message_bytes)
+
+        class _CallerBoundBridge(PostResetCapabilityHttpBridge):
+            def assert_current_program(self, **kwargs):
+                caller_lifetime.assert_open()
+                evidence = super().assert_current_program(**kwargs)
+                caller_lifetime.assert_open()
+                return evidence
+
         with ReadOnlyCapabilitySession(args.uri) as session:
-            bridge = PostResetCapabilityHttpBridge(session)
+            bridge = _CallerBoundBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
@@ -195,7 +205,7 @@ if __name__ == "__main__":
                     return False
 
             try:
-                for line in caller_reader:
+                for line in caller_lifetime:
                     if len(line.encode("utf-8")) > max_message_bytes:
                         break
                     try:
@@ -334,6 +344,7 @@ if __name__ == "__main__":
                         break
             finally:
                 host_stopping.set()
+                caller_lifetime.stop()
                 staged_ready.set()
 
                 if activation_thread is not None:
@@ -358,6 +369,10 @@ if __name__ == "__main__":
 
                 del _activation_error
 
+                try:
+                    caller_socket.shutdown(socket.SHUT_RD)
+                except OSError:
+                    pass
                 try:
                     caller_reader.close()
                     caller_writer.close()

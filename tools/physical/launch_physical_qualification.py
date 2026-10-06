@@ -24,6 +24,8 @@ from dataclasses import dataclass
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from math import isfinite
+from time import monotonic
 import os
 from pathlib import Path
 import queue
@@ -57,13 +59,18 @@ def _require_text(value: object, name: str) -> str:
 
 
 def _read_socket_line(sock: socket.socket, *, timeout_seconds: float) -> dict[str, object]:
-    if timeout_seconds <= 0:
+    if (type(timeout_seconds) not in (int, float)
+        or not isfinite(timeout_seconds) or timeout_seconds <= 0):
         raise PhysicalQualificationLauncherError("socket timeout must be positive")
     old_timeout = sock.gettimeout()
-    sock.settimeout(timeout_seconds)
+    deadline = monotonic() + timeout_seconds
     data = bytearray()
     try:
         while len(data) <= MAX_JSON_BYTES:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise TimeoutError("trusted channel message deadline expired")
+            sock.settimeout(remaining)
             chunk = sock.recv(1)
             if not chunk:
                 raise PhysicalQualificationLauncherError("trusted channel closed before JSON line")
@@ -510,6 +517,7 @@ class PhysicalQualificationSession:
         self._teacher_decision_attempted = False
         self._teacher_sealed = False
         self._teacher_approved = False
+        self._execution_attempted = False
 
     def _spawn_host(self) -> dict[str, object]:
         caller_host, caller_peer = socket.socketpair()
@@ -640,11 +648,14 @@ class PhysicalQualificationSession:
             or self._prepared is None
             or not self._teacher_sealed
             or self._teacher_approved is not True
+            or self._execution_attempted
         ):
             raise PhysicalQualificationLauncherError(
                 "positively approved exact program is not ready for execution"
             )
         count = execution_request_count(self._prepared.ast_binding)
+        # Consume before the first write: an ambiguous IPC result is never replayable.
+        self._execution_attempted = True
         for index in range(count):
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
             _write_socket_line(self._caller, {
@@ -676,6 +687,25 @@ class PhysicalQualificationSession:
             except OSError:
                 pass
             self._teacher = None
+        if self._host is not None:
+            try:
+                self._host.wait(timeout=10.0)
+            except subprocess.TimeoutExpired as exc:
+                if self._teacher_decision_attempted:
+                    # The host owns powered-session liveness and bounded abort
+                    # recovery. Killing it here can cut an airborne vehicle.
+                    # Keep its browser/resources too; timeout remains a failure.
+                    raise PhysicalQualificationLauncherError(
+                        "trusted host teardown is unresolved after 10 seconds; "
+                        "host left alive for safe recovery; no retry is authorized"
+                    ) from exc
+                self._host.terminate()
+                try:
+                    self._host.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    self._host.kill()
+                    self._host.wait(timeout=5.0)
+            self._host = None
         if self._webots is not None:
             if self._webots.poll() is None:
                 self._webots.terminate()
@@ -685,17 +715,6 @@ class PhysicalQualificationSession:
                     self._webots.kill()
                     self._webots.wait(timeout=5.0)
             self._webots = None
-        if self._host is not None:
-            try:
-                self._host.wait(timeout=10.0)
-            except subprocess.TimeoutExpired:
-                self._host.terminate()
-                try:
-                    self._host.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._host.kill()
-                    self._host.wait(timeout=5.0)
-            self._host = None
         if self._bridge is not None:
             self._bridge.close()
             self._bridge = None
