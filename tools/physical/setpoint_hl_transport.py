@@ -270,6 +270,10 @@ class TrustedSetpointHlTransport:
             ast_binding=binding.ast_binding,
             connection_epoch=binding.connection_epoch,
         )
+        self._assert_powered_flying(binding)
+
+    def _assert_powered_flying(self, binding) -> None:
+        """Same physical safety checks for ordinary effects and terminal recovery."""
         if binding.connection_epoch != self._bound_connection_epoch:
             raise SetpointHlTransportError("current run binding belongs to a different connection epoch")
         if self._powered_session.connection_epoch != self._bound_connection_epoch:

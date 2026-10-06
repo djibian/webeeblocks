@@ -199,7 +199,7 @@ def test_actual_host_consumes_exact_light_program_parameter_free() -> None:
     )
 
 
-def test_rejected_light_effect_remains_exact_next_step() -> None:
+def test_rejected_light_effect_terminates_program_without_retry() -> None:
     host.base.EVENTS.clear()
     install_fakes()
     original = FakeColorTransport.send_color
@@ -222,8 +222,7 @@ def test_rejected_light_effect_remains_exact_next_step() -> None:
         FakeColorTransport.send_color = original
 
     require(replies[2]["ok"] is False, "definitive light rejection is surfaced fail-closed")
-    require(replies[3]["ok"] is True, "next parameter-free request retries the same exact light")
-    require(replies[4]["ok"] is True and replies[5]["ok"] is True, "off and landing follow accepted red")
+    require(all(reply["ok"] is False for reply in replies[3:]), "rejected program must remain terminal")
     rejected = [
         event
         for event in host.base.EVENTS
@@ -239,8 +238,8 @@ def test_rejected_light_effect_remains_exact_next_step() -> None:
         "rejection must be the exact first red effect",
     )
     require(
-        [event[1] for event in accepted] == ["red", "off"],
-        "rejected red effect cannot be skipped or replaced",
+        accepted == [] and attempts["count"] == 1,
+        "rejected red effect cannot be retried or continued",
     )
 
 
@@ -305,7 +304,7 @@ def test_ambiguous_light_effect_makes_host_sequence_terminal() -> None:
 
 def main() -> int:
     test_actual_host_consumes_exact_light_program_parameter_free()
-    test_rejected_light_effect_remains_exact_next_step()
+    test_rejected_light_effect_terminates_program_without_retry()
     test_ambiguous_light_effect_makes_host_sequence_terminal()
     print(
         "PASS actual physical host bottom Color LED sequencing: exact teacher-bound colors execute parameter-free in order, "

@@ -96,6 +96,7 @@ def make_fixture(label: str, *, reply_status: int | None = 0):
     fixture.binding = binding
     fixture.current_binding = binding
     fixture.authorization = authorization
+    fixture.authorizer = authorizer
     fixture.kwargs["teacher_authorization"] = authorization
     fixture.supervisor_reads.clear()
     transport = TestHostBoundLandingTransport(

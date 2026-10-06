@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from math import isfinite
 import struct
-from threading import Event, Lock
 
 import controlled_landing_transport
 import high_level_ack
@@ -29,7 +28,6 @@ import high_level_semantics
 import high_level_timing
 import landing_command
 import physical_dynamic_preflight
-import physical_execution_domain
 import physical_program_sequence
 import setpoint_hl_transport
 
@@ -130,109 +128,7 @@ class TrustedDynamicControlledLandingTransport(
             landing_command.LAND_VELOCITY_M_S,
         )
 
-    def send_controlled_landing(
-        self,
-        *,
-        reply_timeout_seconds: float = controlled_landing_transport._DEFAULT_REPLY_TIMEOUT_SECONDS,
-    ) -> high_level_ack.HighLevelAckResult:
-        """Land from the definitively completed interpreter-selected nominal Z."""
-        timeout = setpoint_hl_transport._positive_timeout(
-            reply_timeout_seconds,
-            "SETPOINT_HL landing reply timeout",
-        )
-        result: high_level_ack.HighLevelAckResult | None = None
-        completion_permit: physical_execution_domain.AcceptedEffectCompletionPermit | None = None
-        baseline = None
-
-        with self.execution_domain.effect_transaction(self._assert_current_authority) as effect:
-            initial_binding = self._read_current_binding()
-            self._assert_binding_authority(initial_binding)
-            request = self._dynamic_landing_request()
-            packet = setpoint_hl_transport._default_packet_factory(request)
-            self._validate_packet(packet, request)
-
-            self._read_fresh_finished_flying()
-            baseline = self._landing_observer.capture_pre_land_flight()
-            final_binding = self._read_current_binding()
-            self._assert_binding_authority(final_binding)
-            if final_binding != initial_binding:
-                raise DynamicControlledLandingTransportError(
-                    "current physical program changed during dynamic landing preparation"
-                )
-            self._safelink.assert_ready()
-
-            with self._ack.transaction(request) as acknowledgement:
-                reply_event = Event()
-                reply_lock = Lock()
-                first_reply: list[bytes] = []
-
-                def on_reply(reply_packet: object) -> None:
-                    try:
-                        data = bytes(getattr(reply_packet, "data"))
-                    except Exception:
-                        data = b""
-                    with reply_lock:
-                        if first_reply:
-                            return
-                        first_reply.append(data)
-                        reply_event.set()
-
-                def read_reply() -> bytes | None:
-                    with reply_lock:
-                        return first_reply[0] if first_reply else None
-
-                add_callback = getattr(self._cf, "add_port_callback", None)
-                remove_callback = getattr(self._cf, "remove_port_callback", None)
-                send_packet = getattr(self._cf, "send_packet", None)
-                if (
-                    not callable(add_callback)
-                    or not callable(remove_callback)
-                    or not callable(send_packet)
-                ):
-                    raise DynamicControlledLandingTransportError(
-                        "Crazyflie SETPOINT_HL callback/send surface is unavailable"
-                    )
-
-                callback_installed = False
-                primary_error = None
-                try:
-                    callback_installed = True
-                    add_callback(setpoint_hl_transport._SETPOINT_HL_PORT, on_reply)
-                    acknowledgement.mark_emitted()
-                    effect.mark_emitted()
-                    send_packet(packet)
-                    try:
-                        reply = self._wait_for_reply(reply_event, read_reply, timeout)
-                    except Exception as exc:
-                        acknowledgement.fail_ambiguous(str(exc))
-                    result = acknowledgement.resolve_reply(reply)
-                    if result.accepted:
-                        completion_permit = effect.mark_accepted()
-                    else:
-                        effect.mark_definitive_rejection()
-                except BaseException as exc:
-                    primary_error = exc
-                    raise
-                finally:
-                    if callback_installed:
-                        try:
-                            remove_callback(
-                                setpoint_hl_transport._SETPOINT_HL_PORT,
-                                on_reply,
-                            )
-                        except Exception as exc:
-                            self._ack.invalidate_transport("HighLevel callback cleanup failed: " + str(exc))
-                            if primary_error is None:
-                                raise DynamicControlledLandingTransportError("HighLevel callback cleanup failed") from exc
-
-        if result is None:
-            raise DynamicControlledLandingTransportError(
-                "dynamic controlled landing acknowledgement result is unavailable"
-            )
-        if result.accepted:
-            if completion_permit is None or baseline is None:
-                raise DynamicControlledLandingTransportError(
-                    "accepted dynamic landing lacks private completion state"
-                )
-            self._await_landing_completion(completion_permit, baseline)
-        return result
+    def _landing_request(self, binding) -> bytes:
+        if binding != self.teacher_binding:
+            raise DynamicControlledLandingTransportError("dynamic landing binding changed")
+        return self._dynamic_landing_request()

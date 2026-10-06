@@ -20,6 +20,11 @@ only stage the non-authority profile/AST intent before this controller is called
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
+from math import isfinite
+import struct
+import sys
 from typing import Callable
 
 import high_level_ack
@@ -30,6 +35,9 @@ import safelink_precondition
 import supervisor_state
 import takeoff_transport
 import teacher_run_authorization
+import takeoff_command
+import controlled_landing_transport
+import landing_command
 import watchdog_liveness
 
 
@@ -98,6 +106,24 @@ class ProductionTakeoffRunController:
         self._execution = execution_domain
         self._used = False
         self._active: ActivePhysicalTakeoffRun | None = None
+        self._altitude_reader = None
+        self._landing_started = False
+        self._recovery_outcome = "not-required"
+        self._shutdown_error = None
+
+    def bind_completed_altitude(self, reader: Callable[[], float]) -> None:
+        """Host-only completed-state source; never exposed through caller IPC."""
+        if self._active is None or not callable(reader):
+            raise ProductionTakeoffRunError("active host-owned altitude source is required")
+        self._altitude_reader = reader
+
+    def mark_landing_started(self) -> None:
+        # A failed normal landing must never be resent as an abort retry.
+        self._landing_started = True
+
+    @property
+    def recovery_outcome(self) -> str:
+        return self._recovery_outcome
 
     @property
     def active_run(self) -> ActivePhysicalTakeoffRun | None:
@@ -206,6 +232,13 @@ class ProductionTakeoffRunController:
             if transport.teacher_binding != binding:
                 raise ProductionTakeoffRunError("takeoff transport lost exact teacher run binding")
 
+            # Retain the exact bundle before the fallible takeoff transaction.
+            # Recovery is still ineligible unless the shared domain positively
+            # establishes FLYING; an ambiguous takeoff cannot mint that fact.
+            self._active = ActivePhysicalTakeoffRun(
+                crazyflie, self._execution, acknowledgement, safelink, receipt,
+                established, watchdog, supervisor,
+            )
             result = transport.send_from_authorized_ast()
             if type(result) is not high_level_ack.HighLevelAckResult or result.accepted is not True:
                 raise ProductionTakeoffRunError("takeoff was not positively acknowledged")
@@ -239,7 +272,12 @@ class ProductionTakeoffRunController:
                 # Diagnostic transport is non-authority and best-effort. It must
                 # never replace or weaken the original fail-closed activation.
                 pass
-            if watchdog is not None and watchdog.active:
+            if self._active is not None:
+                try:
+                    self.shutdown()
+                except Exception:
+                    pass  # Recorded terminal teardown error must not replace activation's cause.
+            elif watchdog is not None and watchdog.active:
                 try:
                     watchdog.stop_for_terminal_reboot()
                 except Exception:
@@ -258,22 +296,110 @@ class ProductionTakeoffRunController:
                 "production takeoff lifecycle failed closed"
             ) from exc
 
-    def shutdown(self) -> None:
-        """Terminate process-local run authorities during trusted host teardown."""
-        active = self._active
-        self._active = None
-        if active is None:
+    def _recover(self, active: ActivePhysicalTakeoffRun) -> None:
+        if active.execution_domain.phase == physical_execution_domain.INACTIVE:
             return
-        if active.watchdog_guard.active:
-            try:
-                active.watchdog_guard.stop_for_terminal_reboot()
-            except Exception:
-                pass
+        self._recovery_outcome = "blocked: flight/effect state is uncertain"
+        if active.execution_domain.phase != physical_execution_domain.FLYING:
+            return
+        if self._landing_started:
+            self._recovery_outcome = "blocked: terminal landing already attempted; no resend"
+            return
+        # Safety landing is independent of the now-revoked student program.
+        # It is confined to this exact causally flying bundle, same epoch and
+        # powered session. It cannot recreate ordinary/teacher authority.
+        binding = active.teacher_authorization.binding
+        try:
+            altitude = (
+                self._altitude_reader() if self._altitude_reader is not None
+                else takeoff_command.derive_bound_takeoff_command(binding.ast_binding).height_m
+            )
+            if (type(altitude) not in (int, float) or not isfinite(altitude)
+                or not 0.2 <= altitude <= 1.5):
+                raise ProductionTakeoffRunError("completed recovery altitude is unavailable")
+
+            class _HostRecoveryLanding(controlled_landing_transport.TrustedControlledLandingTransport):
+                def _read_current_binding(inner):
+                    if self._active is not active or active.teacher_authorization.active:
+                        raise ProductionTakeoffRunError("terminal recovery binding is unavailable")
+                    return binding
+
+                def _assert_binding_authority(inner, current):
+                    if current != binding or inner._teacher is not active.teacher_authorization:
+                        raise ProductionTakeoffRunError("terminal recovery run identity changed")
+                    if active.teacher_authorization.active:
+                        raise ProductionTakeoffRunError("ordinary authority must be revoked before recovery")
+                    inner._assert_powered_flying(current)
+
+                def _landing_request(inner, current):
+                    inner._assert_binding_authority(current)
+                    return struct.pack(
+                        "<BBf?f?f", landing_command.LAND_WITH_VELOCITY_COMMAND,
+                        landing_command.LAND_GROUP_MASK, altitude, True, 0.0, True,
+                        landing_command.LAND_VELOCITY_M_S,
+                    )
+
+            transport = _HostRecoveryLanding(
+                crazyflie=active.crazyflie, execution_domain=active.execution_domain,
+                acknowledgement_domain=active.acknowledgement_domain,
+                safelink_guard=active.safelink_guard,
+                teacher_authorization=active.teacher_authorization,
+                powered_session=active.powered_session, watchdog_guard=active.watchdog_guard,
+                supervisor_reader=active.supervisor_reader, connection_epoch_reader=self._epoch_reader,
+            )
+            self._landing_started = True
+            result = transport.send_controlled_landing()
+            if result.accepted is not True or active.execution_domain.phase != physical_execution_domain.INACTIVE:
+                raise ProductionTakeoffRunError("terminal recovery landing was not completed")
+            self._recovery_outcome = "landed: fresh same-epoch non-flying completion"
+        except Exception as exc:
+            details = []
+            current = exc
+            while current is not None and len(details) < 6:
+                details.append(type(current).__name__ + ": " + str(current)[:200])
+                current = current.__cause__
+            self._recovery_outcome = "failed-or-blocked: " + " <- ".join(details)
+
+    def shutdown(self) -> None:
+        """Revoke ordinary authority, attempt one eligible landing, then teardown."""
+        active = self._active
+        if active is None:
+            if self._shutdown_error is not None:
+                raise ProductionTakeoffRunError("physical host teardown remains uncertain") from self._shutdown_error
+            return
+        teardown_errors = []
         if active.teacher_authorization.active:
             try:
                 self._teacher_authorizer.close_run(
                     active.teacher_authorization,
                     "physical host shutting down",
                 )
-            except Exception:
+            except Exception as exc:
+                teardown_errors.append(exc)
                 active.teacher_authorization.invalidate("physical host shutting down")
+        self._recover(active)
+        self._active = None
+        if active.watchdog_guard.active:
+            try:
+                active.watchdog_guard.stop_for_terminal_reboot()
+            except Exception as exc:
+                teardown_errors.append(exc)
+        if teardown_errors:
+            self._shutdown_error = teardown_errors[0]
+        # Caller EOF/timeout may have removed every IPC response path. Retain
+        # the safety outcome in the host log without making logging an effect
+        # prerequisite or mistaking a failed/blocked recovery for completion.
+        binding = active.teacher_authorization.binding
+        try:
+            print("HOST_RECOVERY " + json.dumps({
+                "outcome": self._recovery_outcome,
+                "phase": active.execution_domain.phase,
+                "teardownErrors": [type(exc).__name__ + ": " + str(exc)[:400] for exc in teardown_errors],
+                "connectionEpoch": binding.connection_epoch,
+                "profileId": binding.profile_id,
+                "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
+            }, sort_keys=True), file=sys.stderr, flush=True)
+        except (OSError, ValueError):
+            pass
+        if self._shutdown_error is not None:
+            raise ProductionTakeoffRunError("physical host teardown is uncertain") from self._shutdown_error
