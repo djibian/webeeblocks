@@ -450,7 +450,7 @@ def test_actual_host_consumes_exact_vertical_program_parameter_free() -> None:
     )
 
 
-def test_rejected_vertical_effect_remains_exact_next_step() -> None:
+def test_rejected_vertical_effect_terminates_program_without_retry() -> None:
     base.EVENTS.clear()
     install_fakes()
     original = FakePhysicalTransportBase.send_vertical_move
@@ -476,12 +476,11 @@ def test_rejected_vertical_effect_remains_exact_next_step() -> None:
         FakePhysicalTransportBase.send_vertical_move = original
 
     require(replies[2]["ok"] is False, "definitive vertical rejection is surfaced fail-closed")
-    require(replies[3]["ok"] is True, "next parameter-free request retries the same exact unemitted step")
-    require(replies[4]["ok"] is True and replies[5]["ok"] is True, "later descent and landing follow only after accepted climb")
+    require(all(reply["ok"] is False for reply in replies[3:]), "rejected program must remain terminal")
     accepted = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-vertical"]
     rejected = [event for event in base.EVENTS if isinstance(event, tuple) and event[0] == "inflight-vertical-rejected"]
     require(rejected == [("inflight-vertical-rejected", "up", 0.3, "epoch-after")], "rejection is exact first climb")
-    require([event[1:3] for event in accepted] == [("up", 0.3), ("down", 0.2)], "rejected climb cannot be skipped")
+    require(accepted == [] and attempts["count"] == 1, "rejected climb was retried or program continued")
 
 
 def test_ambiguous_vertical_effect_makes_host_sequence_terminal() -> None:
@@ -548,7 +547,7 @@ def test_actual_host_consumes_exact_wait_without_effect_transport() -> None:
     require(len(current_program_events) >= 3, "wait and later landing each re-establish current-program provenance")
 
 
-def test_incomplete_host_wait_fails_closed_without_landing() -> None:
+def test_incomplete_host_wait_revokes_program_before_safety_landing() -> None:
     base.EVENTS.clear()
     install_fakes()
     prior = base.activation._execute_exact_wait
@@ -564,10 +563,13 @@ def test_incomplete_host_wait_fails_closed_without_landing() -> None:
         base.activation._execute_exact_wait = prior
     require(replies[2]["ok"] is False, "interrupted wait must fail closed")
     require(replies[3]["ok"] is False, "terminal sequence cannot advance after failed wait")
-    require(
-        not any(isinstance(event, tuple) and event[0] == "terminal-land" for event in base.EVENTS),
-        "failed wait must not be skipped into terminal landing",
-    )
+    lands = [i for i, event in enumerate(base.EVENTS)
+             if isinstance(event, tuple) and event[0] == "terminal-land"]
+    revoked = next(i for i, event in enumerate(base.EVENTS)
+                   if isinstance(event, tuple) and event[0] == "teacher-close")
+    require(len(lands) == 1, "abort must attempt exactly one safety landing")
+    require(revoked < lands[0] < base.EVENTS.index("watchdog-stop"),
+            "safety landing requires revoked ordinary authority and a live watchdog")
 
 
 def test_actual_host_rejects_malformed_terminal_before_takeoff() -> None:
@@ -601,11 +603,11 @@ def main() -> int:
     test_started_activation_wait_is_outside_lifecycle_lock()
     test_actual_host_completes_exact_program_with_terminal_landing()
     test_actual_host_consumes_exact_vertical_program_parameter_free()
-    test_rejected_vertical_effect_remains_exact_next_step()
+    test_rejected_vertical_effect_terminates_program_without_retry()
     test_ambiguous_vertical_effect_makes_host_sequence_terminal()
     test_boundary_only_program_lands_without_opening_yaw()
     test_actual_host_consumes_exact_wait_without_effect_transport()
-    test_incomplete_host_wait_fails_closed_without_landing()
+    test_incomplete_host_wait_revokes_program_before_safety_landing()
     test_actual_host_rejects_malformed_terminal_before_takeoff()
     print(
         "PASS actual physical host sequencing: validated takeoff preserves exact ordered horizontal/vertical motion, "
