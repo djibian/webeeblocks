@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import subprocess
 import sys
 from threading import Event, Thread
 
@@ -19,6 +20,7 @@ import caller_lifetime
 import high_level_ack  # noqa: E402
 import physical_execution_domain  # noqa: E402
 import physical_run_activation as activation  # noqa: E402
+import physical_run_dispatch as dispatch  # noqa: E402
 import post_reset_capability_bridge  # noqa: E402
 import powered_session_authority  # noqa: E402
 import probe_reference_hardware  # noqa: E402
@@ -164,7 +166,7 @@ def _teacher_peer(
         result["error"] = exc
 
 
-def run_host(*, teacher_mode: str | None) -> dict[str, object]:
+def run_host(*, teacher_mode: str | None, expected_teardown_error: bool = False) -> dict[str, object]:
     TAKEOFF_COMPLETED.clear()
     TEACHER_PROPOSAL.clear()
     RELEASE_TEACHER_REPLY.clear()
@@ -276,10 +278,14 @@ def run_host(*, teacher_mode: str | None) -> dict[str, object]:
 
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "actual production host runner did not terminate")
-    require(
-        "error" not in outcome,
-        "actual production host runner failed: " + repr(outcome.get("error")),
-    )
+    if expected_teardown_error:
+        error = outcome.get("error")
+        require(isinstance(error, RuntimeError) and "terminal teardown failed" in str(error),
+                "actual host hid terminal teardown failure: " + repr(error))
+        require("injected controller shutdown" in str(error.__cause__), "host lost teardown cause")
+    else:
+        require("error" not in outcome,
+                "actual production host runner failed: " + repr(outcome.get("error")))
 
     caller_peer.close()
     if teacher_peer is not None:
@@ -407,6 +413,26 @@ def test_caller_eof_before_teacher_reply_blocks_takeoff():
             "caller loss manufactured flight authority")
 
 
+def test_actual_host_reports_failed_controller_shutdown_after_cleanup():
+    EVENTS.clear()
+    install_hardware_fakes()
+    original = dispatch.activate_validated_run
+    def activate(**kwargs):
+        controller = original(**kwargs)
+        class FailedShutdown:
+            def shutdown(self):
+                controller.shutdown()
+                raise RuntimeError("injected controller shutdown failure")
+        return FailedShutdown()
+    dispatch.activate_validated_run = activate
+    try:
+        run_host(teacher_mode="approve", expected_teardown_error=True)
+        require(("session-close", "epoch-after") in EVENTS, "failed teardown prevented radio-session cleanup")
+        require("watchdog-stop" in EVENTS, "failed teardown skipped authority termination")
+    finally:
+        dispatch.activate_validated_run = original
+
+
 def main() -> int:
     test_caller_eof_before_teacher_reply_blocks_takeoff()
     # Keep the real process-wide domain reusable across these deterministic cases:
@@ -414,6 +440,11 @@ def main() -> int:
     test_mismatched_real_teacher_reply_cannot_reach_effect()
     test_real_teacher_and_execution_authority_reach_causal_effect()
     test_no_teacher_capability_remains_effect_free()
+    # Each positive authority case needs its own real process-wide domain;
+    # do not reset an already-FLYING domain merely to reuse a test process.
+    subprocess.run([sys.executable, "-c", "import test_physical_host_authority_path as t; "
+                    "t.test_actual_host_reports_failed_controller_shutdown_after_cleanup()"],
+                   cwd=CI, check=True, timeout=10)
     print(
         "PASS actual host authority path: real #273 + real #290/#267 socket authority, "
         "fresh post-reset provenance and causal effect; mismatch/caller-only fail closed"

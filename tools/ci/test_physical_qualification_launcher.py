@@ -761,6 +761,33 @@ def test_caller_loss_is_observed_during_a_blocking_operation():
         lifetime.stop(); peer.close(); host.shutdown(socket.SHUT_RD); reader.close(); host.close()
 
 
+def test_failed_host_exit_cleans_resources_and_never_reports_success():
+    events = []
+    class Host:
+        def wait(self, timeout):
+            events.append("host finished")
+            return 7
+        def terminate(self):
+            raise AssertionError("completed host was terminated again")
+    class Resource:
+        def close(self):
+            events.append("resource closed")
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    session._host = Host()
+    session._bridge = Resource()
+    session._ephemeral = Resource()
+    try:
+        session.close()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("unsuccessfully: 7" in str(exc), "host failure code was lost")
+    else:
+        raise AssertionError("failed host exit became successful qualification")
+    require(events == ["host finished", "resource closed", "resource closed"],
+            "known host failure prevented safe remaining cleanup")
+    require(session._host is None and session._bridge is None and session._ephemeral is None,
+            "completed cleanup retained resources")
+
+
 def test_teardown_failure_preserves_original_execution_diagnostic():
     session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
     def fail(): raise launcher.PhysicalQualificationLauncherError("host teardown unresolved")
@@ -777,6 +804,7 @@ def test_teardown_failure_preserves_original_execution_diagnostic():
 
 
 def main() -> int:
+    test_failed_host_exit_cleans_resources_and_never_reports_success()
     test_wait_deadline_admission_precedes_all_host_and_teacher_exchange()
     test_teardown_failure_preserves_original_execution_diagnostic()
     test_execution_write_is_one_shot_even_when_delivery_is_ambiguous()
