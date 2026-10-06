@@ -36,6 +36,7 @@ def controller_for(fixture):
     owner._altitude_reader = None
     owner._landing_started = False
     owner._recovery_outcome = "not-required"
+    owner._shutdown_error = None
     return owner
 
 
@@ -131,6 +132,39 @@ def test_failed_recovery_is_one_shot_and_does_not_claim_landing():
             fixture.close()
 
 
+def test_watchdog_teardown_failure_is_durable_and_does_not_repeat_landing():
+    fixture, _ = fixtures.make_fixture("abort-watchdog-teardown")
+    owner = controller_for(fixture)
+    fixtures.queue_pre_land(fixture, completion=base.state(
+        is_flying=False, hl_control_active=False, hl_traj_finished=True,
+    ))
+    guard_type = type(fixture.watchdog)
+    original_stop = guard_type.stop_for_terminal_reboot
+    def uncertain_stop(self, **kwargs):
+        original_stop(self, **kwargs)
+        raise RuntimeError("injected watchdog thread did not terminate")
+    guard_type.stop_for_terminal_reboot = uncertain_stop
+    log = StringIO()
+    try:
+        with redirect_stderr(log):
+            for _ in range(2):
+                try:
+                    owner.shutdown()
+                except production.ProductionTakeoffRunError as exc:
+                    require("watchdog thread" in str(exc.__cause__), "teardown cause was masked")
+                else:
+                    raise AssertionError("uncertain watchdog teardown reported success")
+        records = [json.loads(line.removeprefix("HOST_RECOVERY ")) for line in log.getvalue().splitlines()]
+        require(len(records) == 1 and "watchdog thread" in records[0]["teardownErrors"][0],
+                "watchdog teardown evidence lost or repeated")
+        require(len(fixture.cf.send_calls) == 1 and fixture.domain.phase == execution.INACTIVE,
+                "teardown uncertainty replayed landing or erased confirmed landing")
+        require(not fixture.authorization.active, "teardown uncertainty restored ordinary authority")
+    finally:
+        guard_type.stop_for_terminal_reboot = original_stop
+        fixture.close()
+
+
 def main():
     original = transport._default_packet_factory
     transport._default_packet_factory = base.Packet
@@ -138,6 +172,7 @@ def main():
         test_lands_with_revoked_program_while_watchdog_is_live()
         test_uncertain_prerequisites_never_emit_or_retry()
         test_failed_recovery_is_one_shot_and_does_not_claim_landing()
+        test_watchdog_teardown_failure_is_durable_and_does_not_repeat_landing()
     finally:
         transport._default_packet_factory = original
     print("PASS terminal recovery: revoked program, live watchdog, one controlled landing, fresh completion; uncertainty and replay fail closed")

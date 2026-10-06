@@ -721,6 +721,7 @@ class PhysicalQualificationSession:
                 )
 
     def close(self) -> None:
+        host_exit_error = None
         if self._caller is not None:
             try:
                 self._caller.shutdown(socket.SHUT_WR)
@@ -739,7 +740,11 @@ class PhysicalQualificationSession:
             self._teacher = None
         if self._host is not None:
             try:
-                self._host.wait(timeout=10.0)
+                exit_code = self._host.wait(timeout=10.0)
+                if exit_code != 0:
+                    host_exit_error = PhysicalQualificationLauncherError(
+                        "trusted host exited unsuccessfully: " + str(exit_code)
+                    )
             except subprocess.TimeoutExpired as exc:
                 if self._teacher_decision_attempted:
                     # The host owns powered-session liveness and bounded abort
@@ -771,6 +776,8 @@ class PhysicalQualificationSession:
         if self._ephemeral is not None:
             self._ephemeral.close()
             self._ephemeral = None
+        if host_exit_error is not None:
+            raise host_exit_error
 
     def __enter__(self) -> "PhysicalQualificationSession":
         self.start()

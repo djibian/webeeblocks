@@ -53,13 +53,13 @@ class DynamicRunActivationError(PhysicalRunActivationError):
     """Fail-closed error for production shared-interpreter physical activation."""
 
 
-def _terminal_shutdown(controller: ProductionTakeoffRunController) -> None:
+def _terminal_shutdown(controller: ProductionTakeoffRunController) -> Exception | None:
     """Revoke the program and attempt eligible controlled terminal recovery."""
     try:
         controller.shutdown()
-    except Exception:
-        # The trusted watchdog lifecycle records terminal uncertainty itself.
-        pass
+    except Exception as exc:
+        return exc
+    return None
 
 
 def activate_validated_dynamic_run(
@@ -387,7 +387,7 @@ def activate_validated_dynamic_run(
                 self._terminal = True
                 # Recovery runs before potentially fallible observer teardown,
                 # while the exact powered session still has live keepalives.
-                _terminal_shutdown(controller)
+                teardown_error = _terminal_shutdown(controller)
                 if not self._closed:
                     try:
                         self._run.close()
@@ -397,11 +397,12 @@ def activate_validated_dynamic_run(
                 raise DynamicRunActivationError(
                     "post-takeoff dynamic physical execution failed closed; recovery="
                     + controller.recovery_outcome
+                    + ("; teardown uncertain: " + str(teardown_error) if teardown_error else "")
                 ) from exc
 
         def shutdown(self) -> None:
             self._terminal = True
-            _terminal_shutdown(controller)
+            teardown_error = _terminal_shutdown(controller)
             close_error = None
             if not self._closed:
                 try:
@@ -409,9 +410,10 @@ def activate_validated_dynamic_run(
                 except Exception as exc:
                     close_error = exc
                 self._closed = True
-            if close_error is not None:
+            if teardown_error is not None or close_error is not None:
                 raise DynamicRunActivationError(
-                    "dynamic physical observer teardown is uncertain"
-                ) from close_error
+                    "dynamic physical teardown is uncertain; controller=" + str(teardown_error)
+                    + "; observer=" + str(close_error)
+                ) from (teardown_error or close_error)
 
     return _ActivatedDynamicRunController()

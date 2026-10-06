@@ -160,6 +160,16 @@ if __name__ == "__main__":
                         )
                 except Exception as exc:
                     activation_state["error"] = exc
+                    # An activation/preflight failure can precede any execution
+                    # request, so do not rely on a later caller to retrieve it.
+                    try:
+                        print("HOST_ACTIVATION_DIAGNOSTIC " + json.dumps({
+                            **failure_evidence(exc, binding=staged_state["binding"],
+                                               phase=execution_domain.phase),
+                            "bindingStage": "staged",
+                        }, sort_keys=True), file=sys.stderr, flush=True)
+                    except (OSError, ValueError):
+                        pass
                 finally:
                     activation_complete.set()
 
@@ -381,13 +391,13 @@ if __name__ == "__main__":
                     try:
                         active_controller.shutdown()
                     except Exception as exc:
-                        teardown_error = type(exc).__name__ + ": " + str(exc)[:400]
+                        teardown_error = exc
                 # This survives caller EOF, when IPC can no longer carry a reply.
                 print("HOST_TEARDOWN " + json.dumps({
                     "phase": execution_domain.phase,
                     "callerClosure": caller_lifetime.close_reason,
                     "activationError": str(_activation_error)[:400] if _activation_error else None,
-                    "teardownError": teardown_error,
+                    "teardownError": type(teardown_error).__name__ + ": " + str(teardown_error)[:400] if teardown_error else None,
                 }, sort_keys=True), file=sys.stderr, flush=True)
 
                 bridge.shutdown()
@@ -411,5 +421,8 @@ if __name__ == "__main__":
                     caller_socket.close()
                 except OSError:
                     pass
+
+                if teardown_error is not None:
+                    raise RuntimeError("physical host terminal teardown failed") from teardown_error
 
     _run_physical_host()

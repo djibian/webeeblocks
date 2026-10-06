@@ -669,9 +669,14 @@ def activate_validated_run(
                 return result
             except Exception as exc:
                 self._terminal = True
-                controller.shutdown()
+                teardown_error = None
+                try:
+                    controller.shutdown()
+                except Exception as shutdown_exc:
+                    teardown_error = shutdown_exc
                 raise PhysicalRunActivationError(
                     "physical program failed closed; recovery=" + controller.recovery_outcome
+                    + ("; teardown uncertain: " + str(teardown_error) if teardown_error else "")
                 ) from exc
 
         def _execute_next_inflight(self):
@@ -772,16 +777,21 @@ def activate_validated_run(
         def shutdown(self) -> None:
             self._terminal = True
             # A failing observer teardown must not preempt an eligible landing.
-            controller.shutdown()
+            teardown_error = None
+            try:
+                controller.shutdown()
+            except Exception as exc:
+                teardown_error = exc
             yaw_error = None
             if self._yaw_reader is not None:
                 try:
                     self._yaw_reader.close()
                 except Exception as exc:
                     yaw_error = exc
-            if yaw_error is not None:
+            if teardown_error is not None or yaw_error is not None:
                 raise PhysicalRunActivationError(
-                    "could not close in-flight yaw observer cleanly"
-                ) from yaw_error
+                    "physical teardown is uncertain; controller=" + str(teardown_error)
+                    + "; yaw=" + str(yaw_error)
+                ) from (teardown_error or yaw_error)
 
     return _ActivatedRunController()
