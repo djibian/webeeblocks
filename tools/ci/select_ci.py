@@ -44,6 +44,15 @@ WEBOTS = (
     "tools/ci/**",
     "experiments/**",
 )
+# These tests/fixtures exercise the physical core from ci-runtime.yml. Their
+# former generic tools/ci match selected only Webots, skipping their own oracles.
+PHYSICAL_RUNTIME_EVIDENCE = (
+    "tools/ci/test_physical_*",
+    "tools/ci/test_dynamic_*",
+    "tools/ci/test_production_takeoff_run.py",
+    "tools/ci/test_teacher_run_authorization.py",
+    "tools/ci/fixtures/physical_*",
+)
 SHARED_RUNTIME_WEBOTS = (
     "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
@@ -82,6 +91,8 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
     webots = False
     unknown: list[str] = []
     for path in changed:
+        if matches(path, PHYSICAL_RUNTIME_EVIDENCE):
+            runtime = True
         if matches(path, DOC_ONLY):
             continue
         if matches(path, SHARED_RUNTIME_WEBOTS):

@@ -119,6 +119,7 @@ def run_production_regression(relative_path: str, label: str) -> None:
 
 
 def main() -> int:
+    run_production_regression("tools/ci/test_physical_fail_554.py", "exact historical #554 regression must pass")
     test_exact_backend_and_one_shot_execution()
     test_interpreter_failure_is_fail_closed_but_cleanup_remains_explicit()
     # These production-host regressions install broad fake trusted-host surfaces.
