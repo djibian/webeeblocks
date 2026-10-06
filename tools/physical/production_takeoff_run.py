@@ -109,6 +109,7 @@ class ProductionTakeoffRunController:
         self._altitude_reader = None
         self._landing_started = False
         self._recovery_outcome = "not-required"
+        self._shutdown_error = None
 
     def bind_completed_altitude(self, reader: Callable[[], float]) -> None:
         """Host-only completed-state source; never exposed through caller IPC."""
@@ -272,7 +273,10 @@ class ProductionTakeoffRunController:
                 # never replace or weaken the original fail-closed activation.
                 pass
             if self._active is not None:
-                self.shutdown()
+                try:
+                    self.shutdown()
+                except Exception:
+                    pass  # Recorded terminal teardown error must not replace activation's cause.
             elif watchdog is not None and watchdog.active:
                 try:
                     watchdog.stop_for_terminal_reboot()
@@ -360,22 +364,28 @@ class ProductionTakeoffRunController:
         """Revoke ordinary authority, attempt one eligible landing, then teardown."""
         active = self._active
         if active is None:
+            if self._shutdown_error is not None:
+                raise ProductionTakeoffRunError("physical host teardown remains uncertain") from self._shutdown_error
             return
+        teardown_errors = []
         if active.teacher_authorization.active:
             try:
                 self._teacher_authorizer.close_run(
                     active.teacher_authorization,
                     "physical host shutting down",
                 )
-            except Exception:
+            except Exception as exc:
+                teardown_errors.append(exc)
                 active.teacher_authorization.invalidate("physical host shutting down")
         self._recover(active)
         self._active = None
         if active.watchdog_guard.active:
             try:
                 active.watchdog_guard.stop_for_terminal_reboot()
-            except Exception:
-                pass
+            except Exception as exc:
+                teardown_errors.append(exc)
+        if teardown_errors:
+            self._shutdown_error = teardown_errors[0]
         # Caller EOF/timeout may have removed every IPC response path. Retain
         # the safety outcome in the host log without making logging an effect
         # prerequisite or mistaking a failed/blocked recovery for completion.
@@ -384,9 +394,12 @@ class ProductionTakeoffRunController:
             print("HOST_RECOVERY " + json.dumps({
                 "outcome": self._recovery_outcome,
                 "phase": active.execution_domain.phase,
+                "teardownErrors": [type(exc).__name__ + ": " + str(exc)[:400] for exc in teardown_errors],
                 "connectionEpoch": binding.connection_epoch,
                 "profileId": binding.profile_id,
                 "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
             }, sort_keys=True), file=sys.stderr, flush=True)
         except (OSError, ValueError):
             pass
+        if self._shutdown_error is not None:
+            raise ProductionTakeoffRunError("physical host teardown is uncertain") from self._shutdown_error
