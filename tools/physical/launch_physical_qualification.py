@@ -727,7 +727,14 @@ class PhysicalQualificationSession:
         return self
 
     def __exit__(self, _kind, _value, _traceback) -> None:
-        self.close()
+        try:
+            self.close()
+        except Exception as cleanup_error:
+            if _value is not None:
+                raise PhysicalQualificationLauncherError(
+                    str(_value) + "; terminal teardown also failed: " + str(cleanup_error)
+                ) from _value
+            raise
 
 
 def _binding_summary(prepared: PreparedProgram, proposal: dict[str, object]) -> str:

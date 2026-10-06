@@ -710,7 +710,23 @@ def test_caller_loss_is_observed_during_a_blocking_operation():
         lifetime.stop(); peer.close(); host.shutdown(socket.SHUT_RD); reader.close(); host.close()
 
 
+def test_teardown_failure_preserves_original_execution_diagnostic():
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    def fail(): raise launcher.PhysicalQualificationLauncherError("host teardown unresolved")
+    session.close = fail
+    original = launcher.PhysicalQualificationLauncherError("HOST_DIAGNOSTIC root cause")
+    try:
+        session.__exit__(type(original), original, None)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("HOST_DIAGNOSTIC root cause" in str(exc) and "host teardown unresolved" in str(exc),
+                "teardown masked the initiating diagnostic")
+        require(exc.__cause__ is original, "original exception identity lost")
+    else:
+        raise AssertionError("teardown failure was hidden")
+
+
 def main() -> int:
+    test_teardown_failure_preserves_original_execution_diagnostic()
     test_execution_write_is_one_shot_even_when_delivery_is_ambiguous()
     test_socket_deadline_is_total_and_finite()
     test_teardown_never_kills_a_possibly_authorized_host()

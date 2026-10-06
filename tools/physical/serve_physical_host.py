@@ -352,11 +352,19 @@ if __name__ == "__main__":
 
                 active_controller = activation_state["active_run"]
                 _activation_error = activation_state["error"]
+                teardown_error = None
                 if active_controller is not None:
                     try:
                         active_controller.shutdown()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        teardown_error = type(exc).__name__ + ": " + str(exc)[:400]
+                # This survives caller EOF, when IPC can no longer carry a reply.
+                print("HOST_TEARDOWN " + json.dumps({
+                    "phase": execution_domain.phase,
+                    "callerClosure": caller_lifetime.close_reason,
+                    "activationError": str(_activation_error)[:400] if _activation_error else None,
+                    "teardownError": teardown_error,
+                }, sort_keys=True), file=sys.stderr, flush=True)
 
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
