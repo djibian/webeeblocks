@@ -25,6 +25,19 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(result.webots)
         self.assertFalse(result.full)
 
+    def test_physical_test_and_fixture_edits_keep_prior_suites_and_run_their_oracles(self) -> None:
+        for path in (
+            "tools/ci/test_physical_fail_554.py",
+            "tools/ci/fixtures/physical_fail_554_ast.json",
+            "tools/ci/test_dynamic_physical_run.py",
+            "tools/ci/test_production_takeoff_run.py",
+            "tools/ci/test_teacher_run_authorization.py",
+        ):
+            with self.subTest(path=path):
+                result = select([path])
+                self.assertTrue(result.runtime)
+                self.assertTrue(result.webots)  # retain the previous selection too
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)

@@ -386,12 +386,19 @@ justified by the current evidence.
   matching Robot Window perspective are self-contained and verified without
   fallback to absent system R2025a project paths. This repairs machine packaging
   only and does not convert #433 into physical qualification evidence
-- current checkpoint boundary: representative real-device qualification remains
-  `UNPROVEN` pending a fresh exact-SHA `physical-capabilities-representative`
-  checkpoint. Before requesting one, reconstruct current main, qualification
-  support/cache evidence and the global `TEST_REQUIRED` set; the generic
-  one-open-human-test rule remains mandatory and earlier failed/stale
-  qualification artifacts must never be reused
+- physical checkpoint #554 recorded owner-authoritative `FAIL` on exact
+  `0229ac7232c67acbe8dbe3baac5d580c86718c39`: verified package, normal 0.5 m
+  takeoff, brief hover then fall/impact, generic dynamic `step 1` failure and no
+  retry. Its initiating exception is not recoverable from the retained diagnostic;
+  unavailable Multi-ranger remains a hypothesis. Deterministic review established
+  lossy error propagation and a post-takeoff teardown path without eligible
+  controlled abort landing, plus adjacent freshness, teardown, budget and
+  launcher lifecycle defects. See [the causal audit](PHYSICAL_FAIL_554_AUDIT.md).
+  These repairs and independent integration review are prerequisites to any new
+  representative checkpoint. Preserve #554 as FAIL; never reuse its artifact or
+  approval. Reconstruct exact main, canonical CI, fresh qualification support,
+  artifact/digest and the global `TEST_REQUIRED` set; physical acceptance remains
+  `UNPROVEN` and the generic one-open-human-test rule remains mandatory
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the
@@ -489,8 +496,9 @@ justified by the current evidence.
   available Crazyflie 2.1 + Flow Deck V2 + Multi-ranger observation, but it is
   not a reusable live execution preflight and does not prove an absent Color LED
   capability or any command path
-- depends: integrated #441 already closes the #433 qualification-world asset
-  defect. The remaining gate is a fresh exact-artifact representative real-device
+- depends: integrated #441 closes the #433 qualification-world asset defect.
+  The #554 failure additionally requires reviewed causal diagnostics, controlled
+  abort recovery and adjacent lifecycle repairs before a fresh exact-artifact representative real-device
   qualification of the integrated physical envelope, subject to the generic
   one-open-human-test rule after reconstructing the live checkpoint set. The
   trusted host already owns the live session, #278 responder, exact #267 teacher
