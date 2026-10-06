@@ -465,7 +465,16 @@ def test_shared_language_invalidity_fails_before_reset_or_takeoff() -> None:
     RANGE_FAIL = False
     base.EVENTS.clear()
     install_dynamic_fakes()
-    replies = host.run_host_sequence(language_invalid_ast(), steps=1)
+    activation_log = StringIO()
+    with redirect_stderr(activation_log):
+        replies = host.run_host_sequence(language_invalid_ast(), steps=1)
+    records = [json.loads(line.removeprefix("HOST_ACTIVATION_DIAGNOSTIC "))
+               for line in activation_log.getvalue().splitlines()
+               if line.startswith("HOST_ACTIVATION_DIAGNOSTIC ")]
+    require(len(records) == 1 and records[0]["bindingStage"] == "staged",
+            "pre-approval activation diagnostic was lost or mislabeled")
+    require(any("variable read before assignment" in c["message"] for c in records[0]["causes"]),
+            "activation log omitted the initiating shared validation error")
 
     require(replies[0]["ok"] is True, "run-context bridge should remain diagnostic")
     require(replies[2]["ok"] is False, "language-invalid program acquired execution")

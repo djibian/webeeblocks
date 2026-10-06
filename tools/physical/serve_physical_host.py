@@ -150,6 +150,16 @@ if __name__ == "__main__":
                         )
                 except Exception as exc:
                     activation_state["error"] = exc
+                    # An activation/preflight failure can precede any execution
+                    # request, so do not rely on a later caller to retrieve it.
+                    try:
+                        print("HOST_ACTIVATION_DIAGNOSTIC " + json.dumps({
+                            **failure_evidence(exc, binding=staged_state["binding"],
+                                               phase=execution_domain.phase),
+                            "bindingStage": "staged",
+                        }, sort_keys=True), file=sys.stderr, flush=True)
+                    except (OSError, ValueError):
+                        pass
                 finally:
                     activation_complete.set()
 
