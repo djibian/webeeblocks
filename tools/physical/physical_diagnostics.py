@@ -19,6 +19,11 @@ def failure_evidence(error: BaseException, *, binding=None, phase=None) -> dict:
             "type": type(current).__name__,
             "message": str(current)[:400],
         }
+        if len(str(current)) > 400:
+            item["messageTruncated"] = True
+        worker = getattr(current, "physical_worker", None)
+        if isinstance(worker, dict):
+            item["worker"] = worker
         trace = current.__traceback__
         if trace is not None:
             while trace.tb_next is not None:
@@ -36,6 +41,8 @@ def failure_evidence(error: BaseException, *, binding=None, phase=None) -> dict:
             None if current.__suppress_context__ else current.__context__
         )
     result = {"causes": causes, "phase": phase}
+    if current is not None:
+        result["causeChainTruncated"] = True
     if binding is not None:
         result.update(
             profileId=binding.profile_id,

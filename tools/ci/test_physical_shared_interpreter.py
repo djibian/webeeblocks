@@ -364,7 +364,75 @@ def test_backend_failure_preserves_cause_and_exact_ast_location() -> None:
         raise AssertionError("injected range failure was accepted")
 
 
+def test_fatal_worker_stderr_and_validation_causes_survive():
+    from physical_diagnostics import failure_evidence
+    original = subject._WORKER
+    with tempfile.TemporaryDirectory() as temp:
+        worker = Path(temp) / "fatal.js"
+        worker.write_text("process.stderr.write('FATAL sentinel internal loader error'); process.exit(23);", encoding="utf-8")
+        subject._WORKER = worker
+        try:
+            for validate_only in (False, True):
+                try:
+                    if validate_only:
+                        subject.validate_bound_shared_program(binding(representative_ast()))
+                    else:
+                        BoundSharedInterpreter(binding(representative_ast()), FakeBackend()).run()
+                except SharedInterpreterHostError as exc:
+                    detail = failure_evidence(exc)["causes"][0]["worker"]
+                    require("FATAL sentinel" in detail["stderrTail"], "fatal Node diagnostic discarded")
+                    require(not detail["stderrTruncated"], "small fatal stderr incorrectly truncated")
+                else:
+                    raise AssertionError("fatal worker accepted")
+        finally:
+            subject._WORKER = original
+    ast = representative_ast()
+    ast["program"][1]["value"] = {"kind": "arithmetic", "op": "POWER",
+                                      "left": {"kind": "number", "value": 1},
+                                      "right": {"kind": "number", "value": 2}}
+    try:
+        subject.validate_bound_shared_program(binding(ast))
+    except SharedInterpreterHostError as exc:
+        require("unsupported arithmetic operation POWER" in str(exc), "validation cause was masked")
+    else:
+        raise AssertionError("invalid expression accepted")
+
+
+def test_large_worker_stderr_is_drained_and_bounded():
+    from physical_diagnostics import failure_evidence
+    original = subject._WORKER
+    with tempfile.TemporaryDirectory() as temp:
+        worker = Path(temp) / "noisy.js"
+        worker.write_text("process.stderr.write('x'.repeat(200000)+'FATAL tail'); process.exitCode=19;", encoding="utf-8")
+        subject._WORKER = worker
+        try:
+            try:
+                BoundSharedInterpreter(binding(representative_ast()), FakeBackend()).run()
+            except SharedInterpreterHostError as exc:
+                detail = failure_evidence(exc)["causes"][0]["worker"]
+                require(detail["stderrTruncated"] and len(detail["stderrTail"]) <= 4096, "unbounded stderr capture")
+                require("FATAL tail" in detail["stderrTail"], "stderr pipe stalled before fatal tail")
+            else:
+                raise AssertionError("noisy failed worker accepted")
+        finally:
+            subject._WORKER = original
+
+
+def test_bounded_diagnostics_advertise_truncation():
+    from physical_diagnostics import failure_evidence
+    error = ValueError("x" * 500)
+    for _ in range(15):
+        outer = RuntimeError("wrapper")
+        outer.__cause__ = error
+        error = outer
+    require(failure_evidence(error)["causeChainTruncated"], "cause limit was silent")
+    require(failure_evidence(ValueError("x" * 500))["causes"][0]["messageTruncated"], "message limit was silent")
+
+
 def main() -> int:
+    test_fatal_worker_stderr_and_validation_causes_survive()
+    test_bounded_diagnostics_advertise_truncation()
+    test_large_worker_stderr_is_drained_and_bounded()
     test_real_shared_interpreter_owns_control_flow_and_sensor_demand()
     test_validation_only_preflight_reuses_shared_language_contract_before_effect()
     test_dynamic_safety_and_language_validation_precede_backend_use()
