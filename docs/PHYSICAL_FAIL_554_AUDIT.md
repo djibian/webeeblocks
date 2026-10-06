@@ -40,6 +40,8 @@ cflib Multi-ranger semantics; their occurrence in #554 is **unproven**.
 | Observer lifecycle | Uncertain yaw cleanup allows reopen; unexpected supervisor cleanup errors fail without poisoning the untagged epoch | #557 poisons uncertain teardown, attempts remaining cleanup, and prevents replacement-reader reuse. Range/yaw/supervisor also reject NaN/infinite/bool/non-numeric deadlines before effects. |
 | HighLevel effect lifecycle | Callback-removal errors are swallowed in takeoff, motion, static and dynamic landing; exceptions after acceptance abandon a live completion permit | #557 poisons acknowledgement correlation across instances; exceptional accepted transactions invalidate their completion permit. All four transport regressions prove no success/retry after cleanup failure. |
 | Dynamic preflight | Repeat expansion can grow exponentially; a program exceeding the existing shared 1000-step budget can be admitted before takeoff | [#558](https://github.com/djibian/webeeblocks/pull/558): bounded physical-proof work plus conservative budget proof in the shared interpreter itself. Tests cover 20^18 repetition, exact budget boundaries including expressions/branches/land, and pre-effect rejection. No second language evaluator. |
+| CI selection | A physical-test/fixture-only change matches generic `tools/ci` and selects only Webots, skipping its actual Runtime oracles | #560 adds Runtime for physical/dynamic/teacher/lifecycle tests and physical fixtures while retaining every previously selected suite. Selector regression covers the exact #554 fixture and sibling test families. |
+| Qualification duration | A valid dynamic loop can spend 30 seconds or more in waits alone inside one 30-second caller request | #559 rejects that structural wait budget before host/teacher exchange, using both branches and repeat counts without evaluation or expansion. Static steps keep their separate deadlines. Nested loops, conditional paths and the exact boundary are covered; the deadline is unchanged. |
 | Qualification lifecycle | Whole-program IPC can be replayed after ambiguity; per-byte timeout prolongs a message; caller EOF is invisible during dynamic execution; launcher kills a potentially airborne watchdog owner | [#559](https://github.com/djibian/webeeblocks/pull/559): consume before write, one finite message deadline, bounded negative-only caller-lifetime observation, host-before-browser teardown. After the unchanged 10-second teardown deadline, unresolved authorized host stays alive for recovery and failure is reported. Original error survives cleanup failure; `HOST_TEARDOWN` survives lost IPC. |
 
 ## Recovery invariant
@@ -129,7 +131,12 @@ The initiating exception of #554 must remain recorded as unknown unless genuinel
 new historical evidence identifies it. A later successful flight cannot prove
 that historical exception, and a later failure must retain its exact program,
 call site, causal error and terminal physical-state evidence. The 30-second
-launcher request deadline is unchanged: an overlong execution fails closed and
-revokes ordinary continuation; it is not silently extended. Representative
+launcher request deadline is unchanged. Before any host validation/teacher
+exchange, structural wait admission rejects a dynamic program whose waits on
+any conservatively reachable path already consume that entire deadline; static
+steps retain their separate request deadlines. This proof neither evaluates
+sensor conditions nor promises a total duration including transport/observation
+latency. An unpredictable overrun still fails closed and revokes ordinary
+continuation; the timeout is not silently extended. Representative
 physical safety and capability acceptance remain unproven until a separately
 authorized exact-artifact checkpoint supplies that evidence.
