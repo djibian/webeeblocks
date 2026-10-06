@@ -217,7 +217,71 @@ def test_local_errors_emit_no_log_request() -> None:
     expect_error(lambda: observer.read(timeout_seconds=0.01), "not open")
 
 
+def test_pre_request_callback_cannot_finish_as_fresh() -> None:
+    observer, _cf, _epoch, config = make_observer()
+    observer.open(timeout_seconds=0.05)
+    entered, release, read_started = (threading.Event() for _ in range(3))
+
+    class DelayedSample(dict):
+        def __getitem__(self, key):
+            entered.set()
+            require(release.wait(1), "stale sample was not released")
+            return super().__getitem__(key)
+
+    callback = threading.Thread(target=lambda: observer._on_data(
+        110, DelayedSample({yaw.YAW_VARIABLE: 99.0}), config), daemon=True)
+    callback.start()
+    require(entered.wait(1), "callback never entered")
+    wait = observer._wait_for_sample
+    def observed_wait(**kwargs):
+        read_started.set()
+        return wait(**kwargs)
+    observer._wait_for_sample = observed_wait
+    outcome = {}
+    reader = threading.Thread(target=lambda: outcome.update(value=observer.read(timeout_seconds=0.3)), daemon=True)
+    reader.start()
+    require(read_started.wait(1), "read never established its baseline")
+    release.set()
+    callback.join(1)
+    delayed(0.02, lambda: config.emit(120, 20.0))
+    reader.join(1)
+    require(outcome["value"].firmware_timestamp_ms == 120,
+            "callback which entered before request was accepted as fresh yaw")
+    observer.close()
+
+
+def test_uncertain_cleanup_blocks_reopen() -> None:
+    for failed_open in (False, True):
+        observer, _cf, _epoch, config = make_observer()
+        def fail():
+            raise RuntimeError("stop uncertain")
+        config.stop = fail
+        if failed_open:
+            config.start_error = RuntimeError("start failed")
+            expect_error(lambda: observer.open(timeout_seconds=0.01), "could not start")
+        else:
+            observer.open(timeout_seconds=0.01)
+            expect_error(observer.close, "could not close")
+        expect_error(lambda: observer.open(timeout_seconds=0.01), "poisoned")
+
+
+def test_non_numeric_samples_and_non_finite_deadlines() -> None:
+    for value in (True, "20"):
+        observer, _cf, _epoch, _config = make_observer(initial=(100, value))
+        expect_error(lambda: observer.open(timeout_seconds=0.01), "not numeric")
+    observer, _cf, _epoch, _config = make_observer(initial=(True, 20.0))
+    expect_error(lambda: observer.open(timeout_seconds=0.01), "invalid firmware timestamp")
+    for value in (True, float("nan"), float("inf"), "1"):
+        observer, cf, _epoch, _config = make_observer()
+        expect_error(lambda: observer.open(timeout_seconds=value), "timeout must be positive")
+        expect_error(lambda: observer.read(timeout_seconds=value), "timeout must be positive")
+        require(not cf.log.configs, "invalid deadline started a log")
+
+
 def main() -> int:
+    test_pre_request_callback_cannot_finish_as_fresh()
+    test_uncertain_cleanup_blocks_reopen()
+    test_non_numeric_samples_and_non_finite_deadlines()
     test_open_baseline_and_later_read()
     test_cached_baseline_not_returned()
     test_duplicate_timestamp_ignored()

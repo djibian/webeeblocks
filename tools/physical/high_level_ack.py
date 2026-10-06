@@ -146,6 +146,10 @@ class HighLevelAckDomain:
                 _poison_epoch(self._bound_connection_epoch, reason)
             raise HighLevelAckError(reason)
 
+    def invalidate_transport(self, reason: str) -> None:
+        """Uncertain callback teardown cannot be repaired by another request."""
+        _poison_epoch(self._bound_connection_epoch, reason)
+
     def transaction(self, request: object) -> "HighLevelAckTransaction":
         """Reserve one epoch for one request; this method emits no physical effect."""
         self._verify_epoch(poison_on_change=False)

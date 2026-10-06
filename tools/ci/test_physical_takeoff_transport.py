@@ -383,7 +383,34 @@ def test_no_raw_or_caller_height_surface() -> None:
     )
 
 
+def test_callback_cleanup_failure_never_returns_success():
+    fixture = Fixture("cleanup-failure")
+    fixture.queue_states(fixture.state(finished=True), fixture.state(finished=True))
+    operation = HostBoundTakeoffTransport(fixture).send_from_authorized_ast
+    domain = fixture.execution
+    def fail(*args):
+        raise RuntimeError("injected removal failure")
+    fixture.cf.remove_port_callback = fail
+    try:
+        try:
+            operation()
+        except Exception as exc:
+            require("callback cleanup failed" in str(exc), str(exc))
+        else:
+            raise AssertionError("uncertain listener teardown reported success")
+        require(fixture.ack.poisoned, "uncertain callback teardown did not poison epoch")
+        require(len(fixture.cf.send_calls) == 1, "cleanup failure repeated command")
+        try:
+            operation()
+        except Exception:
+            pass
+        require(len(fixture.cf.send_calls) == 1, "poisoned effect was retried")
+    finally:
+        pass
+
+
 def main() -> int:
+    test_callback_cleanup_failure_never_returns_success()
     test_importable_core_has_no_positive_provenance_path()
     test_positive_ack_requires_causal_flying_completion()
     test_first_post_ack_flying_finished_is_causal_from_not_flying_baseline()

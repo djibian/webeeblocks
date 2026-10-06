@@ -20,6 +20,8 @@ pre-request callback that finishes late from becoming fresh evidence.
 
 from __future__ import annotations
 
+from math import isfinite
+
 from threading import Condition, Lock
 from time import monotonic
 from typing import Callable, NamedTuple
@@ -284,7 +286,8 @@ class FreshRangeObserver:
 
     def open(self, *, timeout_seconds: float = 0.7) -> None:
         """Start one read-only log stream and establish a timestamp baseline."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:
@@ -378,7 +381,8 @@ class FreshRangeObserver:
 
     def read(self, *, timeout_seconds: float = 0.7) -> RangeObservation:
         """Return one newly arrived post-call sample from the bound epoch."""
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise RangeReadError("range timeout must be positive")
 
         with self._read_lock:

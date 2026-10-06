@@ -193,9 +193,10 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                     )
 
                 callback_installed = False
+                primary_error = None
                 try:
-                    add_callback(setpoint_hl_transport._SETPOINT_HL_PORT, on_reply)
                     callback_installed = True
+                    add_callback(setpoint_hl_transport._SETPOINT_HL_PORT, on_reply)
                     acknowledgement.mark_emitted()
                     effect.mark_emitted()
                     send_packet(packet)
@@ -208,6 +209,9 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                         completion_permit = effect.mark_accepted()
                     else:
                         effect.mark_definitive_rejection()
+                except BaseException as exc:
+                    primary_error = exc
+                    raise
                 finally:
                     if callback_installed:
                         try:
@@ -215,8 +219,10 @@ class TrustedControlledLandingTransport(setpoint_hl_transport.TrustedSetpointHlT
                                 setpoint_hl_transport._SETPOINT_HL_PORT,
                                 on_reply,
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._ack.invalidate_transport("HighLevel callback cleanup failed: " + str(exc))
+                            if primary_error is None:
+                                raise ControlledLandingTransportError("HighLevel callback cleanup failed") from exc
 
         if result is None:
             raise ControlledLandingTransportError(
