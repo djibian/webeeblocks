@@ -422,6 +422,8 @@ def activate_validated_run(
                 "post-takeoff teacher run no longer matches the exact sequenced AST"
             )
 
+    controller.bind_completed_altitude(lambda: sequence.nominal_altitude_m)
+
     class _HostBoundInflightTransport(TrustedControlledLandingTransport):
         def _read_current_binding(self) -> PhysicalRunBinding:
             binding = self.teacher_binding
@@ -451,12 +453,13 @@ def activate_validated_run(
     timing_policy = HighLevelTimingPolicy()
 
     class _ActivatedRunController:
-        __slots__ = ("_yaw_reader", "_transport", "_color_transport")
+        __slots__ = ("_yaw_reader", "_transport", "_color_transport", "_terminal")
 
         def __init__(self) -> None:
             self._yaw_reader = None
             self._transport = None
             self._color_transport = None
+            self._terminal = False
 
         @property
         def active_run(self):
@@ -657,6 +660,21 @@ def activate_validated_run(
             return result
 
         def execute_next_inflight(self):
+            if self._terminal:
+                raise PhysicalRunActivationError("physical program is terminal; no retry")
+            try:
+                result = self._execute_next_inflight()
+                if getattr(result, "accepted", None) is not True:
+                    raise PhysicalRunActivationError("exact physical effect was rejected")
+                return result
+            except Exception as exc:
+                self._terminal = True
+                controller.shutdown()
+                raise PhysicalRunActivationError(
+                    "physical program failed closed; recovery=" + controller.recovery_outcome
+                ) from exc
+
+        def _execute_next_inflight(self):
             """Advance one exact AST step; accepts no caller semantic data."""
             step_kind = sequence.next_step_kind
             if step_kind == "wait":
@@ -678,6 +696,7 @@ def activate_validated_run(
             try:
                 transport = self._ensure_transport()
                 if terminal_landing:
+                    controller.mark_landing_started()
                     result = transport.send_controlled_landing()
                 elif motion is not None and motion.kind == "move":
                     result = transport.send_horizontal_move(
@@ -751,13 +770,15 @@ def activate_validated_run(
             return result
 
         def shutdown(self) -> None:
+            self._terminal = True
+            # A failing observer teardown must not preempt an eligible landing.
+            controller.shutdown()
             yaw_error = None
             if self._yaw_reader is not None:
                 try:
                     self._yaw_reader.close()
                 except Exception as exc:
                     yaw_error = exc
-            controller.shutdown()
             if yaw_error is not None:
                 raise PhysicalRunActivationError(
                     "could not close in-flight yaw observer cleanly"
