@@ -119,6 +119,7 @@ if __name__ == "__main__":
                 "started": False,
                 "active_run": None,
                 "error": None,
+                "last_execution_binding": None,
             }
             activation_thread = None
 
@@ -226,7 +227,7 @@ if __name__ == "__main__":
                                 "executionAuthority": False,
                             }
                         else:
-                            failure_binding = staged_state["binding"]
+                            failure_binding = activation_state["last_execution_binding"] or staged_state["binding"]
                             try:
                                 # Validation starts one bounded trusted activation transaction.
                                 # Do not race that already-started transaction by reacquiring
@@ -245,20 +246,33 @@ if __name__ == "__main__":
                                     active = active_controller.active_run
                                     if active is not None:
                                         failure_binding = active.teacher_authorization.binding
+                                        activation_state["last_execution_binding"] = failure_binding
                                     result = active_controller.execute_next_inflight()
                                     if getattr(result, "accepted", None) is not True:
                                         raise RuntimeError(
                                             "authorized in-flight effect was rejected"
                                         )
                             except Exception as exc:
+                                diagnostic = failure_evidence(
+                                    exc, binding=failure_binding, phase=execution_domain.phase
+                                )
+                                diagnostic["bindingStage"] = (
+                                    "active" if activation_state["last_execution_binding"] is not None else "staged"
+                                )
+                                # Preserve the original failure independently of a
+                                # caller socket which may already have disappeared.
+                                try:
+                                    print("HOST_DIAGNOSTIC " + json.dumps({
+                                        "requestId": request_id, **diagnostic,
+                                    }, sort_keys=True), file=sys.stderr, flush=True)
+                                except (OSError, ValueError):
+                                    pass  # Logging cannot replace the causal error.
                                 response = {
                                     "requestId": request_id,
                                     "ok": False,
                                     "error": "authorized in-flight execution failed closed",
                                     "executionAuthority": False,
-                                    "diagnostic": failure_evidence(
-                                        exc, binding=failure_binding, phase=execution_domain.phase
-                                    ),
+                                    "diagnostic": diagnostic,
                                 }
                             else:
                                 response = {

@@ -220,6 +220,7 @@ def run_host_sequence(
     ast_binding: str | None = None,
     *,
     steps: int = 3,
+    discard_execution_reply: bool = False,
 ) -> list[dict[str, object]]:
     caller_host, caller_peer = socket.socketpair()
     caller_stream = caller_peer.makefile("r", encoding="utf-8")
@@ -283,10 +284,22 @@ def run_host_sequence(
     replies.append(read_line(caller_stream))
 
     for index in range(steps):
+        if discard_execution_reply:
+            # Keep request/authority direction alive but make response delivery
+            # fail deterministically before the effect starts.
+            caller_peer.shutdown(socket.SHUT_RD)
         send_line(
             caller_peer,
             {"op": "execute-next-inflight", "requestId": f"step-{index + 1}"},
         )
+        if discard_execution_reply:
+            worker.join(timeout=3.0)
+            require(not worker.is_alive(), "host did not terminate after failed response delivery")
+            require("error" not in outcome, "failed response masked execution: " + repr(outcome.get("error")))
+            caller_stream.close()
+            caller_peer.close()
+            teacher_peer.close()
+            return replies
         replies.append(read_line(caller_stream))
 
     caller_peer.shutdown(socket.SHUT_WR)
