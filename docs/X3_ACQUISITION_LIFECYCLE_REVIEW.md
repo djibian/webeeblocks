@@ -1,6 +1,6 @@
 # X3 acquisition lifecycle after checkpoint #561
 
-Source subject: `main@cbe261729145fe966a9598139634cf673b97e41b`.
+Historical source subject: `main@cbe261729145fe966a9598139634cf673b97e41b`.
 This bounded source review supplements the retained #561 evidence and does not
 identify its initiating physical cause. #561 remains owner-authoritative FAIL;
 no retry, scientific acceptance or physical execution is authorized here.
@@ -32,6 +32,13 @@ retains its raw/result files but skips that preparation copy. This is separate
 from #561's initiating failure: its completed stationary capture does retain a
 byte-identical preparation copy, and its terrain collector never started.
 
+The retention gap above is now repaired by integrated #565 at
+`main@c63f91e693bbcb8e0d8515c81cf021130192f006`: every created capture directory
+receives the verified preparation record and digest, including incomplete
+captures, while collector failure stays nonzero and existing evidence cannot be
+overwritten. The historical lifecycle review remains applicable to #561; the
+other observation gaps and its unknown initiating cause remain unresolved.
+
 ## Consequence for diagnosis
 
 `INFERENCE`: a single passing preparation or stationary trace cannot establish
@@ -51,8 +58,9 @@ The smallest next diagnostic preparation should retain:
    connection/log start/stop events. The disconnected interval must remain an
    explicit coverage gap, never interpolated into proof;
 3. the actual raw health window and its failure result, written before applying
-   the unchanged bounds, plus exact preparation identity on successful and
-   incomplete acquisitions alike.
+   the unchanged bounds. Preserve the now-integrated exact preparation identity
+   on successful and incomplete acquisitions alike rather than reimplementing
+   that retention repair.
 
 Those contrasts are diagnostic evidence, not replacement characterization
 trials. Their outcome must not select favorable scientific captures or introduce

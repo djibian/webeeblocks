@@ -154,6 +154,78 @@ def verify_manifest_oracles() -> None:
         manifest.verify_bundle(bundle)
 
 
+def verify_capture_retention_oracles() -> None:
+    # Execute the production acquisition/retention tail with a synthetic
+    # collector. Earlier exact-bundle/record/live-health admission is outside
+    # this shell-boundary test; no hardware module is imported here.
+    runner = RUNNER.read_text(encoding="utf-8")
+    capture_at = runner.rindex('python3 -B -S "$HERE/capture_independent_inputs.py"')
+    tail = runner[runner.rfind("\n\n", 0, capture_at) + 2:]
+    collector = '''import os, pathlib, sys
+output = pathlib.Path(sys.argv[sys.argv.index("--output") + 1])
+if os.environ["TEST_CREATE_OUTPUT"] == "1":
+    output.mkdir()
+    (output / "pose.csv").write_bytes(b"SYNTHETIC retained raw row\\n")
+    (output / "capture-result.json").write_bytes(b'{"synthetic":true}\\n')
+    if os.environ["TEST_CONFLICT"] == "1":
+        (output / "preparation-record.json").write_bytes(b"existing evidence\\n")
+    elif os.environ["TEST_CONFLICT"] == "2":
+        (output / "preparation-record.sha256").write_bytes(b"existing digest\\n")
+sys.exit(int(os.environ["TEST_CAPTURE_STATUS"]))
+'''
+    harness = '''set -euo pipefail
+python3() { command "$TEST_PYTHON" "$@"; }
+verify_bundle() { touch "$TEST_VERIFIED"; }
+''' + tail
+    for status, create_output, conflict in (
+        (0, True, False), (13, True, False), (13, False, False),
+        (0, False, False), (13, True, True), (13, True, 2),
+    ):
+        with tempfile.TemporaryDirectory(prefix="webeeblocks-x3-retention-") as temp_text:
+            root = Path(temp_text)
+            here = root / "bundle with spaces"
+            here.mkdir()
+            (here / "capture_independent_inputs.py").write_text(collector, encoding="utf-8")
+            record = root / "prepared.json"
+            record.write_bytes(b'{"synthetic_preparation":"retain exact bytes"}\n')
+            output = root / "capture"
+            verified = root / "verified"
+            result = subprocess.run(
+                ["bash", "-c", harness], text=True, capture_output=True,
+                env={**os.environ, "HERE": str(here), "ISOLATED_SITE": str(root / "site"),
+                     "URI": "radio://0/80/2M", "CHECKPOINT_URL": "https://github.com/djibian/webeeblocks/issues/561",
+                     "REQUEST_SHA": "a" * 40, "OUTPUT": str(output), "DURATION_SECONDS": "30",
+                     "PREPARATION_RECORD": str(record), "TEST_PYTHON": sys.executable,
+                     "TEST_VERIFIED": str(verified), "TEST_CAPTURE_STATUS": str(status),
+                     "TEST_CREATE_OUTPUT": str(int(create_output)), "TEST_CONFLICT": str(int(conflict))},
+            )
+            if conflict:
+                require(result.returncode != 0, "existing preparation evidence must reject retention")
+                if conflict == 1:
+                    require((output / "preparation-record.json").read_bytes() == b"existing evidence\n",
+                            "retention overwrote existing preparation evidence")
+                else:
+                    require((output / "preparation-record.sha256").read_bytes() == b"existing digest\n",
+                            "retention overwrote existing preparation digest")
+                continue
+            require(result.returncode == (2 if status == 0 and not create_output else status),
+                    f"collector outcome changed: {result.returncode}, {result.stderr}")
+            if not create_output:
+                require(not output.exists(), "runner manufactured a capture that never started")
+                continue
+            require((output / "pose.csv").read_bytes() == b"SYNTHETIC retained raw row\n",
+                    "retention changed partial raw evidence")
+            require((output / "capture-result.json").read_bytes() == b'{"synthetic":true}\n',
+                    "retention changed the collector result")
+            require((output / "preparation-record.json").read_bytes() == record.read_bytes(),
+                    "successful/incomplete acquisition lost its exact preparation binding")
+            digest = (output / "preparation-record.sha256").read_text().split()[0]
+            require(digest == hashlib.sha256(record.read_bytes()).hexdigest(),
+                    "retained preparation digest does not match its bytes")
+            require(verified.is_file(), "post-capture bundle verification was skipped")
+    print("PASS: production X3 runner retains preparation on incomplete capture without masking failure")
+
+
 def verify_metric_reference_oracles() -> None:
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     for test in (METRIC_REFERENCE_TEST, METRIC_REFERENCE_EXACT_JSON_TEST):
@@ -365,6 +437,7 @@ def main() -> int:
         expect_package_error(lambda: package.verify_wheels(wheelhouse), "exactly locked wheels")
 
     verify_manifest_oracles()
+    verify_capture_retention_oracles()
     verify_metric_reference_oracles()
     verify_reset_provenance_oracles()
     verify_no_commander_teardown_oracle()

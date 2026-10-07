@@ -141,9 +141,12 @@ Use the same URI and pass the retained preparation record:
   --props-removed
 ```
 
-On a successful capture the runner copies the verified preparation record and
-its SHA-256 into the capture directory so the hardware reconstruction evidence
-travels with the raw acquisition evidence.
+Whenever the collector has created its capture directory, the runner copies the
+verified preparation record and its SHA-256 beside the retained raw evidence,
+including an incomplete capture. The collector's nonzero exit remains nonzero;
+retaining its preparation binding does not make it a successful capture. No
+capture directory is manufactured if admission or the pre-acquisition health
+gate prevents collection from starting. Always use a new output directory.
 
 After preparation, all scientific collection rules remain exactly those in
 `X3_CHARACTERIZATION_PROCEDURE.md`:
