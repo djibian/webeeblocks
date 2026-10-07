@@ -433,21 +433,23 @@ justified by the current evidence.
   characterization bundle. Owner-authoritative checkpoint #550 then exposed a
   concrete preparation defect: the no-reset handoff could leave UKF grossly
   divergent before terrain motion, while valid #251/#236 evidence had used a
-  fresh `ukf.resetEstimation` request. #551 is therefore the current preparation
-  prerequisite: deterministic reset request + bounded proof of firmware-owned
-  auto-clear + historical explicit client release + fixed settle + broad health
-  evidence, with a second read-only health gate immediately before acquisition;
-  the X3 one-shot teardown must bypass pinned cflib's normal close-time Commander
-  setpoint so preparation and acquisition emit no Commander packet
+  fresh `ukf.resetEstimation` request. Integrated #552 closes #551 by making the
+  preparation contract deterministic: reset request + bounded proof of
+  firmware-owned auto-clear + historical explicit client release + fixed settle
+  + broad health evidence, with a second read-only health gate immediately before
+  acquisition; the X3 one-shot teardown bypasses pinned cflib's normal close-time
+  Commander setpoint so preparation and acquisition emit no Commander packet
 - trusted checkpoint path: integrated #428 enables checkpoint-only
   `x3-independent-props-off` backed by `WebeeBlocks-X3-Characterization`. Exact
   requested-SHA checkout, pinned cflib/#251 support, locked offline runtime,
   bundle verification, Runtime/Webots evidence, digest/provenance and the generic
   one-open-human-test rule remain mandatory; packaging itself remains request-
   neutral and grants no execution or motorized authority
-- next indispensable evidence: after #551 is integrated and a fresh exact-SHA
-  checkpoint is generated (never reusing #550), one complete props-off human
-  characterization bundle against the independent metric/time reference,
+- next indispensable evidence: checkpoint #561 now binds the fresh
+  `x3-independent-props-off` artifact to exact
+  `4ca2d1e3b3556e98136c12b9d3522d8707144f03`, which contains #552. Collect one
+  complete props-off human characterization bundle against the independent
+  metric/time reference using that exact request and artifact (never #550),
   retaining all validly started raw trials across stationary, terrain,
   true-vertical and mixed cases.
   Calibration-only processing/envelopes are then frozen before untouched
@@ -455,9 +457,12 @@ justified by the current evidence.
   crossing a predeclared target is `UNPROVEN`, never PASS
 - checkpoint gating: #550 is closed owner-authoritative `FAIL` and therefore
   no longer occupies the one-open-human-test slot, but its artifact/fingerprint
-  is historical failure evidence only. A new X3 request requires the #551 repair
-  integrated on an exact SHA plus reconstructed current dependencies; the generic
-  one-open-human-test rule remains mandatory and no queue is created
+  is historical failure evidence only. The #551 repair is integrated through
+  #552. Existing checkpoint #561 occupies the sole human-test slot until its
+  applicable owner-authoritative PASS/FAIL/NOT_NEEDED resolution; later main
+  changes do not transfer its acceptance to another artifact. Any later request
+  must reconstruct current dependencies and bind its own exact SHA/artifact.
+  The generic one-open-human-test rule remains mandatory and no queue is created
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune
