@@ -1,0 +1,40 @@
+{
+  "boundary": "capture completion is not scientific sufficiency or durable publication",
+  "capture_status": "CAPTURED",
+  "error": null,
+  "physical_verdict": null,
+  "streams": {
+    "barometer": {
+      "invalid_rows": 0,
+      "last_host_s": 1754.982748918,
+      "last_timestamp_ms": 387734,
+      "max_gap_ms": 20,
+      "nonincreasing_timestamps": 0,
+      "rows": 7508
+    },
+    "detector": {
+      "invalid_rows": 0,
+      "last_host_s": 1754.989095089,
+      "last_timestamp_ms": 387738,
+      "max_gap_ms": 20,
+      "nonincreasing_timestamps": 0,
+      "rows": 7508
+    },
+    "imu": {
+      "invalid_rows": 0,
+      "last_host_s": 1754.985739401,
+      "last_timestamp_ms": 387736,
+      "max_gap_ms": 10,
+      "nonincreasing_timestamps": 0,
+      "rows": 15016
+    },
+    "pose": {
+      "invalid_rows": 0,
+      "last_host_s": 1754.987403565,
+      "last_timestamp_ms": 387737,
+      "max_gap_ms": 20,
+      "nonincreasing_timestamps": 0,
+      "rows": 7508
+    }
+  }
+}

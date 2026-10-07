@@ -1,0 +1,10 @@
+{
+  "firmware_file_sha256": "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738",
+  "props_removed": true,
+  "repository_target_sha": "4ca2d1e3b3556e98136c12b9d3522d8707144f03",
+  "schema": "webeeblocks.x3.preparation.v2",
+  "started_unix_s": 1791388532.9643893,
+  "status": "STARTED",
+  "test_profile": "x3-independent-props-off",
+  "uri": "radio://0/80/2M"
+}

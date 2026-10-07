@@ -1,0 +1,128 @@
+{
+  "effects": {
+    "arming": false,
+    "commander": false,
+    "estimator_reset": "ukf.resetEstimation:uint8_t:request1->firmware-autoclear0;client0@0.25s",
+    "firmware_flash": "exact-bundled-stm32",
+    "motors": false,
+    "parameter_writes": [
+      "ukf.qualityGateTof",
+      "ukf.surfaceOffsetS3"
+    ],
+    "persistent_store": false,
+    "scientific_retry": false
+  },
+  "estimator_health": {
+    "bounds": {
+      "stabilizer.pitch": [
+        -45.0,
+        45.0
+      ],
+      "stabilizer.roll": [
+        -45.0,
+        45.0
+      ],
+      "stateEstimate.vz": [
+        -1.0,
+        1.0
+      ],
+      "stateEstimate.z": [
+        -1.0,
+        5.0
+      ]
+    },
+    "observe_seconds": 2.0,
+    "observed": {
+      "stabilizer.pitch": {
+        "max": 0.004088970832526684,
+        "min": -0.010209020227193832
+      },
+      "stabilizer.roll": {
+        "max": -0.05142764374613762,
+        "min": -0.07838727533817291
+      },
+      "stateEstimate.vz": {
+        "max": 0.0004593542544171214,
+        "min": -0.00177084282040596
+      },
+      "stateEstimate.z": {
+        "max": -2.476544068485964e-05,
+        "min": -0.00029965839348733425
+      }
+    },
+    "period_ms": 100,
+    "sample_count": 19,
+    "settle_seconds": 5.0,
+    "status": "HEALTHY"
+  },
+  "estimator_reset": {
+    "client_release_delay_seconds": 0.25,
+    "client_release_value": 0,
+    "ctype": "uint8_t",
+    "firmware_autoclear_elapsed_seconds": 0.0041377400000328635,
+    "firmware_autoclear_observation_count": 1,
+    "firmware_autoclear_observed": true,
+    "firmware_autoclear_timeout_seconds": 0.25,
+    "firmware_autoclear_value": 0,
+    "firmware_commit": "54f31e243a0b28b67efef5ba20dbb6d9890a5478",
+    "observed_after": "0",
+    "observed_before": "0",
+    "parameter": "ukf.resetEstimation",
+    "release_ack": "0",
+    "request_ack": "1",
+    "request_value": 1
+  },
+  "finished_unix_s": 1791388577.6193016,
+  "firmware": {
+    "bundled_cf2_sha256": "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738",
+    "flash_completed": true,
+    "flash_target": "cf2/stm32/fw",
+    "tested_source_sha": "6562ad827bf0c8bf2c9b609edad36f3e15652133",
+    "upstream_firmware_commit": "54f31e243a0b28b67efef5ba20dbb6d9890a5478"
+  },
+  "firmware_file_sha256": "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738",
+  "parameters": {
+    "stabilizer.estimator": {
+      "action": "unchanged",
+      "ctype": "uint8_t",
+      "expected": 3,
+      "observed_after": "3",
+      "observed_before": "3"
+    },
+    "ukf.baroNoise": {
+      "action": "unchanged",
+      "ctype": "float",
+      "expected": 6.25,
+      "observed_after": "6.25",
+      "observed_before": "6.25"
+    },
+    "ukf.qualityGateTof": {
+      "action": "written",
+      "ctype": "float",
+      "expected": 20.0,
+      "observed_after": "20.0",
+      "observed_before": "100.0"
+    },
+    "ukf.surfaceOffsetS3": {
+      "action": "written",
+      "ctype": "uint8_t",
+      "expected": 1,
+      "observed_after": "1",
+      "observed_before": "0"
+    }
+  },
+  "preparation_script_sha256": "ad811f16fa208d6a9f25363fdd5d43bd40c33b3deb74184e3db518eb24d2c27c",
+  "props_removed": true,
+  "provenance_sha256": "9913d2e7ad352f2f8e9ffbb4a1fdccafd961af551e4721fde2531848bfdbe77d",
+  "repository_target_sha": "4ca2d1e3b3556e98136c12b9d3522d8707144f03",
+  "runtime": {
+    "cflib_commit": "45fdb784c9d13074c42835f3b5ac1d12133bf873",
+    "cflib_subtree": "750e850390753de14019f0e1f55d4fbc44317699",
+    "cflib_tree": "a78cf78d2b4aba51a0fa2b03de0260664b523401"
+  },
+  "schema": "webeeblocks.x3.preparation.v2",
+  "scientific_verdict": null,
+  "status": "PREPARED",
+  "test_profile": "x3-independent-props-off",
+  "uri": "radio://0/80/2M"
+}
