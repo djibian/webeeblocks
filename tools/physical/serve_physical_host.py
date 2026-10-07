@@ -43,6 +43,7 @@ if __name__ == "__main__":
             sys.path.insert(0, str(physical))
 
         from physical_execution_domain import PhysicalExecutionDomain
+        from physical_diagnostics import failure_evidence
         from physical_run_dispatch import activate_validated_run
         from post_reset_capability_bridge import PostResetCapabilityHttpBridge
         from probe_reference_hardware import ReadOnlyCapabilitySession
@@ -118,6 +119,7 @@ if __name__ == "__main__":
                 "started": False,
                 "active_run": None,
                 "error": None,
+                "last_execution_binding": None,
             }
             activation_thread = None
 
@@ -147,7 +149,17 @@ if __name__ == "__main__":
                             assertion_timeout_seconds=assertion_timeout_seconds,
                         )
                 except Exception as exc:
-                    activation_state["error"] = str(exc)
+                    activation_state["error"] = exc
+                    # An activation/preflight failure can precede any execution
+                    # request, so do not rely on a later caller to retrieve it.
+                    try:
+                        print("HOST_ACTIVATION_DIAGNOSTIC " + json.dumps({
+                            **failure_evidence(exc, binding=staged_state["binding"],
+                                               phase=execution_domain.phase),
+                            "bindingStage": "staged",
+                        }, sort_keys=True), file=sys.stderr, flush=True)
+                    except (OSError, ValueError):
+                        pass
                 finally:
                     activation_complete.set()
 
@@ -225,6 +237,7 @@ if __name__ == "__main__":
                                 "executionAuthority": False,
                             }
                         else:
+                            failure_binding = activation_state["last_execution_binding"] or staged_state["binding"]
                             try:
                                 # Validation starts one bounded trusted activation transaction.
                                 # Do not race that already-started transaction by reacquiring
@@ -235,20 +248,41 @@ if __name__ == "__main__":
                                 with lifecycle_lock:
                                     active_controller = activation_state["active_run"]
                                     if active_controller is None:
+                                        if activation_state["error"] is not None:
+                                            raise activation_state["error"]
                                         raise RuntimeError(
                                             "authorized in-flight execution is unavailable"
                                         )
+                                    active = active_controller.active_run
+                                    if active is not None:
+                                        failure_binding = active.teacher_authorization.binding
+                                        activation_state["last_execution_binding"] = failure_binding
                                     result = active_controller.execute_next_inflight()
                                     if getattr(result, "accepted", None) is not True:
                                         raise RuntimeError(
                                             "authorized in-flight effect was rejected"
                                         )
-                            except Exception:
+                            except Exception as exc:
+                                diagnostic = failure_evidence(
+                                    exc, binding=failure_binding, phase=execution_domain.phase
+                                )
+                                diagnostic["bindingStage"] = (
+                                    "active" if activation_state["last_execution_binding"] is not None else "staged"
+                                )
+                                # Preserve the original failure independently of a
+                                # caller socket which may already have disappeared.
+                                try:
+                                    print("HOST_DIAGNOSTIC " + json.dumps({
+                                        "requestId": request_id, **diagnostic,
+                                    }, sort_keys=True), file=sys.stderr, flush=True)
+                                except (OSError, ValueError):
+                                    pass  # Logging cannot replace the causal error.
                                 response = {
                                     "requestId": request_id,
                                     "ok": False,
                                     "error": "authorized in-flight execution failed closed",
                                     "executionAuthority": False,
+                                    "diagnostic": diagnostic,
                                 }
                             else:
                                 response = {

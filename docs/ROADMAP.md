@@ -445,9 +445,11 @@ justified by the current evidence.
   bundle verification, Runtime/Webots evidence, digest/provenance and the generic
   one-open-human-test rule remain mandatory; packaging itself remains request-
   neutral and grants no execution or motorized authority
-- next indispensable evidence: with #551 integrated through #552, after a fresh
-  exact-SHA checkpoint is generated (never reusing #550), one complete props-off
-  human characterization bundle against the independent metric/time reference,
+- next indispensable evidence: checkpoint #561 now binds the fresh
+  `x3-independent-props-off` artifact to exact
+  `4ca2d1e3b3556e98136c12b9d3522d8707144f03`, which contains #552. Collect one
+  complete props-off human characterization bundle against the independent
+  metric/time reference using that exact request and artifact (never #550),
   retaining all validly started raw trials across stationary, terrain,
   true-vertical and mixed cases.
   Calibration-only processing/envelopes are then frozen before untouched
@@ -456,9 +458,11 @@ justified by the current evidence.
 - checkpoint gating: #550 is closed owner-authoritative `FAIL` and therefore
   no longer occupies the one-open-human-test slot, but its artifact/fingerprint
   is historical failure evidence only. The #551 repair is integrated through
-  #552; any new X3 request must target an exact current SHA containing that repair
-  after reconstructing current dependencies. The generic one-open-human-test
-  rule remains mandatory and no queue is created
+  #552. Existing checkpoint #561 occupies the sole human-test slot until its
+  applicable owner-authoritative PASS/FAIL/NOT_NEEDED resolution; later main
+  changes do not transfer its acceptance to another artifact. Any later request
+  must reconstruct current dependencies and bind its own exact SHA/artifact.
+  The generic one-open-human-test rule remains mandatory and no queue is created
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
   provenance investigations merely because they remain `UNPROVEN`, retune
