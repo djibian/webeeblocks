@@ -423,8 +423,17 @@ class FreshRangeObserver:
                 firmware_timestamp_ms=timestamp,
                 direction=self._direction,
                 raw_mm=raw_mm,
-                range_m=range_mm_to_m(raw_mm),
+                range_m=self._convert_observed_range(raw_mm, timestamp, epoch),
             )
+
+    def _convert_observed_range(self, raw_mm: int, timestamp: int, epoch: str) -> float:
+        try:
+            return range_mm_to_m(raw_mm)
+        except RangeReadError as exc:
+            raise RangeReadError(
+                f"{self._variable}: raw_mm={raw_mm}, firmware_timestamp_ms={timestamp}, "
+                f"connection_epoch={epoch}: {exc}"
+            ) from exc
 
     def close(self) -> None:
         """Stop/delete the stream; uncertain teardown poisons this observer."""

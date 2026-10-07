@@ -655,8 +655,12 @@ class PhysicalQualificationSession:
             if response.get("requestId") != request_id or response.get("executionAuthority") is not False:
                 raise PhysicalQualificationLauncherError("in-flight reply lost exact correlation/non-authority")
             if response.get("ok") is not True:
+                diagnostic = response.get("diagnostic")
+                detail = ""
+                if isinstance(diagnostic, dict):
+                    detail = "\nHOST_DIAGNOSTIC " + json.dumps(diagnostic, ensure_ascii=True, sort_keys=True)
                 raise PhysicalQualificationLauncherError(
-                    "trusted parameter-free program execution failed closed at step " + str(index + 1)
+                    "trusted parameter-free program execution failed closed at step " + str(index + 1) + detail
                 )
 
     def close(self) -> None:

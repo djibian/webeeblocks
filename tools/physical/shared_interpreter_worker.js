@@ -53,9 +53,10 @@ function exactKeys(value, expected) {
 }
 
 let nextCallId = 1;
+let site = null;
 async function rpc(method, args) {
   const id = nextCallId++;
-  send({type: 'call', id, method, args});
+  send({type: 'call', id, method, args, site});
   const response = JSON.parse(readLineSync());
   const expected = response && response.ok === true
     ? ['type', 'id', 'ok', 'value']
@@ -99,11 +100,18 @@ async function rpc(method, args) {
       setLight: (color) => rpc('setLight', [color]),
       readRange: (direction) => rpc('readRange', [direction])
     };
-    const result = await Interpreter.run(ast, backend);
+    const result = await Interpreter.run(ast, backend, {hooks: {
+      beforeStep: (context) => {
+        site = {path: context.path, kind: context.node.kind, role: context.role};
+      }
+    }});
     send({type: 'done', ok: true, result});
-  } catch (_error) {
+  } catch (error) {
     try {
-      send({type: 'done', ok: false, error: 'shared interpreter failed closed'});
+      send({type: 'done', ok: false, error: {
+        name: String(error.name).slice(0, 80),
+        message: String(error.message).slice(0, 400), site
+      }});
     } catch (_sendError) {
       // The parent will fail closed if the protocol is no longer writable.
     }
