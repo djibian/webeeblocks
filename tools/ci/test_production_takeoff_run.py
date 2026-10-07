@@ -268,7 +268,9 @@ def test_host_and_adapter_preserve_authority_ownership_boundaries() -> None:
         "activate_validated_run(",
         'staged_state["binding"] = PhysicalRunBinding(',
         "active_controller.shutdown()",
-        "PostResetCapabilityHttpBridge(session)",
+        "_CallerBoundBridge(PostResetCapabilityHttpBridge)",
+        "_CallerBoundBridge(session)",
+        "caller_lifetime.assert_open()",
     ):
         require(required in host, "production host missing lifecycle ownership: " + required)
     require(

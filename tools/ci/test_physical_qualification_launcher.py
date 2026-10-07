@@ -191,6 +191,57 @@ def test_execution_request_count_uses_static_dynamic_host_boundary() -> None:
     require(launcher.execution_request_count(canonical_dynamic_ast()) == 1, "dynamic interpreter run must be one parameter-free request")
 
 
+def test_wait_deadline_admission_precedes_all_host_and_teacher_exchange() -> None:
+    from physical_dynamic_preflight import validate_bound_dynamic_program
+    def binding(middle):
+        ast = json.loads(canonical_dynamic_ast())
+        ast["program"][1:-1] = middle
+        return json.dumps(ast, separators=(",", ":"), sort_keys=True)
+
+    wait = {"kind": "wait", "seconds": 5}
+    for repeats in (6, 8):
+        repeated = {"kind": "repeat", "count": repeats, "body": [wait]}
+        for middle in ([repeated], [{"kind": "if", "condition": {"kind": "compare", "op": "GT",
+                                     "left": {"kind": "range", "direction": "front", "unit": "m"},
+                                     "right": {"kind": "number", "value": 0.8}},
+                                     "then": [repeated], "else": []}]):
+            ast = binding(middle)
+            validate_bound_dynamic_program(ast)  # Otherwise valid physical paths.
+            class Bridge:
+                def request_preparation(self, **_kwargs):
+                    return launcher.PreparedProgram("activity-1", ast, "epoch-before")
+            session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+            caller = _RecordingCaller()
+            teacher = _ShutdownFailingTeacher()
+            session._bridge, session._caller, session._teacher = Bridge(), caller, teacher
+            try:
+                session.prepare()
+            except launcher.PhysicalQualificationLauncherError as exc:
+                require("before teacher authorization" in str(exc), "wrong admission failure")
+            else:
+                raise AssertionError("waits exhausting the whole request were admitted")
+            require(caller.messages == [] and teacher.messages == [], "rejection occurred after host/teacher exchange")
+            require(not session._teacher_decision_attempted and session._prepared is None,
+                    "failed admission established authority/preparation")
+
+    # Separate static waits have separate deadlines; no aggregate static cap.
+    launcher.validate_qualification_wait_budget(binding([wait] * 8))
+    launcher.validate_qualification_wait_budget(canonical_dynamic_ast())
+    launcher.validate_qualification_wait_budget(binding([
+        {"kind": "repeat", "count": 5, "body": [wait]},
+    ]))
+    # Bound the structural proof without expanding repeats or evaluating branches.
+    nested = wait
+    for _ in range(18):
+        nested = {"kind": "repeat", "count": 20, "body": [nested]}
+    try:
+        launcher.validate_qualification_wait_budget(binding([nested]))
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("nested wait overflow admitted")
+
+
 class _FakeSocketResource:
     def __init__(self) -> None:
         self.closed = False
@@ -610,6 +661,147 @@ def test_full_launcher_composes_real_window_distinct_teacher_and_parameter_free_
             require(not ephemeral_world.exists(), "launcher must clean generated world")
 
 
+def test_execution_write_is_one_shot_even_when_delivery_is_ambiguous():
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch")
+    session._teacher_sealed = session._teacher_approved = True
+    caller = _RecordingCaller()
+    writes = []
+    def fail(payload):
+        writes.append(payload)
+        raise OSError("partial send")
+    caller.sendall = fail
+    session._caller = caller
+    for _ in range(2):
+        try:
+            session.execute_approved_program(timeout_seconds=0.01)
+        except launcher.PhysicalQualificationLauncherError:
+            pass
+        else:
+            raise AssertionError("ambiguous execution write succeeded")
+    require(len(writes) == 1, "ordinary execution request was retried")
+    session.close()
+
+
+def test_socket_deadline_is_total_and_finite():
+    class Drip:
+        def __init__(self): self.now = 0; self.timeouts = []
+        def gettimeout(self): return None
+        def settimeout(self, value): self.timeouts.append(value)
+        def recv(self, _size): self.now += 0.4; return b" "
+    drip = Drip()
+    original = launcher.monotonic
+    launcher.monotonic = lambda: drip.now
+    try:
+        try:
+            launcher._read_socket_line(drip, timeout_seconds=1.0)
+        except launcher.PhysicalQualificationLauncherError:
+            pass
+        require(len(drip.timeouts) == 4 and drip.timeouts[-1] is None,
+                "per-byte timeout extended the total message deadline")
+        for value in (True, float("nan"), float("inf"), "1"):
+            try:
+                launcher._read_socket_line(drip, timeout_seconds=value)
+            except launcher.PhysicalQualificationLauncherError:
+                pass
+            else:
+                raise AssertionError("invalid timeout accepted")
+    finally:
+        launcher.monotonic = original
+
+
+def test_teardown_never_kills_a_possibly_authorized_host():
+    events = []
+    class Process:
+        def __init__(self, name, pending=False): self.name=name; self.pending=pending
+        def poll(self): return None
+        def wait(self, timeout):
+            events.append((self.name, "wait", timeout))
+            if self.pending: raise launcher.subprocess.TimeoutExpired(self.name, timeout)
+            return 0
+        def terminate(self): events.append((self.name, "terminate"))
+        def kill(self): raise AssertionError("forced kill")
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    session._teacher_decision_attempted = True
+    session._host = Process("host", pending=True)
+    session._webots = Process("webots")
+    try:
+        session.close()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("unresolved" in str(exc), "timeout falsely claimed teardown")
+    else:
+        raise AssertionError("pending authorized host falsely reaped")
+    require(events == [("host", "wait", 10.0)], "timeout killed flight/provenance owner")
+    session._host.pending = False
+    session.close()  # reap only after host independently completes; never execute again
+    require(events[1][0] == "host" and events[2] == ("webots", "terminate"),
+            "browser teardown preceded host completion")
+
+
+def test_caller_loss_is_observed_during_a_blocking_operation():
+    import socket
+    from caller_lifetime import CallerLifetime
+    host, peer = socket.socketpair()
+    reader = host.makefile("r", encoding="utf-8")
+    lifetime = CallerLifetime(reader, max_message_bytes=128)
+    try:
+        peer.sendall(b'{"op":"execute-next-inflight"}\n')
+        require(next(iter(lifetime)).startswith('{"op"'), "request lost")
+        lifetime.assert_open()
+        peer.shutdown(socket.SHUT_WR)
+        # The main host thread is occupied by this modeled backend operation;
+        # EOF must be observed without waiting for its request loop to resume.
+        require(lifetime._closed.wait(1), "blocking execution hid caller EOF")
+        try:
+            lifetime.assert_open()
+        except RuntimeError as exc:
+            require("revoked" in str(exc), "EOF did not revoke ordinary execution")
+        else:
+            raise AssertionError("caller EOF retained ordinary execution")
+    finally:
+        lifetime.stop(); peer.close(); host.shutdown(socket.SHUT_RD); reader.close(); host.close()
+
+
+def test_failed_host_exit_cleans_resources_and_never_reports_success():
+    events = []
+    class Host:
+        def wait(self, timeout):
+            events.append("host finished")
+            return 7
+        def terminate(self):
+            raise AssertionError("completed host was terminated again")
+    class Resource:
+        def close(self):
+            events.append("resource closed")
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    session._host = Host()
+    session._bridge = Resource()
+    session._ephemeral = Resource()
+    try:
+        session.close()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("unsuccessfully: 7" in str(exc), "host failure code was lost")
+    else:
+        raise AssertionError("failed host exit became successful qualification")
+    require(events == ["host finished", "resource closed", "resource closed"],
+            "known host failure prevented safe remaining cleanup")
+    require(session._host is None and session._bridge is None and session._ephemeral is None,
+            "completed cleanup retained resources")
+
+
+def test_teardown_failure_preserves_original_execution_diagnostic():
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    def fail(): raise launcher.PhysicalQualificationLauncherError("host teardown unresolved")
+    session.close = fail
+    original = launcher.PhysicalQualificationLauncherError("HOST_DIAGNOSTIC root cause")
+    try:
+        session.__exit__(type(original), original, None)
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("HOST_DIAGNOSTIC root cause" in str(exc) and "host teardown unresolved" in str(exc),
+                "teardown masked the initiating diagnostic")
+        require(exc.__cause__ is original, "original exception identity lost")
+    else:
+        raise AssertionError("teardown failure was hidden")
 def test_host_failure_evidence_reaches_terminal_without_next_command() -> None:
     session = launcher.PhysicalQualificationSession(uri="radio://0/80/2M", webots_executable="unused")
     caller, host = socket.socketpair()
@@ -647,6 +839,13 @@ def test_host_failure_evidence_reaches_terminal_without_next_command() -> None:
 
 
 def main() -> int:
+    test_failed_host_exit_cleans_resources_and_never_reports_success()
+    test_wait_deadline_admission_precedes_all_host_and_teacher_exchange()
+    test_teardown_failure_preserves_original_execution_diagnostic()
+    test_execution_write_is_one_shot_even_when_delivery_is_ambiguous()
+    test_socket_deadline_is_total_and_finite()
+    test_teardown_never_kills_a_possibly_authorized_host()
+    test_caller_loss_is_observed_during_a_blocking_operation()
     test_preparation_bridge_is_authenticated_one_shot_non_authority()
     test_ephemeral_robot_window_injects_only_non_authority_bootstrap()
     test_browser_helper_has_no_teacher_or_execution_channel()

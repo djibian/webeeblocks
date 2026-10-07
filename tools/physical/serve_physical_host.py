@@ -42,6 +42,7 @@ if __name__ == "__main__":
         if str(physical) not in sys.path:
             sys.path.insert(0, str(physical))
 
+        from caller_lifetime import CallerLifetime
         from physical_execution_domain import PhysicalExecutionDomain
         from physical_diagnostics import failure_evidence
         from physical_run_dispatch import activate_validated_run
@@ -103,8 +104,17 @@ if __name__ == "__main__":
             None if args.teacher_fd is None else socket.socket(fileno=args.teacher_fd)
         )
 
+        caller_lifetime = CallerLifetime(caller_reader, max_message_bytes=max_message_bytes)
+
+        class _CallerBoundBridge(PostResetCapabilityHttpBridge):
+            def assert_current_program(self, **kwargs):
+                caller_lifetime.assert_open()
+                evidence = super().assert_current_program(**kwargs)
+                caller_lifetime.assert_open()
+                return evidence
+
         with ReadOnlyCapabilitySession(args.uri) as session:
-            bridge = PostResetCapabilityHttpBridge(session)
+            bridge = _CallerBoundBridge(session)
             bridge_thread = Thread(target=bridge.serve_forever, daemon=True)
             bridge_thread.start()
             host, port = bridge.address
@@ -207,7 +217,7 @@ if __name__ == "__main__":
                     return False
 
             try:
-                for line in caller_reader:
+                for line in caller_lifetime:
                     if len(line.encode("utf-8")) > max_message_bytes:
                         break
                     try:
@@ -368,6 +378,7 @@ if __name__ == "__main__":
                         break
             finally:
                 host_stopping.set()
+                caller_lifetime.stop()
                 staged_ready.set()
 
                 if activation_thread is not None:
@@ -375,11 +386,19 @@ if __name__ == "__main__":
 
                 active_controller = activation_state["active_run"]
                 _activation_error = activation_state["error"]
+                teardown_error = None
                 if active_controller is not None:
                     try:
                         active_controller.shutdown()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        teardown_error = exc
+                # This survives caller EOF, when IPC can no longer carry a reply.
+                print("HOST_TEARDOWN " + json.dumps({
+                    "phase": execution_domain.phase,
+                    "callerClosure": caller_lifetime.close_reason,
+                    "activationError": str(_activation_error)[:400] if _activation_error else None,
+                    "teardownError": type(teardown_error).__name__ + ": " + str(teardown_error)[:400] if teardown_error else None,
+                }, sort_keys=True), file=sys.stderr, flush=True)
 
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
@@ -393,10 +412,17 @@ if __name__ == "__main__":
                 del _activation_error
 
                 try:
+                    caller_socket.shutdown(socket.SHUT_RD)
+                except OSError:
+                    pass
+                try:
                     caller_reader.close()
                     caller_writer.close()
                     caller_socket.close()
                 except OSError:
                     pass
+
+                if teardown_error is not None:
+                    raise RuntimeError("physical host terminal teardown failed") from teardown_error
 
     _run_physical_host()

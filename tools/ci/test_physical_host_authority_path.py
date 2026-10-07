@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import subprocess
 import sys
-from threading import Thread
+from threading import Event, Thread
 
 ROOT = Path(__file__).resolve().parents[2]
 PHYSICAL = ROOT / "tools" / "physical"
@@ -15,9 +16,11 @@ CI = ROOT / "tools" / "ci"
 sys.path.insert(0, str(PHYSICAL))
 sys.path.insert(0, str(CI))
 
+import caller_lifetime
 import high_level_ack  # noqa: E402
 import physical_execution_domain  # noqa: E402
 import physical_run_activation as activation  # noqa: E402
+import physical_run_dispatch as dispatch  # noqa: E402
 import post_reset_capability_bridge  # noqa: E402
 import powered_session_authority  # noqa: E402
 import probe_reference_hardware  # noqa: E402
@@ -30,6 +33,9 @@ import test_physical_host_activation as base  # noqa: E402
 
 HOST = base.HOST
 EVENTS = base.EVENTS
+TAKEOFF_COMPLETED = Event()
+TEACHER_PROPOSAL = Event()
+RELEASE_TEACHER_REPLY = Event()
 _ORIGINAL_CLOSE_RUN = teacher_run_authorization.TrustedTeacherAuthorizer.close_run
 
 
@@ -75,6 +81,7 @@ class RealDomainFakeTransport(base.FakeTransportBase):
             self.execution_domain.phase == physical_execution_domain.FLYING,
             "real #273 completion did not establish flying",
         )
+        TAKEOFF_COMPLETED.set()
         return base.FakeAckResult()
 
 
@@ -141,8 +148,12 @@ def _teacher_peer(
         }
         if mode == "mismatch":
             response["connectionEpoch"] = "stale-epoch"
-        elif mode != "approve":
+        elif mode not in ("approve", "approve-after-eof"):
             raise AssertionError("unsupported teacher test mode")
+
+        TEACHER_PROPOSAL.set()
+        if mode == "approve-after-eof":
+            require(RELEASE_TEACHER_REPLY.wait(1), "caller EOF not observed before approval")
 
         peer.sendall(
             (json.dumps(response, separators=(",", ":"), sort_keys=True) + "\n").encode(
@@ -155,7 +166,17 @@ def _teacher_peer(
         result["error"] = exc
 
 
-def run_host(*, teacher_mode: str | None) -> dict[str, object]:
+def run_host(*, teacher_mode: str | None, expected_teardown_error: bool = False) -> dict[str, object]:
+    TAKEOFF_COMPLETED.clear()
+    TEACHER_PROPOSAL.clear()
+    RELEASE_TEACHER_REPLY.clear()
+    observed_lifetimes = []
+    original_lifetime = caller_lifetime.CallerLifetime
+    class ObservedLifetime(original_lifetime):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            observed_lifetimes.append(self)
+    caller_lifetime.CallerLifetime = ObservedLifetime
     caller_host, caller_peer = socket.socketpair()
     browser_read, browser_write = os.pipe()
     teacher_peer = None
@@ -235,6 +256,11 @@ def run_host(*, teacher_mode: str | None) -> dict[str, object]:
     # staged binding and complete the one-shot proposal/decision exchange before
     # caller EOF can trigger host teardown. This is a causal test synchronization
     # point, not a delay: a missing proposal still fails the existing bounded join.
+    if teacher_mode == "approve-after-eof":
+        require(TEACHER_PROPOSAL.wait(1), "teacher proposal never arrived")
+        caller_peer.shutdown(socket.SHUT_WR)
+        require(observed_lifetimes[0]._closed.wait(1), "host did not observe caller EOF")
+        RELEASE_TEACHER_REPLY.set()
     if teacher_worker is not None:
         teacher_worker.join(timeout=1.0)
         require(not teacher_worker.is_alive(), "teacher peer did not finish one-shot exchange")
@@ -243,18 +269,28 @@ def run_host(*, teacher_mode: str | None) -> dict[str, object]:
             "teacher peer failed: " + repr(teacher_result.get("error")),
         )
 
-    caller_peer.shutdown(socket.SHUT_WR)
+    if teacher_mode == "approve":
+        # The ordinary lifetime must remain open through positive activation.
+        # Teacher bytes being sent is not proof that takeoff already completed.
+        require(TAKEOFF_COMPLETED.wait(1.0), "takeoff did not complete while caller was live")
+    if teacher_mode != "approve-after-eof":
+        caller_peer.shutdown(socket.SHUT_WR)
 
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "actual production host runner did not terminate")
-    require(
-        "error" not in outcome,
-        "actual production host runner failed: " + repr(outcome.get("error")),
-    )
+    if expected_teardown_error:
+        error = outcome.get("error")
+        require(isinstance(error, RuntimeError) and "terminal teardown failed" in str(error),
+                "actual host hid terminal teardown failure: " + repr(error))
+        require("injected controller shutdown" in str(error.__cause__), "host lost teardown cause")
+    else:
+        require("error" not in outcome,
+                "actual production host runner failed: " + repr(outcome.get("error")))
 
     caller_peer.close()
     if teacher_peer is not None:
         teacher_peer.close()
+    caller_lifetime.CallerLifetime = original_lifetime
     return {"bootstrap": bootstrap, "teacher": teacher_result}
 
 
@@ -367,12 +403,48 @@ def test_no_teacher_capability_remains_effect_free() -> None:
     )
 
 
+def test_caller_eof_before_teacher_reply_blocks_takeoff():
+    EVENTS.clear()
+    install_hardware_fakes()
+    run_host(teacher_mode="approve-after-eof")
+    require(not any(isinstance(event, tuple) and event[0] == "transport-send" for event in EVENTS),
+            "closed ordinary channel inherited a later teacher approval")
+    require(physical_execution_domain.PhysicalExecutionDomain().phase == physical_execution_domain.INACTIVE,
+            "caller loss manufactured flight authority")
+
+
+def test_actual_host_reports_failed_controller_shutdown_after_cleanup():
+    EVENTS.clear()
+    install_hardware_fakes()
+    original = dispatch.activate_validated_run
+    def activate(**kwargs):
+        controller = original(**kwargs)
+        class FailedShutdown:
+            def shutdown(self):
+                controller.shutdown()
+                raise RuntimeError("injected controller shutdown failure")
+        return FailedShutdown()
+    dispatch.activate_validated_run = activate
+    try:
+        run_host(teacher_mode="approve", expected_teardown_error=True)
+        require(("session-close", "epoch-after") in EVENTS, "failed teardown prevented radio-session cleanup")
+        require("watchdog-stop" in EVENTS, "failed teardown skipped authority termination")
+    finally:
+        dispatch.activate_validated_run = original
+
+
 def main() -> int:
+    test_caller_eof_before_teacher_reply_blocks_takeoff()
     # Keep the real process-wide domain reusable across these deterministic cases:
     # failed teacher binding leaves INACTIVE, then the positive case reaches FLYING.
     test_mismatched_real_teacher_reply_cannot_reach_effect()
     test_real_teacher_and_execution_authority_reach_causal_effect()
     test_no_teacher_capability_remains_effect_free()
+    # Each positive authority case needs its own real process-wide domain;
+    # do not reset an already-FLYING domain merely to reuse a test process.
+    subprocess.run([sys.executable, "-c", "import test_physical_host_authority_path as t; "
+                    "t.test_actual_host_reports_failed_controller_shutdown_after_cleanup()"],
+                   cwd=CI, check=True, timeout=10)
     print(
         "PASS actual host authority path: real #273 + real #290/#267 socket authority, "
         "fresh post-reset provenance and causal effect; mismatch/caller-only fail closed"
