@@ -1,0 +1,120 @@
+{
+  "binding": {
+    "checkpoint_ref": "issue-561",
+    "purpose": "checkpoint",
+    "request": "https://github.com/djibian/webeeblocks/issues/70#issuecomment-6021601354",
+    "target_sha": "4ca2d1e3b3556e98136c12b9d3522d8707144f03"
+  },
+  "capture": {
+    "provenance": "X3 checkpoint #561: fresh-reset preparation PREPARED; cycle1 stationary CAPTURED and operator CONFORME; terrain blocked before collector start by live health gate stateEstimate.z=-2.814063310623169; no retry"
+  },
+  "human_verdict": null,
+  "kind": "webeeblocks-raw-test-evidence",
+  "producer": {
+    "format_version": 1,
+    "tool": "tools/evidence/publish_test_evidence.py"
+  },
+  "profile": {
+    "id": "physical-csv-text-v1",
+    "registry_path": "tools/evidence/profiles/physical-csv-text-v1.json",
+    "sha256": "f23b117e2dbbe977baaa27ecd3ddd0192ede1e2c52b0c5276794b4254208d4af"
+  },
+  "raw_files": [
+    {
+      "path": "raw/captures/checkpoint-failure.txt",
+      "sha256": "e39fa3a6c3b1c2b38ca30559f5c395f136fe41dd0c869e777f0a1ebcb6a29b80",
+      "size": 586
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/apparatus-metadata.txt",
+      "sha256": "38f687a3ff799f1dd00a4f47431f8da3435c87ee5d3b8dc29f8dd28a7e9dd87a",
+      "size": 615
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/protocol-plan.txt",
+      "sha256": "a7c89660a9db03590ee73e22bb6e20aeabff151e114daf295b67ee346720c0d9",
+      "size": 386
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/barometer.csv",
+      "sha256": "e871032bcc98ea0da0fb89314f2fbcd6dc43d57a33ffbc806f1427d403ffcf72",
+      "size": 583913
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/capture-result.json",
+      "sha256": "24fbe71b18825d9d938f2c298057ac85bea9219f54fc6790d3f91d6bd06e2076",
+      "size": 989
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/capture-start.json",
+      "sha256": "3b59e56877c2224b806bfe5ccf57f419574cd17c6d1b3bec18a7b56ca55cd422",
+      "size": 1907
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/detector.csv",
+      "sha256": "c437b6f3cccaaa41f1c1beadf6af52188103bd0f3cdd506cd675e8e7739b18b6",
+      "size": 352197
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/imu.csv",
+      "sha256": "fb320f2d708ca225e2b870c3d7f7a1c62246669a3432a3ddc4ad7ceed89c4e33",
+      "size": 2115514
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/observed-parameters.json",
+      "sha256": "aa5a3445fae02a62bdf3fb7e0c230a4a1c5b973250d6cd496db284208473f54f",
+      "size": 123
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/pose.csv",
+      "sha256": "d7d8db21726ffe73eb386a0888591608a449fa0a854ff74748c37cda5abea95f",
+      "size": 853669
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/preparation-record.json",
+      "sha256": "8c299014ad6e22d16e9f97334dcba3ca903e986cb4eef56a2dab67599291b100",
+      "size": 3710
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/raw/recording-ready.json",
+      "sha256": "57901f40ed399b2ae63dc7503e846018eda1a12e03691e0733b3d8d5c8c1542f",
+      "size": 41
+    },
+    {
+      "path": "raw/captures/cycle1-stationary-01/reference-witness.csv",
+      "sha256": "b31d09dd798ab3df700ba589a609350e4c08c0351eb318dcd13f2678403bfb9e",
+      "size": 1732
+    },
+    {
+      "path": "raw/captures/cycle1-terrain-01/apparatus-metadata.txt",
+      "sha256": "6e877cc4e583cb4eeaa423ba3b4dd175985bd21ad58659e85f23331547327ef8",
+      "size": 705
+    },
+    {
+      "path": "raw/captures/cycle1-terrain-01/protocol-plan.txt",
+      "sha256": "5c165582b705e9a1be175c9f27ed4273b8c6c005b25755581466e95469e155df",
+      "size": 512
+    },
+    {
+      "path": "raw/captures/cycle1-terrain-01/reference-witness.csv",
+      "sha256": "05886a6635dbfd50b8a43d87afcd170042bbc707bf2de097fa98213bd1f64cdd",
+      "size": 151
+    },
+    {
+      "path": "raw/local-sha256.txt",
+      "sha256": "1c24bf8153bcd893b3bf0bd24e50150e557fe6b7946babddeb213bb332972697",
+      "size": 2584
+    },
+    {
+      "path": "raw/preparation/preparation-start.json",
+      "sha256": "bd82e0043ef7a8155c50e615ad35b9f2c7fa1585b71fb79fff7120c514bc66d6",
+      "size": 375
+    },
+    {
+      "path": "raw/preparation/preparation.json",
+      "sha256": "8c299014ad6e22d16e9f97334dcba3ca903e986cb4eef56a2dab67599291b100",
+      "size": 3710
+    }
+  ],
+  "schema": 1
+}

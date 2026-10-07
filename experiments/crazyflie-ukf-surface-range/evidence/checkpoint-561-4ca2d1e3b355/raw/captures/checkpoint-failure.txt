@@ -1,0 +1,16 @@
+checkpoint=561
+target_sha=4ca2d1e3b3556e98136c12b9d3522d8707144f03
+profile=x3-independent-props-off
+verdict=FAIL
+phase=cycle1-terrain-01
+boundary=pre-acquisition estimator health gate
+error=PREPARATION_ERROR: estimator health bound exceeded: stateEstimate.z=-2.814063310623169 outside [-1.0, 5.0]
+terrain_capture_started=false
+completed_capture=cycle1-stationary-01
+completed_capture_status=CAPTURED
+stationary_pose_z_min_m=0.590144
+stationary_pose_z_max_m=0.607182
+stationary_vz_min_mps=-0.041351
+stationary_vz_max_mps=0.041448
+stationary_nonfinite_pose_values=0
+automatic_retry=false

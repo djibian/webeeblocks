@@ -1,0 +1,24 @@
+trial=cycle1-terrain-01
+scenario=terrain
+capture_duration_s=170
+
+vehicle_z_target_m=0.600
+vehicle_z_allowed_m=0.595..0.605
+surface_floor_m=0.000
+surface_raised_m=0.300
+
+sync1_s=10
+calibration_s=15..50
+plateau_before_s=60..70
+
+terrain_up_transition_s=70..72
+terrain_up_continuous_hold_s=72..90
+raised_plateau_s=90..100
+
+terrain_down_transition_s=100..102
+terrain_down_continuous_hold_s=102..120
+plateau_after_s=120..135
+
+sync2_s=140
+
+sync_gesture=+90deg yaw around Z then immediate return to original orientation

@@ -1,0 +1,14 @@
+world_datum=top surface of floor, z=0.000 m
+vehicle_body_reference=lower edge of Flow Deck V2 PCB facing the vertical guide
+vehicle_target_z_m=0.600
+vehicle_allowed_z_m=0.595..0.605
+guide_method=world-fixed vertical metric guide, not touching/supporting the Crazyflie
+guide_conservative_resolution_m=0.005
+surface_z_m=0.000
+surface_conservative_resolution_m=0.005
+clock=independent stopwatch observed by second person
+clock_conservative_display_resolution_s=0.10
+human_timing_allowance_s=0.50
+manipulator_role=holds and moves Crazyflie only
+observer_role=watches stopwatch and guide continuously
+props_removed=true

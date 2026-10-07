@@ -1,0 +1,63 @@
+{
+  "blocks": {
+    "barometer": [
+      20,
+      [
+        "baro.asl",
+        "baro.pressure",
+        "baro.temp"
+      ]
+    ],
+    "detector": [
+      20,
+      [
+        "sensorFilter.surfState",
+        "sensorFilter.surfReason",
+        "sensorFilter.surfOffset",
+        "sensorFilter.surfBaroD",
+        "sensorFilter.flowLocal",
+        "sensorFilter.lateElig"
+      ]
+    ],
+    "imu": [
+      10,
+      [
+        "acc.x",
+        "acc.y",
+        "acc.z",
+        "gyro.x",
+        "gyro.y",
+        "gyro.z"
+      ]
+    ],
+    "pose": [
+      20,
+      [
+        "range.zrange",
+        "stabilizer.roll",
+        "stabilizer.pitch",
+        "stateEstimate.z",
+        "stateEstimate.vz",
+        "stabilizer.intToOut"
+      ]
+    ]
+  },
+  "capture_script_sha256": "349dca38b8015ff0ad71e3a6fcd8afe696830cf2752dfc71b311944a20e9eacb",
+  "cflib_logging_module_sha256": "b54bc69b16cda9b0fdeb1c742d690b0ab2e8d75ae6a6d1086ca8a08c7a21f0e5",
+  "cflib_module_sha256": "9cf37d9259d5d3446dfbe93ce98e77a0fbd8a1ade20afc1ec6bdca39d81acd8c",
+  "checkpoint_url": "https://github.com/djibian/webeeblocks/issues/561",
+  "duration_seconds": 150,
+  "installed_firmware_identity": "operator-confirmed; not remote attestation",
+  "physical_verdict": null,
+  "props_removed_operator_confirmation": true,
+  "purpose": "checkpoint",
+  "request_sha": "4ca2d1e3b3556e98136c12b9d3522d8707144f03",
+  "runtime_boundary": "module fingerprints are not a complete dependency/runtime lock",
+  "schema": "webeeblocks.x3.sensor-capture.v1",
+  "started_host_monotonic_s": 1597.397614048,
+  "test_profile": "x3-independent-props-off",
+  "tested_firmware_source_sha": "6562ad827bf0c8bf2c9b609edad36f3e15652133",
+  "time_boundary": "device log and host receipt times; no sensor producer times",
+  "uri": "radio://0/80/2M",
+  "verified_local_firmware_bin_sha256": "67d71f2fc74c06001bb141ed6206b0d06df23497a48f498531c3aba192f0b738"
+}
