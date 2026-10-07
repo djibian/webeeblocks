@@ -148,6 +148,17 @@ retaining its preparation binding does not make it a successful capture. No
 capture directory is manufactured if admission or the pre-acquisition health
 gate prevents collection from starting. Always use a new output directory.
 
+The runner also retains the admission health window in the separate sibling
+`<capture-directory>.health`, including when the gate fails before scientific
+collection. Use a new path for both directories and retain both. The sidecar
+contains the exact preparation bytes and digest in `health-start.json`, raw
+decoded observations in `health-samples.csv` (device log timestamps, host receipt
+times and explicit `repr` values, including missing/non-finite values), and
+`health-result.json` with the unchanged gate result or failure. Rows are retained
+before applying the bounds; write failure cannot authorize acquisition.
+This is one health window, not a scientific trial or a continuous trace across
+the preceding handling/disconnected interval. No missing interval is inferred.
+
 After preparation, all scientific collection rules remain exactly those in
 `X3_CHARACTERIZATION_PROCEDURE.md`:
 
