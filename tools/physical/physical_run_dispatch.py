@@ -27,5 +27,11 @@ def activate_validated_run(**kwargs):
         # The dynamic path performs its complete backend-free shared-language and
         # conservative physical validation before reset/takeoff.  An invalid AST
         # therefore still fails before effect; this fallback does not authorize it.
+        dynamic = True
+    else:
+        dynamic = False
+    # Leave the expected static-cursor exception context before activation:
+    # otherwise a later dynamic error reports that dispatch decision as a cause.
+    if dynamic:
         return activate_validated_dynamic_run(**kwargs)
     return activate_validated_static_run(**kwargs)

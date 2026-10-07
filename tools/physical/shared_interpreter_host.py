@@ -25,7 +25,7 @@ from math import isfinite
 from pathlib import Path
 from queue import Empty, Queue
 import subprocess
-from threading import Thread
+from threading import Lock, Thread
 from typing import Protocol, TextIO
 
 from physical_dynamic_preflight import (
@@ -58,6 +58,26 @@ class SharedInterpreterHostError(RuntimeError):
     """Fail-closed error for the host-owned shared interpreter adapter."""
 
 
+def _diagnostic_site(value: object) -> dict[str, object]:
+    # Diagnostic data is never used to select an action or prove authority.
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"path", "kind", "role"}
+        or not isinstance(value["path"], list)
+        or len(value["path"]) > 64
+        or any(
+            not ((type(part) is int and 0 <= part <= 100000)
+                 or (isinstance(part, str) and len(part) <= 40))
+            for part in value["path"]
+        )
+        or not isinstance(value["kind"], str)
+        or len(value["kind"]) > 40
+        or value["role"] not in ("statement", "expression")
+    ):
+        raise SharedInterpreterHostError("shared interpreter diagnostic site is malformed")
+    return value
+
+
 class PhysicalInterpreterBackend(Protocol):
     def takeoff(self, height_m: float): ...
     def land(self): ...
@@ -76,6 +96,44 @@ class SharedInterpreterResult:
     variables: dict[str, object]
 
 
+class _StderrTail:
+    """Drain child stderr without blocking it or retaining unbounded output."""
+    def __init__(self, stream):
+        self._lock = Lock()
+        self._tail = ""
+        self._truncated = False
+        def drain():
+            try:
+                while True:
+                    chunk = stream.read(1024)
+                    if not chunk:
+                        return
+                    with self._lock:
+                        self._truncated |= len(self._tail) + len(chunk) > 4096
+                        self._tail = (self._tail + chunk)[-4096:]
+            except Exception as exc:
+                with self._lock:
+                    self._tail = (self._tail + " [stderr read failed: " + type(exc).__name__ + "]")[-4096:]
+        self._thread = Thread(target=drain, daemon=True)
+        self._thread.start()
+
+    def snapshot(self):
+        self._thread.join(timeout=0.2)
+        with self._lock:
+            return {"stderrTail": self._tail, "stderrTruncated": self._truncated}
+
+
+def _worker_failure(detail, prefix="shared interpreter failed closed"):
+    if (isinstance(detail, dict) and set(detail) == {"name", "message", "site"}
+        and isinstance(detail["name"], str) and len(detail["name"]) <= 80
+        and isinstance(detail["message"], str) and len(detail["message"]) <= 400):
+        error = SharedInterpreterHostError(prefix + ": " + detail["name"] + ": " + detail["message"])
+        if detail["site"] is not None:
+            error.physical_call = _diagnostic_site(detail["site"])
+        return error
+    return SharedInterpreterHostError(prefix)
+
+
 class _LinePump:
     """Read child stdout without letting a silent child block the trusted host."""
 
@@ -85,7 +143,7 @@ class _LinePump:
         def pump() -> None:
             try:
                 while True:
-                    line = stream.readline()
+                    line = stream.readline(_MAX_PROTOCOL_BYTES + 2)
                     if not line:
                         break
                     self._queue.put(line)
@@ -282,7 +340,7 @@ class BoundSharedInterpreter:
                 ["node", str(_WORKER)],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 bufsize=1,
@@ -298,6 +356,7 @@ class BoundSharedInterpreter:
             )
 
         pump = _LinePump(process.stdout)
+        stderr = _StderrTail(process.stderr)
         expected_call_id = 1
         try:
             self._write(
@@ -308,13 +367,14 @@ class BoundSharedInterpreter:
                 message = self._read(pump)
                 message_type = message.get("type")
                 if message_type == "call":
-                    if set(message) != {"type", "id", "method", "args"}:
+                    if set(message) != {"type", "id", "method", "args", "site"}:
                         raise SharedInterpreterHostError(
                             "shared interpreter call is malformed"
                         )
                     call_id = message["id"]
                     method = message["method"]
                     args = message["args"]
+                    site = _diagnostic_site(message["site"])
                     if (
                         not isinstance(call_id, int)
                         or isinstance(call_id, bool)
@@ -328,11 +388,14 @@ class BoundSharedInterpreter:
                     expected_call_id += 1
                     try:
                         value = self._dispatch(method, args)
-                    except SharedInterpreterHostError:
-                        self._write(
-                            process,
-                            {"type": "return", "id": call_id, "ok": False},
-                        )
+                    except SharedInterpreterHostError as exc:
+                        exc.physical_call = {"id": call_id, "method": method, **site}
+                        # Never let a secondary broken worker pipe erase the
+                        # original physical/backend failure.
+                        try:
+                            self._write(process, {"type": "return", "id": call_id, "ok": False})
+                        except SharedInterpreterHostError:
+                            pass
                         raise
                     self._write(
                         process,
@@ -349,6 +412,8 @@ class BoundSharedInterpreter:
                     raise SharedInterpreterHostError(
                         "shared interpreter protocol is malformed"
                     )
+                if message.get("ok") is False and set(message) == {"type", "ok", "error"}:
+                    raise _worker_failure(message["error"])
                 if (
                     message.get("ok") is not True
                     or set(message) != {"type", "ok", "result"}
@@ -386,6 +451,12 @@ class BoundSharedInterpreter:
                         "shared interpreter exited unsuccessfully"
                     )
                 return SharedInterpreterResult(remaining, dict(variables))
+        except Exception as exc:
+            observed_exit = process.poll()
+            self._terminate(process)
+            exc.physical_worker = dict(stderr.snapshot(), exitCodeBeforeTermination=observed_exit,
+                                       hostTerminated=observed_exit is None)
+            raise
         finally:
             self._terminate(process)
 
@@ -408,7 +479,7 @@ def validate_bound_shared_program(ast_binding: str) -> ReachablePhysicalEnvelope
             ["node", str(_WORKER)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             bufsize=1,
@@ -424,6 +495,7 @@ def validate_bound_shared_program(ast_binding: str) -> ReachablePhysicalEnvelope
         )
 
     pump = _LinePump(process.stdout)
+    stderr = _StderrTail(process.stderr)
     try:
         BoundSharedInterpreter._write(
             process,
@@ -431,9 +503,8 @@ def validate_bound_shared_program(ast_binding: str) -> ReachablePhysicalEnvelope
         )
         message = BoundSharedInterpreter._read(pump)
         if message != {"type": "validated", "ok": True}:
-            raise SharedInterpreterHostError(
-                "shared interpreter language validation failed closed"
-            )
+            raise _worker_failure(message.get("error"),
+                                  "shared interpreter language validation failed closed")
         try:
             exit_code = process.wait(timeout=_PROTOCOL_IDLE_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired as exc:
@@ -445,5 +516,11 @@ def validate_bound_shared_program(ast_binding: str) -> ReachablePhysicalEnvelope
                 "shared interpreter validation exited unsuccessfully"
             )
         return safety
+    except Exception as exc:
+        observed_exit = process.poll()
+        BoundSharedInterpreter._terminate(process)
+        exc.physical_worker = dict(stderr.snapshot(), exitCodeBeforeTermination=observed_exit,
+                                   hostTerminated=observed_exit is None)
+        raise
     finally:
         BoundSharedInterpreter._terminate(process)
