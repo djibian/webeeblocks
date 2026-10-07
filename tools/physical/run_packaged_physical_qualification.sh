@@ -77,6 +77,9 @@ trap 'rm -f "$QUALIFICATION_WORLD"' EXIT
 cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
 
 export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
+QUALIFICATION_LOG="$(mktemp "$ROOT/physical-qualification-XXXXXXXX.log")"
+echo "Diagnostic conservé : $QUALIFICATION_LOG"
+cat "$ROOT/SOURCE_SHA" > "$QUALIFICATION_LOG"
 "$VENV/bin/python" "$QUALIFICATION_PERSPECTIVE_ENTRY" "$@" \
   --webots "$WEBOTS_BIN" \
-  --world "$QUALIFICATION_WORLD"
+  --world "$QUALIFICATION_WORLD" 2>&1 | tee -a "$QUALIFICATION_LOG"
