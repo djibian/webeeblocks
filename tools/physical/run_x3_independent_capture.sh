@@ -241,6 +241,8 @@ if ! [[ "$URI" =~ ^radio://[0-9]+/[0-9]+/(250K|1M|2M)(/[0-9A-Fa-f]+)?$ ]]; then
   usage
 fi
 test -s "$PREPARATION_RECORD"
+test ! -e "$OUTPUT"
+test ! -L "$OUTPUT"
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
@@ -254,6 +256,7 @@ python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
   --health-check \
   --uri "$URI"
 
+CAPTURE_STATUS=0
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/capture_independent_inputs.py" \
   --uri "$URI" \
@@ -263,11 +266,27 @@ python3 -B -S "$HERE/capture_independent_inputs.py" \
   --output "$OUTPUT" \
   --seconds "$DURATION_SECONDS" \
   --props-removed \
-  --installed-bin-confirmed
+  --installed-bin-confirmed || CAPTURE_STATUS=$?
 
-test -d "$OUTPUT"
-test ! -e "$OUTPUT/preparation-record.json"
-cp -- "$PREPARATION_RECORD" "$OUTPUT/preparation-record.json"
-sha256sum "$OUTPUT/preparation-record.json" > "$OUTPUT/preparation-record.sha256"
+# An incomplete collector keeps its raw/result files. Retain the verified
+# preparation binding beside them too, without turning that failure into success.
+if [ -d "$OUTPUT" ]; then
+  python3 -B -S - "$PREPARATION_RECORD" "$OUTPUT" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+record = Path(sys.argv[1]).read_bytes()
+destination = Path(sys.argv[2]) / "preparation-record.json"
+with destination.open("xb") as stream:
+    stream.write(record)
+with destination.with_suffix(".sha256").open("x", encoding="utf-8") as stream:
+    stream.write(f"{hashlib.sha256(record).hexdigest()}  {destination}\n")
+PY
+elif [ "$CAPTURE_STATUS" -eq 0 ]; then
+  echo "FAIL: successful collector did not retain its output directory" >&2
+  exit 2
+fi
 
 verify_bundle
+exit "$CAPTURE_STATUS"
