@@ -415,7 +415,36 @@ def test_invalid_timeout_has_no_transport_effect() -> None:
     )
 
 
+def test_unexpected_cleanup_failure_poison_is_epoch_wide():
+    for location in ("disconnect", "port"):
+        cf = FakeCf(frame(0))
+        epoch = EpochSource("epoch-cleanup-" + location)
+        reader = make_reader(cf, epoch)
+        def fail(*args):
+            raise RuntimeError("uncertain callback removal")
+        if location == "disconnect":
+            cf.disconnected.remove_callback = fail
+        else:
+            cf.remove_port_callback = fail
+        expect_error(lambda: reader.read(timeout_seconds=0.01), "uncertain callback removal")
+        require(reader.poisoned, "unexpected transport failure left epoch reusable")
+        expect_error(lambda: make_reader(cf, epoch), "poisoned until reconnect")
+        require(len(cf.sent) == 1, "cleanup uncertainty retried untagged request")
+        if location == "disconnect":
+            require(cf.removed, "disconnect cleanup failure skipped port cleanup")
+
+
+def test_invalid_timeout_types_have_no_transport_effect():
+    for index, value in enumerate((True, float("nan"), float("inf"), "1")):
+        cf = FakeCf(frame(0))
+        reader = make_reader(cf, EpochSource("epoch-invalid-deadline-" + str(index)))
+        expect_error(lambda: reader.read(timeout_seconds=value), "timeout must be positive")
+        require(not cf.sent and not reader.poisoned, "local validation touched correlation")
+
+
 def main() -> int:
+    test_unexpected_cleanup_failure_poison_is_epoch_wide()
+    test_invalid_timeout_types_have_no_transport_effect()
     test_success_and_decode()
     test_deck_fault_is_preserved_and_blocks()
     test_timeout_poison_blocks_delayed_reply_until_epoch_rotates()

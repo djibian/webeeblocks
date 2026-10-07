@@ -574,7 +574,33 @@ def test_production_source_roots_provenance_only_in_host_tcb() -> None:
         require(not hasattr(module, forbidden_attr), "imported host leaks TCB composition: " + forbidden_attr)
 
 
+def test_callback_cleanup_failure_never_returns_success():
+    fixture = Fixture("cleanup-failure", FakeCrazyflie())
+    operation = lambda: fixture.transport.send_turn(angle_deg=20, timing_policy=timing.HighLevelTimingPolicy())
+    domain = fixture.domain
+    def fail(*args):
+        raise RuntimeError("injected removal failure")
+    fixture.cf.remove_port_callback = fail
+    try:
+        try:
+            operation()
+        except Exception as exc:
+            require("callback cleanup failed" in str(exc), str(exc))
+        else:
+            raise AssertionError("uncertain listener teardown reported success")
+        require(fixture.ack.poisoned, "uncertain callback teardown did not poison epoch")
+        require(len(fixture.cf.send_calls) == 1, "cleanup failure repeated command")
+        try:
+            operation()
+        except Exception:
+            pass
+        require(len(fixture.cf.send_calls) == 1, "poisoned effect was retried")
+    finally:
+        fixture.close()
+
+
 def main() -> int:
+    test_callback_cleanup_failure_never_returns_success()
     test_direct_core_has_no_positive_provenance_path()
     test_turn_uses_exact_go_to_and_causal_completion()
     test_horizontal_move_consumes_fresh_yaw()

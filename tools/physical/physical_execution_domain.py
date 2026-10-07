@@ -466,5 +466,10 @@ class PhysicalEffectTransaction:
         self._closed = True
 
     def __exit__(self, exc_type, exc, traceback) -> bool:
+        if (exc_type is not None and self._entered and not self._closed
+            and self._emitted and self._domain.phase == AWAITING_COMPLETION):
+            # A failure after acknowledgement (including listener cleanup)
+            # cannot leave an abandoned permit available as completion proof.
+            self._resolved = False
         self.close()
         return False

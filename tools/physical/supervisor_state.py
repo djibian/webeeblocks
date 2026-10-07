@@ -12,6 +12,8 @@ high-level commander or other effect operation.
 
 from __future__ import annotations
 
+from math import isfinite
+
 from threading import Event, Lock
 from typing import Callable, NamedTuple
 
@@ -206,7 +208,8 @@ class FreshSupervisorStateReader:
             raise SupervisorReadError(reason)
 
     def read(self, *, timeout_seconds: float = 0.2) -> SupervisorState:
-        if timeout_seconds <= 0:
+        if (type(timeout_seconds) not in (int, float)
+            or not isfinite(timeout_seconds) or timeout_seconds <= 0):
             raise SupervisorReadError("supervisor read timeout must be positive")
 
         with self._read_lock:
@@ -215,9 +218,13 @@ class FreshSupervisorStateReader:
                 state = self._read_once(timeout_seconds)
                 self._verify_connection_epoch()
                 return state
-            except SupervisorReadError as exc:
+            except Exception as exc:
+                # Registration/cleanup failures also destroy correlation of this
+                # untagged protocol; a replacement reader must not retry it.
                 _poison_epoch(self._bound_connection_epoch, str(exc))
-                raise
+                if isinstance(exc, SupervisorReadError):
+                    raise
+                raise SupervisorReadError("supervisor transaction failed: " + str(exc)) from exc
 
     def _resolve_crtp_types(self) -> tuple[object, object]:
         if self._crtp_types is not None:
@@ -303,12 +310,11 @@ class FreshSupervisorStateReader:
             if not done.wait(timeout_seconds):
                 raise SupervisorReadError("fresh supervisor state request timed out")
         finally:
-            if disconnect_registered:
-                try:
+            try:
+                if disconnect_registered:
                     disconnect_callbacks.remove_callback(disconnected)
-                except ValueError:
-                    pass
-            self._cf.remove_port_callback(CRTPPort.SUPERVISOR, supervisor_callback)
+            finally:
+                self._cf.remove_port_callback(CRTPPort.SUPERVISOR, supervisor_callback)
 
         error = result.get("error")
         if isinstance(error, SupervisorReadError):
