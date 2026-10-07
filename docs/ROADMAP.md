@@ -445,23 +445,28 @@ justified by the current evidence.
   bundle verification, Runtime/Webots evidence, digest/provenance and the generic
   one-open-human-test rule remain mandatory; packaging itself remains request-
   neutral and grants no execution or motorized authority
-- next indispensable evidence: checkpoint #561 now binds the fresh
-  `x3-independent-props-off` artifact to exact
-  `4ca2d1e3b3556e98136c12b9d3522d8707144f03`, which contains #552. Collect one
-  complete props-off human characterization bundle against the independent
-  metric/time reference using that exact request and artifact (never #550),
-  retaining all validly started raw trials across stationary, terrain,
-  true-vertical and mixed cases.
+- next prerequisite: owner-authoritative checkpoint #561 is resolved `FAIL` on
+  exact `4ca2d1e3b3556e98136c12b9d3522d8707144f03`. Fresh-reset preparation and
+  one bounded stationary capture succeeded, but the next pre-terrain health gate
+  rejected Z=-2.814063310623169 m before terrain collection. Retained raw evidence
+  is published in #562; the unobserved inter-capture interval cannot establish
+  the initiating cause. See [the bounded analysis](X3_FAIL_561_ANALYSIS.md).
+  Review the preparation/acquisition lifecycle and a bounded diagnostic path for
+  that missing interval before requesting another identical characterization;
+  no blind retry, repeated trial reset or health-bound weakening is justified.
+  A complete props-off characterization against the independent metric/time
+  reference remains necessary, retaining every validly started stationary,
+  terrain, true-vertical and mixed trial under a fresh exact request/artifact.
   Calibration-only processing/envelopes are then frozen before untouched
   confirmation and the separate scientific decision. An uncertainty interval
   crossing a predeclared target is `UNPROVEN`, never PASS
-- checkpoint gating: #550 is closed owner-authoritative `FAIL` and therefore
-  no longer occupies the one-open-human-test slot, but its artifact/fingerprint
-  is historical failure evidence only. The #551 repair is integrated through
-  #552. Existing checkpoint #561 occupies the sole human-test slot until its
-  applicable owner-authoritative PASS/FAIL/NOT_NEEDED resolution; later main
-  changes do not transfer its acceptance to another artifact. Any later request
-  must reconstruct current dependencies and bind its own exact SHA/artifact.
+- checkpoint gating: #550 and #561 are closed owner-authoritative `FAIL` and
+  occupy no human-test slot; their artifacts/fingerprints remain historical
+  failure evidence only. The #551 fresh-reset repair is integrated through #552,
+  but does not prove health across the #561 inter-capture interval. Any later
+  request must reconstruct current dependencies and the live global checkpoint
+  set, then bind its own exact SHA/artifact; later main changes never transfer
+  acceptance or approval from either failed request.
   The generic one-open-human-test rule remains mandatory and no queue is created
 - safety boundary: empirical characterization is tested-domain evidence, not a
   universal deterministic guarantee. Do not revive dominated interrupt/timing
