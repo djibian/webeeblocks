@@ -82,7 +82,7 @@ async function rpc(method, args) {
     if (typeof startup.astBinding !== 'string' || !startup.astBinding.trim() || startup.astBinding !== startup.astBinding.trim())
       throw new Error('exact AST binding is unavailable');
     const ast = JSON.parse(startup.astBinding);
-    Interpreter.validateProgram(ast);
+    Interpreter.validateExecutionBudget(ast);
 
     if (startup.op === 'validate-bound-program') {
       send({type: 'validated', ok: true});

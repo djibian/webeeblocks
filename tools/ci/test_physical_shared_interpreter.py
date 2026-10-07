@@ -330,7 +330,7 @@ def test_surface_contains_no_second_language_engine_or_caller_semantics() -> Non
         ROOT / "plugins/robot_windows/blockly/webeeblocks/interpreter.js"
     ).read_text(encoding="utf-8")
     require("interpreter.js" in worker_source, "worker does not load product interpreter")
-    require("Interpreter.validateProgram(ast)" in worker_source, "worker bypasses shared validation")
+    require("Interpreter.validateExecutionBudget(ast)" in worker_source, "worker bypasses shared validation")
     require("validate-bound-program" in host_source + worker_source, "pre-effect validation mode is unavailable")
     require("Interpreter.run(ast, backend," in worker_source, "worker bypasses shared run()")
     for forbidden in ("case 'if'", "case 'repeat'", "statement.kind", "expression.kind"):
@@ -429,7 +429,41 @@ def test_bounded_diagnostics_advertise_truncation():
     require(failure_evidence(ValueError("x" * 500))["causes"][0]["messageTruncated"], "message limit was silent")
 
 
+def test_shared_budget_counts_expressions_branches_and_terminal_land():
+    import subprocess
+    script = r"""
+const assert = require('assert');
+const interpreter = require('./plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const ast = program => ({version:1, semantics:'webeeblocks-ast-v1', program});
+const takeoff = {kind:'takeoff',height_m:0.5}, land = {kind:'land'};
+const wait = {kind:'wait',seconds:0.1};
+assert.equal(interpreter.validateExecutionBudget(ast([takeoff,...Array(998).fill(wait),land])),1000);
+assert.throws(()=>interpreter.validateExecutionBudget(ast([takeoff,...Array(999).fill(wait),land])),/budget/);
+const choice = {kind:'if',condition:{kind:'compare',op:'LT',left:{kind:'number',value:0},right:{kind:'number',value:1}},then:[wait],else:[]};
+assert.equal(interpreter.validateExecutionBudget(ast([takeoff,choice,land])),7);
+choice.else=Array(995).fill(wait);
+assert.throws(()=>interpreter.validateExecutionBudget(ast([takeoff,choice,land])),/budget/);
+"""
+    subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
+
+
+def test_runtime_budget_is_rejected_before_takeoff():
+    body = [{"kind": "wait", "seconds": 0.1}]
+    for _ in range(3):
+        body = [{"kind": "repeat", "count": 20, "body": body}]
+    ast = {"version": 1, "semantics": "webeeblocks-ast-v1", "program": [
+        {"kind": "takeoff", "height_m": 0.5}, *body, {"kind": "land"}]}
+    try:
+        subject.validate_bound_shared_program(binding(ast))
+    except subject.SharedInterpreterHostError:
+        pass
+    else:
+        raise AssertionError("guaranteed runtime-budget failure admitted before takeoff")
+
+
 def main() -> int:
+    test_runtime_budget_is_rejected_before_takeoff()
+    test_shared_budget_counts_expressions_branches_and_terminal_land()
     test_fatal_worker_stderr_and_validation_causes_survive()
     test_bounded_diagnostics_advertise_truncation()
     test_large_worker_stderr_is_drained_and_bounded()

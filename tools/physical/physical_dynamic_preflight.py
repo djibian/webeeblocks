@@ -23,6 +23,7 @@ import physical_program_sequence
 import takeoff_command
 
 MAX_CONTROL_DEPTH = 20
+MAX_PROOF_STATEMENTS = 10000
 
 
 class DynamicPhysicalPreflightError(RuntimeError):
@@ -170,6 +171,7 @@ def _validate_sequence(
     bounds: _Bounds,
     *,
     depth: int,
+    proof_budget: list[int],
 ) -> _Bounds:
     if depth > MAX_CONTROL_DEPTH:
         raise _error("dynamic physical control-flow nesting is too deep")
@@ -178,6 +180,9 @@ def _validate_sequence(
 
     current = bounds
     for statement in sequence:
+        proof_budget[0] -= 1
+        if proof_budget[0] < 0:
+            raise _error("physical safety proof exceeds bounded statement budget")
         if not isinstance(statement, dict) or not isinstance(statement.get("kind"), str):
             raise _error("dynamic physical statement is malformed")
 
@@ -217,11 +222,13 @@ def _validate_sequence(
                 statement["then"],
                 current,
                 depth=depth + 1,
+                proof_budget=proof_budget,
             )
             else_bounds = _validate_sequence(
                 statement.get("else", []),
                 current,
                 depth=depth + 1,
+                proof_budget=proof_budget,
             )
             current = _Bounds(
                 low=min(then_bounds.low, else_bounds.low),
@@ -259,6 +266,7 @@ def _validate_sequence(
                     statement["body"],
                     current,
                     depth=depth + 1,
+                    proof_budget=proof_budget,
                 )
             continue
 
@@ -307,6 +315,7 @@ def validate_bound_dynamic_program(ast_binding: object) -> ReachablePhysicalEnve
         program[1:-1],
         start,
         depth=0,
+        proof_budget=[MAX_PROOF_STATEMENTS],
     )
     return ReachablePhysicalEnvelope(
         ast_binding=str(ast_binding),
