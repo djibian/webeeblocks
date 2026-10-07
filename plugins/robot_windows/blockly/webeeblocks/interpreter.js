@@ -78,6 +78,30 @@
     validateSequence(ast.program,0,false,new Set(),Object.create(null));
   }
 
+  // Conservative cost only: no expression evaluation or branch selection.
+  // The physical host must prove the existing runtime budget before takeoff.
+  function validateExecutionBudget(ast,maxSteps){
+    validateProgram(ast);
+    maxSteps=maxSteps===undefined?1000:maxSteps;
+    if(!Number.isInteger(maxSteps)||maxSteps<1||maxSteps>100000)fail('invalid execution budget');
+    function expressionCost(node){
+      return 1+((node.kind==='arithmetic'||node.kind==='compare'||node.kind==='logic')
+        ?expressionCost(node.left)+expressionCost(node.right):0);
+    }
+    function sequenceCost(sequence){
+      var cost=0;
+      sequence.forEach(function(node){
+        cost+=1;
+        if(node.kind==='set_variable')cost+=expressionCost(node.value);
+        if(node.kind==='if')cost+=expressionCost(node.condition)+Math.max(sequenceCost(node.then),sequenceCost(node.else||[]));
+        if(node.kind==='repeat')cost+=node.count*sequenceCost(node.body);
+        if(cost>maxSteps)fail('reachable execution exceeds runtime budget before takeoff');
+      });
+      return cost;
+    }
+    return sequenceCost(ast.program);
+  }
+
   async function evaluate(expression,backend,budget,depth,options,path,env){
     env=env||environment();
     budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
@@ -145,5 +169,5 @@
   }
 
   async function run(ast,backend,options){validateProgram(ast);var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
-  return{run:run,evaluate:evaluate,validateProgram:validateProgram};
+  return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });

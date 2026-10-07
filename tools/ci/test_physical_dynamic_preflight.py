@@ -263,7 +263,16 @@ def test_noncanonical_or_malformed_binding_fails_closed() -> None:
         raise AssertionError("malformed set_variable reference was accepted")
 
 
+def test_exponential_preflight_is_bounded_without_effects():
+    body = [{"kind": "wait", "seconds": 0.1}]
+    for _ in range(18):
+        body = [{"kind": "repeat", "count": 20, "body": body}]
+    expect_error([{"kind": "takeoff", "height_m": 0.5}, *body, {"kind": "land"}],
+                 "bounded statement budget")
+
+
 def main() -> int:
+    test_exponential_preflight_is_bounded_without_effects()
     test_representative_dynamic_program_is_proven_conservatively()
     test_any_unsafe_if_branch_rejects_before_effect()
     test_repeat_expands_the_full_altitude_path()
