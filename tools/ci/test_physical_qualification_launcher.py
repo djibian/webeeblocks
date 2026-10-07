@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 from pathlib import Path
 import stat
 import sys
@@ -801,6 +802,40 @@ def test_teardown_failure_preserves_original_execution_diagnostic():
         require(exc.__cause__ is original, "original exception identity lost")
     else:
         raise AssertionError("teardown failure was hidden")
+def test_host_failure_evidence_reaches_terminal_without_next_command() -> None:
+    session = launcher.PhysicalQualificationSession(uri="radio://0/80/2M", webots_executable="unused")
+    caller, host = socket.socketpair()
+    session._caller = caller
+    session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch-before")
+    session._teacher_sealed = True
+    session._teacher_approved = True
+    received = []
+
+    def fail():
+        request = launcher._read_socket_line(host, timeout_seconds=1)
+        received.append(request)
+        launcher._write_socket_line(host, {
+            "requestId": request["requestId"], "ok": False, "executionAuthority": False,
+            "diagnostic": {"connectionEpoch": "epoch-after", "causes": [
+                {"type": "RangeReadError", "message": "range.front raw_mm=8190"}
+            ]},
+        })
+
+    thread = Thread(target=fail)
+    thread.start()
+    try:
+        try:
+            session.execute_approved_program(timeout_seconds=1)
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require("HOST_DIAGNOSTIC" in str(exc) and "raw_mm=8190" in str(exc), "terminal masked cause")
+            require("epoch-after" in str(exc), "terminal masked epoch")
+        else:
+            raise AssertionError("host failure accepted")
+        thread.join(1)
+        require(len(received) == 1, "failure must not advance the program")
+    finally:
+        caller.close()
+        host.close()
 
 
 def main() -> int:
@@ -820,6 +855,7 @@ def main() -> int:
     test_failed_teacher_decision_write_is_terminal_and_not_retriable()
     test_denied_teacher_decision_never_enables_execution()
     test_full_launcher_composes_real_window_distinct_teacher_and_parameter_free_execution()
+    test_host_failure_evidence_reaches_terminal_without_next_command()
     print(
         "PASS physical qualification launcher: real Robot Window bootstrap, distinct teacher channel, "
         "exact host binding, lifecycle fail-closed boundaries and parameter-free full-program execution"
