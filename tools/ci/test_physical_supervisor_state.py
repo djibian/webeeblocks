@@ -434,7 +434,7 @@ def test_unexpected_cleanup_failure_poison_is_epoch_wide():
             require(cf.removed, "disconnect cleanup failure skipped port cleanup")
 
 
-def test_invalid_timeout_has_no_transport_effect():
+def test_invalid_timeout_types_have_no_transport_effect():
     for index, value in enumerate((True, float("nan"), float("inf"), "1")):
         cf = FakeCf(frame(0))
         reader = make_reader(cf, EpochSource("epoch-invalid-deadline-" + str(index)))
@@ -444,7 +444,7 @@ def test_invalid_timeout_has_no_transport_effect():
 
 def main() -> int:
     test_unexpected_cleanup_failure_poison_is_epoch_wide()
-    test_invalid_timeout_has_no_transport_effect()
+    test_invalid_timeout_types_have_no_transport_effect()
     test_success_and_decode()
     test_deck_fault_is_preserved_and_blocks()
     test_timeout_poison_blocks_delayed_reply_until_epoch_rotates()
