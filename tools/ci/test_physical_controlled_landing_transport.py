@@ -319,7 +319,34 @@ def test_source_has_no_stop_retry_or_caller_landing_surface() -> None:
     )
 
 
+def test_callback_cleanup_failure_never_returns_success():
+    fixture, transport = make_fixture("cleanup-failure")
+    queue_pre_land(fixture)
+    operation = transport.send_controlled_landing
+    domain = fixture.domain
+    def fail(*args):
+        raise RuntimeError("injected removal failure")
+    fixture.cf.remove_port_callback = fail
+    try:
+        try:
+            operation()
+        except Exception as exc:
+            require("callback cleanup failed" in str(exc), str(exc))
+        else:
+            raise AssertionError("uncertain listener teardown reported success")
+        require(fixture.ack.poisoned, "uncertain callback teardown did not poison epoch")
+        require(len(fixture.cf.send_calls) == 1, "cleanup failure repeated command")
+        try:
+            operation()
+        except Exception:
+            pass
+        require(len(fixture.cf.send_calls) == 1, "poisoned effect was retried")
+    finally:
+        fixture.close()
+
+
 def main() -> int:
+    test_callback_cleanup_failure_never_returns_success()
     test_accepted_landing_requires_fresh_nonflying_completion()
     test_positive_ack_without_completion_requires_recovery()
     test_definitive_rejection_does_not_complete_or_retry()
