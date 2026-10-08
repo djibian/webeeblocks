@@ -409,6 +409,27 @@ justified by the current evidence.
   firmware/configuration and unchanged filter. Machine preparation is provided
   by [the bounded front diagnostic](../tools/physical/FRONT_RANGE_DIAGNOSTIC.md);
   physical cause/availability remain unproven and no identical retry is implied
+- props-off front checkpoint #572 has an
+  [owner-attributed observation report](https://github.com/djibian/webeeblocks/issues/572#issuecomment-6062843463)
+  for exact `1d0632971c7cb4f175576fd1ab67111a0aeb3786` (artifact
+  11551815617, run 37779741683). Both scenes are reported `OBSERVED` without
+  errors: 100/100 finite readings each at independently measured 0.50 m and
+  1.00 m targets, means 480.26/989.24 mm, ranges 477–485/981–997 mm and
+  sample standard deviations 1.64/3.46 mm. The nominal mean errors are
+  -19.74/-10.76 mm; no accuracy tolerance or sensor qualification is established.
+  The owner attests precise measurement from the front sensor and declined
+  photographs; do not invent archived geometry witnesses. The complete raw CSV,
+  preparation record, typed readbacks and geometry files remain on the owner's
+  computer and have not been independently inspected or published in GitHub.
+  The report also preserves an initial package-verification failure under
+  Python 3.12 and a fresh-package continuation under Python 3.10; do not rewrite
+  that history as an uninterrupted conforming run. The report supplies no
+  explicit checkpoint verdict. These bounded positive observations did not
+  reproduce #566's 32766, but establish neither its cause, continuous availability,
+  clearance nor motorized acceptance. Preserve `physical_verdict=null`, the
+  unchanged >=8000/filter boundary and #554/#566 FAIL subjects. Before a later
+  representative request, reconcile the retained raw/provenance evidence and
+  exact #572 resolution; no blind repeat or inherited flight approval follows
 - physical preparation prerequisite: the runtime artifact and generic
   airframe/self-test/protocol evidence do not establish a reproducibly restored
   flight firmware/configuration after the separate X3 preparation. The
