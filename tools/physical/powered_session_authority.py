@@ -39,6 +39,14 @@ _STATE_ACTIVE = "active"
 _STATE_TERMINAL = "terminal"
 
 _MIN_SUPERVISOR_PROTOCOL_VERSION = 12
+# Official cf2 2026.08, source 54f31e243a0b28b67efef5ba20dbb6d9890a5478.
+# Upstream versionTemplate.py publishes the first 8 + next 4 hexadecimal digits.
+# These are reported metadata, not remote binary attestation. See the baseline
+# document for the exact release asset digest and remaining preparation boundary.
+_FLIGHT_FIRMWARE_REVISION0 = 0x54F31E24
+_FLIGHT_FIRMWARE_REVISION1 = 0x3A0B
+_FLIGHT_ESTIMATOR = 2  # upstream StateEstimatorTypeKalman, required by Flow Deck V2
+_FLIGHT_CONTROLLER = 1  # upstream default ControllerTypePID
 _EXACT_AIRFRAME_MODEL = "crazyflie-2.1"
 _FACTORY_TOKEN = object()
 _POST_STM_DECK_POWER_CYCLE_STABILIZATION_SECONDS = 5.0
@@ -246,6 +254,35 @@ class TrustedPoweredSessionFactory:
             raise PoweredSessionAuthorityError(
                 "post-reset supervisor protocol is too old for watchdog safety"
             )
+
+        firmware = evidence.get("firmware")
+        if not isinstance(firmware, Mapping):
+            raise PoweredSessionAuthorityError("post-reset flight firmware identity is unavailable")
+        for name, expected in (
+            ("revision0", _FLIGHT_FIRMWARE_REVISION0),
+            ("revision1", _FLIGHT_FIRMWARE_REVISION1),
+        ):
+            observed = firmware.get(name)
+            if type(observed) is not int or observed != expected:
+                raise PoweredSessionAuthorityError(
+                    f"post-reset flight firmware {name} does not match the pinned baseline"
+                )
+        if firmware.get("modified") is not False:
+            raise PoweredSessionAuthorityError(
+                "post-reset flight firmware is modified or its modification status is unavailable"
+            )
+
+        configuration = evidence.get("flightConfiguration")
+        if not isinstance(configuration, Mapping):
+            raise PoweredSessionAuthorityError("post-reset flight configuration is unavailable")
+        for name, expected in (
+            ("estimator", _FLIGHT_ESTIMATOR), ("controller", _FLIGHT_CONTROLLER),
+        ):
+            observed = configuration.get(name)
+            if type(observed) is not int or observed != expected:
+                raise PoweredSessionAuthorityError(
+                    f"post-reset flight {name} does not match the pinned baseline"
+                )
 
     def _safe_close(self, session: object) -> str | None:
         try:
