@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import subprocess
+import sys
 import threading
 import time
 
@@ -195,7 +197,7 @@ def test_exact_direction_mapping_and_conversion() -> None:
 
 def test_pinned_cflib_unavailable_boundary_is_not_clamped() -> None:
     require(rng.range_mm_to_m(7999) == 7.999, "last available value")
-    for raw in (8000, 32767, 65535):
+    for raw in (8000, 32766, 32767, 65535):
         expect_error(
             lambda value=raw: rng.range_mm_to_m(value),
             "unavailable",
@@ -430,6 +432,7 @@ def test_non_finite_deadlines_have_no_log_effect():
 
 
 def main() -> int:
+    subprocess.run([sys.executable, "-B", str(ROOT / "tools/ci/test_front_range_diagnostic.py")], check=True)
     test_non_finite_deadlines_have_no_log_effect()
     test_exact_direction_mapping_and_conversion()
     test_pinned_cflib_unavailable_boundary_is_not_clamped()

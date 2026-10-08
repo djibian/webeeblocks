@@ -399,6 +399,16 @@ justified by the current evidence.
   approval. Reconstruct exact main, canonical CI, fresh qualification support,
   artifact/digest and the global `TEST_REQUIRED` set; physical acceptance remains
   `UNPROVEN` and the generic one-open-human-test rule remains mandatory
+- physical checkpoint #566 is closed owner-authoritative FAIL on exact
+  `cbe261729145fe966a9598139634cf673b97e41b`. Its diagnostic second execution
+  retained unavailable front range 32766 and positively recorded controlled
+  recovery landing; the first post-PREPARE move and manual retry prevent PASS.
+  The pinned >=8000 availability boundary remains correct and unchanged.
+  Before another representative motorized request, retain a props-off raw
+  observation against independently measured finite targets, with exact
+  firmware/configuration and unchanged filter. Machine preparation is provided
+  by [the bounded front diagnostic](../tools/physical/FRONT_RANGE_DIAGNOSTIC.md);
+  physical cause/availability remain unproven and no identical retry is implied
 - physical preparation prerequisite: the runtime artifact and generic
   airframe/self-test/protocol evidence do not establish a reproducibly restored
   flight firmware/configuration after the separate X3 preparation. The
