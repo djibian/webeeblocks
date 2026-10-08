@@ -53,6 +53,11 @@ written before interpretation. Unavailable is retained as diagnostic data;
 it never becomes a numeric student distance. Transport, stale/malformed data,
 write, log-stop/delete, close or interruption failures remain INCOMPLETE, with
 partial evidence and causal errors, and do not cause reconnection or retry.
+Callback sealing is independent of file close; file close, log stop, log delete
+and no-Commander transport close are each attempted once even if another fails.
+Primary and cleanup causes are retained together as INCOMPLETE. If result
+storage itself fails, the terminal diagnostic preserves those causes and the
+storage uncertainty; no result file or successful close is then inferred.
 Connection/PARAM setup and teardown have no claimed sensor coverage. Late
 callbacks cannot change sealed evidence; teardown bypasses normal Commander
 close. Neither raw callback receipt nor its timestamp is a sensor-producer time.
