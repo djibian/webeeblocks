@@ -399,6 +399,20 @@ justified by the current evidence.
   approval. Reconstruct exact main, canonical CI, fresh qualification support,
   artifact/digest and the global `TEST_REQUIRED` set; physical acceptance remains
   `UNPROVEN` and the generic one-open-human-test rule remains mandatory
+- physical preparation prerequisite: the runtime artifact and generic
+  airframe/self-test/protocol evidence do not establish a reproducibly restored
+  flight firmware/configuration after the separate X3 preparation. The
+  representative flight path now pins the reported official cf2 `2026.08`
+  source prefix/unmodified flag and effective Kalman/PID pair after trusted
+  reset; this metadata gate is not remote binary attestation or physical
+  qualification. The exact official binary, offline props-off installation,
+  retained preparation result and fresh typed readbacks are packaged together;
+  the normal runner requires the matching preparation record and the host
+  rechecks live configuration after reset. Independent review and a new exact
+  representative checkpoint remain necessary. See
+  [the bounded baseline](../tools/physical/PHYSICAL_FLIGHT_BASELINE.md).
+  Neither #554 nor #566 supplies that restoration proof by its host artifact
+  alone; preserve their exact subjects and do not infer a cause from this gap
 - remaining boundary: representative real-device qualification beyond the
   currently integrated deterministic flat + dynamic envelope, including
   Multi-ranger observation and bottom Color LED behavior when required by the

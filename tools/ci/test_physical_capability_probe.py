@@ -21,6 +21,8 @@ BASE_VALUES = {
     "firmware.revision0": "305419896",
     "firmware.revision1": "2596069104",
     "firmware.modified": "0",
+    "stabilizer.estimator": "2",
+    "stabilizer.controller": "1",
     "system.selftestPassed": "1",
     "deck.bcFlow2": "1",
     "deck.bcMultiranger": "1",
@@ -386,6 +388,15 @@ def main() -> int:
     )
 
     verified_descriptor = probe.build_descriptor("11", BASE_VALUES, "Crazyflie 2.1")
+    require(verified_descriptor["evidence"]["flightConfiguration"] ==
+            {"estimator": 2, "controller": 1}, "retain effective flight configuration")
+    lab_values = {**BASE_VALUES, "stabilizer.estimator": "3", "firmware.modified": "1"}
+    lab_descriptor = probe.build_descriptor("12", lab_values, "Crazyflie 2.1")
+    require(lab_descriptor["evidence"]["flightConfiguration"]["estimator"] == 3,
+            "read-only probe must retain an unsupported flight estimator truthfully")
+    require(lab_descriptor["evidence"]["firmware"]["modified"] is True and
+            lab_descriptor["executionAuthority"] is False,
+            "modified Lab observation never claims flight authority")
     require(
         verified_descriptor["identity"]
         == {
