@@ -39,6 +39,7 @@ _STATE_ACTIVE = "active"
 _STATE_TERMINAL = "terminal"
 
 _MIN_SUPERVISOR_PROTOCOL_VERSION = 12
+_FLIGHT_PROTOCOL_VERSION = 12
 # Official cf2 2026.08, source 54f31e243a0b28b67efef5ba20dbb6d9890a5478.
 # Upstream versionTemplate.py publishes the first 8 + next 4 hexadecimal digits.
 # These are reported metadata, not remote binary attestation. See the baseline
@@ -254,6 +255,9 @@ class TrustedPoweredSessionFactory:
             raise PoweredSessionAuthorityError(
                 "post-reset supervisor protocol is too old for watchdog safety"
             )
+
+        if protocol != _FLIGHT_PROTOCOL_VERSION:
+            raise PoweredSessionAuthorityError("post-reset flight firmware protocol does not match the pinned baseline")
 
         firmware = evidence.get("firmware")
         if not isinstance(firmware, Mapping):

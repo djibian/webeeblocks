@@ -267,7 +267,7 @@ def test_transport_success_alone_never_mints_authority() -> None:
 def test_firmware_and_configuration_cannot_borrow_reset_authority() -> None:
     # Literal expected source metadata is independent from production constants.
     # Every negative runs the real establishment path, not just its validator.
-    cases = []
+    cases = [descriptor(protocol=13), descriptor(protocol=255)]
     for section in ("firmware", "flightConfiguration"):
         for absent in (None, {}, "unavailable"):
             candidate = copy.deepcopy(descriptor())

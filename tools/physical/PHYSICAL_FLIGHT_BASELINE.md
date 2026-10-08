@@ -14,6 +14,7 @@ is a separate props-off subject and must not inherit flight admission.
 | Binary SHA-256 | `9b745fe76da30e071ba8e04e6a8535d1dbd747d7ce6ca72d2d3ccf8c18978298` |
 | Reported revision0 / revision1 | `0x54f31e24` / `0x3a0b` |
 | Reported modified flag | `false` |
+| Reported protocol | `12` |
 | Effective `stabilizer.estimator` | `2`, extended Kalman |
 | Effective `stabilizer.controller` | `1`, PID |
 
@@ -41,7 +42,8 @@ The read-only descriptor reports the observed firmware metadata and effective
 estimator/controller parameters. It keeps `executionAuthority:false`; general
 hardware capability observations do not themselves imply this flight baseline.
 After the existing trusted STM+deck reset and new live connection, the powered-
-session factory rejects absent/malformed/wrong firmware metadata, a modified or
+session factory requires the exact reported release protocol `12` and rejects
+absent/malformed/wrong firmware metadata, a modified or
 unknown flag, or any estimator/controller outside the pinned pair before exact
 preflight, supervisor postconditions or authority minting. It never repairs a
 configuration by writing parameters. Teacher, watchdog, SafeLink, current-program,
