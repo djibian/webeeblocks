@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PHYSICAL_DIR = REPO_ROOT / "tools" / "physical"
 
 HOST_IMPORTS = (
+    "diagnose_front_range",
     "launch_physical_qualification",
     "physical_execution_domain",
     "physical_run_dispatch",
@@ -283,6 +284,7 @@ def verify_isolated_imports(cflib_root: Path, wheels: tuple[Path, ...]) -> None:
         _run_real_entrypoint_help(PHYSICAL_DIR / "launch_physical_qualification.py", env)
         _run_real_entrypoint_help(PHYSICAL_DIR / "serve_physical_host.py", env)
         _run_real_entrypoint_help(PHYSICAL_DIR / "prepare_physical_flight.py", env)
+        _run_real_entrypoint_help(PHYSICAL_DIR / "diagnose_front_range.py", env)
         print(result.stdout.strip())
         print("PASS: real qualification launcher/host entrypoints import under exact isolated closure")
 

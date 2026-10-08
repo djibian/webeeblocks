@@ -39,6 +39,8 @@ def relevant_path(path: str) -> bool:
         "tools/ci/select_qualification_runtime_support.py",
         "tools/ci/test_physical_qualification_runtime_lock.py",
         "tools/ci/test_physical_qualification_package.py",
+        "tools/ci/test_front_range_diagnostic.py",
+        "tools/ci/test_physical_range_observer.py",
         "tools/ci/test_x3_characterization_package.py",
         "tools/ci/test_x3_interval_diagnostic.py",
         "experiments/crazyflie-ukf-surface-range/X3_INTERVAL_DIAGNOSTIC.md",
