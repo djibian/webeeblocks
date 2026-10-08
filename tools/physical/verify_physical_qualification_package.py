@@ -14,6 +14,8 @@ import stat
 import subprocess
 import sys
 
+from prepare_physical_flight import firmware_provenance, FIRMWARE_RELATIVE, FIRMWARE_SHA256
+
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
 EXPECTED_CFLIB_TREE = "a78cf78d2b4aba51a0fa2b03de0260664b523401"
 EXPECTED_CFLIB_SUBTREE = "750e850390753de14019f0e1f55d4fbc44317699"
@@ -161,6 +163,7 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
         "blockly_version",
         "webots_version",
         "webots_build_image_digest",
+        "flight_firmware",
         "preparation_execution_authority",
         "execution_requires_teacher_authorization",
     }
@@ -191,6 +194,9 @@ def verify_provenance(bundle: Path) -> dict[str, object]:
         )
     if provenance.get("webots_build_image_digest") != EXPECTED_WEBOTS_BUILD_IMAGE_DIGEST:
         raise QualificationPackageVerificationError("Webots build image provenance changed")
+    if (provenance.get("flight_firmware") != firmware_provenance()
+            or sha256_file(bundle / FIRMWARE_RELATIVE) != FIRMWARE_SHA256):
+        raise QualificationPackageVerificationError("physical flight firmware provenance changed")
     if provenance.get("preparation_execution_authority") is not False:
         raise QualificationPackageVerificationError(
             "package preparation must not mint execution authority"
@@ -240,6 +246,11 @@ def verify_required_runtime_files(bundle: Path) -> None:
         "tools/physical/serve_physical_host.py",
         "tools/physical/physical_qualification_runtime.js",
         "tools/physical/run_packaged_physical_qualification.sh",
+        "tools/physical/prepare_packaged_physical_flight.sh",
+        "tools/physical/prepare_physical_flight.py",
+        FIRMWARE_RELATIVE,
+        "tools/physical/firmware/LICENSE.txt",
+        "tools/physical/firmware/SOURCE.md",
         "tools/physical/qualification_crazyflie_r2025a.proto",
         f"tools/physical/{QUALIFICATION_PROTO_NAME}.proto",
         "plugins/robot_windows/blockly_v2/blockly_v2.html",

@@ -24,6 +24,8 @@ PARAMETERS = (
     "firmware.revision0",
     "firmware.revision1",
     "firmware.modified",
+    "stabilizer.estimator",
+    "stabilizer.controller",
     "system.selftestPassed",
     "deck.bcFlow2",
     "deck.bcMultiranger",
@@ -204,6 +206,10 @@ def build_descriptor(
                 "revision0": parsed["firmware.revision0"],
                 "revision1": parsed["firmware.revision1"],
                 "modified": parsed["firmware.modified"] != 0,
+            },
+            "flightConfiguration": {
+                "estimator": parsed["stabilizer.estimator"],
+                "controller": parsed["stabilizer.controller"],
             },
             "decks": {
                 "flowDeckV2": flow_present,

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -24,6 +25,7 @@ CANONICAL_CI_WORKFLOW = "CI Gate"
 
 sys.path.insert(0, str(ROOT / "tools" / "physical"))
 import package_physical_qualification as packager  # noqa: E402
+import prepare_physical_flight as flight_preparation  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools" / "ci"))
 import select_qualification_runtime_support as selector  # noqa: E402
@@ -430,6 +432,27 @@ def verify_static_contract() -> None:
 def verify_built_bundle(bundle: Path) -> None:
     run_verify(bundle, success=True)
     run_perspective_self_test(bundle)
+    # Re-hash the manifest after mutation so this independently exercises the
+    # pinned-binary obligation, rather than only generic file integrity.
+    binary = bundle / flight_preparation.FIRMWARE_RELATIVE
+    original_binary = binary.read_bytes()
+    manifest_path = bundle / "SHA256SUMS.json"
+    original_manifest = manifest_path.read_bytes()
+    require(hashlib.sha256(original_binary).hexdigest() ==
+            "9b745fe76da30e071ba8e04e6a8535d1dbd747d7ce6ca72d2d3ccf8c18978298",
+            "packaged representative firmware is not the independently pinned release binary")
+    try:
+        binary.write_bytes(original_binary + b"changed firmware")
+        manifest = json.loads(original_manifest)
+        for entry in manifest["files"]:
+            if entry["path"] == flight_preparation.FIRMWARE_RELATIVE:
+                entry["sha256"] = hashlib.sha256(binary.read_bytes()).hexdigest()
+                entry["size"] = binary.stat().st_size
+        manifest_path.write_text(json.dumps(manifest))
+        run_verify(bundle, success=False)
+    finally:
+        binary.write_bytes(original_binary)
+        manifest_path.write_bytes(original_manifest)
 
     source_sha = bundle / "SOURCE_SHA"
     original = source_sha.read_bytes()
