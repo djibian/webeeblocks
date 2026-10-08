@@ -562,8 +562,16 @@ def open_live_crazyflie(uri: str) -> object:
         if errors:
             raise PreparationError(errors[0])
         return cf
-    except Exception:
-        close_link_without_commander(cf)
+    except BaseException as exc:
+        # Until the object is returned, the caller cannot own its teardown.
+        # Operator interruption during startup must close this one-shot link too.
+        try:
+            close_link_without_commander(cf)
+        except BaseException as cleanup:
+            raise PreparationError(
+                f"connection startup {type(exc).__name__}: {exc}; "
+                f"teardown {type(cleanup).__name__}: {cleanup}"
+            ) from exc
         raise
 
 

@@ -286,5 +286,56 @@ class Tests(unittest.TestCase):
             subject.observe_interval(self.output, 'uri', 'handling-connected', b'{}', self.geometry('handling-connected'), port=port)
         self.assertFalse(port.connections); self.assertEqual((self.output / 'sentinel').read_text(), 'existing')
 
+    def test_actual_live_open_interruption_closes_once_and_retains_cleanup_failure(self):
+        for cleanup_fails in (False, True):
+            with self.subTest(cleanup_fails=cleanup_fails):
+                self.output = Path(self.temp.name) / ('open-interrupt-' + str(cleanup_fails))
+                opens, closes = [], []
+                class Link:
+                    def close(self):
+                        closes.append('transport')
+                        if cleanup_fails:
+                            raise OSError('independent startup transport-close uncertainty')
+                cf = types.SimpleNamespace(fully_connected=Callback(), connection_failed=Callback(),
+                    connection_lost=Callback(), link=Link(), state=3, open_link=opens.append,
+                    commander=types.SimpleNamespace(send_setpoint=lambda *_: self.fail('Commander')))
+                root = types.ModuleType('cflib'); root.__path__ = []
+                crtp = types.ModuleType('cflib.crtp'); crtp.init_drivers = lambda: None
+                root.crtp = crtp
+                crazy = types.ModuleType('cflib.crazyflie'); crazy.Crazyflie = lambda **_: cf
+                with patch.dict(sys.modules, {'cflib': root, 'cflib.crtp': crtp, 'cflib.crazyflie': crazy}), \
+                     patch.object(subject.preparation.time, 'sleep',
+                         side_effect=KeyboardInterrupt('operator interrupted connection startup')):
+                    result = subject.observe_interval(self.output, 'radio://0/80/2M',
+                        'reconnect-stationary', b'{"status":"PREPARED"}',
+                        self.geometry('reconnect-stationary'))
+                value = json.loads((self.output / 'diagnostic-result.json').read_text())
+                self.assertEqual(result, 1); self.assertEqual(value['status'], 'INCOMPLETE')
+                self.assertEqual(opens, ['radio://0/80/2M']); self.assertEqual(closes, ['transport'])
+                self.assertEqual(len(value['epochs']), 1)
+                self.assertTrue(any('KeyboardInterrupt' in row for row in value['errors']))
+                if cleanup_fails:
+                    self.assertTrue(any('startup transport-close uncertainty' in row for row in value['errors']))
+                    self.assertIsNotNone(cf.link, 'uncertain closure must not be inferred')
+                else:
+                    self.assertIsNone(cf.link); self.assertEqual(cf.state, 0)
+
+    def test_actual_live_open_returns_healthy_connection_without_closing_it(self):
+        opens, closes = [], []
+        cf = types.SimpleNamespace(fully_connected=Callback(), connection_failed=Callback(),
+            connection_lost=Callback(), link=types.SimpleNamespace(close=lambda: closes.append('transport')),
+            state=3)
+        def open_link(uri):
+            opens.append(uri); cf.fully_connected.call(uri)
+        cf.open_link = open_link
+        root = types.ModuleType('cflib'); root.__path__ = []
+        crtp = types.ModuleType('cflib.crtp'); crtp.init_drivers = lambda: None
+        root.crtp = crtp
+        crazy = types.ModuleType('cflib.crazyflie'); crazy.Crazyflie = lambda **_: cf
+        with patch.dict(sys.modules, {'cflib': root, 'cflib.crtp': crtp, 'cflib.crazyflie': crazy}):
+            observed = subject.LivePort().open('radio://0/80/2M')
+        self.assertIs(observed, cf); self.assertEqual(opens, ['radio://0/80/2M'])
+        self.assertEqual(closes, []); self.assertIsNotNone(cf.link); self.assertEqual(cf.state, 3)
+
 
 if __name__ == '__main__': unittest.main()
