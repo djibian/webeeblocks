@@ -46,6 +46,10 @@ REAL_BUNDLE_PROOF_PATHS = frozenset(
         ".github/workflows/human-checkpoint.yml",
         "tools/ci/test_x3_characterization_package.py",
         "tools/physical/package_x3_characterization.py",
+        "tools/physical/diagnose_x3_interval.py",
+        "tools/physical/run_x3_interval_diagnostic.sh",
+        "tools/ci/test_x3_interval_diagnostic.py",
+        "experiments/crazyflie-ukf-surface-range/X3_INTERVAL_DIAGNOSTIC.md",
         "tools/physical/prepare_x3_independent_capture.py",
         "tools/physical/x3_no_commander_link.py",
         "tools/ci/test_x3_reset_firmware_semantics.py",
@@ -350,6 +354,9 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             "X3_REFERENCE_WITNESS.md",
             "X3_REFERENCE_WITNESS_TEMPLATE.csv",
             "x3_no_commander_link.py",
+            "diagnose_x3_interval.py",
+            "run_x3_interval_diagnostic.sh",
+            "X3_INTERVAL_DIAGNOSTIC.md",
         ):
             require((bundle / required_name).is_file(), f"assembled X3 bundle missing {required_name}")
         provenance = (bundle / "PROVENANCE.txt").read_text(encoding="utf-8")
@@ -389,6 +396,10 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
             env=verification_env,
             check=True,
         )
+        subprocess.run(
+            ["bash", str(bundle / "run_x3_interval_diagnostic.sh"), "--verify-environment"],
+            cwd=bundle, env=verification_env, check=True,
+        )
         after = file_snapshot(bundle)
         require(after == before, "complete X3 --verify-environment paths mutated exact bundle bytes/file set")
 
@@ -403,6 +414,7 @@ def verify_real_bundle_execution(head: str, rows: tuple[tuple[str, str, str], ..
 
 
 def main() -> int:
+    subprocess.run([sys.executable, "-B", str(ROOT / "tools/ci/test_x3_interval_diagnostic.py")], check=True)
     rows = package.locked_wheels()
     require(len(rows) == 5, "X3 runtime must retain exactly five locked wheels")
     require(
