@@ -103,6 +103,9 @@ def main() -> int:
             "physical_run_dispatch",
             "post_reset_capability_bridge",
             "probe_reference_hardware",
+            "prepare_physical_flight",
+            "prepare_x3_independent_capture",
+            "x3_no_commander_link",
             "serve_reference_capabilities",
             "teacher_run_authorization",
         ),
@@ -113,6 +116,7 @@ def main() -> int:
         == {
             "cflib",
             "cflib.crtp",
+            "cflib.bootloader",
             "cflib.crazyflie",
             "usb",
             "libusb_package",

@@ -405,9 +405,11 @@ justified by the current evidence.
   representative flight path now pins the reported official cf2 `2026.08`
   source prefix/unmodified flag and effective Kalman/PID pair after trusted
   reset; this metadata gate is not remote binary attestation or physical
-  qualification. Exact offline binary installation/provenance, retained
-  preparation result and effective readbacks remain necessary before a new
-  representative checkpoint. See
+  qualification. The exact official binary, offline props-off installation,
+  retained preparation result and fresh typed readbacks are packaged together;
+  the normal runner requires the matching preparation record and the host
+  rechecks live configuration after reset. Independent review and a new exact
+  representative checkpoint remain necessary. See
   [the bounded baseline](../tools/physical/PHYSICAL_FLIGHT_BASELINE.md).
   Neither #554 nor #566 supplies that restoration proof by its host artifact
   alone; preserve their exact subjects and do not infer a cause from this gap

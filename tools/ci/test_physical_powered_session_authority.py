@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pathlib
 import copy
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -457,6 +458,7 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
 
 
 def main() -> int:
+    subprocess.run([sys.executable, "-B", str(ROOT / "tools/ci/test_physical_flight_preparation.py")], check=True)
     test_direct_construction_cannot_mint_fresh_authority()
     test_factory_establishes_exact_reset_postconditions_before_minting()
     test_authority_reset_proof_is_one_shot_and_terminal_is_latching()

@@ -8,6 +8,29 @@ WHEELHOUSE="$ROOT/support/wheels"
 CFLIB="$ROOT/support/cflib-source"
 QUALIFICATION_WORLD_SOURCE="$ROOT/tools/physical/qualification_world.wbt"
 QUALIFICATION_PERSPECTIVE_ENTRY="$ROOT/tools/physical/qualification_perspective.py"
+PREPARATION_RECORD=""
+PREPARATION_URI=""
+RUN_ARGS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --preparation-record)
+      test "$#" -ge 2
+      test -z "$PREPARATION_RECORD"
+      PREPARATION_RECORD="$2"; shift 2 ;;
+    --uri)
+      test "$#" -ge 2
+      test -z "$PREPARATION_URI"
+      PREPARATION_URI="$2"; RUN_ARGS+=("$1" "$2"); shift 2 ;;
+    --uri=*)
+      test -z "$PREPARATION_URI"
+      PREPARATION_URI="${1#--uri=}"; RUN_ARGS+=("$1"); shift ;;
+    *) RUN_ARGS+=("$1"); shift ;;
+  esac
+done
+if [ -z "$PREPARATION_RECORD" ] || [ -z "$PREPARATION_URI" ]; then
+  echo "FAIL: --uri and an exact --preparation-record are required before physical qualification" >&2
+  exit 2
+fi
 
 # Verification and later imports must be observational with respect to the
 # manifest-covered source tree.
@@ -60,6 +83,13 @@ test "${#wheels[@]}" -eq 7
   --no-compile \
   "${wheels[@]}"
 
+export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
+QUALIFICATION_LOG="$(mktemp "$ROOT/physical-qualification-XXXXXXXX.log")"
+echo "Diagnostic conservé : $QUALIFICATION_LOG"
+cat "$ROOT/SOURCE_SHA" > "$QUALIFICATION_LOG"
+"$VENV/bin/python" -B "$ROOT/tools/physical/prepare_physical_flight.py" \
+  --verify-record "$PREPARATION_RECORD" --uri "$PREPARATION_URI" 2>&1 | tee -a "$QUALIFICATION_LOG"
+
 chmod u+x "$ROOT/controllers/crazyflie_runtime_v2/crazyflie_runtime_v2"
 
 # Fail closed before opening Crazyradio or Webots unless the exact final
@@ -76,10 +106,6 @@ QUALIFICATION_WORLD="$(mktemp "$ROOT/worlds/.webeeblocks-qualification-source-XX
 trap 'rm -f "$QUALIFICATION_WORLD"' EXIT
 cp "$QUALIFICATION_WORLD_SOURCE" "$QUALIFICATION_WORLD"
 
-export PYTHONPATH="$ROOT/tools/physical:$CFLIB"
-QUALIFICATION_LOG="$(mktemp "$ROOT/physical-qualification-XXXXXXXX.log")"
-echo "Diagnostic conservé : $QUALIFICATION_LOG"
-cat "$ROOT/SOURCE_SHA" > "$QUALIFICATION_LOG"
-"$VENV/bin/python" "$QUALIFICATION_PERSPECTIVE_ENTRY" "$@" \
+"$VENV/bin/python" "$QUALIFICATION_PERSPECTIVE_ENTRY" "${RUN_ARGS[@]}" \
   --webots "$WEBOTS_BIN" \
   --world "$QUALIFICATION_WORLD" 2>&1 | tee -a "$QUALIFICATION_LOG"

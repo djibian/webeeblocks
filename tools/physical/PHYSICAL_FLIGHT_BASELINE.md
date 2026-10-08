@@ -1,7 +1,7 @@
 # Representative physical-flight admission baseline
 
-This is a software admission boundary, not real-flight qualification, a flash
-procedure or teacher authorization. X3's experimental #251 firmware/configuration
+This is a preparation/admission boundary, not real-flight qualification or
+teacher authorization. X3's experimental #251 firmware/configuration
 is a separate props-off subject and must not inherit flight admission.
 
 ## Pinned candidate
@@ -52,19 +52,41 @@ modified flag. They are not cryptographic remote binary attestation. Configurati
 values come from the parameter download of the newly established connection;
 they are not a continuous integrity monitor or independently acknowledged writes.
 
-## Remaining preparation prerequisite
+## Packaged props-off preparation
 
-The gate alone does not provide reproducible restoration after X3. Before a new
-representative checkpoint, deterministic preparation must include the exact
-offline binary/provenance, an explicit props-off one-shot installation procedure,
-the local digest and actual installation result, effective parameter readbacks,
-and retained success/failure records. Wrong/missing binary, failed flash/readback,
-existing output and interrupted preparation must fail closed without retry or
-motor/arming commands. Post-reset checks must still reject stored overrides.
-No ad hoc parameter tuning or inherited X3 configuration can replace that proof.
+The package includes the exact unmodified official binary, license and source
+links; its manifest and provenance bind the binary digest. When a later exact
+checkpoint explicitly requests this preparation:
 
-The physical qualification package currently does not supply that installation
-step. Passing this metadata gate does not supply it either. Existing #566 remains
+1. Keep all four propellers removed. Verify the exact package and use its pinned
+   Python 3.10/Linux x86-64 offline runtime; do not substitute X3's binary.
+2. With the explicit URI, run once from the package root:
+   `bash tools/physical/prepare_packaged_physical_flight.sh --uri radio://... --output ../flight-preparation --props-removed`.
+   The output must be a new directory outside the manifest-covered package.
+3. The helper verifies the local binary before hardware, installs that one binary
+   through the existing warm STM32 bootloader path, opens a new bounded connection
+   and requires exact Crazyflie 2.1 identity/protocol. It requests fresh typed
+   firmware/configuration readbacks; it never writes estimator/controller
+   parameters, stores parameters, arms, sends Commander or starts Webots.
+4. Continue only after `preparation.json` says `PREPARED`. Retain start/result,
+   available raw/typed readbacks and the causal error chain on failure/interruption.
+   Stop at that failure, with no automatic retry. Unknown installation outcome
+   is not proof that flashing failed or did not occur.
+5. Only according to the independently requested human procedure, restore the
+   propellers after complete preparation and zone checks, then use:
+   `bash tools/physical/run_packaged_physical_qualification.sh --uri radio://... --preparation-record ../flight-preparation/preparation.json`.
+   The runner verifies source SHA, URI, firmware identity/digest, typed readbacks
+   and non-authority status without hardware, retains the verified record in its
+   diagnostic log, then starts the existing host. The host still checks live
+   firmware/configuration after its STM+deck reset before any flight authority
+   or teacher decision. Stored overrides therefore fail closed too.
+
+Wrong/missing binary, failed flash/readback, existing output and interruption
+fail closed. No ad hoc tuning or inherited X3 configuration can replace proof.
+The local installation result plus reported metadata are still not remote
+binary attestation or a guarantee of subsequent estimator/vehicle health.
+
+Existing #566 remains
 bound to its old exact target/artifact; this new software candidate cannot inherit
 its acceptance or authorization. Any later changed physical procedure/artifact
 must use independent review and the trusted checkpoint contract. No request,
