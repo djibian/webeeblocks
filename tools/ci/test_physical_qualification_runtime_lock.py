@@ -98,6 +98,7 @@ def main() -> int:
     require(
         verifier.HOST_IMPORTS
         == (
+            "diagnose_front_range",
             "launch_physical_qualification",
             "physical_execution_domain",
             "physical_run_dispatch",
