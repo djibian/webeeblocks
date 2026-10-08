@@ -21,6 +21,12 @@ SAMPLE_TIMEOUT_SECONDS = 0.7
 SCHEMA = "webeeblocks.front-range-diagnostic.v1"
 
 
+class DiagnosticCaptureError(RuntimeError):
+    def __init__(self, errors):
+        self.errors = list(errors)
+        super().__init__("; ".join(self.errors))
+
+
 def require_geometry(value):
     if (not isinstance(value, dict) or set(value) != {"target_distance_m", "uncertainty_m", "method"}
             or not isinstance(value["method"], str) or not value["method"].strip()):
@@ -41,6 +47,7 @@ class RawWindow:
         self.writer.writerow(("device_timestamp_ms", "host_received_monotonic_s", "raw_mm", "classification"))
         self.stream.flush()
         self.closed = False
+        self.close_attempted = False
         self.error = None
         self.last_timestamp = None
         self.last_receipt = self.clock()
@@ -90,15 +97,24 @@ class RawWindow:
             if not self.closed and self.clock() - self.last_receipt > SAMPLE_TIMEOUT_SECONDS:
                 raise RuntimeError("range stream unavailable beyond 0.7 s")
 
+    def seal(self):
+        with self.lock:
+            self.closed = True
+
     def close(self):
         with self.lock:
             self.closed = True
+            if self.close_attempted:
+                return
+            # A failed close has an uncertain outcome and must not be retried.
+            self.close_attempted = True
             self.stream.close()
 
 
 def live_capture(uri, window, output):
     from cflib.crazyflie.log import LogConfig
     cf, config = None, None
+    errors = []
     try:
         cf = open_live_crazyflie(uri)
         from probe_reference_hardware import _read_connected_descriptor
@@ -143,16 +159,24 @@ def live_capture(uri, window, output):
         window.check()
         if window.count == 0:
             raise RuntimeError("no front-range rows retained")
+    except BaseException as exc:
+        errors.extend(preparation.exception_chain(exc))
     finally:
-        # Seal first so late callbacks cannot alter the retained evidence.
-        window.close()
-        try:
-            if config is not None:
-                config.stop()
-                config.delete()
-        finally:
-            if cf is not None:
-                close_link_without_commander(cf)
+        # Callback sealing does not depend on a successful file close. Each
+        # independent cleanup is attempted once even when an earlier one fails.
+        window.seal()
+        cleanup = [("raw evidence close", window.close)]
+        if config is not None:
+            cleanup.extend((("log stop", config.stop), ("log delete", config.delete)))
+        if cf is not None:
+            cleanup.append(("transport close", lambda: close_link_without_commander(cf)))
+        for label, action in cleanup:
+            try:
+                action()
+            except BaseException as exc:
+                errors.extend(label + ": " + item for item in preparation.exception_chain(exc))
+    if errors:
+        raise DiagnosticCaptureError(errors)
 
 
 def diagnose(root, uri, record, geometry, output, props_removed, *, capture=live_capture):
@@ -186,14 +210,23 @@ def diagnose(root, uri, record, geometry, output, props_removed, *, capture=live
         if window.count == 0:
             raise RuntimeError("no front-range rows retained")
     except BaseException as exc:
-        error = preparation.exception_chain(exc)
+        error = exc.errors if isinstance(exc, DiagnosticCaptureError) else preparation.exception_chain(exc)
     finally:
-        window.close()
-        preparation.write_once(output / "diagnostic-result.json", {
-            "schema": SCHEMA, "status": "OBSERVED" if error is None else "INCOMPLETE",
-            "errors": error, "sample_count": window.count, "physical_verdict": None,
-            "execution_authority": False, "boundary": "capture completion only; unavailable is not clearance or a sensor PASS",
-        })
+        try:
+            window.close()
+        except BaseException as exc:
+            error = (error or []) + ["raw evidence close: " + item for item in preparation.exception_chain(exc)]
+        try:
+            preparation.write_once(output / "diagnostic-result.json", {
+                "schema": SCHEMA, "status": "OBSERVED" if error is None else "INCOMPLETE",
+                "errors": error, "sample_count": window.count, "physical_verdict": None,
+                "execution_authority": False, "boundary": "capture completion only; unavailable is not clearance or a sensor PASS",
+            })
+        except BaseException as exc:
+            # Storage failure cannot become an OBSERVED result or erase the
+            # primary/cleanup causes from the terminal diagnostic.
+            errors = (error or []) + ["result evidence write: " + item for item in preparation.exception_chain(exc)]
+            raise DiagnosticCaptureError(errors) from exc
     return 0 if error is None else 1
 
 

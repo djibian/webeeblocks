@@ -73,10 +73,20 @@ class DiagnosticTests(unittest.TestCase):
         config.add_variable = lambda name, ctype: events.append((name, ctype))
         if mode == "start": config.start_error = RuntimeError("start error")
         if mode == "stop": config.stop_error = RuntimeError("stop error")
+        stop, delete = config.stop, config.delete
+        def stop_once():
+            events.append("stop")
+            if mode == "combined": raise RuntimeError("independent log stop failure")
+            stop()
+        def delete_once():
+            events.append("delete")
+            if mode in ("delete", "combined"): raise RuntimeError("independent log delete failure")
+            delete()
+        config.stop, config.delete = stop_once, delete_once
         class Link:
             def close(self):
                 events.append("close")
-                if mode == "close": raise RuntimeError("close error")
+                if mode in ("close", "combined"): raise RuntimeError("close error")
         cf.link = Link()
         class Adapter:
             def __init__(self, actual):
@@ -97,7 +107,7 @@ class DiagnosticTests(unittest.TestCase):
             if mode == "disconnect": cf.disconnected.call(URI); return
             count[0] += 1
             stamp = 100 if mode == "duplicate" else count[0] * 100
-            raw = None if mode == "malformed" else 32766 if mode == "unavailable" else 500
+            raw = None if mode in ("malformed", "combined") else 32766 if mode == "unavailable" else 500
             config.emit(stamp, raw)
         log = types.ModuleType("cflib.crazyflie.log")
         log.LogConfig = lambda name, period: config if period == 100 else forbidden()
@@ -107,6 +117,15 @@ class DiagnosticTests(unittest.TestCase):
         original_window = subject.RawWindow
         def make_window(*args):
             window = original_window(*args)
+            if mode in ("evidence_close", "combined"):
+                stream = window.stream
+                class Stream:
+                    def flush(self): stream.flush()
+                    def close(self):
+                        events.append("evidence-close")
+                        stream.close()
+                        raise OSError("independent evidence close failure")
+                window.stream = Stream()
             if mode == "write":
                 writer = window.writer
                 class Writer:
@@ -134,6 +153,11 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIs(result["execution_authority"], False)
         self.assertEqual(events.count("close"), 1)
         if mode not in ("mask", "no_deck", "wrong_firmware"):
+            self.assertEqual(events.count("stop"), 1)
+            self.assertEqual(events.count("delete"), 1)
+        if mode in ("evidence_close", "combined"):
+            self.assertEqual(events.count("evidence-close"), 1, "uncertain file close was retried")
+        if mode not in ("mask", "no_deck", "wrong_firmware"):
             self.assertEqual(events[0], ("range.front", "uint16_t"))
         self.assertEqual(reads, [] if mode in ("no_deck", "wrong_firmware") else [*EXPECTED, "multiranger.filterMask"])
         return status, result, rows
@@ -150,7 +174,7 @@ class DiagnosticTests(unittest.TestCase):
                     self.assertEqual(rows[-1]["classification"], "unavailable")
 
     def test_failures_are_retained_without_reconnection(self):
-        for mode in ("no_deck", "wrong_firmware", "mask", "start", "stop", "close", "write", "timeout", "interrupt", "disconnect", "duplicate", "malformed"):
+        for mode in ("no_deck", "wrong_firmware", "mask", "start", "stop", "delete", "close", "evidence_close", "write", "timeout", "interrupt", "disconnect", "duplicate", "malformed"):
             with self.subTest(mode=mode):
                 status, result, rows = self.run_case(mode)
                 self.assertEqual(status, 1)
@@ -158,6 +182,41 @@ class DiagnosticTests(unittest.TestCase):
                 self.assertTrue(result["errors"])
                 if mode == "malformed": self.assertEqual(rows[-1]["raw_mm"], "None")
                 if mode == "duplicate": self.assertEqual(rows[-1]["device_timestamp_ms"], "100")
+
+    def test_primary_and_all_independent_cleanup_failures_are_retained(self):
+        status, result, rows = self.run_case("combined")
+        self.assertEqual(status, 1)
+        self.assertEqual(rows[-1]["raw_mm"], "None")
+        self.assertEqual(result["errors"], [
+            "RuntimeError: malformed range observation",
+            "raw evidence close: OSError: independent evidence close failure",
+            "log stop: RuntimeError: independent log stop failure",
+            "log delete: RuntimeError: independent log delete failure",
+            "transport close: RuntimeError: close error",
+        ])
+
+    def test_unwritable_result_reports_prior_causes_without_retry(self):
+        writes = []
+        original = preparation.write_once
+        def write(path, value):
+            if path.name == "diagnostic-result.json":
+                writes.append(path)
+                raise OSError("independent result storage failure")
+            original(path, value)
+        def capture(_uri, window, _output):
+            window.received(100, {"range.front": 500}, None)
+            raise subject.DiagnosticCaptureError(["primary observation failure", "transport close uncertainty"])
+        output = self.base / "unwritable-result"
+        with patch.object(preparation, "write_once", write):
+            with self.assertRaises(subject.DiagnosticCaptureError) as caught:
+                subject.diagnose(self.root, URI, self.record, self.geometry, output, True, capture=capture)
+        self.assertEqual(caught.exception.errors, [
+            "primary observation failure", "transport close uncertainty",
+            "result evidence write: OSError: independent result storage failure",
+        ])
+        self.assertEqual(len(writes), 1)
+        self.assertTrue((output / "front-range.csv").exists())
+        self.assertFalse((output / "diagnostic-result.json").exists())
 
     def test_local_rejection_never_opens_hardware_or_overwrites(self):
         calls = []
