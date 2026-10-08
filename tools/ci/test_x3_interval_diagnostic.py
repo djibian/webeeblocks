@@ -49,7 +49,7 @@ class Config:
 class FakePort(subject.LivePort):
     def __init__(self, failure=None):
         self.now = 5000.; self.connections = []; self.configs = []; self.failure = failure
-        self.sequence = 0; self.parameter_reads = []; self.closed = []
+        self.sequence = 0; self.parameter_reads = []; self.closed = []; self.stopped = []
     def clock(self): return self.now
     def open(self, uri):
         if self.failure == 'open': raise RuntimeError('connection uncertain')
@@ -66,6 +66,7 @@ class FakePort(subject.LivePort):
         if self.failure == 'close': raise RuntimeError('close uncertain')
         super().close(cf)
     def stop(self, configs, recorder):
+        self.stopped.extend(configs)
         super().stop(configs, recorder)
         if self.failure == 'stop': recorder.fail('log stop uncertain')
     def sleep(self, duration):
@@ -135,6 +136,108 @@ class Tests(unittest.TestCase):
         self.assertGreaterEqual(reopened['host_monotonic_s'] - closed['host_monotonic_s'], 5.)
         self.assertEqual(sum(e['event'] == 'coverage-gap-start' for e in events), 2)
         self.assertTrue((self.output / 'epoch-2/pose.csv').is_file())
+    def test_cleanup_event_storage_failure_cannot_bypass_transport_close(self):
+        original = subject.capture.write_json_once
+        for event in ('coverage-gap-start', 'logs-stop-start', 'connection-close-start', 'connection-close-complete'):
+            self.output = Path(self.temp.name) / event
+            writes = []
+            def write(path, value):
+                if isinstance(value, dict) and value.get('event') == event:
+                    writes.append(path)
+                    raise OSError('independent ' + event + ' storage failure')
+                original(path, value)
+            with patch.object(subject.capture, 'write_json_once', write):
+                result, value, port = self.run_trace('reconnect-stationary')
+            self.assertEqual(result, 1); self.assertEqual(value['status'], 'INCOMPLETE')
+            self.assertEqual(len(port.connections), 1); self.assertEqual(len(port.closed), 1)
+            self.assertEqual(len(port.stopped), 4); self.assertEqual(len(set(map(id, port.stopped))), 4)
+            self.assertEqual(len(writes), 1)
+            self.assertTrue(any(event + ' storage failure' in row for row in value['errors']))
+            before = {p.name: p.read_bytes() for p in (self.output / 'epoch-1').glob('*.csv')}
+            for config in port.configs:
+                config.data_received_cb.call(999999, DATA[config.name.removeprefix('X3_interval_')], config)
+            self.assertEqual({p.name: p.read_bytes() for p in (self.output / 'epoch-1').glob('*.csv')}, before)
+
+    def test_primary_and_each_raw_close_failure_are_retained_without_retries(self):
+        original_recorder = subject.capture.Recorder
+        closes = []
+        recorders = []
+        def recorder(root):
+            value = original_recorder(root)
+            recorders.append(value)
+            for name, stream in list(value.streams.items()):
+                class Stream:
+                    def __init__(self, name, stream): self.name, self.stream = name, stream
+                    def flush(self): self.stream.flush()
+                    def close(self):
+                        closes.append(self.name); self.stream.close()
+                        if self.name in ('barometer', 'pose'):
+                            raise OSError('independent ' + self.name + ' close failure')
+                value.streams[name] = Stream(name, stream)
+            return value
+        with patch.object(subject.capture, 'Recorder', recorder):
+            result, value, port = self.run_trace('reconnect-stationary', 'z')
+        self.assertEqual(result, 1); self.assertEqual(len(port.connections), 1)
+        self.assertEqual(len(port.closed), 1)
+        self.assertEqual(closes, list(DATA), 'every raw stream must close once despite another failure')
+        self.assertTrue(any('stateEstimate.z' in row for row in value['errors']))
+        self.assertTrue(any('barometer close failure' in row for row in value['errors']))
+        self.assertTrue(any('pose close failure' in row for row in value['errors']))
+        before = recorders[0].error
+        bad = copy.deepcopy(DATA['pose']); bad['stateEstimate.z'] = -200.
+        next(c for c in port.configs if c.name == 'X3_interval_pose').data_received_cb.call(999999, bad, None)
+        self.assertEqual(recorders[0].error, before, 'late health callback changed sealed state')
+
+    def test_result_storage_failure_reports_primary_and_storage_uncertainty(self):
+        original = subject.capture.write_json_once
+        writes = []
+        def write(path, value):
+            if path.name == 'diagnostic-result.json':
+                writes.append(path); raise OSError('independent result storage failure')
+            original(path, value)
+        with patch.object(subject.capture, 'write_json_once', write):
+            with self.assertRaises(subject.IntervalDiagnosticError) as caught:
+                self.run_trace('reconnect-stationary', 'z')
+        self.assertTrue(any('stateEstimate.z' in row for row in caught.exception.errors))
+        self.assertTrue(any('result storage failure' in row for row in caught.exception.errors))
+        self.assertEqual(len(writes), 1)
+        self.assertTrue((self.output / 'epoch-1/pose.csv').is_file())
+        self.assertFalse((self.output / 'diagnostic-result.json').exists())
+
+    def test_primary_log_and_transport_failures_remain_distinct(self):
+        original = FakePort
+        class Port(original):
+            def stop(self, configs, recorder):
+                super().stop(configs, recorder)
+                raise RuntimeError('independent log teardown uncertainty')
+            def close(self, cf):
+                super().close(cf)
+                raise RuntimeError('independent transport teardown uncertainty')
+        with patch.object(sys.modules[__name__], 'FakePort', Port):
+            result, value, port = self.run_trace('reconnect-stationary', 'z')
+        self.assertEqual(result, 1); self.assertEqual(len(port.connections), 1)
+        self.assertEqual(len(port.closed), 1); self.assertEqual(len(port.stopped), 4)
+        for cause in ('stateEstimate.z', 'log teardown uncertainty', 'transport teardown uncertainty'):
+            self.assertTrue(any(cause in row for row in value['errors']))
+
+    def test_raw_write_failure_retains_partial_trace_and_still_closes(self):
+        original = subject.capture.Recorder
+        def recorder(root):
+            value = original(root)
+            writer = value.writers['pose']
+            class Writer:
+                def writerow(self, row):
+                    if value.stats['pose']['rows'] >= 3:
+                        raise OSError('independent raw storage failure')
+                    writer.writerow(row)
+            value.writers['pose'] = Writer()
+            return value
+        with patch.object(subject.capture, 'Recorder', recorder):
+            result, value, port = self.run_trace('reconnect-stationary')
+        self.assertEqual(result, 1); self.assertEqual(len(port.connections), 1)
+        self.assertEqual(len(port.closed), 1)
+        self.assertTrue(any('raw storage failure' in row for row in value['errors']))
+        self.assertEqual(value['epochs'][0]['streams']['pose']['rows'], 3)
     def test_all_failures_retain_partial_raw_and_preparation_without_reopening(self):
         for failure in ('open', 'startup', 'parameters', 'stale', 'z', 'nan', 'stop', 'close', 'interrupt', 'disconnect'):
             with self.subTest(failure=failure):

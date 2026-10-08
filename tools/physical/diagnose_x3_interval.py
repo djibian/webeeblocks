@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import re
 import sys
+import threading
 import time
 
 HERE = Path(__file__).resolve().parent
@@ -27,7 +28,15 @@ PLANS = {
 }
 
 
+class IntervalDiagnosticError(RuntimeError):
+    def __init__(self, errors):
+        self.errors = list(errors)
+        super().__init__('; '.join(self.errors))
+
+
 def causal_errors(exc):
+    if isinstance(exc, IntervalDiagnosticError):
+        return list(exc.errors)
     rows, seen = [], set()
     while exc is not None and id(exc) not in seen:
         seen.add(id(exc)); rows.append(f'{type(exc).__name__}: {exc}')
@@ -77,30 +86,40 @@ class LivePort:
                 cf.log.add_config(config)
                 raw_callback = recorder.callback(name)
                 def received(timestamp, data, config, *, stream=name, raw_callback=raw_callback):
-                    raw_callback(timestamp, data, config)
-                    if stream == 'pose':
-                        # The raw row is retained before applying the unchanged
-                        # health bounds. A rejected row cannot complete the trace.
-                        for field, (low, high) in preparation.HEALTH_BOUNDS.items():
-                            value = data.get(field)
-                            if (type(value) not in (int, float) or not math.isfinite(value)
-                                    or value < low or value > high):
-                                recorder.fail('unchanged health bound rejected: ' + field)
-                                break
+                    # Keep raw retention and its health decision together with
+                    # respect to sealing; a late callback cannot change evidence.
+                    with recorder.interval_callback_lock:
+                        if recorder.closed:
+                            return
+                        raw_callback(timestamp, data, config)
+                        if stream == 'pose':
+                            for field, (low, high) in preparation.HEALTH_BOUNDS.items():
+                                value = data.get(field)
+                                if (type(value) not in (int, float) or not math.isfinite(value)
+                                        or value < low or value > high):
+                                    recorder.fail('unchanged health bound rejected: ' + field)
+                                    break
                 config.data_received_cb.add_callback(received)
                 config.error_cb.add_callback(lambda conf, message: recorder.fail(f'{conf.name}: {message}'))
                 configs.append(config)
                 config.start()
             return configs
-        except BaseException:
-            self.stop(configs, recorder)
-            raise
+        except BaseException as exc:
+            errors = causal_errors(exc)
+            try:
+                self.stop(configs, recorder)
+            except BaseException as cleanup:
+                errors.extend(causal_errors(cleanup))
+            raise IntervalDiagnosticError(errors) from exc
     def stop(self, configs, recorder):
+        errors = []
         for config in configs:
             try:
                 config.stop()
             except BaseException as exc:
-                recorder.fail('log stop failed: ' + str(exc))
+                errors.extend('log stop: ' + row for row in causal_errors(exc))
+        if errors:
+            raise IntervalDiagnosticError(errors)
     def close(self, cf):
         close_link_without_commander(cf)
 
@@ -138,7 +157,14 @@ def observe_interval(output, uri, mode, preparation_bytes, geometry_bytes, *, po
         for index, phases in enumerate(PLANS[mode]):
             root = output / f'epoch-{index + 1}'; root.mkdir()
             recorder = capture.Recorder(root)
+            recorder.interval_callback_lock = threading.Lock()
             cf, configs = None, []
+            epoch_errors = []
+            def cleanup(label, action):
+                try:
+                    action()
+                except BaseException as exc:
+                    epoch_errors.extend(label + ': ' + row for row in causal_errors(exc))
             try:
                 event('connection-open-start', epoch=index + 1)
                 cf = port.open(uri)
@@ -159,34 +185,50 @@ def observe_interval(output, uri, mode, preparation_bytes, geometry_bytes, *, po
                         recorder.check_streams(); sleeper(0.02)
                     recorder.check_streams()
                     event('phase-end', epoch=index + 1, phase=phase)
+            except BaseException as exc:
+                epoch_errors.extend(causal_errors(exc))
             finally:
-                try:
-                    event('coverage-gap-start', epoch=index + 1, reason='logs stopping; no interpolation through close/setup')
-                    event('logs-stop-start', epoch=index + 1)
-                    port.stop(configs, recorder)
-                finally:
-                    try:
-                        if cf is not None:
-                            event('connection-close-start', epoch=index + 1)
-                            port.close(cf)
-                            event('connection-close-complete', epoch=index + 1)
-                    finally:
-                        recorder.close()
-                        epochs.append({'epoch': index + 1, 'streams': recorder.stats, 'error': recorder.error})
-                if recorder.error:
-                    raise RuntimeError(recorder.error)
+                # Sealing must not depend on disk writes or transport teardown.
+                # Keep the production Recorder's raw/oracle path unchanged.
+                with recorder.interval_callback_lock:
+                    with recorder.lock:
+                        recorder.closed = True
+                cleanup('coverage event', lambda: event('coverage-gap-start', epoch=index + 1,
+                    reason='logs stopping; no interpolation through close/setup'))
+                cleanup('stop event', lambda: event('logs-stop-start', epoch=index + 1))
+                cleanup('logs', lambda: port.stop(configs, recorder))
+                if cf is not None:
+                    cleanup('close event', lambda: event('connection-close-start', epoch=index + 1))
+                    before = len(epoch_errors)
+                    cleanup('transport', lambda: port.close(cf))
+                    if len(epoch_errors) == before:
+                        cleanup('closed event', lambda: event('connection-close-complete', epoch=index + 1))
+                # Recorder.close stops at its first failing stream. This local
+                # diagnostic teardown instead attempts each evidence close once,
+                # without changing scientific acquisition or retrying failures.
+                for name, stream in recorder.streams.items():
+                    cleanup('raw close ' + name, stream.close)
+                epochs.append({'epoch': index + 1, 'streams': recorder.stats, 'error': recorder.error})
+                if recorder.error and not any(recorder.error in row for row in epoch_errors):
+                    epoch_errors.append('recorder: ' + recorder.error)
+            if epoch_errors:
+                raise IntervalDiagnosticError(epoch_errors)
             if index + 1 < len(PLANS[mode]):
                 sleeper(DISCONNECTED_SECONDS)
                 event('coverage-gap-wait-complete', boundary='gap continues until each next stream has fresh samples')
     except BaseException as exc:
         error = causal_errors(exc)
     finally:
-        capture.write_json_once(output / 'diagnostic-result.json', {
-            'schema': SCHEMA, 'status': 'OBSERVED' if error is None else 'INCOMPLETE',
-            'errors': error, 'events': events, 'epochs': epochs,
-            'physical_verdict': None, 'scientific_trial': False,
-            'boundary': 'raw diagnostic coverage only; no interpolation, causal conclusion, scientific replacement, health guarantee or retry',
-        })
+        try:
+            capture.write_json_once(output / 'diagnostic-result.json', {
+                'schema': SCHEMA, 'status': 'OBSERVED' if error is None else 'INCOMPLETE',
+                'errors': error, 'events': events, 'epochs': epochs,
+                'physical_verdict': None, 'scientific_trial': False,
+                'boundary': 'raw diagnostic coverage only; no interpolation, causal conclusion, scientific replacement, health guarantee or retry',
+            })
+        except BaseException as exc:
+            raise IntervalDiagnosticError((error or []) +
+                ['result evidence: ' + row for row in causal_errors(exc)]) from exc
     return 0 if error is None else 1
 
 

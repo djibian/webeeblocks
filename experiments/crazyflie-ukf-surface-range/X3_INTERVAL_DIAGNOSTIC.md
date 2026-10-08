@@ -103,6 +103,12 @@ preparation/geometry plan and digests, start/result, exclusive per-event JSON,
 fresh raw/type parameter readbacks and one directory of the four raw CSVs per
 epoch. Failed/incomplete sequences retain everything already written, including
 health failures, the first stream defect, causal exceptions and teardown errors.
+Cleanup-event storage is independent of log/transport/file cleanup. Raw callbacks
+and their health decisions are sealed together before teardown; every raw stream
+close and transport close is attempted once even if another fails. Primary and
+cleanup causes remain together in INCOMPLETE. If final result storage fails,
+the terminal reports those causes plus storage uncertainty without retry;
+no result file or successful close is inferred.
 `OBSERVED` means only the frozen raw sequence completed. `INCOMPLETE` remains a
 failure. Neither means scientific PASS, health beyond measured coverage,
 causality, physical qualification or flight authority.
