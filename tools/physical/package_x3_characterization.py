@@ -34,6 +34,9 @@ PREPARE = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.py"
 NO_COMMANDER_LINK = ROOT / "tools" / "physical" / "x3_no_commander_link.py"
 PREPARE_RUNNER = ROOT / "tools" / "physical" / "prepare_x3_independent_capture.sh"
 RUNNER = ROOT / "tools" / "physical" / "run_x3_independent_capture.sh"
+DIAGNOSTIC = ROOT / "tools/physical/diagnose_x3_interval.py"
+DIAGNOSTIC_RUNNER = ROOT / "tools/physical/run_x3_interval_diagnostic.sh"
+DIAGNOSTIC_PROCEDURE = ROOT / "experiments/crazyflie-ukf-surface-range/X3_INTERVAL_DIAGNOSTIC.md"
 VERIFIER = ROOT / "tools" / "physical" / "verify_x3_characterization_bundle.py"
 EXPERIMENT = ROOT / "experiments" / "crazyflie-ukf-surface-range"
 CAPTURE = EXPERIMENT / "capture_independent_inputs.py"
@@ -189,6 +192,9 @@ def build(*, source_sha: str, firmware_bin: Path, cflib_root: Path, wheelhouse: 
     copy_file(PREPARE, bundle / "prepare_x3_independent_capture.py", executable=True)
     copy_file(NO_COMMANDER_LINK, bundle / "x3_no_commander_link.py", executable=True)
     copy_file(PREPARE_RUNNER, bundle / "prepare_x3_independent_capture.sh", executable=True)
+    copy_file(DIAGNOSTIC, bundle / "diagnose_x3_interval.py", executable=True)
+    copy_file(DIAGNOSTIC_RUNNER, bundle / "run_x3_interval_diagnostic.sh", executable=True)
+    copy_file(DIAGNOSTIC_PROCEDURE, bundle / "X3_INTERVAL_DIAGNOSTIC.md")
     copy_file(CAPTURE, bundle / "capture_independent_inputs.py", executable=True)
     copy_file(RUNNER, bundle / "run_x3_independent_capture.sh", executable=True)
     copy_file(VERIFIER, bundle / "verify_x3_characterization_bundle.py", executable=True)

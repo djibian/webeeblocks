@@ -475,8 +475,14 @@ justified by the current evidence.
   rejected Z=-2.814063310623169 m before terrain collection. Retained raw evidence
   is published in #562; the unobserved inter-capture interval cannot establish
   the initiating cause. See [the bounded analysis](X3_FAIL_561_ANALYSIS.md).
-  Review the preparation/acquisition lifecycle and a bounded diagnostic path for
-  that missing interval before requesting another identical characterization;
+  The bounded interval diagnostic records the four unchanged streams through a
+  fixed connected-handling contrast or a separate stationary reconnection
+  contrast, retaining per-epoch raw data, source/preparation binding, phase and
+  coverage-gap events with unchanged guards and no reset between intervals.
+  Independent review and an actual independent geometry/time witness remain
+  prerequisites to any explicit trusted diagnostic request; completed raw
+  observation is not scientific acceptance. Review its lifecycle evidence before
+  requesting another identical characterization;
   no blind retry, repeated trial reset or health-bound weakening is justified.
   A complete props-off characterization against the independent metric/time
   reference remains necessary, retaining every validly started stationary,
