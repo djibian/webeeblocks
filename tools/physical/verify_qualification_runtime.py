@@ -34,12 +34,16 @@ HOST_IMPORTS = (
     "physical_run_dispatch",
     "post_reset_capability_bridge",
     "probe_reference_hardware",
+    "prepare_physical_flight",
+    "prepare_x3_independent_capture",
+    "x3_no_commander_link",
     "serve_reference_capabilities",
     "teacher_run_authorization",
 )
 RUNTIME_IMPORTS = (
     "cflib",
     "cflib.crtp",
+    "cflib.bootloader",
     "cflib.crazyflie",
     "usb",
     "libusb_package",
@@ -274,10 +278,11 @@ def verify_isolated_imports(cflib_root: Path, wheels: tuple[Path, ...]) -> None:
             raise QualificationRuntimeError("isolated qualification import proof failed\n" + detail) from exc
 
         # Exercise the real executable import paths, not only a mirrored import list.
-        # Both entrypoints parse --help before creating any Webots process, Crazyradio
+        # These entrypoints parse --help before creating any Webots process, Crazyradio
         # session, teacher authority, parameter write or physical effect object.
         _run_real_entrypoint_help(PHYSICAL_DIR / "launch_physical_qualification.py", env)
         _run_real_entrypoint_help(PHYSICAL_DIR / "serve_physical_host.py", env)
+        _run_real_entrypoint_help(PHYSICAL_DIR / "prepare_physical_flight.py", env)
         print(result.stdout.strip())
         print("PASS: real qualification launcher/host entrypoints import under exact isolated closure")
 

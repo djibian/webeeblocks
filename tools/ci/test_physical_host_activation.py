@@ -111,6 +111,8 @@ class FakeSession:
             "evidence": {
                 "systemSelfTestPassed": True,
                 "protocolVersion": 12,
+                "firmware": {"revision0": 0x54F31E24, "revision1": 0x3A0B, "modified": False},
+                "flightConfiguration": {"estimator": 2, "controller": 1},
             },
         }
 

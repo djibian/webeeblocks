@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import pathlib
+import copy
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -49,6 +51,8 @@ def descriptor(
         "evidence": {
             "systemSelfTestPassed": self_test,
             "protocolVersion": protocol,
+            "firmware": {"revision0": 0x54F31E24, "revision1": 0x3A0B, "modified": False},
+            "flightConfiguration": {"estimator": 2, "controller": 1},
         },
     }
 
@@ -260,6 +264,43 @@ def test_transport_success_alone_never_mints_authority() -> None:
         require(f.events[-1] == "close", f"{label}: failed post-reset session must close")
 
 
+def test_firmware_and_configuration_cannot_borrow_reset_authority() -> None:
+    # Literal expected source metadata is independent from production constants.
+    # Every negative runs the real establishment path, not just its validator.
+    cases = [descriptor(protocol=13), descriptor(protocol=255)]
+    for section in ("firmware", "flightConfiguration"):
+        for absent in (None, {}, "unavailable"):
+            candidate = copy.deepcopy(descriptor())
+            candidate["evidence"][section] = absent
+            cases.append(candidate)
+        candidate = copy.deepcopy(descriptor())
+        del candidate["evidence"][section]
+        cases.append(candidate)
+    for field in ("revision0", "revision1"):
+        for wrong in (None, True, "0", 0.0, 0):
+            candidate = copy.deepcopy(descriptor())
+            candidate["evidence"]["firmware"][field] = wrong
+            cases.append(candidate)
+    for modified in (None, True, 0, "false"):
+        candidate = copy.deepcopy(descriptor())
+        candidate["evidence"]["firmware"]["modified"] = modified
+        cases.append(candidate)
+    for field, values in (("estimator", (None, True, "2", 2.0, 0, 1, 3)),
+                          ("controller", (None, True, "1", 1.0, 0, 2))):
+        for wrong in values:
+            candidate = copy.deepcopy(descriptor())
+            candidate["evidence"]["flightConfiguration"][field] = wrong
+            cases.append(candidate)
+    for candidate in cases:
+        f = Fixture()
+        f.capabilities = candidate
+        expect_error(f.factory().establish, "post-reset flight")
+        require(f.events[-1] == "close", "wrong baseline closes its post-reset session")
+        require(not any(event in f.events for event in ("preflight", "supervisor", "identity")),
+                "wrong baseline reached later flight-authority postconditions")
+    test_factory_establishes_exact_reset_postconditions_before_minting()
+
+
 def test_callback_failures_fail_closed_and_cleanup_new_session() -> None:
     f = Fixture()
     f.preflight_error = RuntimeError("binding unavailable")
@@ -417,12 +458,14 @@ def test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound() -> None:
 
 
 def main() -> int:
+    subprocess.run([sys.executable, "-B", str(ROOT / "tools/ci/test_physical_flight_preparation.py")], check=True)
     test_direct_construction_cannot_mint_fresh_authority()
     test_factory_establishes_exact_reset_postconditions_before_minting()
     test_authority_reset_proof_is_one_shot_and_terminal_is_latching()
     test_unsafe_or_unknown_flight_state_prevents_reset_effect()
     test_prior_evidence_is_invalidated_before_ambiguous_reset()
     test_transport_success_alone_never_mints_authority()
+    test_firmware_and_configuration_cannot_borrow_reset_authority()
     test_callback_failures_fail_closed_and_cleanup_new_session()
     test_explicit_cflib_power_cycle_helper_is_lazy_and_uri_bound()
     print(

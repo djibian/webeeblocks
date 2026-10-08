@@ -30,6 +30,7 @@ from verify_qualification_runtime import (
     verify_cflib_provenance,
     verify_wheelhouse,
 )
+from prepare_physical_flight import firmware_provenance, FIRMWARE_RELATIVE, FIRMWARE_SHA256
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REMOTE_WEBOTS_PREFIX = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/"
@@ -423,6 +424,8 @@ def build_bundle(
     source_sha = _require_source_sha(source_sha)
     _verify_prepared_runtime()
     _verify_qualification_proto()
+    if sha256_file(REPO_ROOT / FIRMWARE_RELATIVE) != FIRMWARE_SHA256:
+        raise QualificationPackageError("physical flight firmware fixture digest mismatch")
 
     cflib_root = cflib_root.resolve()
     wheelhouse = wheelhouse.resolve()
@@ -480,9 +483,14 @@ def build_bundle(
         "Lorsqu'un checkpoint humain séparé et autorisé le demande, vérifier d'abord le bundle puis lancer :\n\n"
         "```bash\n"
         "python3 tools/physical/verify_physical_qualification_package.py .\n"
-        "bash tools/physical/run_packaged_physical_qualification.sh --uri radio://...\n"
+        "# Hélices retirées : installation unique du binaire officiel fourni, sans commandes moteur.\n"
+        "bash tools/physical/prepare_packaged_physical_flight.sh --uri radio://... --output ../flight-preparation --props-removed\n"
+        "# Seulement après PREPARED et conformément au checkpoint exact :\n"
+        "bash tools/physical/run_packaged_physical_qualification.sh --uri radio://... --preparation-record ../flight-preparation/preparation.json\n"
         "```\n\n"
-        "Le lanceur conserve la préflight exacte, l'autorisation enseignant distincte et l'exécution paramètre-free du host.\n",
+        "Conserver le dossier de préparation hors du package et ses preuves même en échec ; aucun retry automatique. "
+        "Avant toute exécution autorisée, remettre les hélices seulement selon la procédure humaine et après préparation complète. "
+        "Le host vérifie encore le firmware/configuration après son reset, puis exige la préflight exacte et l'autorisation enseignant distincte.\n",
         encoding="utf-8",
     )
     lock_digest = sha256_file(
@@ -502,6 +510,7 @@ def build_bundle(
         "blockly_version": "13.2.1",
         "webots_version": "R2025a",
         "webots_build_image_digest": WEBOTS_BUILD_IMAGE_DIGEST,
+        "flight_firmware": firmware_provenance(),
         "preparation_execution_authority": False,
         "execution_requires_teacher_authorization": True,
     }
