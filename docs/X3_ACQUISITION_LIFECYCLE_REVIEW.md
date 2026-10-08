@@ -49,7 +49,19 @@ bounds are evaluated; evidence-write failure cannot admit scientific collection.
 Failed, interrupted and incomplete health windows are retained without creating
 a scientific capture. This repairs one observed window only: it neither
 reconstructs #561 nor covers handling, disconnected time or connection setup
-before that window. The continuous-interval contrasts below remain unimplemented.
+before that window.
+
+Integrated #569 at `main@8797e5fa17e852c300b2a0b9734966c47990bba7`
+adds the bounded interval diagnostic described in
+[the diagnostic procedure](../experiments/crazyflie-ukf-surface-range/X3_INTERVAL_DIAGNOSTIC.md).
+It records connected handling or a separate fixed-geometry reconnection contrast,
+with per-epoch raw streams and explicit uncovered intervals. Its independently
+reviewed startup/cleanup repair also closes the shared opening helper once on
+interruption before ownership reaches the caller, retaining independent cleanup
+uncertainty. These are machine preparation and lifecycle repairs, not new physical
+observations: #561's missing trajectory and initiating cause remain unknown.
+An actual independent geometry/time witness and a fresh trusted exact-artifact
+request remain necessary; this document issues neither.
 
 ## Consequence for diagnosis
 
@@ -59,7 +71,8 @@ again reject at the next gate without observing when divergence began. More
 frequent aggregate gates alone would not reconstruct the missing trajectory.
 Neither reconnect nor handling is proven to cause #561 by this source review.
 
-The smallest next diagnostic preparation should retain:
+The diagnostic requirements derived from this historical lifecycle are now
+implemented by #569, subject to the physical-evidence boundary above:
 
 1. the existing four raw streams continuously through a bounded stationary-to-
    next-position interval, with explicit phase markers and an independent record
