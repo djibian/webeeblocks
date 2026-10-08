@@ -11,6 +11,7 @@ scientific acquisition.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
@@ -377,7 +378,68 @@ def evaluate_health_samples(samples: list[dict[str, object]]) -> dict[str, objec
     }
 
 
-def collect_live_health(cf: object, *, settle_seconds: float) -> dict[str, object]:
+class HealthEvidence:
+    """Retain gate observations; never replace a scientific capture/reference."""
+
+    def __init__(self, output: Path, uri: str, preparation_record: Path):
+        record = preparation_record.read_bytes()
+        output.mkdir(parents=True, exist_ok=False)
+        self.output = output
+        self.lock = threading.Lock()
+        self.closed = False
+        self.sample_count = 0
+        with (output / "preparation-record.json").open("xb") as stream:
+            stream.write(record)
+        write_json_once(output / "health-start.json", {
+            "schema": "webeeblocks.x3.health-evidence.v1",
+            "uri": uri,
+            "preparation_record_sha256": hashlib.sha256(record).hexdigest(),
+            "started_host_monotonic_s": time.monotonic(),
+            "observe_seconds": HEALTH_OBSERVE_SECONDS,
+            "period_ms": HEALTH_PERIOD_MS,
+            "minimum_samples": HEALTH_MIN_SAMPLES,
+            "bounds": {name: list(bounds) for name, bounds in HEALTH_BOUNDS.items()},
+            "value_encoding": "Python repr of decoded cflib values; None denotes missing",
+            "time_boundary": "firmware log timestamp and host receipt; no sensor producer timestamp",
+            "evidence_boundary": "one admission health window; no inter-capture continuity or scientific verdict",
+        })
+        self.stream = (output / "health-samples.csv").open("x", encoding="utf-8", newline="")
+        self.writer = csv.writer(self.stream)
+        self.writer.writerow(("device_timestamp_ms", "host_received_monotonic_s", *HEALTH_BOUNDS))
+        self.stream.flush()
+
+    def received(self, timestamp: object, data: dict[str, object]) -> None:
+        received_at = time.monotonic()
+        with self.lock:
+            if self.closed:
+                return
+            self.writer.writerow((repr(timestamp), received_at,
+                                  *(repr(data.get(name)) for name in HEALTH_BOUNDS)))
+            self.stream.flush()
+            self.sample_count += 1
+
+    def seal(self) -> None:
+        with self.lock:
+            if not self.closed:
+                self.closed = True
+                self.stream.close()
+
+    def finish(self, health: dict[str, object] | None, error: str | None) -> None:
+        self.seal()
+        write_json_once(self.output / "health-result.json", {
+            "schema": "webeeblocks.x3.health-evidence.v1",
+            "status": "HEALTHY" if health is not None and error is None else "FAILED",
+            "health": health,
+            "error": error,
+            "sample_count": self.sample_count,
+            "finished_host_monotonic_s": time.monotonic(),
+            "scientific_verdict": None,
+        })
+
+
+def collect_live_health(
+    cf: object, *, settle_seconds: float, evidence: HealthEvidence | None = None,
+) -> dict[str, object]:
     from cflib.crazyflie.log import LogConfig
 
     if settle_seconds:
@@ -385,16 +447,28 @@ def collect_live_health(cf: object, *, settle_seconds: float) -> dict[str, objec
 
     samples: list[dict[str, object]] = []
     error: list[str] = []
+    sample_lock = threading.Lock()
+    accepting = True
     config = LogConfig("X3_health", HEALTH_PERIOD_MS)
     for name in HEALTH_BOUNDS:
         config.add_variable(name, "float")
 
     def received(_timestamp, data, _config) -> None:
-        samples.append({name: data.get(name) for name in HEALTH_BOUNDS})
+        with sample_lock:
+            if not accepting:
+                return
+            if evidence is not None:
+                try:
+                    evidence.received(_timestamp, data)
+                except Exception as exc:
+                    if not error:
+                        error.append(f"health evidence write failed: {exc}")
+            samples.append({name: data.get(name) for name in HEALTH_BOUNDS})
 
     def failed(_config, message) -> None:
-        if not error:
-            error.append(str(message))
+        with sample_lock:
+            if not error:
+                error.append(str(message))
 
     config.data_received_cb.add_callback(received)
     config.error_cb.add_callback(failed)
@@ -411,6 +485,13 @@ def collect_live_health(cf: object, *, settle_seconds: float) -> dict[str, objec
             config.stop()
         except Exception:
             pass
+        with sample_lock:
+            accepting = False
+            if evidence is not None:
+                evidence.seal()
+
+    if error:
+        raise PreparationError(f"estimator health log failed: {error[0]}")
 
     health = evaluate_health_samples(samples)
     health["settle_seconds"] = settle_seconds
@@ -504,16 +585,38 @@ def configure_live(
         close_link_without_commander(cf)
 
 
-def verify_live_health(uri: str) -> dict[str, object]:
-    cf = open_live_crazyflie(uri)
+def verify_live_health(
+    uri: str, *, evidence_output: Path | None = None,
+    preparation_record: Path | None = None,
+) -> dict[str, object]:
+    if not URI_RE.fullmatch(uri):
+        raise PreparationError("one explicit Crazyradio URI is required")
+    if evidence_output is not None and preparation_record is None:
+        raise PreparationError("health evidence requires the verified preparation record")
+    evidence = (HealthEvidence(evidence_output, uri, preparation_record)
+                if evidence_output is not None else None)
+    cf = None
+    health = None
+    error = None
     try:
-        return collect_live_health(cf, settle_seconds=0.0)
-    except PreparationError:
+        cf = open_live_crazyflie(uri)
+        health = collect_live_health(cf, settle_seconds=0.0, evidence=evidence)
+        return health
+    except BaseException as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        if isinstance(exc, Exception) and not isinstance(exc, PreparationError):
+            raise PreparationError(f"live estimator health verification failed: {exc}") from exc
         raise
-    except Exception as exc:
-        raise PreparationError(f"live estimator health verification failed: {exc}") from exc
     finally:
-        close_link_without_commander(cf)
+        try:
+            if cf is not None:
+                close_link_without_commander(cf)
+        except BaseException as exc:
+            error = (error + "; " if error else "") + f"teardown {type(exc).__name__}: {exc}"
+            raise
+        finally:
+            if evidence is not None:
+                evidence.finish(health, error)
 
 
 def build_record(
@@ -1020,12 +1123,16 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--verify-record", type=Path)
     parser.add_argument("--health-check", action="store_true")
+    parser.add_argument("--health-evidence", type=Path)
+    parser.add_argument("--preparation-record", type=Path)
     parser.add_argument("--uri")
     parser.add_argument("--firmware-bin", type=Path)
     parser.add_argument("--provenance", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--props-removed", action="store_true")
     args = parser.parse_args()
+    if (args.health_evidence is not None or args.preparation_record is not None) and not args.health_check:
+        parser.error("health evidence options require --health-check")
 
     try:
         if args.self_test:
@@ -1038,7 +1145,12 @@ def main() -> int:
         if args.health_check:
             if not args.uri:
                 parser.error("--health-check requires --uri")
-            health = verify_live_health(args.uri)
+            if args.health_evidence is not None and args.preparation_record is None:
+                parser.error("--health-evidence requires --preparation-record")
+            health = verify_live_health(
+                args.uri, evidence_output=args.health_evidence,
+                preparation_record=args.preparation_record,
+            )
             print("PASS: X3 live estimator health verified " + json.dumps(health, sort_keys=True))
             return 0
         if not all((args.uri, args.firmware_bin, args.provenance, args.output)):
