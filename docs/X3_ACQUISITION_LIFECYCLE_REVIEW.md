@@ -39,6 +39,18 @@ captures, while collector failure stays nonzero and existing evidence cannot be
 overwritten. The historical lifecycle review remains applicable to #561; the
 other observation gaps and its unknown initiating cause remain unresolved.
 
+Integrated #567 at `main@881a4d96a9374c16827788a496bee488ef2a488c` then
+closes the bounded raw admission-health retention gap for future acquisitions.
+The runner retains an exclusive sibling `<capture-output>.health` with exact
+preparation bytes/digest, URI and frozen guard metadata, decoded raw values
+(including missing/non-finite values), device timestamps and host receipt times,
+followed by the health/error result. The rows are sealed before the unchanged
+bounds are evaluated; evidence-write failure cannot admit scientific collection.
+Failed, interrupted and incomplete health windows are retained without creating
+a scientific capture. This repairs one observed window only: it neither
+reconstructs #561 nor covers handling, disconnected time or connection setup
+before that window. The continuous-interval contrasts below remain unimplemented.
+
 ## Consequence for diagnosis
 
 `INFERENCE`: a single passing preparation or stationary trace cannot establish
@@ -57,10 +69,10 @@ The smallest next diagnostic preparation should retain:
    vehicle/surface held unchanged, raw last-before/first-after observations and
    connection/log start/stop events. The disconnected interval must remain an
    explicit coverage gap, never interpolated into proof;
-3. the actual raw health window and its failure result, written before applying
-   the unchanged bounds. Preserve the now-integrated exact preparation identity
-   on successful and incomplete acquisitions alike rather than reimplementing
-   that retention repair.
+3. the actual raw health window and its failure result through the integrated
+   #567 sidecar, written before applying the unchanged bounds. Preserve that
+   repair and the #565 exact preparation identity on successful and incomplete
+   acquisitions alike rather than reimplementing either retention boundary.
 
 Those contrasts are diagnostic evidence, not replacement characterization
 trials. Their outcome must not select favorable scientific captures or introduce

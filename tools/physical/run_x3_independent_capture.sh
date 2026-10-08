@@ -243,6 +243,8 @@ fi
 test -s "$PREPARATION_RECORD"
 test ! -e "$OUTPUT"
 test ! -L "$OUTPUT"
+test ! -e "$OUTPUT.health"
+test ! -L "$OUTPUT.health"
 
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
@@ -254,7 +256,9 @@ python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \
 python3 -B -S "$HERE/prepare_x3_independent_capture.py" \
   --health-check \
-  --uri "$URI"
+  --uri "$URI" \
+  --health-evidence "$OUTPUT.health" \
+  --preparation-record "$PREPARATION_RECORD"
 
 CAPTURE_STATUS=0
 PYTHONPATH="$HERE/cflib-source:$ISOLATED_SITE" PYTHONNOUSERSITE=1 \

@@ -441,6 +441,11 @@ def main() -> int:
     verify_metric_reference_oracles()
     verify_reset_provenance_oracles()
     verify_no_commander_teardown_oracle()
+    subprocess.run(
+        [sys.executable, "-B", str(ROOT / "tools/ci/test_x3_health_evidence.py")],
+        check=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
 
     source = MODULE_PATH.read_text(encoding="utf-8")
     for required in (
