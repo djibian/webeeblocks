@@ -105,9 +105,14 @@ evidence.
 
 Research / later work:
 
-- **#70 — world altitude over surface discontinuities**
-- **#72 — teacher-authorized final real-flight activity**, gated by the
-  pedagogical progression and proven physical backend/capabilities.
+- **#70 — world altitude over surface discontinuities**: optional Lab-only
+  research restricted by the owner to independent IMU–barometer vertical
+  estimation, retaining downward range only as local optical-flow depth.
+  Stock terrain-following (A), known-table compensation (B), a ceiling
+  reference and additional positioning hardware are excluded from its scope.
+- **#72 — teacher-authorized final real-flight activity**, gated by its
+  pedagogical progression and proven #157 physical backend/capabilities,
+  not by #70 when the selected mission remains over uniform floor.
 
 Controllers choose useful work from the current GitHub state and this dependency
 graph under `AGENTS.md`. Parallelism and PR lifecycle are not encoded in this
@@ -216,6 +221,16 @@ or an independent metric reference makes that question UNPROVEN rather than a
 reason to tune S3 around the observations. No `rangeUp`, full z/f/r extension,
 threshold/persistence sweep, Runtime/controller change or motorized test is
 justified by the current evidence.
+
+**Owner decision (2026-10-09):** only candidate C (independent vertical
+IMU/barometer information, separate from lower-surface range used for Flow)
+remains in scope for #70. A terrain-following overflight is not true world-
+altitude holding; known-table-map compensation (B) is also excluded by owner
+choice. These are scope decisions, not proofs of universal technical
+impossibility. A credible crossing must hold world altitude at both edges,
+with acceptable X/Y and recovery. #70 stays unqualified, optional and
+non-blocking for #72 on uniform floor. See
+[decision record](DECISION_FINAL_FLIGHT_ALTITUDE_2026-10-09.md).
 
 ## Near-term graph
 
@@ -440,7 +455,7 @@ justified by the current evidence.
 - reopen simulation vocabulary only for a demonstrated pedagogical need or new
   contradictory evidence.
 
-### X3 — simplified independent characterization before terrain redesign
+### X3 — historical independent characterization, not an active completion gate
 
 - parent: #70
 - owner direction: `X3 VIABLE WITH SIMPLIFICATION` supersedes the earlier plan
@@ -469,27 +484,27 @@ justified by the current evidence.
   bundle verification, Runtime/Webots evidence, digest/provenance and the generic
   one-open-human-test rule remain mandatory; packaging itself remains request-
   neutral and grants no execution or motorized authority
-- next prerequisite: owner-authoritative checkpoint #561 is resolved `FAIL` on
-  exact `4ca2d1e3b3556e98136c12b9d3522d8707144f03`. Fresh-reset preparation and
-  one bounded stationary capture succeeded, but the next pre-terrain health gate
-  rejected Z=-2.814063310623169 m before terrain collection. Retained raw evidence
-  is published in #562; the unobserved inter-capture interval cannot establish
-  the initiating cause. See [the bounded analysis](X3_FAIL_561_ANALYSIS.md).
-  The bounded interval diagnostic records the four unchanged streams through a
-  fixed connected-handling contrast or a separate stationary reconnection
-  contrast, retaining per-epoch raw data, source/preparation binding, phase and
-  coverage-gap events with unchanged guards and no reset between intervals.
-  Independent review and an actual independent geometry/time witness remain
-  prerequisites to any explicit trusted diagnostic request; completed raw
-  observation is not scientific acceptance. Review its lifecycle evidence before
-  requesting another identical characterization;
-  no blind retry, repeated trial reset or health-bound weakening is justified.
-  A complete props-off characterization against the independent metric/time
-  reference remains necessary, retaining every validly started stationary,
-  terrain, true-vertical and mixed trial under a fresh exact request/artifact.
-  Calibration-only processing/envelopes are then frozen before untouched
-  confirmation and the separate scientific decision. An uncertainty interval
-  crossing a predeclared target is `UNPROVEN`, never PASS
+- historical evidence: owner-authoritative checkpoint #561 is `FAIL` on
+  exact `4ca2d1e3b3556e98136c12b9d3522d8707144f03`: fresh-reset
+  preparation and a stationary capture succeeded, but the later pre-terrain
+  health gate rejected Z=-2.814063310623169 m. Raw evidence was retained in
+  #562. The missing inter-capture trace cannot identify the cause. See
+  [the bounded analysis](X3_FAIL_561_ANALYSIS.md); neither identical retry
+  nor retrospective success is justified
+- superseded prerequisite: the original 12 characterization + 12 separate
+  confirmation acquisitions, and completion of the inter-capture diagnostic,
+  are not required before the next scientific decision on #70 and are never
+  prerequisites for #157/#72 on uniform floor. Legacy preregistration,
+  frozen predictors, failures and evidence remain valid as historical
+  artifacts, not as satisfied altitude or flight criteria
+- conditional research path: reanalyse existing IMU/barometer windows, derive
+  a bounded independent-world-Z budget including initial velocity, IMU bias,
+  attitude, pressure, timing, lower-range/Flow covariance coupling and recovery;
+  prefer code inspection, models, replay and negative simulations first.
+  Request a minimal new props-off continuous acquisition **only** when an
+  indispensable unresolved physical question changes the decision; use its
+  own scientific protocol and trusted exact-artifact checkpoint, not a
+  relabelled or silently weakened X3 trial
 - checkpoint gating: #550 and #561 are closed owner-authoritative `FAIL` and
   occupy no human-test slot; their artifacts/fingerprints remain historical
   failure evidence only. The #551 fresh-reset repair is integrated through #552,
@@ -503,14 +518,16 @@ justified by the current evidence.
   provenance investigations merely because they remain `UNPROVEN`, retune
   ToF/barometer/S3 thresholds, modify product Runtime/controller behavior, add
   `rangeUp`/full z-f/r by default, or infer/authorize motorized flight
-- consequence: #70 remains Lab-only until the characterization/confirmation
-  evidence supports an explicit scientific decision.
+- consequence: #70 remains Lab-only until explicit independent evidence
+  supports a bounded scientific decision about candidate C. No altitude or
+  motorized qualification follows from this documentary change.
 
 ## Later gates kept intentionally coarse
 
 ### P — physical backend capability and safety
 
-- parents: physical-backend product work and #70 evidence
+- parent: physical-backend product work; #70 is not a prerequisite for
+  generic uniform-floor real-device qualification
 - established prerequisite and deterministic subset: #193/#196 plus
   #238/#241/#243/#244/#246/#249 establish exact-airframe, live capability,
   exact-AST binding and reconnect-sensitive current-program provenance; #256,
@@ -601,10 +618,13 @@ justified by the current evidence.
 
 - parent: #72
 - depends: coherent progression + relevant #157 capability coverage + proven
-  physical backend + any #70 capability required by the chosen final mission
-- proof direction: exact simulation-validated student program, explicit teacher
-  authorization, independent preflight/failsafe and representative safe real
-  execution
+  physical backend, independently of #70 for a uniform-floor final mission
+- mission scope: bounded uniform-floor corridor, with lateral obstacles or
+  explicit vertical movement only if their exact sensor/control/safety
+  capabilities and clearances have actually been qualified
+- proof direction: exact unchanged simulation-validated student program,
+  explicit teacher authorization, independent preflight/failsafe and
+  representative safe real execution; no hidden mission-specific adaptation
 - do not decompose the detailed final course before these gates converge.
 
 ## Roadmap maintenance rule
