@@ -171,7 +171,19 @@ Real Crazyflie execution is reserved for the **final activity/finality of the mo
 
 The physical execution path must preserve the same backend-neutral student program and must include independent preflight/safety checks appropriate to the hardware. Real flight uses normal execution only: no step debug and no live pedagogical modification of the program during flight.
 
-The exact final challenge remains dependent on demonstrated physical capabilities. In particular, the table/surface-discontinuity altitude problem tracked by Lab must be resolved before detailed 3D final-course design is treated as product-ready.
+The final real-flight mission must be achievable over a qualified, uniform-floor
+corridor without crossing a raised surface. It may use only physically proven
+capabilities, preflight checks, safety margins and failure handling. The broader
+simulation progression may include richer scenarios, but the exact student
+program selected for physical execution must first be validated in simulation
+and then executed unchanged under explicit teacher authorization. A physical
+course cannot be product-ready before its relevant safety/capability gates pass.
+
+Lab #70 remains optional research toward stable **world-frame altitude** across
+floor → table → floor, acceptable X/Y behavior and safe recovery. Terrain-
+following ascent/descent is not an acceptable substitute. Research #70 is not
+a prerequisite for a uniform-floor final mission, and no unqualified physical
+table crossing may be offered to students.
 
 ## Files, Moodle and assessment boundary
 
