@@ -14,6 +14,11 @@ import stat
 import subprocess
 import sys
 
+# The verifier is itself executed from the extracted, manifest-covered bundle.
+# Prevent its first local import from creating an unmanifested __pycache__ file
+# before verify_manifest() has checked exact membership and file digests.
+sys.dont_write_bytecode = True
+
 from prepare_physical_flight import firmware_provenance, FIRMWARE_RELATIVE, FIRMWARE_SHA256
 
 EXPECTED_CFLIB_COMMIT = "45fdb784c9d13074c42835f3b5ac1d12133bf873"
