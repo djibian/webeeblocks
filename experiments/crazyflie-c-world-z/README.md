@@ -54,6 +54,13 @@ fails),
 and publishes the full twenty-case simulation CSV (14 vertical, 6 attitude)
 as a host-only artifact
 named for the exact candidate SHA, behind canonical `CI Gate`.
+The new Lab job is restricted to that canonical caller (`github.workflow ==
+'CI Gate'`), including its PR, scheduled and manual runs. It is skipped by
+`Human checkpoint` and direct standalone Webots dispatches: they may intentionally
+check out a historical target tree that predates this Lab. All existing runtime,
+Webots and physical checkpoint jobs retain their previous obligations. The
+workflow contract checks the canonical caller name and confines this guard to
+the new job.
 
 `test_research.py` requires both successful nominal cases and negative cases:
 analytic dynamics, covariance, input/time failures, frame conventions, actual

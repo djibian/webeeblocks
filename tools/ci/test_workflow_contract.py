@@ -390,6 +390,9 @@ class WorkflowTests(unittest.TestCase):
         lab = suite.split("  c-world-z-research:", 1)[1].split(
             "  s3-surface-offset-build:", 1
         )[0]
+        self.assertIn("    if: github.workflow == 'CI Gate'\n", lab)
+        self.assertTrue((WORKFLOWS / "ci.yml").read_text(encoding="utf-8").startswith("name: CI Gate\n"))
+        self.assertEqual(suite.count("    if: github.workflow == 'CI Gate'\n"), 1)
         self.assertIn("Reject stale or tampered retained scientific results", lab)
         self.assertIn(
             "cmp -- experiments/crazyflie-c-world-z/results.json", lab
