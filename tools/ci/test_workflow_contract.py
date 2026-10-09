@@ -382,6 +382,21 @@ class WorkflowTests(unittest.TestCase):
         ):
             self.assertIn(required, runner)
 
+    def test_c_world_z_retained_results_are_ci_bound(self) -> None:
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        lab = suite.split("\\n  c-world-z-research:\\n", 1)[1].split(
+            "\\n  s3-surface-offset-build:\\n", 1
+        )[0]
+        self.assertIn("Reject stale or tampered retained scientific results", lab)
+        self.assertIn(
+            "cmp -- experiments/crazyflie-c-world-z/results.json", lab
+        )
+        self.assertIn("ci-artifacts/c-world-z/results.json", lab)
+        self.assertLess(lab.index("Recompute archived and synthetic scientific evidence"),
+                        lab.index("Reject stale or tampered retained scientific results"))
+        self.assertLess(lab.index("Reject stale or tampered retained scientific results"),
+                        lab.index("Publish host-only research evidence"))
+
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)

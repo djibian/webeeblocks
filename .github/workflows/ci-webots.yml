@@ -36,6 +36,10 @@ jobs:
         run: >-
           python3 experiments/crazyflie-c-world-z/research.py
           --firmware .ci-c-world-z-firmware --output ci-artifacts/c-world-z
+      - name: Reject stale or tampered retained scientific results
+        run: >-
+          cmp -- experiments/crazyflie-c-world-z/results.json
+          ci-artifacts/c-world-z/results.json
       - name: Publish host-only research evidence
         if: always()
         uses: actions/upload-artifact@v4
