@@ -137,7 +137,14 @@ class BudgetTests(unittest.TestCase):
         workflow = (ROOT/'.github/workflows/ci.yml').read_text(encoding='utf-8')
         block = workflow.split('- name: Verify selector and repository contracts', 1)[1]
         block = block.split('- name: Select required suites', 1)[0]
-        self.assertIn('          python3 tools/ci/test_c_feasibility.py\n', block)
+        self.assertIn('          python3 tools/ci/test_workflow_contract.py\n', block)
+        contract = (ROOT / 'tools/ci/test_workflow_contract.py').read_text(encoding='utf-8')
+        runner = contract.split(
+            '    def test_c_feasibility_oracle_runs_in_mandatory_select_job(self)', 1
+        )[1].split('\n    def ', 1)[0]
+        self.assertIn('subprocess.run(', runner)
+        self.assertIn('str(ROOT / "tools/ci/test_c_feasibility.py")', runner)
+        self.assertIn('check=True', runner)
 
     def test_narrow_domain_can_pass_model_budget_without_qualifying_drone(self):
         r = b.vertical_envelope(8., omega=.5, z0=.002, v0=.002,

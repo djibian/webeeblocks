@@ -2,6 +2,7 @@
 """Static contract for V5 CI and human-checkpoint topology."""
 
 from pathlib import Path
+import sys
 import json
 import re
 import shlex
@@ -423,6 +424,18 @@ class WorkflowTests(unittest.TestCase):
             mutated["archive"]["continuous_slow_from_50s"]["max_z_m"] = 0.005
             (root / retained_path).write_text(json.dumps(mutated), encoding="utf-8")
             self.assertNotEqual(subprocess.run(argv, cwd=root, capture_output=True).returncode, 0)
+
+    def test_c_feasibility_oracle_runs_in_mandatory_select_job(self) -> None:
+        # Scientific evidence is mandatory in the existing selector-contract
+        # step, without editing ci.yml or triggering unrelated X3 firmware builds.
+        ci = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        required = ci.split("- name: Verify selector and repository contracts", 1)[1]
+        required = required.split("- name: Select required suites", 1)[0]
+        self.assertIn("python3 tools/ci/test_workflow_contract.py", required)
+        subprocess.run(
+            [sys.executable, str(ROOT / "tools/ci/test_c_feasibility.py")],
+            cwd=ROOT, check=True, timeout=120,
+        )
 
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
