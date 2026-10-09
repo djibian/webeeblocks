@@ -230,6 +230,7 @@ jobs:
           python3 tools/ci/test_select_s3_build.py
           python3 tools/ci/test_ci_gate.py
           python3 tools/ci/test_workflow_contract.py
+          python3 tools/ci/test_c_feasibility.py
           python3 tools/ci/test_localize_webots_world.py
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
