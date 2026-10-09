@@ -2,7 +2,10 @@
 """Static contract for V5 CI and human-checkpoint topology."""
 
 from pathlib import Path
+import json
 import re
+import shlex
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -396,6 +399,27 @@ class WorkflowTests(unittest.TestCase):
                         lab.index("Reject stale or tampered retained scientific results"))
         self.assertLess(lab.index("Reject stale or tampered retained scientific results"),
                         lab.index("Publish host-only research evidence"))
+
+    def test_c_world_z_ci_comparison_rejects_material_evidence_mutation(self):
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        comparison = suite.split("Reject stale or tampered retained scientific results", 1)[1]
+        command = re.search(r"run: >-\n((?:          .+\n)+)", comparison)
+        self.assertIsNotNone(command)
+        argv = shlex.split(command.group(1))
+        retained_path = "experiments/crazyflie-c-world-z/results.json"
+        generated_path = "ci-artifacts/c-world-z/results.json"
+        retained = (ROOT / retained_path).read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (retained_path, generated_path):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(retained)
+            self.assertEqual(subprocess.run(argv, cwd=root, capture_output=True).returncode, 0)
+            mutated = json.loads(retained)
+            mutated["archive"]["continuous_slow_from_50s"]["max_z_m"] = 0.005
+            (root / retained_path).write_text(json.dumps(mutated), encoding="utf-8")
+            self.assertNotEqual(subprocess.run(argv, cwd=root, capture_output=True).returncode, 0)
 
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
