@@ -384,8 +384,8 @@ class WorkflowTests(unittest.TestCase):
 
     def test_c_world_z_retained_results_are_ci_bound(self) -> None:
         suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
-        lab = suite.split("\\n  c-world-z-research:\\n", 1)[1].split(
-            "\\n  s3-surface-offset-build:\\n", 1
+        lab = suite.split("  c-world-z-research:", 1)[1].split(
+            "  s3-surface-offset-build:", 1
         )[0]
         self.assertIn("Reject stale or tampered retained scientific results", lab)
         self.assertIn(
