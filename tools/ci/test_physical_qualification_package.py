@@ -48,6 +48,35 @@ def run_verify(bundle: Path, *, success: bool) -> None:
         raise AssertionError("package verifier accepted a mutated package")
 
 
+def verify_packaged_entrypoint_is_readonly(bundle: Path) -> None:
+    """Exercise the actual extracted verifier without a bytecode-suppression environment."""
+    env = os.environ.copy()
+    for name in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX", "PYTHONPATH"):
+        env.pop(name, None)
+    entrypoint = bundle / "tools" / "physical" / "verify_physical_qualification_package.py"
+    manifest_before = (bundle / "SHA256SUMS.json").read_bytes()
+    for attempt in (1, 2):
+        result = subprocess.run(
+            [sys.executable, str(entrypoint), str(bundle), "--manifest-only"],
+            cwd=bundle,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        require(
+            result.returncode == 0,
+            f"extracted verifier failed its read-only attempt {attempt}\\n" + result.stdout + result.stderr,
+        )
+        require(
+            not any(bundle.rglob("*.pyc")),
+            "verifier itself must not generate unmanifested bytecode inside the exact package",
+        )
+        require(
+            (bundle / "SHA256SUMS.json").read_bytes() == manifest_before,
+            "verifier must not modify manifest bytes",
+        )
+
+
 def run_perspective_self_test(bundle: Path) -> None:
     helper = bundle / "tools" / "physical" / "qualification_perspective.py"
     env = os.environ.copy()
@@ -430,6 +459,7 @@ def verify_static_contract() -> None:
 
 
 def verify_built_bundle(bundle: Path) -> None:
+    verify_packaged_entrypoint_is_readonly(bundle)
     run_verify(bundle, success=True)
     run_perspective_self_test(bundle)
     # Re-hash the manifest after mutation so this independently exercises the
@@ -468,6 +498,18 @@ def verify_built_bundle(bundle: Path) -> None:
         run_verify(bundle, success=False)
     finally:
         extra.unlink(missing_ok=True)
+
+    # Bytecode produced by an older verifier must still be rejected as an
+    # extra unmanifested file; the fix must not weaken exact-membership checks.
+    cache = bundle / "tools" / "physical" / "__pycache__"
+    cache.mkdir(exist_ok=True)
+    rogue_bytecode = cache / "prepare_physical_flight.cpython-312.pyc"
+    try:
+        rogue_bytecode.write_bytes(b"not manifest-covered")
+        run_verify(bundle, success=False)
+    finally:
+        rogue_bytecode.unlink(missing_ok=True)
+        cache.rmdir()
 
     run_verify(bundle, success=True)
 
