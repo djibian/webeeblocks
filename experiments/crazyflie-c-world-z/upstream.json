@@ -1,0 +1,20 @@
+{
+  "schema": "webeeblocks.c-world-z.upstream.v1",
+  "commit": "54f31e243a0b28b67efef5ba20dbb6d9890a5478",
+  "master_inspected": "f6e0f0a3b526861328caf3296a7ecf00bb915d39",
+  "sha256": {
+    "src/modules/src/kalman_core/mm_flow.c": "1365472549ff33d315c4864c21af34a0135a6432a35e6eede30da15e9ab41c42",
+    "src/modules/src/kalman_core/mm_tof.c": "0cd4c17664a456091d6113e742feb0bde239b98e4fd8efdcd7adccf28dbcb7c8",
+    "src/modules/src/kalman_core/kalman_core.c": "d0215770d05b213a4e19a91fe37ce5de802f33c826be8b9e44cfc9a31a82ea2f",
+    "src/modules/src/estimator/estimator_kalman.c": "47a87ebfd705480eeff14f54e0520bf87b040cfd9d5afc2b00719f631110c388",
+    "src/modules/src/estimator/estimator_ukf.c": "79ff01fc13ccb61d7ae183c13afddf4ec1f3ac50cbcc3a6638154d595019e1a0",
+    "src/modules/src/sensfusion6.c": "f6ff3577a4ad929098519e1b54010e7b0bc55817841f4749bed50d7997bcdaa8",
+    "src/modules/interface/sensfusion6.h": "2d28321325f777fd206ed6d1ab6d9422940715becde77b95f7dd14547d963aee",
+    "src/deck/drivers/src/flowdeck_v1v2.c": "6e81daa5eeeeda576e291efabc92e949a41f7f5f9f1d45d2c77dd213997bcabe",
+    "src/deck/drivers/src/zranger2.c": "9d2343bf688c200e02372d6f6a36c96a3d060afb8a084982024a44494aed4ee1",
+    "src/hal/src/sensors_bmi088_bmp3xx.c": "9976d72db2f0cea4b2bf8bac1276b3fe5171e4823ba4b4691f5daa99cca8271d",
+    "src/modules/src/controller/position_controller_pid.c": "c95924809341435dcb7c07c4dfbfd844348ce4ee645f4a7f69114fa90cf63f7b",
+    "src/modules/src/controller/controller_pid.c": "718040a4d8465f720450c5ba6338d9c2b92c7d74bc9d7010f3d61a27f7c2b5cb",
+    "src/utils/interface/physicalConstants.h": "7f569271a97928a0126bdd09226e918bcc244787c25c4918dba3c0960bd9b1e2"
+  }
+}

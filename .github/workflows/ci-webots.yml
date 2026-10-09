@@ -13,6 +13,37 @@ permissions:
   contents: read
 
 jobs:
+  c-world-z-research:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Checkout exact Bitcraze measurement and attitude sources
+        uses: actions/checkout@v4
+        with:
+          repository: bitcraze/crazyflie-firmware
+          ref: 54f31e243a0b28b67efef5ba20dbb6d9890a5478
+          path: .ci-c-world-z-firmware
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Falsify isolated world-Z research claims without hardware
+        run: >-
+          python3 experiments/crazyflie-c-world-z/test_research.py
+          --firmware .ci-c-world-z-firmware -v
+      - name: Recompute archived and synthetic scientific evidence
+        run: >-
+          python3 experiments/crazyflie-c-world-z/research.py
+          --firmware .ci-c-world-z-firmware --output ci-artifacts/c-world-z
+      - name: Publish host-only research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-world-z-research-${{ inputs.target_sha || github.sha }}
+          path: ci-artifacts/c-world-z/
+          if-no-files-found: error
+
   s3-surface-offset-build:
     runs-on: ubuntu-22.04
     timeout-minutes: 25

@@ -27,7 +27,7 @@ EXPECTED = {
         "stop-vs-chain", "strategy-timing", "historical-blockly-ui",
         "encoders-historical", "gyro-gps-historical", "light-sensor-historical",
         "sensor-probing-historical", "robot-window-roundtrip", "webots-smoke",
-        "s3-surface-offset-build",
+        "s3-surface-offset-build", "c-world-z-research",
     },
 }
 
