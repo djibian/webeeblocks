@@ -21,7 +21,7 @@ The helper checks it before waiting, between its existing 50 ms slices and at
 completion, including a loss during the final slice. The assertion reads only a
 local Event and raises on terminal caller loss. It performs no browser, radio,
 logging or effect operation and creates no teacher authority. A lost caller
-cannot make the next wait or a later student action succeed. Existing exact-AST,
+is rejected at wait and current-program assertion boundaries. Existing exact-AST,
 current-program, watchdog and epoch checks remain in place.
 
 The same existing failure path revokes the exact teacher program and attempts
@@ -50,6 +50,18 @@ physical excursions are not bounded by it. A callback supplied to this internal
 helper must be local and nonblocking; the production root supplies exactly the
 existing CallerLifetime assertion. Standalone trusted fixture use may omit it;
 ordinary IPC cannot select or replace it.
+
+Additional machine oracles in `test_physical_caller_loss_races.py` exercise six
+real-socket static/dynamic host schedules: loss in the first slice, after the
+pacer's final check but before the enclosing wait completes, and simultaneous
+epoch loss. The enclosing assertion rejects the post-pacer loss; epoch loss
+vetoes recovery. Four separate schedules use real authority/effect/ACK domains:
+EOF before ACK, missing ACK, during effect completion, and concurrent epoch loss.
+Known accepted effects finish before eligible one-shot recovery; ambiguous
+outcomes forbid recovery emission. These fixtures establish no physical bounds.
+EOF observation and effect emission are not one atomic operation: this repair
+does not close every pre-send race or promise immediate interruption of an
+operation already in progress.
 
 | Boundary | Status after this software change |
 | --- | --- |

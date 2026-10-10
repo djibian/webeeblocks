@@ -119,6 +119,8 @@ def run_production_regression(relative_path: str, label: str) -> None:
 
 
 def main() -> int:
+    subprocess.run(["node", str(ROOT / "tools/ci/test_physical_hover_project.js")],
+                   cwd=ROOT, check=True)
     run_production_regression(
         "tools/ci/test_physical_admission_observers.py",
         "causal PARAM, first LOG sample and confirmed deletion through production takeoff must pass",

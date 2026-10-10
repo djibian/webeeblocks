@@ -725,6 +725,8 @@ def main() -> int:
     test_actual_host_rejects_malformed_terminal_before_takeoff()
     test_caller_loss_interrupts_every_wait_slice_including_final_slice()
     test_actual_static_and_dynamic_host_route_wait_eof_to_one_recovery()
+    import subprocess
+    subprocess.run([sys.executable, str(CI / "test_physical_caller_loss_races.py")], check=True)
     print(
         "PASS actual physical host sequencing: validated takeoff preserves exact ordered horizontal/vertical motion, "
         "no-effect wait pacing and one terminal controlled landing; caller-selected motion/altitude/index state is rejected, "
