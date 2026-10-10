@@ -235,6 +235,11 @@ les erreurs à la géométrie et son incertitude, sans inventer un oracle PASS a
   Le premier callback demandé garde une copie diagnostique de son epoch/tick/brut,
   même si une erreur LOG, un callback malformé ou une perte d'epoch ultérieure
   interdit sa consommation. Cette copie ne valide jamais une mesure rejetée.
+  L'entrée et la capture locale du callback sont sérialisées avec la clôture de
+  sa demande, indépendamment de l'acceptation : une déconnexion pendant son
+  traitement ne peut effacer un brut déjà entré et correctement encadré. Le
+  callback garde sa génération d'entrée même si son traitement finit après une
+  nouvelle demande ; aucun callback antérieur n'acquiert de fraîcheur ainsi.
   La sortie en vol utilise une file bornée de 64 rapports et un worker daemon,
   sans écriture, flush, drain ou join dans le chemin de commande/récupération.
   Un stockage/terminal bloqué, une file pleine, une erreur d'écriture ou la fin

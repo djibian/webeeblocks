@@ -7,11 +7,14 @@ PARAM adapter, readiness decision or production transport is replaced.
 from contextlib import redirect_stderr
 from contextlib import contextmanager
 from io import StringIO
+import inspect
 import json
+import os
 from pathlib import Path
 import socket
 import struct
 import sys
+from time import monotonic
 from threading import Event, Lock, Thread
 from types import SimpleNamespace
 import unittest
@@ -328,6 +331,152 @@ class NativeAdmissionTests(unittest.TestCase):
                 sink.release.set()
                 thread.join(2)
                 reporter.queue.join()  # offline only, after explicitly unblocking
+
+    def test_overlapping_callback_fault_and_read_retirement_preserve_first_raw(self):
+        # Pause unchanged production code after entry/framing, before raw
+        # validation and capture.
+        # capture. Unlike a sequential burst, the reader's failure/finally
+        # runs while this first callback is still processing. No returned
+        # observation or production error/closure decision is replaced.
+        callback_code = range_observer.FreshRangeObserver._on_data.__code__
+        callback_source, callback_start = inspect.getsourcelines(
+            range_observer.FreshRangeObserver._on_data)
+        pause_line = callback_start + next(i for i, line in enumerate(callback_source)
+            if line.strip() == "raw_mm = self._validate_raw_mm(data[self._variable])")
+        read_code = range_observer.FreshRangeObserver.read.__code__
+        read_source, read_start = inspect.getsourcelines(range_observer.FreshRangeObserver.read)
+        final_index = next(i for i, line in enumerate(read_source) if line.strip() == "finally:")
+        retire_line = read_start + next(i for i in range(final_index + 1, len(read_source))
+            if read_source[i].strip() and not read_source[i].lstrip().startswith("#"))
+        for raw in (1000, 32766):
+            for mode in ("disconnect", "disconnect+epoch", "log-error"):
+                with self.subTest(raw=raw, mode=mode):
+                    backend, _ = self.hover_backend()
+                    backend.takeoff(0.5)
+                    original_epoch = self.f.epoch_value
+                    callback_entered, release, faulted, retiring, done = (Event() for _ in range(5))
+                    callbacks, outcomes = [], []
+                    def callback_trace(frame, event, _arg):
+                        if frame.f_code is callback_code and event == "line" and frame.f_lineno == pause_line:
+                            callback_entered.set()
+                            if not release.wait(2):
+                                raise TimeoutError("offline callback release missing")
+                        return callback_trace
+                    def reader_trace(frame, event, _arg):
+                        if frame.f_code is read_code and event == "line" and frame.f_lineno == retire_line:
+                            retiring.set()
+                        return reader_trace
+                    def schedule(observer, **kw):
+                        if kw["request_generation"]:
+                            config = observer._config
+                            def callback():
+                                sys.settrace(callback_trace)
+                                try:
+                                    config.emit(200, raw)
+                                finally:
+                                    sys.settrace(None)
+                            thread = Thread(target=callback, daemon=True)
+                            callbacks.append(thread)
+                            thread.start()
+                            if not faulted.wait(2):
+                                raise TimeoutError("offline fault schedule missing")
+                        return self.native_range_wait(observer, **kw)
+                    def read():
+                        sys.settrace(reader_trace)
+                        try:
+                            outcomes.append(backend.readRange("front"))
+                        except Exception as exc:
+                            outcomes.append(exc)
+                        finally:
+                            sys.settrace(None)
+                            done.set()
+                    out = StringIO()
+                    with patch.object(range_observer.FreshRangeObserver, "_wait_for_sample", schedule), redirect_stderr(out):
+                        thread = Thread(target=read, daemon=True)
+                        thread.start()
+                        try:
+                            self.assertTrue(callback_entered.wait(1))
+                            observer = backend._active_run.crazyflie.log.log_blocks[-1].data_received_cb.callbacks[0].__self__
+                            if mode == "log-error":
+                                observer._on_log_error(observer._config, "overlapping LOG failure")
+                            else:
+                                if mode == "disconnect+epoch":
+                                    self.f.epoch_value += "-lost"
+                                observer._on_disconnect("radio link loss")
+                            faulted.set()
+                            self.assertTrue(retiring.wait(1))
+                            self.assertFalse(done.wait(0.02), "reader retired an entered callback before capture")
+                        finally:
+                            release.set()
+                            faulted.set()
+                            thread.join(2)
+                            for callback in callbacks:
+                                callback.join(2)
+                        self.assertFalse(thread.is_alive())
+                        self.assertTrue(all(not callback.is_alive() for callback in callbacks))
+                    self.assertEqual(len(outcomes), 1)
+                    self.assertIsInstance(outcomes[0], Exception)
+                    record = self.range_record(out)
+                    self.assertEqual((record["rawMm"], record["logTimestampMs"], record["connectionEpoch"]),
+                                     (raw, 200, original_epoch))
+                    self.assertFalse(record["backendReadAccepted"])
+                    self.assertFalse(record["executionAuthority"])
+                    self.assertIsNone(observer._first_requested_sample)
+                    self.assertFalse(self.headers.get((5, 1), []))
+
+    def test_real_saturated_pipe_cannot_delay_land_or_unavailable_rejection(self):
+        import physical_diagnostics
+        read_fd, write_fd = os.pipe()
+        os.set_blocking(write_fd, False)
+        try:
+            while True:
+                os.write(write_fd, b"x" * 4096)
+        except BlockingIOError:
+            pass
+        os.set_blocking(write_fd, True)
+        sink = os.fdopen(write_fd, "w")
+        reporter = physical_diagnostics._InflightRangeReporter()
+        reader_done, outcomes = Event(), []
+        def run():
+            try:
+                backend, dynamic = self.hover_backend()
+                result = dynamic.BoundSharedInterpreter(backend.ast_binding, backend).run()
+                self.assertEqual(result.variables, {"distance": 1.0})
+                self.assertIn("land", dynamic.EVENTS)
+                backend, _ = self.hover_backend()
+                backend.takeoff(0.5)
+                self.burst = [(200, 32766)]
+                with self.assertRaises(Exception):
+                    backend.readRange("front")
+                for _ in range(100):
+                    reporter.submit(sink, "offline overflow\n")
+                self.assertEqual(reporter.queue.qsize(), 64)
+                outcomes.append("passed")
+            except Exception as exc:
+                outcomes.append(exc)
+            finally:
+                reader_done.set()
+        with patch.object(physical_diagnostics, "_INFLIGHT_REPORTER", reporter), redirect_stderr(sink):
+            thread = Thread(target=run, daemon=True)
+            thread.start()
+            try:
+                self.assertTrue(reader_done.wait(1), "real pipe backpressure delayed physical control")
+                self.assertEqual(outcomes, ["passed"])
+            finally:
+                # Offline cleanup only. A production flight path never drains
+                # or joins the evidence writer. Poll reads with finite bounds.
+                os.set_blocking(read_fd, False)
+                deadline = monotonic() + 2
+                while (reporter.queue.unfinished_tasks or thread.is_alive()) and monotonic() < deadline:
+                    try:
+                        os.read(read_fd, 65536)
+                    except BlockingIOError:
+                        reader_done.wait(0.005)
+                thread.join(0.1)
+                self.assertFalse(thread.is_alive())
+                self.assertEqual(reporter.queue.unfinished_tasks, 0)
+                sink.close()
+                os.close(read_fd)
 
     def test_context_exit_failure_does_not_mislabel_raw_sample_as_returned(self):
         backend, _ = self.hover_backend()

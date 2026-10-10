@@ -138,7 +138,7 @@ class FreshRangeObserver:
         Diagnostic data only: the original epoch is not current authority and
         this snapshot does not establish a successfully consumed observation.
         """
-        with self._condition:
+        with self._arrival_lock:
             return (dict(self._first_requested_observation)
                     if self._first_requested_observation is not None else None)
 
@@ -240,52 +240,60 @@ class FreshRangeObserver:
         return raw_mm
 
     def _on_data(self, timestamp: object, data: object, config: object) -> None:
-        # Capture request generation at callback entry, before any processing
-        # that may block behind the read-side condition lock.
+        # Entry, diagnostic capture and request retirement share arrival.
+        # A disconnect can reject consumption while this
+        # callback is processing, but read() cannot retire its demand before
+        # the already-entered callback has retained its well-framed raw.
+        # Only local validation/state runs under these locks; no evidence I/O.
         with self._arrival_lock:
             arrival_generation = self._request_generation
+            if config is not self._config:
+                return
+            try:
+                if (
+                    not isinstance(timestamp, int)
+                    or isinstance(timestamp, bool)
+                    or timestamp < 0
+                    or timestamp > _TIMESTAMP_MASK
+                ):
+                    raise RangeReadError(
+                        "range sample has an invalid firmware timestamp"
+                    )
+                if not isinstance(data, dict) or self._variable not in data:
+                    raise RangeReadError(
+                        f"range sample is missing {self._variable}"
+                    )
+                raw_mm = self._validate_raw_mm(data[self._variable])
+            except RangeReadError as exc:
+                self._set_error(str(exc))
+                return
 
-        if config is not self._config:
-            return
-        try:
-            if (
-                not isinstance(timestamp, int)
-                or isinstance(timestamp, bool)
-                or timestamp < 0
-                or timestamp > _TIMESTAMP_MASK
-            ):
-                raise RangeReadError(
-                    "range sample has an invalid firmware timestamp"
-                )
-            if not isinstance(data, dict) or self._variable not in data:
-                raise RangeReadError(
-                    f"range sample is missing {self._variable}"
-                )
-            raw_mm = self._validate_raw_mm(data[self._variable])
-        except RangeReadError as exc:
-            self._set_error(str(exc))
-            return
+            qualifies = False
+            if self._pending_request is not None:
+                generation, baseline = self._pending_request
+                qualifies = (arrival_generation == generation
+                             and _timestamp_is_later(timestamp, baseline))
+            # Retention is independent of consumption: a concurrent fault
+            # must not erase a raw already received for this demand.
+            if qualifies and self._first_requested_observation is None:
+                self._first_requested_observation = {
+                    "connectionEpoch": self._bound_connection_epoch,
+                    "direction": self._direction, "rawMm": raw_mm,
+                    "logTimestampMs": timestamp,
+                }
 
+        # Processing may finish after a newer read generation. Retain the
+        # captured generation and recheck demand under the condition; do not
+        # hold arrival while waiting behind a read-side condition lock.
         with self._condition:
             if self._stream_error is not None:
                 return
             self._sequence += 1
-            self._latest = (
-                timestamp,
-                raw_mm,
-                arrival_generation,
-            )
-            # A burst must not replace an unavailable first requested sample
-            # with a later usable one before the waiting thread is scheduled.
+            self._latest = (timestamp, raw_mm, arrival_generation)
             if self._pending_request is not None and self._first_requested_sample is None:
                 generation, baseline = self._pending_request
                 if arrival_generation == generation and _timestamp_is_later(timestamp, baseline):
                     self._first_requested_sample = (timestamp, raw_mm)
-                    self._first_requested_observation = {
-                        "connectionEpoch": self._bound_connection_epoch,
-                        "direction": self._direction, "rawMm": raw_mm,
-                        "logTimestampMs": timestamp,
-                    }
             self._condition.notify_all()
 
     def _wait_for_sample(
@@ -336,12 +344,12 @@ class FreshRangeObserver:
             self._require_exact_toc_entry()
             with self._arrival_lock:
                 self._request_generation = 0
+                self._first_requested_observation = None
             with self._condition:
                 self._sequence = 0
                 self._latest = None
                 self._pending_request = None
                 self._first_requested_sample = None
-                self._first_requested_observation = None
                 self._stream_error = None
 
             config = self._make_config()
@@ -465,9 +473,12 @@ class FreshRangeObserver:
                     timeout_seconds=timeout_seconds,
                 )
             finally:
-                with self._condition:
-                    self._pending_request = None
-                    self._first_requested_sample = None
+                # Wait only for the bounded local callback capture, never its
+                # output or a transport operation. This also fences error exits.
+                with self._arrival_lock:
+                    with self._condition:
+                        self._pending_request = None
+                        self._first_requested_sample = None
             epoch = self._verify_epoch()
             return RangeObservation(
                 connection_epoch=epoch,
