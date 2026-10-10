@@ -103,6 +103,7 @@ class FreshRangeObserver:
         self._latest: tuple[int, int, int] | None = None
         self._pending_request: tuple[int, int] | None = None
         self._first_requested_sample: tuple[int, int] | None = None
+        self._first_requested_observation: dict | None = None
         self._stream_error: RangeReadError | None = None
         self._poisoned_reason: str | None = None
 
@@ -129,6 +130,17 @@ class FreshRangeObserver:
     @property
     def poisoned(self) -> bool:
         return self._poisoned_reason is not None
+
+    @property
+    def first_requested_observation(self) -> dict | None:
+        """Copy of the first raw callback, even when later checks reject it.
+
+        Diagnostic data only: the original epoch is not current authority and
+        this snapshot does not establish a successfully consumed observation.
+        """
+        with self._condition:
+            return (dict(self._first_requested_observation)
+                    if self._first_requested_observation is not None else None)
 
     def _require_not_poisoned(self) -> None:
         if self._poisoned_reason is not None:
@@ -269,6 +281,11 @@ class FreshRangeObserver:
                 generation, baseline = self._pending_request
                 if arrival_generation == generation and _timestamp_is_later(timestamp, baseline):
                     self._first_requested_sample = (timestamp, raw_mm)
+                    self._first_requested_observation = {
+                        "connectionEpoch": self._bound_connection_epoch,
+                        "direction": self._direction, "rawMm": raw_mm,
+                        "logTimestampMs": timestamp,
+                    }
             self._condition.notify_all()
 
     def _wait_for_sample(
@@ -324,6 +341,7 @@ class FreshRangeObserver:
                 self._latest = None
                 self._pending_request = None
                 self._first_requested_sample = None
+                self._first_requested_observation = None
                 self._stream_error = None
 
             config = self._make_config()
@@ -437,6 +455,7 @@ class FreshRangeObserver:
                     baseline_timestamp = self._latest[0]
                     self._pending_request = (request_generation, baseline_timestamp)
                     self._first_requested_sample = None
+                    self._first_requested_observation = None
 
             try:
                 timestamp, raw_mm = self._wait_for_sample(

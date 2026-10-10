@@ -232,6 +232,14 @@ les erreurs à la géométrie et son incertitude, sans inventer un oracle PASS a
   `true` signifie contrôles backend satisfaits, sans preuve de livraison RPC à
   l'interpréteur ni de succès du run ;
   `hostReportMonotonicNs` date le rapport, pas la production ni la réception.
+  Le premier callback demandé garde une copie diagnostique de son epoch/tick/brut,
+  même si une erreur LOG, un callback malformé ou une perte d'epoch ultérieure
+  interdit sa consommation. Cette copie ne valide jamais une mesure rejetée.
+  La sortie en vol utilise une file bornée de 64 rapports et un worker daemon,
+  sans écriture, flush, drain ou join dans le chemin de commande/récupération.
+  Un stockage/terminal bloqué, une file pleine, une erreur d'écriture ou la fin
+  du processus peuvent perdre un rapport : absence/ligne partielle = INCOMPLET.
+  Le timestamp date la construction du rapport, pas son écriture différée.
 - Toutes les traces partielles, exceptions et données négatives, observation
   réelle de la descente/posé/impact et éventuelle absence de récupération.
 

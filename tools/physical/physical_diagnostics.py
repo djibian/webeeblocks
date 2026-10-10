@@ -7,13 +7,63 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+from queue import Full, Queue
 import sys
+from threading import Thread
 from time import monotonic_ns
 
 
-def record_inflight_range(binding, sample, error, *, returned: bool) -> None:
-    """Best-effort raw evidence; neither logging nor these fields grant authority.
+class _InflightRangeReporter:
+    """Bounded diagnostic writer; no control-path I/O, drain or worker join.
+
+    A stalled sink can occupy only this daemon and at most 64 queued records.
+    Lost/full/failed output means incomplete evidence, never a flight retry.
+    """
+
+    def __init__(self):
+        self.queue = Queue(maxsize=64)
+        self.available = False
+        try:
+            Thread(target=self._run, name="range-evidence", daemon=True).start()
+            self.available = True
+        except Exception:
+            pass
+
+    def submit(self, sink, line):
+        if not self.available or len(line.encode("utf-8")) > 4096:
+            return
+        try:
+            self.queue.put_nowait((sink, line))
+        except Full:
+            pass
+
+    def _run(self):
+        while True:
+            sink, line = self.queue.get()
+            try:
+                try:
+                    fd = sink.fileno()
+                except (AttributeError, OSError, ValueError):
+                    # In-memory/test streams have no OS descriptor.
+                    sink.write(line)
+                    sink.flush()
+                else:
+                    # One bounded pipe write also avoids acquiring the shared
+                    # TextIO lock that other host diagnostics may use.
+                    os.write(fd, line.encode("utf-8"))
+            except Exception:
+                pass
+            finally:
+                self.queue.task_done()
+
+
+_INFLIGHT_REPORTER = _InflightRangeReporter()
+
+
+def record_inflight_range(binding, sample, error, *, returned: bool, raw_observation=None) -> None:
+    """Best-effort nonblocking handoff; these fields grant no authority.
 
     The host time dates this report, not arrival, sensor production or thrust.
     A missing record makes the later scientific comparison incomplete, never
@@ -31,15 +81,18 @@ def record_inflight_range(binding, sample, error, *, returned: bool) -> None:
         elif error is not None:
             raw = getattr(error, "range_observation", None)
         if not isinstance(raw, dict):
+            raw = raw_observation
+        if not isinstance(raw, dict):
             return
-        print("HOST_INFLIGHT_RANGE " + json.dumps({
+        line = "HOST_INFLIGHT_RANGE " + json.dumps({
             **raw, "profileId": binding.profile_id,
             "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
             "hostReportMonotonicNs": monotonic_ns(),
             "backendReadAccepted": returned,
             "executionAuthority": False,
             "boundary": "LOG publication; no producer-age, clearance or continuous-availability proof",
-        }, sort_keys=True), file=sys.stderr, flush=True)
+        }, sort_keys=True) + "\n"
+        _INFLIGHT_REPORTER.submit(sys.stderr, line)
     except Exception:
         # Evidence output must not replace a primary exception, prevent recovery
         # or turn a failed observation into a successful interpreter value.

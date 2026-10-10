@@ -12,9 +12,10 @@ from pathlib import Path
 import socket
 import struct
 import sys
-from threading import Lock
+from threading import Event, Lock, Thread
 from types import SimpleNamespace
 import unittest
+import warnings
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -120,6 +121,7 @@ class NativeAdmissionTests(unittest.TestCase):
             config.stop, config.delete = stop, delete
             return config
         original_wait = range_observer.FreshRangeObserver._wait_for_sample
+        self.native_range_wait = original_wait
         def scheduled_wait(observer, **kwargs):
             if kwargs["request_generation"] != 0:
                 for timestamp, raw in self.burst:
@@ -165,6 +167,9 @@ class NativeAdmissionTests(unittest.TestCase):
         return backend, dynamic
 
     def range_record(self, output):
+        import physical_diagnostics
+        # Offline oracle only. Production never waits for evidence output.
+        physical_diagnostics._INFLIGHT_REPORTER.queue.join()
         return json.loads(next(line.removeprefix("HOST_INFLIGHT_RANGE ")
             for line in output.getvalue().splitlines() if line.startswith("HOST_INFLIGHT_RANGE ")))
 
@@ -222,13 +227,107 @@ class NativeAdmissionTests(unittest.TestCase):
 
     def test_diagnostic_output_failure_changes_neither_success_nor_rejection(self):
         import physical_diagnostics
-        with patch.object(physical_diagnostics, "print", side_effect=OSError("disk full"), create=True):
+        class FailedSink:
+            def write(self, _text):
+                raise OSError("disk full")
+        with patch.object(physical_diagnostics.sys, "stderr", FailedSink()):
             backend, _ = self.hover_backend()
             backend.takeoff(0.5)
             self.assertEqual(backend.readRange("front"), 1.0)
             self.burst = [(400, 32766)]
             with self.assertRaises(Exception):
                 backend.readRange("front")
+            physical_diagnostics._INFLIGHT_REPORTER.queue.join()
+
+    def test_concurrent_faults_preserve_first_raw_but_never_accept_it(self):
+        # Save the actual wait routine, not the fixture's callback scheduler.
+        native_wait = self.native_range_wait
+        for raw in (1000, 32766):
+            for mode in ("log-error", "malformed", "epoch"):
+                with self.subTest(raw=raw, mode=mode):
+                    backend, _ = self.hover_backend()
+                    backend.takeoff(0.5)
+                    original_epoch = self.f.epoch_value
+                    def schedule(observer, **kw):
+                        if kw["request_generation"]:
+                            observer._config.emit(200, raw)
+                            if mode == "log-error":
+                                observer._on_log_error(observer._config, "concurrent failure")
+                            elif mode == "malformed":
+                                observer._on_data(300, {"range.front": "bad"}, observer._config)
+                            else:
+                                self.f.epoch_value += "-lost"
+                        return native_wait(observer, **kw)
+                    out = StringIO()
+                    with patch.object(range_observer.FreshRangeObserver, "_wait_for_sample", schedule), \
+                         redirect_stderr(out), self.assertRaises(Exception):
+                        backend.readRange("front")
+                    record = self.range_record(out)
+                    self.assertEqual((record["rawMm"], record["logTimestampMs"]), (raw, 200))
+                    self.assertEqual(record["connectionEpoch"], original_epoch)
+                    self.assertFalse(record["backendReadAccepted"])
+                    self.assertFalse(record["executionAuthority"])
+                    self.assertFalse(self.headers[(5, 1)])
+
+    def test_blocked_evidence_sink_never_blocks_interpreter_land_or_failure(self):
+        import physical_diagnostics
+        class BlockedSink:
+            entered, release = Event(), Event()
+            def write(self, text):
+                self.entered.set()
+                if not self.release.wait(3):
+                    raise TimeoutError("offline sink probe deadline")
+                return len(text)
+            def flush(self):
+                pass
+        reporter = physical_diagnostics._InflightRangeReporter()
+        sink = BlockedSink()
+        with patch.object(physical_diagnostics, "_INFLIGHT_REPORTER", reporter), \
+             patch.object(physical_diagnostics.sys, "stderr", sink), warnings.catch_warnings():
+            # Existing interpreter pipe ResourceWarnings are a separate sink
+            # user; this oracle targets only the new in-flight evidence writer.
+            warnings.simplefilter("ignore", ResourceWarning)
+            try:
+                backend, dynamic = self.hover_backend()
+                done, outcomes = Event(), []
+                def run():
+                    try:
+                        outcomes.append(dynamic.BoundSharedInterpreter(backend.ast_binding, backend).run())
+                    except Exception as exc:
+                        outcomes.append(exc)
+                    finally:
+                        done.set()
+                thread = Thread(target=run, daemon=True)
+                thread.start()
+                self.assertTrue(sink.entered.wait(1))
+                self.assertTrue(done.wait(1), "evidence write delayed interpreter/normal land")
+                self.assertEqual(outcomes[0].variables, {"distance": 1.0})
+                self.assertIn("land", dynamic.EVENTS)
+                # The same blocked writer cannot delay the initiating failure.
+                backend, _ = self.hover_backend()
+                backend.takeoff(0.5)
+                self.burst = [(200, 32766)]
+                done, outcomes = Event(), []
+                def fail():
+                    try:
+                        outcomes.append(backend.readRange("front"))
+                    except Exception as exc:
+                        outcomes.append(exc)
+                    finally:
+                        done.set()
+                thread = Thread(target=fail, daemon=True)
+                thread.start()
+                self.assertTrue(done.wait(1), "evidence write delayed failure/recovery propagation")
+                self.assertIsInstance(outcomes[0], Exception)
+                # Saturated evidence never becomes a control dependency.
+                for _ in range(100):
+                    reporter.submit(sink, "offline overflow\n")
+                self.assertEqual(reporter.queue.qsize(), 64)
+                self.assertTrue(reporter.queue.unfinished_tasks <= 65)
+            finally:
+                sink.release.set()
+                thread.join(2)
+                reporter.queue.join()  # offline only, after explicitly unblocking
 
     def test_context_exit_failure_does_not_mislabel_raw_sample_as_returned(self):
         backend, _ = self.hover_backend()

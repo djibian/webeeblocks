@@ -267,6 +267,7 @@ class TrustedDynamicPhysicalBackend:
         close_error = None
         sample = None
         sample_error = None
+        raw_observation = None
         returned = False
         try:
             with observation:
@@ -296,6 +297,11 @@ class TrustedDynamicPhysicalBackend:
                     self._assert_live_flying()
                 except Exception as exc:
                     sample_error = exc
+                    if observer is not None:
+                        try:
+                            raw_observation = observer.first_requested_observation
+                        except Exception:
+                            pass
                     raise
                 finally:
                     if observer is not None:
@@ -318,7 +324,7 @@ class TrustedDynamicPhysicalBackend:
         finally:
             record_inflight_range(
                 self._active_run.teacher_authorization.binding,
-                sample, sample_error, returned=returned,
+                sample, sample_error, returned=returned, raw_observation=raw_observation,
             )
 
     def move(self, direction: str, distance_m: float) -> None:
