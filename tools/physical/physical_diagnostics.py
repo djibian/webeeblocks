@@ -6,7 +6,44 @@ traceback locals, capability tokens, sockets or the student's entire program.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
+import sys
+from time import monotonic_ns
+
+
+def record_inflight_range(binding, sample, error, *, returned: bool) -> None:
+    """Best-effort raw evidence; neither logging nor these fields grant authority.
+
+    The host time dates this report, not arrival, sensor production or thrust.
+    A missing record makes the later scientific comparison incomplete, never
+    changes execution/recovery or licenses a retry.
+    """
+    try:
+        from range_observer import RangeObservation
+        raw = None
+        if type(sample) is RangeObservation:
+            raw = {
+                "connectionEpoch": sample.connection_epoch,
+                "direction": sample.direction, "rawMm": sample.raw_mm,
+                "logTimestampMs": sample.firmware_timestamp_ms,
+            }
+        elif error is not None:
+            raw = getattr(error, "range_observation", None)
+        if not isinstance(raw, dict):
+            return
+        print("HOST_INFLIGHT_RANGE " + json.dumps({
+            **raw, "profileId": binding.profile_id,
+            "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
+            "hostReportMonotonicNs": monotonic_ns(),
+            "backendReadAccepted": returned,
+            "executionAuthority": False,
+            "boundary": "LOG publication; no producer-age, clearance or continuous-availability proof",
+        }, sort_keys=True), file=sys.stderr, flush=True)
+    except Exception:
+        # Evidence output must not replace a primary exception, prevent recovery
+        # or turn a failed observation into a successful interpreter value.
+        pass
 
 
 def failure_evidence(error: BaseException, *, binding=None, phase=None) -> dict:

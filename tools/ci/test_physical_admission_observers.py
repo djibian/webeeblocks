@@ -5,7 +5,9 @@ Only the external CRTP/LogConfig surface is modeled. No returned observation,
 PARAM adapter, readiness decision or production transport is replaced.
 """
 from contextlib import redirect_stderr
+from contextlib import contextmanager
 from io import StringIO
+import json
 from pathlib import Path
 import socket
 import struct
@@ -141,6 +143,108 @@ class NativeAdmissionTests(unittest.TestCase):
 
     def reader(self):
         return observers.FreshDefaultRangeFilterReader(self.f.cf, self.f.epoch, timeout_seconds=0.01)
+
+    def hover_backend(self):
+        # Real default in-flight observer and real shared interpreter. Only
+        # external radio schedules and the already-tested action substrate are
+        # modeled; never replace readRange, returned samples or deletion proof.
+        import test_physical_dynamic_backend as dynamic
+        exact = (ROOT / "tools/physical/hover_range_comparison_ast.json").read_text().strip()
+        self.f.epoch_value = "epoch-live"
+        domain = dynamic.FakeDomain()
+        run = dynamic.FakeRun(exact, domain)
+        run.crazyflie = self.f.cf
+        dynamic.EVENTS.clear()
+        backend = dynamic.TrustedDynamicPhysicalBackend(
+            ast_binding=exact, active_run=run, connection_epoch_reader=self.f.epoch,
+            assert_current_program=lambda: None,
+            inflight_transport=dynamic.FakeTransport(domain, 0.5),
+            color_transport=dynamic.FakeColorTransport(), timing_policy=dynamic.FakeTimingPolicy(),
+            execute_wait=lambda seconds: dynamic.EVENTS.append(("wait", seconds)),
+        )
+        return backend, dynamic
+
+    def range_record(self, output):
+        return json.loads(next(line.removeprefix("HOST_INFLIGHT_RANGE ")
+            for line in output.getvalue().splitlines() if line.startswith("HOST_INFLIGHT_RANGE ")))
+
+    def test_minimal_hover_interpreter_retains_positive_raw_and_no_horizontal_effect(self):
+        backend, dynamic = self.hover_backend()
+        out = StringIO()
+        with redirect_stderr(out):
+            result = dynamic.BoundSharedInterpreter(backend.ast_binding, backend).run()
+        self.assertEqual(result.variables, {"distance": 1.0})
+        self.assertEqual(dynamic.EVENTS.count("land"), 1)
+        self.assertFalse(any(isinstance(e, tuple) and e[0] in ("move", "turn", "vertical", "light")
+            for e in dynamic.EVENTS))
+        record = self.range_record(out)
+        self.assertEqual((record["rawMm"], record["logTimestampMs"]), (1000, 200))
+        self.assertTrue(record["backendReadAccepted"])
+        self.assertFalse(record["executionAuthority"])
+        self.assertEqual(record["connectionEpoch"], "epoch-live")
+        self.assertEqual(self.events.count(("log", bytes((2, 1)))), 1)
+
+    def test_inflight_first_unavailable_is_retained_and_no_normal_land_progresses(self):
+        backend, dynamic = self.hover_backend()
+        self.burst = [(200, 32766), (300, 1000)]
+        out = StringIO()
+        with redirect_stderr(out), self.assertRaises(Exception):
+            dynamic.BoundSharedInterpreter(backend.ast_binding, backend).run()
+        record = self.range_record(out)
+        self.assertEqual(record["rawMm"], 32766)
+        self.assertFalse(record["backendReadAccepted"])
+        self.assertNotIn("land", dynamic.EVENTS)
+        self.assertEqual(self.events.count(("log", bytes((2, 1)))), 1)
+
+    def test_inflight_missing_delete_proof_keeps_finite_evidence_but_vetoes_progression(self):
+        backend, dynamic = self.hover_backend()
+        self.delete_mode = "missing"
+        out = StringIO()
+        with redirect_stderr(out), self.assertRaises(Exception) as caught:
+            dynamic.BoundSharedInterpreter(backend.ast_binding, backend).run()
+        self.assertIn("teardown", str(caught.exception.__cause__))
+        record = self.range_record(out)
+        self.assertEqual(record["rawMm"], 1000)
+        self.assertFalse(record["backendReadAccepted"])
+        self.assertNotIn("land", dynamic.EVENTS)
+        self.assertEqual(self.events.count(("log", bytes((2, 1)))), 1)
+
+    def test_inflight_unavailable_and_bad_delete_keep_primary_raw_cause(self):
+        backend, _ = self.hover_backend()
+        self.burst = [(200, 32766)]
+        self.delete_mode = "rejected"
+        backend.takeoff(0.5)
+        out = StringIO()
+        with redirect_stderr(out), self.assertRaisesRegex(Exception, "teardown") as caught:
+            backend.readRange("front")
+        self.assertIn("raw_mm=32766", str(caught.exception.__cause__))
+        self.assertEqual(self.range_record(out)["rawMm"], 32766)
+
+    def test_diagnostic_output_failure_changes_neither_success_nor_rejection(self):
+        import physical_diagnostics
+        with patch.object(physical_diagnostics, "print", side_effect=OSError("disk full"), create=True):
+            backend, _ = self.hover_backend()
+            backend.takeoff(0.5)
+            self.assertEqual(backend.readRange("front"), 1.0)
+            self.burst = [(400, 32766)]
+            with self.assertRaises(Exception):
+                backend.readRange("front")
+
+    def test_context_exit_failure_does_not_mislabel_raw_sample_as_returned(self):
+        backend, _ = self.hover_backend()
+        backend.takeoff(0.5)
+        domain = backend._active_run.execution_domain
+        original = domain.observation_transaction
+        @contextmanager
+        def fail_on_exit(*checks):
+            with original(*checks):
+                yield
+            raise RuntimeError("lost exclusion certainty")
+        domain.observation_transaction = fail_on_exit
+        out = StringIO()
+        with redirect_stderr(out), self.assertRaises(Exception):
+            backend.readRange("front")
+        self.assertFalse(self.range_record(out)["backendReadAccepted"])
 
     def test_burst_first_unavailable_is_preserved(self):
         for raw in (8000, 32766, 32767, 65535):

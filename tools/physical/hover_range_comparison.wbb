@@ -1,0 +1,67 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "reactive-obstacle-v2",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "hover-takeoff",
+          "x": 0,
+          "y": 0,
+          "fields": {
+            "HEIGHT": 0.5
+          },
+          "next": {
+            "block": {
+              "type": "webeeblocks_v2_wait",
+              "id": "hover-wait",
+              "fields": {
+                "SECONDS": 1
+              },
+              "next": {
+                "block": {
+                  "type": "variables_set",
+                  "id": "hover-observe",
+                  "fields": {
+                    "VAR": {
+                      "id": "front-distance"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "webeeblocks_v2_range",
+                        "id": "hover-range",
+                        "fields": {
+                          "DIRECTION": "front"
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "webeeblocks_v2_land",
+                      "id": "hover-land"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "distance",
+        "id": "front-distance"
+      }
+    ]
+  }
+}

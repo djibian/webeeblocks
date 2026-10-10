@@ -298,7 +298,7 @@ def install_dynamic_fakes() -> None:
     activation.TrustedDynamicControlledLandingTransport = FakeDynamicTransport
     activation.TrustedBottomColorLedTransport = FakeColorTransport
 
-    backend_module.FreshRangeObserver = FakeRangeObserver
+    backend_module.AdmissionRangeObserver = FakeRangeObserver
     backend_module.FreshYawObserver = FakeYawObserver
 
 

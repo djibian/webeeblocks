@@ -462,10 +462,17 @@ class FreshRangeObserver:
         try:
             return range_mm_to_m(raw_mm)
         except RangeReadError as exc:
-            raise RangeReadError(
+            error = RangeReadError(
                 f"{self._variable}: raw_mm={raw_mm}, firmware_timestamp_ms={timestamp}, "
                 f"connection_epoch={epoch}: {exc}"
-            ) from exc
+            )
+            # Non-authority evidence for a rejected first sample. Keep the raw
+            # value without converting an unavailable return to student data.
+            error.range_observation = {
+                "connectionEpoch": epoch, "direction": self._direction,
+                "rawMm": raw_mm, "logTimestampMs": timestamp,
+            }
+            raise error from exc
 
     def close(self) -> None:
         """Stop/delete the stream; uncertain teardown poisons this observer."""
