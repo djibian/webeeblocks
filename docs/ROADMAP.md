@@ -434,8 +434,14 @@ non-blocking for #72 on uniform floor. See
   -19.74/-10.76 mm; no accuracy tolerance or sensor qualification is established.
   The owner attests precise measurement from the front sensor and declined
   photographs; do not invent archived geometry witnesses. The complete raw CSV,
-  preparation record, typed readbacks and geometry files remain on the owner's
-  computer and have not been independently inspected or published in GitHub.
+  preparation record, typed readbacks and geometry files are now retained in
+  [the #580 raw-evidence archive](evidence/checkpoint-572/README.md), integrated
+  on main at `e555468496f4b2a8e47a5409ddd9eaaefff7c0ab`: all 30 original
+  scientific files and their byte-length/SHA-256 manifest were independently
+  checked, and both complete 100-sample windows recalculated. The private-path
+  exporter metadata, complete terminal transcripts and independent physical
+  geometry photographs remain absent; archival integrity is not retrospective
+  conformity of the human procedure.
   The report also preserves an initial package-verification failure under
   Python 3.12 and a fresh-package continuation under Python 3.10; do not rewrite
   that history as an uninterrupted conforming run. The report supplies no
@@ -443,7 +449,7 @@ non-blocking for #72 on uniform floor. See
   reproduce #566's 32766, but establish neither its cause, continuous availability,
   clearance nor motorized acceptance. Preserve `physical_verdict=null`, the
   unchanged >=8000/filter boundary and #554/#566 FAIL subjects. Before a later
-  representative request, reconcile the retained raw/provenance evidence and
+  representative request, reconcile the remaining provenance gaps and the
   exact #572 resolution; no blind repeat or inherited flight approval follows
 - physical preparation prerequisite: the runtime artifact and generic
   airframe/self-test/protocol evidence do not establish a reproducibly restored
