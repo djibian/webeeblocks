@@ -16,6 +16,11 @@ host-local request generation before taking its baseline and accepts only a
 callback that entered at that generation with a strictly later firmware
 timestamp on the same reconnect-sensitive connection epoch. This prevents a
 pre-request callback that finishes late from becoming fresh evidence.
+
+Freshness here is LOG publication/host arrival, not sensor-producer age. Stock
+firmware timestamps the log packet while copying the driver's stored range and
+does not publish a per-direction acquisition timestamp or status. A progressing
+LOG timestamp cannot by itself exclude a stalled sensor producer.
 """
 
 from __future__ import annotations

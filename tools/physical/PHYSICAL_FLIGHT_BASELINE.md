@@ -93,3 +93,73 @@ bound to its old exact target/artifact; this new software candidate cannot inher
 its acceptance or authorization. Any later changed physical procedure/artifact
 must use independent review and the trusted checkpoint contract. No request,
 retry, PASS or NOT_NEEDED is created by this document.
+
+## Range availability before takeoff
+
+The dynamic trusted host now checks every syntactically demanded Multi-ranger
+direction in the exact validated AST before emitting command 9. This read-only
+check runs after the post-reset teacher decision, under the existing takeoff
+effect exclusion. It requests the typed `uint16_t` filter readback and requires
+the unchanged official `multiranger.filterMask=1`, opens each required range log,
+and obtains one post-request, later-timestamp, same-epoch finite observation.
+It closes each observer once and rechecks the filter and current program before
+the existing fresh supervisor/SafeLink/acknowledgement gates. An unavailable first
+sample, wrong binding, transport error or uncertain closure vetoes takeoff;
+there is no wait-for-a-good-value loop. Programs without range demand require no
+Multi-ranger observation. Both branches and nested expressions are included
+conservatively; the check evaluates no expression and selects no student branch.
+
+Successful ground observations appear in `HOST_RANGE_READINESS` with the exact
+AST digest, epoch, direction, raw millimetres and LOG timestamp. This diagnostic
+is non-authority. Ground values never become interpreter input: the existing
+in-flight `readRange` still requests its own fresh log observation and rejects
+all values >=8000, with terminal controlled recovery when independently eligible.
+The admission check proves neither clearance nor future availability.
+
+### Scientific boundary and shortest remaining qualification path
+
+The original #572 archive has 200/200 finite stationary observations against
+declared 0.50/1.00 m targets. Its procedural FAIL, absent geometry witnesses and
+full transcripts remain unchanged; repeating those two stationary windows would
+not isolate the effect of flight. #566 retains one unavailable in-flight front
+value, but no target geometry or actual VL53L1 status. The failure therefore
+cannot be attributed specifically to motors, vibration, power, geometry or a
+permanent hardware defect.
+
+At the pinned [Multi-ranger driver](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/deck/drivers/src/multiranger.c),
+there is no supervisor/flight-state gate disabling ranging. Rejected sensor
+statuses collapse to 32767; the float metres/millimetres round trip can produce
+32766. The [ST API status mapping](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/lib/vl53l1/core/src/vl53l1_api.c)
+distinguishes signal, sigma, bounds, hardware and other failures, but the public
+`range.front` does not retain them. The driver's ignored I2C return statuses and
+unbounded ready wait are additional source limitations, not established causes
+of #566. The [LOG timestamp](https://github.com/bitcraze/crazyflie-firmware/blob/54f31e243a0b28b67efef5ba20dbb6d9890a5478/src/modules/src/log.c)
+dates publication of stored values, not sensor production. Consequently advancing
+LOG timestamps alone cannot rule out a stalled producer replaying a finite value.
+Neither the readiness gate nor current flight completion proves that stronger
+property. The [Bitcraze datasheet](https://www.bitcraze.io/documentation/hardware/multi_ranger_deck/multi_ranger_deck-datasheet.pdf)
+specifies up to 4 m depending on surface/light; >=8000 is a decoding availability
+boundary, not a validated 8 m sensing envelope. An empty ray is not certified
+free space. No default/filter/timeout adjustment is justified by these records.
+
+After exact-candidate CI and independent review, the smallest informative
+**proposed**, separately owner-authorized physical acceptance is one representative
+run over uniform, textured floor with the unchanged historical AST, a broad
+fixed opaque front target at an independently measured finite distance (for
+example 1.00 m), and sufficient target height/width to remain visible at takeoff
+position and at the program's first 0.50 m-high range observation. Keep the target
+out of the vehicle/recovery volume, retain its measured geometry and a continuous
+external witness of vehicle/target, and use the exact prepared firmware/artifact.
+The new ground admission result and the in-flight result then compare motor-off
+and motorized observations in the same scene instead of comparing unrelated
+scenes. The target/observer never changes the student AST or selects its branch.
+An unavailable result ends that one run, with retained raw causal failure and
+eligible controlled recovery; a success establishes only this witnessed domain
+and exact run, not general reliability or every sensor/mission. Repeatability and
+later #72 use require separately justified acceptance evidence.
+
+No code/replay can supply the missing physical returns under real thrust, actual
+target visibility or tracking/recovery errors. A further acquisition/flight is
+therefore blocked pending an explicit owner decision and the exact trusted
+checkpoint procedure. This proposal creates no CHECKPOINT_REQUEST, flight,
+hardware manipulation, flash, PASS or retrospective qualification of #572.
