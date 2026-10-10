@@ -20,6 +20,9 @@ Importing this module performs no physical effect.
 from __future__ import annotations
 
 import socket
+import hashlib
+import json
+import sys
 
 from color_led_transport import ColorLedTransportError, TrustedBottomColorLedTransport
 from dynamic_controlled_landing_transport import (
@@ -38,6 +41,7 @@ from physical_run_activation import (
     _require_flight_inactive,
 )
 from post_reset_teacher_decision import PostResetTeacherDecisionChannel
+from pre_takeoff_range_readiness import require_pre_takeoff_ranges
 from powered_session_authority import (
     TrustedPoweredSessionFactory,
     make_cflib_stm_deck_power_cycle,
@@ -215,6 +219,41 @@ def activate_validated_dynamic_run(
     )
 
     class _HostBoundInitialFlightTransport(TrustedTakeoffTransport):
+        def _read_fresh_pre_takeoff(self):
+            # Called under the takeoff effect exclusion, after exact teacher
+            # authorization and before command-9 emission. No ground sample is
+            # reused by the independently fresh interpreter demand in flight.
+            binding = self._assert_current_authority()
+            try:
+                active_cf = _live_crazyflie(session)
+                if active_cf is not self._cf:
+                    raise TakeoffTransportError("pre-takeoff range Crazyflie identity changed")
+                samples = require_pre_takeoff_ranges(
+                    active_cf,
+                    session.read_connection_epoch,
+                    binding.ast_binding,
+                )
+            except Exception as exc:
+                raise TakeoffTransportError("pre-takeoff range readiness failed closed") from exc
+            # Non-authority diagnostic: preserve successful ground observations
+            # in the existing host log, without making logging a safety oracle.
+            try:
+                print("HOST_RANGE_READINESS " + json.dumps({
+                    "connectionEpoch": binding.connection_epoch,
+                    "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
+                    "samples": [{"direction": s.direction, "rawMm": s.raw_mm,
+                                 "logTimestampMs": s.firmware_timestamp_ms} for s in samples],
+                    "boundary": "pre-takeoff log observations; no producer-age or in-flight guarantee",
+                }, sort_keys=True), file=sys.stderr, flush=True)
+            except (OSError, ValueError):
+                pass
+            # PARAM/LOG setup and teardown can block. Re-establish mutable
+            # program/teacher/session evidence after them, then obtain the
+            # existing supervisor postconditions immediately before emission.
+            if self._assert_current_authority() != binding:
+                raise TakeoffTransportError("pre-takeoff range run binding changed")
+            return super()._read_fresh_pre_takeoff()
+
         def _read_current_binding(self) -> PhysicalRunBinding:
             binding = self.teacher_binding
             try:

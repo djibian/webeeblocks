@@ -16,6 +16,13 @@ host-local request generation before taking its baseline and accepts only a
 callback that entered at that generation with a strictly later firmware
 timestamp on the same reconnect-sensitive connection epoch. This prevents a
 pre-request callback that finishes late from becoming fresh evidence.
+The first qualifying post-request sample is retained until consumption, so a
+later callback cannot overwrite an unavailable value while the reader waits.
+
+Freshness here is LOG publication/host arrival, not sensor-producer age. Stock
+firmware timestamps the log packet while copying the driver's stored range and
+does not publish a per-direction acquisition timestamp or status. A progressing
+LOG timestamp cannot by itself exclude a stalled sensor producer.
 """
 
 from __future__ import annotations
@@ -94,6 +101,8 @@ class FreshRangeObserver:
         self._sequence = 0
         self._request_generation = 0
         self._latest: tuple[int, int, int] | None = None
+        self._pending_request: tuple[int, int] | None = None
+        self._first_requested_sample: tuple[int, int] | None = None
         self._stream_error: RangeReadError | None = None
         self._poisoned_reason: str | None = None
 
@@ -254,6 +263,12 @@ class FreshRangeObserver:
                 raw_mm,
                 arrival_generation,
             )
+            # A burst must not replace an unavailable first requested sample
+            # with a later usable one before the waiting thread is scheduled.
+            if self._pending_request is not None and self._first_requested_sample is None:
+                generation, baseline = self._pending_request
+                if arrival_generation == generation and _timestamp_is_later(timestamp, baseline):
+                    self._first_requested_sample = (timestamp, raw_mm)
             self._condition.notify_all()
 
     def _wait_for_sample(
@@ -269,6 +284,10 @@ class FreshRangeObserver:
             while True:
                 if self._stream_error is not None:
                     raise self._stream_error
+                if (self._pending_request is not None
+                        and self._pending_request[0] == request_generation
+                        and self._first_requested_sample is not None):
+                    return self._first_requested_sample
                 if self._sequence > after_sequence and self._latest is not None:
                     timestamp, raw_mm, sample_generation = self._latest
                     if (
@@ -303,6 +322,8 @@ class FreshRangeObserver:
             with self._condition:
                 self._sequence = 0
                 self._latest = None
+                self._pending_request = None
+                self._first_requested_sample = None
                 self._stream_error = None
 
             config = self._make_config()
@@ -318,6 +339,7 @@ class FreshRangeObserver:
                 self._cf.disconnected.add_callback(self._on_disconnect)
                 disconnect_registered = True
                 self._cf.log.add_config(config)
+                self._validate_registered_config(config)
                 config.start()
                 self._wait_for_sample(
                     after_sequence=0,
@@ -341,6 +363,9 @@ class FreshRangeObserver:
                 raise RangeReadError(
                     f"could not start fresh range logging: {exc}"
                 ) from exc
+
+    def _validate_registered_config(self, config: object) -> None:
+        """Admission subclasses may require non-reused firmware block identity."""
 
     def _cleanup(
         self,
@@ -410,13 +435,20 @@ class FreshRangeObserver:
                             "range observer has no established baseline"
                         )
                     baseline_timestamp = self._latest[0]
+                    self._pending_request = (request_generation, baseline_timestamp)
+                    self._first_requested_sample = None
 
-            timestamp, raw_mm = self._wait_for_sample(
-                after_sequence=baseline_sequence,
-                after_timestamp=baseline_timestamp,
-                request_generation=request_generation,
-                timeout_seconds=timeout_seconds,
-            )
+            try:
+                timestamp, raw_mm = self._wait_for_sample(
+                    after_sequence=baseline_sequence,
+                    after_timestamp=baseline_timestamp,
+                    request_generation=request_generation,
+                    timeout_seconds=timeout_seconds,
+                )
+            finally:
+                with self._condition:
+                    self._pending_request = None
+                    self._first_requested_sample = None
             epoch = self._verify_epoch()
             return RangeObservation(
                 connection_epoch=epoch,
