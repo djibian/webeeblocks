@@ -838,7 +838,265 @@ def test_host_failure_evidence_reaches_terminal_without_next_command() -> None:
         host.close()
 
 
+
+def test_voluntary_abandon_is_one_shot_during_blocking_static_and_dynamic_request():
+    from caller_lifetime import CallerLifetime
+    from threading import Event
+    class CallerProxy:
+        def __init__(self, sock):
+            self.sock = sock
+            self.writes = []
+            self.half_closes = []
+        def __getattr__(self, name):
+            return getattr(self.sock, name)
+        def sendall(self, data):
+            self.writes.append(data)
+            self.sock.sendall(data)
+        def shutdown(self, how):
+            self.half_closes.append(how)
+            self.sock.shutdown(how)
+
+    for ast in (canonical_static_ast(), canonical_dynamic_ast()):
+        for positive_reply in (False, True):
+            caller, host = socket.socketpair()
+            proxy = CallerProxy(caller)
+            reader = host.makefile("r", encoding="utf-8")
+            lifetime = CallerLifetime(reader, max_message_bytes=8192)
+            session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+            session._caller = proxy
+            session._prepared = launcher.PreparedProgram("activity-1", ast, "epoch-before")
+            session._teacher = _RecordingTeacher()
+            session._teacher_sealed = session._teacher_approved = True
+            received, outcomes, requests = [], {}, []
+            request_seen = Event()
+            def serve():
+                try:
+                    request = json.loads(next(iter(lifetime)))
+                    received.append(request)
+                    request_seen.set()
+                    require(lifetime._closed.wait(2), "abandon was hidden by a blocking request")
+                    launcher._write_socket_line(host, {
+                        "requestId": request["requestId"], "ok": positive_reply,
+                        "executionAuthority": False,
+                        "diagnostic": {"causes": [{"message": "known host failure"}]},
+                    })
+                except Exception as exc:
+                    outcomes["host_error"] = exc
+            def execute():
+                try:
+                    session.execute_approved_program(timeout_seconds=2)
+                    outcomes["success"] = True
+                except Exception as exc:
+                    outcomes["execution_error"] = exc
+            worker, execution = Thread(target=serve), Thread(target=execute)
+            worker.start()
+            execution.start()
+            try:
+                require(request_seen.wait(2), "execution did not reach its blocked reply")
+                signals = [Thread(target=lambda: requests.append(session.request_abandon())) for _ in range(8)]
+                for thread in signals: thread.start()
+                for thread in signals: thread.join(2)
+                execution.join(2)
+                worker.join(2)
+                require(all(not thread.is_alive() for thread in [*signals, execution, worker]),
+                        "abandon competed with blocking execution")
+                require("host_error" not in outcomes and "execution_error" in outcomes
+                        and "success" not in outcomes, "abandon was promoted to normal success")
+                require(requests.count(True) == 1 and requests.count(False) == 7,
+                        "concurrent gestures emitted duplicate signals")
+                require(proxy.half_closes == [socket.SHUT_WR] and len(proxy.writes) == 1
+                        and len(received) == 1, "abandon replayed or advanced ordinary execution")
+                require(session._teacher.messages == [] and not session._execution_completed,
+                        "abandon created teacher authority or false completion")
+                if not positive_reply:
+                    require("known host failure" in str(outcomes["execution_error"]),
+                            "operator abandon masked host causal diagnostics")
+                try:
+                    session.execute_approved_program(timeout_seconds=0.1)
+                except launcher.PhysicalQualificationLauncherError:
+                    pass
+                else:
+                    raise AssertionError("abandoned execution remained replayable")
+                require(len(proxy.writes) == 1, "second execution wrote IPC")
+            finally:
+                lifetime.stop()
+                caller.close()
+                host.shutdown(socket.SHUT_RD)
+                lifetime._thread.join(1)
+                reader.close()
+                host.close()
+
+
+def test_abandon_does_not_wait_for_send_and_unknown_signal_is_never_retried():
+    from threading import Event
+    entered, release, signalled = Event(), Event(), Event()
+    class BlockedCaller:
+        def __init__(self):
+            self.sends = self.shutdowns = 0
+        def sendall(self, _data):
+            self.sends += 1
+            entered.set()
+            require(release.wait(2), "test sender not released")
+            raise OSError("unknown partial IPC write")
+        def shutdown(self, how):
+            require(how == socket.SHUT_WR, "abandon closed read/reply direction")
+            self.shutdowns += 1
+            signalled.set()
+            raise OSError("unknown shutdown outcome")
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    caller = BlockedCaller()
+    session._caller = caller
+    session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch-before")
+    session._teacher_sealed = session._teacher_approved = True
+    errors = []
+    def execute():
+        try: session.execute_approved_program(timeout_seconds=1)
+        except Exception as exc: errors.append(exc)
+    worker = Thread(target=execute)
+    worker.start()
+    try:
+        require(entered.wait(1), "write did not start")
+        try:
+            session.request_abandon()
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require("uncertain" in str(exc), "unknown signal became confirmed delivery")
+        else:
+            raise AssertionError("unknown signal falsely succeeded")
+        require(signalled.is_set() and not release.is_set(),
+                "signal waited for the outstanding IPC write")
+        require(session.request_abandon() is False and caller.shutdowns == 1,
+                "ambiguous signal was retried")
+    finally:
+        release.set()
+        worker.join(2)
+    require(not worker.is_alive() and errors and caller.sends == 1,
+            "partial request was replayed")
+
+
+def test_abandon_before_approval_and_after_completion_preserves_authority():
+    from unittest.mock import patch
+    def prepared_session():
+        session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+        session._caller = _RecordingCaller()
+        session._teacher = _RecordingTeacher()
+        session._prepared = launcher.PreparedProgram("activity-1", canonical_dynamic_ast(), "epoch-before")
+        return session
+    session = prepared_session()
+    require(session.request_abandon(), "pre-approval cancellation did not consume signal")
+    try:
+        session.decide({}, approved=True)
+    except launcher.PhysicalQualificationLauncherError:
+        pass
+    else:
+        raise AssertionError("abandon permitted later approval")
+    require(session._teacher.messages == [] and not session._teacher_decision_attempted,
+            "abandon emitted approval")
+    session = prepared_session()
+    session._teacher_sealed = session._teacher_approved = True
+    def reply(*_args, **_kwargs):
+        sent = json.loads(session._caller.messages[-1])
+        return {"requestId": sent["requestId"], "ok": True, "executionAuthority": False}
+    with patch.object(launcher, "_read_socket_line", reply):
+        session.execute_approved_program()
+    require(session._execution_completed and session.request_abandon() is False
+            and not session._abandon_requested.is_set(), "late gesture reopened completed execution")
+
+
+def test_operator_console_is_armed_before_approval_and_never_waits_for_output():
+    from io import StringIO
+    from threading import Event
+    # A real socket proves the console gesture reaches the existing EOF reader.
+    from caller_lifetime import CallerLifetime
+    for command in ("ABANDON\n", "", "ignored\nABANDON\n"):
+        caller, host = socket.socketpair()
+        reader = host.makefile("r", encoding="utf-8")
+        lifetime = CallerLifetime(reader, max_message_bytes=8192)
+        session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+        session._caller = caller
+        console = launcher._OperatorAbandonConsole(session, StringIO(command))
+        try:
+            console.start()
+            console._thread.join(1)
+            require(console._armed.is_set() and lifetime._closed.wait(1)
+                    and session._abandon_requested.is_set(), "gesture/input loss failed to reach host")
+            require(not session._teacher_decision_attempted and not session._execution_attempted,
+                    "operator console minted approval or execution")
+        finally:
+            console.stop()
+            caller.close()
+            lifetime.stop()
+            host.shutdown(socket.SHUT_RD)
+            lifetime._thread.join(1)
+            reader.close()
+            host.close()
+    entered, release = Event(), Event()
+    class DelayedInput:
+        def readline(self):
+            entered.set()
+            require(release.wait(2), "late test input was not released")
+            return "ABANDON\n"
+    session = launcher.PhysicalQualificationSession(uri="radio://test", webots_executable="unused")
+    session._caller = _RecordingCaller()
+    console = launcher._OperatorAbandonConsole(session, DelayedInput())
+    console.start()
+    require(entered.wait(1), "console reader did not start")
+    console.stop()
+    release.set()
+    console._thread.join(1)
+    require(not console._thread.is_alive() and not session._abandon_requested.is_set(),
+            "stopped input console changed a settled run")
+
+
+def test_actual_cli_arms_input_before_approval_and_signals_during_execution():
+    from contextlib import redirect_stdout, redirect_stderr
+    from io import StringIO
+    from threading import Event
+    from unittest.mock import patch
+    entered, release, abandoned = Event(), Event(), Event()
+    events = []
+    class Input:
+        def readline(self):
+            entered.set()
+            require(release.wait(2), "CLI test input not released")
+            return "ABANDON\n"
+    class Session:
+        def __enter__(self): return self
+        def __exit__(self, *_args): events.append("cleanup")
+        def prepare(self):
+            return (launcher.PreparedProgram("activity-1", canonical_dynamic_ast(), "epoch-before"),
+                    {"connectionEpoch": "epoch-after"})
+        def decide(self, _proposal, *, approved):
+            require(approved and entered.wait(1), "CLI approved before live input was armed")
+            events.append("approve")
+        def execute_approved_program(self):
+            events.append("execute")
+            release.set()
+            require(abandoned.wait(1), "blocking CLI execution hid voluntary input")
+            raise launcher.PhysicalQualificationLauncherError("operator abandonment requested")
+        def request_abandon(self):
+            events.append("signal")
+            abandoned.set()
+            return True
+    output = StringIO()
+    with patch.object(launcher, "PhysicalQualificationSession", lambda **_kwargs: Session()), \
+         patch("builtins.input", side_effect=["PREPARE", "APPROVE"]), \
+         patch.object(launcher.sys, "stdin", Input()), \
+         redirect_stdout(output), redirect_stderr(output):
+        result = launcher.main(["--uri", "radio://test"])
+    require(result == 1 and events == ["approve", "execute", "signal", "cleanup"],
+            "CLI did not preserve approval/execution/signal/cleanup ordering")
+    require("Programme physique exact terminé" not in output.getvalue(),
+            "voluntary abandonment became successful qualification")
+
+
 def main() -> int:
+    test_actual_cli_arms_input_before_approval_and_signals_during_execution()
+    test_voluntary_abandon_is_one_shot_during_blocking_static_and_dynamic_request()
+    test_abandon_does_not_wait_for_send_and_unknown_signal_is_never_retried()
+    test_abandon_before_approval_and_after_completion_preserves_authority()
+    test_operator_console_is_armed_before_approval_and_never_waits_for_output()
+    print("PASS voluntary operator abandonment: static/dynamic blocked replies, concurrent gestures, "
+          "positive completion races, blocked/partial writes, unknown signal, pre-approval/late input")
     test_failed_host_exit_cleans_resources_and_never_reports_success()
     test_wait_deadline_admission_precedes_all_host_and_teacher_exchange()
     test_teardown_failure_preserves_original_execution_diagnostic()
