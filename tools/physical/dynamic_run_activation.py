@@ -75,6 +75,7 @@ def activate_validated_dynamic_run(
     staged_binding: PhysicalRunBinding,
     execution_domain: PhysicalExecutionDomain,
     assertion_timeout_seconds: float = 1.0,
+    assert_run_open=None,
 ):
     """Activate and return one exact parameter-free dynamic physical run owner."""
     if not isinstance(uri, str) or not uri.startswith("radio://"):
@@ -87,6 +88,8 @@ def activate_validated_dynamic_run(
         raise DynamicRunActivationError("distinct trusted teacher socket is required")
     if assertion_timeout_seconds <= 0:
         raise DynamicRunActivationError("current-program assertion timeout must be positive")
+    if assert_run_open is not None and not callable(assert_run_open):
+        raise DynamicRunActivationError("local run cancellation assertion is unavailable")
 
     # This is deliberately before bridge cutover/reset/takeoff.  It invokes the
     # existing JS product validator and conservative dynamic physical envelope,
@@ -346,6 +349,7 @@ def activate_validated_dynamic_run(
             active_run.watchdog_guard,
             session.read_connection_epoch,
             active_run.powered_session.connection_epoch,
+            assert_run_open=assert_run_open,
         )
 
     try:

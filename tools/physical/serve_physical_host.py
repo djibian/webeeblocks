@@ -157,6 +157,7 @@ if __name__ == "__main__":
                             staged_binding=binding,
                             execution_domain=execution_domain,
                             assertion_timeout_seconds=assertion_timeout_seconds,
+                            assert_run_open=caller_lifetime.assert_open,
                         )
                 except Exception as exc:
                     activation_state["error"] = exc

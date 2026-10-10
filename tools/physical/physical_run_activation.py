@@ -90,6 +90,7 @@ def _execute_exact_wait(
     *,
     clock=monotonic,
     sleeper=sleep,
+    assert_run_open=None,
 ) -> None:
     """Consume host time only; emit no Crazyflie command and mint no authority."""
     if not isinstance(seconds, float) or not isfinite(seconds) or seconds <= 0:
@@ -101,7 +102,17 @@ def _execute_exact_wait(
         raise PhysicalRunActivationError("physical wait requires exact connection epoch")
     if not callable(clock) or not callable(sleeper):
         raise PhysicalRunActivationError("physical wait timing primitives are unavailable")
+    if assert_run_open is not None and not callable(assert_run_open):
+        raise PhysicalRunActivationError("physical wait cancellation assertion is unavailable")
 
+    def check_run_open():
+        # The production host supplies CallerLifetime.assert_open, a local
+        # Event check. This can only reject execution; it grants no authority
+        # and performs no radio/browser/diagnostic operation.
+        if assert_run_open is not None:
+            assert_run_open()
+
+    check_run_open()
     assert_live()
     _require_exact_epoch(
         connection_epoch_reader,
@@ -113,6 +124,7 @@ def _execute_exact_wait(
     now = started
 
     while now < deadline:
+        check_run_open()
         assert_live()
         _require_exact_epoch(
             connection_epoch_reader,
@@ -129,6 +141,7 @@ def _execute_exact_wait(
             raise PhysicalRunActivationError("physical wait monotonic clock did not advance")
         now = later
 
+    check_run_open()
     assert_live()
     _require_exact_epoch(
         connection_epoch_reader,
@@ -226,6 +239,7 @@ def activate_validated_run(
     staged_binding: PhysicalRunBinding,
     execution_domain: PhysicalExecutionDomain,
     assertion_timeout_seconds: float = 1.0,
+    assert_run_open=None,
 ):
     """Activate one exact host-validated run and return its trusted controller.
 
@@ -245,6 +259,8 @@ def activate_validated_run(
         raise PhysicalRunActivationError("distinct trusted teacher socket is required")
     if assertion_timeout_seconds <= 0:
         raise PhysicalRunActivationError("current-program assertion timeout must be positive")
+    if assert_run_open is not None and not callable(assert_run_open):
+        raise PhysicalRunActivationError("local run cancellation assertion is unavailable")
 
     try:
         sequence = PhysicalProgramSequence(staged_binding.ast_binding)
@@ -541,6 +557,7 @@ def activate_validated_run(
                     active_run.watchdog_guard,
                     session.read_connection_epoch,
                     active_run.powered_session.connection_epoch,
+                    assert_run_open=assert_run_open,
                 )
                 if active_run.execution_domain.phase != FLYING:
                     raise PhysicalRunActivationError(
