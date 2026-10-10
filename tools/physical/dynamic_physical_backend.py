@@ -15,10 +15,13 @@ in-flight transport must expose the same AST-derived initial nominal altitude, s
 takeoff verification and runtime landing cannot acquire split altitude roots.
 
 Later action callbacks consume the already established trusted transports.
-``readRange(direction)`` opens the exact ``FreshRangeObserver`` selected by the
+``readRange(direction)`` opens the confirmed ``AdmissionRangeObserver`` subclass
+of ``FreshRangeObserver`` selected by the
 shared interpreter only while the process-wide physical observation exclusion is
 held, and requires current-program, teacher, watchdog and reconnect-sensitive
 epoch provenance both before and after the fresh sample.
+The first sample remains diagnostic data until confirmed LOG deletion and all
+existing provenance checks succeed. Missing deletion proof fails the run.
 
 Sensor values remain finite non-authority data. This class never turns a range
 value, branch result or worker message into physical authority; every selected
@@ -35,6 +38,8 @@ from physical_dynamic_preflight import (
     validate_bound_dynamic_program,
 )
 from physical_execution_domain import FLYING, INACTIVE
+from admission_observers import AdmissionRangeObserver
+from physical_diagnostics import record_inflight_range
 from range_observer import FreshRangeObserver, SUPPORTED_DIRECTIONS
 from yaw_observer import FreshYawObserver
 
@@ -196,7 +201,7 @@ class TrustedDynamicPhysicalBackend:
             raise DynamicPhysicalBackendError("dynamic physical run is already terminal")
 
     def _default_range_observer(self, direction: str) -> FreshRangeObserver:
-        return FreshRangeObserver(
+        return AdmissionRangeObserver(
             self._active_run.crazyflie,
             self._epoch_reader,
             direction,
@@ -260,6 +265,10 @@ class TrustedDynamicPhysicalBackend:
         observation = execution_domain.observation_transaction(self._assert_live_flying)
         observer = None
         close_error = None
+        sample = None
+        sample_error = None
+        raw_observation = None
+        returned = False
         try:
             with observation:
                 try:
@@ -286,23 +295,37 @@ class TrustedDynamicPhysicalBackend:
                         "fresh physical range",
                     )
                     self._assert_live_flying()
+                except Exception as exc:
+                    sample_error = exc
+                    if observer is not None:
+                        try:
+                            raw_observation = observer.first_requested_observation
+                        except Exception:
+                            pass
+                    raise
                 finally:
                     if observer is not None:
                         try:
                             observer.close()
                         except Exception as exc:
                             close_error = exc
-                if close_error is not None:
-                    raise DynamicPhysicalBackendError(
-                        "fresh range observer teardown is uncertain"
-                    ) from close_error
-                return value
+                    if close_error is not None:
+                        raise DynamicPhysicalBackendError(
+                            "fresh range observer teardown is uncertain: " + str(close_error)
+                        ) from (sample_error or close_error)
+            returned = True
+            return value
         except DynamicPhysicalBackendError:
             raise
         except Exception as exc:
             raise DynamicPhysicalBackendError(
                 "fresh physical range observation failed closed"
             ) from exc
+        finally:
+            record_inflight_range(
+                self._active_run.teacher_authorization.binding,
+                sample, sample_error, returned=returned, raw_observation=raw_observation,
+            )
 
     def move(self, direction: str, distance_m: float) -> None:
         self._require_interpreter_started()

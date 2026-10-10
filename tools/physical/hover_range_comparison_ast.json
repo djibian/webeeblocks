@@ -1,0 +1,1 @@
+{"program":[{"height_m":0.5,"kind":"takeoff"},{"kind":"wait","seconds":1},{"kind":"set_variable","value":{"direction":"front","kind":"range","unit":"m"},"variable":{"id":"front-distance","name":"distance"}},{"kind":"land"}],"semantics":"webeeblocks-ast-v1","version":1}

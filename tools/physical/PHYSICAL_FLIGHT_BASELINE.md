@@ -179,3 +179,12 @@ target visibility or tracking/recovery errors. A further acquisition/flight is
 therefore blocked pending an explicit owner decision and the exact trusted
 checkpoint procedure. This proposal creates no CHECKPOINT_REQUEST, flight,
 hardware manipulation, flash, PASS or retrospective qualification of #572.
+
+The later [ground/hover decision dossier](HOVER_RANGE_COMPARISON_DECISION.md)
+supersedes the historical-AST suggestion above for a minimal comparison: the
+historical program can move toward the target, turn and change altitude after the
+read. The new explicit project restricts this proposed diagnostic to takeoff,
+wait, one front observation and land. It still requires unchanged simulation
+validation, independent software review and the unresolved physical-volume and
+operator-abort preconditions before an owner-authorized exact checkpoint.
+Neither this proposal nor its packaging authorizes hardware or flight.

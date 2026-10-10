@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only causal PARAM and confirmed LOG teardown for takeoff admission.
+"""Read-only causal PARAM admission and confirmed LOG teardown.
 
 No X3 preparation/reset or Commander operation is imported. PARAM reads share
 the established Color LED receive-fence ids and epoch lock, but expose no write
@@ -140,7 +140,10 @@ class FreshDefaultRangeFilterReader:
 
 
 class AdmissionRangeObserver(FreshRangeObserver):
-    """Require a bounded exact same-epoch delete reply before releasing LOG callbacks."""
+    """Confirmed LOG observer, reused for admission and in-flight consumption.
+
+    The historical class name is retained; it creates no takeoff authority.
+    """
 
     def __init__(self, *args, close_timeout_seconds=0.7, **kwargs):
         super().__init__(*args, **kwargs)
