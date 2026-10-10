@@ -7,7 +7,7 @@ from pathlib import Path
 import runpy
 import socket
 import sys
-from threading import Thread
+from threading import Event, Thread
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -187,10 +187,12 @@ class FakePhysicalTransportBase:
         return SimpleNamespace(accepted=True, status=0)
 
 
-def fake_exact_wait(seconds, watchdog_guard, connection_epoch_reader, bound_epoch):
+def fake_exact_wait(seconds, watchdog_guard, connection_epoch_reader, bound_epoch, *, assert_run_open=None):
     require(seconds == 0.2, "production wait derives exact canonical duration")
     require(watchdog_guard.active, "watchdog stays live across exact no-effect wait")
     require(connection_epoch_reader() == bound_epoch, "wait stays on exact active epoch")
+    require(callable(assert_run_open), "production wait must carry host-local caller cancellation")
+    assert_run_open()
     base.EVENTS.append(("exact-wait", seconds, bound_epoch))
 
 
@@ -221,6 +223,7 @@ def run_host_sequence(
     *,
     steps: int = 3,
     discard_execution_reply: bool = False,
+    disconnect_when_waiting: Event | None = None,
 ) -> list[dict[str, object]]:
     caller_host, caller_peer = socket.socketpair()
     caller_stream = caller_peer.makefile("r", encoding="utf-8")
@@ -292,6 +295,9 @@ def run_host_sequence(
             caller_peer,
             {"op": "execute-next-inflight", "requestId": f"step-{index + 1}"},
         )
+        if disconnect_when_waiting is not None:
+            require(disconnect_when_waiting.wait(2), "exact wait did not start")
+            caller_peer.shutdown(socket.SHUT_WR)
         if discard_execution_reply:
             worker.join(timeout=3.0)
             require(not worker.is_alive(), "host did not terminate after failed response delivery")
@@ -302,7 +308,8 @@ def run_host_sequence(
             return replies
         replies.append(read_line(caller_stream))
 
-    caller_peer.shutdown(socket.SHUT_WR)
+    if disconnect_when_waiting is None:
+        caller_peer.shutdown(socket.SHUT_WR)
     worker.join(timeout=3.0)
     require(not worker.is_alive(), "actual production host must terminate after caller EOF")
     require("error" not in outcome, "production host failed: " + repr(outcome.get("error")))
@@ -385,6 +392,100 @@ def test_started_activation_wait_is_outside_lifecycle_lock() -> None:
         'finally:\n                    activation_complete.set()' in source,
         "every started activation path must release the host wait",
     )
+
+
+def test_caller_loss_interrupts_every_wait_slice_including_final_slice() -> None:
+    from caller_lifetime import CallerLifetime
+    for seconds, already_closed in ((20.0, False), (0.02, False), (20.0, True)):
+        host_socket, peer = socket.socketpair()
+        stream = host_socket.makefile("r", encoding="utf-8")
+        lifetime = CallerLifetime(stream, max_message_bytes=8192)
+        clock = {"value": 0.0, "sleeps": []}
+        guard = SimpleNamespace(assert_live=lambda: None)
+        def lose_caller(delay):
+            clock["value"] += delay
+            clock["sleeps"].append(delay)
+            peer.shutdown(socket.SHUT_WR)
+            require(lifetime._closed.wait(1), "real socket EOF was not observed")
+        try:
+            if already_closed:
+                peer.shutdown(socket.SHUT_WR)
+                require(lifetime._closed.wait(1), "preclosed caller was not observed")
+            try:
+                REAL_EXACT_WAIT(seconds, guard, lambda: "epoch-live", "epoch-live",
+                    clock=lambda: clock["value"], sleeper=lose_caller,
+                    assert_run_open=lifetime.assert_open)
+            except RuntimeError as exc:
+                require("caller" in str(exc) and "revoked" in str(exc), "caller loss cause was replaced")
+            else:
+                raise AssertionError("wait completed despite caller loss")
+            require(len(clock["sleeps"]) == (0 if already_closed else 1),
+                    "caller loss waited through further AST delay slices")
+            require(clock["value"] <= 0.05, "local cancellation ignored its first bounded wait slice")
+        finally:
+            peer.close()
+            lifetime.stop()
+            lifetime._thread.join(1)
+            stream.close()
+            host_socket.close()
+
+
+def test_actual_static_and_dynamic_host_route_wait_eof_to_one_recovery() -> None:
+    import dynamic_run_activation as dynamic_activation
+    import test_dynamic_run_activation as dynamic_tests
+    from contextlib import redirect_stderr
+    from io import StringIO
+    static_wait, dynamic_wait = base.activation._execute_exact_wait, dynamic_activation._execute_exact_wait
+    try:
+        for dynamic in (False, True):
+            base.EVENTS.clear()
+            if dynamic:
+                dynamic_tests.install_dynamic_fakes()
+            else:
+                install_fakes()
+            wait_started = Event()
+            elapsed = {"value": 0.0}
+            def wait(seconds, guard, epoch_reader, bound_epoch, *, assert_run_open=None):
+                require(callable(assert_run_open), "host omitted local caller revocation from wait")
+                def slice(delay):
+                    wait_started.set()
+                    # Model the external monotonic clock while using the real
+                    # independently receiving CallerLifetime/socket EOF.
+                    require(assert_run_open.__self__._closed.wait(1), "caller EOF did not reach local guard")
+                    elapsed["value"] += delay
+                return REAL_EXACT_WAIT(seconds, guard, epoch_reader, bound_epoch,
+                    clock=lambda: elapsed["value"], sleeper=slice, assert_run_open=assert_run_open)
+            base.activation._execute_exact_wait = wait
+            dynamic_activation._execute_exact_wait = wait
+            ast = json.loads(wait_ast())
+            if dynamic:
+                ast["program"].insert(1, {"kind": "set_variable", "variable": {"id": "x", "name": "x"},
+                    "value": {"kind": "number", "value": 1}})
+            output = StringIO()
+            with redirect_stderr(output):
+                replies = run_host_sequence(json.dumps(ast, sort_keys=True, separators=(",", ":")),
+                    steps=1, disconnect_when_waiting=wait_started)
+            require(replies[2]["ok"] is False, "lost caller completed a physical wait")
+            require(any("caller" in cause["message"] and "revoked" in cause["message"]
+                for cause in replies[2]["diagnostic"]["causes"]), "caller-loss diagnostic was masked")
+            require(elapsed["value"] <= 0.05, "host waited through remaining student duration")
+            records = [json.loads(line.removeprefix("HOST_RECOVERY ")) for line in output.getvalue().splitlines()
+                       if line.startswith("HOST_RECOVERY ")]
+            require(len(records) == 1 and records[0]["outcome"].startswith("landed:"),
+                    "known-flight caller cancellation did not produce one confirmed recovery")
+            require(records[0]["phase"] == "inactive", "recovery ACK was mistaken for inactive completion")
+            require(base.EVENTS.count(("transport-send", "epoch-after")) == 1, "cancellation replayed takeoff")
+            require(base.EVENTS.count("watchdog-stop") == 1, "cancellation duplicated powered teardown")
+            land_indices = [i for i, e in enumerate(base.EVENTS)
+                if isinstance(e, tuple) and e[0] in ("terminal-land", "dynamic-land")]
+            revoke_indices = [i for i, e in enumerate(base.EVENTS)
+                if isinstance(e, tuple) and e[0] == "teacher-close"]
+            require(len(land_indices) == 1 and revoke_indices
+                and revoke_indices[0] < land_indices[0] < base.EVENTS.index("watchdog-stop"),
+                "landing was not one recovery after revocation with live watchdog")
+    finally:
+        base.activation._execute_exact_wait = static_wait
+        dynamic_activation._execute_exact_wait = dynamic_wait
 
 
 def test_actual_host_completes_exact_program_with_terminal_landing() -> None:
@@ -565,7 +666,7 @@ def test_incomplete_host_wait_revokes_program_before_safety_landing() -> None:
     install_fakes()
     prior = base.activation._execute_exact_wait
 
-    def fail_wait(seconds, watchdog_guard, connection_epoch_reader, bound_epoch):
+    def fail_wait(seconds, watchdog_guard, connection_epoch_reader, bound_epoch, *, assert_run_open=None):
         del seconds, watchdog_guard, connection_epoch_reader, bound_epoch
         raise base.activation.PhysicalRunActivationError("injected wait interruption")
 
@@ -622,6 +723,8 @@ def main() -> int:
     test_actual_host_consumes_exact_wait_without_effect_transport()
     test_incomplete_host_wait_revokes_program_before_safety_landing()
     test_actual_host_rejects_malformed_terminal_before_takeoff()
+    test_caller_loss_interrupts_every_wait_slice_including_final_slice()
+    test_actual_static_and_dynamic_host_route_wait_eof_to_one_recovery()
     print(
         "PASS actual physical host sequencing: validated takeoff preserves exact ordered horizontal/vertical motion, "
         "no-effect wait pacing and one terminal controlled landing; caller-selected motion/altitude/index state is rejected, "
