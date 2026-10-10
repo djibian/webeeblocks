@@ -41,3 +41,28 @@ There was no `32766`/`32767` unavailable sentinel within these 200 frames. The t
 The checkpoint #572 remains open until an exact owner-authoritative `PASS`, `FAIL` or justified `NOT_NEEDED` is recorded through the governed procedure. No verdict is emitted by this archival document. Historic #554, #561 and #566 FAIL remain unchanged, and #157 representative powered acceptance remains `UNPROVEN`. No automatic retry, new checkpoint, hardware action, firmware change, or motorized flight is authorized by this evidence.
 
 A reviewer should verify the released original evidence files against the manifest and these claims before GO.
+
+
+## Inspect and reproduce offline
+
+The 30 original text/CSV/JSON files are packed into [raw-evidence.tar.xz.base64](raw-evidence.tar.xz.base64), a Base64 **text transport wrapper** for a deterministic `.tar.xz` file. The archive itself contains the public-safe `MANIFEST_PUBLIC.json` and all 30 unaltered files under `raw/`. Its compressed binary SHA-256 is:
+
+`5574217d0deda4da57267a880a0682ab4aa0cac39c3f58c519c80f311c8a4b1a`
+
+Run the [offline verifier](verify_evidence.py) from a normal repository checkout (standard-library Python only; no drone or radio needed):
+
+```bash
+python3 docs/evidence/checkpoint-572/verify_evidence.py
+```
+
+The verifier checks the compressed archive digest, exactly 30 original raw files and their per-file SHA-256/lengths against the public manifest, then recalculates the two complete finite 100-sample windows and their device-time cadence.
+
+To list or extract the original files for manual independent examination on GNU/Linux:
+
+```bash
+base64 --decode docs/evidence/checkpoint-572/raw-evidence.tar.xz.base64 | tar -tJf -
+mkdir -p /tmp/webeeblocks-572
+base64 --decode docs/evidence/checkpoint-572/raw-evidence.tar.xz.base64 | tar -xJf - -C /tmp/webeeblocks-572
+```
+
+The original ZIP's `MANIFEST_SHA256.json` and `RAPPORT_RECUPERATION.txt` were *not* republished because they contain a personal local directory path. Their absence is documented; the source ZIP hash above preserves an integrity identifier without pretending those excluded files were archived publicly. The per-file SHA-256 list and all raw scientific files remain available in the published archive. 
