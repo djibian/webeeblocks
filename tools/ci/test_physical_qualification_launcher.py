@@ -1046,7 +1046,51 @@ def test_operator_console_is_armed_before_approval_and_never_waits_for_output():
     require(not console._thread.is_alive() and not session._abandon_requested.is_set(),
             "stopped input console changed a settled run")
 
+
+def test_actual_cli_arms_input_before_approval_and_signals_during_execution():
+    from contextlib import redirect_stdout, redirect_stderr
+    from io import StringIO
+    from threading import Event
+    from unittest.mock import patch
+    entered, release, abandoned = Event(), Event(), Event()
+    events = []
+    class Input:
+        def readline(self):
+            entered.set()
+            require(release.wait(2), "CLI test input not released")
+            return "ABANDON\n"
+    class Session:
+        def __enter__(self): return self
+        def __exit__(self, *_args): events.append("cleanup")
+        def prepare(self):
+            return (launcher.PreparedProgram("activity-1", canonical_dynamic_ast(), "epoch-before"),
+                    {"connectionEpoch": "epoch-after"})
+        def decide(self, _proposal, *, approved):
+            require(approved and entered.wait(1), "CLI approved before live input was armed")
+            events.append("approve")
+        def execute_approved_program(self):
+            events.append("execute")
+            release.set()
+            require(abandoned.wait(1), "blocking CLI execution hid voluntary input")
+            raise launcher.PhysicalQualificationLauncherError("operator abandonment requested")
+        def request_abandon(self):
+            events.append("signal")
+            abandoned.set()
+            return True
+    output = StringIO()
+    with patch.object(launcher, "PhysicalQualificationSession", lambda **_kwargs: Session()), \
+         patch("builtins.input", side_effect=["PREPARE", "APPROVE"]), \
+         patch.object(launcher.sys, "stdin", Input()), \
+         redirect_stdout(output), redirect_stderr(output):
+        result = launcher.main(["--uri", "radio://test"])
+    require(result == 1 and events == ["approve", "execute", "signal", "cleanup"],
+            "CLI did not preserve approval/execution/signal/cleanup ordering")
+    require("Programme physique exact terminé" not in output.getvalue(),
+            "voluntary abandonment became successful qualification")
+
+
 def main() -> int:
+    test_actual_cli_arms_input_before_approval_and_signals_during_execution()
     test_voluntary_abandon_is_one_shot_during_blocking_static_and_dynamic_request()
     test_abandon_does_not_wait_for_send_and_unknown_signal_is_never_retried()
     test_abandon_before_approval_and_after_completion_preserves_authority()
