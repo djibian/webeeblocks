@@ -337,6 +337,11 @@ def test_physical_qualification_launcher_contract() -> None:
         "qualification launcher did not publish its exact PASS evidence",
     )
 
+    require("PASS voluntary operator abandonment:" in result.stdout,
+            "launcher did not run the voluntary-abandonment adversarial tests")
+    print(next(line for line in result.stdout.splitlines()
+               if line.startswith("PASS voluntary operator abandonment:")))
+
     poll_result = subprocess.run(
         ["node", "tools/ci/test_physical_qualification_poll.js"],
         cwd=ROOT,

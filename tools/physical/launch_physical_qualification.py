@@ -563,6 +563,38 @@ class PhysicalQualificationSession:
         self._teacher_sealed = False
         self._teacher_approved = False
         self._execution_attempted = False
+        self._abandon_lock = Lock()
+        self._abandon_requested = Event()
+        self._execution_completed = False
+
+    def request_abandon(self) -> bool:
+        """Irrevocably half-close ordinary IPC; only the host may recover.
+
+        This local signal carries no command or positive authority. Consume it
+        before the fallible shutdown. An unknown delivery is never retried.
+        It intentionally takes no execution, socket-read or host lifecycle lock.
+        """
+        with self._abandon_lock:
+            if self._abandon_requested.is_set() or self._execution_completed:
+                return False
+            caller = self._caller
+            if caller is None:
+                raise PhysicalQualificationLauncherError("abandon channel is unavailable")
+            self._abandon_requested.set()
+        try:
+            caller.shutdown(socket.SHUT_WR)
+        except OSError as exc:
+            raise PhysicalQualificationLauncherError(
+                "abandon requested; IPC half-close outcome is uncertain; no retry"
+            ) from exc
+        return True
+
+    def _assert_not_abandoned(self) -> None:
+        if self._abandon_requested.is_set():
+            raise PhysicalQualificationLauncherError(
+                "operator abandonment requested; ordinary execution is terminal; "
+                "host recovery outcome must be established independently"
+            )
 
     def _spawn_host(self) -> dict[str, object]:
         caller_host, caller_peer = socket.socketpair()
@@ -625,6 +657,7 @@ class PhysicalQualificationSession:
             raise
 
     def prepare(self, *, timeout_seconds: float = 30.0) -> tuple[PreparedProgram, dict[str, object]]:
+        self._assert_not_abandoned()
         if self._bridge is None or self._caller is None or self._teacher is None:
             raise PhysicalQualificationLauncherError("qualification session is not started")
         if self._prepared is not None:
@@ -654,6 +687,7 @@ class PhysicalQualificationSession:
         return prepared, proposal
 
     def decide(self, proposal: dict[str, object], *, approved: bool) -> None:
+        self._assert_not_abandoned()
         if (
             self._teacher is None
             or self._prepared is None
@@ -689,6 +723,7 @@ class PhysicalQualificationSession:
         self._teacher_approved = approved is True
 
     def execute_approved_program(self, *, timeout_seconds: float = EXECUTION_REQUEST_TIMEOUT_SECONDS) -> None:
+        self._assert_not_abandoned()
         if (
             self._caller is None
             or self._prepared is None
@@ -703,6 +738,7 @@ class PhysicalQualificationSession:
         # Consume before the first write: an ambiguous IPC result is never replayable.
         self._execution_attempted = True
         for index in range(count):
+            self._assert_not_abandoned()
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
             _write_socket_line(self._caller, {
                 "op": "execute-next-inflight",
@@ -720,13 +756,21 @@ class PhysicalQualificationSession:
                     "trusted parameter-free program execution failed closed at step " + str(index + 1) + detail
                 )
 
+        # Serialize only the terminal local decision, never blocking I/O.
+        # A concurrently requested abandonment cannot become normal success;
+        # a completed exact program makes subsequent abandon requests no-ops.
+        with self._abandon_lock:
+            self._assert_not_abandoned()
+            self._execution_completed = True
+
     def close(self) -> None:
         host_exit_error = None
         if self._caller is not None:
-            try:
-                self._caller.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
+            if not self._abandon_requested.is_set():
+                try:
+                    self._caller.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
             try:
                 self._caller.close()
             except OSError:
@@ -794,6 +838,52 @@ class PhysicalQualificationSession:
             raise
 
 
+class _OperatorAbandonConsole:
+    """One-shot CLI input; armed before approval, independent of IPC waits.
+
+    The input thread owns no radio/controller API and performs no output.
+    A blocked stdin reader is daemon-only and is discarded with this one-shot
+    CLI process. stop() prevents a late line from changing a settled run.
+    """
+
+    def __init__(self, session: PhysicalQualificationSession, reader) -> None:
+        self._session = session
+        self._reader = reader
+        self._stopped = Event()
+        self._armed = Event()
+        self.error = None
+        self._thread = Thread(target=self._receive, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+        if not self._armed.wait(1.0):
+            raise PhysicalQualificationLauncherError("operator input did not arm before approval")
+
+    def _signal(self) -> None:
+        try:
+            self._session.request_abandon()
+        except Exception as exc:
+            self.error = exc
+
+    def _receive(self) -> None:
+        self._armed.set()
+        while not self._stopped.is_set():
+            try:
+                line = self._reader.readline()
+            except Exception:
+                if not self._stopped.is_set():
+                    self._signal()
+                return
+            if self._stopped.is_set():
+                return
+            if not line or line.strip().upper() == "ABANDON":
+                self._signal()
+                return
+
+    def stop(self) -> None:
+        self._stopped.set()
+
+
 def _binding_summary(prepared: PreparedProgram, proposal: dict[str, object]) -> str:
     digest = hashlib.sha256(prepared.ast_binding.encode("utf-8")).hexdigest()
     return (
@@ -830,11 +920,23 @@ def main(argv: list[str] | None = None) -> int:
             print(_binding_summary(prepared, proposal))
             decision = input("Tapez APPROVE pour autoriser cette exécution unique, sinon DENY : ").strip().upper()
             approved = decision == "APPROVE"
-            session.decide(proposal, approved=approved)
             if not approved:
+                session.decide(proposal, approved=False)
                 print("Exécution physique refusée ; aucun programme n'est lancé.")
                 return 2
-            session.execute_approved_program()
+            print("Pendant l'exécution, tapez ABANDON puis Entrée pour abandonner. "
+                  "Le host conserve seul la récupération.", flush=True)
+            operator_console = _OperatorAbandonConsole(session, sys.stdin)
+            operator_console.start()
+            try:
+                session.decide(proposal, approved=True)
+                session.execute_approved_program()
+            finally:
+                operator_console.stop()
+            if operator_console.error is not None:
+                raise PhysicalQualificationLauncherError(
+                    "operator abandonment signal outcome is uncertain"
+                ) from operator_console.error
             print("Programme physique exact terminé sous l'autorité du host.")
             return 0
     except (PhysicalQualificationLauncherError, OSError, subprocess.SubprocessError) as exc:

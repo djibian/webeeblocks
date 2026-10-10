@@ -78,3 +78,55 @@ the blocking launcher request and lifecycle lock; it must preserve the above
 uncertainty gates, retain outcomes without making diagnostic output a recovery
 prerequisite, and receive independent review. This bounded wait repair is useful
 without claiming that whole mechanism exists or removing the flight blockers.
+
+## Voluntary teacher abandonment through the existing caller channel
+
+The launcher candidate adds a local `request_abandon()` operation and one-shot
+console input. The reader is armed before transmitting APPROVE. The teacher can
+type **ABANDON**, then Enter, while the launcher waits for a host reply. EOF or
+failure of this trusted input also requests terminal abandonment. This is a
+trusted launcher control, outside Blockly, the browser, AST and radio authority.
+
+The signal is exactly one `shutdown(SHUT_WR)` on the existing ordinary socket.
+No abort JSON, second host endpoint, teacher receipt, radio client, landing
+command, emergency stop, reset or keepalive change is introduced. The read side
+remains available for the original correlated host response. The host receives
+the existing EOF and reuses its local caller guard and terminal recovery.
+The input thread performs no output and does not take a socket-read, execution
+or host lifecycle lock. An already blocked ordinary write cannot block this
+local signal behind such a lock.
+
+A short local lock consumes the abandonment intent before the fallible
+half-close; duplicate/concurrent gestures become no-ops. Unknown signal delivery
+remains uncertain and is never resent. Intent itself vetoes later approval,
+ordinary request progression and normal-success reporting in this session,
+including a positive reply received after abandonment. Known complete execution
+and abandonment serialize their local terminal decisions; a gesture after that
+completion is a no-op. Resource cleanup still belongs to the main launcher path,
+and the unchanged host-wait rule never kills a possibly authorized host.
+
+The stdin reader is a daemon confined to this single-use CLI process: stopping
+it suppresses a later line, but cannot interrupt a blocked OS stdin read. This
+does not supply a reusable console service or change supported classroom UI.
+The prompt is printed before approval; no diagnostic write precedes signalling.
+The existing overall IPC deadlines and exceptional teardown rules are unchanged.
+
+Adversarial launcher tests use real sockets and the production CallerLifetime
+for static/dynamic pending replies, eight concurrent gestures, positive replies
+racing abandonment, pre-approval abandonment, settled completion and late input.
+A blocked/partial-write fixture checks independent signal delivery and consumed
+unknown half-close. EOF on the console and ignored input followed by ABANDON are
+covered. The existing canonical production-lifecycle test invokes this whole
+launcher suite; the #585 real-host wait/effect/ACK/epoch race suites remain
+unchanged. These are software tests with external I/O/hardware fixtures.
+
+This does **not** establish a hard input-to-EOF or input-to-touchdown bound.
+An in-progress radio effect retains its existing ACK/completion uncertainty;
+EOF/emission is still non-atomic. Range/PARAM/supervisor operations and other
+diagnostic sinks retain their existing limitations. Unknown state/epoch,
+attempted landing, lost watchdog certainty or unavailable completed altitude
+still veto recovery; no success is inferred from sending the signal. Usable
+console/focus/input behavior, actual gesture-to-recovery timing, physical
+margins and independent containment remain unqualified. Flight, hardware access,
+new checkpoint and #70 research stay unauthorized. Fresh canonical CI and an
+independent execution's exact-HEAD review are required for this candidate.
