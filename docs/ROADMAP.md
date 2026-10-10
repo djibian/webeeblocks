@@ -518,10 +518,20 @@ non-blocking for #72 on uniform floor. See
   prerequisites for #157/#72 on uniform floor. Legacy preregistration,
   frozen predictors, failures and evidence remain valid as historical
   artifacts, not as satisfied altitude or flight criteria
-- conditional research path: reanalyse existing IMU/barometer windows, derive
-  a bounded independent-world-Z budget including initial velocity, IMU bias,
-  attitude, pressure, timing, lower-range/Flow covariance coupling and recovery;
-  prefer code inspection, models, replay and negative simulations first.
+- integrated C-only analytical baseline: #576/#577 now cover the existing-archive
+  reanalysis, hosted-source/model and replay stage. Their exact hosted C1/C2/C3
+  studies, fixed-table ambiguity, finite-bound corollary, complete-lifetime
+  sampled reachability/recovery and explicitly abstract mixed-depth Flow
+  ambiguity remain conditional scientific evidence, not measured flight bounds.
+  A narrow hypothetical supported domain remains nonempty, so these results do
+  not establish universal physical impossibility
+- remaining conditional research path: only pursue work that independently
+  tightens the complete calibration-to-recovery operating envelope: initial
+  state; projected IMU/gyro/attitude/timing error; in-flight pressure and rotor
+  effects; valid Flow scale/error or bounded-loss behavior; persistent X/Y
+  uncertainty; and control, stopping, recovery and clearance margins. Additional
+  estimator or gain complexity cannot substitute for those missing bounds.
+  Prefer source inspection, models, replay and negative simulations first.
   Request a minimal new props-off continuous acquisition **only** when an
   indispensable unresolved physical question changes the decision; use its
   own scientific protocol and trusted exact-artifact checkpoint, not a
