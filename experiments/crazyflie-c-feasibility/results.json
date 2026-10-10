@@ -1,0 +1,277 @@
+{
+  "coast_2s_m": 0.1431,
+  "flow": {
+    "angular_rate_rad_s": 1.0,
+    "depth_domain_m": [
+      0.35,
+      1.1
+    ],
+    "minimax_velocity_error_m_s": 0.37500000000000006,
+    "velocity_interval_m_s": [
+      0.35,
+      1.1
+    ]
+  },
+  "horizontal_pair_2s": {
+    "acceleration_error_bound_m_s2": 0.04905,
+    "angular_rate_rad_s": 0.7532467532467533,
+    "duration_s": 2.0,
+    "far_depth_m": 1.1,
+    "max_near_weight": 0.8141106326598212,
+    "min_near_weight": 0.309616542862879,
+    "nearest_depth_m": 0.35,
+    "worst_case_position_error_lower_bound_m": 0.0981
+  },
+  "illustrative_gain_comparison_8s": [
+    {
+      "continuous_enclosure_z_m": 0.4806654724995937,
+      "omega_rad_s": 0.001
+    },
+    {
+      "continuous_enclosure_z_m": 0.49482360818644433,
+      "omega_rad_s": 0.01
+    },
+    {
+      "continuous_enclosure_z_m": 0.5174579440736163,
+      "omega_rad_s": 0.03
+    },
+    {
+      "continuous_enclosure_z_m": 0.5331922268366384,
+      "omega_rad_s": 0.1
+    },
+    {
+      "continuous_enclosure_z_m": 0.43395313913372763,
+      "omega_rad_s": 0.3
+    },
+    {
+      "continuous_enclosure_z_m": 0.4041756287079021,
+      "omega_rad_s": 0.5
+    },
+    {
+      "continuous_enclosure_z_m": 0.391442579936096,
+      "omega_rad_s": 1.0
+    }
+  ],
+  "narrow_hypothetical_vertical_8s": {
+    "assumptions": {
+      "acceleration_m_s2": 0.001962,
+      "baro_stride": 2,
+      "dt_s": 0.01,
+      "duration_s": 8.0,
+      "gyro_rate_rad_s": 0,
+      "horizontal_m_s2": 0,
+      "omega_rad_s": 0.5,
+      "pressure_m": 0.01,
+      "tilt0_rad": 0,
+      "v0_m_s": 0.002,
+      "vertical_m_s2": 0,
+      "z0_m": 0.002
+    },
+    "continuous_enclosure_z_m": 0.01970540833609103,
+    "maximum_sampled_z_m": 0.019695763133730886,
+    "sampled_peak_time_s": 8.0,
+    "terminal_v_m_s": 0.010967629712603521,
+    "terminal_z_m": 0.019501847871056268
+  },
+  "recovery_example_m": {
+    "crossing_4s": 0.16348000000000001,
+    "crossing_plus_recovery_6s": 0.30158
+  },
+  "schema": "webeeblocks.c-feasibility.v1",
+  "scope": "CONDITIONAL_MODEL_ONLY_NO_PHYSICAL_QUALIFICATION",
+  "terminal_adversary_8s": {
+    "replay_terminal_z_m": 0.49474560507964205,
+    "support_m": 0.4947456050796486
+  },
+  "vertical": {
+    "C2_2s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 2.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.07518262746058425,
+      "maximum_sampled_z_m": 0.07518262746058425,
+      "sampled_peak_time_s": 2.0,
+      "terminal_v_m_s": 0.03967450210427894,
+      "terminal_z_m": 0.07518262746058425
+    },
+    "C2_4s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 4.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.1811574128538936,
+      "maximum_sampled_z_m": 0.1811574128538936,
+      "sampled_peak_time_s": 4.0,
+      "terminal_v_m_s": 0.059331243482945606,
+      "terminal_z_m": 0.1811574128538936
+    },
+    "C2_8s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 8.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.49482360818644433,
+      "maximum_sampled_z_m": 0.49482353449344596,
+      "sampled_peak_time_s": 8.0,
+      "terminal_v_m_s": 0.09856367987287569,
+      "terminal_z_m": 0.4947456050796486
+    },
+    "C3_projection_2s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 2.0,
+        "gyro_rate_rad_s": 0.0017453292519943296,
+        "horizontal_m_s2": 1.0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0.0017453292519943296,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0.5,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.08104085285573367,
+      "maximum_sampled_z_m": 0.08104085285573367,
+      "sampled_peak_time_s": 2.0,
+      "terminal_v_m_s": 0.046809617979456,
+      "terminal_z_m": 0.08104085285573367
+    },
+    "C3_projection_4s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 4.0,
+        "gyro_rate_rad_s": 0.0017453292519943296,
+        "horizontal_m_s2": 1.0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0.0017453292519943296,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0.5,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.21384663137743534,
+      "maximum_sampled_z_m": 0.21384663137743534,
+      "sampled_peak_time_s": 4.0,
+      "terminal_v_m_s": 0.08095712782880833,
+      "terminal_z_m": 0.21384663137743534
+    },
+    "C3_projection_8s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 8.0,
+        "gyro_rate_rad_s": 0.0017453292519943296,
+        "horizontal_m_s2": 1.0,
+        "omega_rad_s": 0.01,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0.0017453292519943296,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0.5,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.6994634923733105,
+      "maximum_sampled_z_m": 0.6994634186803121,
+      "sampled_peak_time_s": 8.0,
+      "terminal_v_m_s": 0.17221710827520967,
+      "terminal_z_m": 0.6993036333128401
+    },
+    "inertial_2s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 2.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.06461999999999986,
+      "maximum_sampled_z_m": 0.06461999999999984,
+      "sampled_peak_time_s": 2.0,
+      "terminal_v_m_s": 0.03962,
+      "terminal_z_m": 0.06461999999999984
+    },
+    "inertial_4s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 4.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.16348000000000007,
+      "maximum_sampled_z_m": 0.16348000000000007,
+      "sampled_peak_time_s": 4.0,
+      "terminal_v_m_s": 0.05924000000000001,
+      "terminal_z_m": 0.16348000000000007
+    },
+    "inertial_8s": {
+      "assumptions": {
+        "acceleration_m_s2": 0.009810000000000001,
+        "baro_stride": 2,
+        "dt_s": 0.01,
+        "duration_s": 8.0,
+        "gyro_rate_rad_s": 0,
+        "horizontal_m_s2": 0,
+        "omega_rad_s": 0,
+        "pressure_m": 0.3,
+        "tilt0_rad": 0,
+        "v0_m_s": 0.02,
+        "vertical_m_s2": 0,
+        "z0_m": 0.005
+      },
+      "continuous_enclosure_z_m": 0.47892000000000406,
+      "maximum_sampled_z_m": 0.47892000000000406,
+      "sampled_peak_time_s": 8.0,
+      "terminal_v_m_s": 0.09848000000000001,
+      "terminal_z_m": 0.47892000000000406
+    }
+  }
+}
