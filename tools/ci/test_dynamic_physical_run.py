@@ -120,6 +120,10 @@ def run_production_regression(relative_path: str, label: str) -> None:
 
 def main() -> int:
     run_production_regression(
+        "tools/ci/test_physical_admission_observers.py",
+        "causal PARAM, first LOG sample and confirmed deletion through production takeoff must pass",
+    )
+    run_production_regression(
         "tools/ci/test_physical_pre_takeoff_range_readiness.py",
         "pre-takeoff range veto through the real production transport must pass",
     )

@@ -102,7 +102,23 @@ check runs after the post-reset teacher decision, under the existing takeoff
 effect exclusion. It requests the typed `uint16_t` filter readback and requires
 the unchanged official `multiranger.filterMask=1`, opens each required range log,
 and obtains one post-request, later-timestamp, same-epoch finite observation.
-It closes each observer once and rechecks the filter and current program before
+The PARAM reads use the existing never-reused absent-id receive fence and shared
+Color LED epoch lock. The pinned cflib updater is excluded during each direct
+READ; cached values, generic update callbacks and old target replies preceding
+the fence cannot satisfy the exact five-byte typed response. An outstanding
+updater request, malformed response, timeout or uncertain callback cleanup
+poisons PARAM freshness for the epoch and vetoes takeoff. No X3 preparation,
+configuration, reset or no-Commander teardown helper is used by admission.
+
+The range observer retains the first qualifying post-request sample even when
+several callbacks arrive before the waiting thread runs. Admission rejects a
+reused firmware LOG block id and requires an exact same-epoch delete response
+(success or already absent), with the unchanged 0.7 s observation deadline.
+It keeps callbacks until that proof, attempts stop/delete once, and vetoes on
+missing, rejected or malformed deletion evidence. A deletion reply proves the
+stream absent; merely returning from cflib's asynchronous stop/delete is not
+proof. It closes each observer once and rechecks the filter and current program
+before
 the existing fresh supervisor/SafeLink/acknowledgement gates. An unavailable first
 sample, wrong binding, transport error or uncertain closure vetoes takeoff;
 there is no wait-for-a-good-value loop. Programs without range demand require no

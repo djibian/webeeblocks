@@ -36,14 +36,12 @@ class ReadinessTests(unittest.TestCase):
         test = self
 
         class Adapter:
-            def __init__(self, cf):
+            def __init__(self, cf, epoch_reader):
                 test.assertIs(cf, test.cf)
-            def describe(self, name):
-                test.assertEqual(name, "multiranger.filterMask")
-                return test.ctype, True, "cached-value-is-not-used"
-            def read_fresh(self, name):
-                test.events.append(("filter", name))
-                return test.filter_values.pop(0)
+            def read_default(self):
+                test.events.append(("filter", "multiranger.filterMask"))
+                if test.ctype != "uint16_t" or test.filter_values.pop(0) != "1":
+                    raise RuntimeError("injected wrong filter/type")
 
         class Observer:
             def __init__(self, cf, epoch_reader, direction):
@@ -69,8 +67,8 @@ class ReadinessTests(unittest.TestCase):
                 if test.close_error:
                     raise test.close_error
 
-        self.adapter_patch = patch.object(readiness, "CflibParamAdapter", Adapter)
-        self.observer_patch = patch.object(readiness, "FreshRangeObserver", Observer)
+        self.adapter_patch = patch.object(readiness, "FreshDefaultRangeFilterReader", Adapter)
+        self.observer_patch = patch.object(readiness, "AdmissionRangeObserver", Observer)
         self.adapter_patch.start()
         self.observer_patch.start()
         self.addCleanup(self.adapter_patch.stop)

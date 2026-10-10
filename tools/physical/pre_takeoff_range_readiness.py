@@ -8,9 +8,8 @@ No sample is passed to the student interpreter or reused after takeoff.
 """
 from __future__ import annotations
 
-from prepare_x3_independent_capture import CflibParamAdapter
-from probe_reference_hardware import _parse_uint
-from range_observer import FreshRangeObserver, RangeObservation, range_mm_to_m, SUPPORTED_DIRECTIONS
+from admission_observers import AdmissionRangeObserver, FreshDefaultRangeFilterReader
+from range_observer import RangeObservation, range_mm_to_m, SUPPORTED_DIRECTIONS
 from takeoff_command import _parse_ast_binding
 
 
@@ -61,21 +60,18 @@ def require_pre_takeoff_ranges(crazyflie, epoch_reader, ast_binding):
         if epoch_reader() != epoch:
             raise PreTakeoffRangeError("connection epoch changed during pre-takeoff range check")
 
-    adapter = CflibParamAdapter(crazyflie)
+    reader = FreshDefaultRangeFilterReader(crazyflie, epoch_reader)
 
     def require_default_filter():
         verify_epoch()
-        ctype, _, _ = adapter.describe("multiranger.filterMask")
-        raw = adapter.read_fresh("multiranger.filterMask")
+        reader.read_default()
         verify_epoch()
-        if ctype != "uint16_t" or _parse_uint(raw, "multiranger.filterMask") != 1:
-            raise PreTakeoffRangeError("unchanged official RANGE_VALID-only filter required before takeoff")
 
     require_default_filter()
     samples = []
     for direction in directions:
         verify_epoch()
-        observer = FreshRangeObserver(crazyflie, epoch_reader, direction)
+        observer = AdmissionRangeObserver(crazyflie, epoch_reader, direction)
         primary_error = None
         try:
             observer.open()
