@@ -444,13 +444,21 @@ non-blocking for #72 on uniform floor. See
   conformity of the human procedure.
   The report also preserves an initial package-verification failure under
   Python 3.12 and a fresh-package continuation under Python 3.10; do not rewrite
-  that history as an uninterrupted conforming run. The report supplies no
-  explicit checkpoint verdict. These bounded positive observations did not
-  reproduce #566's 32766, but establish neither its cause, continuous availability,
-  clearance nor motorized acceptance. Preserve `physical_verdict=null`, the
-  unchanged >=8000/filter boundary and #554/#566 FAIL subjects. Before a later
-  representative request, reconcile the remaining provenance gaps and the
-  exact #572 resolution; no blind repeat or inherited flight approval follows
+  that history as an uninterrupted conforming run. Checkpoint #572 is now
+  [closed with owner-authoritative procedural FAIL](https://github.com/djibian/webeeblocks/issues/572#issuecomment-6097081057)
+  for exact `1d0632971c7cb4f175576fd1ab67111a0aeb3786`: the stop-on-first-error
+  rule was breached, geometry photo/video witnesses are absent despite their
+  declaration in original JSON, and complete terminal transcripts were not
+  supplied. These procedural limitations do not invalidate or modify the 200
+  finite, reproducibly archived stationary samples, but prohibit retroactive
+  checkpoint PASS and do not establish sensor qualification. The available
+  observations did not reproduce #566's 32766 but establish neither its cause,
+  continuous availability, clearance nor motorized acceptance. Preserve
+  `physical_verdict=null`, unchanged >=8000/filter boundary and historical
+  #554/#561/#566 FAIL subjects. #572 requires no identical repeat; a distinct
+  representative motorized request, if later scientifically and operationally
+  justified, requires its own fresh evidence, independent review, exact trusted
+  checkpoint and teacher authorization, not inherited approval
 - physical preparation prerequisite: the runtime artifact and generic
   airframe/self-test/protocol evidence do not establish a reproducibly restored
   flight firmware/configuration after the separate X3 preparation. The
