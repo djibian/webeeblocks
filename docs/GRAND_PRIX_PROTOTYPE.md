@@ -257,3 +257,15 @@ pas un ordre de feuille de route ni une aide cachée au programme.
 Les segments suivants sont aussi conditionnés à « invalide = 0 » : après une
 incertitude, aucune nouvelle translation du tour ne continue avant cet échec
 générique. Le test de perte du retour bas vérifie ce comportement stationnaire.
+
+Un contre-exemple géométrique indépendant corrige aussi une double érosion :
+un arc de centre (1,0 ; 0,4), rayon 0,095 m, aux coins intérieurs sans H adjacent,
+libère entièrement le gabarit de 0,09 m. L'ancien rectangle d'exclusion déjà
+élargi de ce rayon rejetait pourtant cette trajectoire. La piste conserve les
+mêmes murs et le même test exact de distance sphère/Box ; les coins emploient
+la zone brute de jonction de largeur 0,8 m, dont la partie réellement libre est
+jugée par ce gabarit. Les quatre zones restent disjointes. Le rayon n'est pas
+réduit, les contacts restent interdits, tous les passages/tours restent exigés.
+Le contrôle négatif (1,04 ; 0,36) conserve le rejet par collision d'enveloppe.
+Cette correction accepte une trajectoire légitime différente du témoin,
+sans ajouter de solution-shape à l'oracle.

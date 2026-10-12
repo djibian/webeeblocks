@@ -123,6 +123,27 @@ try { I.validateProgram(ast); console.log('supported'); } catch(e) { if(!/unsupp
         for i in range(1,20):active.sample(4+i*.032,point,[0,0,0])
         self.assertEqual(active.cursor,1)
 
+    def test_inner_corner_arc_uses_exact_hull_not_double_rectangular_erosion(self):
+        layout=next(generate(seed) for seed in range(100) if all(round((g.heading%(2*math.pi))/(math.pi/2))%4 not in (0,1) for g in generate(seed).gates))
+        # No H on these adjacent sides. Low barriers are cleared at z=.815.
+        # A 9.5 cm arc around the inner corner clears the 9 cm whole hull.
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        for i in range(41):
+            angle=i*math.pi/80
+            position=[1+.095*math.sin(angle),.4-.095*math.cos(angle),.815]
+            self.assertAlmostEqual(math.hypot(position[0]-1,position[1]-.4),.095)
+            active.sample(4+i*.032,position,[0,0,0])
+            self.assertIsNone(active.result)
+        self.assertEqual(active.cursor,1)
+        for i in range(1,20):active.sample(6+i*.032,position,[0,0,0])
+        self.assertEqual(active.cursor,1,'one junction cannot become another corner or a lap')
+        # The same retained 9 cm hull still rejects the tighter, colliding arc.
+        collision=Attempt(layout,2,.015);collision.start(2,0,False)
+        collision.sample(4,[1.04,.36,.815],[0,0,0])
+        self.assertEqual(collision.failure_reason,'envelope-contact')
+        self.assertEqual(collision.result.status,'not-achieved')
+        self.assertIsNone(collision.result.seconds)
+
     def test_v1_blind_counterexample_and_v2_repair(self):
         def outcome(layout,blind):
             payload=dataclasses.asdict(layout);payload['blind']=blind

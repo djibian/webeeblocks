@@ -2,7 +2,7 @@
 from __future__ import annotations
 import math
 from dataclasses import dataclass
-from .layout import Gate, Layout, SIDE, local
+from .layout import Gate, Layout, SIDE, WIDTH, local
 
 ORACLE='grand-prix-v1'
 RADIUS=.09
@@ -61,7 +61,9 @@ class Attempt:
             gap=[max(abs(value-center)-size/2,0) for value,center,size in zip(position,(box.x,box.y,box.z),(box.sx,box.sy,box.sz))]
             if math.sqrt(sum(d*d for d in gap))<RADIUS:self.fail('envelope-contact')
         if any(len(p)!=3 or not all(math.isfinite(v) for v in p) or p[2]>.012 for p in contacts):self.fail('device-contact')
-        on_ring=(-.4+RADIUS<=x<=SIDE+.4-RADIUS and -.4+RADIUS<=y<=SIDE+.4-RADIUS and not (.4-RADIUS<x<SIDE-.4+RADIUS and .4-RADIUS<y<SIDE-.4+RADIUS))
+        # Inner clearance is already judged by the exact sphere/Box distance.
+        # Expanding the island again as a rectangle rejects safe corner arcs.
+        on_ring=(-.4+RADIUS<=x<=SIDE+.4-RADIUS and -.4+RADIUS<=y<=SIDE+.4-RADIUS)
         on_final=abs(x)<=.4-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=.31
         if not on_ring and not on_final:self.fail('off-track')
         if y<-.31 and self.cursor<12+3*len(self.layout.gates):self.fail('early-exit')
@@ -76,7 +78,7 @@ class Attempt:
                 if self.armed and before<.10<=progress:
                     if abs(offset)+RADIUS>.28 or z+RADIUS>.62 or z-RADIUS<.10:self.fail('gate-envelope')
                     else:self.cursor+=1;self.armed=False
-            elif abs(x-event[0])<=.4-RADIUS and abs(y-event[1])<=.4-RADIUS and self.airborne:
+            elif abs(x-event[0])<=WIDTH/2 and abs(y-event[1])<=WIDTH/2 and self.airborne:
                 self.cursor+=1;self.armed=False
         self.previous=tuple(position)
         if completed and self.completion_time is None:self.completion_time=sim_time
