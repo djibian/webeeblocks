@@ -1429,6 +1429,7 @@ def test_terminal_cleanup_is_one_owner_even_when_host_wait_blocks_or_fails():
                     raise OSError("synthetic unknown bridge close")
         caller_raw, caller_peer = socket.socketpair()
         teacher_raw, teacher_peer = socket.socketpair()
+        caller_peer.settimeout(2.0)  # absent EOF must fail, never hang the CI job
         session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
         caller, teacher = Socket(caller_raw, "caller"), Socket(teacher_raw, "teacher")
         host, webots, bridge, ephemeral = Host(), Webots(), Asset("bridge"), Asset("ephemeral")
@@ -1503,6 +1504,8 @@ def test_close_vetoes_new_decision_and_execution_without_extra_ordinary_ipc():
     session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
     caller, caller_peer = socket.socketpair()
     teacher, teacher_peer = socket.socketpair()
+    caller_peer.settimeout(2.0)
+    teacher_peer.settimeout(2.0)
     session._caller, session._teacher = caller, teacher
     session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch-before")
     proposal = {
@@ -1617,6 +1620,7 @@ def test_close_during_committed_execution_does_not_retry_ipc():
             self.raw.close()
     session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
     raw, peer = socket.socketpair()
+    peer.settimeout(2.0)  # unknown EOF is a failed oracle, not unbounded wait
     caller = DelayedCaller(raw)
     session._caller = caller
     session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch-before")
