@@ -233,3 +233,23 @@ partagé ; le bloc de réglage proposé par ce profil admet 0,10–0,20 m/s. Une
 de consigne et ces probes ne démontrent aucune enveloppe réelle. Les limites
 de mémoire nécessaire, d'obstacle indistinguable, d'échec explicite et de
 répétabilité CPU/chrono maintiennent ce prototype en Draft.
+
+La composition avec #590 donne une réparation générique de cette incertitude :
+le témoin peut employer UNTIL « fin confirmée », max 20, puis atterrir seulement
+après la terminaison normale. Si « invalide » devient vrai sans fin confirmée,
+la limite provoque une erreur Runtime avant LAND/COMPLETE ; le chemin d'erreur
+arrête le backend Webots. Le témoin choisit cette forme uniquement quand le
+backend annonce la capacité de langage conditionalLoops. Son contexte ne
+contient aucune information de circuit. Le fallback de répétitions reste
+provisoire tant que #590 n'est pas intégré et conserve le contre-exemple.
+
+Expérience de composition : même interpréteur partagé exact de #590,
+configurations 1/4 idéales normales acceptées, double saturation sur chacune
+=> limite atteinte, aucun land. Le garde du budget refuse max 100 avant takeoff ;
+max 20 est admis. #590 expose donc un champ français sérialisable 1–100,
+défaut 100 compatible avec les projets existants, permettant de choisir 20
+dans Blockly. La CI teste le vrai interpréteur courant : soit cette composition,
+soit son refus avant tout effet si le langage est encore absent. La preuve
+dynamique de cette forme attend l'intégration indépendante de #590 et de
+nouveaux CI/revue sur le HEAD résultant. La dépendance est fonctionnelle,
+pas un ordre de feuille de route ni une aide cachée au programme.

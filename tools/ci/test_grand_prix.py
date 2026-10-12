@@ -82,6 +82,28 @@ class Tests(unittest.TestCase):
         self.assertEqual(active.result.status,'achieved')
         self.assertIsNotNone(active.result.seconds)
 
+    def test_generic_until_composition_or_refusal_without_language(self):
+        # Probe the actual shared interpreter, not an alternative implementation.
+        feature="""const I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter');
+const ast={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.5},{kind:'while',mode:'UNTIL',condition:{kind:'number',value:1},body:[],max_iterations:20},{kind:'land'}]};
+try { I.validateProgram(ast); console.log('supported'); } catch(e) { if(!/unsupported statement/.test(e.message))throw e; console.log('unavailable'); }"""
+        supported=subprocess.run(['node','-e',feature],cwd=ROOT,text=True,capture_output=True,check=True).stdout.strip()=='supported'
+        for seed in [1,4]:
+            for fault in [False,True]:
+                payload=dataclasses.asdict(generate(seed));payload.update(useConditionalLoops=True,injectRangeLossBoth=fault)
+                process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+                if supported and not fault:
+                    self.assertEqual(process.returncode,0,process.stderr)
+                    evidence=json.loads(process.stdout)
+                    self.assertEqual(evidence['result']['variables']['fin'],1)
+                    self.assertEqual(evidence['lands'],1)
+                else:
+                    self.assertNotEqual(process.returncode,0)
+                    failure=json.loads(process.stderr.split('WITNESS_FAILURE ',1)[1].strip())
+                    self.assertEqual(failure['lands'],0)
+                    if supported:self.assertIn('iteration limit exceeded',failure['message'])
+                    else:self.assertEqual(failure['last_position'],[0,0,.015])
+
     def test_safe_rounded_corner_is_not_a_solution_shape_oracle(self):
         layout=next(generate(seed) for seed in range(100) if not any(g.heading==0 for g in generate(seed).gates))
         # Independent geometry: the whole 9 cm envelope clears the island
