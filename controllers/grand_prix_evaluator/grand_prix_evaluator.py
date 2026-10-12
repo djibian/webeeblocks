@@ -11,7 +11,7 @@ from tools.grand_prix.oracle import Attempt, ORACLE
 from tools.grand_prix.simulation_time import elapsed_seconds
 from tools.grand_prix.lap_progress import candidate_score
 
-robot=Supervisor();step=int(robot.getBasicTimeStep());layout=generate(int(sys.argv[1]))
+robot=Supervisor();step=int(robot.getBasicTimeStep());layout=generate(int(sys.argv[1]),sys.argv[2] if len(sys.argv)>2 else 'gp-v2')
 root=robot.getRoot().getField('children')
 vehicle=next(root.getMFNode(i) for i in range(root.getCount()) if root.getMFNode(i).getField('name') and root.getMFNode(i).getField('name').getSFString()=='Crazyflie WebeeBlocks')
 channel=vehicle.getField('customData');control=robot.getSelf().getField('customData')

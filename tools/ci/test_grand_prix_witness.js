@@ -1,13 +1,26 @@
 'use strict';
 const fs=require('fs');
 const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
-const witnessModule=require('../grand_prix/reference_program');
 const layout=JSON.parse(fs.readFileSync(0,'utf8'));
-const witness=witnessModule.build(layout.useConditionalLoops!==false,layout.strategyLaps,layout.efficient);
+const witnessModule=require(layout.version==='gp-v3'?'../grand_prix/reference_program_compact':'../grand_prix/reference_program');
+const witness=witnessModule.build(layout.useConditionalLoops!==false,layout.strategyLaps,layout.efficient,layout.memoryChoice);
 const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}),{kind:'move',direction:'forward',distance_m:.2}];
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
 const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
 const ast=JSON.parse(JSON.stringify(layout.blind?blind:witness));
+// Compact calibration ablations are authored programmes, never evaluator input
+// to the production AST. Preserve the early-turn and overshoot counterexamples.
+if(layout.skipLearnedFinalCorner||layout.unsafeCompactStride){
+ const visit=node=>{if(!node||typeof node!=='object')return;
+  const c=node.condition;
+  if(layout.skipLearnedFinalCorner&&node.kind==='while'&&c&&c.kind==='compare'&&c.left.kind==='variable_get'&&c.left.variable.name==='avancée'){
+   Object.keys(node).forEach(k=>delete node[k]);Object.assign(node,{kind:'move',direction:'forward',distance_m:.1});
+  }else if(layout.unsafeCompactStride&&node.kind==='if'&&c&&c.kind==='logic'&&c.right.kind==='compare'&&c.right.left.kind==='variable_get'&&c.right.left.variable.name==='avancée'){
+   const replacement=node.else[0];Object.keys(node).forEach(k=>delete node[k]);Object.assign(node,replacement);
+  }
+  Object.values(node).forEach(child=>Array.isArray(child)?child.forEach(visit):visit(child));
+ };visit(ast);
+}
 // Final-only ablation preserves sensor navigation of the ring but lands at a
 // preselected distance. The same AST must fail the other terminal geometry.
 if(layout.fixedFinalSteps){

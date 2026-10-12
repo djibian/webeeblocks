@@ -1,3 +1,70 @@
+## Réparation latérale validée et calibration compacte explicite
+
+Le HEAD **76020cbeaf56aee6c4af101582da801d13dbade2** passe les huit
+trajectoires réelles R2025a du run **38309097272**, tentative 1 : artefact
+**11774758930**, SHA-256
+**4c5f60b8453e7b7f52d31a2d2af804f28a907ef94052e1712fe6f4ce4db326e7**.
+Select suites et CI Gate (Draft) sont success, Runtime/Webots skipped ; aucune
+preuve Ready ni GO indépendant n'en suit.
+
+| Configuration | 1 tour efficace | Points | 2 tours efficaces | Points | 3 tours efficaces | Points |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| gp-v2-1 | 192,736 s | −48 | 328,928 s | −164 | 488,384 s | −304 |
+| gp-v2-4 | 147,936 s | −18 | 279,520 s | −140 | 408,000 s | −258 |
+
+Les références historiques du même run donnent 195,808 s / −51 et
+162,272 s / −33. Le bénéfice du témoin corrigé est donc **3,072 / 14,336 s**,
+pas les 13,440 / 15,808 s du précédent candidat qui échouait au troisième tour.
+Le centrage supplémentaire peut effacer une partie du gain : sur gp-v2-1,
+MOVE passe de 52 commandes / 109,504 s à 46 / 110,464 s ; les écarts de
+séquencement passent de 24,000 à 19,968 s. VERTICAL reste à 43,776 s.
+La somme officielle efficace est 172,192 s de service + 19,968 s d'écarts
+ACK→requête + 0,576 s de certification. Le même AST historique gp-v2-1 varie
+encore de 0,256 s contre 696e500 ; aucun contrôle de charge CPU n'en découle.
+La collision latérale du troisième tour est réparée dans ces deux géométries,
+mais **un tour reste le meilleur choix parmi 1/2/3**. La mémoire n'a toujours
+aucun avantage de score établi dans gp-v2 avec ces témoins.
+
+Le générateur ajoute donc explicitement **gp-v3**, candidat de calibration :
+`python3 -m tools.grand_prix.layout --version gp-v3 --seed 16 --output /tmp/gp-v3-16.wbt`.
+Le défaut reste gp-v2 ; les mondes gp-v2-1/4 restent identiques octet pour octet
+aux SHA-256 capturés avant cette modification. Aucun ancien résultat n'est
+transféré à gp-v3. Le côté passe de 1,40 à 1,00 m ; tous les H restent complets
+(plaques de 0,48 m, ouverture de 0,56 m, traverse à 0,62 m), le corridor reste
+large de 0,80 m et chaque côté sans H conserve son obstacle bas de pleine largeur.
+Le créneau des obstacles est à 0,60 m. La fin courte place le fermé à −0,60 m,
+la fin longue conserve ouvert à −0,46 m et fermé à −1,10 m. Le rayon 0,09 m,
+les contacts, les zones d'arrivée, les règles de tours/sortie et le barème sont
+inchangés ; seules les coordonnées dérivées du côté sont paramétrées.
+La version et la graine vont exclusivement au superviseur, jamais à l'AST.
+
+`reference_program_compact.js` est un témoin distinct : il décolle à 0,40 m,
+reste bas après le H observé, remonte devant un obstacle bas mesuré et redescend
+pour observer le fermé final. Il apprend la longueur commandée du premier côté
+jusqu'au virage reconnu par capteur ; il la réutilise au dernier côté et limite
+les grands pas à son approche. Les variantes A fixent 1/2/3 tours. La variante C
+choisit provisoirement deux tours si quatre H ont été découverts, un sinon ;
+**c'est une hypothèse de décision, pas une stratégie optimale ni un avantage
+acquis**. Chaque variante utilise le même AST sur toutes les configurations.
+Aucune hauteur/capacité/limite du profil ou du contrôleur partagé n'est modifiée.
+La famille B indépendante et la stratégie D fondée sur le temps ne sont pas
+encore démontrées ; #592 reste indépendante et non intégrée.
+
+Six tests nouveaux, avec **88 trajectoires idéales sur les 22 formes distinctes**
+du domaine gp-v3 (1/2/3 tours et choix C), passent. Le préflight réel du profil,
+les capacités du backend et le budget inchangé de 20 000 pas sont vérifiés.
+La double saturation terminale refuse LAND. Ces temps idéaux n'ont aucune
+valeur de calibration native. Deux négatifs ont conduit le témoin : tourner
+immédiatement au dégagement du dernier côté n'achève pas sa longueur ; avancer
+0,40 m sans tenir compte de la longueur apprise peut entrer trop loin dans la
+sortie et remonter sous la traverse. Les témoins corrigent ces choix de programme,
+sans changer les oracles. La campagne native compare A1/A2/C sur gp-v3-16
+(quatre H / fin courte), gp-v3-12 (deux H / fin courte), gp-v3-6 (quatre H / fin
+longue), puis réexécute les huit contrôles gp-v2 conservés. Les résultats restent
+à obtenir sur le nouveau HEAD. Toute frontière temporelle atteinte est exigée ;
+les anciens huit essais conservent l'exigence des trois frontières 119,968 / 120 /
+120,032 s. Un parcours fini avant ces instants ne reçoit aucune attente artificielle.
+
 ## Diagnostic natif et témoin à déplacements regroupés
 
 Les traces de l'artefact historique 11759248567 (SHA-256

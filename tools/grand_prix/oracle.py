@@ -2,7 +2,7 @@
 from __future__ import annotations
 import math
 from dataclasses import dataclass
-from .layout import Gate, Layout, SIDE, WIDTH, local
+from .layout import Gate, Layout, WIDTH, local
 from .lap_progress import Progress, candidate_score
 from .simulation_time import elapsed_seconds, milliseconds
 
@@ -27,7 +27,8 @@ class Attempt:
         self.start_time=None;self.last_time=None;self.debug=False;self.result=None
         self.previous=(0.,0.,origin_z);self.airborne=False;self.cursor=0;self.armed=False
         self.events=[];self.completion_time=None;self.stationary_since=None;self.failure_reason=None
-        corners=[(SIDE,0),(SIDE,SIDE),(0,SIDE),(0,0)]
+        side=layout.side
+        corners=[(side,0),(side,side),(0,side),(0,0)]
         for side,corner in enumerate(corners):
             for gate in layout.gates:
                 heading=round((gate.heading%(2*math.pi))/(math.pi/2))%4
@@ -80,7 +81,7 @@ class Attempt:
         if any(len(p)!=3 or not all(math.isfinite(v) for v in p) or p[2]>.012 for p in contacts):self.fail('device-contact')
         # Inner clearance is already judged by the exact sphere/Box distance.
         # Expanding the island again as a rectangle rejects safe corner arcs.
-        on_ring=(-.4+RADIUS<=x<=SIDE+.4-RADIUS and -.4+RADIUS<=y<=SIDE+.4-RADIUS)
+        on_ring=(-.4+RADIUS<=x<=self.layout.side+.4-RADIUS and -.4+RADIUS<=y<=self.layout.side+.4-RADIUS)
         on_final=abs(x)<=.4-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=.31
         if not on_ring and not on_final:self.fail('off-track')
         if self.exit_started and not on_final:self.fail('return-after-exit')
