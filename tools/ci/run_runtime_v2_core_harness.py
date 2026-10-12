@@ -12,6 +12,10 @@ def main():
     for stream in (sys.stdout,sys.stderr):
         if hasattr(stream,'reconfigure'): stream.reconfigure(line_buffering=True)
     os.chdir(REPO_ROOT)
+    lap_progress_test=subprocess.run([sys.executable,'tools/ci/test_grand_prix_lap_progress.py'])
+    if lap_progress_test.returncode:
+        return lap_progress_test.returncode
+    print('PASS abstract Grand Prix free-lap accounting (not trajectory acceptance)')
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
         print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode
