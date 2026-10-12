@@ -129,7 +129,10 @@ cannot touch any resource while the first owner performs sockets, host waits,
 Webots shutdown or local asset cleanup. It explicitly raises an unresolved
 cleanup error instead; after failure it raises with the original exception as
 its cause, **without repeating** a potentially uncertain close, wait, signal
-or process termination. Only a fully completed teardown is idempotent.
+or process termination. Only a fully completed teardown is idempotent. The single-use session
+also rejects a subsequent `start()` after cleanup: otherwise reacquired host
+resources could never be cleaned by the already-consumed owner. This is a
+sequential one-shot invariant, not a new supported concurrent start/close API.
 
 Normal shutdown of the caller write half remains exactly one claim shared with
 abandonment. Even a failed/unknown normal SHUT_WR is now reported as an uncertain
