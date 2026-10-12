@@ -732,10 +732,18 @@ def test_teardown_never_kills_a_possibly_authorized_host():
     else:
         raise AssertionError("pending authorized host falsely reaped")
     require(events == [("host", "wait", 10.0)], "timeout killed flight/provenance owner")
+    pending_host = session._host
     session._host.pending = False
-    session.close()  # reap only after host independently completes; never execute again
-    require(events[1][0] == "host" and events[2] == ("webots", "terminate"),
-            "browser teardown preceded host completion")
+    try:
+        session.close()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require("previously failed" in str(exc) and exc.__cause__ is not None,
+                "unresolved host teardown was silently retried or lost its cause")
+    else:
+        raise AssertionError("second cleanup silently reused a timed-out wait")
+    require(events == [("host", "wait", 10.0)]
+            and session._host is pending_host and session._webots is not None,
+            "failed cleanup retried host wait or destroyed safety-support resources")
 
 
 def test_caller_loss_is_observed_during_a_blocking_operation():
@@ -1371,7 +1379,160 @@ def test_two_close_calls_cannot_observe_a_detached_teacher_socket():
             "teacher resource not closed by original owner")
 
 
+
+def test_terminal_cleanup_is_one_owner_even_when_host_wait_blocks_or_fails():
+    """Real socket EOF and deterministic resource/host races; no radio or Webots."""
+    from threading import Event
+    for host_exit, fail_bridge in ((0, False), (7, False), (0, True)):
+        host_waiting, release_host = Event(), Event()
+        events, results, second_results = [], [], []
+        class Socket:
+            def __init__(self, raw, name):
+                self.raw, self.name, self.closes, self.shutdowns = raw, name, 0, 0
+            def shutdown(self, how):
+                self.shutdowns += 1
+                require(how == socket.SHUT_WR, "not an ordinary caller half-close")
+                self.raw.shutdown(how)
+            def close(self):
+                self.closes += 1
+                events.append(self.name + "-close")
+                self.raw.close()
+        class Host:
+            def __init__(self):
+                self.waits = 0
+            def wait(self, timeout):
+                self.waits += 1
+                events.append("host-wait")
+                require(timeout == 10, "unexpected second/extended host wait")
+                host_waiting.set()
+                require(release_host.wait(3), "host wait was never released")
+                return host_exit
+            def terminate(self): raise AssertionError("possibly authorized host terminated")
+            def kill(self): raise AssertionError("possibly authorized host killed")
+        class Webots:
+            def __init__(self): self.terminations = self.waits = 0
+            def poll(self): return None
+            def terminate(self):
+                self.terminations += 1
+                events.append("webots-terminate")
+            def wait(self, timeout):
+                self.waits += 1
+                require(timeout == 5, "unexpected Webots wait")
+                return 0
+            def kill(self): raise AssertionError("Webots killed despite confirmed termination")
+        class Asset:
+            def __init__(self, name): self.name, self.closes = name, 0
+            def close(self):
+                self.closes += 1
+                events.append(self.name + "-close")
+                if self.name == "bridge" and fail_bridge:
+                    raise OSError("synthetic unknown bridge close")
+        caller_raw, caller_peer = socket.socketpair()
+        teacher_raw, teacher_peer = socket.socketpair()
+        session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
+        caller, teacher = Socket(caller_raw, "caller"), Socket(teacher_raw, "teacher")
+        host, webots, bridge, ephemeral = Host(), Webots(), Asset("bridge"), Asset("ephemeral")
+        session._caller, session._teacher = caller, teacher
+        session._host, session._webots = host, webots
+        session._bridge, session._ephemeral = bridge, ephemeral
+        session._teacher_decision_attempted = True  # conservatively possibly authorized
+
+        def first_close():
+            try:
+                session.close()
+                results.append("closed")
+            except BaseException as exc:
+                results.append(exc)
+        def second_close():
+            try:
+                session.close()
+                second_results.append("closed")
+            except BaseException as exc:
+                second_results.append(exc)
+        owner = Thread(target=first_close, daemon=True)
+        contender = Thread(target=second_close, daemon=True)
+        owner.start()
+        try:
+            require(host_waiting.wait(2), "real production close did not reach host wait")
+            require(caller_peer.recv(1) == b"", "ordinary real-socket EOF was not delivered")
+            contender.start()
+            contender.join(1)
+            require(not contender.is_alive() and len(second_results) == 1
+                    and isinstance(second_results[0], launcher.PhysicalQualificationLauncherError)
+                    and "in progress" in str(second_results[0]),
+                    "concurrent close masked or waited for unresolved host teardown")
+            require(session.request_abandon() is True and session._abandon_requested.is_set(),
+                    "terminal operator intent was lost behind host wait / caller detachment")
+            require(caller.shutdowns == 1 and caller.closes == 1 and teacher.closes == 1,
+                    "blocked host wait led to repeated or incomplete socket cleanup")
+            require(webots.terminations == 0 and bridge.closes == 0 and ephemeral.closes == 0,
+                    "dependent resources were destroyed before host outcome")
+        finally:
+            release_host.set()
+            owner.join(3)
+            contender.join(3)
+            caller_peer.close()
+            teacher_peer.close()
+        require(not owner.is_alive() and host.waits == 1 and webots.terminations == 1
+                and webots.waits == 1 and bridge.closes == 1 and ephemeral.closes == 1,
+                "terminal owner did not finalize independent resources exactly once")
+        if host_exit or fail_bridge:
+            require(len(results) == 1 and isinstance(results[0], launcher.PhysicalQualificationLauncherError),
+                    "host/bridge failure disappeared from original owner")
+            cause = results[0]
+            try:
+                session.close()
+            except launcher.PhysicalQualificationLauncherError as exc:
+                require("previously failed" in str(exc) and exc.__cause__ is cause,
+                        "later close lost exact causal exception")
+            else:
+                raise AssertionError("failed close was silently converted to success")
+            if fail_bridge:
+                require(session._bridge is bridge and session._ephemeral is None,
+                        "uncertain bridge discarded or independent ephemeral skipped")
+        else:
+            require(results == ["closed"], "clean first close failed")
+            session.close()  # completed idempotence cannot repeat an effect
+        require(host.waits == 1 and caller.shutdowns == 1 and caller.closes == 1
+                and teacher.closes == 1 and bridge.closes == 1 and ephemeral.closes == 1,
+                "later close retried an effect with known or unknown prior outcome")
+
+
+def test_close_vetoes_new_decision_and_execution_without_extra_ordinary_ipc():
+    from unittest.mock import patch
+    session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
+    caller, caller_peer = socket.socketpair()
+    teacher, teacher_peer = socket.socketpair()
+    session._caller, session._teacher = caller, teacher
+    session._prepared = launcher.PreparedProgram("activity-1", canonical_static_ast(), "epoch-before")
+    proposal = {
+        "op": "teacher-run-binding-proposal",
+        "requestId": "teacher-1", "challengeId": "challenge-1", "profileId": "activity-1",
+        "astBinding": canonical_static_ast(), "connectionEpoch": "epoch-after",
+        "executionAuthority": False,
+    }
+    try:
+        session.close()  # closing claim precedes teacher/execution commitment
+        for attempt in (lambda: session.decide(proposal, approved=True),
+                        lambda: session.execute_approved_program(timeout_seconds=0.2)):
+            try:
+                attempt()
+            except launcher.PhysicalQualificationLauncherError:
+                pass
+            else:
+                raise AssertionError("new irreversible authority escaped terminal cleanup")
+        require(not session._teacher_decision_attempted and not session._execution_attempted,
+                "closing state failed to prevent new program/teacher claims")
+        require(caller_peer.recv(1) == b"" and teacher_peer.recv(1) == b"",
+                "closed session sent unexpected authority or ordinary messages")
+    finally:
+        caller_peer.close()
+        teacher_peer.close()
+
+
 def main() -> int:
+    test_terminal_cleanup_is_one_owner_even_when_host_wait_blocks_or_fails()
+    test_close_vetoes_new_decision_and_execution_without_extra_ordinary_ipc()
     test_two_close_calls_cannot_observe_a_detached_teacher_socket()
     test_actual_cli_arms_input_before_approval_and_signals_during_execution()
     test_abandon_preempts_unclaimed_positive_decision_on_real_host_channels()
