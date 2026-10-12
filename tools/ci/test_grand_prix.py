@@ -59,6 +59,41 @@ class Tests(unittest.TestCase):
             self.assertEqual(active.result.status,'achieved',(seed,active.cursor,evidence['trace'][-1]))
             self.assertGreater(active.result.seconds,0)
 
+    def test_efficient_witness_preserves_all_92_geometries(self):
+        representatives={}
+        for seed in range(65536):
+            layout=generate(seed)
+            representatives.setdefault((layout.gates,layout.final_gates),seed)
+        for seed in representatives.values():
+            layout=generate(seed);payload=dataclasses.asdict(layout)
+            payload.update(efficient=True,strategyLaps=2)
+            process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,(seed,process.stderr))
+            evidence=json.loads(process.stdout)
+            active=Attempt(layout,1,.015);active.start(1,0,False)
+            landing=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:
+                active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+            self.assertEqual(active.result.status,'achieved',(seed,active.result))
+            self.assertEqual(active.result.laps,2)
+            self.assertEqual(active.result.crossings,2*len(layout.gates)+len(layout.final_gates)-1)
+
+    def test_native_timing_is_diagnostic_and_reconciles_exact_attempt(self):
+        from tools.grand_prix.timing import analyze
+        trace="""WEBEEBLOCKS_GP_TIMING time_ms=8032 attempt=1 phase=request id=2 command=TAKEOFF
+WEBEEBLOCKS_GP_TIMING time_ms=10032 attempt=1 phase=response id=2 payload=OK
+WEBEEBLOCKS_GP_TIMING time_ms=10064 attempt=1 phase=request id=3 command=MOVE
+WEBEEBLOCKS_GP_TIMING time_ms=12064 attempt=1 phase=response id=3 payload=OK
+WEBEEBLOCKS_GP_TIMING time_ms=12096 attempt=1 phase=request id=4 command=LAND
+WEBEEBLOCKS_GP_TIMING time_ms=14096 attempt=1 phase=response id=4 payload=OK
+"""
+        result=analyze(trace,6.096)
+        self.assertEqual((result['service_ms'],result['intercommand_ms'],result['post_land_certification_ms']),(6000,64,32))
+        for invalid in [trace.replace('id=3 payload','id=2 payload'),trace.replace('14096','12000'),trace.replace('payload=OK','payload=ERR BAD'),trace.rsplit('WEBEEBLOCKS_GP_TIMING',1)[0]]:
+            with self.assertRaises(ValueError):analyze(invalid,6.096)
+        with self.assertRaises(ValueError):analyze(trace,5)
+        with self.assertRaises(ValueError):analyze(trace,6.096,attempt=2)
+
     def test_free_lap_strategies_and_candidate_points(self):
         for seed in (1,4):
             scores=[]

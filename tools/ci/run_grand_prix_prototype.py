@@ -11,6 +11,7 @@ import sys
 import time
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout import generate,world_text
+from tools.grand_prix.timing import analyze
 IMAGE='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
 ARTIFACTS=ROOT/'ci-artifacts/grand-prix'
 
@@ -31,12 +32,12 @@ def main():
     original=html.read_text();html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js'))
     try:
         summaries=[];programs={}
-        for seed,laps in ((1,1),(4,1),(1,2),(4,2),(1,3),(4,3)):
-            html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};</script><script src="grand_prix_probe.js"></script>'))
+        for seed,laps,efficient in ((1,1,False),(4,1,False),*( (seed,laps,True) for laps in (1,2,3) for seed in (1,4) )):
+            html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};window.GP_TEST_EFFICIENT={str(efficient).lower()};</script><script src="grand_prix_probe.js"></script>'))
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
             target.write_text(world_text(generate(seed)).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
             project.write_text('Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')
-            out=ARTIFACTS/f'{seed}-{laps}';out.mkdir(parents=True,exist_ok=True)
+            out=ARTIFACTS/f'{seed}-{laps}-{"efficient" if efficient else "legacy"}';out.mkdir(parents=True,exist_ok=True)
             events=out/'events.jsonl';events.unlink(missing_ok=True)
             inner=f'''set -e
 apt-get update >/dev/null
@@ -46,11 +47,11 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/n
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /root/.config/Cyberbotics
 printf '%s\\n' '[RobotWindow]' 'browser=/workspace/tools/ci/webots_runtime_v2_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
-python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/grand-prix/{seed}-{laps}/events.jsonl &
+python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/grand-prix/{out.name}/events.jsonl &
 trap 'kill $! 2>/dev/null || true' EXIT
 xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_gp_{seed}.wbt'''
             with (out/'webots.log').open('w') as log:
-                proc=subprocess.Popen(['docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{seed}-{laps}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
+                proc=subprocess.Popen(['docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{out.name}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
                 end=time.monotonic()+1100
                 found=[]
                 try:
@@ -85,9 +86,12 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             if result['candidate_points']!=5*crossings-math.ceil(max(0,result['seconds']-120)):raise RuntimeError('wrong candidate score')
             programme=next(e['detail'] for e in found if e.get('event')=='GP_PROGRAM')
             digest=hashlib.sha256(json.dumps(programme,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-            if laps in programs and programs[laps]!=digest:raise RuntimeError('programme changed between configurations')
-            programs[laps]=digest
-            result.update(ast_sha256=digest,webots_image=IMAGE,mode='realtime')
+            key=(laps,efficient)
+            if key in programs and programs[key]!=digest:raise RuntimeError('programme changed between configurations')
+            programs[key]=digest
+            diagnostic=analyze((out/'webots.log').read_text(),result['seconds'],result['attempt'])
+            (out/'timing.json').write_text(json.dumps(diagnostic,indent=2)+'\n')
+            result.update(ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy='efficient' if efficient else 'legacy')
             summaries.append(result);(out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
             print(f'PASS real Webots {generate(seed).identifier}: {laps} freely chosen laps, same strategy AST across configurations, {crossings} crossings, {result["seconds"]:.3f}s, {result["candidate_points"]} candidate points',flush=True)
         (ARTIFACTS/'strategies.json').write_text(json.dumps(summaries,indent=2)+'\n')

@@ -81,6 +81,10 @@ extern "C" const char *webeeblocks_gp_receive_text(void) {
       pending=id;engaged=true;start=wb_robot_get_time();marker("pending");
     } else if(!std::strcmp(command,"RESET"))reset=id;
     else if(!std::strcmp(command,"STOP"))marker("failed");
+    // Diagnostic only: receipt/admission boundary on the native simulation
+    // clock. Never sent to the browser, used by control or subtracted from score.
+    std::printf("WEBEEBLOCKS_GP_TIMING time_ms=%lld attempt=%llu phase=request id=%d command=%s\n",
+                std::llround(wb_robot_get_time()*1000),attempt,id,command);
     return message;
   }
   return nullptr;
@@ -91,6 +95,8 @@ extern "C" void webeeblocks_gp_send(const char *data,int size) {
   if(!data||size<1||std::memchr(data,'\0',size)!=data+size-1)return;
   int id=-1;char payload[96]={0};
   if(std::sscanf(data,"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d %95[^\n]",&id,payload)!=2)return;
+  std::printf("WEBEEBLOCKS_GP_TIMING time_ms=%lld attempt=%llu phase=response id=%d payload=%s\n",
+              std::llround(wb_robot_get_time()*1000),attempt,id,payload);
   if(id==reset) {
     if(!std::strcmp(payload,"OK")) {
       WbFieldRef channel=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");

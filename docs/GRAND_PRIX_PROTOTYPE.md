@@ -1,3 +1,39 @@
+## Diagnostic natif et témoin à déplacements regroupés
+
+Les traces de l'artefact historique 11759248567 (SHA-256
+2ff53d6cfc3abc0ec303a38ff6feaf1c5db6e7b54da7b4f4b84ed504e49f21ed)
+contiennent, pour un tour, 52 MOVE / 170 RANGE / 12 VERTICAL sur gp-v2-1,
+et 48 MOVE / 140 RANGE / 6 VERTICAL sur gp-v2-4. Elles ne contiennent pas
+les instants de chaque commande : on ne peut pas attribuer rétrospectivement
+leurs durées. Le source partagé impose après mouvement une fenêtre de stabilité
+de 0,5 s, avec convergence de position/altitude/vitesse avant ACK. Ce coût existe
+dans Webots mais pas dans le modèle de déplacement idéal.
+
+Le contrôleur expérimental journalise maintenant, uniquement vers stdout,
+la réception native et la réponse de chaque commande avec temps Webots en
+millisecondes et identité de tentative. Aucun changement du source partagé,
+de consigne, de marge, de transport ni d'évaluation. `tools/grand_prix/timing.py`
+réconcilie exactement réception→ACK, ACK→réception suivante et certification
+après LAND avec la durée officielle ; il refuse les événements perdus, doublons,
+réponses tardives, erreurs et horloges rétrogrades. Le premier intervalle inclut
+mouvement/freinage/stabilisation ; le second confond volontairement
+interpréteur/navigateur/WWI, que ces seules observations ne séparent pas.
+Aucune de ces durées n'est soustraite du chrono.
+
+Un témoin alternatif utilise les mêmes primitives mais avance de 0,20 m dans
+la boucle, contre 0,10 m précédemment. La correction latérale et la ligne finale
+restent à 0,10 m. Le même AST est vérifié sur les 92 géométries idéales distinctes,
+avec deux tours libres ; ce résultat n'annonce aucun gain temporel natif.
+Une tentative de regrouper aussi les mouvements bas de la ligne finale a
+échoué sur gp-v2-1 : elle saute le petit espace de réarmement entre H ouvert
+et fermé, reste engagée et atteint la limite UNTIL sans LAND. Ne pas appliquer
+aveuglément une optimisation uniforme à toute la piste.
+
+La campagne native conserve 1/2/3 tours sur les deux configurations pour le
+nouveau témoin, et ajoute un tour du témoin historique dans chacune pour
+comparaison contrôlée. Les anciens circuits/résultats sont conservés. Le
+prototype reste Draft ; bénéfice mémoire/temps et équité non démontrés.
+
 ## Migration expérimentale vers les tours libres (#587)
 
 L'oracle n'impose désormais aucun nombre de tours. Il valide la séquence orientée

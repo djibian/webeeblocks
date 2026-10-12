@@ -43,7 +43,7 @@ const ast={version:1,semantics:'webeeblocks-ast-v1',program:[
   repeat(20,[iff(and(cmp('EQ',v('fin'),0),cmp('EQ',v('invalide'),0)),[...reads,iff(narrow,gate(true),[iff(cmp('EQ',v('engagé'),1),clearance(true),corridor)])])]),
   {kind:'land'}
 ]};
-function build(conditionalLoops,laps){
+function build(conditionalLoops,laps,efficient){
   const result=JSON.parse(JSON.stringify(ast));
   laps=laps===undefined?3:laps;
   if(!Number.isInteger(laps)||laps<1||laps>7)throw new Error("invalid witness lap strategy");
@@ -55,6 +55,17 @@ function build(conditionalLoops,laps){
     Object.values(node).forEach(child=>Array.isArray(child)?child.forEach(visit):visit(child));
   }
   visit(circuit);
+  // Experimental generic-move strategy. Lateral centring and final approach
+  // remain 10 cm: a 20 cm final approach can skip the open H's safe descent.
+  if(efficient===true){
+    function longer(node){
+      if(!node||typeof node!=='object')return;
+      if(node.kind==='move'&&node.direction==='forward'&&node.distance_m===.1)node.distance_m=.2;
+      Object.values(node).forEach(child=>Array.isArray(child)?child.forEach(longer):longer(child));
+    }
+    longer(circuit);
+
+  }
   if(conditionalLoops===true){
     const final=result.program[result.program.length-2];
     result.program[result.program.length-2]={kind:'while',mode:'UNTIL',condition:cmp('EQ',v('fin'),1),body:final.body,max_iterations:20};
