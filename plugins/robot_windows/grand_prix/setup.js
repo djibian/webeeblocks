@@ -11,7 +11,8 @@ const profile={id:'progression-grand-prix-v1',world:'worlds/grand_prix_v1.wbt',
  hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:true},evaluation:{type:'mission-state-v1',oracle:'grand-prix-v1'},
  runtime:{mode:'ast-v1',maxSteps:20000,allowedStatementKinds:['takeoff','move','vertical','turn','set_speed','if','repeat','set_variable','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down'],astBounds:{'takeoff.height_m':{min:.3,max:1.0},'move.distance_m':{min:.1,max:.4},'vertical.distance_m':{min:.1,max:.5},'set_speed.speed_m_s':{min:.1,max:.2},'repeat.count':{min:1,max:20}}}
 };
-window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:()=>JSON.parse(JSON.stringify(profile))};
+if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUntil');profile.runtime.allowedStatementKinds.push('while');profile.runtime.astBounds['while.max_iterations']={min:1,max:100};}
+window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
 const resolve=WebeeBlocksActivityProfiles.resolveById;
 WebeeBlocksActivityProfiles.resolveById=function(document,id,catalog){return resolve(document,id==='reactive-obstacle-v2'?profile.id:id,catalog);};
 const inject=Blockly.inject;

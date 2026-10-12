@@ -97,8 +97,8 @@ La scène courante reste attachée au monde ; le projet ne mémorise pas une gra
 
 Le programme témoin est **un outil de preuve machine**, pas une solution livrée
 au workspace élève. Il utilise provisoirement les répétitions bornées avec
-conditions déjà intégrées. L'exposition de la boucle WHILE/UNTIL au profil Grand
-Prix requiert l'intégration indépendante de #590 ; elle n'est pas dissimulée dans
+conditions déjà intégrées. La fenêtre expose la boucle WHILE/UNTIL lorsque son entrée générique est
+intégrée par #590 ; avant cette intégration elle reste absente du profil. Elle n'est pas dissimulée dans
 un bloc spécial ou une boucle native propre à la mission.
 
 Le nouveau job canonique `grand-prix-prototype` exige les tests idéaux puis une

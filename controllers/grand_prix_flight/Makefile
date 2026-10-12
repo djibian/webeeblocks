@@ -22,6 +22,11 @@ else
  INCLUDE += -isystem "$(QT_INCLUDE_DIR)" -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
 endif
 
+# #589 adds a shared simulation-scene observer to the flight source.
+# Link it when that independently reviewed slice is integrated; it has no
+# physical effect API and GP uses its already-ready embedded scene.
+CXX_SOURCES += $(wildcard ../crazyflie_runtime_v2/activity_scene.cpp)
+
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))

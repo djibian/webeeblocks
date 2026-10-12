@@ -38,7 +38,7 @@ extern "C" const char *webeeblocks_gp_receive_text(void) {
     if(std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,command)!=2)return message;
     if(!std::strcmp(command,"GP_MODE")) {
       const bool valid=id>0 && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d GP_MODE %d %1s",&id,&mode,extra)==2 && (mode==0||mode==1) && !engaged;
-      if(valid)debug=mode==1;
+      if(valid)debug=mode==1;else if(engaged)marker("failed");
       char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d %s",id,valid?"OK":"ERR INVALID_REQUEST");
       wb_robot_wwi_send_text(reply);continue;
     }
@@ -66,6 +66,7 @@ extern "C" void webeeblocks_gp_send(const char *data,int size) {
       WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_EVALUATOR"),"customData");
       if(field)wb_supervisor_field_set_sf_string(field,"");
     }
+    if(std::strcmp(payload,"OK") && engaged)marker("failed");
     reset=-1;return;
   }
   if(id==pending) {

@@ -51,6 +51,14 @@ class Tests(unittest.TestCase):
             self.assertEqual(active.result.status,'achieved',(seed,active.cursor,evidence['trace'][-1]))
             self.assertGreater(active.result.seconds,0)
 
+    def test_missing_low_return_is_neither_open_nor_closed(self):
+        layout=dataclasses.asdict(generate(1));layout['injectRangeLoss']=True
+        result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(layout),cwd=ROOT,text=True,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        values=json.loads(result.stdout)['result']['variables']
+        self.assertEqual(values['invalide'],1)
+        self.assertEqual(values['fin'],0)
+
     def test_refutations_and_clock_binding(self):
         layout=generate(3)
         for position,contacts in [([.7,.7,.9],[]),([0,-.8,.4],[]),([0,0,1.3],[]),([0,0,.4],[[0,0,.1]])]:
