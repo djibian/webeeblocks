@@ -29,7 +29,9 @@ jobs:
         with:
           node-version: '22'
       - name: Falsify ideal geometry and behavioral oracle
-        run: python3 tools/ci/test_grand_prix.py
+        run: |
+          python3 tools/ci/test_grand_prix.py
+          python3 tools/ci/test_grand_prix_bridge.py
       - name: Prove sensor-only candidate in real Webots R2025a
         run: python3 tools/ci/run_grand_prix_prototype.py
       - uses: actions/upload-artifact@v4
