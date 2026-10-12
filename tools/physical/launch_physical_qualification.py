@@ -658,6 +658,14 @@ class PhysicalQualificationSession:
         return validate_host_bootstrap(_read_fd_line(browser_read, timeout_seconds=10.0))
 
     def start(self) -> None:
+        with self._abandon_lock:
+            # Terminal cleanup is one-shot: do not reacquire resources once
+            # that owner has finished or an uncertain cleanup has failed.
+            self._assert_not_abandoned()
+            if self._terminal_cleanup_state != "not_started":
+                raise PhysicalQualificationLauncherError(
+                    "one-shot qualification session cannot restart after teardown"
+                )
         if self._host is not None or self._bridge is not None:
             raise PhysicalQualificationLauncherError("qualification session is already started")
         try:
