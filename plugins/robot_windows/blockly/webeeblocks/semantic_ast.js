@@ -31,6 +31,7 @@
 
   function compileExpression(block){
     switch(block.type){
+      case 'webeeblocks_v2_elapsed':return{kind:'elapsed_time',unit:'s'};
       case 'webeeblocks_v2_range':{var direction=String(field(block,'DIRECTION'));if(SENSOR_DIRECTIONS.indexOf(direction)<0)fail('unsupported range direction: '+direction);return{kind:'range',direction:direction,unit:'m'};}
       case 'math_number':return{kind:'number',value:finite(field(block,'NUM'),'number')};
       case 'math_arithmetic':{var arithmetic=String(field(block,'OP'));if(ARITHMETIC_OPS.indexOf(arithmetic)<0)fail('unsupported arithmetic operation: '+arithmetic);return{kind:'arithmetic',op:arithmetic,left:valueChild(block,'A'),right:valueChild(block,'B')};}
