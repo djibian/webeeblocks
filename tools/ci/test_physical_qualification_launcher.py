@@ -1310,7 +1310,69 @@ def test_actual_cli_arms_input_before_approval_and_signals_during_execution():
             "voluntary abandonment became successful qualification")
 
 
+
+def test_two_close_calls_cannot_observe_a_detached_teacher_socket():
+    """Production close() reproducer for the third independent NO_GO.
+
+    Suspend the owner immediately before the actual teacher-socket close;
+    another close must fail closed, not detach/close the same handle. Threads
+    execute production methods on real socketpair without starting the host.
+    """
+    import inspect
+    from threading import Event, current_thread
+    teacher, peer = socket.socketpair()
+    session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
+    session._teacher = teacher
+    sources, first_line = inspect.getsourcelines(launcher.PhysicalQualificationSession.close)
+    candidates = [
+        first_line + i for i, source in enumerate(sources)
+        if "self._teacher.close()" in source or "teacher.close()" in source
+    ]
+    require(len(candidates) == 1, "production teacher cleanup instruction changed")
+    paused, resume = Event(), Event()
+    outcomes = []
+
+    def trace_close(frame, event, _arg):
+        if (current_thread().name == "close-owner" and event == "line"
+                and frame.f_code is launcher.PhysicalQualificationSession.close.__code__
+                and frame.f_lineno == candidates[0]):
+            paused.set()
+            require(resume.wait(3), "owner remained suspended")
+        return trace_close
+
+    def owner():
+        sys.settrace(trace_close)
+        try:
+            session.close()
+            outcomes.append("owner-complete")
+        except BaseException as exc:
+            outcomes.append(exc)
+        finally:
+            sys.settrace(None)
+
+    worker = Thread(target=owner, name="close-owner", daemon=True)
+    worker.start()
+    try:
+        require(paused.wait(3), "production close never reached teacher resource")
+        try:
+            session.close()
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require("in progress" in str(exc),
+                    "second close did not expose unresolved first cleanup")
+        else:
+            raise AssertionError("second close silently finished during first cleanup")
+    finally:
+        resume.set()
+        worker.join(3)
+        peer.close()
+    require(not worker.is_alive() and outcomes == ["owner-complete"],
+            "concurrent cleanup raised or failed to release single owner: " + repr(outcomes))
+    require(teacher.fileno() == -1 and session._teacher is None,
+            "teacher resource not closed by original owner")
+
+
 def main() -> int:
+    test_two_close_calls_cannot_observe_a_detached_teacher_socket()
     test_actual_cli_arms_input_before_approval_and_signals_during_execution()
     test_abandon_preempts_unclaimed_positive_decision_on_real_host_channels()
     test_abandon_and_cleanup_share_one_half_close_claim()
