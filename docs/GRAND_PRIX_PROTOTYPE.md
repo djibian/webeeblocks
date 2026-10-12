@@ -182,3 +182,15 @@ position, vitesse et invariant est ajouté exclusivement au journal superviseur,
 jamais au programme ; les seuils restent identiques. Le runner termine au
 rejet pour conserver la cause initiale sans attendre une fausse complétion.
 Le candidat ne peut être déclaré faisable dans le vrai Webots sur cette preuve.
+
+Le diagnostic du HEAD `b7f1493f7ce8054f95c15068d6b5020c8bcd693c`
+(run 38239852904, artefact 11741872557, SHA-256
+0fd465e6b525989fdd80d2795ee41c8d62092e5a6309c3a66d9a657bfc74f932)
+identifie précisément la cause : à 5,216 s Webots, la hauteur est
+1,174482845 m et la vitesse verticale 1,001077986 m/s. Le décollage nominal
+à 0,90 m dépasse le plafond relatif de 1,15 m ; l'oracle reste terminal,
+non chronométré. Cette mesure réelle devient une régression négative. Le témoin
+emploie désormais les mêmes commandes génériques avec un décollage à 0,50 m,
+puis une montée de 0,40 m avant navigation. La durée inclut ces deux commandes.
+Le contrôleur partagé, les seuils de l'oracle et les règles de collision restent
+identiques ; la nouvelle réussite dynamique reste à obtenir.
