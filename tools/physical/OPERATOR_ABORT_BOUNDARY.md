@@ -122,7 +122,34 @@ The stdin reader is a daemon confined to this single-use CLI process: stopping
 it suppresses a later line, but cannot interrupt a blocked OS stdin read. This
 does not supply a reusable console service or change supported classroom UI.
 The prompt is printed before approval; no diagnostic write precedes signalling.
-The existing overall IPC deadlines and exceptional teardown rules are unchanged.
+The existing overall IPC deadlines remain unchanged. Terminal cleanup now has
+a **single local owner** claimed under the same short lock: `not_started` →
+`in_progress` → either `complete` or `failed`. A second concurrent close
+cannot touch any resource while the first owner performs sockets, host waits,
+Webots shutdown or local asset cleanup. It explicitly raises an unresolved
+cleanup error instead; after failure it raises with the original exception as
+its cause, **without repeating** a potentially uncertain close, wait, signal
+or process termination. Only a fully completed teardown is idempotent.
+
+Normal shutdown of the caller write half remains exactly one claim shared with
+abandonment. Even a failed/unknown normal SHUT_WR is now reported as an uncertain
+teardown, not silent success. Abandonment consumed while cleanup owns this
+attempt still records terminal intent, but neither retries the half-close nor
+claims EOF was delivered. An approval claimed **before** cleanup retains its
+true uncertainty; the teardown snapshots that authority under the same lock
+and never terminates a possibly authorized host.
+
+If the host's 10-second wait times out after teacher-decision commitment, the
+host and dependent Webots/bridge/window resources remain held for safe host-owned
+recovery. The session's cleanup is terminally `failed`: a later `close()` may
+not opportunistically repeat the wait or tear down those resources, even if
+later evidence shows the process exited. External recovery/observation and any
+subsequent disposal of retained handles require a separately justified
+procedure; this repair does not assert one. If a bridge/window close reports an
+uncertain result after safe host termination, its reference remains inspectable
+and the other independent asset close is still attempted once. The first
+causal failure is propagated; no software cleanup state establishes physical
+landing, drift margins or confinement.
 
 Adversarial launcher tests use real sockets and the production
 CallerLifetime for static/dynamic pending replies, eight concurrent gestures,
