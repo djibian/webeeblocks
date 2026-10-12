@@ -37,7 +37,7 @@ const backend={
  async move(direction,distance){const a=heading+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);await motion([p[0]+distance*Math.cos(a),p[1]+distance*Math.sin(a),p[2]]);},
  async vertical(direction,distance){await motion([p[0],p[1],p[2]+(direction==='up'?distance:-distance)]);},
  async turn(angle){heading+=angle*Math.PI/180;sample();},
- async readRange(direction){const value=layout.injectRangeLoss&&direction==='front'&&p[2]<.5?2:ray(direction);ranges.push({direction,value,time});sample();return value;}
+ async readRange(direction){const value=layout.injectRangeLossBoth&&direction==='front'&&p[1]<-.1?2:(layout.injectRangeLoss&&direction==='front'&&p[2]<.5?2:ray(direction));ranges.push({direction,value,time});sample();return value;}
 };
 (async()=>{
  Interpreter.validateExecutionBudget(ast,20000);

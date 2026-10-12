@@ -21,7 +21,7 @@ function count(){return iff(cmp('EQ',v('tour'),0),[increment('portes')],[increme
 function gate(final){return [
   iff(cmp('EQ',v('engagé'),0),[
     ...centered,vertical('down'),set('bas',range('front')),
-    iff(invalidLow,[set('engagé',1)],final?[iff(and(cmp('GT',v('bas'),.09),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08)))),[set('fin',1)],[set('invalide',1)])]:[set('invalide',1)])
+    iff(invalidLow,[set('engagé',1)],final?[iff(and(and(cmp('GT',v('bas'),.09),cmp('LT',v('bas'),1.99)),and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08))))),[set('fin',1)],[set('invalide',1)])]:[set('invalide',1)])
   ]),
   iff(and(cmp('EQ',v('engagé'),1),cmp('EQ',v('invalide'),0)),[move()])
 ];}

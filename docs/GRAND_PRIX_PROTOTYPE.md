@@ -119,7 +119,7 @@ changer les commandes partagées ni lire la position oracle.
 Le résultat chronométré apparaît dans Webots avec l'identifiant de configuration.
 Il utilise exclusivement `Supervisor.getTime()` / `wb_robot_get_time()`, s'arrête
 après complétion du même oracle et stabilité au sol, et est absent pour tout
-échec, collision, interruption, observation invalide ou mode pas-à-pas. Il ne
+échec, collision, interruption, erreur Runtime de capteur ou mode pas-à-pas. Il ne
 persiste aucune tentative. L'AST ne lit pas le chrono.
 
 **Limite non résolue :** une durée Webots sur une trajectoire donnée est
@@ -208,3 +208,28 @@ nominales du témoin sont désormais 0,80 m / 0,40 m, avec transitions de 0,40 m
 la mise en altitude initiale utilise 0,50 m puis +0,30 m. Tous les seuils et
 le contrôleur partagé sont conservés. La nouvelle preuve dynamique reste
 indispensable ; ces adaptations de programme ne prouvent aucune marge réelle.
+
+Le HEAD `f3475ee039cf96be77bf9b628c29350557a51eb9` passe enfin les deux
+configurations réelles gp-v2-1 et gp-v2-4 avec le même AST, découvre quatre puis
+deux H et obtient le résultat chronométré de l'oracle. Run canonique
+38241199664, tentative 1, artefact 11743243880, SHA-256
+e730aebe796aeb02040046bf850abe6978fd27a587112d620b68b7e20d866425.
+C'est un probe **Draft non décisionnel**, pas un CI Gate Ready ni un GO.
+
+La relecture falsificatrice conserve un autre défaut : avec « avant haut = 2 »
+et « avant bas = 2 » après entrée dans les plaques latérales, le témoin précédent
+acceptait une fermeture. Il exige désormais deux retours <1,99 m et refuse
+cette double saturation. Le test injecte ce défaut dans la ligne finale de
+gp-v2-4 : « invalide = 1 », « fin = 0 ». Toutefois l'atterrissage normal peut
+encore tomber dans la vraie zone d'arrivée et réussir l'oracle de trajectoire,
+avec un temps : un booléen local n'est pas une erreur Runtime. Ce contrôle
+positif est conservé. L'absence de chrono pour toute incertitude contextuelle
+n'est donc **pas satisfaite** par ce témoin. Un arrêt/échec explicite générique
+du programme est nécessaire avant de déclarer ce critère rempli ; lire le nom
+d'une variable ou ajouter une règle de forme AST à l'oracle masquerait le défaut.
+
+La vitesse horizontale native par défaut est bornée à 0,35 m/s par le contrôleur
+partagé ; le bloc de réglage proposé par ce profil admet 0,10–0,20 m/s. Une limite
+de consigne et ces probes ne démontrent aucune enveloppe réelle. Les limites
+de mémoire nécessaire, d'obstacle indistinguable, d'échec explicite et de
+répétabilité CPU/chrono maintiennent ce prototype en Draft.

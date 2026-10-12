@@ -67,6 +67,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(values['invalide'],1)
         self.assertEqual(values['fin'],0)
 
+    def test_double_saturation_is_uncertain_but_can_land_in_arrival(self):
+        layout=generate(4);payload=dataclasses.asdict(layout);payload['injectRangeLossBoth']=True
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['invalide'],1)
+        self.assertEqual(values['fin'],0)
+        # A behavioural oracle cannot infer this variable or a sensor's
+        # semantic certainty. An explicit generic programme failure remains
+        # necessary: normal LAND/COMPLETE can still score a valid trajectory.
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        landing=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+        self.assertEqual(active.result.status,'achieved')
+        self.assertIsNotNone(active.result.seconds)
+
     def test_safe_rounded_corner_is_not_a_solution_shape_oracle(self):
         layout=next(generate(seed) for seed in range(100) if not any(g.heading==0 for g in generate(seed).gates))
         # Independent geometry: the whole 9 cm envelope clears the island
