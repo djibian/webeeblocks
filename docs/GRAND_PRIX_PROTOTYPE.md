@@ -29,6 +29,26 @@ Une tentative de regrouper aussi les mouvements bas de la ligne finale a
 et fermé, reste engagée et atteint la limite UNTIL sans LAND. Ne pas appliquer
 aveuglément une optimisation uniforme à toute la piste.
 
+Le premier essai instrumenté, HEAD 0dd6f6b34428b6bff83e8068013ac347e6203228,
+run 38300720627, artefact 11770454917 (SHA-256
+58c0e95c2e27dcc750c82e0aad652e432d14dda9f6fbd14dc397b83106892d5b),
+a réussi un tour historique gp-v2-1 en 194,592 s / −50 points candidats.
+Le run est néanmoins rouge : l'analyseur attendait OK au lieu de VALUE pour
+RANGE. Cette réparation est testée contre des valeurs malformées/non finies,
+les mauvaises identités et les réponses incomplètes ; l'ancien résultat rouge
+n'est pas renommé en succès global.
+
+La réanalyse de cette trace complète donne TAKEOFF 4,160 s, MOVE 109,536 s
+(52 commandes), VERTICAL 43,776 s (12), TURN 11,328 s (3), LAND 2,464 s,
+RANGE 0 s de service natif (170). Les écarts ACK→réception totalisent 22,752 s,
+dont 13,824 s précédant RANGE. La certification après LAND prend 0,576 s.
+Somme exacte : 194,592 s. Les petites avances arrêtées dominent donc le coût,
+mais les transitions verticales représentent aussi 22,5 % de la durée.
+La fenêtre de stabilité n'est pas séparée expérimentalement de la convergence
+PID ; le compteur d'ACK ne démontre ni une pause additionnelle fixe ni un
+retard CPU. Comparer 195,360 s historique à 194,592 s instrumenté expose une
+variation de 0,768 s et d'un point, sans isoler sa cause ni prouver l'équité.
+
 La campagne native conserve 1/2/3 tours sur les deux configurations pour le
 nouveau témoin, et ajoute un tour du témoin historique dans chacune pour
 comparaison contrôlée. Les anciens circuits/résultats sont conservés. Le

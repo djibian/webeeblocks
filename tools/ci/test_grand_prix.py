@@ -78,6 +78,15 @@ class Tests(unittest.TestCase):
             self.assertEqual(active.result.laps,2)
             self.assertEqual(active.result.crossings,2*len(layout.gates)+len(layout.final_gates)-1)
 
+    def test_uniform_final_grouping_skips_rearming_and_cannot_land(self):
+        payload=dataclasses.asdict(generate(1))
+        payload.update(efficient=True,strategyLaps=1,unsafeFinalStride=True)
+        process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+        self.assertNotEqual(process.returncode,0)
+        failure=json.loads(process.stderr.split('WITNESS_FAILURE ',1)[1].strip())
+        self.assertEqual(failure['lands'],0)
+        self.assertIn('iteration limit exceeded',failure['message'])
+
     def test_native_timing_is_diagnostic_and_reconciles_exact_attempt(self):
         from tools.grand_prix.timing import analyze
         trace="""WEBEEBLOCKS_GP_TIMING time_ms=8032 attempt=1 phase=request id=2 command=TAKEOFF
@@ -87,6 +96,10 @@ WEBEEBLOCKS_GP_TIMING time_ms=12064 attempt=1 phase=response id=3 payload=OK
 WEBEEBLOCKS_GP_TIMING time_ms=12096 attempt=1 phase=request id=4 command=LAND
 WEBEEBLOCKS_GP_TIMING time_ms=14096 attempt=1 phase=response id=4 payload=OK
 """
+        sensor=trace.replace('command=MOVE','command=RANGE').replace('id=3 payload=OK','id=3 payload=VALUE 0.416739048')
+        self.assertEqual(analyze(sensor,6.096)['by_command']['RANGE']['service_ms'],2000)
+        for sample in ('nan','inf','-1','2.001','garbage'):
+            with self.assertRaises(ValueError):analyze(sensor.replace('0.416739048',sample),6.096)
         result=analyze(trace,6.096)
         self.assertEqual((result['service_ms'],result['intercommand_ms'],result['post_land_certification_ms']),(6000,64,32))
         for invalid in [trace.replace('id=3 payload','id=2 payload'),trace.replace('14096','12000'),trace.replace('payload=OK','payload=ERR BAD'),trace.rsplit('WEBEEBLOCKS_GP_TIMING',1)[0]]:

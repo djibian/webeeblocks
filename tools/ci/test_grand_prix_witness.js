@@ -8,6 +8,17 @@ const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
 const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
 const ast=JSON.parse(JSON.stringify(layout.blind?blind:witness));
+// Falsification only: unsafe uniform grouping skips final gate rearming.
+if(layout.unsafeFinalStride){
+ const final=ast.program[ast.program.length-2];
+ const longer=node=>{if(!node||typeof node!=='object')return;
+  if(node.kind==='move'&&node.direction==='forward'&&node.distance_m===.1)node.distance_m=.2;
+  Object.values(node).forEach(c=>Array.isArray(c)?c.forEach(longer):longer(c));};
+ const visit=node=>{if(!node||typeof node!=='object')return;
+  if(node.kind==='if'&&node.condition&&node.condition.kind==='logic'&&node.condition.left.left&&node.condition.left.left.kind==='variable_get'&&node.condition.left.left.variable.name==='engagé')longer(node.then);
+  Object.values(node).forEach(c=>Array.isArray(c)?c.forEach(visit):visit(c));};
+ visit(final);
+}
 // Test-authored ablation: the programme still senses/steers, but never learns
 // the number of H. It receives no configuration information.
 if(layout.forgetCounts){

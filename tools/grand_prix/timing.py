@@ -1,6 +1,7 @@
 """Offline diagnostic of native simulation command latency; never scoring input."""
 from collections import defaultdict
 import re
+import math
 
 PREFIX = 'WEBEEBLOCKS_GP_TIMING '
 PATTERN = re.compile(r'time_ms=(\d+) attempt=(\d+) phase=(request|response) id=(\d+) (command|payload)=(.*)')
@@ -36,7 +37,14 @@ def analyze(text, official_seconds, attempt=1):
             ids.add(request_id)
             pending = (ms, request_id, value, ms - last_response)
         else:
-            if pending is None or pending[1] != request_id or value != 'OK':
+            if pending is None or pending[1] != request_id:
+                raise ValueError('unmatched, late or failed response')
+            command = pending[2]
+            valid = value == 'OK' and command != 'RANGE'
+            if command == 'RANGE' and re.fullmatch(r'VALUE [0-9]+(?:\.[0-9]+)?', value):
+                sample = float(value.split()[1])
+                valid = math.isfinite(sample) and 0 <= sample <= 2
+            if not valid:
                 raise ValueError('unmatched, late or failed response')
             begin, _, command, gap = pending
             if ms < begin or gap < 0:
