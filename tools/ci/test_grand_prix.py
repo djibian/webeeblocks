@@ -111,6 +111,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(active.result.status,'not-achieved')
         self.assertIsNone(active.result.seconds);self.assertIsNone(active.result.candidate_points)
 
+    def test_real_third_lap_oblique_final_contact_has_no_score(self):
+        # R2025a 855f2b7 / run 38304145923 / artifact 11772869529.
+        active=Attempt(generate(1),1,.015);active.start(1,2.112,False)
+        active.sample(432.320,[-.19004851933652495,-.24857930832514724,.828842009846439],
+                      [-.007331720839909988,-.04704730470759043,-.0006952086407799071])
+        self.assertEqual(active.failure_reason,'envelope-contact')
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds);self.assertIsNone(active.result.candidate_points)
+
+    def test_mixed_width_close_side_centres_before_approaching(self):
+        # The native last observation was not a certified H or full corridor:
+        # left .468842561, right .219328531, front .242256959. A response to the
+        # nearer side is useful without inventing a gate identity.
+        script=r"""
+const assert=require('assert'),W=require('./tools/grand_prix/reference_program'),I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter');
+(async()=>{for(const efficient of [false,true]){
+ const ast=W.build(true,3,efficient);ast.program=ast.program.filter(n=>n.kind!=='repeat');const moves=[];
+ const backend={capabilities:{conditionalLoops:true},async takeoff(){},async vertical(){},async land(){throw new Error('unexpected LAND');},async readRange(d){return {front:.242256959,left:.468842561,right:.219328531}[d];},async move(d,n){moves.push([d,n]);if(d==='forward')throw new Error('END_PROBE');}};
+ await assert.rejects(()=>I.run(ast,backend,{maxSteps:20000}),/END_PROBE/);
+ assert.deepStrictEqual(moves,efficient?[['left',.1],['forward',.1]]:[['forward',.1]]);
+}console.log('PASS mixed-width native observation: nearby-side correction before forward, historical ablation retained');})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+        subprocess.run(['node','-e',script],cwd=ROOT,check=True)
+
     def test_final_only_blind_controls_have_opposite_terminal_failures(self):
         for steps,accepted in ((6,4),(9,1)):
             for seed in (1,4):

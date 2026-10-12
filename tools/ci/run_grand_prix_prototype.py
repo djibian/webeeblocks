@@ -32,7 +32,7 @@ def main():
     original=html.read_text();html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js'))
     try:
         summaries=[];programs={}
-        for seed,laps,efficient in (*( (seed,laps,True) for laps in (1,2,3) for seed in (1,4) ),(1,1,False),(4,1,False)):
+        for seed,laps,efficient in (*( (seed,laps,True) for laps in (3,1,2) for seed in (1,4) ),(1,1,False),(4,1,False)):
             html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};window.GP_TEST_EFFICIENT={str(efficient).lower()};</script><script src="grand_prix_probe.js"></script>'))
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
             target.write_text(world_text(generate(seed)).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))

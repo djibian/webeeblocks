@@ -82,6 +82,47 @@ mais rencontrent le gabarit fermé gp-v2-4. La comparaison idéale interdit donc
 de conclure à la reconnaissance à partir d'un seul atterrissage correct.
 Ces ablations doivent encore être confrontées à la dynamique R2025a.
 
+Le témoin avec garde front a ensuite donné quatre vrais parcours valides sur
+**855f2b7d7b4bec26b54dbc13e734e7e2921e2b9a**, run **38304145923**,
+artefact **11772869529**, SHA-256
+f217832c0284b4dea52b9d19e5b5c8b7188bfb53ef3c4aba8093a8d9f8070152.
+Les AST sont identiques entre configurations pour chaque nombre de tours.
+
+| Configuration | 1 tour | Points candidats | 2 tours | Points candidats |
+| --- | ---: | ---: | ---: | ---: |
+| gp-v2-1 | 182,112 s | −38 | 322,560 s | −158 |
+| gp-v2-4 | 146,464 s | −17 | 271,808 s | −132 |
+
+Le regroupement gardé réduit le temps observé d'un tour de 13,440 / 15,808 s
+par rapport aux références instrumentées précédentes (195,552 / 162,272 s).
+Les MOVE passent de 52 à 42 et de 48 à 36 ; leur service natif passe de
+109,504 à 102,336 s et de 101,888 à 92,736 s. RANGE passe de 170 à 134 et de
+140 à 101 ; les écarts de séquencement diminuent aussi. Le coût vertical ne
+change pas. C'est une réduction réelle mesurée, sans vitesse/marge modifiée,
+mais pas une comparaison à charge CPU contrôlée. Le tour supplémentaire coûte
+encore 140,448 / 125,344 s pour 20 / 10 points : **un tour reste le meilleur
+choix parmi ces essais ; la mémoire/stratégie n'est pas validée**.
+
+Le run global demeure rouge : trois tours terminent le circuit gp-v2-1, puis
+l'enveloppe touche un panneau latéral de la fin à 432,320 s, avant descente.
+Position (−0,1900485193 ; −0,2485793083 ; 0,8288420098), 12 franchissements /
+3 tours, aucun score. Dernières observations : gauche 0,468842561 m,
+droite 0,219328531 m, front 0,242256959 m. Somme 0,688 m : ni H certifié
+(<0,65), ni corridor de largeur normale (0,72–0,88). L'approche oblique laisse
+un capteur voir un panneau avant l'autre. Les corrections de centrage avaient
+ignoré cette observation malgré la proximité d'un côté. Le point réel est
+conservé comme négatif de gabarit, sans réduire les 9 cm.
+
+Le candidat suivant réagit aussi, dans la branche non-H, quand un côté est
+à moins de 0,30 m : le centrage ordinaire s'éloigne du côté le plus proche
+avant l'avance. Les H déjà reconnus restent dans leur branche propre. Le même
+contrôle local est composé dans la fin, qui conserve ses avances de 0,10 m.
+Un probe du vrai interpréteur, alimenté par la dernière observation native,
+vérifie `gauche 0,10 m` puis `avant 0,10 m` ; l'ablation historique avançait
+immédiatement. Cette preuve de décision n'est pas la réussite d'un troisième
+tour natif ; nouvelle campagne nécessaire, commencée par les deux cas trois
+tours pour éprouver le défaut avant de répéter les autres.
+
 La campagne native conserve 1/2/3 tours sur les deux configurations pour le
 nouveau témoin, et ajoute un tour du témoin historique dans chacune pour
 comparaison contrôlée. Les anciens circuits/résultats sont conservés. Le

@@ -71,6 +71,23 @@ function build(conditionalLoops,laps,efficient){
       }
     }
     adaptive(circuit.body);
+    // An oblique entry can expose one H plate before the other sensor sees it.
+    // Centre away from a nearby side even while the width is indeterminate.
+    function margin(body){
+      for(const node of body){
+        const c=node.condition;
+        if(node.kind==='if'&&c&&c.kind==='logic'&&c.op==='AND'&&
+           c.left.kind==='compare'&&c.right.kind==='compare'&&
+           c.left.op==='GTE'&&c.left.right.value===.72&&c.right.op==='LTE'&&c.right.right.value===.88){
+          node.condition={kind:'logic',op:'OR',left:c,right:{kind:'logic',op:'OR',left:cmp('LT',v('gauche'),.30),right:cmp('LT',v('droite'),.30)}};
+        }
+        if(node.body)margin(node.body);
+        if(node.then)margin(node.then);
+        if(node.else)margin(node.else);
+      }
+    }
+    margin(circuit.body);
+    margin(result.program[result.program.length-2].body);
 
   }
   if(conditionalLoops===true){
