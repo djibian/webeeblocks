@@ -8,25 +8,36 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from controller import Supervisor
 from tools.grand_prix.layout import generate
 from tools.grand_prix.oracle import Attempt, ORACLE
+from tools.grand_prix.simulation_time import elapsed_seconds
+from tools.grand_prix.lap_progress import candidate_score
 
 robot=Supervisor();step=int(robot.getBasicTimeStep());layout=generate(int(sys.argv[1]))
 root=robot.getRoot().getField('children')
 vehicle=next(root.getMFNode(i) for i in range(root.getCount()) if root.getMFNode(i).getField('name') and root.getMFNode(i).getField('name').getSFString()=='Crazyflie WebeeBlocks')
 channel=vehicle.getField('customData');control=robot.getSelf().getField('customData')
 origin=vehicle.getPosition()[2]
-active=None
+active=None;clock_boundaries=set()
 robot.setLabel(0,f'{layout.identifier} — prêt',.02,.03,.065,0xFFFFFF,0,'Arial')
 while robot.step(step)!=-1:
     data=channel.getSFString()
     reset=re.fullmatch(r'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 (\d+)',data)
     if reset and (active is None or active.attempt!=int(reset[1])):
-        active=Attempt(layout,int(reset[1]),origin)
+        active=Attempt(layout,int(reset[1]),origin);clock_boundaries.clear()
         robot.setLabel(0,f'{layout.identifier} — prêt',.02,.03,.065,0xFFFFFF,0,'Arial')
     if active is None:continue
     marker=re.fullmatch(r'GP_START attempt=(\d+) time=([0-9.]+) debug=([01]) state=(pending|accepted|failed)',control.getSFString())
     if marker and int(marker[1])==active.attempt:
         if marker[4]=='failed':active.fail()
         elif marker[4] in ('pending','accepted'):active.start(active.attempt,float(marker[2]),marker[3]=='1')
+    if active.start_time is not None and active.result is None:
+        try:duration=elapsed_seconds(active.start_time,robot.getTime())
+        except ValueError:active.fail('invalid-clock');duration=None
+        if duration in (119.968,120.0,120.032) and duration not in clock_boundaries:
+            clock_boundaries.add(duration)
+            penalty=-candidate_score(0,duration)
+            expected=1 if duration>120 else 0
+            if penalty!=expected:raise RuntimeError('wrong native boundary penalty')
+            print('WEBEEBLOCKS_GP_CLOCK_BOUNDARY '+json.dumps(dict(attempt=active.attempt,seconds=duration,penalty=penalty)),flush=True)
     complete=data==f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={active.attempt} oracle={ORACLE}'
     result=active.sample(robot.getTime(),vehicle.getPosition(),vehicle.getVelocity()[:3],
                          [c.point for c in vehicle.getContactPoints(True)],completed=complete)

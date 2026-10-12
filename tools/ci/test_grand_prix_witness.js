@@ -16,7 +16,7 @@ if(layout.forgetCounts){
   Object.values(value).forEach(child=>{if(Array.isArray(child))child.forEach(visit);else visit(child);});
  };visit(ast);
 }
-let p=[0,0,.015],heading=0,time=0,lands=0;
+let p=[0,0,.015],heading=0,time=0,ticks=0,lands=0;
 const trace=[],ranges=[],variables=[];
 function ray(direction){
  const angle=heading+({front:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);
@@ -29,7 +29,7 @@ function ray(direction){
   }if(hi>=lo)result=Math.min(result,lo);
  }return Math.min(2,result);
 }
-function sample(velocity=[0,0,0]){time+=.032;trace.push({time,position:p.slice(),velocity});}
+function sample(velocity=[0,0,0]){ticks+=1;time=ticks*32/1000;trace.push({time,position:p.slice(),velocity});}
 async function motion(target){const delta=target.map((v,i)=>v-p[i]);const distance=Math.hypot(...delta),steps=Math.max(1,Math.ceil(distance/.0064));const velocity=delta.map(v=>v/(steps*.032));for(let i=0;i<steps;i++){p=p.map((v,a)=>v+delta[a]/steps);sample(velocity);}sample();}
 const backend={
  capabilities:{conditionalLoops:layout.useConditionalLoops!==false,actions:['takeoff','move','turn','vertical','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down']},

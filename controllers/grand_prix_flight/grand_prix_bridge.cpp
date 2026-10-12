@@ -41,7 +41,7 @@ extern "C" const char *webeeblocks_gp_receive_text(void) {
     completed=result && std::sscanf(result,"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",&resultAttempt,oracle,status,tail)==3 && resultAttempt==attempt && !std::strcmp(oracle,"grand-prix-v1") && !std::strcmp(status,"achieved");
   }
   // Simulation deadline remains live while the shared interpreter/browser waits.
-  if(engaged && !completed && !deadlineStopped && wb_robot_get_time()-start>600.0) {
+  if(engaged && !completed && !deadlineStopped && std::llround(wb_robot_get_time()*1000)-std::llround(start*1000)>600000) {
     deadlineStopped=true;marker("failed");
     return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2147483647 STOP";
   }

@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 from .layout import Gate, Layout, SIDE, WIDTH, local
 from .lap_progress import Progress, candidate_score
+from .simulation_time import elapsed_seconds, milliseconds
 
 ORACLE='grand-prix-v1'
 RADIUS=.09
@@ -49,6 +50,8 @@ class Attempt:
             # A repeated mode message cannot erase the taint or restart a clock.
             self.debug=self.debug or debug
             return False
+        try:milliseconds(sim_time)
+        except ValueError:return self.fail('invalid-start-clock')
         self.start_time=sim_time;self.last_time=sim_time;self.debug=debug
         return True
 
@@ -62,7 +65,9 @@ class Attempt:
     def sample(self, sim_time, position, velocity, contacts=(), completed=False):
         if self.result is not None or self.start_time is None:return self.result
         if len(position)!=3 or len(velocity)!=3 or not all(math.isfinite(v) for v in [sim_time,*position,*velocity]):self.fail('invalid-sample');return self.result
-        if sim_time<self.last_time or sim_time-self.start_time>MAX_TIME:self.fail('clock-or-deadline');return self.result
+        try:duration=elapsed_seconds(self.start_time,sim_time)
+        except ValueError:self.fail('invalid-clock');return self.result
+        if sim_time<self.last_time or duration>MAX_TIME:self.fail('clock-or-deadline');return self.result
         elapsed=sim_time-self.last_time
         if math.dist(position,self.previous) > max(.06,elapsed*.7):self.fail('sample-displacement');return self.result
         self.last_time=sim_time
@@ -106,7 +111,7 @@ class Attempt:
             if eligible:
                 if self.stationary_since is None:self.stationary_since=sim_time
                 if sim_time-self.stationary_since>=.5:
-                    seconds=None if self.debug else sim_time-self.start_time
+                    seconds=None if self.debug else duration
                     self.result=Result('achieved',self.layout.identifier,self.attempt,seconds,self.progress.laps,self.progress.crossings,None if seconds is None else candidate_score(self.progress.crossings,seconds))
             else:self.stationary_since=None
             if self.result is None and sim_time-self.completion_time>=1.5:self.fail('invalid-completion')

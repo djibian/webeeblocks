@@ -30,6 +30,28 @@ calibration R2025a de ces durées et aucune équité CPU/WWI n'en découle. La
 reconnaissance comportementale de descente + mesure terminale n'est pas encore
 certifiée par l'oracle de trajectoire. Le prototype doit rester Draft.
 
+La campagne **9a883d99a69ba2b85bcfd35ae012c0596432e33d** a maintenant
+réussi les six essais R2025a (run 38271779409, artefact 11759248567,
+SHA-256 2ff53d6cfc3abc0ec303a38ff6feaf1c5db6e7b54da7b4f4b84ed504e49f21ed).
+Durées réelles 1/2/3 tours : gp-v2-1 = 195,360 / 347,008 / 514,848 s
+(points candidats −51 / −183 / −330) ; gp-v2-4 = 160,736 / 303,360 / 439,168 s
+(−31 / −164 / −290). Un tour est le meilleur des trois dans ces deux circuits,
+et dépasse déjà 120 s. La mémoire n'apporte donc aucun avantage établi :
+le coût marginal mesuré d'un tour (135,808 à 167,840 s) dépasse largement
+son bonus de 10 à 20 points. Réduire le nombre de petits déplacements arrêtés
+par une meilleure stratégie, puis varier la longueur du circuit, est une
+adaptation à mesurer ; ne pas réduire les marges/contrôleur ni changer le barème.
+
+Un contre-exemple de précision a ensuite été trouvé : 8,032 → 128,032 s
+représente exactement 120 000 ms, mais une différence flottante peut coûter
+un point. La durée utilise désormais les millisecondes entières de simulation
+(helper proposé indépendamment en #595), sans délai soustrait ni epsilon de
+barème. Le garde natif de 600 s utilise la même représentation. Le modèle idéal
+émet des ticks entiers de 32 ms, plutôt qu'une accumulation flottante. Les
+nouvelles preuves doivent inclure les vrais instants 119,968 / 120 / 120,032 s
+et leurs pénalités 0 / 0 / 1. Les six PASS précédents restent liés à leur ancien
+HEAD ; la nouvelle campagne native doit revalider la composition temporelle.
+
 ---
 
 # Grand Prix — prototype de faisabilité #587

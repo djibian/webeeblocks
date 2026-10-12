@@ -76,6 +76,8 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             measured=next((e['detail'] for e in found if e.get('event')=='GP_RANGES'),None)
             counts=[e['detail'] for e in found if e.get('event')=='GP_VARIABLES']
             if not measured or not counts or counts[-1]['portes']!=len(generate(seed).gates):raise RuntimeError('missing raw ranges / discovered count')
+            boundaries=[json.loads(line.split('WEBEEBLOCKS_GP_CLOCK_BOUNDARY ',1)[1]) for line in (out/'webots.log').read_text().splitlines() if line.startswith('WEBEEBLOCKS_GP_CLOCK_BOUNDARY ')]
+            if [(v['seconds'],v['penalty']) for v in boundaries]!=[(119.968,0),(120.0,0),(120.032,1)]:raise RuntimeError(f'missing native clock boundaries: {boundaries}')
             native=[json.loads(line.split('WEBEEBLOCKS_GP_RESULT ',1)[1]) for line in (out/'webots.log').read_text().splitlines() if line.startswith('WEBEEBLOCKS_GP_RESULT ')]
             if len(native)!=1:raise RuntimeError('missing or duplicate native result')
             result=native[0];crossings=laps*len(generate(seed).gates)+len(generate(seed).final_gates)-1
