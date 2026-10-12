@@ -31,7 +31,15 @@ class Tests(unittest.TestCase):
             with self.assertRaises(ValueError):generate(seed)
 
     def test_same_sensor_only_ast_across_layouts(self):
-        for seed in [*range(16),42,65535]:
+        # Geometry is determined by these gates; absent sides receive their
+        # low obstacle deterministically. Cover every shape over the full
+        # supported seed domain, without passing any seed/count into the AST.
+        representatives={}
+        for seed in range(65536):
+            layout=generate(seed)
+            representatives.setdefault((layout.gates,layout.final_gates),seed)
+        self.assertEqual(len(representatives),92)
+        for seed in representatives.values():
             layout=generate(seed)
             result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(dataclasses.asdict(layout)),cwd=ROOT,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -94,6 +102,42 @@ class Tests(unittest.TestCase):
             targets.add(generate(seed).final_gates[-1].y+.25)
         self.assertGreater(failed,0)
         self.assertEqual({round(t,2) for t in targets},{-.85,-.55})
+
+    def test_gate_count_memory_is_not_behaviorally_necessary_yet(self):
+        layout=generate(4);payload=dataclasses.asdict(layout);payload['forgetCounts']=True
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['portes'],0)
+        self.assertEqual(values['restantes'],0)
+        self.assertEqual(values['invalide'],0)
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        self.assertEqual(active.result.status,'achieved')
+        # Keep the positive counterexample. Rejecting this trajectory by AST
+        # shape would hide the pedagogical limitation and violate the oracle.
+
+    def test_unexpected_closure_has_same_ranges_but_no_success(self):
+        layout=generate(1)
+        opened=layout.final_gates[0]
+        self.assertFalse(opened.closed)
+        # An unforeseen lower panel has the same high/low observations as a
+        # terminal closed H. Sensors alone cannot attach a semantic identity.
+        obstruction=Box(opened.x,opened.y,.31,.56,.04,.62)
+        attack=dataclasses.replace(layout,boxes=(*layout.boxes,obstruction))
+        payload=dataclasses.asdict(attack)
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['fin'],1)
+        self.assertEqual(values['portes finales'],0)
+        active=Attempt(attack,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        last=evidence['trace'][-1]
+        active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+        self.assertIsNotNone(active.result)
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds)
 
     def test_refutations_and_clock_binding(self):
         layout=generate(3)

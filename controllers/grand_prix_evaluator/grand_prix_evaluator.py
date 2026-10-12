@@ -38,6 +38,8 @@ while robot.step(step)!=-1:
         if data!=expected:
             channel.setSFString(expected)
             print('WEBEEBLOCKS_GP_RESULT '+json.dumps(dataclasses.asdict(result),sort_keys=True),flush=True)
+            if result.status=='not-achieved':
+                print('WEBEEBLOCKS_GP_REJECTION '+json.dumps(dict(time=robot.getTime(),position=vehicle.getPosition(),velocity=vehicle.getVelocity()[:3],cursor=active.cursor,reason=active.failure_reason),sort_keys=True),flush=True)
         label=(f'{layout.identifier} — {result.seconds:.3f} s' if result.seconds is not None else
                f'{layout.identifier} — '+('réussi, mode observation' if result.status=='achieved' else 'essai invalide'))
     elif active.start_time is not None:

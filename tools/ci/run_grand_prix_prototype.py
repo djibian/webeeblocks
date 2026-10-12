@@ -54,7 +54,9 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
                         if events.exists():
                             found=[json.loads(line) for line in events.read_text().splitlines() if line.strip()]
                             if any(e.get('event') in ('GP_ERROR','GP_RANGES') for e in found):break
-                        if (out/'webots.log').exists() and any(marker in (out/'webots.log').read_text() for marker in ('ERROR:','Traceback (most recent call last)')):break
+                        if (out/'webots.log').exists():
+                            observed=(out/'webots.log').read_text()
+                            if any(marker in observed for marker in ('ERROR:','Traceback (most recent call last)','WEBEEBLOCKS_GP_REJECTION')):break
                         time.sleep(.25)
                 finally:
                     if proc.poll() is None:

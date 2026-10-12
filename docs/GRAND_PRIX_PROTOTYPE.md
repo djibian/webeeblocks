@@ -46,7 +46,7 @@ Les contre-exemples ont déjà contraint le générateur :
   un intervalle de réarmement avant le H fermé.
 
 L'analyse de rayons idéale teste 100 graines. Le **même AST** témoin passe
-18 configurations dans ce modèle, découvre le compte au premier tour et le
+les 92 géométries distinctes produites par toutes les graines 0–65535 dans ce modèle, découvre le compte au premier tour et le
 réutilise par décrémentation aux tours suivants. Le témoin confirme la paroi
 avant un coin, engage une porte une seule fois, descend et exige une mesure
 avant basse finie <1,99 m, puis remonte après dégagement et vérifie la traverse
@@ -61,6 +61,27 @@ slot exige une hauteur basse pour un H et haute pour un obstacle bas dans une
 autre configuration ; l’arrivée varie aussi. Le programme aveugle est désormais
 réfuté dans la matrice, tandis que le témoin sensoriel reste accepté. Aucune
 inspection des blocs ni donnée cachée ne produit cette différence.
+
+La nécessité pédagogique du compte mémorisé est également réfutée dans cette
+topologie : remettre toutes les écritures des variables « portes » et
+« restantes » à zéro laisse le même parcours sensoriel réussir gp-v2-4. Les
+quatre coins ordinaires suffisent à la fin des trois tours. Le test conserve
+cette réussite légitime ; l'oracle ne la rejette pas pour sa forme AST. Le
+témoin original découvre et réutilise un compte, mais le monde ne rend pas
+encore cette mémoire **nécessaire**. Ce critère de #587 exige un autre design
+pédagogique ou une clarification du résultat attendu ; aucun compteur caché
+ni obligation artificielle de blocs n'est ajouté.
+
+Un autre contre-exemple borne l'identification finale : fermer inopinément le
+premier H ouvert de la ligne finale donne les mêmes mesures hautes/basses
+qu'un H terminal fermé. Le témoin sensoriel déclare alors sa fin trop tôt ;
+l'oracle de trajectoire refuse la réussite et le chrono, car un passage et la
+vraie zone d'arrivée manquent. Le test conserve cette réfutation. Aucune suite
+finie de mesures de distance ne peut donner l'identité sémantique de deux
+géométries identiques. Le prototype assume donc exclusivement les configurations
+immuables du générateur ; la reconnaissance robuste d'une fermeture imprévue
+reste **non démontrée**. Le contrat #587 ne peut pas être déclaré intégralement
+satisfait sur ce point par les seules configurations positives.
 
 Cette preuve idéale ne valide pas l'inclinaison, les marges de freinage, les
 signaux réels ou le programme dans Webots. Elle est un contrôle falsificateur,
@@ -79,8 +100,8 @@ de gabarit/piste ; des lectures répétées dans une zone ne font pas un tour. L
 le recul, les raccourcis et une sortie prématurée ne donnent pas de nouveaux
 tours/portes. Un échec est terminal pour cette tentative.
 
-Le contrôleur dédié interpose uniquement l'observation du transport Webots
-existant. Il retient le temps de réception du takeoff, dans le même pas de
+Le contrôleur dédié observe et borne uniquement le transport de simulation
+Webots existant. Il retient le temps de réception du takeoff, dans le même pas de
 simulation que son admission, et exige son ACK réel. Une erreur ou un STOP
 révoque définitivement cette mesure ; un ACK tardif ne l'efface pas. Reset
 consomme l'acquittement natif puis prend la nouvelle identité du broker existant.
@@ -149,3 +170,15 @@ aucune mesure capteur ni trajectoire n'a été obtenue. Le contrôleur reçoit d
 le même `runtime.ini` Qt/Webots que le Runtime partagé. Les textures par défaut
 du commit épinglé sont ajoutées au montage. La nouvelle paire 1/4 couvre aussi
 deux comptes de H distincts ; 1/3 avait quatre H dans les deux mondes.
+
+Le premier probe dynamique fonctionnel, HEAD
+`3db9611cf2bf07bf50a96bf2335812a37c0a4f57`, run 38238140957, artefact
+11742870803 (SHA-256 3ce4818d81139fdecdf24fd5e7c6555d6850211d379761edb2f421ad34fc4f33),
+est **rouge** sur gp-v2-1. Il relève 432 vraies mesures ; les variables du témoin
+rapportent trois tours et quatre H, mais l'oracle invalide dès l'ascension,
+avant l'ACK de takeoff. Ces variables ne prouvent donc aucun parcours valide.
+Le second monde n'a pas été exécuté. Un diagnostic de rejet avec temps,
+position, vitesse et invariant est ajouté exclusivement au journal superviseur,
+jamais au programme ; les seuils restent identiques. Le runner termine au
+rejet pour conserver la cause initiale sans attendre une fausse complétion.
+Le candidat ne peut être déclaré faisable dans le vrai Webots sur cette preuve.

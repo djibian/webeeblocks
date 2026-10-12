@@ -6,7 +6,15 @@ const layout=JSON.parse(fs.readFileSync(0,'utf8'));
 const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}),{kind:'move',direction:'forward',distance_m:.2}];
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
 const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
-const ast=layout.blind?blind:witness;
+const ast=JSON.parse(JSON.stringify(layout.blind?blind:witness));
+// Test-authored ablation: the programme still senses/steers, but never learns
+// the number of H. It receives no configuration information.
+if(layout.forgetCounts){
+ const visit=value=>{if(!value||typeof value!=='object')return;
+  if(value.kind==='set_variable'&&['portes','restantes'].includes(value.variable.name))value.value={kind:'number',value:0};
+  Object.values(value).forEach(child=>{if(Array.isArray(child))child.forEach(visit);else visit(child);});
+ };visit(ast);
+}
 let p=[0,0,.015],heading=0,time=0;
 const trace=[],ranges=[],variables=[];
 function ray(direction){
