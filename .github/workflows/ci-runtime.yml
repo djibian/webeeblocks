@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 tools/ci/test_grand_prix.py
           python3 tools/ci/test_grand_prix_bridge.py
+          node tools/ci/test_grand_prix_profile.js
       - name: Prove sensor-only candidate in real Webots R2025a
         run: python3 tools/ci/run_grand_prix_prototype.py
       - uses: actions/upload-artifact@v4

@@ -13,8 +13,7 @@ const profile={id:'progression-grand-prix-v1',world:'worlds/grand_prix_v1.wbt',
 };
 if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUntil');profile.runtime.allowedStatementKinds.push('while');profile.runtime.astBounds['while.max_iterations']={min:1,max:100};}
 window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
-const resolve=WebeeBlocksActivityProfiles.resolveById;
-WebeeBlocksActivityProfiles.resolveById=function(document,id,catalog){return resolve(document,id==='reactive-obstacle-v2'?profile.id:id,catalog);};
+window.WebeeBlocksInitialActivityId=profile.id;
 const inject=Blockly.inject;
 Blockly.inject=function(element,options){return inject(element,Object.assign({},options,{media:'../blockly_v2/vendor/media/'}));};
 const OriginalBackend=WebeeBlocksWwiBackend;

@@ -369,7 +369,7 @@ function wireWorkspaceControls() {
 
 window.onload = async function() {
   profileFieldOptions = WebeeBlocksActivityProfiles.createFieldOptionController(WebeeBlocksActivities.DOCUMENT, WebeeBlocksActivities.BLOCK_CATALOG, Blockly);
-  runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
+  runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, typeof WebeeBlocksInitialActivityId === 'string' ? WebeeBlocksInitialActivityId : 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
   profileFieldOptions.setProfile(runtimeProfile, null);
   document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
   document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;
