@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from .layout import Gate, Layout, SIDE, WIDTH, local
+from .lap_progress import Progress, candidate_score
 
 ORACLE='grand-prix-v1'
 RADIUS=.09
@@ -14,6 +15,9 @@ class Result:
     configuration: str
     attempt: int
     seconds: float | None
+    laps: int = 0
+    crossings: int = 0
+    candidate_points: int | None = None
 
 class Attempt:
     def __init__(self, layout: Layout, attempt: int, origin_z: float):
@@ -23,13 +27,20 @@ class Attempt:
         self.previous=(0.,0.,origin_z);self.airborne=False;self.cursor=0;self.armed=False
         self.events=[];self.completion_time=None;self.stationary_since=None;self.failure_reason=None
         corners=[(SIDE,0),(SIDE,SIDE),(0,SIDE),(0,0)]
-        for _ in range(3):
-            for side,corner in enumerate(corners):
-                for gate in layout.gates:
-                    heading=round((gate.heading%(2*math.pi))/(math.pi/2))%4
-                    if heading==side:self.events.append(gate)
-                self.events.append(corner)
-        self.events.extend(gate for gate in layout.final_gates if not gate.closed)
+        for side,corner in enumerate(corners):
+            for gate in layout.gates:
+                heading=round((gate.heading%(2*math.pi))/(math.pi/2))%4
+                if heading==side:self.events.append(gate)
+            self.events.append(corner)
+        ring=tuple('h:'+str(i) if isinstance(event,Gate) else ('junction' if i==len(self.events)-1 else 'corner:'+str(i)) for i,event in enumerate(self.events))
+        self.final_events=[gate for gate in layout.final_gates if not gate.closed]
+        self.progress=Progress(ring,tuple('final:'+str(i) for i in range(len(self.final_events))))
+        self.exit_started=False
+
+    def _advance(self):
+        if not self.progress.advance(self.progress.expected):
+            self.fail('route-bound')
+        self.cursor=self.progress.cursor
 
     def start(self, attempt: int, sim_time: float, debug: bool):
         if attempt != self.attempt: return False
@@ -44,7 +55,8 @@ class Attempt:
     def fail(self,reason='invalid-attempt'):
         if self.result is None:
             self.failure_reason=reason
-            self.result=Result('not-achieved',self.layout.identifier,self.attempt,None)
+            self.progress.fail()
+            self.result=Result('not-achieved',self.layout.identifier,self.attempt,None,self.progress.laps,self.progress.crossings)
         return False
 
     def sample(self, sim_time, position, velocity, contacts=(), completed=False):
@@ -66,7 +78,11 @@ class Attempt:
         on_ring=(-.4+RADIUS<=x<=SIDE+.4-RADIUS and -.4+RADIUS<=y<=SIDE+.4-RADIUS)
         on_final=abs(x)<=.4-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=.31
         if not on_ring and not on_final:self.fail('off-track')
-        if y<-.31 and self.cursor<12+3*len(self.layout.gates):self.fail('early-exit')
+        if self.exit_started and not on_final:self.fail('return-after-exit')
+        if y<-.31 and not self.exit_started:
+            if not self.progress.choose_exit():self.fail('early-exit')
+            else:
+                self.exit_started=True;self.events=self.final_events;self.cursor=0;self.armed=False
         if self.result:return self.result
         if self.cursor<len(self.events):
             event=self.events[self.cursor]
@@ -77,20 +93,21 @@ class Attempt:
                 if -.11<=progress<=.11 and (abs(offset)+RADIUS>.28 or z+RADIUS>.62 or z-RADIUS<.10):self.fail('gate-envelope')
                 if self.armed and before<.10<=progress:
                     if abs(offset)+RADIUS>.28 or z+RADIUS>.62 or z-RADIUS<.10:self.fail('gate-envelope')
-                    else:self.cursor+=1;self.armed=False
+                    else:self._advance();self.armed=False
             elif abs(x-event[0])<=WIDTH/2 and abs(y-event[1])<=WIDTH/2 and self.airborne:
-                self.cursor+=1;self.armed=False
+                self._advance();self.armed=False
         self.previous=tuple(position)
         if completed and self.completion_time is None:self.completion_time=sim_time
         if self.completion_time is not None:
             landed=z<=self.origin_z+.07
             stationary=math.hypot(*velocity[:2])<=.12 and abs(velocity[2])<=.12
             arrival=abs(x)<=.14 and abs(y-(self.layout.final_gates[-1].y+.25))<=.14
-            eligible=self.airborne and self.cursor==len(self.events) and landed and stationary and arrival
+            eligible=self.airborne and self.progress.final_complete and landed and stationary and arrival
             if eligible:
                 if self.stationary_since is None:self.stationary_since=sim_time
                 if sim_time-self.stationary_since>=.5:
-                    self.result=Result('achieved',self.layout.identifier,self.attempt,None if self.debug else sim_time-self.start_time)
+                    seconds=None if self.debug else sim_time-self.start_time
+                    self.result=Result('achieved',self.layout.identifier,self.attempt,seconds,self.progress.laps,self.progress.crossings,None if seconds is None else candidate_score(self.progress.crossings,seconds))
             else:self.stationary_since=None
             if self.result is None and sim_time-self.completion_time>=1.5:self.fail('invalid-completion')
         return self.result

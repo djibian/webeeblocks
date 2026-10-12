@@ -1,3 +1,37 @@
+## Migration expérimentale vers les tours libres (#587)
+
+L'oracle n'impose désormais aucun nombre de tours. Il valide la séquence orientée
+H/coins d'un tour, comptabilise ce tour au retour à la jonction et accepte ensuite
+la sortie volontaire. Le même portique rapporte à nouveau après un nouveau tour
+complet ; les passages d'un tour incomplet ne sont pas validés. Le noyau abstrait
+est proposé indépendamment en #593 et repris ici pour l'expérience seulement.
+La limite de 20 tours et celle de 600 s restent des bornes externes.
+
+Les stratégies témoins choisissent 1, 2 ou 3 tours, via l'AST ordinaire ; le
+Supervisor ne transmet rien au programme. Les capteurs identifient les mêmes
+jonctions à chaque tour. WHILE/UNTIL est maintenant intégré par #590 : les
+saturations provoquent une erreur avant LAND, sauf les fixtures historiques
+explicitement étiquetées fallback. Une fermeture reconnue dans la boucle fait
+cesser les translations et engage LAND ; l'oracle doit refuser cette fin.
+
+Le résultat expose configuration, tentative, durée Webots, tours et passages.
+Les points sont **expérimentaux**, selon la convention candidate de #587 :
+`5 * passages - ceil(max(0, secondes - 120))`. Aucun score officiel n'est revendiqué
+avant confirmation de la convention et reconnaissance de fin prouvée. Le probe
+R2025a confronte trois AST choisis indépendamment à deux configurations, conserve
+leur empreinte et les résultats natifs. Aucun ancien PASS trois tours n'est
+transféré à ce nouveau HEAD.
+
+Le modèle idéal (.2 m/s, sans PID/latences réelles) donne : gp-v2-1,
+1/2/3 tours = 68,608/118,400/168,192 s et 25/45/16 points candidats ; gp-v2-4 =
+53,920/95,200/136,480 s et 10/20/13 points. Cela démontre seulement l'arithmétique
+et la flexibilité de l'oracle : **aucun avantage mesuré de mémoire**, aucune
+calibration R2025a de ces durées et aucune équité CPU/WWI n'en découle. La
+reconnaissance comportementale de descente + mesure terminale n'est pas encore
+certifiée par l'oracle de trajectoire. Le prototype doit rester Draft.
+
+---
+
 # Grand Prix — prototype de faisabilité #587
 
 Ce candidat est une **simulation expérimentale**, pas une validation pédagogique

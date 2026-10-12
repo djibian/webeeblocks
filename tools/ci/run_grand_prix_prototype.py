@@ -2,6 +2,8 @@
 """Real-Webots proof using one sensor-only AST; never a hardware checkpoint."""
 from pathlib import Path
 import json
+import hashlib
+import math
 import os
 import shutil
 import subprocess
@@ -28,11 +30,13 @@ def main():
     html=ROOT/'plugins/robot_windows/grand_prix_probe/grand_prix_probe.html'
     original=html.read_text();html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js'))
     try:
-        for seed in (1,4):
+        summaries=[];programs={}
+        for seed,laps in ((1,1),(4,1),(1,2),(4,2),(1,3),(4,3)):
+            html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};</script><script src="grand_prix_probe.js"></script>'))
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
             target.write_text(world_text(generate(seed)).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
             project.write_text('Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')
-            out=ARTIFACTS/str(seed);out.mkdir(parents=True,exist_ok=True)
+            out=ARTIFACTS/f'{seed}-{laps}';out.mkdir(parents=True,exist_ok=True)
             events=out/'events.jsonl';events.unlink(missing_ok=True)
             inner=f'''set -e
 apt-get update >/dev/null
@@ -42,11 +46,11 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/n
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /root/.config/Cyberbotics
 printf '%s\\n' '[RobotWindow]' 'browser=/workspace/tools/ci/webots_runtime_v2_browser.sh' 'newBrowserWindow=false' > /root/.config/Cyberbotics/Webots-R2025a.conf
-python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/grand-prix/{seed}/events.jsonl &
+python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/grand-prix/{seed}-{laps}/events.jsonl &
 trap 'kill $! 2>/dev/null || true' EXIT
 xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_gp_{seed}.wbt'''
             with (out/'webots.log').open('w') as log:
-                proc=subprocess.Popen(['docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{seed}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
+                proc=subprocess.Popen(['docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{seed}-{laps}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
                 end=time.monotonic()+1100
                 found=[]
                 try:
@@ -72,7 +76,19 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             measured=next((e['detail'] for e in found if e.get('event')=='GP_RANGES'),None)
             counts=[e['detail'] for e in found if e.get('event')=='GP_VARIABLES']
             if not measured or not counts or counts[-1]['portes']!=len(generate(seed).gates):raise RuntimeError('missing raw ranges / discovered count')
-            print(f'PASS real Webots {generate(seed).identifier}: same AST, discovered gate count, three laps, terminal closed gate and simulation-clock outcome',flush=True)
+            native=[json.loads(line.split('WEBEEBLOCKS_GP_RESULT ',1)[1]) for line in (out/'webots.log').read_text().splitlines() if line.startswith('WEBEEBLOCKS_GP_RESULT ')]
+            if len(native)!=1:raise RuntimeError('missing or duplicate native result')
+            result=native[0];crossings=laps*len(generate(seed).gates)+len(generate(seed).final_gates)-1
+            if result['laps']!=laps or result['crossings']!=crossings or result['configuration']!=generate(seed).identifier or result['attempt']!=1:raise RuntimeError(f'wrong exact route result: {result}')
+            if result['candidate_points']!=5*crossings-math.ceil(max(0,result['seconds']-120)):raise RuntimeError('wrong candidate score')
+            programme=next(e['detail'] for e in found if e.get('event')=='GP_PROGRAM')
+            digest=hashlib.sha256(json.dumps(programme,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+            if laps in programs and programs[laps]!=digest:raise RuntimeError('programme changed between configurations')
+            programs[laps]=digest
+            result.update(ast_sha256=digest,webots_image=IMAGE,mode='realtime')
+            summaries.append(result);(out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+            print(f'PASS real Webots {generate(seed).identifier}: {laps} freely chosen laps, same strategy AST across configurations, {crossings} crossings, {result["seconds"]:.3f}s, {result["candidate_points"]} candidate points',flush=True)
+        (ARTIFACTS/'strategies.json').write_text(json.dumps(summaries,indent=2)+'\n')
     finally:
         html.write_text(original);witness.unlink(missing_ok=True)
     return 0

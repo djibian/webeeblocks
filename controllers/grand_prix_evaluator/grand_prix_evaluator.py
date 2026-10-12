@@ -31,7 +31,7 @@ while robot.step(step)!=-1:
     result=active.sample(robot.getTime(),vehicle.getPosition(),vehicle.getVelocity()[:3],
                          [c.point for c in vehicle.getContactPoints(True)],completed=complete)
     if result is not None and result.status=='achieved' and (not marker or marker[4]!='accepted'):
-        result=dataclasses.replace(result,status='not-achieved',seconds=None)
+        result=dataclasses.replace(result,status='not-achieved',seconds=None,candidate_points=None)
         active.result=result
     if result is not None:
         expected=f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={active.attempt} oracle={ORACLE} status={result.status}'
@@ -40,9 +40,9 @@ while robot.step(step)!=-1:
             print('WEBEEBLOCKS_GP_RESULT '+json.dumps(dataclasses.asdict(result),sort_keys=True),flush=True)
             if result.status=='not-achieved':
                 print('WEBEEBLOCKS_GP_REJECTION '+json.dumps(dict(time=robot.getTime(),position=vehicle.getPosition(),velocity=vehicle.getVelocity()[:3],cursor=active.cursor,reason=active.failure_reason),sort_keys=True),flush=True)
-        label=(f'{layout.identifier} — {result.seconds:.3f} s' if result.seconds is not None else
+        label=(f'{layout.identifier} / essai {result.attempt} — {result.seconds:.3f} s — {result.laps} tours — {result.crossings} passages — {result.candidate_points} points (expérimental)' if result.seconds is not None else
                f'{layout.identifier} — '+('réussi, mode observation' if result.status=='achieved' else 'essai invalide'))
     elif active.start_time is not None:
-        label=f'{layout.identifier} — {robot.getTime()-active.start_time:.3f} s (provisoire)'
+        label=f'{layout.identifier} / essai {active.attempt} — {robot.getTime()-active.start_time:.3f} s — {active.progress.laps} tours — {active.progress.crossings} passages validés (provisoire)'
     else:label=f'{layout.identifier} — prêt'
     robot.setLabel(0,label,.02,.03,.065,0xFFFFFF,0,'Arial')

@@ -40,7 +40,10 @@
         if (guard > 200) fail('program too large');
         var path = prefix.concat(index);
         remember(block, path);
-        if (block.type === 'controls_repeat_ext') {
+        if (block.type === 'controls_whileUntil') {
+          expression(block.getInputTargetBlock('BOOL'), path.concat('condition'));
+          sequence(block.getInputTargetBlock('DO'), path.concat('body'));
+        } else if (block.type === 'controls_repeat_ext') {
           sequence(block.getInputTargetBlock('DO'), path.concat('body'));
         } else if (block.type === 'controls_if') {
           expression(block.getInputTargetBlock('IF0'), path.concat('condition'));

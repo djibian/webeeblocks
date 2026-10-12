@@ -59,8 +59,23 @@ class Tests(unittest.TestCase):
             self.assertEqual(active.result.status,'achieved',(seed,active.cursor,evidence['trace'][-1]))
             self.assertGreater(active.result.seconds,0)
 
+    def test_free_lap_strategies_and_candidate_points(self):
+        for seed in (1,4):
+            scores=[]
+            for laps in (1,2,3):
+                layout=generate(seed);payload=dataclasses.asdict(layout);payload['strategyLaps']=laps
+                evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+                active=Attempt(layout,1,.015);active.start(1,0,False)
+                landing=evidence['trace'][-33]['time']
+                for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+                self.assertEqual(active.result.status,'achieved')
+                self.assertEqual(active.result.laps,laps)
+                self.assertEqual(active.result.crossings,len(layout.gates)*laps+len(layout.final_gates)-1)
+                scores.append(active.result.candidate_points)
+            self.assertGreater(scores[1],scores[0]);self.assertLess(scores[2],scores[1])
+
     def test_missing_low_return_is_neither_open_nor_closed(self):
-        layout=dataclasses.asdict(generate(1));layout['injectRangeLoss']=True
+        layout=dataclasses.asdict(generate(1));layout['injectRangeLoss']=True;layout['useConditionalLoops']=False
         result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(layout),cwd=ROOT,text=True,capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr)
         evidence=json.loads(result.stdout);values=evidence['result']['variables']
@@ -72,7 +87,7 @@ class Tests(unittest.TestCase):
         for sample in invalid:self.assertLess(math.hypot(sample['position'][0]-first[0],sample['position'][1]-first[1]),1e-8)
 
     def test_double_saturation_is_uncertain_but_can_land_in_arrival(self):
-        layout=generate(4);payload=dataclasses.asdict(layout);payload['injectRangeLossBoth']=True
+        layout=generate(4);payload=dataclasses.asdict(layout);payload['injectRangeLossBoth']=True;payload['useConditionalLoops']=False
         evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
         values=evidence['result']['variables']
         self.assertEqual(values['invalide'],1)
@@ -200,6 +215,25 @@ try { I.validateProgram(ast); console.log('supported'); } catch(e) { if(!/unsupp
         self.assertIsNotNone(active.result)
         self.assertEqual(active.result.status,'not-achieved')
         self.assertIsNone(active.result.seconds)
+
+    def test_unexpected_ring_closure_lands_without_points(self):
+        layout=generate(1);gate=layout.gates[0]
+        horizontal=abs(math.cos(gate.heading))>.5
+        panel=Box(gate.x,gate.y,.31,.04 if horizontal else .56,.56 if horizontal else .04,.62)
+        attack=dataclasses.replace(layout,boxes=(*layout.boxes,panel))
+        payload=dataclasses.asdict(attack);payload['strategyLaps']=1
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        self.assertEqual(evidence['lands'],1)
+        self.assertEqual(evidence['result']['variables']['fin'],1)
+        first=next(v['position'] for v in evidence['variables'] if v['values'].get('fin')==1)
+        landing=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:
+            if sample['time']>=landing:self.assertLess(math.dist(sample['position'][:2],first[:2]),1e-8)
+        active=Attempt(attack,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        last=evidence['trace'][-1];active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+        self.assertEqual(active.result.status,'not-achieved');self.assertIsNone(active.result.candidate_points)
 
     def test_real_initial_overshoot_remains_rejected(self):
         # Actual R2025a sample from b7f1493 / run 38239852904 / artifact

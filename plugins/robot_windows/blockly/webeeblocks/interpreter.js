@@ -64,6 +64,13 @@
           thenAssigned.forEach(function(id){if(elseAssigned.has(id))assigned.add(id);});
           break;
         }
+        case 'while':{
+          if(statement.mode!=='WHILE'&&statement.mode!=='UNTIL')fail('unsupported loop mode');
+          if(!Number.isInteger(statement.max_iterations)||statement.max_iterations<1||statement.max_iterations>100)fail('loop iteration limit out of bounds');
+          validateExpression(statement.condition,depth+1,assigned,variables);
+          validateSequence(statement.body,depth+1,true,cloneSet(assigned),variables);
+          break; // A conditional loop can execute zero times.
+        }
         case 'repeat':{var count=Number(statement.count);if(!Number.isInteger(count)||count<1||count>20)fail('repeat count out of bounds');validateSequence(statement.body,depth+1,true,assigned,variables);break;}
         default:fail('unsupported statement kind '+statement.kind);
       }
@@ -94,6 +101,7 @@
         cost+=1;
         if(node.kind==='set_variable')cost+=expressionCost(node.value);
         if(node.kind==='if')cost+=expressionCost(node.condition)+Math.max(sequenceCost(node.then),sequenceCost(node.else||[]));
+        if(node.kind==='while')cost+=(node.max_iterations+1)*expressionCost(node.condition)+node.max_iterations*(1+sequenceCost(node.body));
         if(node.kind==='repeat')cost+=node.count*sequenceCost(node.body);
         if(cost>maxSteps)fail('reachable execution exceeds runtime budget before takeoff');
       });
@@ -163,11 +171,25 @@
           await hook(options,'onVariables',{node:statement,path:path.slice(),role:'statement',variables:snapshot(env),variable:ref,values:snapshot(env)});break;
         }
         case 'if':{var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));await hook(options,'beforeStep',context(statement,path,'statement',env));await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'),env);break;}
+        case 'while':{
+          var iteration=0;
+          for(;;){
+            var loopCondition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));
+            if(statement.mode==='UNTIL'?loopCondition:!loopCondition)break;
+            if(iteration>=statement.max_iterations)fail('conditional loop iteration limit exceeded');
+            budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
+            await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:iteration}));
+            await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);
+            iteration+=1;
+          }
+          break;
+        }
         case 'repeat':for(var repeat=0;repeat<statement.count;repeat++){await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:repeat}));await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);}break;
       }
     }
   }
 
-  async function run(ast,backend,options){validateProgram(ast);var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
+  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||(node.kind==='repeat'&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
+  async function run(ast,backend,options){validateProgram(ast);if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
   return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });

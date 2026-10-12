@@ -21,7 +21,7 @@ function count(){return iff(cmp('EQ',v('tour'),0),[increment('portes')],[increme
 function gate(final){return [
   iff(cmp('EQ',v('engagé'),0),[
     ...centered,vertical('down'),set('bas',range('front')),
-    iff(invalidLow,[set('engagé',1)],final?[iff(and(and(cmp('GT',v('bas'),.09),cmp('LT',v('bas'),1.99)),and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08))))),[set('fin',1)],[set('invalide',1)])]:[set('invalide',1)])
+    iff(invalidLow,[set('engagé',1)],[iff(and(and(cmp('GT',v('bas'),.09),cmp('LT',v('bas'),1.99)),and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08))))),final?[set('fin',1)]:[set('fin',1),set('invalide',1)],[set('invalide',1)])])
   ]),
   iff(and(cmp('EQ',v('engagé'),1),cmp('EQ',v('invalide'),0)),[move()])
 ];}
@@ -29,7 +29,7 @@ function clearance(final){return [vertical('up'),set('arrière',range('back')),
   iff(and(cmp('GT',v('arrière'),.09),cmp('LT',v('arrière'),.65)),final?[increment('portes finales')]:[count()],[set('invalide',1)]),set('engagé',0)];}
 const corridor=[iff(and(cmp('GTE',ar('ADD',v('gauche'),v('droite')),.72),cmp('LTE',ar('ADD',v('gauche'),v('droite')),.88)),centered),move()];
 const turn=and(cmp('EQ',v('paroi vue'),1),cmp('GT',v('gauche'),.48));
-const segment=repeat(20,[iff(and(cmp('EQ',v('virage fait'),0),cmp('EQ',v('invalide'),0)),[
+const segment=repeat(14,[iff(and(cmp('EQ',v('virage fait'),0),cmp('EQ',v('invalide'),0)),[
   ...reads,iff(cmp('LT',v('gauche'),.48),[set('paroi vue',1)]),
   iff(narrow,gate(false),[
     iff(cmp('EQ',v('engagé'),1),clearance(false),[
@@ -43,8 +43,18 @@ const ast={version:1,semantics:'webeeblocks-ast-v1',program:[
   repeat(20,[iff(and(cmp('EQ',v('fin'),0),cmp('EQ',v('invalide'),0)),[...reads,iff(narrow,gate(true),[iff(cmp('EQ',v('engagé'),1),clearance(true),corridor)])])]),
   {kind:'land'}
 ]};
-function build(conditionalLoops){
+function build(conditionalLoops,laps){
   const result=JSON.parse(JSON.stringify(ast));
+  laps=laps===undefined?3:laps;
+  if(!Number.isInteger(laps)||laps<1||laps>7)throw new Error("invalid witness lap strategy");
+  const circuit=result.program.find(node=>node.kind==='repeat'&&node.count===3);
+  circuit.count=laps;
+  function visit(node){
+    if(!node||typeof node!=='object')return;
+    if(node.kind==='compare'&&node.left&&node.left.kind==='variable_get'&&node.left.variable.name==='tour'&&node.op==='EQ'&&node.right.value===2)node.right.value=laps-1;
+    Object.values(node).forEach(child=>Array.isArray(child)?child.forEach(visit):visit(child));
+  }
+  visit(circuit);
   if(conditionalLoops===true){
     const final=result.program[result.program.length-2];
     result.program[result.program.length-2]={kind:'while',mode:'UNTIL',condition:cmp('EQ',v('fin'),1),body:final.body,max_iterations:20};

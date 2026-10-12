@@ -5,7 +5,7 @@ const Profiles=require('../../plugins/robot_windows/blockly/webeeblocks/activity
 const source=fs.readFileSync('plugins/robot_windows/grand_prix/setup.js','utf8');
 function compose(loops){
  const catalog=Object.assign({},Activities.BLOCK_CATALOG);
- if(loops)catalog.controls_whileUntil={category:'control'};
+ if(loops)catalog.controls_whileUntil={category:'control'};else delete catalog.controls_whileUntil;
  const context={WebeeBlocksActivities:{BLOCK_CATALOG:catalog,DOCUMENT:Activities.DOCUMENT},WebeeBlocksActivityProfiles:Profiles,Blockly:{inject:(a,o)=>o},WebeeBlocksWwiBackend:function(r,o){this.capabilities={simulationScenes:o.simulationScenes};this.takeoff=async()=>{};this._request=async()=>{};}};
  context.window=context;vm.runInNewContext(source,context);
  const profile=Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,context.WebeeBlocksInitialActivityId,catalog);

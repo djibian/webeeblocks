@@ -3,7 +3,7 @@ const fs=require('fs');
 const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
 const witnessModule=require('../grand_prix/reference_program');
 const layout=JSON.parse(fs.readFileSync(0,'utf8'));
-const witness=witnessModule.build(layout.useConditionalLoops===true);
+const witness=witnessModule.build(layout.useConditionalLoops!==false,layout.strategyLaps);
 const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}),{kind:'move',direction:'forward',distance_m:.2}];
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
 const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
@@ -32,7 +32,7 @@ function ray(direction){
 function sample(velocity=[0,0,0]){time+=.032;trace.push({time,position:p.slice(),velocity});}
 async function motion(target){const delta=target.map((v,i)=>v-p[i]);const distance=Math.hypot(...delta),steps=Math.max(1,Math.ceil(distance/.0064));const velocity=delta.map(v=>v/(steps*.032));for(let i=0;i<steps;i++){p=p.map((v,a)=>v+delta[a]/steps);sample(velocity);}sample();}
 const backend={
- capabilities:{conditionalLoops:layout.useConditionalLoops===true,actions:['takeoff','move','turn','vertical','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down']},
+ capabilities:{conditionalLoops:layout.useConditionalLoops!==false,actions:['takeoff','move','turn','vertical','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down']},
  async takeoff(h){await motion([p[0],p[1],.015+h]);},
  async land(){lands++;await motion([p[0],p[1],.015]);},
  async move(direction,distance){const a=heading+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);await motion([p[0]+distance*Math.cos(a),p[1]+distance*Math.sin(a),p[2]]);},
