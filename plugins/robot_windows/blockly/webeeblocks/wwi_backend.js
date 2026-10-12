@@ -36,6 +36,7 @@
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;
     var capabilities = {
+      conditionalLoops: true,
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],
       moveDirections: ['forward', 'back', 'left', 'right'],
