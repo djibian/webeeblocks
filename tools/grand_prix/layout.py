@@ -7,7 +7,7 @@ import json
 import math
 from pathlib import Path
 
-VERSION = 'gp-v1'
+VERSION = 'gp-v2'
 SIDE = 1.4
 WIDTH = .8
 GAP = .56
@@ -36,9 +36,10 @@ class Layout:
     gates: tuple[Gate, ...]
     final_gates: tuple[Gate, ...]
     boxes: tuple[Box, ...]
+    version: str = VERSION
     @property
     def identifier(self):
-        return f'{VERSION}-{self.seed}'
+        return f'{self.version}-{self.seed}'
 
 
 def generate(seed: int) -> Layout:
@@ -53,12 +54,22 @@ def generate(seed: int) -> Layout:
         starts = [(0, 0, 0), (SIDE, 0, math.pi/2), (SIDE, SIDE, math.pi), (0, SIDE, -math.pi/2)]
         x, y, heading = starts[side]
         gates.append(Gate(round(x + distance*math.cos(heading), 6), round(y + distance*math.sin(heading), 6), heading))
-    final = ([Gate(0, -.46, -math.pi/2)] if digest[9] % 2 else []) + [Gate(0, -1.1, -math.pi/2, True)]
+    final = [Gate(0, -.46, -math.pi/2), Gate(0, -1.1, -math.pi/2, True)] if digest[9] % 2 else [Gate(0, -.8, -math.pi/2, True)]
     # Outer boundary, inner island and exit corridor. All have real collision boxes.
     boxes = [Box(-.42, 0, .65, .04, 3.68, 1.3), Box(1.82, .7, .65, .04, 2.28, 1.3),
              Box(.7, 1.82, .65, 2.28, .04, 1.3), Box(1.11, -.42, .65, 1.42, .04, 1.3),
              Box(.42, -1.12, .65, .04, 1.4, 1.3), Box(0, -1.82, .65, .8, .04, 1.3),
              Box(.7, .7, .65, .6, .6, 1.3)]
+    # A side without a H contains a full-width low obstacle at the same slot.
+    # Low flight and high flight therefore cannot both cross every layout:
+    # low is required for H, high for the alternate observed geometry.
+    for side in range(4):
+        if side in sides: continue
+        starts = [(0, 0, 0), (SIDE, 0, math.pi/2), (SIDE, SIDE, math.pi), (0, SIDE, -math.pi/2)]
+        x,y,heading=starts[side]
+        x+=.76*math.cos(heading);y+=.76*math.sin(heading)
+        horizontal=abs(math.cos(heading))>.5
+        boxes.append(Box(round(x,6),round(y,6),.25,.08 if horizontal else .8,.8 if horizontal else .08,.5))
     for gate in [*gates, *final]:
         # Plates extend 24 cm before/after the traverse. The sensor rays see
         # them before the front plane, unlike a thin H with no approach length.
@@ -109,7 +120,7 @@ def world_text(layout: Layout):
         position=f'{box.x:.6f} {box.y:.6f} {box.z:.6f}'
         size=f'{box.sx:.6f} {box.sy:.6f} {box.sz:.6f}'
         lines.append(f'DEF GP_BOX_{i} Solid {{ translation {position} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor 0.75 0.55 0.25 roughness 1 }} geometry Box {{ size {size} }} }} ] boundingObject Box {{ size {size} }} }}')
-    for x,y,color in [(0,0,'0.12 0.42 0.9'),(0,-.85,'0.10 0.72 0.28')]:
+    for x,y,color in [(0,0,'0.12 0.42 0.9'),(0,layout.final_gates[-1].y+.25,'0.10 0.72 0.28')]:
         lines.append(f'Pose {{ translation {x} {y} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size .28 .28 .004 }} }} ] }}')
     lines.extend([robot, f'DEF GP_EVALUATOR Robot {{ name "Grand Prix evaluator" controller "grand_prix_evaluator" controllerArgs [ "{layout.seed}" ] supervisor TRUE }}'])
     return '\n'.join(lines)+'\n'

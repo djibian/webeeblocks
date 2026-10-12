@@ -55,9 +55,12 @@ class Attempt:
         x,y,z=position
         if z>self.origin_z+.2:self.airborne=True
         if z>self.origin_z+1.15 or z<self.origin_z-.02:self.fail()
+        for box in self.layout.boxes:
+            gap=[max(abs(value-center)-size/2,0) for value,center,size in zip(position,(box.x,box.y,box.z),(box.sx,box.sy,box.sz))]
+            if math.sqrt(sum(d*d for d in gap))<RADIUS:self.fail()
         if any(len(p)!=3 or not all(math.isfinite(v) for v in p) or p[2]>.012 for p in contacts):self.fail()
         on_ring=(-.4+RADIUS<=x<=SIDE+.4-RADIUS and -.4+RADIUS<=y<=SIDE+.4-RADIUS and not (.4-RADIUS<x<SIDE-.4+RADIUS and .4-RADIUS<y<SIDE-.4+RADIUS))
-        on_final=abs(x)<=.4-RADIUS and -1.1+.02+RADIUS<=y<=.31
+        on_final=abs(x)<=.4-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=.31
         if not on_ring and not on_final:self.fail()
         if y<-.31 and self.cursor<12+3*len(self.layout.gates):self.fail()
         if self.result:return self.result
@@ -71,14 +74,14 @@ class Attempt:
                 if self.armed and before<.10<=progress:
                     if abs(offset)+RADIUS>.28 or z+RADIUS>.62 or z-RADIUS<.10:self.fail()
                     else:self.cursor+=1;self.armed=False
-            elif math.hypot(x-event[0],y-event[1])<=.12 and self.airborne:
+            elif abs(x-event[0])<=.4-RADIUS and abs(y-event[1])<=.4-RADIUS and self.airborne:
                 self.cursor+=1;self.armed=False
         self.previous=tuple(position)
         if completed and self.completion_time is None:self.completion_time=sim_time
         if self.completion_time is not None:
             landed=z<=self.origin_z+.07
             stationary=math.hypot(*velocity[:2])<=.12 and abs(velocity[2])<=.12
-            arrival=abs(x)<=.14 and abs(y+.85)<=.14
+            arrival=abs(x)<=.14 and abs(y-(self.layout.final_gates[-1].y+.25))<=.14
             eligible=self.airborne and self.cursor==len(self.events) and landed and stationary and arrival
             if eligible:
                 if self.stationary_since is None:self.stationary_since=sim_time

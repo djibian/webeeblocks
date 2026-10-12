@@ -8,7 +8,7 @@ import subprocess
 import sys
 import unittest
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
-from tools.grand_prix.layout import generate,ray_distance,world_text
+from tools.grand_prix.layout import Box,Gate,Layout,generate,ray_distance,world_text
 from tools.grand_prix.oracle import Attempt
 
 class Tests(unittest.TestCase):
@@ -58,6 +58,42 @@ class Tests(unittest.TestCase):
         values=json.loads(result.stdout)['result']['variables']
         self.assertEqual(values['invalide'],1)
         self.assertEqual(values['fin'],0)
+
+    def test_safe_rounded_corner_is_not_a_solution_shape_oracle(self):
+        layout=next(generate(seed) for seed in range(100) if not any(g.heading==0 for g in generate(seed).gates))
+        # Independent geometry: the whole 9 cm envelope clears the island
+        # corner (1.0, .4) and the outer walls at x=1.8 and y=-.4.
+        point=[1.22,.18,.415]
+        self.assertGreater(math.hypot(point[0]-1.0,point[1]-.4),.09)
+        self.assertGreater(1.8-point[0],.09)
+        self.assertGreater(point[1]+.4,.09)
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        active.sample(4,point,[0,0,0])
+        self.assertEqual(active.cursor,1)
+        # Repeated corner readings still cannot produce the next corner/lap.
+        for i in range(1,20):active.sample(4+i*.032,point,[0,0,0])
+        self.assertEqual(active.cursor,1)
+
+    def test_v1_blind_counterexample_and_v2_repair(self):
+        def outcome(layout,blind):
+            payload=dataclasses.asdict(layout);payload['blind']=blind
+            result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True)
+            evidence=json.loads(result.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+            landed=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+            return active.result,evidence['ranges']
+        for fixture in json.loads((ROOT/'tools/ci/fixtures/grand_prix_v1_blind_counterexample.json').read_text()):
+            v=fixture['layout'];old=Layout(v['seed'],tuple(Gate(**g) for g in v['gates']),tuple(Gate(**g) for g in v['final_gates']),tuple(Box(**b) for b in v['boxes']),'gp-v1')
+            result,reads=outcome(old,True)
+            self.assertEqual(result.status,'achieved');self.assertEqual(reads,[])
+        failed=0;targets=set()
+        for seed in range(16):
+            result,reads=outcome(generate(seed),True)
+            self.assertEqual(reads,[])
+            if result.status=='not-achieved':failed+=1
+            targets.add(generate(seed).final_gates[-1].y+.25)
+        self.assertGreater(failed,0)
+        self.assertEqual({round(t,2) for t in targets},{-.85,-.55})
 
     def test_refutations_and_clock_binding(self):
         layout=generate(3)

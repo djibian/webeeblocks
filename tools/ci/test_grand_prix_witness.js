@@ -1,8 +1,12 @@
 'use strict';
 const fs=require('fs');
 const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
-const ast=require('../grand_prix/reference_program').ast;
+const witness=require('../grand_prix/reference_program').ast;
 const layout=JSON.parse(fs.readFileSync(0,'utf8'));
+const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}),{kind:'move',direction:'forward',distance_m:.2}];
+const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
+const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
+const ast=layout.blind?blind:witness;
 let p=[0,0,.015],heading=0,time=0;
 const trace=[],ranges=[],variables=[];
 function ray(direction){

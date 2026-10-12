@@ -27,7 +27,7 @@ function gate(final){return [
 ];}
 function clearance(final){return [vertical('up'),set('arrière',range('back')),
   iff(and(cmp('GT',v('arrière'),.09),cmp('LT',v('arrière'),.65)),final?[increment('portes finales')]:[count()],[set('invalide',1)]),set('engagé',0)];}
-const corridor=[iff(cmp('LT',ar('ADD',v('gauche'),v('droite')),1.2),centered),move()];
+const corridor=[iff(and(cmp('GTE',ar('ADD',v('gauche'),v('droite')),.72),cmp('LTE',ar('ADD',v('gauche'),v('droite')),.88)),centered),move()];
 const turn=and(cmp('EQ',v('paroi vue'),1),cmp('GT',v('gauche'),.48));
 const segment=repeat(20,[iff(and(cmp('EQ',v('virage fait'),0),cmp('EQ',v('invalide'),0)),[
   ...reads,iff(cmp('LT',v('gauche'),.48),[set('paroi vue',1)]),

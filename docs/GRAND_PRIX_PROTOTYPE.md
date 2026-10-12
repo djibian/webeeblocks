@@ -8,8 +8,8 @@ checkpoint ou reprise de #70 n'est autorisé.
 
 ## Géométrie et observations
 
-`python3 tools/grand_prix/layout.py --seed 3 --output worlds/grand_prix_v1_seed3.wbt`
-recrée exactement une configuration versionnée `gp-v1-3`. Les graines admises
+`python3 tools/grand_prix/layout.py --seed 3 --output worlds/grand_prix_v2_seed3.wbt`
+recrée exactement une configuration versionnée `gp-v2-3`. Les graines admises
 sont les entiers 0–65535. Deux mondes représentatifs sont versionnés : 1 et 3.
 Ils utilisent le même Crazyflie, les mêmes vrais devices et le contrôleur de vol
 Runtime v2 partagé, compilé sous un nom propre au prototype.
@@ -18,8 +18,10 @@ La boucle fait 1,4 m de côté, 0,8 m de largeur, avec quatre coins gauches
 ordinaires et une jonction vers la ligne finale. Elle comporte 2–4 portiques.
 Les H ont une ouverture de 0,56 m et une traverse pleine au-dessus de 0,62 m.
 Leurs panneaux latéraux s'étendent 0,24 m de part et d'autre de la traverse.
-La ligne finale contient zéro ou un H ouvert puis un H fermé à 1,10 m de la
-jonction. Le gabarit conservateur de l'oracle est une sphère de rayon 0,09 m,
+Un segment sans H comporte à sa place un obstacle bas de 0,50 m, sur toute
+la largeur de la piste. La ligne finale contient zéro ou un H ouvert puis un H
+fermé à 0,80 m ou 1,10 m de la jonction. La zone d’arrivée suit cette fermeture
+et les deux zones possibles ne se recouvrent pas. Le gabarit conservateur de l'oracle est une sphère de rayon 0,09 m,
 uniquement pour le modèle de simulation représenté.
 
 Le programme ne reçoit ni graine, ni position, ni identité, ni nombre de portes,
@@ -50,6 +52,16 @@ avant un coin, engage une porte une seule fois, descend et exige une mesure
 avant basse finie <1,99 m, puis remonte après dégagement et vérifie la traverse
 à l'arrière. Une saturation n'est jamais son certificat d'ouverture.
 
+Une réfutation plus forte a invalidé la géométrie gp-v1 : un AST aveugle
+(takeoff, descente unique puis déplacements/tours constants) réussit ses deux
+configurations sans capteur ni variable. Le cas positif original est conservé
+avec ses deux géométries dans
+`tools/ci/fixtures/grand_prix_v1_blind_counterexample.json`. En gp-v2, le même
+slot exige une hauteur basse pour un H et haute pour un obstacle bas dans une
+autre configuration ; l’arrivée varie aussi. Le programme aveugle est désormais
+réfuté dans la matrice, tandis que le témoin sensoriel reste accepté. Aucune
+inspection des blocs ni donnée cachée ne produit cette différence.
+
 Cette preuve idéale ne valide pas l'inclinaison, les marges de freinage, les
 signaux réels ou le programme dans Webots. Elle est un contrôle falsificateur,
 pas un substitut à la nouvelle CI Webots.
@@ -59,7 +71,11 @@ pas un substitut à la nouvelle CI Webots.
 `grand_prix_evaluator` juge la trajectoire : coins et passages orientés dans
 l'ordre pendant trois tours, ouvertures avec gabarit entier, piste, contacts,
 altitude, ligne finale complète et atterrissage terminal immobile. Il n'inspecte
-ni Blockly, ni l'AST, ni les variables du programme. Les répétitions sur place,
+ni Blockly, ni l'AST, ni les variables du programme. Un contre-exemple a supprimé
+la contrainte injustifiée d'un passage à 12 cm du centre de chaque coin : un
+virage arrondi dégagé, dans la largeur de la piste, doit être accepté. Les
+zones de coin restent séparées des H, ordonnées et soumises au même contrôle
+de gabarit/piste ; des lectures répétées dans une zone ne font pas un tour. Les répétitions sur place,
 le recul, les raccourcis et une sortie prématurée ne donnent pas de nouveaux
 tours/portes. Un échec est terminal pour cette tentative.
 
@@ -111,3 +127,14 @@ réels, l'intégration au changement automatique de sous-scène #589, les fichie
 représentatifs et la répétabilité CPU/chrono sont encore des critères d'acceptation.
 Le prototype doit rester Draft tant que ces frontières importantes ne sont pas
 résolues ou réduites explicitement par une revue du résultat borné.
+
+
+Le probe Webots du HEAD `fbaeb657eb6232a5c675c7f6215deb9a7ad8b69e`
+(run 38231836526, artefact 11739876500) n’a pas exécuté le Crazyflie : le chemin
+`webots://projects/...` visait des PROTO absents de l’image officielle, puis
+l’évaluateur a échoué sans véhicule. C’est un échec de préparation, aucune
+preuve de vol simulé ou de détectabilité. Le runner fournit désormais les
+assets depuis le commit R2025a exact, montés en lecture seule, refuse un
+fallback/Traceback sans attendre la fenêtre complète, et écrit la perspective
+Robot Window sous son vrai nom Webots. La répétition est justifiée par cette
+correction causale ; le résultat futur reste à obtenir.
