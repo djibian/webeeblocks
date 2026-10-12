@@ -12,6 +12,10 @@ def main():
     for stream in (sys.stdout,sys.stderr):
         if hasattr(stream,'reconfigure'): stream.reconfigure(line_buffering=True)
     os.chdir(REPO_ROOT)
+    clock_boundary_test=subprocess.run([sys.executable,'tools/ci/test_grand_prix_simulation_time.py'])
+    if clock_boundary_test.returncode:
+        return clock_boundary_test.returncode
+    print('PASS exact simulation duration at scoring/deadline boundaries (not mission acceptance)')
     lap_progress_test=subprocess.run([sys.executable,'tools/ci/test_grand_prix_lap_progress.py'])
     if lap_progress_test.returncode:
         return lap_progress_test.returncode
