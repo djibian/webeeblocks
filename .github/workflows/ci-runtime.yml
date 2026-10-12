@@ -18,6 +18,26 @@ permissions:
   contents: read
 
 jobs:
+  grand-prix-prototype:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Falsify ideal geometry and behavioral oracle
+        run: python3 tools/ci/test_grand_prix.py
+      - name: Prove sensor-only candidate in real Webots R2025a
+        run: python3 tools/ci/run_grand_prix_prototype.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-prototype-r2025a
+          path: ci-artifacts/grand-prix/
+          if-no-files-found: error
   runtime-v2-core:
     runs-on: ubuntu-22.04
     steps:

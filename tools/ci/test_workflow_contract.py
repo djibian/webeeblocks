@@ -21,7 +21,7 @@ EXPECTED = {
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
-        "runtime-v2-webots", "student-ui",
+        "runtime-v2-webots", "student-ui", "grand-prix-prototype",
     },
     "ci-webots.yml": {
         "crazyflie-ab-matrix", "crazyflie-b-edges", "crazyflie-blockly-l",

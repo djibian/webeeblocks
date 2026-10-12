@@ -1,0 +1,8 @@
+#ifndef WEBEEBLOCKS_GP_INTERPOSE_H
+#define WEBEEBLOCKS_GP_INTERPOSE_H
+#ifndef __cplusplus
+#define wb_robot_wwi_receive_text webeeblocks_gp_receive_text
+#define wb_robot_wwi_send webeeblocks_gp_send
+#define wb_robot_cleanup webeeblocks_file_broker_robot_cleanup
+#endif
+#endif

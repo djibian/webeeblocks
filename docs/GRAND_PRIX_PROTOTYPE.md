@@ -1,0 +1,111 @@
+# Grand Prix — prototype de faisabilité #587
+
+Ce candidat est une **simulation expérimentale**, pas une validation pédagogique
+ni une qualification réelle. #588 fixe le contrat falsifiable ; #589 isole
+l'activité 1 ; #590 propose séparément la boucle générique WHILE/UNTIL. Les
+activités 2–8 et le backend physique sont inchangés. Aucun matériel, vol,
+checkpoint ou reprise de #70 n'est autorisé.
+
+## Géométrie et observations
+
+`python3 tools/grand_prix/layout.py --seed 3 --output worlds/grand_prix_v1_seed3.wbt`
+recrée exactement une configuration versionnée `gp-v1-3`. Les graines admises
+sont les entiers 0–65535. Deux mondes représentatifs sont versionnés : 1 et 3.
+Ils utilisent le même Crazyflie, les mêmes vrais devices et le contrôleur de vol
+Runtime v2 partagé, compilé sous un nom propre au prototype.
+
+La boucle fait 1,4 m de côté, 0,8 m de largeur, avec quatre coins gauches
+ordinaires et une jonction vers la ligne finale. Elle comporte 2–4 portiques.
+Les H ont une ouverture de 0,56 m et une traverse pleine au-dessus de 0,62 m.
+Leurs panneaux latéraux s'étendent 0,24 m de part et d'autre de la traverse.
+La ligne finale contient zéro ou un H ouvert puis un H fermé à 1,10 m de la
+jonction. Le gabarit conservateur de l'oracle est une sphère de rayon 0,09 m,
+uniquement pour le modèle de simulation représenté.
+
+Le programme ne reçoit ni graine, ni position, ni identité, ni nombre de portes,
+ni tour de l'évaluateur. Seuls les capteurs ordinaires, les variables et les
+commandes de l'AST sont employés. La caméra et l'identifiant affiché restent
+réservés à l'humain.
+
+Les contre-exemples ont déjà contraint le générateur :
+
+- H mince : rayons latéraux aveugles avant la traverse ; les plaques doivent
+  précéder celle-ci.
+- Quatrième côté + ligne trop longue : retour bas saturé ; la position du H du
+  quatrième côté est fixée et la fermeture terminale rapprochée.
+- Mur attendu à la jonction : aucun mur n'arrête la sortie ; il faut observer
+  l'ouverture latérale, après avoir confirmé la paroi du segment.
+- H du segment suivant : il peut masquer l'ouverture du coin à la mesure
+  latérale ; les positions admissibles et le seuil de cette observation sont
+  donc bornés ensemble.
+- Plaques terminales trop courtes : détection tardive et gabarit déjà trop près
+  de la fermeture ; le H final conserve de longues plaques.
+- Deux H trop rapprochés : pas de dégagement observable ; le générateur garde
+  un intervalle de réarmement avant le H fermé.
+
+L'analyse de rayons idéale teste 100 graines. Le **même AST** témoin passe
+18 configurations dans ce modèle, découvre le compte au premier tour et le
+réutilise par décrémentation aux tours suivants. Le témoin confirme la paroi
+avant un coin, engage une porte une seule fois, descend et exige une mesure
+avant basse finie <1,99 m, puis remonte après dégagement et vérifie la traverse
+à l'arrière. Une saturation n'est jamais son certificat d'ouverture.
+
+Cette preuve idéale ne valide pas l'inclinaison, les marges de freinage, les
+signaux réels ou le programme dans Webots. Elle est un contrôle falsificateur,
+pas un substitut à la nouvelle CI Webots.
+
+## Oracle et temps
+
+`grand_prix_evaluator` juge la trajectoire : coins et passages orientés dans
+l'ordre pendant trois tours, ouvertures avec gabarit entier, piste, contacts,
+altitude, ligne finale complète et atterrissage terminal immobile. Il n'inspecte
+ni Blockly, ni l'AST, ni les variables du programme. Les répétitions sur place,
+le recul, les raccourcis et une sortie prématurée ne donnent pas de nouveaux
+tours/portes. Un échec est terminal pour cette tentative.
+
+Le contrôleur dédié interpose uniquement l'observation du transport Webots
+existant. Il retient le temps de réception du takeoff, dans le même pas de
+simulation que son admission, et exige son ACK réel. Une erreur ou un STOP
+révoque définitivement cette mesure ; un ACK tardif ne l'efface pas. Reset
+consomme l'acquittement natif puis prend la nouvelle identité du broker existant.
+Il n'émet aucun mouvement de navigation ni effet physique. Une limite de
+600 secondes Webots engage une seule fois le STOP natif de simulation, même
+si le programme ou le navigateur est en attente ; le contrôleur conserve son
+fail-safe jusqu'au Reset.
+
+Le résultat chronométré apparaît dans Webots avec l'identifiant de configuration.
+Il utilise exclusivement `Supervisor.getTime()` / `wb_robot_get_time()`, s'arrête
+après complétion du même oracle et stabilité au sol, et est absent pour tout
+échec, collision, interruption, observation invalide ou mode pas-à-pas. Il ne
+persiste aucune tentative. L'AST ne lit pas le chrono.
+
+**Limite non résolue :** une durée Webots sur une trajectoire donnée est
+indépendante de l'horloge murale, mais cela ne prouve pas qu'un même AST piloté
+par un navigateur produise exactement la même trajectoire/attente sur deux CPU
+ou à deux vitesses de simulation. Les latences WWI et des hooks peuvent ajouter
+du temps simulé. La répétabilité à un pas et la comparaison compétitive restent
+à démontrer ; ce prototype ne doit pas être annoncé comme un chrono compétitif
+validé. Aucune soustraction d'attentes cachées n'est introduite.
+
+## Usage et preuves manquantes
+
+Après préparation des assets Blockly et compilation du contrôleur
+`controllers/grand_prix_flight` dans R2025a, les mondes du prototype ouvrent une
+Robot Window française utilisant le même Blockly/AST/interpréteur et le même
+format `.wbb`. Ils ont leur propre profil, avec un budget de 20 000 pas borné.
+La scène courante reste attachée au monde ; le projet ne mémorise pas une graine.
+
+Le programme témoin est **un outil de preuve machine**, pas une solution livrée
+au workspace élève. Il utilise provisoirement les répétitions bornées avec
+conditions déjà intégrées. L'exposition de la boucle WHILE/UNTIL au profil Grand
+Prix requiert l'intégration indépendante de #590 ; elle n'est pas dissimulée dans
+un bloc spécial ou une boucle native propre à la mission.
+
+Le nouveau job canonique `grand-prix-prototype` exige les tests idéaux puis une
+exécution dans le vrai R2025a des configurations 1 et 3 avec le même AST et les
+mesures réelles. Un échec reste rouge, sans adaptation du compte attendu. Ces
+résultats, la reprise fraîche, deux stratégies différentes, les essais négatifs
+réels, l'intégration au changement automatique de sous-scène #589, les fichiers
+représentatifs et la répétabilité CPU/chrono sont encore des critères d'acceptation.
+Le prototype doit rester Draft tant que ces frontières importantes ne sont pas
+résolues ou réduites explicitement par une revue du résultat borné.

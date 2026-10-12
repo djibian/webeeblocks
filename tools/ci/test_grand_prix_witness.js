@@ -1,0 +1,35 @@
+'use strict';
+const fs=require('fs');
+const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
+const ast=require('../grand_prix/reference_program').ast;
+const layout=JSON.parse(fs.readFileSync(0,'utf8'));
+let p=[0,0,.015],heading=0,time=0;
+const trace=[],ranges=[],variables=[];
+function ray(direction){
+ const angle=heading+({front:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);
+ const d=[Math.cos(angle),Math.sin(angle),0],origin=[p[0],p[1],p[2]+.01];let result=Infinity;
+ for(const b of layout.boxes){let lo=0,hi=Infinity;
+  for(let axis=0;axis<3;axis++){
+   const center=[b.x,b.y,b.z][axis],size=[b.sx,b.sy,b.sz][axis];
+   if(Math.abs(d[axis])<1e-8){if(origin[axis]<center-size/2||origin[axis]>center+size/2){hi=-1;break;}}
+   else{const a=(center-size/2-origin[axis])/d[axis],c=(center+size/2-origin[axis])/d[axis];lo=Math.max(lo,Math.min(a,c));hi=Math.min(hi,Math.max(a,c));}
+  }if(hi>=lo)result=Math.min(result,lo);
+ }return Math.min(2,result);
+}
+function sample(velocity=[0,0,0]){time+=.032;trace.push({time,position:p.slice(),velocity});}
+async function motion(target){const delta=target.map((v,i)=>v-p[i]);const distance=Math.hypot(...delta),steps=Math.max(1,Math.ceil(distance/.0064));const velocity=delta.map(v=>v/(steps*.032));for(let i=0;i<steps;i++){p=p.map((v,a)=>v+delta[a]/steps);sample(velocity);}sample();}
+const backend={
+ capabilities:{actions:['takeoff','move','turn','vertical','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down']},
+ async takeoff(h){await motion([p[0],p[1],.015+h]);},
+ async land(){await motion([p[0],p[1],.015]);},
+ async move(direction,distance){const a=heading+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);await motion([p[0]+distance*Math.cos(a),p[1]+distance*Math.sin(a),p[2]]);},
+ async vertical(direction,distance){await motion([p[0],p[1],p[2]+(direction==='up'?distance:-distance)]);},
+ async turn(angle){heading+=angle*Math.PI/180;sample();},
+ async readRange(direction){const value=ray(direction);ranges.push({direction,value,time});sample();return value;}
+};
+(async()=>{
+ Interpreter.validateExecutionBudget(ast,20000);
+ const result=await Interpreter.run(ast,backend,{maxSteps:20000,hooks:{onVariables:async c=>variables.push({position:p.slice(),values:c.values})}});
+ for(let i=0;i<32;i++)sample();
+ process.stdout.write(JSON.stringify({result,trace,ranges,variables}));
+})().catch(e=>{console.error(e);process.exitCode=1;});

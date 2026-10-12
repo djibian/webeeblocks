@@ -309,7 +309,7 @@ async function runProgram() {
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
-      maxSteps: 1000,
+      maxSteps: runtimeProfile.runtime.maxSteps || 1000,
       hooks: hooks,
       onAst: function(ast) {
         window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
