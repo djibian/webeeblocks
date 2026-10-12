@@ -18,7 +18,7 @@ def main():
     source=ROOT/'.ci-grand-prix-webots'
     if not source.exists():
         subprocess.run(['git','clone','--depth=1','--filter=blob:none','--sparse','--branch','R2025a','https://github.com/cyberbotics/webots.git',str(source)],check=True)
-        subprocess.run(['git','-C',str(source),'sparse-checkout','set','projects/robots/bitcraze/crazyflie','projects/objects/backgrounds','projects/objects/floors','projects/appearances'],check=True)
+        subprocess.run(['git','-C',str(source),'sparse-checkout','set','projects/robots/bitcraze/crazyflie','projects/objects/backgrounds','projects/objects/floors','projects/appearances','projects/default'],check=True)
     commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
     if commit!='c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b':raise RuntimeError('unexpected R2025a asset source')
     subprocess.run(['docker','pull',IMAGE],check=True)
@@ -28,7 +28,7 @@ def main():
     html=ROOT/'plugins/robot_windows/grand_prix_probe/grand_prix_probe.html'
     original=html.read_text();html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js'))
     try:
-        for seed in (1,3):
+        for seed in (1,4):
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
             target.write_text(world_text(generate(seed)).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
             project.write_text('Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')

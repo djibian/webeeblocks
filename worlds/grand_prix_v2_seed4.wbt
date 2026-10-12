@@ -3,7 +3,7 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
-WorldInfo { basicTimeStep 32 randomSeed 1 optimalThreadCount 1 title "Grand Prix — gp-v2-3" }
+WorldInfo { basicTimeStep 32 randomSeed 1 optimalThreadCount 1 title "Grand Prix — gp-v2-4" }
 Viewpoint { orientation -0.45 0.47 0.76 1.05 position -3.2 -3.2 3.4 follow "Crazyflie WebeeBlocks" }
 TexturedBackground { }
 TexturedBackgroundLight { }
@@ -15,21 +15,17 @@ DEF GP_BOX_3 Solid { translation 1.110000 -0.420000 0.650000 name "Paroi 3" chil
 DEF GP_BOX_4 Solid { translation 0.420000 -1.120000 0.650000 name "Paroi 4" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 1.400000 1.300000 } } ] boundingObject Box { size 0.040000 1.400000 1.300000 } }
 DEF GP_BOX_5 Solid { translation 0.000000 -1.820000 0.650000 name "Paroi 5" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.800000 0.040000 1.300000 } } ] boundingObject Box { size 0.800000 0.040000 1.300000 } }
 DEF GP_BOX_6 Solid { translation 0.700000 0.700000 0.650000 name "Paroi 6" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.600000 0.600000 1.300000 } } ] boundingObject Box { size 0.600000 0.600000 1.300000 } }
-DEF GP_BOX_7 Solid { translation 0.760000 -0.300000 0.650000 name "Paroi 7" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
-DEF GP_BOX_8 Solid { translation 0.760000 0.300000 0.650000 name "Paroi 8" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
-DEF GP_BOX_9 Solid { translation 0.760000 0.000000 0.960000 name "Paroi 9" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.560000 0.680000 } } ] boundingObject Box { size 0.040000 0.560000 0.680000 } }
-DEF GP_BOX_10 Solid { translation 1.700000 0.820000 0.650000 name "Paroi 10" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_11 Solid { translation 1.100000 0.820000 0.650000 name "Paroi 11" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_12 Solid { translation 1.400000 0.820000 0.960000 name "Paroi 12" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.560000 0.040000 0.680000 } } ] boundingObject Box { size 0.560000 0.040000 0.680000 } }
-DEF GP_BOX_13 Solid { translation 0.580000 1.700000 0.650000 name "Paroi 13" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
-DEF GP_BOX_14 Solid { translation 0.580000 1.100000 0.650000 name "Paroi 14" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
-DEF GP_BOX_15 Solid { translation 0.580000 1.400000 0.960000 name "Paroi 15" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.560000 0.680000 } } ] boundingObject Box { size 0.040000 0.560000 0.680000 } }
-DEF GP_BOX_16 Solid { translation -0.300000 0.640000 0.650000 name "Paroi 16" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_17 Solid { translation 0.300000 0.640000 0.650000 name "Paroi 17" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_18 Solid { translation 0.000000 0.640000 0.960000 name "Paroi 18" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.560000 0.040000 0.680000 } } ] boundingObject Box { size 0.560000 0.040000 0.680000 } }
-DEF GP_BOX_19 Solid { translation -0.300000 -0.800000 0.650000 name "Paroi 19" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_20 Solid { translation 0.300000 -0.800000 0.650000 name "Paroi 20" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
-DEF GP_BOX_21 Solid { translation 0.000000 -0.800000 0.650000 name "Paroi 21" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.560000 0.040000 1.300000 } } ] boundingObject Box { size 0.560000 0.040000 1.300000 } }
+DEF GP_BOX_7 Solid { translation 1.400000 0.760000 0.250000 name "Paroi 7" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.800000 0.080000 0.500000 } } ] boundingObject Box { size 0.800000 0.080000 0.500000 } }
+DEF GP_BOX_8 Solid { translation 0.000000 0.640000 0.250000 name "Paroi 8" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.800000 0.080000 0.500000 } } ] boundingObject Box { size 0.800000 0.080000 0.500000 } }
+DEF GP_BOX_9 Solid { translation 0.820000 -0.300000 0.650000 name "Paroi 9" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
+DEF GP_BOX_10 Solid { translation 0.820000 0.300000 0.650000 name "Paroi 10" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
+DEF GP_BOX_11 Solid { translation 0.820000 0.000000 0.960000 name "Paroi 11" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.560000 0.680000 } } ] boundingObject Box { size 0.040000 0.560000 0.680000 } }
+DEF GP_BOX_12 Solid { translation 0.580000 1.700000 0.650000 name "Paroi 12" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
+DEF GP_BOX_13 Solid { translation 0.580000 1.100000 0.650000 name "Paroi 13" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.480000 0.040000 1.300000 } } ] boundingObject Box { size 0.480000 0.040000 1.300000 } }
+DEF GP_BOX_14 Solid { translation 0.580000 1.400000 0.960000 name "Paroi 14" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.560000 0.680000 } } ] boundingObject Box { size 0.040000 0.560000 0.680000 } }
+DEF GP_BOX_15 Solid { translation -0.300000 -0.800000 0.650000 name "Paroi 15" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
+DEF GP_BOX_16 Solid { translation 0.300000 -0.800000 0.650000 name "Paroi 16" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.040000 0.480000 1.300000 } } ] boundingObject Box { size 0.040000 0.480000 1.300000 } }
+DEF GP_BOX_17 Solid { translation 0.000000 -0.800000 0.650000 name "Paroi 17" children [ Shape { appearance PBRAppearance { baseColor 0.75 0.55 0.25 roughness 1 } geometry Box { size 0.560000 0.040000 1.300000 } } ] boundingObject Box { size 0.560000 0.040000 1.300000 } }
 Pose { translation 0 0 .002 children [ Shape { appearance PBRAppearance { baseColor 0.12 0.42 0.9 roughness 1 } geometry Box { size .28 .28 .004 } } ] }
 Pose { translation 0 -0.55 .002 children [ Shape { appearance PBRAppearance { baseColor 0.10 0.72 0.28 roughness 1 } geometry Box { size .28 .28 .004 } } ] }
 Crazyflie {
@@ -155,4 +151,4 @@ Crazyflie {
 }
 
 
-DEF GP_EVALUATOR Robot { name "Grand Prix evaluator" controller "grand_prix_evaluator" controllerArgs [ "3" ] supervisor TRUE }
+DEF GP_EVALUATOR Robot { name "Grand Prix evaluator" controller "grand_prix_evaluator" controllerArgs [ "4" ] supervisor TRUE }

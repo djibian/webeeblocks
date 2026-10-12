@@ -8,9 +8,9 @@ checkpoint ou reprise de #70 n'est autorisé.
 
 ## Géométrie et observations
 
-`python3 tools/grand_prix/layout.py --seed 3 --output worlds/grand_prix_v2_seed3.wbt`
-recrée exactement une configuration versionnée `gp-v2-3`. Les graines admises
-sont les entiers 0–65535. Deux mondes représentatifs sont versionnés : 1 et 3.
+`python3 tools/grand_prix/layout.py --seed 4 --output worlds/grand_prix_v2_seed4.wbt`
+recrée exactement une configuration versionnée `gp-v2-4`. Les graines admises
+sont les entiers 0–65535. Deux mondes représentatifs sont versionnés : 1 et 4 (quatre puis deux H, arrivée longue puis courte).
 Ils utilisent le même Crazyflie, les mêmes vrais devices et le contrôleur de vol
 Runtime v2 partagé, compilé sous un nom propre au prototype.
 
@@ -87,7 +87,10 @@ consomme l'acquittement natif puis prend la nouvelle identité du broker existan
 Il n'émet aucun mouvement de navigation ni effet physique. Une limite de
 600 secondes Webots engage une seule fois le STOP natif de simulation, même
 si le programme ou le navigateur est en attente ; le contrôleur conserve son
-fail-safe jusqu'au Reset.
+fail-safe jusqu'au Reset. Les commandes verticales conservent aussi une hauteur
+nominale admise de 0,30 à 1,10 m, vérifiée avant leur effet et mise à jour
+uniquement sur ACK. Cette borne publique empêche un survol des panneaux sans
+changer les commandes partagées ni lire la position oracle.
 
 Le résultat chronométré apparaît dans Webots avec l'identifiant de configuration.
 Il utilise exclusivement `Supervisor.getTime()` / `wb_robot_get_time()`, s'arrête
@@ -120,7 +123,7 @@ un bloc spécial ou une boucle native propre à la mission.
 Le brouillon exécute un probe Webots non décisionnel dans `Select suites` et
 conserve ses observations ; il ne publie jamais `CI Gate`. Le candidat Ready
 exécute ce probe dans le job Runtime obligatoire `grand-prix-prototype`, qui exige les tests idéaux puis une
-exécution dans le vrai R2025a des configurations 1 et 3 avec le même AST et les
+exécution dans le vrai R2025a des configurations 1 et 4 avec le même AST et les
 mesures réelles. Un échec reste rouge, sans adaptation du compte attendu. Ces
 résultats, la reprise fraîche, deux stratégies différentes, les essais négatifs
 réels, l'intégration au changement automatique de sous-scène #589, les fichiers
@@ -138,3 +141,11 @@ assets depuis le commit R2025a exact, montés en lecture seule, refuse un
 fallback/Traceback sans attendre la fenêtre complète, et écrit la perspective
 Robot Window sous son vrai nom Webots. La répétition est justifiée par cette
 correction causale ; le résultat futur reste à obtenir.
+
+Le HEAD `e60f88daf724c40dc1f42dfeb0ac39469935993b` (run 38236332327,
+artefact 11741301017) charge la géométrie et ouvre la fenêtre, mais son contrôleur
+ne démarre pas : `libQt6Core.so.6` est introuvable. La fenêtre expire sur READY ;
+aucune mesure capteur ni trajectoire n'a été obtenue. Le contrôleur reçoit désormais
+le même `runtime.ini` Qt/Webots que le Runtime partagé. Les textures par défaut
+du commit épinglé sont ajoutées au montage. La nouvelle paire 1/4 couvre aussi
+deux comptes de H distincts ; 1/3 avait quatre H dans les deux mondes.

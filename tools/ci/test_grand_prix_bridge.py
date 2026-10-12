@@ -56,6 +56,12 @@ int main(){
  assert(control=="GP_START attempt=1 time=2.000000000 debug=1 state=pending");
  now=3;response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK");
  assert(control=="GP_START attempt=1 time=2.000000000 debug=1 state=accepted");
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 20 VERTICAL down 0.5");
+ assert(std::string(webeeblocks_gp_receive_text()).find("VERTICAL")!=std::string::npos);response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 20 OK");
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 VERTICAL up 0.5");
+ assert(std::string(webeeblocks_gp_receive_text()).find("VERTICAL")!=std::string::npos);response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 21 OK");
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 22 VERTICAL up 0.3");assert(webeeblocks_gp_receive_text()==nullptr);
+ assert(sent.back()=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 22 ERR INVALID_VERTICAL");
  request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 STOP");webeeblocks_gp_receive_text();
  assert(control.find("state=failed")!=std::string::npos);
  response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK");

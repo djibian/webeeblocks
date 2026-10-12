@@ -2,6 +2,7 @@
 #include <webots/plugins/robot_window/default.h>
 #include <webots/supervisor.h>
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <string>
 extern "C" const char *webeeblocks_file_broker_receive_text(void);
@@ -15,6 +16,8 @@ bool engaged=false;
 bool failed=false;
 bool deadlineStopped=false;
 int reset=-1;
+int verticalPending=-1;
+double nominalHeight=0,verticalTarget=0,takeoffHeight=0;
 void marker(const char *state) {
   if(!std::strcmp(state,"failed"))failed=true;
   if(failed && std::strcmp(state,"failed"))return;
@@ -42,7 +45,29 @@ extern "C" const char *webeeblocks_gp_receive_text(void) {
       char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d %s",id,valid?"OK":"ERR INVALID_REQUEST");
       wb_robot_wwi_send_text(reply);continue;
     }
+    if(failed && std::strcmp(command,"RESET") && std::strcmp(command,"STOP")) {
+      char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR RESET_REQUIRED",id);
+      wb_robot_wwi_send_text(reply);continue;
+    }
+    if(!std::strcmp(command,"VERTICAL")) {
+      double amount=0;char direction[16]={0},tail[2]={0};
+      const bool parsed=std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d VERTICAL %15s %lf %1s",&id,direction,&amount,tail)==3;
+      const bool down=!std::strcmp(direction,"down"),up=!std::strcmp(direction,"up");
+      const double target=nominalHeight+(up?amount:-amount);
+      if(!parsed || (!up&&!down) || !std::isfinite(amount) || amount<.1 || amount>.5 || nominalHeight==0 || verticalPending>=1 || target<.3-1e-9 || target>1.1+1e-9) {
+        marker("failed");char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR INVALID_VERTICAL",id);
+        wb_robot_wwi_send_text(reply);continue;
+      }
+      verticalPending=id;verticalTarget=target;
+    }
     if(!std::strcmp(command,"TAKEOFF")&&!engaged) {
+      double height=0;char tail[2]={0};
+      const bool parsed=std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d TAKEOFF %lf %1s",&id,&height,tail)==2;
+      if(!parsed || !std::isfinite(height) || height<.3 || height>1.0) {
+        marker("failed");char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR INVALID_TAKEOFF",id);
+        wb_robot_wwi_send_text(reply);continue;
+      }
+      takeoffHeight=height;
       pending=id;engaged=true;start=wb_robot_get_time();marker("pending");
     } else if(!std::strcmp(command,"RESET"))reset=id;
     else if(!std::strcmp(command,"STOP"))marker("failed");
@@ -62,14 +87,19 @@ extern "C" void webeeblocks_gp_send(const char *data,int size) {
       unsigned long long current=0;
       if(channel && std::sscanf(wb_supervisor_field_get_sf_string(channel),"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu",&current)==1)attempt=current;
       else {marker("failed");return;}
-      pending=-1;reset=-1;engaged=false;debug=false;failed=false;deadlineStopped=false;
+      pending=-1;reset=-1;engaged=false;debug=false;failed=false;deadlineStopped=false;nominalHeight=0;verticalPending=-1;
       WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_EVALUATOR"),"customData");
       if(field)wb_supervisor_field_set_sf_string(field,"");
     }
     if(std::strcmp(payload,"OK") && engaged)marker("failed");
     reset=-1;return;
   }
+  if(id==verticalPending) {
+    if(!std::strcmp(payload,"OK"))nominalHeight=verticalTarget;else marker("failed");
+    verticalPending=-1;
+  }
   if(id==pending) {
+    if(!std::strcmp(payload,"OK"))nominalHeight=takeoffHeight;
     marker(!std::strcmp(payload,"OK")?"accepted":"failed");pending=-1;
   } else if(engaged&&!std::strncmp(payload,"ERR ",4))marker("failed");
 }
