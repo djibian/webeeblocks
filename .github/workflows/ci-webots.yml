@@ -1464,6 +1464,8 @@ jobs:
               restore_html() { cp /tmp/blockly.original.html /workspace/plugins/robot_windows/blockly/blockly.html; }
               trap restore_html EXIT
 
+              source /workspace/tools/ci/stop_webots_group.sh
+
               run_strategy() {
                 label="$1"
                 fixture="$2"
@@ -1478,7 +1480,7 @@ jobs:
 
                 python3 /workspace/tools/ci/runtime_wwi_event_server.py --output "$out/events.jsonl" &
                 event_pid=$!
-                xvfb-run -a webots --stdout --stderr --batch --mode=realtime \
+                setsid xvfb-run -a webots --stdout --stderr --batch --mode=realtime --port=1234 \
                   /workspace/worlds/crazyflie_runtime_obstacle.wbt > "$out/webots.log" 2>&1 &
                 webots_pid=$!
                 complete=0
@@ -1489,7 +1491,8 @@ jobs:
                   fi
                   if grep -Fq "\"event\":\"ERROR\"" "$out/events.jsonl" 2>/dev/null; then
                     cat "$out/events.jsonl"
-                    kill "$webots_pid" "$event_pid" 2>/dev/null || true
+                    stop_webots_group "$webots_pid"
+                    kill "$event_pid" 2>/dev/null || true
                     exit 1
                   fi
                   if ! kill -0 "$webots_pid" 2>/dev/null; then
@@ -1499,8 +1502,8 @@ jobs:
                   fi
                   sleep 0.1
                 done
-                kill "$webots_pid" "$event_pid" 2>/dev/null || true
-                wait "$webots_pid" 2>/dev/null || true
+                stop_webots_group "$webots_pid"
+                kill "$event_pid" 2>/dev/null || true
                 wait "$event_pid" 2>/dev/null || true
                 pkill -x chrome 2>/dev/null || true
                 pkill -x google-chrome 2>/dev/null || true

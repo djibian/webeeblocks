@@ -437,6 +437,17 @@ class WorkflowTests(unittest.TestCase):
             cwd=ROOT, check=True, timeout=120,
         )
 
+    def test_strategy_timing_retires_the_owned_webots_group(self):
+        webots = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        strategy = webots.split("  strategy-timing:", 1)[1].split("\n  historical-blockly-ui:", 1)[0]
+        self.assertIn("source /workspace/tools/ci/stop_webots_group.sh", strategy)
+        self.assertIn("setsid xvfb-run -a webots", strategy)
+        self.assertIn("--port=1234", strategy)
+        self.assertEqual(strategy.count('stop_webots_group "$webots_pid"'), 2)
+        self.assertNotIn('kill "$webots_pid"', strategy)
+        subprocess.run([sys.executable, str(ROOT / "tools/ci/test_webots_group_cleanup.py")],
+                       cwd=ROOT, check=True, timeout=20)
+
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
             self.assertNotIn("  push:\n", path.read_text(encoding="utf-8"), path.name)
