@@ -96,14 +96,27 @@ The input thread performs no output and does not take a socket-read, execution
 or host lifecycle lock. An already blocked ordinary write cannot block this
 local signal behind such a lock.
 
-A short local lock consumes the abandonment intent before the fallible
-half-close; duplicate/concurrent gestures become no-ops. Unknown signal delivery
-remains uncertain and is never resent. Intent itself vetoes later approval,
-ordinary request progression and normal-success reporting in this session,
-including a positive reply received after abandonment. Known complete execution
-and abandonment serialize their local terminal decisions; a gesture after that
-completion is a no-op. Resource cleanup still belongs to the main launcher path,
-and the unchanged host-wait rule never kills a possibly authorized host.
+A short local lock serializes **three irreversible claims**: operator
+abandonment, the teacher APPROVE/DENY decision commitment, and the one-shot
+ordinary socket write-half-close shared by abandonment and cleanup. Preparation
+and serialization of the teacher reply happen before the claim; the last local
+check and the one-shot decision claim occur atomically against abandonment.
+An approval already committed before the gesture remains transport-uncertain,
+but an unclaimed approval can never be committed after terminal intent.
+Each ordinary execution request similarly passes a short atomic terminal check
+at commitment. Normal teardown also marks the launcher closing before it
+releases that lock, forbidding newly committed decisions.
+
+No lock surrounds socket sends, shutdown, host reads, ordinary I/O or cleanup
+waits. Duplicate/concurrent gestures become no-ops. Unknown signal delivery
+remains uncertain and is never resent, **including by cleanup**, which consumes
+the same half-close claim before fallible socket I/O. Intent vetoes subsequent
+approval, requests and normal-success reporting; a positive response arriving
+after the gesture is not promoted to completion. A decision or effect already
+committed before the gesture is not retroactively cancelled by assertion.
+Known complete execution and abandonment serialize their local terminal
+decisions; a gesture after that completion is a no-op. The host-wait rule never
+kills a possibly authorized host.
 
 The stdin reader is a daemon confined to this single-use CLI process: stopping
 it suppresses a later line, but cannot interrupt a blocked OS stdin read. This
@@ -111,14 +124,22 @@ does not supply a reusable console service or change supported classroom UI.
 The prompt is printed before approval; no diagnostic write precedes signalling.
 The existing overall IPC deadlines and exceptional teardown rules are unchanged.
 
-Adversarial launcher tests use real sockets and the production CallerLifetime
-for static/dynamic pending replies, eight concurrent gestures, positive replies
-racing abandonment, pre-approval abandonment, settled completion and late input.
-A blocked/partial-write fixture checks independent signal delivery and consumed
-unknown half-close. EOF on the console and ignored input followed by ABANDON are
-covered. The existing canonical production-lifecycle test invokes this whole
-launcher suite; the #585 real-host wait/effect/ACK/epoch race suites remain
-unchanged. These are software tests with external I/O/hardware fixtures.
+Adversarial launcher tests use real sockets and the production
+CallerLifetime for static/dynamic pending replies, eight concurrent gestures,
+positive replies racing abandonment, pre-approval abandonment, settled
+completion and late input. The repaired candidate adds an actual-thread
+pre-commit approval race using the **real** PostResetTeacherDecisionChannel and
+TrustedTeacherAuthorizer: an abandonment intent consumed while approval is
+still in fallible preparation must not mint a receipt, even when ordinary EOF
+is deliberately delayed or its outcome is unknown. Separate overlapping-thread
+tests race cleanup against abandonment in **both claim orders**, and verify
+one SHUT_WR attempt for delivered/uncertain results. Another test holds
+non-emitting execution-request preparation across the gesture. No second
+authority, resend or opportunistic reset is introduced. EOF on the console and
+ignored input followed by ABANDON are covered. The existing canonical
+production-lifecycle test invokes this whole launcher suite; the #585 real-host
+wait/effect/ACK/epoch race suites remain unchanged. These are machine-only
+fixtures without radio, motors or physical contact.
 
 This does **not** establish a hard input-to-EOF or input-to-touchdown bound.
 An in-progress radio effect retains its existing ACK/completion uncertainty;
