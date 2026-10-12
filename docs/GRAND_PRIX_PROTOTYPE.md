@@ -253,3 +253,7 @@ soit son refus avant tout effet si le langage est encore absent. La preuve
 dynamique de cette forme attend l'intégration indépendante de #590 et de
 nouveaux CI/revue sur le HEAD résultant. La dépendance est fonctionnelle,
 pas un ordre de feuille de route ni une aide cachée au programme.
+
+Les segments suivants sont aussi conditionnés à « invalide = 0 » : après une
+incertitude, aucune nouvelle translation du tour ne continue avant cet échec
+générique. Le test de perte du retour bas vérifie ce comportement stationnaire.

@@ -63,9 +63,13 @@ class Tests(unittest.TestCase):
         layout=dataclasses.asdict(generate(1));layout['injectRangeLoss']=True
         result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(layout),cwd=ROOT,text=True,capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        values=json.loads(result.stdout)['result']['variables']
+        evidence=json.loads(result.stdout);values=evidence['result']['variables']
         self.assertEqual(values['invalide'],1)
         self.assertEqual(values['fin'],0)
+        invalid=[sample for sample in evidence['variables'] if sample['values'].get('invalide')==1]
+        self.assertTrue(invalid)
+        first=invalid[0]['position']
+        for sample in invalid:self.assertLess(math.hypot(sample['position'][0]-first[0],sample['position'][1]-first[1]),1e-8)
 
     def test_double_saturation_is_uncertain_but_can_land_in_arrival(self):
         layout=generate(4);payload=dataclasses.asdict(layout);payload['injectRangeLossBoth']=True
