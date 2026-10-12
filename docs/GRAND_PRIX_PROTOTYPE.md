@@ -101,7 +101,9 @@ conditions déjà intégrées. La fenêtre expose la boucle WHILE/UNTIL lorsque 
 intégrée par #590 ; avant cette intégration elle reste absente du profil. Elle n'est pas dissimulée dans
 un bloc spécial ou une boucle native propre à la mission.
 
-Le nouveau job canonique `grand-prix-prototype` exige les tests idéaux puis une
+Le brouillon exécute un probe Webots non décisionnel dans `Select suites` et
+conserve ses observations ; il ne publie jamais `CI Gate`. Le candidat Ready
+exécute ce probe dans le job Runtime obligatoire `grand-prix-prototype`, qui exige les tests idéaux puis une
 exécution dans le vrai R2025a des configurations 1 et 3 avec le même AST et les
 mesures réelles. Un échec reste rouge, sans adaptation du compte attendu. Ces
 résultats, la reprise fraîche, deux stratégies différentes, les essais négatifs
