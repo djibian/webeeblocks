@@ -15,7 +15,8 @@ s=socket.socket();s.bind(('127.0.0.1',0));s.listen()
 open(sys.argv[1],'w').write(json.dumps({'port':s.getsockname()[1],'group':os.getpgrp()}))
 while True:time.sleep(.02)
 ''')
-    (temp/'wrapper.py').write_text('''import subprocess,sys
+    (temp/'wrapper.py').write_text('''import signal,subprocess,sys
+if sys.argv[3]=='ignore':signal.signal(signal.SIGTERM,signal.SIG_IGN)
 subprocess.Popen([sys.executable,sys.argv[1],sys.argv[2],sys.argv[3]]).wait()
 ''')
     (temp/'check.py').write_text('''import json,socket,sys,time
@@ -55,4 +56,4 @@ stop_webots_group "$group_pid"
 {shlex.quote(sys.executable)} check.py ready.json dead
 '''
     subprocess.run(['bash','-c',script],check=True,timeout=15)
-print('PASS owned Webots group cleanup: wrapper-only survivor reproduced; session group retired, TERM-resistant child removed, invalid identifiers refuse')
+print('PASS owned Webots group cleanup: wrapper-only survivor reproduced; session group retired, TERM-resistant wrapper and child removed, invalid identifiers refuse')
