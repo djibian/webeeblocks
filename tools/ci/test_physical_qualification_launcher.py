@@ -1682,7 +1682,31 @@ def test_failed_normal_half_close_retains_causal_error_without_retry():
             "unknown half-close led to a second shutdown or socket cleanup")
 
 
+
+def test_failed_startup_cause_survives_failed_one_shot_teardown():
+    session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
+    original = launcher.PhysicalQualificationLauncherError("original startup evidence")
+    class FailingCleanupCaller:
+        def shutdown(self, _how):
+            raise OSError("unknown caller shutdown")
+        def close(self): pass
+    def broken_spawn():
+        session._caller = FailingCleanupCaller()
+        raise original
+    session._spawn_host = broken_spawn
+    try:
+        session.start()
+    except launcher.PhysicalQualificationLauncherError as exc:
+        require(exc.__cause__ is original and "original startup evidence" in str(exc)
+                and "terminal teardown also failed" in str(exc),
+                "startup root cause was replaced by uncertain cleanup")
+    else:
+        raise AssertionError("startup failure/cleanup failure falsely passed")
+    require(session._terminal_cleanup_state == "failed", "teardown uncertainty not retained")
+
+
 def main() -> int:
+    test_failed_startup_cause_survives_failed_one_shot_teardown()
     test_close_after_committed_decision_preserves_uncertainty_and_host()
     test_close_during_committed_execution_does_not_retry_ipc()
     test_failed_normal_half_close_retains_causal_error_without_retry()
