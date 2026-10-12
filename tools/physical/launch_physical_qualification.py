@@ -570,6 +570,11 @@ class PhysicalQualificationSession:
         self._caller_write_half_close_attempted = False
         self._closing = False
         self._execution_completed = False
+        # One owner for the ENTIRE terminal teardown, not just the caller socket.
+        # A failed/in-flight teardown cannot be silently retried by another close.
+        self._terminal_cleanup_state = "not_started"
+        self._terminal_cleanup_error: BaseException | None = None
+        self._uncertain_caller: socket.socket | None = None
 
     def request_abandon(self) -> bool:
         """Irrevocably half-close ordinary IPC; only the host may recover.
@@ -583,6 +588,11 @@ class PhysicalQualificationSession:
                 return False
             caller = self._caller
             if caller is None:
+                if self._closing and self._caller_write_half_close_attempted:
+                    # Cleanup already owns the sole SHUT_WR attempt. Record the
+                    # operator intent without claiming delivery or signalling again.
+                    self._abandon_requested.set()
+                    return True
                 raise PhysicalQualificationLauncherError("abandon channel is unavailable")
             self._abandon_requested.set()
             # Normal cleanup may already own the one permitted half-close.
@@ -798,73 +808,136 @@ class PhysicalQualificationSession:
             self._execution_completed = True
 
     def close(self) -> None:
-        host_exit_error = None
-        # Cleanup and operator gesture compete for one irreversible SHUT_WR
-        # attempt. Claim/detach under the same short lock, then perform all
-        # potentially fallible socket operations outside it.
+        # Claim the whole teardown once. Releasing this lock before any socket,
+        # subprocess or filesystem operation prevents a blocked first owner from
+        # blocking abandonment, and prevents all second owners from repeating
+        # an operation whose result may be unknown.
         with self._abandon_lock:
+            state = self._terminal_cleanup_state
+            if state == "complete":
+                return
+            if state == "in_progress":
+                raise PhysicalQualificationLauncherError(
+                    "terminal cleanup is in progress; its outcome is unresolved; no retry"
+                )
+            if state == "failed":
+                raise PhysicalQualificationLauncherError(
+                    "terminal cleanup previously failed or is unresolved; no retry"
+                ) from self._terminal_cleanup_error
+            self._terminal_cleanup_state = "in_progress"
             self._closing = True
             caller = self._caller
             self._caller = None
             half_close = caller is not None and not self._caller_write_half_close_attempted
             if half_close:
                 self._caller_write_half_close_attempted = True
-        if caller is not None:
-            if half_close:
+            # This flag is committed by decide() under the SAME lock. A possibly
+            # authorized host must never be killed by launcher teardown.
+            possibly_authorized = self._teacher_decision_attempted
+
+        try:
+            host_exit_error = None
+            cleanup_error = None
+
+            def record_error(message: str, cause: Exception) -> None:
+                nonlocal cleanup_error
+                if cleanup_error is None:
+                    cleanup_error = PhysicalQualificationLauncherError(message)
+                    cleanup_error.__cause__ = cause
+
+            if caller is not None:
+                if half_close:
+                    try:
+                        caller.shutdown(socket.SHUT_WR)
+                    except OSError as exc:
+                        record_error("caller half-close outcome is uncertain; no retry", exc)
                 try:
-                    caller.shutdown(socket.SHUT_WR)
-                except OSError:
-                    pass
-            try:
-                caller.close()
-            except OSError:
-                pass
-        if self._teacher is not None:
-            try:
-                self._teacher.close()
-            except OSError:
-                pass
-            self._teacher = None
-        if self._host is not None:
-            try:
-                exit_code = self._host.wait(timeout=10.0)
-                if exit_code != 0:
-                    host_exit_error = PhysicalQualificationLauncherError(
-                        "trusted host exited unsuccessfully: " + str(exit_code)
-                    )
-            except subprocess.TimeoutExpired as exc:
-                if self._teacher_decision_attempted:
-                    # The host owns powered-session liveness and bounded abort
-                    # recovery. Killing it here can cut an airborne vehicle.
-                    # Keep its browser/resources too; timeout remains a failure.
+                    caller.close()
+                except OSError as exc:
+                    self._uncertain_caller = caller
+                    record_error("caller socket cleanup outcome is uncertain; no retry", exc)
+
+            # Only this close() invocation owns all remaining fields. A second
+            # close sees 'in_progress' or 'failed' before touching any of them.
+            teacher = self._teacher
+            if teacher is not None:
+                try:
+                    teacher.close()
+                except OSError as exc:
+                    record_error("teacher socket cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._teacher = None
+
+            host = self._host
+            if host is not None:
+                try:
+                    exit_code = host.wait(timeout=10.0)
+                    if exit_code != 0:
+                        host_exit_error = PhysicalQualificationLauncherError(
+                            "trusted host exited unsuccessfully: " + str(exit_code)
+                        )
+                except subprocess.TimeoutExpired as exc:
+                    if possibly_authorized:
+                        # Leave host AND its supporting Webots/resources alive.
+                        # A second close cannot opportunistically reap/retry it.
+                        raise PhysicalQualificationLauncherError(
+                            "trusted host teardown is unresolved after 10 seconds; "
+                            "host left alive for safe recovery; no retry is authorized"
+                        ) from exc
+                    host.terminate()
+                    try:
+                        host.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        host.kill()
+                        host.wait(timeout=5.0)
+                self._host = None
+
+            webots = self._webots
+            if webots is not None:
+                if webots.poll() is None:
+                    webots.terminate()
+                    try:
+                        webots.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        webots.kill()
+                        webots.wait(timeout=5.0)
+                self._webots = None
+
+            bridge = self._bridge
+            if bridge is not None:
+                try:
+                    bridge.close()
+                except Exception as exc:
+                    # A failed close is never attempted again. Retain its handle
+                    # as uncertainty evidence, and still close independent assets.
+                    record_error("bridge cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._bridge = None
+            ephemeral = self._ephemeral
+            if ephemeral is not None:
+                try:
+                    ephemeral.close()
+                except Exception as exc:
+                    record_error("ephemeral window cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._ephemeral = None
+
+            if host_exit_error is not None:
+                if cleanup_error is not None:
                     raise PhysicalQualificationLauncherError(
-                        "trusted host teardown is unresolved after 10 seconds; "
-                        "host left alive for safe recovery; no retry is authorized"
-                    ) from exc
-                self._host.terminate()
-                try:
-                    self._host.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._host.kill()
-                    self._host.wait(timeout=5.0)
-            self._host = None
-        if self._webots is not None:
-            if self._webots.poll() is None:
-                self._webots.terminate()
-                try:
-                    self._webots.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._webots.kill()
-                    self._webots.wait(timeout=5.0)
-            self._webots = None
-        if self._bridge is not None:
-            self._bridge.close()
-            self._bridge = None
-        if self._ephemeral is not None:
-            self._ephemeral.close()
-            self._ephemeral = None
-        if host_exit_error is not None:
-            raise host_exit_error
+                        str(host_exit_error) + "; " + str(cleanup_error)
+                    ) from host_exit_error
+                raise host_exit_error
+            if cleanup_error is not None:
+                raise cleanup_error
+        except BaseException as exc:
+            with self._abandon_lock:
+                self._terminal_cleanup_error = exc
+                self._terminal_cleanup_state = "failed"
+            raise
+        else:
+            with self._abandon_lock:
+                self._terminal_cleanup_state = "complete"
 
     def __enter__(self) -> "PhysicalQualificationSession":
         self.start()
