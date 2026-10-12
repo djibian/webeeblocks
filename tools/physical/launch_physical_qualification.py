@@ -565,6 +565,9 @@ class PhysicalQualificationSession:
         self._execution_attempted = False
         self._abandon_lock = Lock()
         self._abandon_requested = Event()
+        # One claim across operator abandonment and normal cleanup. Claimed
+        # before socket I/O, so an uncertain SHUT_WR outcome is never retried.
+        self._caller_write_half_close_attempted = False
         self._execution_completed = False
 
     def request_abandon(self) -> bool:
@@ -581,6 +584,11 @@ class PhysicalQualificationSession:
             if caller is None:
                 raise PhysicalQualificationLauncherError("abandon channel is unavailable")
             self._abandon_requested.set()
+            # Normal cleanup may already own the one permitted half-close.
+            # Intent stays terminal without making a second socket attempt.
+            if self._caller_write_half_close_attempted:
+                return True
+            self._caller_write_half_close_attempted = True
         try:
             caller.shutdown(socket.SHUT_WR)
         except OSError as exc:
@@ -697,12 +705,19 @@ class PhysicalQualificationSession:
         checked = _teacher_proposal(proposal, self._prepared)
         reply = teacher_decision_reply(checked, approved)
 
-        # From the first operation that can emit decision bytes onward, the
-        # one-shot decision is consumed even if sendall() reports an ambiguous
-        # failure. A retry could duplicate a partially delivered approval.
-        self._teacher_decision_attempted = True
+        # Preparation above may race with a terminal operator gesture.
+        # Atomically commit the one irreversible decision against abandonment.
+        # Never hold this local lock across socket I/O, diagnostics or waits.
+        with self._abandon_lock:
+            self._assert_not_abandoned()
+            if self._teacher is None or self._teacher_decision_attempted:
+                raise PhysicalQualificationLauncherError("teacher decision is not available")
+            teacher = self._teacher
+            # Consumed BEFORE the first possibly partial send, even if its
+            # outcome is ambiguous; positive authority cannot be reissued.
+            self._teacher_decision_attempted = True
         try:
-            _write_socket_line(self._teacher, reply)
+            _write_socket_line(teacher, reply)
         except PhysicalQualificationLauncherError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision channel write failed or peer closed; "
@@ -714,7 +729,7 @@ class PhysicalQualificationSession:
         # the decision remains one-shot/non-retriable, but ordinary execution
         # must stay disabled.
         try:
-            self._teacher.shutdown(socket.SHUT_WR)
+            teacher.shutdown(socket.SHUT_WR)
         except OSError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision was sent; local channel half-close is uncertain"
@@ -735,16 +750,30 @@ class PhysicalQualificationSession:
                 "positively approved exact program is not ready for execution"
             )
         count = execution_request_count(self._prepared.ast_binding)
-        # Consume before the first write: an ambiguous IPC result is never replayable.
-        self._execution_attempted = True
-        for index in range(count):
+        # Claim exact-program execution atomically against terminal intent.
+        # No IPC operation is performed with the local decision lock held.
+        with self._abandon_lock:
             self._assert_not_abandoned()
+            if (self._caller is None or self._execution_attempted
+                    or not self._teacher_sealed or not self._teacher_approved):
+                raise PhysicalQualificationLauncherError(
+                    "positively approved exact program is not ready for execution"
+                )
+            self._execution_attempted = True
+        for index in range(count):
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
-            _write_socket_line(self._caller, {
+            # Each ordinary request commits against abandonment independently,
+            # including the next command after a blocked or late host reply.
+            with self._abandon_lock:
+                self._assert_not_abandoned()
+                caller = self._caller
+                if caller is None:
+                    raise PhysicalQualificationLauncherError("execution channel was closed")
+            _write_socket_line(caller, {
                 "op": "execute-next-inflight",
                 "requestId": request_id,
             })
-            response = _read_socket_line(self._caller, timeout_seconds=timeout_seconds)
+            response = _read_socket_line(caller, timeout_seconds=timeout_seconds)
             if response.get("requestId") != request_id or response.get("executionAuthority") is not False:
                 raise PhysicalQualificationLauncherError("in-flight reply lost exact correlation/non-authority")
             if response.get("ok") is not True:
@@ -765,17 +794,25 @@ class PhysicalQualificationSession:
 
     def close(self) -> None:
         host_exit_error = None
-        if self._caller is not None:
-            if not self._abandon_requested.is_set():
+        # Cleanup and operator gesture compete for one irreversible SHUT_WR
+        # attempt. Claim/detach under the same short lock, then perform all
+        # potentially fallible socket operations outside it.
+        with self._abandon_lock:
+            caller = self._caller
+            self._caller = None
+            half_close = caller is not None and not self._caller_write_half_close_attempted
+            if half_close:
+                self._caller_write_half_close_attempted = True
+        if caller is not None:
+            if half_close:
                 try:
-                    self._caller.shutdown(socket.SHUT_WR)
+                    caller.shutdown(socket.SHUT_WR)
                 except OSError:
                     pass
             try:
-                self._caller.close()
+                caller.close()
             except OSError:
                 pass
-            self._caller = None
         if self._teacher is not None:
             try:
                 self._teacher.close()
