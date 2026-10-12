@@ -1705,7 +1705,27 @@ def test_failed_startup_cause_survives_failed_one_shot_teardown():
     require(session._terminal_cleanup_state == "failed", "teardown uncertainty not retained")
 
 
+
+def test_one_shot_teardown_prevents_restarting_and_leaking_new_resources():
+    from unittest.mock import patch
+    session = launcher.PhysicalQualificationSession(uri="radio://unused", webots_executable="unused")
+    session.close()
+    require(session._terminal_cleanup_state == "complete", "empty session did not finish cleanup")
+    with patch.object(session, "_spawn_host", side_effect=AssertionError("restarted a closed host")):
+        try:
+            session.start()
+        except launcher.PhysicalQualificationLauncherError as exc:
+            require("closing" in str(exc) or "cannot restart" in str(exc),
+                    "restarting a cleaned-up session did not fail closed")
+        else:
+            raise AssertionError("post-close start reacquired resources that cannot be cleaned")
+    session.close()
+    require(session._host is None and session._caller is None and session._teacher is None,
+            "one-shot session acquired post-cleanup resources")
+
+
 def main() -> int:
+    test_one_shot_teardown_prevents_restarting_and_leaking_new_resources()
     test_failed_startup_cause_survives_failed_one_shot_teardown()
     test_close_after_committed_decision_preserves_uncertainty_and_host()
     test_close_during_committed_execution_does_not_retry_ipc()
