@@ -131,5 +131,6 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
     'division by zero must fail with a correctable student outcome'
   );
   arithmeticWorkspace.dispose();
+  await require('./test_runtime_v2_while.js')();
   console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
