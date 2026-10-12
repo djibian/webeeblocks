@@ -11,7 +11,7 @@ const iff=(condition,then,otherwise=[])=>({kind:'if',condition,then,else:otherwi
 const repeat=(count,body)=>({kind:'repeat',count,body});
 const range=direction=>({kind:'range',direction,unit:'m'});
 const move=direction=>({kind:'move',direction:direction||'forward',distance_m:.1});
-const vertical=direction=>({kind:'vertical',direction,distance_m:.5});
+const vertical=direction=>({kind:'vertical',direction,distance_m:.4});
 const increment=(name,delta=1)=>set(name,ar('ADD',v(name),delta));
 const narrow=cmp('LT',ar('ADD',v('gauche'),v('droite')),.65);
 const centered=[iff(cmp('LT',v('gauche'),ar('MINUS',v('droite'),.06)),[move('right')],[iff(cmp('LT',v('droite'),ar('MINUS',v('gauche'),.06)),[move('left')])])];
@@ -38,7 +38,7 @@ const segment=repeat(20,[iff(and(cmp('EQ',v('virage fait'),0),cmp('EQ',v('invali
   ])
 ])]);
 return {ast:{version:1,semantics:'webeeblocks-ast-v1',program:[
-  {kind:'takeoff',height_m:.5},{kind:'vertical',direction:'up',distance_m:.4},set('portes',0),set('tour',0),set('coin',0),set('engagé',0),set('invalide',0),set('avant',0),set('gauche',0),set('droite',0),set('bas',0),set('arrière',0),set('restantes',0),set('virage fait',0),set('fin',0),set('portes finales',0),set('paroi vue',0),
+  {kind:'takeoff',height_m:.5},{kind:'vertical',direction:'up',distance_m:.3},set('portes',0),set('tour',0),set('coin',0),set('engagé',0),set('invalide',0),set('avant',0),set('gauche',0),set('droite',0),set('bas',0),set('arrière',0),set('restantes',0),set('virage fait',0),set('fin',0),set('portes finales',0),set('paroi vue',0),
   repeat(3,[set('coin',0),set('restantes',v('portes')),repeat(4,[set('virage fait',0),set('paroi vue',0),{kind:'move',direction:'forward',distance_m:.4},segment,iff(cmp('EQ',v('virage fait'),0),[set('invalide',1)]),increment('coin')]),iff(and(cmp('GT',v('tour'),0),cmp('NEQ',v('restantes'),0)),[set('invalide',1)]),increment('tour')]),
   repeat(20,[iff(and(cmp('EQ',v('fin'),0),cmp('EQ',v('invalide'),0)),[...reads,iff(narrow,gate(true),[iff(cmp('EQ',v('engagé'),1),clearance(true),corridor)])])]),
   {kind:'land'}

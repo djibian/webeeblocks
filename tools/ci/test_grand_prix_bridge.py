@@ -45,7 +45,7 @@ extern "C" void *wb_supervisor_node_get_field(void *n,const char *s){return !std
 extern "C" void wb_supervisor_field_set_sf_string(void *f,const char *s){(f==&controlToken?control:channel)=s;}
 extern "C" const char *wb_supervisor_field_get_sf_string(void *f){return (f==&controlToken?control:channel).c_str();}
 extern "C" const char *webeeblocks_file_broker_receive_text(void){if(incoming.empty())return nullptr;current=incoming.front();incoming.pop_front();return current.c_str();}
-extern "C" void webeeblocks_file_broker_send(const char *s,int){sent.push_back(s);if(std::string(s)=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 OK")channel="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";}
+extern "C" void webeeblocks_file_broker_send(const char *s,int){sent.push_back(s);if(std::string(s)=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 OK")channel="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2";if(std::string(s)=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 11 OK")channel="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 3";if(std::string(s)=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 14 OK")channel="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";}
 void response(const std::string &s){webeeblocks_gp_send(s.c_str(),s.size()+1);}
 void request(const std::string &s){incoming.push_back(s);}
 int main(){
@@ -81,7 +81,17 @@ int main(){
  response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK");assert(control.find("state=pending")!=std::string::npos);
  response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 9 OK");assert(control.find("state=accepted")!=std::string::npos);
  response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 10 ERR INVALID_RANGE_SAMPLE");assert(control.find("state=failed")!=std::string::npos);
- std::cout<<"PASS Grand Prix observer: accepted timestamp, terminal veto, late ACK, one-shot deadline, exact successful Reset, stale reply and invalid sample\n";
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 11 RESET");webeeblocks_gp_receive_text();response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 11 OK");
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 12 TAKEOFF 0.5");webeeblocks_gp_receive_text();response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 12 OK");
+ channel="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-v1 status=achieved";
+ now=1204;assert(webeeblocks_gp_receive_text()==nullptr);assert(control.find("state=accepted")!=std::string::npos);
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 13 VERTICAL up 0.4");assert(webeeblocks_gp_receive_text()==nullptr);
+ assert(sent.back()=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 13 ERR RESET_REQUIRED");assert(control.find("state=accepted")!=std::string::npos);
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 14 RESET");webeeblocks_gp_receive_text();response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 14 OK");
+ request("WEBEEBLOCKS_RUNTIME_V2 REQUEST 15 TAKEOFF 0.5");webeeblocks_gp_receive_text();response("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 15 OK");
+ channel="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-v1 status=achieved";
+ now=1805;assert(std::string(webeeblocks_gp_receive_text()).find("STOP")!=std::string::npos);assert(control.find("state=failed")!=std::string::npos);
+ std::cout<<"PASS Grand Prix observer: accepted timestamp, terminal veto, late ACK, one-shot deadline, exact successful Reset, stale reply, invalid sample and exact completed-result lifetime\n";
 }
 '''
 def main():

@@ -15,10 +15,12 @@ bool debug=false;
 bool engaged=false;
 bool failed=false;
 bool deadlineStopped=false;
+bool completed=false;
 int reset=-1;
 int verticalPending=-1;
 double nominalHeight=0,verticalTarget=0,takeoffHeight=0;
 void marker(const char *state) {
+  if(completed)return;
   if(!std::strcmp(state,"failed"))failed=true;
   if(failed && std::strcmp(state,"failed"))return;
   WbNodeRef node=wb_supervisor_node_get_from_def("GP_EVALUATOR");
@@ -30,8 +32,16 @@ void marker(const char *state) {
 }
 }
 extern "C" const char *webeeblocks_gp_receive_text(void) {
+  // A certified, exact-attempt landed success is terminal until Reset. Merely
+  // reaching COMPLETE, a stale result, or a pending takeoff never stops the bound.
+  if(engaged && !failed && pending<1 && !completed) {
+    WbFieldRef channel=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+    unsigned long long resultAttempt=0;char oracle[64]={0},status[32]={0},tail[2]={0};
+    const char *result=channel?wb_supervisor_field_get_sf_string(channel):nullptr;
+    completed=result && std::sscanf(result,"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",&resultAttempt,oracle,status,tail)==3 && resultAttempt==attempt && !std::strcmp(oracle,"grand-prix-v1") && !std::strcmp(status,"achieved");
+  }
   // Simulation deadline remains live while the shared interpreter/browser waits.
-  if(engaged && !deadlineStopped && wb_robot_get_time()-start>600.0) {
+  if(engaged && !completed && !deadlineStopped && wb_robot_get_time()-start>600.0) {
     deadlineStopped=true;marker("failed");
     return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2147483647 STOP";
   }
@@ -45,7 +55,7 @@ extern "C" const char *webeeblocks_gp_receive_text(void) {
       char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d %s",id,valid?"OK":"ERR INVALID_REQUEST");
       wb_robot_wwi_send_text(reply);continue;
     }
-    if(failed && std::strcmp(command,"RESET") && std::strcmp(command,"STOP")) {
+    if((failed||completed) && std::strcmp(command,"RESET") && std::strcmp(command,"STOP")) {
       char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR RESET_REQUIRED",id);
       wb_robot_wwi_send_text(reply);continue;
     }
@@ -87,7 +97,7 @@ extern "C" void webeeblocks_gp_send(const char *data,int size) {
       unsigned long long current=0;
       if(channel && std::sscanf(wb_supervisor_field_get_sf_string(channel),"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu",&current)==1)attempt=current;
       else {marker("failed");return;}
-      pending=-1;reset=-1;engaged=false;debug=false;failed=false;deadlineStopped=false;nominalHeight=0;verticalPending=-1;
+      pending=-1;reset=-1;engaged=false;debug=false;failed=false;deadlineStopped=false;completed=false;nominalHeight=0;verticalPending=-1;
       WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_EVALUATOR"),"customData");
       if(field)wb_supervisor_field_set_sf_string(field,"");
     }

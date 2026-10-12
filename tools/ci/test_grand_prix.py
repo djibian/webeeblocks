@@ -142,11 +142,14 @@ class Tests(unittest.TestCase):
     def test_real_initial_overshoot_remains_rejected(self):
         # Actual R2025a sample from b7f1493 / run 38239852904 / artifact
         # 11741872557. Keep the altitude ceiling; repair the witness instead.
-        active=Attempt(generate(1),1,.015);active.start(1,0,False)
-        active.sample(5.216,[-1.2821024416431867e-16,2.263184313423007e-16,1.1744828454376302],[6.898282543315577e-16,6.500460122346386e-16,1.00107798645228])
-        self.assertEqual(active.failure_reason,'altitude')
-        self.assertEqual(active.result.status,'not-achieved')
-        self.assertIsNone(active.result.seconds)
+        samples=[(5.216,[-1.2821024416431867e-16,2.263184313423007e-16,1.1744828454376302],[6.898282543315577e-16,6.500460122346386e-16,1.00107798645228]),
+                 (38.112,[1.1028303338139693,-2.448587053625974e-15,1.1702111270140578],[-.0018354002108879374,1.2401019790947692e-16,.22102079124237933])]
+        for time,position,velocity in samples:
+            active=Attempt(generate(1),1,.015);active.start(1,0,False)
+            active.sample(time,position,velocity)
+            self.assertEqual(active.failure_reason,'altitude')
+            self.assertEqual(active.result.status,'not-achieved')
+            self.assertIsNone(active.result.seconds)
 
     def test_refutations_and_clock_binding(self):
         layout=generate(3)

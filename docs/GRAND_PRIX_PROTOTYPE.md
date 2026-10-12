@@ -108,7 +108,10 @@ consomme l'acquittement natif puis prend la nouvelle identité du broker existan
 Il n'émet aucun mouvement de navigation ni effet physique. Une limite de
 600 secondes Webots engage une seule fois le STOP natif de simulation, même
 si le programme ou le navigateur est en attente ; le contrôleur conserve son
-fail-safe jusqu'au Reset. Les commandes verticales conservent aussi une hauteur
+fail-safe jusqu'au Reset. La borne reste active tant que le résultat n'est pas
+une réussite certifiée du même oracle et de la même tentative, avec takeoff
+acquitté ; une telle réussite au sol est terminale jusqu'au Reset. Un résultat
+ancien ou une simple complétion ne désarme pas la borne. Les commandes verticales conservent aussi une hauteur
 nominale admise de 0,30 à 1,10 m, vérifiée avant leur effet et mise à jour
 uniquement sur ACK. Cette borne publique empêche un survol des panneaux sans
 changer les commandes partagées ni lire la position oracle.
@@ -190,7 +193,18 @@ identifie précisément la cause : à 5,216 s Webots, la hauteur est
 1,174482845 m et la vitesse verticale 1,001077986 m/s. Le décollage nominal
 à 0,90 m dépasse le plafond relatif de 1,15 m ; l'oracle reste terminal,
 non chronométré. Cette mesure réelle devient une régression négative. Le témoin
-emploie désormais les mêmes commandes génériques avec un décollage à 0,50 m,
+employait alors les mêmes commandes génériques avec un décollage à 0,50 m,
 puis une montée de 0,40 m avant navigation. La durée inclut ces deux commandes.
 Le contrôleur partagé, les seuils de l'oracle et les règles de collision restent
 identiques ; la nouvelle réussite dynamique reste à obtenir.
+
+Le HEAD `1986d330a8a74b9631fb507af6595fd98e8bbc40` (run 38240569802,
+artefact 11742728400, SHA-256
+222dd93c1ea288fa2eb62a80bd67453fe5ebde947d4c5c2222fa7f96290ebe8b)
+franchit le décollage progressif et le premier H, mais sa remontée de 0,50 m
+dépasse à son tour le plafond : z=1,170211127 m à t=38,112 s, curseur oracle 2.
+Ce second échec réel devient aussi une régression négative. Les hauteurs
+nominales du témoin sont désormais 0,80 m / 0,40 m, avec transitions de 0,40 m ;
+la mise en altitude initiale utilise 0,50 m puis +0,30 m. Tous les seuils et
+le contrôleur partagé sont conservés. La nouvelle preuve dynamique reste
+indispensable ; ces adaptations de programme ne prouvent aucune marge réelle.
