@@ -19,6 +19,8 @@ function backend(values) {
 }
 
 async function prove() {
+  Compiler.installConditionalLoopBounds(Blockly);
+  Compiler.installConditionalLoopBounds(Blockly); // repeated loads must not duplicate the field
   const ws = new Blockly.Workspace();
   const block=ws.newBlock('controls_whileUntil'), condition=ws.newBlock('logic_compare');
   const a=ws.newBlock('math_number'), b=ws.newBlock('math_number');
@@ -30,6 +32,23 @@ async function prove() {
   const compiled=Compiler.compileStatement(block);
   assert.deepStrictEqual(compiled,loop('WHILE',{kind:'compare',op:'LT',left:number(1),right:number(2)},[],100));
   block.setFieldValue('UNTIL','MODE'); assert.strictEqual(Compiler.compileStatement(block).mode,'UNTIL');
+  assert.strictEqual(block.getFieldValue('MAX_ITERATIONS'),100);
+  block.setFieldValue('20','MAX_ITERATIONS');
+  assert.strictEqual(Compiler.compileStatement(block).max_iterations,20);
+  const saved=Blockly.serialization.workspaces.save(ws);
+  const copy=new Blockly.Workspace();
+  Blockly.serialization.workspaces.load(saved,copy);
+  assert.strictEqual(Compiler.compileStatement(copy.getTopBlocks(true)[0]).max_iterations,20);
+  copy.dispose();
+  delete saved.blocks.blocks[0].fields.MAX_ITERATIONS;
+  const legacy=new Blockly.Workspace();
+  Blockly.serialization.workspaces.load(saved,legacy);
+  assert.strictEqual(Compiler.compileStatement(legacy.getTopBlocks(true)[0]).max_iterations,100);
+  legacy.dispose();
+  const getter=block.getFieldValue.bind(block);
+  block.getFieldValue=name=>name==='MAX_ITERATIONS'?1.5:getter(name);
+  assert.throws(()=>Compiler.compileStatement(block),/invalid conditional loop limit/);
+  block.getFieldValue=getter;
   const mapped=Observer.buildSourceMap({getTopBlocks:()=>[block]});
   assert.strictEqual(mapped['program/0/condition/left'],a.id);
   assert.strictEqual(mapped['program/0/condition'],condition.id);

@@ -59,7 +59,7 @@
       case 'webeeblocks_v2_light':{var color=String(field(block,'COLOR'));if(LIGHT_COLORS.indexOf(color)<0)fail('unsupported light color: '+color);return{kind:'set_light',color:color};}
       case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'math_change':{var changedVariable=variableReference(block);return{kind:'set_variable',variable:changedVariable,value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:changedVariable},right:valueChild(block,'DELTA')}};}
-      case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:100};}
+      case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');var rawLimit=field(block,'MAX_ITERATIONS');var max=rawLimit==null||rawLimit===''?100:finite(rawLimit,'max_iterations');if(Math.floor(max)!==max||max<1||max>100)studentFail('invalid conditional loop limit','La limite de boucle doit être un entier de 1 à 100.');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:max};}
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
       case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
       default:fail('unsupported statement block: '+block.type);
@@ -88,5 +88,19 @@
     var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
   }
 
-  return{LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,LIGHT_COLORS:LIGHT_COLORS,ARITHMETIC_OPS:ARITHMETIC_OPS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
+
+  function installConditionalLoopBounds(Blockly){
+    var definition=Blockly&&Blockly.Blocks&&Blockly.Blocks.controls_whileUntil;
+    if(!definition||definition.webeeblocksBoundedLoop||typeof definition.init!=='function'||typeof Blockly.FieldNumber!=='function')return;
+    var original=definition.init;
+    definition.init=function(){
+      original.call(this);
+      this.appendDummyInput('WEBEEBLOCKS_LOOP_BOUND').appendField('limite :')
+        .appendField(new Blockly.FieldNumber(100,1,100,1),'MAX_ITERATIONS').appendField('itérations');
+    };
+    definition.webeeblocksBoundedLoop=true;
+  }
+  if(typeof Blockly!=='undefined')installConditionalLoopBounds(Blockly);
+
+  return{installConditionalLoopBounds:installConditionalLoopBounds,LIMITS:LIMITS,SENSOR_DIRECTIONS:SENSOR_DIRECTIONS,LIGHT_COLORS:LIGHT_COLORS,ARITHMETIC_OPS:ARITHMETIC_OPS,compileExpression:compileExpression,compileStatement:compileStatement,compileSequence:compileSequence,compileWorkspace:compileWorkspace,validateFlightBoundaries:validateFlightBoundaries};
 });
