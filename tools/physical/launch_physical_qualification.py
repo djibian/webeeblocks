@@ -675,8 +675,13 @@ class PhysicalQualificationSession:
                 [self.webots_executable, *self.webots_args, str(self._ephemeral.world_path)],
                 cwd=str(ROOT),
             )
-        except BaseException:
-            self.close()
+        except BaseException as startup_error:
+            try:
+                self.close()
+            except BaseException as cleanup_error:
+                raise PhysicalQualificationLauncherError(
+                    str(startup_error) + "; terminal teardown also failed: " + str(cleanup_error)
+                ) from startup_error
             raise
 
     def prepare(self, *, timeout_seconds: float = 30.0) -> tuple[PreparedProgram, dict[str, object]]:
