@@ -568,6 +568,7 @@ class PhysicalQualificationSession:
         # One claim across operator abandonment and normal cleanup. Claimed
         # before socket I/O, so an uncertain SHUT_WR outcome is never retried.
         self._caller_write_half_close_attempted = False
+        self._closing = False
         self._execution_completed = False
 
     def request_abandon(self) -> bool:
@@ -602,6 +603,10 @@ class PhysicalQualificationSession:
             raise PhysicalQualificationLauncherError(
                 "operator abandonment requested; ordinary execution is terminal; "
                 "host recovery outcome must be established independently"
+            )
+        if self._closing:
+            raise PhysicalQualificationLauncherError(
+                "qualification launcher is closing; no new approval or execution is allowed"
             )
 
     def _spawn_host(self) -> dict[str, object]:
@@ -798,6 +803,7 @@ class PhysicalQualificationSession:
         # attempt. Claim/detach under the same short lock, then perform all
         # potentially fallible socket operations outside it.
         with self._abandon_lock:
+            self._closing = True
             caller = self._caller
             self._caller = None
             half_close = caller is not None and not self._caller_write_half_close_attempted
