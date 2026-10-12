@@ -20,8 +20,8 @@ mouvement/freinage/stabilisation ; le second confond volontairement
 interpréteur/navigateur/WWI, que ces seules observations ne séparent pas.
 Aucune de ces durées n'est soustraite du chrono.
 
-Un témoin alternatif utilise les mêmes primitives mais avance de 0,20 m dans
-la boucle, contre 0,10 m précédemment. La correction latérale et la ligne finale
+Le premier témoin alternatif essayait les mêmes primitives avec des avances
+de 0,20 m dans la boucle, contre 0,10 m précédemment. La correction latérale et la ligne finale
 restent à 0,10 m. Le même AST est vérifié sur les 92 géométries idéales distinctes,
 avec deux tours libres ; ce résultat n'annonce aucun gain temporel natif.
 Une tentative de regrouper aussi les mouvements bas de la ligne finale a
@@ -48,6 +48,39 @@ La fenêtre de stabilité n'est pas séparée expérimentalement de la convergen
 PID ; le compteur d'ACK ne démontre ni une pause additionnelle fixe ni un
 retard CPU. Comparer 195,360 s historique à 194,592 s instrumenté expose une
 variation de 0,768 s et d'un point, sans isoler sa cause ni prouver l'équité.
+
+La campagne suivante, HEAD 696e500f28699323171c6108e686b37aac56f485,
+run 38302109081, artefact 11771462675 (SHA-256
+c6425d27284eba528e5a18acada2eb5520662bcd58ee2538226efb1ee60bf9b3),
+réussit les deux références historiques : gp-v2-1 195,552 s / −51 points,
+gp-v2-4 162,272 s / −33. MOVE prend respectivement 109,504 / 101,888 s,
+VERTICAL 43,776 / 21,696 s ; les écarts de séquencement prennent 23,744 /
+20,160 s et la certification finale 0,576 s. La même référence gp-v2-1
+varie de **0,960 s** entre les deux campagnes instrumentées ; le service natif
+ne varie que de −0,032 s, les écarts ACK→requête augmentent de 0,992 s.
+Le programme conserve le même AST et la même géométrie/image/source de vol,
+mais ces répétitions ne contrôlent pas la charge CPU. Elles localisent la
+variation dans le séquencement sans en identifier le mécanisme complet.
+
+Cette campagne **réfute** ensuite l'avance uniforme de 0,20 m : à 18,464 s,
+x=0,7103679777 m, z=0,8382996017 m, l'enveloppe touche le premier H avant
+la descente. L'observation précédente voit encore une largeur de corridor
+0,80 m et un front à 0,227709361 m : le centre s'est arrêté avant le début
+des plaques latérales, contrairement au modèle de mouvements parfaits.
+L'oracle élimine sans score ; ce point natif devient une régression négative.
+Une perturbation idéale de fin de mouvement de −0,015 m reproduit le défaut.
+Le témoin réparé emploie **0,10 m si le front observé est <0,35 m**, sinon
+0,20 m dans la boucle. Les corrections latérales et la fin restent à 0,10 m.
+La perturbation qui réfute l'avance uniforme passe avec cette garde ; la
+validation native du nouveau HEAD reste indispensable.
+
+Un nouveau contrôle isole aussi la reconnaissance finale de la navigation :
+le même témoin conserve sa navigation sensorielle de la boucle puis remplace
+seulement la fin par descente unique + six ou neuf avances fixes. Six avances
+réussissent gp-v2-4 mais échouent à l'arrivée gp-v2-1 ; neuf réussissent gp-v2-1
+mais rencontrent le gabarit fermé gp-v2-4. La comparaison idéale interdit donc
+de conclure à la reconnaissance à partir d'un seul atterrissage correct.
+Ces ablations doivent encore être confrontées à la dynamique R2025a.
 
 La campagne native conserve 1/2/3 tours sur les deux configurations pour le
 nouveau témoin, et ajoute un tour du témoin historique dans chacune pour

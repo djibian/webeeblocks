@@ -8,6 +8,20 @@ const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
 const blind={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.9},{kind:'vertical',direction:'down',distance_m:.5},{kind:'repeat',count:2,body:[lap]},{kind:'repeat',count:3,body:[...straight,{kind:'turn',angle_deg:90}]},...straight,...Array(3).fill({kind:'move',direction:'forward',distance_m:.3}),{kind:'land'}]};
 const ast=JSON.parse(JSON.stringify(layout.blind?blind:witness));
+// Final-only ablation preserves sensor navigation of the ring but lands at a
+// preselected distance. The same AST must fail the other terminal geometry.
+if(layout.fixedFinalSteps){
+ ast.program[ast.program.length-2]={kind:'repeat',count:layout.fixedFinalSteps,body:[{kind:'move',direction:'forward',distance_m:.1}]};
+ ast.program.splice(ast.program.length-2,0,{kind:'vertical',direction:'down',distance_m:.4});
+}
+// Historical unsafe candidate: preserve its dynamic falsification in a model
+// with endpoint shortfall, without changing the production witness/controller.
+if(layout.unsafeUniformCircuitStride){
+ const visit=node=>{if(!node||typeof node!=='object')return;
+  if(node.kind==='move'&&node.direction==='forward'&&node.distance_m===.1)node.distance_m=.2;
+  Object.values(node).forEach(c=>Array.isArray(c)?c.forEach(visit):visit(c));};
+ visit(ast.program.find(n=>n.kind==='repeat'));
+}
 // Falsification only: unsafe uniform grouping skips final gate rearming.
 if(layout.unsafeFinalStride){
  const final=ast.program[ast.program.length-2];
@@ -46,7 +60,7 @@ const backend={
  capabilities:{conditionalLoops:layout.useConditionalLoops!==false,actions:['takeoff','move','turn','vertical','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down']},
  async takeoff(h){await motion([p[0],p[1],.015+h]);},
  async land(){lands++;await motion([p[0],p[1],.015]);},
- async move(direction,distance){const a=heading+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);await motion([p[0]+distance*Math.cos(a),p[1]+distance*Math.sin(a),p[2]]);},
+ async move(direction,distance){const a=heading+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2}[direction]);await motion([p[0]+(distance-(layout.moveEndpointShortfall||0))*Math.cos(a),p[1]+(distance-(layout.moveEndpointShortfall||0))*Math.sin(a),p[2]]);},
  async vertical(direction,distance){await motion([p[0],p[1],p[2]+(direction==='up'?distance:-distance)]);},
  async turn(angle){heading+=angle*Math.PI/180;sample();},
  async readRange(direction){const value=layout.injectRangeLossBoth&&direction==='front'&&p[1]<-.1?2:(layout.injectRangeLoss&&direction==='front'&&p[2]<.5?2:ray(direction));ranges.push({direction,value,time});sample();return value;}

@@ -87,6 +87,44 @@ class Tests(unittest.TestCase):
         self.assertEqual(failure['lands'],0)
         self.assertIn('iteration limit exceeded',failure['message'])
 
+    def test_front_guard_survives_endpoint_shortfall_that_refutes_uniform_stride(self):
+        def run(uniform):
+            layout=generate(1);payload=dataclasses.asdict(layout)
+            payload.update(efficient=not uniform,strategyLaps=1,moveEndpointShortfall=.015,unsafeUniformCircuitStride=uniform)
+            process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,process.stderr)
+            evidence=json.loads(process.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+            landing=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:
+                active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+            return active
+        unsafe=run(True);self.assertEqual(unsafe.result.status,'not-achieved')
+        self.assertEqual(unsafe.failure_reason,'envelope-contact')
+        self.assertEqual(run(False).result.status,'achieved')
+
+    def test_real_uniform_stride_collision_has_no_score(self):
+        # R2025a 696e500 / run 38302109081 / artifact 11771462675.
+        active=Attempt(generate(1),1,.015);active.start(1,2.176,False)
+        active.sample(18.464,[.7103679776777012,-1.1502510447681296e-15,.8382996016970515],
+                      [.06801461343471982,7.339385118166653e-16,.0011638104707583248])
+        self.assertEqual(active.failure_reason,'envelope-contact')
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds);self.assertIsNone(active.result.candidate_points)
+
+    def test_final_only_blind_controls_have_opposite_terminal_failures(self):
+        for steps,accepted in ((6,4),(9,1)):
+            for seed in (1,4):
+                layout=generate(seed);payload=dataclasses.asdict(layout)
+                payload.update(strategyLaps=1,fixedFinalSteps=steps)
+                process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True)
+                evidence=json.loads(process.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+                landing=evidence['trace'][-33]['time']
+                for sample in evidence['trace']:
+                    active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+                last=evidence['trace'][-1];active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+                self.assertEqual(active.result.status,'achieved' if seed==accepted else 'not-achieved')
+                if seed!=accepted:self.assertIsNone(active.result.candidate_points)
+
     def test_native_timing_is_diagnostic_and_reconciles_exact_attempt(self):
         from tools.grand_prix.timing import analyze
         trace="""WEBEEBLOCKS_GP_TIMING time_ms=8032 attempt=1 phase=request id=2 command=TAKEOFF

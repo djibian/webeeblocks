@@ -58,12 +58,19 @@ function build(conditionalLoops,laps,efficient){
   // Experimental generic-move strategy. Lateral centring and final approach
   // remain 10 cm: a 20 cm final approach can skip the open H's safe descent.
   if(efficient===true){
-    function longer(node){
-      if(!node||typeof node!=='object')return;
-      if(node.kind==='move'&&node.direction==='forward'&&node.distance_m===.1)node.distance_m=.2;
-      Object.values(node).forEach(child=>Array.isArray(child)?child.forEach(longer):longer(child));
+    function adaptive(body){
+      for(let i=0;i<body.length;i++){
+        const node=body[i];
+        if(node.kind==='move'&&node.direction==='forward'&&node.distance_m===.1){
+          body[i]=iff(cmp('LT',v('avant'),.35),[move()],[{kind:'move',direction:'forward',distance_m:.2}]);
+        }else{
+          if(node.body)adaptive(node.body);
+          if(node.then)adaptive(node.then);
+          if(node.else)adaptive(node.else);
+        }
+      }
     }
-    longer(circuit);
+    adaptive(circuit.body);
 
   }
   if(conditionalLoops===true){
