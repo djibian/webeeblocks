@@ -5,6 +5,7 @@ import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.simulation_time import elapsed_seconds, milliseconds
+from tools.ci.test_grand_prix_native_analysis import Tests as NativeAnalysisTests
 class Tests(unittest.TestCase):
     def test_realizable_120_second_counterexample(self):
         start=251*32/1000;end=(251+3750)*32/1000
