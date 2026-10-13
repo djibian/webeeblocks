@@ -20,9 +20,49 @@ Activities 1–8 were materialized through the shared declarative profile/Runtim
 path with explicit student missions, cumulative prerequisite reuse and executable
 behavior-only world outcomes; the final synthesis slice was integrated in #529
 and #487 is closed as completed. Reopen that progression boundary only for new
-contradictory pedagogical or product evidence. #81 (Windows classroom deployment),
-#80 (one-click unified classroom interface) and #79 (fully French student
-interface) likewise remain validated baselines, not active priority nodes.
+contradictory pedagogical or product evidence.
+
+The owner observed on 2026-10-12 that the common first activity world
+obscures the objective; #589 keeps the independently reviewable minimal
+activity-1 scene. #587 and #591 supply the separate experimental Grand Prix,
+before any changes to the intermediate activities.
+
+**Superseding owner decision, 2026-10-13:** a single traverse of **three
+consecutive sides of a square**; **1–3 H gates** in reproducibly variable
+positions, at most one H per side, followed by a **terminal closed H**.
+**No fourth side, final straight, ground-level obstacles, multiple laps or
+points/time-penalty scoring.** The number of properly completed crossings
+chooses a terminal landing at **center, 0.50 m left or 0.50 m right** for
+1/2/3 H respectively. Landing elsewhere fails. Memory is useful through
+observable behavior, not forced by AST inspection. Dimensions are fixed
+across configurations; first test **2.00 m side** and a wider arrival area,
+then determine the greatest size meeting geometry and time criteria.
+
+Mark before/after **low-altitude permitted bands at each H on the Webots
+floor**, corresponding to eventual physical floor tape. Outside a passing
+band, low flight fails, except for tightly bounded takeoff, proper final
+landing and forced deadline landing. Floor obstacles are removed completely.
+**210 s** is an arbitrary owner-selected mission cap: simulation authority
+independently fails the attempt and commands **immediate LAND at any position**
+on expiry, with no later reinstatement of success. Normal success must land
+correctly beforehand. The simulator displays outcome, elapsed time and reason
+only; **software does not rank students**. The future physical final challenge
+may separately compare successful flights by time **on the same course**;
+real flight and recovery remain subject to #157/#72, not proven by Webots
+or the arbitrary 210 s cap.
+
+The earlier +5/H, penalty threshold T, free-lap exit and four-side/final
+corridor decisions are **superseded** and preserved only as historical
+evidence. **#588** is the documentary contract candidate to revise/review.
+**#591 Draft** must be redirected into a new versioned U-world, behavioral
+oracle for gates/altitude/three landing targets and independent timeout,
+with native R2025a adversarial proofs. Preserve gp-v2/v3/v4 evidence rather
+than silently reusing it, and keep #589 and the intermediate activities
+unchanged. See docs/GRAND_PRIX_SIMULATION_CONTRACT.md.
+
+#81 (Windows classroom deployment), #80 (one-click unified classroom interface)
+and #79 (fully French student interface) remain validated baselines, not active
+priority nodes.
 
 The #157 simulation-side C1b boundary is now established for every currently
 justified student-facing generic capability. Integrated #193/#196 establish the
