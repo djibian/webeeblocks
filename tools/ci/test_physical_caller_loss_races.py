@@ -156,6 +156,108 @@ def test_effect_ack_and_completion_loss_never_resend():
             fixture.close()
 
 
+
+def test_saturated_ordinary_socket_half_close_revokes_real_caller():
+    """Kernel-backed saturation discriminator; no radio or timing guarantee.
+
+    A full outgoing socket buffer and an ordinary sendall must not prevent
+    the independent local SHUT_WR attempt. The real host CallerLifetime must
+    reject the resulting partial/oversized ordinary request as terminal;
+    neither a JSON action nor a second authority is accepted.
+    """
+    from threading import Thread
+
+    for iteration in range(3):
+        caller, host = socket.socketpair()
+        caller.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+        sender = None
+        signaler = None
+        lifetime = None
+        stream = None
+        try:
+            # Saturate the actual kernel socket send buffer without draining
+            # the peer. This is not a mock sendall/sleeping fake socket.
+            payload = b'{"op":' + b"x" * (512 * 1024)
+            caller.setblocking(False)
+            sent = 0
+            while sent < len(payload):
+                try:
+                    count = caller.send(payload[sent:])
+                except BlockingIOError:
+                    break
+                assert count > 0
+                sent += count
+            assert 0 < sent < len(payload), "test did not saturate caller kernel send buffer"
+            caller.setblocking(True)
+
+            entered = Event()
+            send_results = []
+
+            def ordinary_send():
+                entered.set()
+                try:
+                    caller.sendall(payload[sent:])
+                except OSError as exc:
+                    send_results.append(type(exc).__name__)
+                else:
+                    send_results.append("sendall-completed")
+
+            sender = Thread(target=ordinary_send, daemon=True)
+            sender.start()
+            assert entered.wait(1), "ordinary sender did not enter the saturation schedule"
+
+            signal_attempted = Event()
+            signal_results = []
+
+            def terminal_half_close():
+                try:
+                    caller.shutdown(socket.SHUT_WR)
+                except OSError as exc:
+                    signal_results.append(exc)
+                finally:
+                    signal_attempted.set()
+
+            signaler = Thread(target=terminal_half_close, daemon=True)
+            signaler.start()
+            assert signal_attempted.wait(2), (
+                "kernel half-close blocked behind the saturated ordinary send"
+            )
+            assert not signal_results, "actual kernel half-close unexpectedly failed"
+
+            # Use the UNCHANGED production host intake, not a fake EOF oracle.
+            stream = host.makefile("r", encoding="utf-8")
+            lifetime = CallerLifetime(stream, max_message_bytes=8192)
+            assert lifetime._closed.wait(2), "host did not observe terminal caller loss"
+            assert lifetime.close_reason == "incomplete or oversized caller message", (
+                "host did not reject trailing partial/oversized ordinary IPC: "
+                + str(lifetime.close_reason)
+            )
+            try:
+                lifetime.assert_open()
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("host accepted a revoked ordinary caller")
+
+            sender.join(2)
+            signaler.join(2)
+            assert not sender.is_alive(), "ordinary sender did not settle after shutdown"
+            assert not signaler.is_alive(), "SHUT_WR signal remained in progress"
+            assert len(send_results) == 1, "ordinary send outcome was lost"
+        finally:
+            if lifetime is not None:
+                lifetime.stop()
+                lifetime._thread.join(1)
+            if stream is not None:
+                stream.close()
+            caller.close()
+            host.close()
+            if sender is not None:
+                sender.join(1)
+            if signaler is not None:
+                signaler.join(1)
+    print("PASS real saturated caller SHUT_WR: terminal intake revoked, no extra IPC authority")
+
 if __name__ == "__main__":
     # Fixture substitutions are process-global. Keep the real-domain group
     # isolated rather than accidentally validating the host's fake transports.
@@ -163,6 +265,7 @@ if __name__ == "__main__":
         test_effect_ack_and_completion_loss_never_resend()
     elif not sys.argv[1:]:
         import subprocess
+        test_saturated_ordinary_socket_half_close_revokes_real_caller()
         test_host_wait_completion_and_epoch_races()
         subprocess.run([sys.executable, str(Path(__file__).resolve()), "--effects"], check=True)
     else:
