@@ -76,19 +76,18 @@ class Progress:
         return True
 
 
-def candidate_score(crossings: int, seconds: float, penalty_threshold: float) -> int:
+def candidate_score(crossings: int, seconds: float, penalty_threshold: int) -> int:
     """Issue #587's *candidate* started-second convention; not owner acceptance.
 
     Call only for a separately certified completed attempt, never partial/failed
     attempts. Keeping this pure calculation cannot confer mission authority.
     The public scenario threshold T is a mandatory input; 120 s is not a
-    product requirement. No epsilon silently forgives fractions of a second.
+    product requirement. T is an integer number of seconds; fractional T is
+    rejected instead of rounding a public rule or forgiving elapsed fractions.
     """
     if (type(crossings) is not int or crossings < 0 or
             isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or
             not math.isfinite(seconds) or seconds < 0 or
-            isinstance(penalty_threshold, bool) or
-            not isinstance(penalty_threshold, (int, float)) or
-            not math.isfinite(penalty_threshold) or penalty_threshold < 0):
+            type(penalty_threshold) is not int or penalty_threshold < 0):
         raise ValueError('invalid score operands')
     return 5 * crossings - math.ceil(max(0, seconds - penalty_threshold))

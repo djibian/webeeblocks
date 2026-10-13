@@ -16,10 +16,13 @@ contre-exemples et ne jamais appeler `advance` sur un passage partiel.
 
 `candidate_score(passages, secondes_webots, T)` matérialise uniquement la
 convention proposée dans #587 : `5 * passages - ceil(max(0, secondes_webots - T))`.
-Le **seuil T est obligatoire**, public, choisi avant l'essai et calibré sur
+Le **seuil T est obligatoire**, entier en secondes, public, choisi avant l'essai et calibré sur
 les durées réelles Webots (T=180 s est un premier scénario, pas une valeur
 imposée). Les anciennes régressions à T=120 s sont conservées explicitement.
-La construction refuse tout événement non-portique : seuls `h:*` et
+Les seuils fractionnaires sont refusés, jamais arrondis : la soustraction
+binaire 540,032 − 420,032 facturerait sinon 121 s pour exactement 120 s.
+Les fractions de durée restent comptées sans epsilon selon la convention
+candidate. La construction refuse tout événement non-portique : seuls `h:*` et
 `corner:*` sont admis sur la boucle (terminée par `junction`) ; seuls
 `final:*` sont admis sur la ligne droite. Les frontières et scores négatifs
 sont testés sans tolérance temporelle cachée. La décision

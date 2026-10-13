@@ -64,6 +64,19 @@ class Tests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     candidate_score(10,180,threshold)
 
+    def test_fractional_public_threshold_cannot_charge_extra_second(self):
+        # 540.032 - 420.032 is 120.00000000000006 in binary, although
+        # these integer-millisecond operands differ by exactly 120 seconds.
+        # The public rule accepts integer seconds only; do not hide an epsilon.
+        for threshold in (8.032,20.032,420.032,480.032,120.0):
+            with self.subTest(threshold=threshold):
+                with self.assertRaises(ValueError):
+                    candidate_score(10,540.032,threshold)
+        for threshold in (120,180,420,540):
+            for extra,penalty in ((-.032,0),(0,0),(.032,1),(1,1),(1.032,2)):
+                self.assertEqual(candidate_score(10,threshold+extra,threshold),50-penalty)
+        self.assertEqual(candidate_score(10,540,420),-70)
+
     def test_candidate_score_boundaries(self):
         for seconds,score in [(119.999,50),(120,50),(120.000001,49),(120.999,49),(121,49),(121.000001,48),(600,-430)]:
             self.assertEqual(candidate_score(10,seconds,120),score)
