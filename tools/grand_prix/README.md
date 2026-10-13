@@ -14,13 +14,19 @@ arrivée ou atterrissage : ses tests ne certifient **aucun parcours Webots**.
 L'intégration au prototype #591 doit apporter ces preuves, préserver les
 contre-exemples et ne jamais appeler `advance` sur un passage partiel.
 
-`candidate_score` matérialise uniquement la convention proposée dans #587 :
-`5 * passages - ceil(max(0, secondes_webots - 120))`. Les frontières et les
-scores négatifs sont testés sans tolérance temporelle cachée. La décision
+`candidate_score(passages, secondes_webots, T)` matérialise uniquement la
+convention proposée dans #587 : `5 * passages - ceil(max(0, secondes_webots - T))`.
+Le **seuil T est obligatoire**, public, choisi avant l'essai et calibré sur
+les durées réelles Webots (T=180 s est un premier scénario, pas une valeur
+imposée). Les anciennes régressions à T=120 s sont conservées explicitement.
+La construction refuse tout événement non-portique : seuls `h:*` et
+`corner:*` sont admis sur la boucle (terminée par `junction`) ; seuls
+`final:*` sont admis sur la ligne droite. Les frontières et scores négatifs
+sont testés sans tolérance temporelle cachée. La décision
 propriétaire actuelle la nomme encore « candidate » ; ce calcul ne constitue
 ni la confirmation de cette convention ni un score officiel. Aucun résultat
 ne doit être classé sans certification comportementale de l'essai exact.
-La comparaison d'égalité hors des deux minutes reste également non décidée.
+La comparaison des égalités hors du seuil T reste également non décidée.
 
 Tests : `python3 tools/ci/test_grand_prix_lap_progress.py`, aussi exécutés par
 la suite canonique `runtime-v2-core`. Les exemples de rentabilité sont

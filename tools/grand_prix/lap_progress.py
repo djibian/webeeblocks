@@ -25,7 +25,11 @@ class Progress:
                 len(set(self.ring)) != len(self.ring) or
                 len(set(self.final)) != len(self.final) or
                 any(not isinstance(token, str) or not token for token in (*self.ring, *self.final)) or
-                any(token == 'junction' or token.startswith('corner:') for token in self.final) or
+                any(not (token.startswith('h:') and len(token) > 2 or
+                         token.startswith('corner:') and len(token) > 7)
+                    for token in self.ring[:-1]) or
+                any(not (token.startswith('final:') and len(token) > 6)
+                    for token in self.final) or
                 set(self.ring) & set(self.final) or
                 type(self.max_laps) is not int or not 1 <= self.max_laps <= MAX_LAPS):
             raise ValueError('invalid route event contract')
@@ -72,13 +76,19 @@ class Progress:
         return True
 
 
-def candidate_score(crossings: int, seconds: float) -> int:
+def candidate_score(crossings: int, seconds: float, penalty_threshold: float) -> int:
     """Issue #587's *candidate* started-second convention; not owner acceptance.
 
     Call only for a separately certified completed attempt, never partial/failed
     attempts. Keeping this pure calculation cannot confer mission authority.
-    No epsilon silently forgives time past a boundary, and scores can be negative.
+    The public scenario threshold T is a mandatory input; 120 s is not a
+    product requirement. No epsilon silently forgives fractions of a second.
     """
-    if type(crossings) is not int or crossings < 0 or isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds < 0:
+    if (type(crossings) is not int or crossings < 0 or
+            isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or
+            not math.isfinite(seconds) or seconds < 0 or
+            isinstance(penalty_threshold, bool) or
+            not isinstance(penalty_threshold, (int, float)) or
+            not math.isfinite(penalty_threshold) or penalty_threshold < 0):
         raise ValueError('invalid score operands')
-    return 5 * crossings - math.ceil(max(0, seconds - 120))
+    return 5 * crossings - math.ceil(max(0, seconds - penalty_threshold))
