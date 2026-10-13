@@ -1,3 +1,77 @@
+## gp-v4 : composition de l'horloge et nouvelle calibration native
+
+Le candidat e8e3e1ae358fdba1ce98447a1b87254c90b36ca7 a réussi **huit**
+trajectoires R2025a : run 38366692370, tentative 1, success, Select suites
+115193400908 / CI Gate (Draft) 115219021202, Runtime/Webots skipped.
+Archive 11799818464, SHA-256 **publié par GitHub**
+0704132d0e771dcbd9e7db73211ae6a44c5bc0d074aab975bb9d779efe34509e,
+13 458 496 octets. Après déconnexion locale, aucun recalcul local du digest
+n'est revendiqué. Le runner a contrôlé chaque résultat natif, identité,
+frontière et AST, et produit les CSV/analyses. Détail durable :
+https://github.com/djibian/webeeblocks/pull/591#issuecomment-6142362954.
+
+| Configuration | Politique | Tours | Temps | Points T=180 |
+| --- | --- | ---: | ---: | ---: |
+| gp-v4-0, 3 H finaux | fixe | 1 | 351,584 s | −142 |
+| gp-v4-16, 2 H boucle | fixe | 1 | 288,672 s | −89 |
+| gp-v4-16 | fixe | 2 | 504,352 s | −295 |
+| gp-v4-1, 4 H boucle | fixe | 1 | 332,256 s | −123 |
+| gp-v4-1 | fixe | 2 | 579,040 s | −350 |
+| gp-v4-4, 1 H final | fixe | 1 | 284,736 s | −80 |
+| gp-v4-16 | C, compte | 2 | 493,952 s | −284 |
+| gp-v4-1 | C, compte | 1 | 326,560 s | −117 |
+
+La collision latérale précédente est réparée dans ces cas exécutés ; les
+traversées à 1/2/3 H finaux utilisent le même AST fixe. **Résultat négatif :
+T=180, 300, 420, 450 ou 480 s conserve ici un meilleur choix fixe à un tour.**
+La mémoire C ne bat pas le meilleur choix fixe pour ces seuils. Les écarts
+C/A (10,400 s sur deux tours ; 5,696 s sur un) ne prouvent pas l'équité CPU/WWI.
+Ils ne sont pas corrigés. Aucun PASS ne se transfère au candidat composé.
+
+Une calibration **post hoc** à T=540 s produit 20/30 points A1/A2 sur
+gp-v4-16 et 30/10 sur gp-v4-1, C=30/30. Les seuils exacts d'égalité marginale
+sont 495 et 560 s. Cela justifie un **nouvel essai public fixé avant chaque
+tentative**, pas une réécriture des anciens scores. T=540 (9 min) est un
+candidat de laboratoire, non une règle définitive ni une durée physique.
+Il approche la limite externe **inchangée de 600 s** : ne pas confondre ces
+paramètres ni revendiquer une réserve batterie.
+
+Le main 021dc42f0dc24c54345ef4c2b9fd0cac584c4070 intègre #592 après GO
+indépendant exact et 34/34 CI. La composition conserve ses fichiers et
+garanties, notamment le refus physique, ainsi que la réparation CI #594.
+Elle reprend le témoin D de #598 comme candidat expérimental : vraie
+expression elapsed_time, compte appris, arithmetic/if/while ordinaires,
+budget **19482 ≤ 20000**. Le profil GP opt-in le bloc générique et sa capacité.
+L'estimation de fin **F=90 s**, publique dans l'AST de cette campagne, reste
+une hypothèse stratégique, pas une information sur les H finaux ou une borne
+de sécurité. Un choix mauvais est possible et doit rester visible.
+
+La campagne nouvelle reteste les lignes à 3/1 H, commence D à **T=180** sur
+gp-v4-16, puis compare A1/A2/D avec **le même T=540 déclaré avant essai** sur
+gp-v4-16 et gp-v4-1. Son oracle géométrique reste indépendant du programme.
+Le checker de témoin vérifie le choix D à partir de son temps effectivement
+observé ; il ne force pas une décision attendue de performance. Les mesures
+et le choix sont imprimés/archivés. Le parser diagnostique accepte désormais
+VALUE pour ELAPSED sans relâcher RANGE (0–2 m) ; ces données ne pilotent pas
+l'oracle. La perte de temps reste une erreur avant toute continuation.
+
+Le source courant ne modifie aucun contrôleur de mouvement, rayon, vitesse
+ou géométrie. Il reprend les workflows main puis uniquement le job GP
+préexistant : sa fenêtre de 40 min était incompatible avec la campagne réelle
+de huit parcours (~61 min), elle passe à **85 min pour ce seul job**.
+Cela ne change aucun timeout de commande, seuil d'oracle, limite par essai ou
+autre suite. Cette composition technique intervient après intégration #594,
+pas pendant sa validation. Aucun nouveau workflow, droit ou checkpoint.
+Les anciennes campagnes restent exécutables par --suite gp-v2/gp-v3/gp-v4/all.
+Le défaut gp-v4-time vise cette nouvelle question scientifique.
+
+Nouvelles vérifications Python et natifs attendus de la CI exacte ; les
+sources JavaScript et décisions ont été exécutés dans un isolat, sans les
+présenter comme Webots. Pas de GO auteur ni de fusion. Les essais restent
+expérimentaux, aucune activité intermédiaire, #157/#586 ni matériel concerné.
+
+---
+
 ## gp-v4 : première réfutation native et réparation du témoin
 
 Le candidat **60efa676e4f1e17ffd0d4098406e597210aad6f2** est réfuté sur

@@ -40,10 +40,10 @@ def analyze(text, official_seconds, attempt=1):
             if pending is None or pending[1] != request_id:
                 raise ValueError('unmatched, late or failed response')
             command = pending[2]
-            valid = value == 'OK' and command != 'RANGE'
-            if command == 'RANGE' and re.fullmatch(r'VALUE [0-9]+(?:\.[0-9]+)?', value):
+            valid = value == 'OK' and command not in ('RANGE', 'ELAPSED')
+            if command in ('RANGE', 'ELAPSED') and re.fullmatch(r'VALUE [0-9]+(?:\.[0-9]+)?', value):
                 sample = float(value.split()[1])
-                valid = math.isfinite(sample) and 0 <= sample <= 2
+                valid = math.isfinite(sample) and sample >= 0 and (command != 'RANGE' or sample <= 2)
             if not valid:
                 raise ValueError('unmatched, late or failed response')
             begin, _, command, gap = pending

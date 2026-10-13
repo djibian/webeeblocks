@@ -21,7 +21,7 @@ ARTIFACTS=ROOT/'ci-artifacts/grand-prix'
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--suite',choices=('gp-v2','gp-v3','gp-v4','all'),default='gp-v4')
+    parser.add_argument('--suite',choices=('gp-v2','gp-v3','gp-v4','gp-v4-time','all'),default='gp-v4-time')
     args=parser.parse_args()
     subprocess.run([sys.executable,str(ROOT/'tools/ci/test_grand_prix_v4.py')],check=True)
     if not shutil.which('docker'):raise RuntimeError('real Webots evidence unavailable: docker missing')
@@ -37,6 +37,8 @@ def main():
     witness=ROOT/'plugins/robot_windows/grand_prix_probe/reference_program.js'
     witness.write_text((ROOT/'tools/grand_prix/reference_program.js').read_text())
     html=ROOT/'plugins/robot_windows/grand_prix_probe/grand_prix_probe.html'
+    policy_asset=ROOT/'plugins/robot_windows/grand_prix_probe/reference_policy_time.js'
+    policy_asset.write_text((ROOT/'tools/grand_prix/reference_policy_time.js').read_text())
     original=html.read_text();html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js'))
     try:
         summaries=[];programs={}
@@ -44,18 +46,21 @@ def main():
         compact=[('gp-v3',seed,laps,True,memory) for memory,laps in ((False,2),(False,1),(True,2)) for seed in (16,12,6)]
         legacy=[('gp-v2',seed,laps,True,False) for laps in (3,1,2) for seed in (1,4)]+[('gp-v2',1,1,False,False),('gp-v2',4,1,False,False)]
         v4=[('gp-v4',0,1,True,False),('gp-v4',16,1,True,False),('gp-v4',16,2,True,False),('gp-v4',1,2,True,False),('gp-v4',1,1,True,False),('gp-v4',4,1,True,False),('gp-v4',16,2,True,True),('gp-v4',1,2,True,True)]
-        selected={'gp-v2':legacy,'gp-v3':compact,'gp-v4':v4,'all':v4+compact+legacy}[args.suite]
-        for version,seed,laps,efficient,memory in selected:
+        timed=[('gp-v4',0,1,True,False,180,False),('gp-v4',4,1,True,False,180,False),('gp-v4',16,2,True,False,180,True)]
+        timed += [('gp-v4',seed,laps,True,False,540,clock) for seed in (16,1) for laps,clock in ((1,False),(2,False),(2,True))]
+        standard=[(*case,180 if case[0]=='gp-v4' else 120,False) for case in {'gp-v2':legacy,'gp-v3':compact,'gp-v4':v4,'all':v4+compact+legacy}.get(args.suite,[])]
+        selected=timed if args.suite=='gp-v4-time' else standard
+        for version,seed,laps,efficient,memory,threshold,clock in selected:
             layout=generate(seed,version)
             module='reference_program_v4.js' if version=='gp-v4' else ('reference_program_compact.js' if version=='gp-v3' else 'reference_program.js')
             witness.write_text((ROOT/'tools/grand_prix'/module).read_text())
-            html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};window.GP_TEST_EFFICIENT={str(efficient).lower()};window.GP_TEST_MEMORY_CHOICE={str(memory).lower()};</script><script src="grand_prix_probe.js"></script>'))
+            html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script src="reference_policy_time.js"></script><script>window.GP_TEST_STRATEGY_LAPS={laps};window.GP_TEST_EFFICIENT={str(efficient).lower()};window.GP_TEST_MEMORY_CHOICE={str(memory).lower()};window.GP_TEST_TIME_POLICY={str(clock).lower()};window.GP_TEST_THRESHOLD={threshold};window.GP_TEST_FINAL_ESTIMATE=90;</script><script src="grand_prix_probe.js"></script>'))
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
-            target.write_text(world_text(layout).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
+            target.write_text(world_text(layout,threshold if version=='gp-v4' else None).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
             project.write_text('Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')
-            policy='memory' if memory else ('efficient' if efficient else 'legacy')
+            policy='clock' if clock else ('memory' if memory else ('efficient' if efficient else 'legacy'))
             prefix=version+'-' if version!='gp-v2' else ''
-            out=ARTIFACTS/f'{prefix}{seed}-{laps}-{policy}';out.mkdir(parents=True,exist_ok=True)
+            out=ARTIFACTS/f'{prefix}{seed}-{laps}-{policy}-T{threshold}';out.mkdir(parents=True,exist_ok=True)
             (out/'layout.json').write_text(json.dumps(dataclasses.asdict(layout),indent=2)+'\n')
             events=out/'events.jsonl';events.unlink(missing_ok=True)
             inner=f'''set -e
@@ -110,27 +115,36 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             if version=='gp-v4':required_boundaries += [(179.968,0),(180.0,0),(180.032,1)]
             if version in ('gp-v3','gp-v4'):required_boundaries=[pair for pair in required_boundaries if pair[0]<=result['seconds']]
             if [(v['seconds'],v['penalty']) for v in boundaries]!=required_boundaries:raise RuntimeError(f'missing reached native clock boundaries: {boundaries}')
-            expected_laps=((1 if len(layout.gates)>=3 else 2) if version=='gp-v4' else (2 if len(layout.gates)==4 else 1)) if memory else laps
+            if clock:
+                first=next((v for v in counts if v.get('tour')==1 and v.get('temps observé',0)>0),None)
+                if first is None:raise RuntimeError('missing real first-junction clock observation')
+                elapsed=first['temps observé']
+                cost=max(0,2*elapsed+90-threshold)-max(0,elapsed+90-threshold)
+                expected_laps=1 if cost>=5*len(layout.gates) else 2
+            elif memory:
+                expected_laps=(1 if len(layout.gates)>=3 else 2) if version=='gp-v4' else (2 if len(layout.gates)==4 else 1)
+            else:expected_laps=laps
             crossings=expected_laps*len(layout.gates)+len(layout.final_gates)-1
             if result['laps']!=expected_laps or result['crossings']!=crossings or result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError(f'wrong exact route result: {result}')
-            threshold=180 if version=='gp-v4' else 120
             if result['candidate_points']!=5*crossings-math.ceil(max(0,result['seconds']-threshold)):raise RuntimeError('wrong candidate score')
             programme=next(e['detail'] for e in found if e.get('event')=='GP_PROGRAM')
             digest=hashlib.sha256(json.dumps(programme,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-            key=(version,laps,efficient,memory)
+            key=(version,laps,efficient,memory,clock,threshold)
             if key in programs and programs[key]!=digest:raise RuntimeError('programme changed between configurations')
             programs[key]=digest
             diagnostic=analyze((out/'webots.log').read_text(),result['seconds'],result['attempt'])
             from tools.grand_prix.kinematics import analyze as analyze_kinematics
             kinematic=analyze_kinematics(out/'native_trace.csv',(out/'webots.log').read_text(),layout,result['seconds'],result['attempt'],measured)
+            print('GP_GEOMETRY_DIAGNOSTIC '+json.dumps(dict(configuration=layout.identifier,threshold=threshold,policy=policy,min_clearance=kinematic['minimum_envelope_clearance_m'],closed_clearance=kinematic['closed_wall_clearance_at_land_ack_m'],max_speed=kinematic['maximum_horizontal_speed_m_s'],max_tilt=kinematic['maximum_tilt_deg'],min_lateral=min(v['minimum_lateral_m'] for v in kinematic['gate_margins']),min_upper=min(v['minimum_upper_m'] for v in kinematic['gate_margins']),max_after_90pct_peak=max(v['extent_after_last_90pct_peak_m'] for v in kinematic['commands'] if v['command']=='MOVE'),max_turn_drift=max(v['path_extent_from_request_m'] for v in kinematic['commands'] if v['command']=='TURN')),sort_keys=True),flush=True)
             (out/'kinematics.json').write_text(json.dumps(kinematic,indent=2)+'\n')
             (out/'timing.json').write_text(json.dumps(diagnostic,indent=2)+'\n')
-            result.update(penalty_threshold_s=threshold,ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy=policy)
+            result.update(first_junction_seconds=first['temps observé'] if clock else None,final_estimate_s=90 if clock else None,penalty_threshold_s=threshold,ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy=policy)
             summaries.append(result);(out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
-            print(f'PASS real Webots {layout.identifier}: {expected_laps} freely chosen laps, {policy}, same strategy AST across configurations, {crossings} crossings, {result["seconds"]:.3f}s, {result["candidate_points"]} candidate points',flush=True)
+            if clock:print('GP_CLOCK_DECISION '+json.dumps(dict(configuration=layout.identifier,threshold=threshold,estimate=90,observed=first['temps observé'],marginal_penalty=cost,benefit=5*len(layout.gates),chosen_laps=expected_laps),sort_keys=True),flush=True)
+            print(f'PASS real Webots {layout.identifier}: {expected_laps} freely chosen laps, {policy}, T={threshold}s, same strategy AST across configurations, {crossings} crossings, {result["seconds"]:.3f}s, {result["candidate_points"]} candidate points',flush=True)
         (ARTIFACTS/'strategies.json').write_text(json.dumps(summaries,indent=2)+'\n')
     finally:
-        html.write_text(original);witness.unlink(missing_ok=True)
+        html.write_text(original);witness.unlink(missing_ok=True);policy_asset.unlink(missing_ok=True)
     return 0
 if __name__=='__main__':
     try:raise SystemExit(main())

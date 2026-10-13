@@ -12,6 +12,7 @@ const profile={id:'progression-grand-prix-v1',world:'worlds/grand_prix_v2.wbt',
  runtime:{mode:'ast-v1',maxSteps:20000,allowedStatementKinds:['takeoff','move','vertical','turn','set_speed','if','repeat','set_variable','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down'],astBounds:{'takeoff.height_m':{min:.3,max:1.0},'move.distance_m':{min:.1,max:.4},'vertical.distance_m':{min:.1,max:.5},'set_speed.speed_m_s':{min:.1,max:.2},'repeat.count':{min:1,max:20}}}
 };
 if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUntil');profile.runtime.allowedStatementKinds.push('while');profile.runtime.astBounds['while.max_iterations']={min:1,max:100};}
+if(A.BLOCK_CATALOG.webeeblocks_v2_elapsed){profile.toolbox.push('webeeblocks_v2_elapsed');profile.runtime.elapsedSimulationTime=true;}
 window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
 window.WebeeBlocksInitialActivityId=profile.id;
 const inject=Blockly.inject;

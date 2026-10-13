@@ -20,7 +20,7 @@ permissions:
 jobs:
   grand-prix-prototype:
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1130,7 +1130,8 @@ jobs:
           ! grep -F "distance %1 (m)" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           test "$(grep -o "style:'flight_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 7
           test "$(grep -o "style:'control_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
-          test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
+          test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 2
+          grep -F "{type:'webeeblocks_v2_elapsed',message0:'temps simulé depuis le départ (s)',output:'Number',style:'sensor_blocks'}" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
           grep -F "webeeblocks_v2_wait:{category:'control'}" plugins/robot_windows/blockly/webeeblocks/activities.js
           grep -F "logic_compare:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
           grep -F "logic_operation:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js

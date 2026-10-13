@@ -30,6 +30,7 @@
     if(depth>20)fail('expression nesting too deep');
     switch(expression.kind){
       case 'number':finite(expression.value,'number');return;
+      case 'elapsed_time':if(expression.unit!=='s')fail('unsupported elapsed time unit');return;
       case 'range':if(SENSOR_DIRECTIONS.indexOf(String(expression.direction))<0||expression.unit!=='m')fail('unsupported range expression');return;
       case 'variable_get':{var ref=rememberVariable(variables,expression.variable);if(!assigned.has(ref.id))fail('variable read before assignment: '+ref.name);return;}
       case 'arithmetic':if(ARITHMETIC_OPS.indexOf(String(expression.op))<0)fail('unsupported arithmetic operation '+expression.op);validateExpression(expression.left,depth+1,assigned,variables);validateExpression(expression.right,depth+1,assigned,variables);return;
@@ -118,6 +119,12 @@
     switch(expression.kind){
       case 'number':await hook(options,'beforeStep',current);return Number(expression.value);
       case 'variable_get':{var ref=variableRef(expression.variable);await hook(options,'beforeStep',current);if(!Object.prototype.hasOwnProperty.call(env.values,ref.id))fail('variable read before assignment: '+ref.name);if(env.names[ref.id]&&env.names[ref.id]!==ref.name)fail('variable id/name mismatch: '+ref.id);return env.values[ref.id];}
+      case 'elapsed_time':{
+        await hook(options,'beforeStep',current);
+        var seconds=await requireMethod(backend,'readElapsedTime')();
+        if(typeof seconds!=='number'||!Number.isFinite(seconds)||seconds<0)fail('elapsed time must be a finite nonnegative number');
+        return seconds;
+      }
       case 'range':{
         await hook(options,'beforeStep',current);
         var value=finite(await requireMethod(backend,'readRange')(String(expression.direction)),'range('+expression.direction+')');
@@ -190,6 +197,10 @@
   }
 
   function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||(node.kind==='repeat'&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
-  async function run(ast,backend,options){validateProgram(ast);if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
+  function containsElapsedTime(sequence){
+    function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
+    return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
+  }
+  async function run(ast,backend,options){validateProgram(ast);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
   return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });

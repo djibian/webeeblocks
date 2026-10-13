@@ -117,7 +117,9 @@ def local(gate: Gate, point):
     return dx*math.cos(gate.heading)+dy*math.sin(gate.heading),-dx*math.sin(gate.heading)+dy*math.cos(gate.heading)
 
 
-def world_text(layout: Layout):
+def world_text(layout: Layout, penalty_threshold_s: int | None = None):
+    if penalty_threshold_s is not None and (type(penalty_threshold_s) is not int or not 1 <= penalty_threshold_s <= 600):
+        raise ValueError('invalid public penalty threshold')
     source=(ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
     robot_start=source.index('Crazyflie {')
     robot_end=source.index('# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN')
@@ -137,6 +139,10 @@ def world_text(layout: Layout):
     lines.extend([robot, f'DEF GP_EVALUATOR Robot {{ name "Grand Prix evaluator" controller "grand_prix_evaluator" controllerArgs [ "{layout.seed}"{version_arg} ] supervisor TRUE }}'])
     if layout.version == 'gp-v4':
         lines = [line.replace('Floor { size 6 6 }', 'Floor { translation 1 -1 0 size 8 12 }').replace('position -3.2 -3.2 3.4', 'position -7 -10 9').replace('\"gp-v4\" ]', '\"gp-v4\" \"180\" ]') for line in lines]
+    if penalty_threshold_s is not None:
+        if layout.version != 'gp-v4':
+            raise ValueError('explicit threshold rendering currently limited to gp-v4')
+        lines = [line.replace('"gp-v4" "180" ]', f'"gp-v4" "{penalty_threshold_s}" ]') for line in lines]
     return '\n'.join(lines)+'\n'
 
 

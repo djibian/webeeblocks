@@ -138,12 +138,32 @@ assert.deepStrictEqual(effect,old?['forward',.2]:['left',.1]);
         self.assertEqual(p.returncode,0,p.stderr)
         a=judge(l,json.loads(p.stdout));self.assertEqual(a.result.laps,2)
 
+    def test_time_policy_real_ast_and_public_rules(self):
+        for seed in (0,1,4):
+            layout=generate(seed,'gp-v4')
+            self.assertIn('"gp-v4" "540" ]',world_text(layout,540))
+            for threshold in (180,540):
+                process=evidence(layout,2,strategyTime=threshold,finalEstimate=90)
+                self.assertEqual(process.returncode,0,process.stderr)
+                data=json.loads(process.stdout);attempt=judge(layout,data,threshold)
+                self.assertEqual(attempt.result.status,'achieved',attempt.failure_reason)
+                self.assertGreater(data['result']['variables']['temps observé'],0)
+        process=evidence(generate(1,'gp-v4'),2,strategyTime=180,disableClock=True)
+        self.assertNotEqual(process.returncode,0)
+        failure=json.loads(process.stderr.split('WITNESS_FAILURE ',1)[1])
+        self.assertEqual(failure['lands'],0)
+        self.assertEqual(failure['last_position'],[0,0,.015])
+        for invalid in (True,0,601,180.5):
+            with self.assertRaises(ValueError):world_text(generate(1,'gp-v4'),invalid)
+
     def test_generic_profile_preflight_budget(self):
         script="""
 const W=require('./tools/grand_prix/reference_program_v4'),I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter'),C=require('./plugins/robot_windows/blockly/webeeblocks/activity_contract'),A=require('./plugins/robot_windows/blockly/webeeblocks/activities'),B=require('./plugins/robot_windows/blockly/webeeblocks/wwi_backend'),vm=require('vm'),fs=require('fs');
 const c={WebeeBlocksActivities:A,Blockly:{inject(){}},WebeeBlocksWwiBackend:B};c.window=c;
 vm.runInNewContext(fs.readFileSync('plugins/robot_windows/grand_prix/setup.js','utf8'),c);
 for(const [laps,memory] of [[1,false],[2,false],[2,true]]){const ast=W.build(true,laps,true,memory),facts=C.preflightAst(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),ast);C.preflightBackend(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),facts,new B({send(){}},{}));I.validateExecutionBudget(ast,20000);}
+const policy=require('./tools/grand_prix/reference_policy_time'),timed=policy.build(W,540,90),profile=c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1');
+const facts=C.preflightAst(profile,timed);C.preflightBackend(profile,facts,new B({send(){}},{}));I.validateExecutionBudget(timed,20000);
 """
         subprocess.run(['node','-e',script],cwd=ROOT,check=True)
 
