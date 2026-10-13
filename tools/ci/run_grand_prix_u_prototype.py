@@ -51,7 +51,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     try:
         with (out/'webots.log').open('w') as log:
             webots=subprocess.Popen([str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
-                '--port='+str(port),str(target)],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+                '--no-rendering','--port='+str(port),str(target)],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             children.append(webots);limit=time.monotonic()+30
             while webots.poll() is None and time.monotonic()<limit:
                 text=(out/'webots.log').read_text()
@@ -92,6 +92,10 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         if mode=='witness' and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
+        if mode in ('collision','reverse') and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact','reverse-crossing')):
+            raise RuntimeError('incorrect crossing/collision accepted: '+str(result))
+        if mode=='unavailable' and (result['status']!='not-achieved' or not errors or not any(e['event']=='injected-range' for e in rows)):
+            raise RuntimeError('unavailable measurement not rejected')
         if mode in expected and (result['status']!='not-achieved' or result['reason']!=expected[mode]):
             raise RuntimeError('negative accepted/wrong rejection: '+str(result))
         if mode.startswith('timeout'):
@@ -102,6 +106,9 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
             if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
                 raise RuntimeError('missing independent forced LAND/failure')
             if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
+            for command in ('COMPLETE','FAILURE','RESET','MOVE'):
+                if not any(e['event']=='late-command-rejected' and e['detail']['command']==command and e['detail']['code']=='TIME_LIMIT' for e in rows):
+                    raise RuntimeError('late command not rejected: '+command)
             if not any(e['event']=='late-stop-rejected' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('late STOP not rejected')
         if result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError('wrong native subject')
         programs=[e['detail'] for e in rows if e['event']=='program']
@@ -121,7 +128,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','witness','all','sizes'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -159,7 +166,7 @@ def main():
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside')]+[(s,2.,'witness') for s in (0,1,4)]
+    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside'),(0,2.,'collision'),(0,2.,'reverse'),(0,2.,'unavailable')]+[(s,2.,'witness') for s in (0,1,4)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for seed,side,mode in cases:

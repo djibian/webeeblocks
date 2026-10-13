@@ -30,5 +30,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(milliseconds(0),0)
         self.assertEqual(elapsed_seconds(2.016,2.048),.032)
 from test_grand_prix_u_oracle import Tests as UOracleTests
+from test_grand_prix_u_deadline import DeadlineTests
 
 if __name__=='__main__':unittest.main()
