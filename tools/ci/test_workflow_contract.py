@@ -298,6 +298,13 @@ class WorkflowTests(unittest.TestCase):
         gyro = suite.split("\n  gyro-gps-historical:\n", 1)[1].split(
             "\n  light-sensor-historical:\n", 1
         )[0]
+        self.assertIn("timeout-minutes: 5", gyro)
+        self.assertIn("timeout -k 5s 30s xvfb-run", gyro)
+        self.assertIn("ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b", gyro)
+        for subtree in ("robots/adept/pioneer3", "objects/backgrounds", "objects/floors", "objects/apartment_structure", "objects/solids", "appearances", "default"):
+            self.assertIn("projects/" + subtree, gyro)
+        self.assertNotIn("sparse-checkout: projects\n", gyro)
+        self.assertIn("python3 tools/ci/check_gyro_gps_assets.py .ci-webots-r2025a", gyro)
         self.assertIn("Prepare offline historical Gyro GPS world", gyro)
         self.assertIn("/workspace/worlds/.ci-boxChallenge-gyro-gps-local.wbt", gyro)
         self.assertIn("--network none", gyro)
@@ -436,6 +443,17 @@ class WorkflowTests(unittest.TestCase):
             [sys.executable, str(ROOT / "tools/ci/test_c_feasibility.py")],
             cwd=ROOT, check=True, timeout=120,
         )
+
+    def test_strategy_timing_retires_the_owned_webots_group(self):
+        webots = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        strategy = webots.split("  strategy-timing:", 1)[1].split("\n  historical-blockly-ui:", 1)[0]
+        self.assertIn("source /workspace/tools/ci/stop_webots_group.sh", strategy)
+        self.assertIn("setsid xvfb-run -a webots", strategy)
+        self.assertIn("--port=1234", strategy)
+        self.assertEqual(strategy.count('stop_webots_group "$webots_pid"'), 2)
+        self.assertNotIn('kill "$webots_pid"', strategy)
+        subprocess.run([sys.executable, str(ROOT / "tools/ci/test_webots_group_cleanup.py")],
+                       cwd=ROOT, check=True, timeout=20)
 
     def test_no_post_merge_push_trigger(self):
         for path in workflow_files():
