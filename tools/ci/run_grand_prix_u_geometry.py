@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -110,6 +112,7 @@ def main():
     parser.add_argument('--native', action='store_true')
     parser.add_argument('--tcp', action='store_true')
     args = parser.parse_args()
+    print('GP_U_GEOMETRY_ENTRY native='+str(args.native), flush=True)
     subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_geometry.py')], check=True)
     if args.native:
         run_native(Path(os.environ['WEBOTS_HOME']), args.tcp)
@@ -129,12 +132,33 @@ def main():
         raise RuntimeError('unexpected R2025a source')
     subprocess.run(['docker','pull',IMAGE], check=True)
     OUT.mkdir(parents=True, exist_ok=True)
-    subprocess.run(['docker','run','--rm','-e',f'WEBEEBLOCKS_GP_WEBOTS_IMAGE={IMAGE}',
-                    '-v',f'{ROOT}:/workspace',
-                    '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro', '-w','/workspace',
-                    IMAGE,'bash','-lc',
-                    'xvfb-run -a python3 tools/ci/run_grand_prix_u_geometry.py --native'],
-                   check=True, timeout=360)
+    # Explicit entry point and startup diagnostics separate preparation from
+    # geometry. Always retain a file before Docker can block or fail.
+    with tempfile.TemporaryDirectory(prefix='gp-u-geometry-') as temporary:
+        cid=Path(temporary)/'container.cid'
+        args=['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash',
+              '-e','WEBOTS_HOME=/usr/local/webots',
+              '-e',f'WEBEEBLOCKS_GP_WEBOTS_IMAGE={IMAGE}',
+              '-v',f'{ROOT}:/workspace',
+              '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
+              IMAGE,'-lc',
+              "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
+              'timeout -k 5s 240s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+        try:
+            with (OUT/'docker.log').open('w') as log:
+                log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()
+                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=300)
+        finally:
+            if cid.exists():
+                identifier=cid.read_text().strip()
+                if not re.fullmatch('[0-9a-f]{64}',identifier):
+                    raise RuntimeError('invalid owned container identity; cleanup unproven')
+                state=subprocess.run(['docker','inspect','--format','{{.State.Running}}',identifier],
+                                     capture_output=True,text=True,timeout=10)
+                if state.returncode==0 and state.stdout.strip()=='true':
+                    stop=subprocess.run(['docker','stop','--time','5',identifier],
+                                        capture_output=True,text=True,timeout=20)
+                    if stop.returncode:raise RuntimeError('owned container retirement unproven')
 
 
 if __name__ == '__main__': main()

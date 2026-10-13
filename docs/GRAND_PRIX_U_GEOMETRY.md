@@ -37,8 +37,9 @@ python3 tools/ci/run_grand_prix_u_geometry.py
 
 La seconde commande utilise l'image R2025a épinglée par digest et les assets
 source `c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b`. Elle est appelée dans
-le job Runtime/Webots existant de la CI canonique, sans nouveau workflow ni
-contournement du CI Gate. Les erreurs, absence de preuve ou version différente
+un job Runtime indépendant de la CI canonique, sans nouveau workflow ni
+contournement du CI Gate. La séparation évite qu’un échec du nouveau probe
+empêche les oracles historiques Runtime/Webots de s’exécuter. Les erreurs, absence de preuve ou version différente
 échouent ; logs, mesures, résumé et SHA-256 sont archivés.
 
 Les probes 0/1/3/4/14/15/17 couvrent toutes les combinaisons de côtés et
@@ -73,3 +74,8 @@ La CLI `python3 -m tools.grand_prix.layout_u --seed 4 --output monde.wbt`
 produit par défaut un monde de géométrie **sans contrôleur de vol**. Il faut
 composer explicitement un futur contrôleur/oracle revu avant d'en faire une
 activité. Cette exécution ayant écrit le candidat n'en délivre aucun GO.
+
+Réparation du premier candidat : le run 38417571013 a expiré dans Docker
+avant de produire les preuves internes. Entrypoint explicite, diagnostic
+Python préalable, timeout interne borné, log conservé avant lancement et
+arrêt du conteneur par son ID exact sont ajoutés ; ce run reste négatif.
