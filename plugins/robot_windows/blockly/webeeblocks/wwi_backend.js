@@ -29,6 +29,7 @@
     this.outcomeSettleMs = options && Number.isFinite(options.outcomeSettleMs) ? options.outcomeSettleMs : 2000;
     this.outcomePollMs = options && Number.isFinite(options.outcomePollMs) ? options.outcomePollMs : 50;
     this.nextId = 1;
+    this.timeObservationEpoch = 0;
     this.pending = Object.create(null);
     this.ready = false;
     this.readyWaiters = [];
@@ -37,6 +38,7 @@
     this.failureProbeMissionOracle = null;
     var capabilities = {
       conditionalLoops: true,
+      elapsedSimulationTime: true,
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],
       moveDirections: ['forward', 'back', 'left', 'right'],
@@ -164,14 +166,25 @@
     return oracle;
   };
 
-  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { this.timeObservationEpoch += 1; return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.turn = function(angleDeg) { return this._guardSimulationStopped() || this._request(['TURN', Number(angleDeg).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.wait = function(seconds) { return this._guardSimulationStopped() || this._request(['WAIT', Number(seconds).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.setSpeed = function(speedMps) { return this._guardSimulationStopped() || this._request(['SPEED', Number(speedMps).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.setLight = function(color) { return this._guardSimulationStopped() || this._request(['LIGHT', String(color)]); };
-  RuntimeV2WwiBackend.prototype.land = function() { return this._guardSimulationStopped() || this._request(['LAND']); };
+  RuntimeV2WwiBackend.prototype.land = function() { this.timeObservationEpoch += 1; return this._guardSimulationStopped() || this._request(['LAND']); };
+  RuntimeV2WwiBackend.prototype.readElapsedTime = function() {
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    var self = this, epoch = this.timeObservationEpoch;
+    return this._request(['ELAPSED']).then(function(value) {
+      if (epoch !== self.timeObservationEpoch) throw new RuntimeV2BackendError('TIME_UNAVAILABLE');
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+        throw new Error('Runtime v2 invalid elapsed time response');
+      return value;
+    });
+  };
   RuntimeV2WwiBackend.prototype.readRange = function(direction) { return this._guardSimulationStopped() || this._request(['RANGE', String(direction)]); };
   RuntimeV2WwiBackend.prototype.completeActivityMission = function(evaluation) {
     var oracle;
@@ -229,12 +242,14 @@
   RuntimeV2WwiBackend.prototype.stopSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationStop !== true)
       return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
+    this.timeObservationEpoch += 1;
     this.simulationStopped = true;
     return this._request(['STOP']);
   };
   RuntimeV2WwiBackend.prototype.resetSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
+    this.timeObservationEpoch += 1;
     this._cancelPendingForReset();
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;

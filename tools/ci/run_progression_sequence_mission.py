@@ -162,6 +162,7 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "SEQUENCE_SECOND_RESET_FRESH",
             "SEQUENCE_ALTERNATIVE_ACHIEVED",
             "SEQUENCE_MISSION_TEST_COMPLETE",
+            "ELAPSED_TIME_WEBOTS",
             "PRECISE_INITIAL_RESET_FRESH",
             "PRECISE_ACHIEVED",
             "PRECISE_RESET_FRESH",

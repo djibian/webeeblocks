@@ -167,7 +167,10 @@ def test_saturated_ordinary_socket_half_close_revokes_real_caller():
     """
     from threading import Thread
 
-    for iteration in range(3):
+    # Three adversarial tail shapes, three schedules each. A preceding complete
+    # request may have been committed before loss; it gives no post-loss authority.
+    for iteration in range(9):
+        case = ("oversized", "incomplete", "valid-then-incomplete")[iteration % 3]
         caller, host = socket.socketpair()
         caller.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
         sender = None
@@ -177,7 +180,8 @@ def test_saturated_ordinary_socket_half_close_revokes_real_caller():
         try:
             # Saturate the actual kernel socket send buffer without draining
             # the peer. This is not a mock sendall/sleeping fake socket.
-            payload = b'{"op":' + b"x" * (512 * 1024)
+            prefix = b'{"op":"prior-valid"}\n' if case == "valid-then-incomplete" else b""
+            payload = prefix + b'{"op":' + b"x" * (512 * 1024)
             caller.setblocking(False)
             sent = 0
             while sent < len(payload):
@@ -205,6 +209,7 @@ def test_saturated_ordinary_socket_half_close_revokes_real_caller():
             sender = Thread(target=ordinary_send, daemon=True)
             sender.start()
             assert entered.wait(1), "ordinary sender did not enter the saturation schedule"
+            assert sender.is_alive(), "saturated sender unexpectedly settled before signalling"
 
             signal_attempted = Event()
             signal_results = []
@@ -226,7 +231,9 @@ def test_saturated_ordinary_socket_half_close_revokes_real_caller():
 
             # Use the UNCHANGED production host intake, not a fake EOF oracle.
             stream = host.makefile("r", encoding="utf-8")
-            lifetime = CallerLifetime(stream, max_message_bytes=8192)
+            lifetime = CallerLifetime(
+                stream, max_message_bytes=8192 if case == "oversized" else 1024 * 1024
+            )
             assert lifetime._closed.wait(2), "host did not observe terminal caller loss"
             assert lifetime.close_reason == "incomplete or oversized caller message", (
                 "host did not reject trailing partial/oversized ordinary IPC: "
@@ -256,7 +263,7 @@ def test_saturated_ordinary_socket_half_close_revokes_real_caller():
                 sender.join(1)
             if signaler is not None:
                 signaler.join(1)
-    print("PASS real saturated caller SHUT_WR: terminal intake revoked, no extra IPC authority")
+    print("PASS real saturated caller SHUT_WR: oversized/incomplete/valid-prefix terminal revocation")
 
 if __name__ == "__main__":
     # Fixture substitutions are process-global. Keep the real-domain group

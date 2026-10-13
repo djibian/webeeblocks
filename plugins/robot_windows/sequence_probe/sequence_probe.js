@@ -46,10 +46,20 @@ async function expectFreshAfterReset(backend, evaluation) {
 }
 
 async function flyCanonicalSequence(backend) {
+  try { await backend.readElapsedTime(); throw new Error('time available before takeoff'); }
+  catch (error) { if (error.code !== 'TIME_UNAVAILABLE') throw error; }
   await backend.takeoff(0.5);
+  const start = await backend.readElapsedTime();
+  if (!Number.isFinite(start) || start <= 0) throw new Error('takeoff duration missing from simulated clock');
+  await backend.wait(0.5);
+  const after = await backend.readElapsedTime();
+  if (after - start < 0.5 || after - start > 1.5) throw new Error('wrong Webots wait/elapsed time relationship');
+  await report('ELAPSED_TIME_WEBOTS', {start:start, after:after});
   await backend.move('forward', 0.1);
   await backend.move('forward', 0.1);
   await backend.land();
+  try { await backend.readElapsedTime(); throw new Error('time available after land'); }
+  catch (error) { if (error.code !== 'TIME_UNAVAILABLE') throw error; }
 }
 
 async function resetAndProveFresh(backend, evaluation, eventName) {
