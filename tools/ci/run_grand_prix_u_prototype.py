@@ -45,6 +45,9 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     (out/'world.wbt').write_text(target.read_text())
     env=os.environ.copy();env.update(WEBOTS_HOME=str(home),LIBGL_ALWAYS_SOFTWARE='true',
         WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true',WEBEEBLOCKS_CI_ARTIFACT_DIR=str(out))
+    for variable,folder in (('XDG_CONFIG_HOME','config'),('XDG_CACHE_HOME','cache'),('XDG_RUNTIME_DIR','runtime')):
+        directory=out/folder;directory.mkdir(mode=0o700);env[variable]=str(directory)
+    env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
     children=[];streams=[]
@@ -85,11 +88,20 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         records=[json.loads(line.split('GP_U_RESULT ',1)[1]) for line in text.splitlines() if line.startswith('GP_U_RESULT ')]
         file=out/'native-result-1.json'
         result=json.loads(file.read_text()) if file.exists() else (records[0] if len(records)==1 else None)
-        if result is None or any(record!=result for record in records):raise RuntimeError('native result missing/inconsistent: '+str(out))
+        if result is None or any(record!=result for record in records if mode!='reset' or record['attempt']==1):raise RuntimeError('native result missing/inconsistent: '+str(out))
+        second=None
+        if mode=='reset':
+            second=json.loads((out/'native-result-2.json').read_text())
+            if (result['status']!='achieved' or second['status']!='achieved' or second['attempt']!=2 or
+                second['configuration']!=layout.identifier or second['seconds']>=210 or
+                any(record!=second for record in records if record['attempt']==2) or
+                not any(e['event']=='reset-completed' for e in rows) or
+                not any(e['event']=='second-outcome' and e['detail']['status']=='achieved' for e in rows)):
+                raise RuntimeError('second identical program after native RESET failed')
         fatal=[e for e in rows if e['event'] in ('wall-timeout','transport-error')]
         errors=[e for e in rows if e['event']=='error']
         if fatal:raise RuntimeError('transport/preparation failed: '+str(out))
-        if mode=='witness' and require_success and (errors or result['status']!='achieved'):
+        if mode in ('witness','reset') and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
         if mode=='collision' and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact')):
@@ -115,22 +127,23 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         if result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError('wrong native subject')
         programs=[e['detail'] for e in rows if e['event']=='program']
         if len(programs)!=1:raise RuntimeError('missing exact shared-interpreter AST')
+        if second is not None:result['second_attempt']=second
         result['ast_sha256']=hashlib.sha256(json.dumps(programs[0],sort_keys=True,separators=(',',':')).encode()).hexdigest()
         result['claim']='native-shared-interpreter';result['webots_version']='R2025a';result['mode']=mode
         (out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
-        (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
-           for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
         print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
         return result
     finally:
         stop_groups(children)
         for stream in streams:stream.close()
+        (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
+           for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
         target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -169,7 +182,7 @@ def main():
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside'),(0,2.,'collision'),(0,2.,'reverse'),(0,2.,'unavailable')]+[(s,2.,'witness') for s in (0,1,4)]
+    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside'),(0,2.,'collision'),(0,2.,'reverse'),(0,2.,'unavailable'),(0,2.,'reset')]+[(s,2.,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for seed,side,mode in cases:

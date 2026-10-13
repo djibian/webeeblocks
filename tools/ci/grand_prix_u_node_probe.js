@@ -53,6 +53,12 @@ socket.onopen=async()=>{
   const evaluation={type:'mission-state-v1',oracle:'grand-prix-u-v1'};
   await backend.completeActivityMission(evaluation);
   report('outcome',await backend.readActivityOutcome(evaluation));
+  if(mode==='reset'){
+   await backend.resetSimulation();report('reset-completed',{});
+   await Interpreter.run(program,backend,{maxSteps:20000});
+   await backend.completeActivityMission(evaluation);
+   report('second-outcome',await backend.readActivityOutcome(evaluation));
+  }
  }catch(error){report('error',{message:String(error),code:error.code||null});
   if(mode==='unavailable'){
    await backend._request(['STOP']);

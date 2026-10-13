@@ -145,3 +145,55 @@ Ready devra fournir la CI canonique exacte et la revue d'une autre exécution.
 - Aucun backend physique, activité intermédiaire, #157/#72, vol réel ou
   checkpoint n'est modifié. Le plafond 210 s ne démontre aucune autonomie
   batterie ni récupération physique.
+
+
+## Réparations natives du 13 octobre, seconde campagne
+
+La composition conserve les sources partagées, colliders, rayon 0,09 m,
+bandes ±0,55 m, seuil 0,60 m et oracles. Le témoin seul est corrigé :
+une somme latérale saturée au second coin n'est pas une aire terminale ;
+l'arrivée exige une largeur observée entre 1,65 et 1,90 m. La pose règle
+ensuite range(front) entre 0,63 et 0,73 m **avant** le déplacement latéral.
+Une avance fixe a été réfutée en graine 3 (x≈0,474 m au lieu de 0,70 m) ;
+un décalage latéral trop tôt a été réfuté en graine 14 au bord de l'élargissement.
+Ces échecs restent des réfutations, jamais des succès reclassés.
+
+Le témoin est construit avec les vraies définitions Blockly 13.2.1 et les
+vrais blocs variables/conditions/boucles ; préflight du profil U, compilation
+AST, sérialisation .wbb, réouverture et préflight/AST exact sont vérifiés.
+Le helper `tools/grand_prix/witness_workspace_u.js` ne transmet ni graine,
+position, quantité de H ni oracle au programme. Il est réservé à la preuve ;
+le starter élève reste vide. Le programme natif provient de cet AST compilé.
+L'omission canonique des branches else vides n'altère pas le comportement.
+Le budget maximal est **18225/20000** ; la boucle de côté est bornée à 35
+itérations, la correction finale à 6. Aucun budget du Runtime n'est augmenté.
+
+La CI Draft précédente e27ae679/38462841000 est négative : démarrage réparé,
+six négatifs natifs acquis, puis ancien probe inverse qui ne dégagait pas
+complètement le H avant de reculer. Le nouveau négatif impose un dégagement
+complet, puis exige `reverse-crossing` avec exactement un passage déjà compté.
+Le succès d'une mauvaise pose, du vol bas hors bande ou d'une collision
+reste impossible à accepter dans le runner.
+
+Les traces conservent aussi une mesure indisponible injectée **après une vraie
+lecture native**, refusée par l'interpréteur avant poursuite ; ce n'est pas
+une qualification de panne du capteur réel. Les probes d'échéance vérifient
+les requêtes COMPLETE/FAILURE/RESET/MOVE/STOP tardives, l'interruption et LAND
+à 210000 ms. Deux missions réussies après RESET natif ont des tentatives
+1 et 2 et le même AST ; aucune durée ou réussite de la première n'est réutilisée.
+Un fichier de diagnostic conserve la pose/vitesse/route/stabilité au verdict.
+
+Les démarrages locaux AF_UNIX refusés utilisent explicitement le transport
+TCP officiel ; toute autre erreur native reste négative. Les profils/cache
+Qt et runtime XDG sont isolés par essai et Mesa utilise un seul thread.
+Le rendu 3D est désactivé dans ce harness de preuve de trajectoire, les forces
+Webots et capteurs de distance restent natifs ; cela n'est pas une acceptation
+visuelle de la Robot Window. Le temps CPU n'est jamais une durée de mission.
+
+La synthèse JSON versionnée des essais et le paquet des traces complètes
+portent les sujets exacts et les digests. Les témoins antérieurs restent
+historiques. Une taille réussie pour une graine n'établit ni un maximum global,
+ni la qualification de toutes les graines ni une marge physique. Les activités
+intermédiaires et #157 ne changent pas. #602 isole l'autorité native ; aucun
+GO auteur ou fusion n'est délivré. La composition reste Draft tant que toutes
+les preuves/CI/revue indépendantes nécessaires ne sont pas acquises.

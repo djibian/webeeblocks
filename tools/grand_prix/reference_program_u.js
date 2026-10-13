@@ -25,7 +25,10 @@ function build(){
     [set('invalide',1),set('côté terminé',1)])];
  const final=[vertical('down'),set('bas',range('front')),
   iff(and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08)))),
-   [move(.1),iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right')])],
+   [set('bas',range('front')),{kind:'while',mode:'UNTIL',max_iterations:6,
+     condition:and(cmp('GTE',v('bas'),.63),cmp('LTE',v('bas'),.73)),
+     body:[iff(cmp('GT',v('bas'),.73),[move(.1)],[move(.1,'back')]),set('bas',range('front'))]},
+    iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right')])],
    [set('invalide',1)]),set('côté terminé',1)];
  const turnCorner=[{kind:'turn',angle_deg:90},set('droite',range('right')),
   {kind:'while',mode:'UNTIL',condition:cmp('GTE',v('droite'),.44),max_iterations:5,
@@ -42,7 +45,7 @@ function build(){
  return {version:1,semantics:'webeeblocks-ast-v1',program:[
   {kind:'takeoff',height_m:.4},vertical('up'),...['avant','gauche','droite','bas','arrière','côté','portes','paroi vue','côté terminé','invalide'].map(name=>set(name,0)),
   {kind:'repeat',count:3,body:[set('paroi vue',0),set('côté terminé',0),
-   {kind:'while',mode:'UNTIL',condition:cmp('EQ',v('côté terminé'),1),max_iterations:60,body:[iff(cmp('EQ',v('invalide'),0),body,[set('côté terminé',1)])]},inc('côté')]},
+   {kind:'while',mode:'UNTIL',condition:cmp('EQ',v('côté terminé'),1),max_iterations:35,body:[iff(cmp('EQ',v('invalide'),0),body,[set('côté terminé',1)])]},inc('côté')]},
   {kind:'land'}]};
 }
 return {build};
