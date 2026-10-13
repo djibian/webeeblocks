@@ -83,6 +83,12 @@ def test_missing_or_unattested_bounds_fail_closed():
     modified = copy.deepcopy(baseline)
     modified["bounds"]["invented"] = {"value": 0, "evidence_sha256": "c" * 64}
     rejected(modified)
+    extreme = copy.deepcopy(baseline)
+    extreme["bounds"]["max_hazard_approach_speed_m_s"]["value"] = 1e308
+    rejected(extreme)  # Derived v^2 overflows; no positive result.
+    extreme = copy.deepcopy(baseline)
+    extreme["bounds"]["distance_to_hazard_m"]["value"] = 10 ** 1000
+    rejected(extreme)  # Huge integers cannot be finite measured bounds.
     for key in ("min_supported_deceleration_m_s2", "endurance_lower_bound_s",
                 "max_planned_motor_time_s", "max_abort_to_motor_off_s"):
         modified = copy.deepcopy(baseline)
