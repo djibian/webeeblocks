@@ -24,6 +24,10 @@ def judge(layout, data, threshold=180):
     complete=data['trace'][-33]['time']
     for sample in data['trace']:
         attempt.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=complete)
+    if attempt.result is None:
+        last=data['trace'][-1]
+        for tick in range(1,65):
+            attempt.sample(round(last['time']+tick*.032,3),last['position'],[0,0,0],completed=True)
     return attempt
 
 
@@ -64,18 +68,82 @@ class Tests(unittest.TestCase):
                 self.assertEqual(a.result.crossings,laps*len(l.gates)+len(l.final_gates)-1)
                 self.assertEqual(data['result']['variables']['portes'],len(l.gates))
 
+    def test_all_33_shapes_and_endpoint_shortfall(self):
+        representatives={}
+        for seed in range(65536):
+            layout=generate(seed,'gp-v4')
+            representatives.setdefault((layout.gates,layout.final_gates),seed)
+        self.assertEqual(len(representatives),33)
+        for seed in representatives.values():
+            for laps in (1,2):
+                l=generate(seed,'gp-v4');p=evidence(l,laps)
+                self.assertEqual(p.returncode,0,(seed,laps,p.stderr))
+                a=judge(l,json.loads(p.stdout))
+                self.assertEqual(a.result.status,'achieved',(seed,laps,a.failure_reason))
+        for seed in (0,1,4,5):
+            for laps in (1,2):
+                l=generate(seed,'gp-v4');p=evidence(l,laps,moveEndpointShortfall=.015)
+                self.assertEqual(p.returncode,0,(seed,laps,p.stderr))
+                a=judge(l,json.loads(p.stdout))
+                self.assertEqual(a.result.status,'achieved',(seed,laps,a.failure_reason))
+
     def test_saturation_never_certifies_terminal(self):
         for seed in (0,1,4):
             p=evidence(generate(seed,'gp-v4'),injectRangeLossBoth=True)
             self.assertNotEqual(p.returncode,0)
             failure=json.loads(p.stderr.split('WITNESS_FAILURE ',1)[1]);self.assertEqual(failure['lands'],0)
 
+    def test_unexpected_closed_gate_stops_and_has_no_score(self):
+        from tools.grand_prix.layout import Box
+        for seed in (0,1,4,5):
+            l=generate(seed,'gp-v4');g=l.gates[0]
+            horizontal=abs(__import__('math').cos(g.heading))>.5
+            closed=Box(g.x,g.y,.65,.04 if horizontal else .56,.56 if horizontal else .04,1.3)
+            l=dataclasses.replace(l,boxes=(*l.boxes,closed))
+            p=evidence(l);self.assertNotEqual(p.returncode,0)
+            failure=json.loads(p.stderr.split('WITNESS_FAILURE ',1)[1]);self.assertEqual(failure['lands'],0)
+            # The witness fails before another translation crosses the obstacle.
+            self.assertGreater(__import__('math').dist(failure['last_position'][:2],(g.x,g.y)),.09)
+
+    def test_blind_terminal_counterexample_needs_multiple_lengths(self):
+        for seed,expected in ((4,'achieved'),(1,'not-achieved'),(0,'not-achieved')):
+            l=generate(seed,'gp-v4');p=evidence(l,fixedFinalSteps=19)
+            self.assertEqual(p.returncode,0,p.stderr)
+            a=judge(l,json.loads(p.stdout));self.assertEqual(a.result.status,expected)
+            if expected=='not-achieved':self.assertIsNone(a.result.candidate_points)
+
+    def test_native_lateral_refutation_changes_first_effect(self):
+        script="""
+const fs=require('fs'),assert=require('assert'),W=require('./tools/grand_prix/reference_program_v4'),I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter');
+const f=JSON.parse(fs.readFileSync('tools/ci/fixtures/grand_prix_v4_lateral_60efa67.json','utf8'));
+(async()=>{for(const old of [false,true]){
+const ast=W.build(true,1),phase=ast.program[ast.program.length-2];
+if(old){const guard=phase.body[0].then[3].else[0].else[0];guard.condition={kind:'logic',op:'OR',left:{kind:'compare',op:'LT',left:{kind:'variable_get',variable:{id:'gp-gauche',name:'gauche'}},right:{kind:'number',value:.3}},right:{kind:'compare',op:'LT',left:{kind:'variable_get',variable:{id:'gp-droite',name:'droite'}},right:{kind:'number',value:.3}}};}
+ast.program=[{kind:'takeoff',height_m:.4},...ast.program.filter(n=>n.kind==='set_variable'),...phase.body,{kind:'land'}];
+let effect;const backend={capabilities:{conditionalLoops:true},takeoff:async()=>{},readRange:async d=>f.ranges[d],move:async(d,n)=>{effect=[d,n];throw new Error('captured-first-effect');}};
+await assert.rejects(I.run(ast,backend,{maxSteps:20000}),/captured-first-effect/);
+assert.deepStrictEqual(effect,old?['forward',.2]:['left',.1]);
+}})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+        subprocess.run(['node','-e',script],cwd=ROOT,check=True)
+
+    def test_count_policy_same_ast_changes_exit_and_count_ablation(self):
+        for seed in (1,16):
+            l=generate(seed,'gp-v4');p=evidence(l,2,memoryChoice=True)
+            self.assertEqual(p.returncode,0,p.stderr)
+            data=json.loads(p.stdout);a=judge(l,data)
+            self.assertEqual(a.result.status,'achieved',a.failure_reason)
+            self.assertEqual(a.result.laps,1 if len(l.gates)>=3 else 2)
+        l=generate(1,'gp-v4');p=evidence(l,2,memoryChoice=True,forgetCounts=True)
+        self.assertEqual(p.returncode,0,p.stderr)
+        a=judge(l,json.loads(p.stdout));self.assertEqual(a.result.laps,2)
+
     def test_generic_profile_preflight_budget(self):
         script="""
 const W=require('./tools/grand_prix/reference_program_v4'),I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter'),C=require('./plugins/robot_windows/blockly/webeeblocks/activity_contract'),A=require('./plugins/robot_windows/blockly/webeeblocks/activities'),B=require('./plugins/robot_windows/blockly/webeeblocks/wwi_backend'),vm=require('vm'),fs=require('fs');
 const c={WebeeBlocksActivities:A,Blockly:{inject(){}},WebeeBlocksWwiBackend:B};c.window=c;
 vm.runInNewContext(fs.readFileSync('plugins/robot_windows/grand_prix/setup.js','utf8'),c);
-for(const laps of [1,2]){const ast=W.build(true,laps),facts=C.preflightAst(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),ast);C.preflightBackend(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),facts,new B({send(){}},{}));I.validateExecutionBudget(ast,20000);}
+for(const [laps,memory] of [[1,false],[2,false],[2,true]]){const ast=W.build(true,laps,true,memory),facts=C.preflightAst(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),ast);C.preflightBackend(c.WebeeBlocksActivities.getProfile('progression-grand-prix-v1'),facts,new B({send(){}},{}));I.validateExecutionBudget(ast,20000);}
 """
         subprocess.run(['node','-e',script],cwd=ROOT,check=True)
 

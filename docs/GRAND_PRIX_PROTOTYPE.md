@@ -1,3 +1,44 @@
+## gp-v4 : première réfutation native et réparation du témoin
+
+Le candidat **60efa676e4f1e17ffd0d4098406e597210aad6f2** est réfuté sur
+la ligne à trois H ouverts : run **38363324274**, tentative 1, failure,
+artefact **11796149632**, SHA-256 ZIP
+**67e80f7aba0b0d2254d304c3ac1504fddec6864a0a144c1c93df2aeef31855ce**.
+Même AST 9510749d3eaec3f7089f098d0589be905f5930159d863b69869d14cd67cb6345 :
+les lignes à un/deux H passent en **280,288 / 314,752 s**, 5/6 passages,
+**−76 / −105 points** à T=180. Sur gp-v4-0, collision de gabarit à
+209,184 s, avant le premier H final : (−0,1944156211 ; −0,8328380634 ;
+0,7824866676). Droite 0,310438095 m ne déclenche pas le seuil 0,300 m.
+Le recentrage de largeur normale, présent dans l'ancien témoin gp-v2,
+n'avait pas été repris. Le gabarit terminal est bien éliminé sans score.
+
+Réparation bornée du programme : centrer aussi lorsque gauche+droite est
+entre 0,9 et 1,1 m, ou dès qu'un côté est sous 0,35 m. Le vrai interpréteur,
+alimenté par ces trois retours natifs, choisit gauche 0,10 m avant progression ;
+l'ablation historique avance directement de 0,20 m. Fixture avec SHA/run/digest
+et négatif conservée. Aucun contrôle, vitesse, capteur, géométrie ou rayon
+n'est modifié. Les deux succès historiques ne sont pas transférés.
+
+Analyse des deux succès seulement : dégagement minimal enveloppe 0,070286 /
+0,055335 m ; marges latérales H 0,143177 / 0,135351 m ; marges hautes
+0,112482 / 0,080181 m ; recul à la paroi après ACK LAND 0,545142 / 0,578889 m.
+Vitesse maximale ~0,260823 m/s, inclinaison maximale ~4,591°. Les 14/21
+saturations à 2 m et mesures finies se réconcilient avec la pose et l'attitude
+natives du Multi-ranger (résidu max <5e-10 m). Ces mesures échantillonnées
+n'établissent aucune borne universelle de freinage ni qualification physique.
+
+Le nouvel essai commence par gp-v4-0, puis teste un/deux tours fixes et une
+politique C à compte découvert sur gp-v4-16 (deux H) et gp-v4-1 (quatre H),
+plus la ligne à un H. C choisit expérimentalement deux tours si le compte
+est 2, un sinon : hypothèse de coût, pas optimum annoncé. Le même AST C
+s'applique aux deux circuits. Une ablation effaçant le compte change le choix
+sans que l'oracle exige la mémoire. Budget 20 000 inchangé. La famille temps
+attend la composition du langage générique #592, sans horloge magique.
+`run_grand_prix_prototype.py --suite gp-v2|gp-v3|gp-v4|all` conserve les
+campagnes historiques exécutables ; défaut gp-v4. Aucun test partagé CI modifié.
+
+---
+
 ## gp-v4 — dimensionnement expérimental du 13 octobre 2026
 
 La décision propriétaire #587 remplace la miniaturisation : gp-v4 ajoute un

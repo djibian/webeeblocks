@@ -2,6 +2,8 @@
 """Real-Webots proof using one sensor-only AST; never a hardware checkpoint."""
 from pathlib import Path
 import json
+import dataclasses
+import argparse
 import hashlib
 import math
 import os
@@ -9,6 +11,8 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
+import re
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout import generate,world_text
 from tools.grand_prix.timing import analyze
@@ -16,6 +20,9 @@ IMAGE='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63
 ARTIFACTS=ROOT/'ci-artifacts/grand-prix'
 
 def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--suite',choices=('gp-v2','gp-v3','gp-v4','all'),default='gp-v4')
+    args=parser.parse_args()
     subprocess.run([sys.executable,str(ROOT/'tools/ci/test_grand_prix_v4.py')],check=True)
     if not shutil.which('docker'):raise RuntimeError('real Webots evidence unavailable: docker missing')
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
@@ -36,8 +43,9 @@ def main():
         # Add explicit calibration observations; preserve every legacy trial.
         compact=[('gp-v3',seed,laps,True,memory) for memory,laps in ((False,2),(False,1),(True,2)) for seed in (16,12,6)]
         legacy=[('gp-v2',seed,laps,True,False) for laps in (3,1,2) for seed in (1,4)]+[('gp-v2',1,1,False,False),('gp-v2',4,1,False,False)]
-        v4=[('gp-v4',seed,1,True,False) for seed in (4,1,0)]
-        for version,seed,laps,efficient,memory in v4:
+        v4=[('gp-v4',0,1,True,False),('gp-v4',16,1,True,False),('gp-v4',16,2,True,False),('gp-v4',1,2,True,False),('gp-v4',1,1,True,False),('gp-v4',4,1,True,False),('gp-v4',16,2,True,True),('gp-v4',1,2,True,True)]
+        selected={'gp-v2':legacy,'gp-v3':compact,'gp-v4':v4,'all':v4+compact+legacy}[args.suite]
+        for version,seed,laps,efficient,memory in selected:
             layout=generate(seed,version)
             module='reference_program_v4.js' if version=='gp-v4' else ('reference_program_compact.js' if version=='gp-v3' else 'reference_program.js')
             witness.write_text((ROOT/'tools/grand_prix'/module).read_text())
@@ -48,6 +56,7 @@ def main():
             policy='memory' if memory else ('efficient' if efficient else 'legacy')
             prefix=version+'-' if version!='gp-v2' else ''
             out=ARTIFACTS/f'{prefix}{seed}-{laps}-{policy}';out.mkdir(parents=True,exist_ok=True)
+            (out/'layout.json').write_text(json.dumps(dataclasses.asdict(layout),indent=2)+'\n')
             events=out/'events.jsonl';events.unlink(missing_ok=True)
             inner=f'''set -e
 apt-get update >/dev/null
@@ -60,8 +69,9 @@ printf '%s\\n' '[RobotWindow]' 'browser=/workspace/tools/ci/webots_runtime_v2_br
 python3 /workspace/tools/ci/runtime_wwi_event_server.py --output /workspace/ci-artifacts/grand-prix/{out.name}/events.jsonl &
 trap 'kill $! 2>/dev/null || true' EXIT
 xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_gp_{seed}.wbt'''
-            with (out/'webots.log').open('w') as log:
-                proc=subprocess.Popen(['docker','run','--rm','-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{out.name}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
+            with tempfile.TemporaryDirectory(prefix='gp-container-') as container_dir, (out/'webots.log').open('w') as log:
+                cid_path=Path(container_dir)/'container.cid'
+                proc=subprocess.Popen(['docker','run','--rm','--cidfile',str(cid_path),'-e','LIBGL_ALWAYS_SOFTWARE=true','-e','WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true','-e',f'WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/grand-prix/{out.name}','-v',f'{ROOT}:/workspace','-v',f'{source / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',IMAGE,'bash','-lc',inner],stdout=log,stderr=subprocess.STDOUT)
                 end=time.monotonic()+1100
                 found=[]
                 try:
@@ -74,6 +84,11 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
                             if any(marker in observed for marker in ('ERROR:','Traceback (most recent call last)','WEBEEBLOCKS_GP_REJECTION')):break
                         time.sleep(.25)
                 finally:
+                    if proc.poll() is None and cid_path.exists():
+                        cid=cid_path.read_text().strip()
+                        if not re.fullmatch(r'[0-9a-f]{64}',cid):raise RuntimeError('invalid owned container identity')
+                        stopped=subprocess.run(['docker','stop','--time','5',cid],capture_output=True,text=True,timeout=20)
+                        if stopped.returncode:raise RuntimeError('owned container cleanup uncertain: '+stopped.stderr)
                     if proc.poll() is None:
                         proc.terminate()
                         try:proc.wait(timeout=15)
@@ -95,7 +110,7 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             if version=='gp-v4':required_boundaries += [(179.968,0),(180.0,0),(180.032,1)]
             if version in ('gp-v3','gp-v4'):required_boundaries=[pair for pair in required_boundaries if pair[0]<=result['seconds']]
             if [(v['seconds'],v['penalty']) for v in boundaries]!=required_boundaries:raise RuntimeError(f'missing reached native clock boundaries: {boundaries}')
-            expected_laps=(2 if len(layout.gates)==4 else 1) if memory else laps
+            expected_laps=((1 if len(layout.gates)>=3 else 2) if version=='gp-v4' else (2 if len(layout.gates)==4 else 1)) if memory else laps
             crossings=expected_laps*len(layout.gates)+len(layout.final_gates)-1
             if result['laps']!=expected_laps or result['crossings']!=crossings or result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError(f'wrong exact route result: {result}')
             threshold=180 if version=='gp-v4' else 120
@@ -106,6 +121,9 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             if key in programs and programs[key]!=digest:raise RuntimeError('programme changed between configurations')
             programs[key]=digest
             diagnostic=analyze((out/'webots.log').read_text(),result['seconds'],result['attempt'])
+            from tools.grand_prix.kinematics import analyze as analyze_kinematics
+            kinematic=analyze_kinematics(out/'native_trace.csv',(out/'webots.log').read_text(),layout,result['seconds'],result['attempt'],measured)
+            (out/'kinematics.json').write_text(json.dumps(kinematic,indent=2)+'\n')
             (out/'timing.json').write_text(json.dumps(diagnostic,indent=2)+'\n')
             result.update(penalty_threshold_s=threshold,ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy=policy)
             summaries.append(result);(out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
