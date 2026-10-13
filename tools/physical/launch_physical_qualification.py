@@ -563,6 +563,61 @@ class PhysicalQualificationSession:
         self._teacher_sealed = False
         self._teacher_approved = False
         self._execution_attempted = False
+        self._abandon_lock = Lock()
+        self._abandon_requested = Event()
+        # One claim across operator abandonment and normal cleanup. Claimed
+        # before socket I/O, so an uncertain SHUT_WR outcome is never retried.
+        self._caller_write_half_close_attempted = False
+        self._closing = False
+        self._execution_completed = False
+        # One owner for the ENTIRE terminal teardown, not just the caller socket.
+        # A failed/in-flight teardown cannot be silently retried by another close.
+        self._terminal_cleanup_state = "not_started"
+        self._terminal_cleanup_error: BaseException | None = None
+        self._uncertain_caller: socket.socket | None = None
+
+    def request_abandon(self) -> bool:
+        """Irrevocably half-close ordinary IPC; only the host may recover.
+
+        This local signal carries no command or positive authority. Consume it
+        before the fallible shutdown. An unknown delivery is never retried.
+        It intentionally takes no execution, socket-read or host lifecycle lock.
+        """
+        with self._abandon_lock:
+            if self._abandon_requested.is_set() or self._execution_completed:
+                return False
+            caller = self._caller
+            if caller is None:
+                if self._closing and self._caller_write_half_close_attempted:
+                    # Cleanup already owns the sole SHUT_WR attempt. Record the
+                    # operator intent without claiming delivery or signalling again.
+                    self._abandon_requested.set()
+                    return True
+                raise PhysicalQualificationLauncherError("abandon channel is unavailable")
+            self._abandon_requested.set()
+            # Normal cleanup may already own the one permitted half-close.
+            # Intent stays terminal without making a second socket attempt.
+            if self._caller_write_half_close_attempted:
+                return True
+            self._caller_write_half_close_attempted = True
+        try:
+            caller.shutdown(socket.SHUT_WR)
+        except OSError as exc:
+            raise PhysicalQualificationLauncherError(
+                "abandon requested; IPC half-close outcome is uncertain; no retry"
+            ) from exc
+        return True
+
+    def _assert_not_abandoned(self) -> None:
+        if self._abandon_requested.is_set():
+            raise PhysicalQualificationLauncherError(
+                "operator abandonment requested; ordinary execution is terminal; "
+                "host recovery outcome must be established independently"
+            )
+        if self._closing:
+            raise PhysicalQualificationLauncherError(
+                "qualification launcher is closing; no new approval or execution is allowed"
+            )
 
     def _spawn_host(self) -> dict[str, object]:
         caller_host, caller_peer = socket.socketpair()
@@ -603,6 +658,14 @@ class PhysicalQualificationSession:
         return validate_host_bootstrap(_read_fd_line(browser_read, timeout_seconds=10.0))
 
     def start(self) -> None:
+        with self._abandon_lock:
+            # Terminal cleanup is one-shot: do not reacquire resources once
+            # that owner has finished or an uncertain cleanup has failed.
+            self._assert_not_abandoned()
+            if self._terminal_cleanup_state != "not_started":
+                raise PhysicalQualificationLauncherError(
+                    "one-shot qualification session cannot restart after teardown"
+                )
         if self._host is not None or self._bridge is not None:
             raise PhysicalQualificationLauncherError("qualification session is already started")
         try:
@@ -620,11 +683,17 @@ class PhysicalQualificationSession:
                 [self.webots_executable, *self.webots_args, str(self._ephemeral.world_path)],
                 cwd=str(ROOT),
             )
-        except BaseException:
-            self.close()
+        except BaseException as startup_error:
+            try:
+                self.close()
+            except BaseException as cleanup_error:
+                raise PhysicalQualificationLauncherError(
+                    str(startup_error) + "; terminal teardown also failed: " + str(cleanup_error)
+                ) from startup_error
             raise
 
     def prepare(self, *, timeout_seconds: float = 30.0) -> tuple[PreparedProgram, dict[str, object]]:
+        self._assert_not_abandoned()
         if self._bridge is None or self._caller is None or self._teacher is None:
             raise PhysicalQualificationLauncherError("qualification session is not started")
         if self._prepared is not None:
@@ -654,6 +723,7 @@ class PhysicalQualificationSession:
         return prepared, proposal
 
     def decide(self, proposal: dict[str, object], *, approved: bool) -> None:
+        self._assert_not_abandoned()
         if (
             self._teacher is None
             or self._prepared is None
@@ -663,12 +733,19 @@ class PhysicalQualificationSession:
         checked = _teacher_proposal(proposal, self._prepared)
         reply = teacher_decision_reply(checked, approved)
 
-        # From the first operation that can emit decision bytes onward, the
-        # one-shot decision is consumed even if sendall() reports an ambiguous
-        # failure. A retry could duplicate a partially delivered approval.
-        self._teacher_decision_attempted = True
+        # Preparation above may race with a terminal operator gesture.
+        # Atomically commit the one irreversible decision against abandonment.
+        # Never hold this local lock across socket I/O, diagnostics or waits.
+        with self._abandon_lock:
+            self._assert_not_abandoned()
+            if self._teacher is None or self._teacher_decision_attempted:
+                raise PhysicalQualificationLauncherError("teacher decision is not available")
+            teacher = self._teacher
+            # Consumed BEFORE the first possibly partial send, even if its
+            # outcome is ambiguous; positive authority cannot be reissued.
+            self._teacher_decision_attempted = True
         try:
-            _write_socket_line(self._teacher, reply)
+            _write_socket_line(teacher, reply)
         except PhysicalQualificationLauncherError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision channel write failed or peer closed; "
@@ -680,7 +757,7 @@ class PhysicalQualificationSession:
         # the decision remains one-shot/non-retriable, but ordinary execution
         # must stay disabled.
         try:
-            self._teacher.shutdown(socket.SHUT_WR)
+            teacher.shutdown(socket.SHUT_WR)
         except OSError as exc:
             raise PhysicalQualificationLauncherError(
                 "teacher decision was sent; local channel half-close is uncertain"
@@ -689,6 +766,7 @@ class PhysicalQualificationSession:
         self._teacher_approved = approved is True
 
     def execute_approved_program(self, *, timeout_seconds: float = EXECUTION_REQUEST_TIMEOUT_SECONDS) -> None:
+        self._assert_not_abandoned()
         if (
             self._caller is None
             or self._prepared is None
@@ -700,15 +778,30 @@ class PhysicalQualificationSession:
                 "positively approved exact program is not ready for execution"
             )
         count = execution_request_count(self._prepared.ast_binding)
-        # Consume before the first write: an ambiguous IPC result is never replayable.
-        self._execution_attempted = True
+        # Claim exact-program execution atomically against terminal intent.
+        # No IPC operation is performed with the local decision lock held.
+        with self._abandon_lock:
+            self._assert_not_abandoned()
+            if (self._caller is None or self._execution_attempted
+                    or not self._teacher_sealed or not self._teacher_approved):
+                raise PhysicalQualificationLauncherError(
+                    "positively approved exact program is not ready for execution"
+                )
+            self._execution_attempted = True
         for index in range(count):
             request_id = "execute-" + str(index + 1) + "-" + secrets.token_urlsafe(12)
-            _write_socket_line(self._caller, {
+            # Each ordinary request commits against abandonment independently,
+            # including the next command after a blocked or late host reply.
+            with self._abandon_lock:
+                self._assert_not_abandoned()
+                caller = self._caller
+                if caller is None:
+                    raise PhysicalQualificationLauncherError("execution channel was closed")
+            _write_socket_line(caller, {
                 "op": "execute-next-inflight",
                 "requestId": request_id,
             })
-            response = _read_socket_line(self._caller, timeout_seconds=timeout_seconds)
+            response = _read_socket_line(caller, timeout_seconds=timeout_seconds)
             if response.get("requestId") != request_id or response.get("executionAuthority") is not False:
                 raise PhysicalQualificationLauncherError("in-flight reply lost exact correlation/non-authority")
             if response.get("ok") is not True:
@@ -720,64 +813,144 @@ class PhysicalQualificationSession:
                     "trusted parameter-free program execution failed closed at step " + str(index + 1) + detail
                 )
 
+        # Serialize only the terminal local decision, never blocking I/O.
+        # A concurrently requested abandonment cannot become normal success;
+        # a completed exact program makes subsequent abandon requests no-ops.
+        with self._abandon_lock:
+            self._assert_not_abandoned()
+            self._execution_completed = True
+
     def close(self) -> None:
-        host_exit_error = None
-        if self._caller is not None:
-            try:
-                self._caller.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
-            try:
-                self._caller.close()
-            except OSError:
-                pass
+        # Claim the whole teardown once. Releasing this lock before any socket,
+        # subprocess or filesystem operation prevents a blocked first owner from
+        # blocking abandonment, and prevents all second owners from repeating
+        # an operation whose result may be unknown.
+        with self._abandon_lock:
+            state = self._terminal_cleanup_state
+            if state == "complete":
+                return
+            if state == "in_progress":
+                raise PhysicalQualificationLauncherError(
+                    "terminal cleanup is in progress; its outcome is unresolved; no retry"
+                )
+            if state == "failed":
+                raise PhysicalQualificationLauncherError(
+                    "terminal cleanup previously failed or is unresolved; no retry"
+                ) from self._terminal_cleanup_error
+            self._terminal_cleanup_state = "in_progress"
+            self._closing = True
+            caller = self._caller
             self._caller = None
-        if self._teacher is not None:
-            try:
-                self._teacher.close()
-            except OSError:
-                pass
-            self._teacher = None
-        if self._host is not None:
-            try:
-                exit_code = self._host.wait(timeout=10.0)
-                if exit_code != 0:
-                    host_exit_error = PhysicalQualificationLauncherError(
-                        "trusted host exited unsuccessfully: " + str(exit_code)
-                    )
-            except subprocess.TimeoutExpired as exc:
-                if self._teacher_decision_attempted:
-                    # The host owns powered-session liveness and bounded abort
-                    # recovery. Killing it here can cut an airborne vehicle.
-                    # Keep its browser/resources too; timeout remains a failure.
+            half_close = caller is not None and not self._caller_write_half_close_attempted
+            if half_close:
+                self._caller_write_half_close_attempted = True
+            # This flag is committed by decide() under the SAME lock. A possibly
+            # authorized host must never be killed by launcher teardown.
+            possibly_authorized = self._teacher_decision_attempted
+
+        try:
+            host_exit_error = None
+            cleanup_error = None
+
+            def record_error(message: str, cause: Exception) -> None:
+                nonlocal cleanup_error
+                if cleanup_error is None:
+                    cleanup_error = PhysicalQualificationLauncherError(message)
+                    cleanup_error.__cause__ = cause
+
+            if caller is not None:
+                if half_close:
+                    try:
+                        caller.shutdown(socket.SHUT_WR)
+                    except OSError as exc:
+                        record_error("caller half-close outcome is uncertain; no retry", exc)
+                try:
+                    caller.close()
+                except OSError as exc:
+                    self._uncertain_caller = caller
+                    record_error("caller socket cleanup outcome is uncertain; no retry", exc)
+
+            # Only this close() invocation owns all remaining fields. A second
+            # close sees 'in_progress' or 'failed' before touching any of them.
+            teacher = self._teacher
+            if teacher is not None:
+                try:
+                    teacher.close()
+                except OSError as exc:
+                    record_error("teacher socket cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._teacher = None
+
+            host = self._host
+            if host is not None:
+                try:
+                    exit_code = host.wait(timeout=10.0)
+                    if exit_code != 0:
+                        host_exit_error = PhysicalQualificationLauncherError(
+                            "trusted host exited unsuccessfully: " + str(exit_code)
+                        )
+                except subprocess.TimeoutExpired as exc:
+                    if possibly_authorized:
+                        # Leave host AND its supporting Webots/resources alive.
+                        # A second close cannot opportunistically reap/retry it.
+                        raise PhysicalQualificationLauncherError(
+                            "trusted host teardown is unresolved after 10 seconds; "
+                            "host left alive for safe recovery; no retry is authorized"
+                        ) from exc
+                    host.terminate()
+                    try:
+                        host.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        host.kill()
+                        host.wait(timeout=5.0)
+                self._host = None
+
+            webots = self._webots
+            if webots is not None:
+                if webots.poll() is None:
+                    webots.terminate()
+                    try:
+                        webots.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        webots.kill()
+                        webots.wait(timeout=5.0)
+                self._webots = None
+
+            bridge = self._bridge
+            if bridge is not None:
+                try:
+                    bridge.close()
+                except Exception as exc:
+                    # A failed close is never attempted again. Retain its handle
+                    # as uncertainty evidence, and still close independent assets.
+                    record_error("bridge cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._bridge = None
+            ephemeral = self._ephemeral
+            if ephemeral is not None:
+                try:
+                    ephemeral.close()
+                except Exception as exc:
+                    record_error("ephemeral window cleanup outcome is uncertain; no retry", exc)
+                else:
+                    self._ephemeral = None
+
+            if host_exit_error is not None:
+                if cleanup_error is not None:
                     raise PhysicalQualificationLauncherError(
-                        "trusted host teardown is unresolved after 10 seconds; "
-                        "host left alive for safe recovery; no retry is authorized"
-                    ) from exc
-                self._host.terminate()
-                try:
-                    self._host.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._host.kill()
-                    self._host.wait(timeout=5.0)
-            self._host = None
-        if self._webots is not None:
-            if self._webots.poll() is None:
-                self._webots.terminate()
-                try:
-                    self._webots.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    self._webots.kill()
-                    self._webots.wait(timeout=5.0)
-            self._webots = None
-        if self._bridge is not None:
-            self._bridge.close()
-            self._bridge = None
-        if self._ephemeral is not None:
-            self._ephemeral.close()
-            self._ephemeral = None
-        if host_exit_error is not None:
-            raise host_exit_error
+                        str(host_exit_error) + "; " + str(cleanup_error)
+                    ) from host_exit_error
+                raise host_exit_error
+            if cleanup_error is not None:
+                raise cleanup_error
+        except BaseException as exc:
+            with self._abandon_lock:
+                self._terminal_cleanup_error = exc
+                self._terminal_cleanup_state = "failed"
+            raise
+        else:
+            with self._abandon_lock:
+                self._terminal_cleanup_state = "complete"
 
     def __enter__(self) -> "PhysicalQualificationSession":
         self.start()
@@ -792,6 +965,52 @@ class PhysicalQualificationSession:
                     str(_value) + "; terminal teardown also failed: " + str(cleanup_error)
                 ) from _value
             raise
+
+
+class _OperatorAbandonConsole:
+    """One-shot CLI input; armed before approval, independent of IPC waits.
+
+    The input thread owns no radio/controller API and performs no output.
+    A blocked stdin reader is daemon-only and is discarded with this one-shot
+    CLI process. stop() prevents a late line from changing a settled run.
+    """
+
+    def __init__(self, session: PhysicalQualificationSession, reader) -> None:
+        self._session = session
+        self._reader = reader
+        self._stopped = Event()
+        self._armed = Event()
+        self.error = None
+        self._thread = Thread(target=self._receive, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+        if not self._armed.wait(1.0):
+            raise PhysicalQualificationLauncherError("operator input did not arm before approval")
+
+    def _signal(self) -> None:
+        try:
+            self._session.request_abandon()
+        except Exception as exc:
+            self.error = exc
+
+    def _receive(self) -> None:
+        self._armed.set()
+        while not self._stopped.is_set():
+            try:
+                line = self._reader.readline()
+            except Exception:
+                if not self._stopped.is_set():
+                    self._signal()
+                return
+            if self._stopped.is_set():
+                return
+            if not line or line.strip().upper() == "ABANDON":
+                self._signal()
+                return
+
+    def stop(self) -> None:
+        self._stopped.set()
 
 
 def _binding_summary(prepared: PreparedProgram, proposal: dict[str, object]) -> str:
@@ -830,11 +1049,23 @@ def main(argv: list[str] | None = None) -> int:
             print(_binding_summary(prepared, proposal))
             decision = input("Tapez APPROVE pour autoriser cette exécution unique, sinon DENY : ").strip().upper()
             approved = decision == "APPROVE"
-            session.decide(proposal, approved=approved)
             if not approved:
+                session.decide(proposal, approved=False)
                 print("Exécution physique refusée ; aucun programme n'est lancé.")
                 return 2
-            session.execute_approved_program()
+            print("Pendant l'exécution, tapez ABANDON puis Entrée pour abandonner. "
+                  "Le host conserve seul la récupération.", flush=True)
+            operator_console = _OperatorAbandonConsole(session, sys.stdin)
+            operator_console.start()
+            try:
+                session.decide(proposal, approved=True)
+                session.execute_approved_program()
+            finally:
+                operator_console.stop()
+            if operator_console.error is not None:
+                raise PhysicalQualificationLauncherError(
+                    "operator abandonment signal outcome is uncertain"
+                ) from operator_console.error
             print("Programme physique exact terminé sous l'autorité du host.")
             return 0
     except (PhysicalQualificationLauncherError, OSError, subprocess.SubprocessError) as exc:
