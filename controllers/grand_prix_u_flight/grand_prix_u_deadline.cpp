@@ -1,0 +1,79 @@
+#include "grand_prix_u_hook.h"
+#include <webots/robot.h>
+#include <webots/plugins/robot_window/default.h>
+#include <webots/supervisor.h>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+extern "C" const char *webeeblocks_file_broker_receive_text(void);
+extern "C" void webeeblocks_file_broker_send(const char *, int);
+namespace {
+long long begin=-1;
+unsigned long long attempt=0;
+bool expired=false,landed=false,success=false;
+WbFieldRef channel() {
+  WbNodeRef node=wb_supervisor_node_get_from_def("GP_U_EVALUATOR");
+  return node ? wb_supervisor_node_get_field(node,"customData") : nullptr;
+}
+void publish(const char *state) {
+  char data[192];
+  std::snprintf(data,sizeof(data),"GP_U_START attempt=%llu start_ms=%lld state=%s",attempt,begin,state);
+  WbFieldRef field=channel();
+  if(field)wb_supervisor_field_set_sf_string(field,data);
+}
+}
+extern "C" int gp_u_start(double now) {
+  WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+  unsigned long long current=0;char tail[2]={0};
+  const char *value=field?wb_supervisor_field_get_sf_string(field):nullptr;
+  if(!value || std::sscanf(value,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 %llu %1s",&current,tail)!=1 || current<1 || begin>=0 || !channel()) {
+    expired=true;publish("failed");return 0;
+  }
+  begin=std::llround(now*1000);attempt=current;expired=false;landed=false;success=false;
+  publish("admitted");
+  std::printf("GP_U_ADMISSION attempt=%llu start_ms=%lld\n",attempt,begin);std::fflush(stdout);
+  return 1;
+}
+extern "C" int gp_u_deadline(double now,int nativeLanded) {
+  landed=nativeLanded!=0;
+  if(begin<0 || expired || success)return 0;
+  WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+  const char *value=field?wb_supervisor_field_get_sf_string(field):nullptr;
+  unsigned long long a=0;char oracle[64]={0},status[32]={0},tail[2]={0};
+  success=landed && value && std::sscanf(value,"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",&a,oracle,status,tail)==3 &&
+          a==attempt && !std::strcmp(oracle,"grand-prix-u-v1") && !std::strcmp(status,"achieved");
+  if(success)return 0;
+  if(std::llround(now*1000)-begin>=210000) {
+    expired=true;publish("deadline");
+    char result[192];
+    std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=grand-prix-u-v1 status=not-achieved",attempt);
+    if(field)wb_supervisor_field_set_sf_string(field,result);
+    return 1;
+  }
+  return 0;
+}
+extern "C" int gp_u_next_step(int normal) {
+  if(begin<0 || expired || success)return normal;
+  const long long left=begin+210000-std::llround(wb_robot_get_time()*1000);
+  return left>0 && left<normal ? static_cast<int>(left) : normal;
+}
+extern "C" void gp_u_reset_complete(void) {
+  begin=-1;attempt=0;expired=false;landed=false;success=false;
+  WbFieldRef field=channel();if(field)wb_supervisor_field_set_sf_string(field,"");
+}
+extern "C" int gp_u_filter_raw(const char *message) {
+  int id=-1;char cmd[32]={0};
+  const bool parsed=message && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,cmd)==2;
+  if(expired && parsed && std::strcmp(cmd,"OUTCOME") && !(landed && !std::strcmp(cmd,"RESET"))) {
+    char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR TIME_LIMIT",id);
+    wb_robot_wwi_send_text(reply);return 0;
+  }
+  if(begin>=0 && !expired && parsed && !std::strcmp(cmd,"STOP"))publish("failed");
+  return 1;
+}
+extern "C" const char *gp_u_receive(void) {
+  return webeeblocks_file_broker_receive_text();
+}
+extern "C" void gp_u_send(const char *data,int size) {
+  webeeblocks_file_broker_send(data,size);
+}

@@ -241,21 +241,21 @@ jobs:
       # Non-decision prototype evidence while the simulation design is mutable.
       # Ready candidates prove this through the required Runtime suite instead.
       - name: Falsify simulation-only Grand Prix Draft prototype
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('tools/ci/run_grand_prix_prototype.py') != ''
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('tools/ci/run_grand_prix_u_prototype.py') != ''
         shell: bash
         run: |
           python3 tools/ci/test_grand_prix_simulation_time.py
-          python3 tools/ci/test_grand_prix.py
-          python3 tools/ci/test_grand_prix_bridge.py
-          node tools/ci/test_grand_prix_profile.js
-          python3 tools/ci/run_grand_prix_prototype.py
+          python3 tools/ci/test_grand_prix_u_oracle.py
+          node tools/ci/test_grand_prix_u_profile.js
+          node tools/ci/test_grand_prix_u_witness.js
+          python3 tools/ci/run_grand_prix_u_prototype.py
 
       - name: Upload Grand Prix Draft observations
-        if: always() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('tools/ci/run_grand_prix_prototype.py') != ''
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('tools/ci/run_grand_prix_u_prototype.py') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: grand-prix-draft-r2025a
-          path: ci-artifacts/grand-prix/
+          name: grand-prix-u-draft-r2025a
+          path: ci-artifacts/grand-prix-u/
           if-no-files-found: error
 
       - name: Select required suites

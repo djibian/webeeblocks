@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('assert');
+const Witness=require('../grand_prix/reference_program_u.js');
+const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const ast=Witness.build();
+Interpreter.validateProgram(ast);
+assert(Interpreter.validateExecutionBudget(ast,20000)<=20000);
+const text=JSON.stringify(ast);
+for(const term of ['seed','configuration','elapsed_time','score','candidate_points','gateCount'])assert(!text.includes('"'+term+'"'));
+assert.strictEqual(JSON.stringify(Witness.build()),text);
+const kinds=new Set();
+(function walk(value){if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object'){if(value.kind)kinds.add(value.kind);Object.values(value).forEach(walk);}})(ast);
+for(const kind of kinds)assert(['takeoff','vertical','move','turn','land','repeat','while','set_variable','variable_get','number','range','if','compare','arithmetic','logic'].includes(kind));
+assert(text.includes('"name":"portes"'));
+assert(ast.program[0].kind==='takeoff'&&ast.program.at(-1).kind==='land');
+console.log('PASS ordinary bounded sensor/variable AST; no layout/oracle inputs');

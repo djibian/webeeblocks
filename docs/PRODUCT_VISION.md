@@ -51,6 +51,46 @@ Progression is **teacher-guided**. WebeeBlocks itself does not need per-student 
 
 A world may support several activity profiles or difficulty levels where useful, but world reuse is not a goal in itself. Reuse one world only when its geometry, objects, events and available perceptions genuinely support the intended student missions.
 
+The owner-requested **Grand Prix autonome** (#587) is a simulation-first
+final challenge with **one traversal of three consecutive sides of a fixed-size
+square**, with **1–3 ordinary open H gates** (at most one per side) placed
+reproducibly but unknown to the student program, and a **closed H gate** at the
+end of the third side. There is **no fourth side, no final straight, no repeated
+laps, no gate bonuses, time penalties or software scoring**. A pupil remembers
+completed gate crossings to choose landing before the closed gate: **one = center,
+two = 0.50 m left, three = 0.50 m right**, relative to arrival. Wrong landing
+means a failed mission; memory is behaviorally useful rather than enforced by
+inspecting Blockly syntax.
+
+The candidate geometry starts at **2.00 m side**, about **1.00 m corridors**
+and a larger terminal landing area; native Webots R2025a tests must establish
+the largest feasible dimensions and dynamic clearance, not assume them. The
+floor remains uniform with **no low obstacles**. Low-altitude flight is legal
+only within marked before/after distances around each open H gate, apart from
+bounded takeoff, final landing and forced-timeout landing exceptions. Identical
+lines **marked on the Webots floor** represent the future physical tape limits;
+the observable-world oracle rejects any low flight outside these zones.
+
+A fixed **210-second attempt limit** is an owner-chosen mission rule, not a
+measured battery life. Independent simulation authority marks the attempt
+failed and orders **immediate landing at any position** upon timeout, even in a
+gate; no later pose restores success. Successful completion requires the
+correct stable landing **before** the deadline. The UI shows only attempt
+success/failure, Webots elapsed time and a failure reason; **no class leaderboard,
+score or persistent attempt history**. Only the future teacher-organized real
+final challenge may compare **successful flights by time on the same physical
+course**, externally to WebeeBlocks. Real-flight capabilities, authority,
+monitoring, margins and recovery remain unqualified and gated by #157/#72.
+
+See the falsifiable simulation design in
+docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
+historical gp-v2/v3/v4 native results remain scoped to their older worlds,
+not acceptance of the new course. Do not change intermediate activities.
+
+The progression should build both programming concepts **and legible
+understanding of 3D space** from a minimal first activity. The owner's
+observations found the common scene of activities 1/2 visually cluttered.
+
 ## Mission vs student program
 
 The activity defines the problem; the student builds the solution.

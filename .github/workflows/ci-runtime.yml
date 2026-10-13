@@ -20,7 +20,7 @@ permissions:
 jobs:
   grand-prix-prototype:
     runs-on: ubuntu-22.04
-    timeout-minutes: 85
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,19 +28,35 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Falsify ideal geometry and behavioral oracle
+      - name: Falsify U behavioral boundaries and generic witness
         run: |
-          python3 tools/ci/test_grand_prix.py
-          python3 tools/ci/test_grand_prix_bridge.py
-          node tools/ci/test_grand_prix_profile.js
-      - name: Prove sensor-only candidate in real Webots R2025a
-        run: python3 tools/ci/run_grand_prix_prototype.py
+          python3 tools/ci/test_grand_prix_simulation_time.py
+          node tools/ci/test_grand_prix_u_profile.js
+          node tools/ci/test_grand_prix_u_witness.js
+      - name: Prove current U candidate in real Webots R2025a
+        run: python3 tools/ci/run_grand_prix_u_prototype.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: grand-prix-prototype-r2025a
-          path: ci-artifacts/grand-prix/
+          name: grand-prix-u-prototype-r2025a
+          path: ci-artifacts/grand-prix-u/
           if-no-files-found: error
+  grand-prix-u-geometry:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Falsify Grand Prix U static geometry in real R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-u-geometry-r2025a
+          path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+
   runtime-v2-core:
     runs-on: ubuntu-22.04
     steps:

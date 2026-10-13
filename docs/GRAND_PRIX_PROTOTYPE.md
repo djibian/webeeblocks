@@ -1,3 +1,7 @@
+> **Archives gp-v2/v3/v4 — règles supplantées par #587, 13/10/2026.**
+> Les résultats suivants restent historiques. Le candidat actif est décrit dans
+> GRAND_PRIX_U_PROTOTYPE.md. Aucun ancien PASS n’est transféré.
+
 ## gp-v4 : composition de l'horloge et nouvelle calibration native
 
 Le candidat e8e3e1ae358fdba1ce98447a1b87254c90b36ca7 a réussi **huit**
