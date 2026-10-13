@@ -29,4 +29,6 @@ class Tests(unittest.TestCase):
     def test_program_observation_and_official_clock_remain_separate(self):
         self.assertEqual(milliseconds(0),0)
         self.assertEqual(elapsed_seconds(2.016,2.048),.032)
+from test_grand_prix_u_deadline import DeadlineTests
+
 if __name__=='__main__':unittest.main()
