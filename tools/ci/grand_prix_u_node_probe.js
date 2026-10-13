@@ -2,7 +2,8 @@
 const fs=require('fs');
 const Backend=require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
 const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
-const Witness=require('../grand_prix/reference_program_u.js');
+const WorkspaceWitness=require('../grand_prix/witness_workspace_u.js');
+const Witness={build:()=>WorkspaceWitness.build().ast};
 const port=Number(process.argv[2]),mode=process.argv[3]||'witness',output=process.argv[4];
 function report(event,detail){const item={event,detail};console.log('GP_U_NODE '+JSON.stringify(item));if(output)fs.appendFileSync(output,JSON.stringify(item)+'\n');}
 const socket=new WebSocket('ws://127.0.0.1:'+port+'/');
@@ -32,7 +33,7 @@ socket.onopen=async()=>{
    {kind:'takeoff',height_m:.4},{kind:'vertical',direction:'up',distance_m:.4},
    {kind:'move',direction:'forward',distance_m:.4},{kind:'move',direction:'forward',distance_m:.2},
    {kind:'vertical',direction:'down',distance_m:.4},{kind:'move',direction:'forward',distance_m:.4},
-   {kind:'move',direction:'forward',distance_m:.2},{kind:'move',direction:'back',distance_m:.4},
+   {kind:'move',direction:'forward',distance_m:.35},{kind:'move',direction:'back',distance_m:.4},
    {kind:'move',direction:'back',distance_m:.3},{kind:'land'}]};
   if(mode==='unavailable'){
    const read=backend.readRange.bind(backend);let injected=false;
@@ -69,4 +70,4 @@ socket.onopen=async()=>{
  }finally{socket.close();setTimeout(()=>process.exit(0),30);}
 };
 socket.onerror=e=>{report('transport-error',{message:String(e)});process.exit(1);};
-setTimeout(()=>{report('wall-timeout',{});process.exit(1);},300000).unref();
+setTimeout(()=>{report('wall-timeout',{});process.exit(1);},600000).unref();

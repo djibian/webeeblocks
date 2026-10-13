@@ -48,6 +48,13 @@ while robot.step(step)!=-1:
         if data!=expected:channel.setSFString(expected)
         if not printed:
             record=dataclasses.asdict(result)
+            if trace_file:trace_file.flush()
+            if trace_path:
+                diagnostic=dict(time=now,position=vehicle.getPosition(),velocity=vehicle.getVelocity()[:3],
+                    side=active.side,crossings=active.crossings,origin_z=origin,start_ms=active.start_ms,
+                    completion_ms=active.completion_ms,stationary_ms=active.stationary_ms,
+                    landing_target=layout.landing_target(len(layout.gates)))
+                (Path(trace_path)/f'native-diagnostic-{active.attempt}.json').write_text(json.dumps(diagnostic,allow_nan=False)+'\n')
             if trace_path:(Path(trace_path)/f'native-result-{active.attempt}.json').write_text(json.dumps(record,allow_nan=False)+'\n')
             print('GP_U_RESULT '+json.dumps(record,sort_keys=True),flush=True);printed=True
         reason={'time-limit':'temps écoulé','low-outside-zone':'altitude hors zone',

@@ -7,7 +7,7 @@ const set=(name,value)=>({kind:'set_variable',variable:{id:'gpu-'+name,name},val
 const ar=(op,left,right)=>({kind:'arithmetic',op,left,right:typeof right==='number'?n(right):right});
 const cmp=(op,left,right)=>({kind:'compare',op,left,right:typeof right==='number'?n(right):right});
 const and=(left,right)=>({kind:'logic',op:'AND',left,right});
-const iff=(condition,then,otherwise=[])=>({kind:'if',condition,then,else:otherwise});
+const iff=(condition,then,otherwise=[])=>otherwise.length?({kind:'if',condition,then,else:otherwise}):({kind:'if',condition,then});
 const range=direction=>({kind:'range',direction,unit:'m'});
 const move=(distance,direction='forward')=>({kind:'move',direction,distance_m:distance});
 const vertical=direction=>({kind:'vertical',direction,distance_m:.4});
@@ -32,7 +32,7 @@ function build(){
    body:[move(.1,'left'),set('droite',range('right'))]},set('côté terminé',1)];
  const body=[...reads,
   iff(cmp('LT',sum(),.65),gate,[
-   iff(and(cmp('EQ',v('côté'),2),and(cmp('GT',sum(),1.65),cmp('LT',v('avant'),.85))),final,[
+   iff(and(cmp('EQ',v('côté'),2),and(and(cmp('GT',sum(),1.65),cmp('LT',sum(),1.9)),cmp('LT',v('avant'),.85))),final,[
     iff(cmp('LT',v('gauche'),.75),[set('paroi vue',1)]),
     iff(and(cmp('LT',v('côté'),2),cmp('LTE',v('avant'),.20)),turnCorner,
       [iff(and(cmp('EQ',v('côté'),2),cmp('GT',sum(),1.65)),[move(.1)],

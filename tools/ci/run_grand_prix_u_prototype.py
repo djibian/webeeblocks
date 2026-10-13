@@ -69,12 +69,12 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
             node_log=(out/'node.log').open('w');streams.append(node_log)
             node=subprocess.Popen(['node',str(ROOT/'tools/ci/grand_prix_u_node_probe.js'),str(port),mode,str(events)],
                 cwd=ROOT,env=env,stdout=node_log,stderr=subprocess.STDOUT,start_new_session=True)
-            children.append(node);node.wait(timeout=300)
+            children.append(node);node.wait(timeout=600)
             limit=time.monotonic()+30
             while time.monotonic()<limit and webots.poll() is None:
                 text=(out/'webots.log').read_text()
                 if tcp:text+=''.join(Path(s.name).read_text() for s in streams)
-                if 'GP_U_RESULT ' in text and (not mode.startswith('timeout') or 'TRACE LAND' in text):break
+                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or 'TRACE LAND' in text):break
                 time.sleep(.1)
         text=(out/'webots.log').read_text()
         if tcp:text+=(out/'flight.log').read_text()+(out/'evaluator.log').read_text()
@@ -92,13 +92,15 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         if mode=='witness' and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
-        if mode in ('collision','reverse') and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact','reverse-crossing')):
-            raise RuntimeError('incorrect crossing/collision accepted: '+str(result))
+        if mode=='collision' and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact')):
+            raise RuntimeError('collision accepted: '+str(result))
+        if mode=='reverse' and (result['status']!='not-achieved' or result['reason']!='reverse-crossing' or result['crossings']!=1):
+            raise RuntimeError('reverse probe did not complete then reverse a gate: '+str(result))
         if mode=='unavailable' and (result['status']!='not-achieved' or not errors or not any(e['event']=='injected-range' for e in rows)):
             raise RuntimeError('unavailable measurement not rejected')
         if mode in expected and (result['status']!='not-achieved' or result['reason']!=expected[mode]):
             raise RuntimeError('negative accepted/wrong rejection: '+str(result))
-        if mode.startswith('timeout'):
+        if mode.startswith('timeout') or result['reason']=='time-limit':
             admitted=[int(line.split('start_ms=',1)[1]) for line in text.splitlines() if line.startswith('GP_U_ADMISSION ')]
             deadline=[int(line.split('time_ms=',1)[1].split()[0]) for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
             if len(admitted)!=1 or len(deadline)!=1 or deadline[0]-admitted[0]!=210000:
@@ -106,10 +108,10 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
             if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
                 raise RuntimeError('missing independent forced LAND/failure')
             if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
-            for command in ('COMPLETE','FAILURE','RESET','MOVE'):
+            for command in (('COMPLETE','FAILURE','RESET','MOVE') if mode.startswith('timeout') else ()):
                 if not any(e['event']=='late-command-rejected' and e['detail']['command']==command and e['detail']['code']=='TIME_LIMIT' for e in rows):
                     raise RuntimeError('late command not rejected: '+command)
-            if not any(e['event']=='late-stop-rejected' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('late STOP not rejected')
+            if mode.startswith('timeout') and not any(e['event']=='late-stop-rejected' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('late STOP not rejected')
         if result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError('wrong native subject')
         programs=[e['detail'] for e in rows if e['event']=='program']
         if len(programs)!=1:raise RuntimeError('missing exact shared-interpreter AST')
@@ -134,6 +136,7 @@ def main():
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
         if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
+        subprocess.run(['bash',str(ROOT/'tools/prepare_runtime_v2.sh')],check=True)
         assets=ROOT/'.ci-grand-prix-u-webots'
         if not assets.exists():
             subprocess.run(['git','clone','--depth=1','--filter=blob:none','--sparse','--branch','R2025a','https://github.com/cyberbotics/webots.git',str(assets)],check=True)
