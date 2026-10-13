@@ -1,3 +1,49 @@
+## gp-v4 — dimensionnement expérimental du 13 octobre 2026
+
+La décision propriétaire #587 remplace la miniaturisation : gp-v4 ajoute un
+carré de trajectoire de 2,50 m, un couloir de 1,00 m, 2–4 H ouverts sur la
+boucle et 1–3 H ouverts finaux puis un H fermé. Les panneaux restent longs de
+0,48 m, le passage large de 0,56 m et la traverse à 0,62 m. Chaque côté sans H
+conserve un obstacle bas de 0,50 m et de pleine largeur. Les premiers H finaux
+sont à 1,10 m de la jonction, espacés de 1,15 m ; le fermé suit à 1,55 m.
+La cible de pose est à 0,75 m avant le fermé. Sol, murs et caméra sont agrandis.
+Le gabarit de 0,09 m, les contacts, la validation orientée et les limitations
+altitude/vitesse/effets ne sont pas relâchés. Les anciennes versions et preuves
+restent ci-dessous ; leurs PASS ne se transfèrent pas.
+
+`python3 -m tools.grand_prix.layout --version gp-v4 --seed 0 --output worlds/grand_prix_v4_seed0.wbt`
+recrée la configuration ; graines 4/1/0 donnent respectivement 1/2/3 H finaux.
+Les règles publiques fixent **T = 180 s** pour cette campagne, sans en faire
+un seuil définitif. Le calcul accepte explicitement un T entier de 1–600 s,
+figé à la création de la tentative. Les anciens essais gardent leur T=120 s.
+Le temps officiel est celui de Webots, avec durée exacte en millisecondes.
+La convention ceil reste candidate ; +5/H et −1/s sont conservés. T n'est
+pas la limite indépendante de développement de 600 s ni une réserve batterie.
+
+Le nouveau témoin distinct navigue avec le vrai AST/interpréteur : descente et
+comparaison des retours devant un H ; si la mesure centrale basse sature, un
+balayage de −20° puis retour au cap exige une mesure finie vers le mur extérieur.
+La saturation seule ne certifie jamais l'ouverture. Une rotation vers l'intérieur
+peut manquer toute paroi à la jonction : ce contre-exemple a changé le témoin.
+Il apprend la distance commandée du premier côté à un coin reconnu par capteurs.
+Après reconnaissance du fermé final, il recule de 0,50 m avant LAND.
+Les politiques fixes 1/2 tours sont deux AST constants entre graines. Préflight
+réel profil/backend et budget 20 000 conservés. Six contrôles locaux couvrent
+les neuf couples de nombres de H, les frontières T=120/180/240/300 et douze
+trajectoires idéales ; celles-ci ne démontrent ni durée native ni freinage.
+
+La campagne native initiale cible 4/1/0 à un tour. Le Supervisor conserve une
+trace de position/vitesse/attitude à chaque pas de 32 ms dans native_trace.csv,
+sans transmettre de géométrie au programme. Les traces servent à mesurer les
+marges, arrêts, virages et pose. L'absence locale de Webots/Docker est compensée
+par le probe R2025a existant de la CI Draft ; aucun moteur idéal n'est présenté
+comme preuve dynamique. Résultats natifs, négatifs et stratégies mémoire/horloge
+restent à obtenir sur ce candidat. Il reste **Draft**, sans GO propre ni fusion.
+Les CI partagées, activités intermédiaires et chantier physique ne sont pas
+modifiés par cet incrément.
+
+---
+
 ## Réparation latérale validée et calibration compacte explicite
 
 Le HEAD **76020cbeaf56aee6c4af101582da801d13dbade2** passe les huit

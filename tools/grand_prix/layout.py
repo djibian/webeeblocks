@@ -38,12 +38,17 @@ class Layout:
     boxes: tuple[Box, ...]
     version: str = VERSION
     side: float = SIDE
+    width: float = WIDTH
+    landing_offset: float = .25
     @property
     def identifier(self):
         return f'{self.version}-{self.seed}'
 
 
 def generate(seed: int, version: str = VERSION) -> Layout:
+    if version == 'gp-v4':
+        from .layout_v4 import generate_v4
+        return generate_v4(seed)
     if version == 'gp-v3':
         from .layout_compact import generate_compact
         return generate_compact(seed)
@@ -126,16 +131,18 @@ def world_text(layout: Layout):
         position=f'{box.x:.6f} {box.y:.6f} {box.z:.6f}'
         size=f'{box.sx:.6f} {box.sy:.6f} {box.sz:.6f}'
         lines.append(f'DEF GP_BOX_{i} Solid {{ translation {position} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor 0.75 0.55 0.25 roughness 1 }} geometry Box {{ size {size} }} }} ] boundingObject Box {{ size {size} }} }}')
-    for x,y,color in [(0,0,'0.12 0.42 0.9'),(0,layout.final_gates[-1].y+.25,'0.10 0.72 0.28')]:
+    for x,y,color in [(0,0,'0.12 0.42 0.9'),(0,layout.final_gates[-1].y+layout.landing_offset,'0.10 0.72 0.28')]:
         lines.append(f'Pose {{ translation {x} {y} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size .28 .28 .004 }} }} ] }}')
     version_arg = f' "{layout.version}"' if layout.version != VERSION else ''
     lines.extend([robot, f'DEF GP_EVALUATOR Robot {{ name "Grand Prix evaluator" controller "grand_prix_evaluator" controllerArgs [ "{layout.seed}"{version_arg} ] supervisor TRUE }}'])
+    if layout.version == 'gp-v4':
+        lines = [line.replace('Floor { size 6 6 }', 'Floor { translation 1 -1 0 size 8 12 }').replace('position -3.2 -3.2 3.4', 'position -7 -10 9').replace('\"gp-v4\" ]', '\"gp-v4\" \"180\" ]') for line in lines]
     return '\n'.join(lines)+'\n'
 
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--seed',type=int,required=True);parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--version',choices=('gp-v2','gp-v3'),default=VERSION)
+    parser.add_argument('--version',choices=('gp-v2','gp-v3','gp-v4'),default=VERSION)
     args=parser.parse_args();layout=generate(args.seed,args.version)
     args.output.write_text(world_text(layout))
     print(layout.identifier)

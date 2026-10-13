@@ -72,7 +72,7 @@ class Progress:
         return True
 
 
-def candidate_score(crossings: int, seconds: float) -> int:
+def candidate_score(crossings: int, seconds: float, threshold_s: int = 120) -> int:
     """Issue #587's *candidate* started-second convention; not owner acceptance.
 
     Call only for a separately certified completed attempt, never partial/failed
@@ -81,4 +81,7 @@ def candidate_score(crossings: int, seconds: float) -> int:
     """
     if type(crossings) is not int or crossings < 0 or isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds < 0:
         raise ValueError('invalid score operands')
-    return 5 * crossings - math.ceil(max(0, seconds - 120))
+    if type(threshold_s) is not int or not 1 <= threshold_s <= 600:
+        raise ValueError('invalid public penalty threshold')
+    # Endpoint elapsed_seconds already preserves the exact native millisecond.
+    return 5 * crossings - math.ceil(max(0, seconds - threshold_s))

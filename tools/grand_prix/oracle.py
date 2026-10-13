@@ -21,8 +21,10 @@ class Result:
     candidate_points: int | None = None
 
 class Attempt:
-    def __init__(self, layout: Layout, attempt: int, origin_z: float):
+    def __init__(self, layout: Layout, attempt: int, origin_z: float, penalty_threshold_s: int = 120):
         if type(attempt) is not int or attempt < 1 or not math.isfinite(origin_z): raise ValueError('invalid attempt origin')
+        candidate_score(0, 0, penalty_threshold_s)
+        self.penalty_threshold_s = penalty_threshold_s
         self.layout,self.attempt,self.origin_z=layout,attempt,origin_z
         self.start_time=None;self.last_time=None;self.debug=False;self.result=None
         self.previous=(0.,0.,origin_z);self.airborne=False;self.cursor=0;self.armed=False
@@ -81,11 +83,12 @@ class Attempt:
         if any(len(p)!=3 or not all(math.isfinite(v) for v in p) or p[2]>.012 for p in contacts):self.fail('device-contact')
         # Inner clearance is already judged by the exact sphere/Box distance.
         # Expanding the island again as a rectangle rejects safe corner arcs.
-        on_ring=(-.4+RADIUS<=x<=self.layout.side+.4-RADIUS and -.4+RADIUS<=y<=self.layout.side+.4-RADIUS)
-        on_final=abs(x)<=.4-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=.31
+        half = self.layout.width / 2
+        on_ring=(-half+RADIUS<=x<=self.layout.side+half-RADIUS and -half+RADIUS<=y<=self.layout.side+half-RADIUS)
+        on_final=abs(x)<=half-RADIUS and self.layout.final_gates[-1].y+.02+RADIUS<=y<=half-RADIUS
         if not on_ring and not on_final:self.fail('off-track')
         if self.exit_started and not on_final:self.fail('return-after-exit')
-        if y<-.31 and not self.exit_started:
+        if y<-(half-RADIUS) and not self.exit_started:
             if not self.progress.choose_exit():self.fail('early-exit')
             else:
                 self.exit_started=True;self.events=self.final_events;self.cursor=0;self.armed=False
@@ -100,20 +103,20 @@ class Attempt:
                 if self.armed and before<.10<=progress:
                     if abs(offset)+RADIUS>.28 or z+RADIUS>.62 or z-RADIUS<.10:self.fail('gate-envelope')
                     else:self._advance();self.armed=False
-            elif abs(x-event[0])<=WIDTH/2 and abs(y-event[1])<=WIDTH/2 and self.airborne:
+            elif abs(x-event[0])<=self.layout.width/2 and abs(y-event[1])<=self.layout.width/2 and self.airborne:
                 self._advance();self.armed=False
         self.previous=tuple(position)
         if completed and self.completion_time is None:self.completion_time=sim_time
         if self.completion_time is not None:
             landed=z<=self.origin_z+.07
             stationary=math.hypot(*velocity[:2])<=.12 and abs(velocity[2])<=.12
-            arrival=abs(x)<=.14 and abs(y-(self.layout.final_gates[-1].y+.25))<=.14
+            arrival=abs(x)<=.14 and abs(y-(self.layout.final_gates[-1].y+self.layout.landing_offset))<=.14
             eligible=self.airborne and self.progress.final_complete and landed and stationary and arrival
             if eligible:
                 if self.stationary_since is None:self.stationary_since=sim_time
                 if sim_time-self.stationary_since>=.5:
                     seconds=None if self.debug else duration
-                    self.result=Result('achieved',self.layout.identifier,self.attempt,seconds,self.progress.laps,self.progress.crossings,None if seconds is None else candidate_score(self.progress.crossings,seconds))
+                    self.result=Result('achieved',self.layout.identifier,self.attempt,seconds,self.progress.laps,self.progress.crossings,None if seconds is None else candidate_score(self.progress.crossings,seconds,self.penalty_threshold_s))
             else:self.stationary_since=None
             if self.result is None and sim_time-self.completion_time>=1.5:self.fail('invalid-completion')
         return self.result

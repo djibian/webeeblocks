@@ -16,7 +16,7 @@ IMAGE='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63
 ARTIFACTS=ROOT/'ci-artifacts/grand-prix'
 
 def main():
-    subprocess.run([sys.executable,str(ROOT/'tools/ci/test_grand_prix_compact.py')],check=True)
+    subprocess.run([sys.executable,str(ROOT/'tools/ci/test_grand_prix_v4.py')],check=True)
     if not shutil.which('docker'):raise RuntimeError('real Webots evidence unavailable: docker missing')
     ARTIFACTS.mkdir(parents=True,exist_ok=True)
     source=ROOT/'.ci-grand-prix-webots'
@@ -36,16 +36,17 @@ def main():
         # Add explicit calibration observations; preserve every legacy trial.
         compact=[('gp-v3',seed,laps,True,memory) for memory,laps in ((False,2),(False,1),(True,2)) for seed in (16,12,6)]
         legacy=[('gp-v2',seed,laps,True,False) for laps in (3,1,2) for seed in (1,4)]+[('gp-v2',1,1,False,False),('gp-v2',4,1,False,False)]
-        for version,seed,laps,efficient,memory in compact+legacy:
+        v4=[('gp-v4',seed,1,True,False) for seed in (4,1,0)]
+        for version,seed,laps,efficient,memory in v4:
             layout=generate(seed,version)
-            module='reference_program_compact.js' if version=='gp-v3' else 'reference_program.js'
+            module='reference_program_v4.js' if version=='gp-v4' else ('reference_program_compact.js' if version=='gp-v3' else 'reference_program.js')
             witness.write_text((ROOT/'tools/grand_prix'/module).read_text())
             html.write_text(original.replace('../../../tools/grand_prix/reference_program.js','reference_program.js').replace('<script src="grand_prix_probe.js"></script>',f'<script>window.GP_TEST_STRATEGY_LAPS={laps};window.GP_TEST_EFFICIENT={str(efficient).lower()};window.GP_TEST_MEMORY_CHOICE={str(memory).lower()};</script><script src="grand_prix_probe.js"></script>'))
             target=ROOT/f'worlds/ci_gp_{seed}.wbt';project=ROOT/f'worlds/.ci_gp_{seed}.wbproj'
             target.write_text(world_text(layout).replace('window "grand_prix"','window "grand_prix_probe"').replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
             project.write_text('Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n')
             policy='memory' if memory else ('efficient' if efficient else 'legacy')
-            prefix='v3-' if version=='gp-v3' else ''
+            prefix=version+'-' if version!='gp-v2' else ''
             out=ARTIFACTS/f'{prefix}{seed}-{laps}-{policy}';out.mkdir(parents=True,exist_ok=True)
             events=out/'events.jsonl';events.unlink(missing_ok=True)
             inner=f'''set -e
@@ -91,12 +92,14 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             if len(native)!=1:raise RuntimeError('missing or duplicate native result')
             result=native[0]
             required_boundaries=[(119.968,0),(120.0,0),(120.032,1)]
-            if version=='gp-v3':required_boundaries=[pair for pair in required_boundaries if pair[0]<=result['seconds']]
+            if version=='gp-v4':required_boundaries += [(179.968,0),(180.0,0),(180.032,1)]
+            if version in ('gp-v3','gp-v4'):required_boundaries=[pair for pair in required_boundaries if pair[0]<=result['seconds']]
             if [(v['seconds'],v['penalty']) for v in boundaries]!=required_boundaries:raise RuntimeError(f'missing reached native clock boundaries: {boundaries}')
             expected_laps=(2 if len(layout.gates)==4 else 1) if memory else laps
             crossings=expected_laps*len(layout.gates)+len(layout.final_gates)-1
             if result['laps']!=expected_laps or result['crossings']!=crossings or result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError(f'wrong exact route result: {result}')
-            if result['candidate_points']!=5*crossings-math.ceil(max(0,result['seconds']-120)):raise RuntimeError('wrong candidate score')
+            threshold=180 if version=='gp-v4' else 120
+            if result['candidate_points']!=5*crossings-math.ceil(max(0,result['seconds']-threshold)):raise RuntimeError('wrong candidate score')
             programme=next(e['detail'] for e in found if e.get('event')=='GP_PROGRAM')
             digest=hashlib.sha256(json.dumps(programme,sort_keys=True,separators=(',',':')).encode()).hexdigest()
             key=(version,laps,efficient,memory)
@@ -104,7 +107,7 @@ xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/c
             programs[key]=digest
             diagnostic=analyze((out/'webots.log').read_text(),result['seconds'],result['attempt'])
             (out/'timing.json').write_text(json.dumps(diagnostic,indent=2)+'\n')
-            result.update(ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy=policy)
+            result.update(penalty_threshold_s=threshold,ast_sha256=digest,webots_image=IMAGE,mode='realtime',strategy=policy)
             summaries.append(result);(out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
             print(f'PASS real Webots {layout.identifier}: {expected_laps} freely chosen laps, {policy}, same strategy AST across configurations, {crossings} crossings, {result["seconds"]:.3f}s, {result["candidate_points"]} candidate points',flush=True)
         (ARTIFACTS/'strategies.json').write_text(json.dumps(summaries,indent=2)+'\n')

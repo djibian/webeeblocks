@@ -2,7 +2,7 @@
 const fs=require('fs');
 const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
 const layout=JSON.parse(fs.readFileSync(0,'utf8'));
-const witnessModule=require(layout.version==='gp-v3'?'../grand_prix/reference_program_compact':'../grand_prix/reference_program');
+const witnessModule=require(layout.version==='gp-v4'?'../grand_prix/reference_program_v4':(layout.version==='gp-v3'?'../grand_prix/reference_program_compact':'../grand_prix/reference_program'));
 const witness=witnessModule.build(layout.useConditionalLoops!==false,layout.strategyLaps,layout.efficient,layout.memoryChoice);
 const straight=[...Array(3).fill({kind:'move',direction:'forward',distance_m:.4}),{kind:'move',direction:'forward',distance_m:.2}];
 const lap={kind:'repeat',count:4,body:[...straight,{kind:'turn',angle_deg:90}]};
