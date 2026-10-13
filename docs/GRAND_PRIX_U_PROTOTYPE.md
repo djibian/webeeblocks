@@ -195,8 +195,9 @@ portent les sujets exacts et les digests. Les témoins antérieurs restent
 historiques. Une taille réussie pour une graine n'établit ni un maximum global,
 ni la qualification de toutes les graines ni une marge physique. Les activités
 intermédiaires et #157 ne changent pas. #602 isole l'autorité native ; aucun
-GO auteur ou fusion n'est délivré. La composition reste Draft tant que toutes
-les preuves/CI/revue indépendantes nécessaires ne sont pas acquises.
+GO auteur ou fusion n'est délivré. La composition est offerte Ready après stabilisation du code et des preuves
+locales ; une nouvelle CI canonique Ready et la revue d’une autre exécution
+sont exigées avant intégration.
 
 Le manifest SHA-256 est désormais établi après arrêt des processus natifs et
 fermeture des journaux, y compris en échec : les lignes de déconnexion ne
@@ -222,7 +223,7 @@ positives sont au moins 0,044 m pour les essais examinés ; le résultat natif
 inclut déjà le contrôle balayé des collisions. La marge échantillonnée ne
 constitue ni une borne d'attitude/bruit physique ni une preuve universelle.
 Les négatifs, RESET et échéances doivent encore être refaits dans la CI exacte
-sur cette nouvelle composition. La PR demeure Draft jusque-là.
+sur cette nouvelle composition. La CI Ready exacte et une revue indépendante sont exigées avant intégration.
 
 La campagne TCP locale dans un même affichage a reproduit un crash natif
 de démarrage (SIGSEGV, aucune tentative admise). Ces essais restent négatifs.
