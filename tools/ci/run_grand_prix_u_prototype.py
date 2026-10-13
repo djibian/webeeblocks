@@ -53,8 +53,13 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     children=[];streams=[]
     try:
         with (out/'webots.log').open('w') as log:
-            webots=subprocess.Popen([str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
-                '--no-rendering','--port='+str(port),str(target)],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+            launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
+                '--no-rendering','--port='+str(port),str(target)]
+            if not tcp:
+                xvfb=shutil.which('xvfb-run')
+                if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
+                launch=[xvfb,'-a',*launch]
+            webots=subprocess.Popen(launch,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             children.append(webots);limit=time.monotonic()+30
             while webots.poll() is None and time.monotonic()<limit:
                 text=(out/'webots.log').read_text()
@@ -144,7 +149,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
     parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
-    parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
+    parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=3.6)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
@@ -160,7 +165,7 @@ def main():
         if not node:raise RuntimeError('Node 22+ required for shared WWI backend')
         with tempfile.TemporaryDirectory(prefix='gp-u-native-') as tmp:
             cid=Path(tmp)/'container.cid'
-            command="set -eu\npython3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\ntimeout -k 2s 10s /usr/local/bin/node --version\ntimeout -k 5s 1400s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "+args.suite+' --seed '+str(args.seed)+' --side '+str(args.side)
+            command="set -eu\npython3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\ntimeout -k 2s 10s /usr/local/bin/node --version\ntimeout -k 5s 1400s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "+args.suite+' --seed '+str(args.seed)+' --side '+str(args.side)
             try:
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
@@ -182,7 +187,7 @@ def main():
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside'),(0,2.,'collision'),(0,2.,'reverse'),(0,2.,'unavailable'),(0,2.,'reset')]+[(s,2.,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for seed,side,mode in cases:

@@ -14,7 +14,7 @@ et contre-exemples restent des archives, jamais des PASS du parcours U.
   leurs revues ; elle doit être recomposée/requalifiée après leurs intégrations.
   Aucun GO de cette exécution auteure.
 
-Géométrie à 2 m pour toutes les graines : 1–3 H, un maximum/côté ; aucun
+Premier candidat historique à 2 m pour toutes les graines : 1–3 H, un maximum/côté ; aucun
 obstacle bas, fermeture pleine largeur et arrivée 1,80 m ; bandes candidates
 ±0,55 m, seuil 0,60 m, rayon 0,09 m. Seules disposition et quantité de H
 changent. Pose centre / gauche sud / droite nord pour 1/2/3 passages, sans
@@ -197,3 +197,36 @@ ni la qualification de toutes les graines ni une marge physique. Les activités
 intermédiaires et #157 ne changent pas. #602 isole l'autorité native ; aucun
 GO auteur ou fusion n'est délivré. La composition reste Draft tant que toutes
 les preuves/CI/revue indépendantes nécessaires ne sont pas acquises.
+
+Le manifest SHA-256 est désormais établi après arrêt des processus natifs et
+fermeture des journaux, y compris en échec : les lignes de déconnexion ne
+peuvent plus modifier les logs après leur hash. Les anciens manifests de
+runner, produits trop tôt, restent distincts du manifest complet du paquet.
+
+
+### Dimension du candidat composé
+
+Les sept combinaisons de côtés 0/1/3/4/14/15/17 réussissent à **3,60 m**
+avec le même AST `a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d`.
+Les durées observées s'étendent de 171,328 à 205,568 s. Cette taille devient
+le défaut des mondes U composés et de la campagne `--suite all` ; le générateur
+et les fixtures 2 m de #599 restent conservés. La graine 4 à 3,70 m échoue
+à 210,000 s avec interruption et LAND ; 4/5/6 m échouent aussi au plafond
+sur le témoin ayant corrigé la confusion du coin. 3,60 m est la plus grande
+**taille ayant réussi ici les sept dispositions**, pas une preuve d'impossibilité
+pour chaque millimètre supérieur ni pour une autre stratégie. La réserve minimale
+observée de 4,432 s n'est pas une autonomie batterie.
+
+À 3,60 m, les gaps d'enveloppe sphérique **échantillonnés** dans les traces
+positives sont au moins 0,044 m pour les essais examinés ; le résultat natif
+inclut déjà le contrôle balayé des collisions. La marge échantillonnée ne
+constitue ni une borne d'attitude/bruit physique ni une preuve universelle.
+Les négatifs, RESET et échéances doivent encore être refaits dans la CI exacte
+sur cette nouvelle composition. La PR demeure Draft jusque-là.
+
+La campagne TCP locale dans un même affichage a reproduit un crash natif
+de démarrage (SIGSEGV, aucune tentative admise). Ces essais restent négatifs.
+Les preuves locales agrégées utilisent des affichages froids distincts ;
+la voie CI normale lance désormais chaque monde avec son propre xvfb-run,
+puis retire son groupe de processus. Elle ne relance ni ne tolère un crash.
+La CI Docker doit encore établir ce nouveau lancement exact.

@@ -60,7 +60,7 @@ def prepare():
     if (ROOT/'tools/grand_prix/layout_u.py').exists():
         from tools.grand_prix.layout_u import generate,world_text
         for seed in (0,1,4):
-            (ROOT/f'worlds/grand_prix_u_seed{seed}.wbt').write_text(world_text(generate(seed),controller='grand_prix_u_flight',window='grand_prix_u',evaluator=True))
+            (ROOT/f'worlds/grand_prix_u_seed{seed}.wbt').write_text(world_text(generate(seed,3.6),controller='grand_prix_u_flight',window='grand_prix_u',evaluator=True))
     print('GP_U_SHARED_SOURCE_SHA256 '+hashlib.sha256(source.encode()).hexdigest())
     print('GP_U_COMPOSED_SOURCE_SHA256 '+hashlib.sha256(result.encode()).hexdigest())
 if __name__=='__main__':prepare()
