@@ -51,6 +51,7 @@ async function prove(){
   const stop=wwi.stopSimulation();wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 OK');await stop;
   wwi.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 VALUE 50');await lateRejected;
   await assert.rejects(()=>wwi.readElapsedTime(),e=>e.code==='USER_STOPPED');
+  await require('./test_grand_prix_time_policy.js')();
   console.log('PASS elapsed simulation time: real Blockly, serialization, profile opt-in, all-path capability preflight, invalid observations, stale reset replies and physical refusal');
 }
 module.exports=prove;
