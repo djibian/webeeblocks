@@ -48,8 +48,15 @@ The input contains exactly `source_sha` (40 lowercase hex),
 `ast_sha256` (64 lowercase hex) and `bounds`. The eleven required bound
 entries each contain exactly `value` (finite number in its documented units)
 and `evidence_sha256` (lowercase digest of an independently retained source).
-This tool checks only their *syntax*, not whether the source is real or
-whether its measurement justifies a bound. A digest copied or invented by an
+Duplicate JSON keys at **any depth** are refused (including repeated bound
+values or source identifiers). Input decimal literals are interpreted exactly
+for conditional arithmetic. The displayed travel allowance is rounded
+**upward**, while both displayed margins are rounded **downward**; unrepresentable
+bounds and nonfinite derived outputs are refused. These arithmetic safeguards
+cannot make an unmeasured physical envelope reliable.
+
+This tool checks only witness identifiers' *syntax*, not whether a source is
+real or its measurement justifies a bound. A digest copied or invented by an
 agent is **not** evidence. No example numbers in this document are measurements.
 
 | Bound name | Unit and required meaning |
@@ -132,7 +139,8 @@ preflight or substitute for an independent operator/containment decision.
 ## Independent falsification before any use
 
 The machine regression `tools/ci/test_physical_conditional_flight_budget.py`
-must reject every absent key, forged-form digest, booleans/strings/nonfinite
-or negative inputs, and zero duration/deceleration. It proves the arithmetic,
-negative-margin preservation and non-authority output for **synthetic** fixtures.
+must reject every absent or duplicated JSON key, forged-form digest,
+booleans/strings/nonfinite or negative inputs, zero duration/deceleration
+and non-representable magnitude. It tests both near-zero margin signs and
+directed output rounding for **synthetic** fixtures.
 It cannot prove witness authenticity or physically attainable margins.

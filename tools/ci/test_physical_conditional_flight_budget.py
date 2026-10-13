@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+from decimal import Decimal
+from fractions import Fraction
 import json
 from pathlib import Path
 import subprocess
@@ -118,11 +120,131 @@ def test_offline_cli_does_not_claim_authority():
                               text=True, timeout=5)
         require(proc.returncode == 2, "malformed JSON was accepted")
 
+
+def test_reviewer_refutations_and_exact_signs():
+    # Original NO_GO reproducer: naive floats returned +5.55e-17 metres
+    # even though the written decimal bounds imply a NEGATIVE margin.
+    sheet = synthetic_sheet()
+    boundary = {
+        "distance_to_hazard_m": "0.46367642549844795",
+        "prior_horizontal_excursion_m": "0.2856287821675341",
+        "rotor_radius_m": "0.06425789127078527",
+        "geometry_uncertainty_m": "0.04178785698518531",
+        "max_hazard_approach_speed_m_s": "0.20120745675755597",
+        "max_abort_to_deceleration_s": "0.22940304678469947",
+        "min_supported_deceleration_m_s2": "0.7832375810947076",
+    }
+    for name, spelling in boundary.items():
+        sheet["bounds"][name]["value"] = Decimal(spelling)
+    result = evaluate(sheet)
+    require(result["conditional_horizontal_margin_m"] < 0
+            and result["flight_authorized"] is False, result)
+    # Second independent signed boundary: binary addition used to erase
+    # the strictly negative 1e-17 second endurance margin.
+    for name, spelling in (
+        ("endurance_lower_bound_s", "1"),
+        ("max_planned_motor_time_s", "0.9"),
+        ("max_abort_to_motor_off_s", "0.1"),
+        ("energy_time_reserve_s", "0.00000000000000001"),
+    ):
+        sheet["bounds"][name]["value"] = Decimal(spelling)
+    require(evaluate(sheet)["conditional_endurance_margin_s"] < 0,
+            "near-zero energy deficit disappeared")
+    for name, spelling in boundary.items():
+        sheet["bounds"][name]["value"] = float(spelling)
+    require(evaluate(sheet)["conditional_horizontal_margin_m"] < 0,
+            "direct Python float caller inverted the given decimal sign")
+
+    # Exact negative/zero/positive margins. Outward conversion must never
+    # overstate either margin or turn zero/negative into positive.
+    sheet = synthetic_sheet()
+    for name, spelling in (
+        ("max_hazard_approach_speed_m_s", "0"),
+        ("prior_horizontal_excursion_m", "0.1"),
+        ("rotor_radius_m", "0.1"),
+        ("geometry_uncertainty_m", "0"),
+        ("max_planned_motor_time_s", "40"),
+        ("max_abort_to_motor_off_s", "10"),
+        ("energy_time_reserve_s", "20"),
+    ):
+        sheet["bounds"][name]["value"] = Decimal(spelling)
+    for delta in ("-0.00000000000000001", "0", "+0.00000000000000001"):
+        exact = Fraction(Decimal(delta))
+        sheet["bounds"]["distance_to_hazard_m"]["value"] = Decimal("0.2") + Decimal(delta)
+        sheet["bounds"]["endurance_lower_bound_s"]["value"] = Decimal("70") + Decimal(delta)
+        result = evaluate(sheet)
+        for field in ("conditional_horizontal_margin_m", "conditional_endurance_margin_s"):
+            reported = Fraction.from_float(result[field])
+            require(reported <= exact and (result[field] < 0) == (exact < 0)
+                    and not (result[field] > 0 and exact <= 0), (field, delta, result))
+    sheet = synthetic_sheet()
+    sheet["bounds"]["max_hazard_approach_speed_m_s"]["value"] = Decimal("1")
+    sheet["bounds"]["max_abort_to_deceleration_s"]["value"] = Decimal("0")
+    sheet["bounds"]["min_supported_deceleration_m_s2"]["value"] = Decimal("3")
+    require(Fraction.from_float(evaluate(sheet)["abort_motion_allowance_m"]) >= Fraction(1, 6),
+            "abort allowance may not round BELOW exact travel")
+    for name, value in (
+        ("min_supported_deceleration_m_s2", Decimal("1e-320")),
+        ("max_hazard_approach_speed_m_s", Decimal("1e308")),
+        ("endurance_lower_bound_s", Decimal("1e1000")),
+        ("geometry_uncertainty_m", Decimal("1e-1000")),
+    ):
+        adverse = synthetic_sheet()
+        adverse["bounds"][name]["value"] = value
+        rejected(adverse)
+    adverse = synthetic_sheet()
+    adverse["bounds"]["endurance_lower_bound_s"]["value"] = Decimal("1e-323")
+    require(evaluate(adverse)["conditional_endurance_margin_s"] < 0,
+            "tiny finite lower endurance hides a motor-time deficit")
+
+def test_duplicate_json_keys_fail_closed_at_every_depth():
+    with tempfile.TemporaryDirectory() as temp:
+        path = Path(temp) / "adversarial.json"
+        original = json.dumps(synthetic_sheet())
+        cases = (
+            original.replace('"source_sha":', '"source_sha": "' + "d" * 40 + '", "source_sha":', 1),
+            original.replace('"ast_sha256":', '"ast_sha256": "' + "d" * 64 + '", "ast_sha256":', 1),
+            original.replace('"bounds":', '"bounds": {}, "bounds":', 1),
+            original.replace('"endurance_lower_bound_s": {',
+                             '"endurance_lower_bound_s": {}, "endurance_lower_bound_s": {', 1),
+            original.replace('"endurance_lower_bound_s": {"value": 120.0',
+                             '"endurance_lower_bound_s": {"value": 1, "value": 120.0', 1),
+            original.replace('"endurance_lower_bound_s": {"value": 120.0',
+                             '"endurance_lower_bound_s": {"\\u0076alue": 1, "value": 120.0', 1),
+            original.replace('"endurance_lower_bound_s": {"value": 120.0',
+                             '"endurance_lower_bound_s": {"value": 120.0, "value": 120.0', 1),
+        )
+        for raw in cases:
+            path.write_text(raw, encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(PHYSICAL / "conditional_flight_budget.py"),
+                                   str(path)], capture_output=True, text=True, timeout=5)
+            output = json.loads(proc.stdout)
+            require(proc.returncode == 2 and output["status"] == "INCOMPLETE"
+                    and output["flight_authorized"] is False
+                    and output["physical_qualification"] == "UNPROVEN"
+                    and "duplicate JSON key" in output["error"],
+                    "duplicate JSON key silently accepted: " + raw)
+        raw = original.replace("120.0", "70.00000000000000001")
+        path.write_text(raw, encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(PHYSICAL / "conditional_flight_budget.py"),
+                               str(path)], capture_output=True, text=True, timeout=5)
+        output = json.loads(proc.stdout)
+        require(proc.returncode == 0 and output["conditional_endurance_margin_s"] > 0,
+                "JSON parse rounded away a narrow positive decimal margin")
+        path.write_text(original.replace("120.0", "1e1000"), encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(PHYSICAL / "conditional_flight_budget.py"),
+                               str(path)], capture_output=True, text=True, timeout=5)
+        require(proc.returncode == 2
+                and json.loads(proc.stdout)["status"] == "INCOMPLETE",
+                "unrepresentable decimal exponent yielded a complete budget")
+
 def main():
     test_conditional_arithmetic_and_no_authority()
     test_missing_or_unattested_bounds_fail_closed()
     test_offline_cli_does_not_claim_authority()
-    print("PASS #157 synthetic budgets: strict provenance fields, missing/invalid bounds, adverse margins, and no physical authority")
+    test_reviewer_refutations_and_exact_signs()
+    test_duplicate_json_keys_fail_closed_at_every_depth()
+    print("PASS #157 synthetic budgets: exact conservative boundaries, duplicate-key rejection, provenance form, extremes, and no physical authority")
 
 if __name__ == "__main__":
     main()
