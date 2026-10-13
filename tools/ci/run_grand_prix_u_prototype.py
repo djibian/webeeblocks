@@ -1,1 +1,172 @@
-IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwoiIiJSZWFsLVIyMDI1YSBVIGludGVncmF0aW9uLiBOYXRpdmUgZXZpZGVuY2Ugb25seTsgbm8gaGFyZHdhcmUgY2hlY2twb2ludC4iIiIKaW1wb3J0IGFyZ3BhcnNlCmltcG9ydCBkYXRhY2xhc3NlcwppbXBvcnQgaGFzaGxpYgppbXBvcnQganNvbgppbXBvcnQgbWF0aAppbXBvcnQgb3MKZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCByZQppbXBvcnQgc2h1dGlsCmltcG9ydCBzaWduYWwKaW1wb3J0IHNvY2tldAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQppbXBvcnQgdGltZQppbXBvcnQgdXVpZApST09UPVBhdGgoX19maWxlX18pLnJlc29sdmUoKS5wYXJlbnRzWzJdO3N5cy5wYXRoLmluc2VydCgwLHN0cihST09UKSkKZnJvbSB0b29scy5ncmFuZF9wcml4LmxheW91dF91IGltcG9ydCBnZW5lcmF0ZSx3b3JsZF90ZXh0CmZyb20gdG9vbHMuY2kucnVuX2dyYW5kX3ByaXhfdV9nZW9tZXRyeSBpbXBvcnQgSU1BR0UsU09VUkNFCk9VVD1ST09ULydjaS1hcnRpZmFjdHMvZ3JhbmQtcHJpeC11JwoKZGVmIHN0b3BfZ3JvdXBzKGNoaWxkcmVuKToKICAgIGZvciBjaGlsZCBpbiByZXZlcnNlZChjaGlsZHJlbik6CiAgICAgICAgdHJ5Om9zLmtpbGxwZyhjaGlsZC5waWQsc2lnbmFsLlNJR1RFUk0pCiAgICAgICAgZXhjZXB0IFByb2Nlc3NMb29rdXBFcnJvcjpwYXNzCiAgICAgICAgdHJ5OmNoaWxkLndhaXQodGltZW91dD01KQogICAgICAgIGV4Y2VwdCBzdWJwcm9jZXNzLlRpbWVvdXRFeHBpcmVkOgogICAgICAgICAgICB0cnk6b3Mua2lsbHBnKGNoaWxkLnBpZCxzaWduYWwuU0lHS0lMTCkKICAgICAgICAgICAgZXhjZXB0IFByb2Nlc3NMb29rdXBFcnJvcjpwYXNzCiAgICAgICAgICAgIGNoaWxkLndhaXQoKQoKZGVmIHRyaWFsKGhvbWUsc2VlZD00LHNpZGU9Mi4sbW9kZT0nd2l0bmVzcycsdGNwPUZhbHNlLHJlcXVpcmVfc3VjY2Vzcz1UcnVlKToKICAgIGxheW91dD1nZW5lcmF0ZShzZWVkLHNpZGUpO3Rva2VuPXV1aWQudXVpZDQoKS5oZXhbOjEwXQogICAgb3V0PU9VVC9mJ3tsYXlvdXQuaWRlbnRpZmllcn0te21vZGV9LXt0b2tlbn0nO291dC5ta2RpcihwYXJlbnRzPVRydWUsZXhpc3Rfb2s9RmFsc2UpCiAgICB3aXRoIHNvY2tldC5zb2NrZXQoKSBhcyBwcm9iZToKICAgICAgICBwcm9iZS5iaW5kKCgnMTI3LjAuMC4xJywwKSk7cG9ydD1wcm9iZS5nZXRzb2NrbmFtZSgpWzFdCiAgICBldmVudHM9b3V0LydldmVudHMuanNvbmwnCiAgICBzb3VyY2U9d29ybGRfdGV4dChsYXlvdXQsY29udHJvbGxlcj0nPGV4dGVybj4nIGlmIHRjcCBlbHNlICdncmFuZF9wcml4X3VfZmxpZ2h0Jyx3aW5kb3c9Jzxub25lPicsZXZhbHVhdG9yPVRydWUpCiAgICBpZiB0Y3A6c291cmNlPXNvdXJjZS5yZXBsYWNlKCdjb250cm9sbGVyICJncmFuZF9wcml4X3VfZXZhbHVhdG9yIicsJ2NvbnRyb2xsZXIgIjxleHRlcm4+IicpCiAgICB0YXJnZXQ9Uk9PVC9mJ3dvcmxkcy9jaV9ncF91X2ZsaWdodF97dG9rZW59LndidCcKICAgIHRhcmdldC53cml0ZV90ZXh0KHNvdXJjZS5yZXBsYWNlKCdodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vY3liZXJib3RpY3Mvd2Vib3RzL1IyMDI1YS8nLCd3ZWJvdHM6Ly8nKSkKICAgIChvdXQvJ2xheW91dC5qc29uJykud3JpdGVfdGV4dChqc29uLmR1bXBzKGRhdGFjbGFzc2VzLmFzZGljdChsYXlvdXQpLGluZGVudD0yKSsnXG4nKQogICAgKG91dC8nd29ybGQud2J0Jykud3JpdGVfdGV4dCh0YXJnZXQucmVhZF90ZXh0KCkpCiAgICBlbnY9b3MuZW52aXJvbi5jb3B5KCk7ZW52LnVwZGF0ZShXRUJPVFNfSE9NRT1zdHIoaG9tZSksTElCR0xfQUxXQVlTX1NPRlRXQVJFPSd0cnVlJywKICAgICAgICBXRUJPVFNfRElTQUJMRV9TQVZFX1NDUkVFTl9QRVJTUEVDVElWRV9PTl9DTE9TRT0ndHJ1ZScsV0VCRUVCTE9DS1NfQ0lfQVJUSUZBQ1RfRElSPXN0cihvdXQpKQogICAgaWYgdGNwOgogICAgICAgIGVudlsnTERfTElCUkFSWV9QQVRIJ109c3RyKGhvbWUvJ2xpYi93ZWJvdHMnKStvcy5wYXRoc2VwK2Vudi5nZXQoJ0xEX0xJQlJBUllfUEFUSCcsJycpCiAgICBjaGlsZHJlbj1bXTtzdHJlYW1zPVtdCiAgICB0cnk6CiAgICAgICAgd2l0aCAob3V0Lyd3ZWJvdHMubG9nJykub3BlbigndycpIGFzIGxvZzoKICAgICAgICAgICAgd2Vib3RzPXN1YnByb2Nlc3MuUG9wZW4oW3N0cihob21lLyd3ZWJvdHMnKSwnLS1zdGRvdXQnLCctLXN0ZGVycicsJy0tYmF0Y2gnLCctLW1vZGU9ZmFzdCcsCiAgICAgICAgICAgICAgICAnLS1wb3J0PScrc3RyKHBvcnQpLHN0cih0YXJnZXQpXSxjd2Q9Uk9PVCxlbnY9ZW52LHN0ZG91dD1sb2csc3RkZXJyPXN1YnByb2Nlc3MuU1RET1VULHN0YXJ0X25ld19zZXNzaW9uPVRydWUpCiAgICAgICAgICAgIGNoaWxkcmVuLmFwcGVuZCh3ZWJvdHMpO2xpbWl0PXRpbWUubW9ub3RvbmljKCkrMzAKICAgICAgICAgICAgd2hpbGUgd2Vib3RzLnBvbGwoKSBpcyBOb25lIGFuZCB0aW1lLm1vbm90b25pYygpPGxpbWl0OgogICAgICAgICAgICAgICAgdGV4dD0ob3V0Lyd3ZWJvdHMubG9nJykucmVhZF90ZXh0KCkKICAgICAgICAgICAgICAgIGlmIHRjcCBhbmQgdGV4dC5jb3VudChmJ1dhaXRpbmcgZm9yIGxvY2FsIG9yIHJlbW90ZSBjb25uZWN0aW9uIG9uIHBvcnQge3BvcnR9ICcpPj0yOmJyZWFrCiAgICAgICAgICAgICAgICBpZiBub3QgdGNwIGFuZCAnV0VCRUVCTE9DS1NfUlVOVElNRV9WMiBSRUFEWScgaW4gdGV4dDpicmVhawogICAgICAgICAgICAgICAgdGltZS5zbGVlcCguMSkKICAgICAgICAgICAgZWxzZTpyYWlzZSBSdW50aW1lRXJyb3IoJ25hdGl2ZSByZWFkaW5lc3Mgbm90IGVzdGFibGlzaGVkOiAnK3N0cihvdXQpKQogICAgICAgICAgICBpZiB0Y3A6CiAgICAgICAgICAgICAgICBmb3IgbmFtZSxwYXRoLGFyZ3MgaW4gKAogICAgICAgICAgICAgICAgICAoJ0NyYXp5ZmxpZSBXZWJlZUJsb2NrcycsUk9PVC8nY29udHJvbGxlcnMvZ3JhbmRfcHJpeF91X2ZsaWdodC9ncmFuZF9wcml4X3VfZmxpZ2h0JyxbXSksCiAgICAgICAgICAgICAgICAgICgnw4l2YWx1YXRldXIgR3JhbmQgUHJpeCcsUk9PVC8nY29udHJvbGxlcnMvZ3JhbmRfcHJpeF91X2V2YWx1YXRvci9ncmFuZF9wcml4X3VfZXZhbHVhdG9yLnB5Jyxbc3RyKHNlZWQpLHN0cihzaWRlKV0pKToKICAgICAgICAgICAgICAgICAgICBzdHJlYW09KG91dC8oJ2ZsaWdodC5sb2cnIGlmIG5vdCBhcmdzIGVsc2UgJ2V2YWx1YXRvci5sb2cnKSkub3BlbigndycpO3N0cmVhbXMuYXBwZW5kKHN0cmVhbSkKICAgICAgICAgICAgICAgICAgICBjaGlsZHJlbi5hcHBlbmQoc3VicHJvY2Vzcy5Qb3Blbihbc3RyKGhvbWUvJ3dlYm90cy1jb250cm9sbGVyJyksJy0tcHJvdG9jb2w9dGNwJywnLS1pcC1hZGRyZXNzPTEyNy4wLjAuMScsCiAgICAgICAgICAgICAgICAgICAgICAgJy0tcG9ydD0nK3N0cihwb3J0KSwnLS1yb2JvdC1uYW1lPScrbmFtZSxzdHIocGF0aCksKmFyZ3NdLGVudj1lbnYsc3Rkb3V0PXN0cmVhbSxzdGRlcnI9c3VicHJvY2Vzcy5TVERPVVQsc3RhcnRfbmV3X3Nlc3Npb249VHJ1ZSkpCiAgICAgICAgICAgIG5vZGVfbG9nPShvdXQvJ25vZGUubG9nJykub3BlbigndycpO3N0cmVhbXMuYXBwZW5kKG5vZGVfbG9nKQogICAgICAgICAgICBub2RlPXN1YnByb2Nlc3MuUG9wZW4oWydub2RlJyxzdHIoUk9PVC8ndG9vbHMvY2kvZ3JhbmRfcHJpeF91X25vZGVfcHJvYmUuanMnKSxzdHIocG9ydCksbW9kZSxzdHIoZXZlbnRzKV0sCiAgICAgICAgICAgICAgICBjd2Q9Uk9PVCxlbnY9ZW52LHN0ZG91dD1ub2RlX2xvZyxzdGRlcnI9c3VicHJvY2Vzcy5TVERPVVQsc3RhcnRfbmV3X3Nlc3Npb249VHJ1ZSkKICAgICAgICAgICAgY2hpbGRyZW4uYXBwZW5kKG5vZGUpO25vZGUud2FpdCh0aW1lb3V0PTMwMCkKICAgICAgICAgICAgbGltaXQ9dGltZS5tb25vdG9uaWMoKSszMAogICAgICAgICAgICB3aGlsZSB0aW1lLm1vbm90b25pYygpPGxpbWl0IGFuZCB3ZWJvdHMucG9sbCgpIGlzIE5vbmU6CiAgICAgICAgICAgICAgICB0ZXh0PShvdXQvJ3dlYm90cy5sb2cnKS5yZWFkX3RleHQoKQogICAgICAgICAgICAgICAgaWYgdGNwOnRleHQrPScnLmpvaW4oUGF0aChzLm5hbWUpLnJlYWRfdGV4dCgpIGZvciBzIGluIHN0cmVhbXMpCiAgICAgICAgICAgICAgICBpZiAnR1BfVV9SRVNVTFQgJyBpbiB0ZXh0IGFuZCAobm90IG1vZGUuc3RhcnRzd2l0aCgndGltZW91dCcpIG9yICdUUkFDRSBMQU5EJyBpbiB0ZXh0KTpicmVhawogICAgICAgICAgICAgICAgdGltZS5zbGVlcCguMSkKICAgICAgICB0ZXh0PShvdXQvJ3dlYm90cy5sb2cnKS5yZWFkX3RleHQoKQogICAgICAgIGlmIHRjcDp0ZXh0Kz0ob3V0LydmbGlnaHQubG9nJykucmVhZF90ZXh0KCkrKG91dC8nZXZhbHVhdG9yLmxvZycpLnJlYWRfdGV4dCgpCiAgICAgICAgbmF0aXZlX2Vycm9ycz1bbGluZSBmb3IgbGluZSBpbiB0ZXh0LnNwbGl0bGluZXMoKSBpZiBsaW5lLnN0YXJ0c3dpdGgoJ0VSUk9SOicpXQogICAgICAgIGlmIHRjcDpuYXRpdmVfZXJyb3JzPVtsaW5lIGZvciBsaW5lIGluIG5hdGl2ZV9lcnJvcnMgaWYgbm90IChsaW5lLnN0YXJ0c3dpdGgoJ0VSUk9SOiBDYW5ub3QgbGlzdGVuIHRvIHRoZSBsb2NhbCBzZXJ2ZXIgKHNlcnZlciBuYW1lID0gJykgYW5kICdRTG9jYWxTZXJ2ZXI6Omxpc3RlbjogVW5rbm93biBlcnJvciAxJyBpbiBsaW5lKV0KICAgICAgICBpZiBuYXRpdmVfZXJyb3JzIG9yICdUcmFjZWJhY2sgKG1vc3QgcmVjZW50IGNhbGwgbGFzdCknIGluIHRleHQ6cmFpc2UgUnVudGltZUVycm9yKCduYXRpdmUgZXJyb3I7IHNlZSAnK3N0cihvdXQpKQogICAgICAgIHJvd3M9W2pzb24ubG9hZHMobGluZSkgZm9yIGxpbmUgaW4gZXZlbnRzLnJlYWRfdGV4dCgpLnNwbGl0bGluZXMoKV0gaWYgZXZlbnRzLmV4aXN0cygpIGVsc2UgW10KICAgICAgICByZWNvcmRzPVtqc29uLmxvYWRzKGxpbmUuc3BsaXQoJ0dQX1VfUkVTVUxUICcsMSlbMV0pIGZvciBsaW5lIGluIHRleHQuc3BsaXRsaW5lcygpIGlmIGxpbmUuc3RhcnRzd2l0aCgnR1BfVV9SRVNVTFQgJyldCiAgICAgICAgZmlsZT1vdXQvJ25hdGl2ZS1yZXN1bHQtMS5qc29uJwogICAgICAgIHJlc3VsdD1qc29uLmxvYWRzKGZpbGUucmVhZF90ZXh0KCkpIGlmIGZpbGUuZXhpc3RzKCkgZWxzZSAocmVjb3Jkc1swXSBpZiBsZW4ocmVjb3Jkcyk9PTEgZWxzZSBOb25lKQogICAgICAgIGlmIHJlc3VsdCBpcyBOb25lIG9yIGFueShyZWNvcmQhPXJlc3VsdCBmb3IgcmVjb3JkIGluIHJlY29yZHMpOnJhaXNlIFJ1bnRpbWVFcnJvcignbmF0aXZlIHJlc3VsdCBtaXNzaW5nL2luY29uc2lzdGVudDogJytzdHIob3V0KSkKICAgICAgICBmYXRhbD1bZSBmb3IgZSBpbiByb3dzIGlmIGVbJ2V2ZW50J10gaW4gKCd3YWxsLXRpbWVvdXQnLCd0cmFuc3BvcnQtZXJyb3InKV0KICAgICAgICBlcnJvcnM9W2UgZm9yIGUgaW4gcm93cyBpZiBlWydldmVudCddPT0nZXJyb3InXQogICAgICAgIGlmIGZhdGFsOnJhaXNlIFJ1bnRpbWVFcnJvcigndHJhbnNwb3J0L3ByZXBhcmF0aW9uIGZhaWxlZDogJytzdHIob3V0KSkKICAgICAgICBpZiBtb2RlPT0nd2l0bmVzcycgYW5kIHJlcXVpcmVfc3VjY2VzcyBhbmQgKGVycm9ycyBvciByZXN1bHRbJ3N0YXR1cyddIT0nYWNoaWV2ZWQnKToKICAgICAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCd3aXRuZXNzIHJlZnV0ZWQ6ICcrc3RyKHJlc3VsdCkrJyAnK3N0cihlcnJvcnMpKycgJytzdHIob3V0KSkKICAgICAgICBleHBlY3RlZD17J3Nob3J0Jzond3JvbmctbGFuZGluZycsJ3dyb25nLWxhbmRpbmcnOid3cm9uZy1sYW5kaW5nJywnbG93LW91dHNpZGUnOidsb3ctb3V0c2lkZS16b25lJ30KICAgICAgICBpZiBtb2RlIGluIGV4cGVjdGVkIGFuZCAocmVzdWx0WydzdGF0dXMnXSE9J25vdC1hY2hpZXZlZCcgb3IgcmVzdWx0WydyZWFzb24nXSE9ZXhwZWN0ZWRbbW9kZV0pOgogICAgICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoJ25lZ2F0aXZlIGFjY2VwdGVkL3dyb25nIHJlamVjdGlvbjogJytzdHIocmVzdWx0KSkKICAgICAgICBpZiBtb2RlLnN0YXJ0c3dpdGgoJ3RpbWVvdXQnKToKICAgICAgICAgICAgYWRtaXR0ZWQ9W2ludChsaW5lLnNwbGl0KCdzdGFydF9tcz0nLDEpWzFdKSBmb3IgbGluZSBpbiB0ZXh0LnNwbGl0bGluZXMoKSBpZiBsaW5lLnN0YXJ0c3dpdGgoJ0dQX1VfQURNSVNTSU9OICcpXQogICAgICAgICAgICBkZWFkbGluZT1baW50KGxpbmUuc3BsaXQoJ3RpbWVfbXM9JywxKVsxXS5zcGxpdCgpWzBdKSBmb3IgbGluZSBpbiB0ZXh0LnNwbGl0bGluZXMoKSBpZiBsaW5lLnN0YXJ0c3dpdGgoJ0dQX1VfREVBRExJTkUgJyldCiAgICAgICAgICAgIGlmIGxlbihhZG1pdHRlZCkhPTEgb3IgbGVuKGRlYWRsaW5lKSE9MSBvciBkZWFkbGluZVswXS1hZG1pdHRlZFswXSE9MjEwMDAwOgogICAgICAgICAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCdkZWFkbGluZSBub3QgZXhhY3RseSAyMTAgczogJytzdHIob3V0KSkKICAgICAgICAgICAgaWYgJ2NvbW1hbmQ9TEFORCcgbm90IGluIHRleHQgb3IgJ1RSQUNFIExBTkQnIG5vdCBpbiB0ZXh0IG9yIHJlc3VsdFsnc3RhdHVzJ10hPSdub3QtYWNoaWV2ZWQnIG9yIHJlc3VsdFsncmVhc29uJ10hPSd0aW1lLWxpbWl0JzoKICAgICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcignbWlzc2luZyBpbmRlcGVuZGVudCBmb3JjZWQgTEFORC9mYWlsdXJlJykKICAgICAgICAgICAgaWYgbm90IGFueShlWydldmVudCddPT0nZXJyb3InIGFuZCBlWydkZXRhaWwnXVsnY29kZSddPT0nVElNRV9MSU1JVCcgZm9yIGUgaW4gcm93cyk6cmFpc2UgUnVudGltZUVycm9yKCdwcm9ncmFtIG5vdCBpbnRlcnJ1cHRlZCcpCiAgICAgICAgICAgIGlmIG5vdCBhbnkoZVsnZXZlbnQnXT09J2xhdGUtc3RvcC1yZWplY3RlZCcgYW5kIGVbJ2RldGFpbCddWydjb2RlJ109PSdUSU1FX0xJTUlUJyBmb3IgZSBpbiByb3dzKTpyYWlzZSBSdW50aW1lRXJyb3IoJ2xhdGUgU1RPUCBub3QgcmVqZWN0ZWQnKQogICAgICAgIGlmIHJlc3VsdFsnY29uZmlndXJhdGlvbiddIT1sYXlvdXQuaWRlbnRpZmllciBvciByZXN1bHRbJ2F0dGVtcHQnXSE9MTpyYWlzZSBSdW50aW1lRXJyb3IoJ3dyb25nIG5hdGl2ZSBzdWJqZWN0JykKICAgICAgICBwcm9ncmFtcz1bZVsnZGV0YWlsJ10gZm9yIGUgaW4gcm93cyBpZiBlWydldmVudCddPT0ncHJvZ3JhbSddCiAgICAgICAgaWYgbGVuKHByb2dyYW1zKSE9MTpyYWlzZSBSdW50aW1lRXJyb3IoJ21pc3NpbmcgZXhhY3Qgc2hhcmVkLWludGVycHJldGVyIEFTVCcpCiAgICAgICAgcmVzdWx0Wydhc3Rfc2hhMjU2J109aGFzaGxpYi5zaGEyNTYoanNvbi5kdW1wcyhwcm9ncmFtc1swXSxzb3J0X2tleXM9VHJ1ZSxzZXBhcmF0b3JzPSgnLCcsJzonKSkuZW5jb2RlKCkpLmhleGRpZ2VzdCgpCiAgICAgICAgcmVzdWx0WydjbGFpbSddPSduYXRpdmUtc2hhcmVkLWludGVycHJldGVyJztyZXN1bHRbJ3dlYm90c192ZXJzaW9uJ109J1IyMDI1YSc7cmVzdWx0Wydtb2RlJ109bW9kZQogICAgICAgIChvdXQvJ3Jlc3VsdC5qc29uJykud3JpdGVfdGV4dChqc29uLmR1bXBzKHJlc3VsdCxpbmRlbnQ9MikrJ1xuJykKICAgICAgICAob3V0LydzaGEyNTYuanNvbicpLndyaXRlX3RleHQoanNvbi5kdW1wcyh7cC5uYW1lOmhhc2hsaWIuc2hhMjU2KHAucmVhZF9ieXRlcygpKS5oZXhkaWdlc3QoKQogICAgICAgICAgIGZvciBwIGluIG91dC5pdGVyZGlyKCkgaWYgcC5pc19maWxlKCkgYW5kIHAubmFtZSE9J3NoYTI1Ni5qc29uJ30saW5kZW50PTIpKydcbicpCiAgICAgICAgcHJpbnQoJ0dQX1VfTkFUSVZFICcranNvbi5kdW1wcyhyZXN1bHQsc29ydF9rZXlzPVRydWUpLGZsdXNoPVRydWUpCiAgICAgICAgcmV0dXJuIHJlc3VsdAogICAgZmluYWxseToKICAgICAgICBzdG9wX2dyb3VwcyhjaGlsZHJlbikKICAgICAgICBmb3Igc3RyZWFtIGluIHN0cmVhbXM6c3RyZWFtLmNsb3NlKCkKICAgICAgICB0YXJnZXQudW5saW5rKG1pc3Npbmdfb2s9VHJ1ZSk7dGFyZ2V0LndpdGhfbmFtZSgnLicrdGFyZ2V0LnN0ZW0rJy53YnByb2onKS51bmxpbmsobWlzc2luZ19vaz1UcnVlKQoKZGVmIG1haW4oKToKICAgIHBhcnNlcj1hcmdwYXJzZS5Bcmd1bWVudFBhcnNlcigpCiAgICBwYXJzZXIuYWRkX2FyZ3VtZW50KCctLW5hdGl2ZScsYWN0aW9uPSdzdG9yZV90cnVlJyk7cGFyc2VyLmFkZF9hcmd1bWVudCgnLS10Y3AnLGFjdGlvbj0nc3RvcmVfdHJ1ZScpCiAgICBwYXJzZXIuYWRkX2FyZ3VtZW50KCctLXN1aXRlJyxjaG9pY2VzPSgnc2hvcnQnLCd0aW1lb3V0JywndGltZW91dC1nYXRlJywnd3JvbmctbGFuZGluZycsJ2xvdy1vdXRzaWRlJywnd2l0bmVzcycsJ2FsbCcsJ3NpemVzJyksZGVmYXVsdD0nYWxsJykKICAgIHBhcnNlci5hZGRfYXJndW1lbnQoJy0tc2VlZCcsdHlwZT1pbnQsZGVmYXVsdD00KTtwYXJzZXIuYWRkX2FyZ3VtZW50KCctLXNpZGUnLHR5cGU9ZmxvYXQsZGVmYXVsdD0yLikKICAgIGFyZ3M9cGFyc2VyLnBhcnNlX2FyZ3MoKTtPVVQubWtkaXIocGFyZW50cz1UcnVlLGV4aXN0X29rPVRydWUpCiAgICBwcmludCgnR1BfVV9FTlRSWSBuYXRpdmU9JytzdHIoYXJncy5uYXRpdmUpKycgc3VpdGU9JythcmdzLnN1aXRlLGZsdXNoPVRydWUpCiAgICBpZiBub3QgYXJncy5uYXRpdmU6CiAgICAgICAgaWYgbm90IHNodXRpbC53aGljaCgnZG9ja2VyJyk6cmFpc2UgUnVudGltZUVycm9yKCdyZXF1aXJlZCBSMjAyNWEgRG9ja2VyIHJ1bnRpbWUgdW5hdmFpbGFibGUnKQogICAgICAgIGFzc2V0cz1ST09ULycuY2ktZ3JhbmQtcHJpeC11LXdlYm90cycKICAgICAgICBpZiBub3QgYXNzZXRzLmV4aXN0cygpOgogICAgICAgICAgICBzdWJwcm9jZXNzLnJ1bihbJ2dpdCcsJ2Nsb25lJywnLS1kZXB0aD0xJywnLS1maWx0ZXI9YmxvYjpub25lJywnLS1zcGFyc2UnLCctLWJyYW5jaCcsJ1IyMDI1YScsJ2h0dHBzOi8vZ2l0aHViLmNvbS9jeWJlcmJvdGljcy93ZWJvdHMuZ2l0JyxzdHIoYXNzZXRzKV0sY2hlY2s9VHJ1ZSkKICAgICAgICAgICAgc3VicHJvY2Vzcy5ydW4oWydnaXQnLCctQycsc3RyKGFzc2V0cyksJ3NwYXJzZS1jaGVja291dCcsJ3NldCcsJ3Byb2plY3RzL3JvYm90cy9iaXRjcmF6ZS9jcmF6eWZsaWUnLCdwcm9qZWN0cy9vYmplY3RzL2JhY2tncm91bmRzJywncHJvamVjdHMvb2JqZWN0cy9mbG9vcnMnLCdwcm9qZWN0cy9hcHBlYXJhbmNlcycsJ3Byb2plY3RzL2RlZmF1bHQnXSxjaGVjaz1UcnVlKQogICAgICAgIGlmIHN1YnByb2Nlc3MuY2hlY2tfb3V0cHV0KFsnZ2l0JywnLUMnLHN0cihhc3NldHMpLCdyZXYtcGFyc2UnLCdIRUFEJ10sdGV4dD1UcnVlKS5zdHJpcCgpIT1TT1VSQ0U6cmFpc2UgUnVudGltZUVycm9yKCd3cm9uZyBSMjAyNWEgYXNzZXRzJykKICAgICAgICBzdWJwcm9jZXNzLnJ1bihbJ2RvY2tlcicsJ3B1bGwnLElNQUdFXSxjaGVjaz1UcnVlKQogICAgICAgIG5vZGU9c2h1dGlsLndoaWNoKCdub2RlJykKICAgICAgICBpZiBub3Qgbm9kZTpyYWlzZSBSdW50aW1lRXJyb3IoJ05vZGUgMjIrIHJlcXVpcmVkIGZvciBzaGFyZWQgV1dJIGJhY2tlbmQnKQogICAgICAgIHdpdGggdGVtcGZpbGUuVGVtcG9yYXJ5RGlyZWN0b3J5KHByZWZpeD0nZ3AtdS1uYXRpdmUtJykgYXMgdG1wOgogICAgICAgICAgICBjaWQ9UGF0aCh0bXApLydjb250YWluZXIuY2lkJwogICAgICAgICAgICBjb21tYW5kPSJzZXQgLWV1XG5weXRob24zIC11IC1jICdpbXBvcnQgc3lzOyBwcmludChcIkdQX1VfQ09OVEFJTkVSX1BZVEhPTlwiLHN5cy52ZXJzaW9uLGZsdXNoPVRydWUpJ1xudGltZW91dCAtayAycyAxMHMgL3Vzci9sb2NhbC9iaW4vbm9kZSAtLXZlcnNpb25cbnRpbWVvdXQgLWsgNXMgMTQwMHMgeHZmYi1ydW4gLWEgcHl0aG9uMyAtdSB0b29scy9jaS9ydW5fZ3JhbmRfcHJpeF91X3Byb3RvdHlwZS5weSAtLW5hdGl2ZSAtLXN1aXRlICIrYXJncy5zdWl0ZSsnIC0tc2VlZCAnK3N0cihhcmdzLnNlZWQpKycgLS1zaWRlICcrc3RyKGFyZ3Muc2lkZSkKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgd2l0aCAoT1VULydkb2NrZXIubG9nJykub3BlbigndycpIGFzIGxvZzoKICAgICAgICAgICAgICAgICAgICBsb2cud3JpdGUoJ0dQX1VfQ09OVEFJTkVSX1NUQVJUICcrSU1BR0UrJ1xuJyk7bG9nLmZsdXNoKCkKICAgICAgICAgICAgICAgICAgICBzdWJwcm9jZXNzLnJ1bihbJ2RvY2tlcicsJ3J1bicsJy0tcm0nLCctLWNpZGZpbGUnLHN0cihjaWQpLCctLWVudHJ5cG9pbnQnLCcvYmluL2Jhc2gnLCctZScsJ1dFQk9UU19IT01FPS91c3IvbG9jYWwvd2Vib3RzJywKICAgICAgICAgICAgICAgICAgICAgICAnLXYnLGYne1JPT1R9Oi93b3Jrc3BhY2UnLCctdicsZid7YXNzZXRzLyJwcm9qZWN0cyJ9Oi91c3IvbG9jYWwvd2Vib3RzL3Byb2plY3RzOnJvJywKICAgICAgICAgICAgICAgICAgICAgICAnLXYnLGYne1BhdGgobm9kZSkucmVzb2x2ZSgpfTovdXNyL2xvY2FsL2Jpbi9ub2RlOnJvJywnLXcnLCcvd29ya3NwYWNlJyxJTUFHRSwnLWMnLGNvbW1hbmRdLAogICAgICAgICAgICAgICAgICAgICAgIHN0ZG91dD1sb2csc3RkZXJyPXN1YnByb2Nlc3MuU1RET1VULGNoZWNrPVRydWUsdGltZW91dD0xNTAwKQogICAgICAgICAgICBmaW5hbGx5OgogICAgICAgICAgICAgICAgaWYgY2lkLmV4aXN0cygpOgogICAgICAgICAgICAgICAgICAgIGlkZW50aXR5PWNpZC5yZWFkX3RleHQoKS5zdHJpcCgpCiAgICAgICAgICAgICAgICAgICAgaWYgbm90IHJlLmZ1bGxtYXRjaCgnWzAtOWEtZl17NjR9JyxpZGVudGl0eSk6cmFpc2UgUnVudGltZUVycm9yKCdpbnZhbGlkIG93bmVkIGNvbnRhaW5lciBpZGVudGl0eScpCiAgICAgICAgICAgICAgICAgICAgc3RhdGU9c3VicHJvY2Vzcy5ydW4oWydkb2NrZXInLCdpbnNwZWN0JywnLS1mb3JtYXQnLCd7ey5TdGF0ZS5SdW5uaW5nfX0nLGlkZW50aXR5XSxjYXB0dXJlX291dHB1dD1UcnVlLHRleHQ9VHJ1ZSx0aW1lb3V0PTEwKQogICAgICAgICAgICAgICAgICAgIGlmIHN0YXRlLnJldHVybmNvZGU9PTAgYW5kIHN0YXRlLnN0ZG91dC5zdHJpcCgpPT0ndHJ1ZSc6CiAgICAgICAgICAgICAgICAgICAgICAgIHN0b3BwZWQ9c3VicHJvY2Vzcy5ydW4oWydkb2NrZXInLCdzdG9wJywnLS10aW1lJywnNScsaWRlbnRpdHldLGNhcHR1cmVfb3V0cHV0PVRydWUsdGV4dD1UcnVlLHRpbWVvdXQ9MjApCiAgICAgICAgICAgICAgICAgICAgICAgIGlmIHN0b3BwZWQucmV0dXJuY29kZTpyYWlzZSBSdW50aW1lRXJyb3IoJ2NvbnRhaW5lciByZXRpcmVtZW50IHVucHJvdmVuJykKICAgICAgICByZXR1cm4KICAgIGhvbWU9UGF0aChvcy5lbnZpcm9uWydXRUJPVFNfSE9NRSddKQogICAgaWYgKGhvbWUvJ3Jlc291cmNlcy92ZXJzaW9uLnR4dCcpLnJlYWRfdGV4dCgpLnN0cmlwKCkhPSdSMjAyNWEnOnJhaXNlIFJ1bnRpbWVFcnJvcignd3JvbmcgV2Vib3RzIHZlcnNpb24nKQogICAgc3VicHJvY2Vzcy5ydW4oW3N5cy5leGVjdXRhYmxlLHN0cihST09ULyd0b29scy9ncmFuZF9wcml4L3ByZXBhcmVfdV9ydW50aW1lLnB5JyldLGNoZWNrPVRydWUpCiAgICBzdWJwcm9jZXNzLnJ1bihbJ21ha2UnLCctQycsc3RyKFJPT1QvJ2NvbnRyb2xsZXJzL2dyYW5kX3ByaXhfdV9mbGlnaHQnKV0sY2hlY2s9VHJ1ZSkKICAgIGNhc2VzPVsoYXJncy5zZWVkLGFyZ3Muc2lkZSxhcmdzLnN1aXRlKV0KICAgIGlmIGFyZ3Muc3VpdGU9PSdhbGwnOmNhc2VzPVsoNCwyLiwnc2hvcnQnKSwoNCwyLiwndGltZW91dCcpLCgwLDIuLCd0aW1lb3V0LWdhdGUnKSwoMSwyLiwnd3JvbmctbGFuZGluZycpLCgwLDIuLCdsb3ctb3V0c2lkZScpXStbKHMsMi4sJ3dpdG5lc3MnKSBmb3IgcyBpbiAoMCwxLDQpXQogICAgaWYgYXJncy5zdWl0ZT09J3NpemVzJzpjYXNlcz1bKDQsc2l6ZSwnd2l0bmVzcycpIGZvciBzaXplIGluICgyLiwzLiw0Liw1Liw2LildCiAgICBzdW1tYXJpZXM9W107ZGlnZXN0PU5vbmUKICAgIGZvciBzZWVkLHNpZGUsbW9kZSBpbiBjYXNlczoKICAgICAgICByZXN1bHQ9dHJpYWwoaG9tZSxzZWVkLHNpZGUsbW9kZSxhcmdzLnRjcCxyZXF1aXJlX3N1Y2Nlc3M9YXJncy5zdWl0ZSE9J3NpemVzJykKICAgICAgICBpZiBtb2RlPT0nd2l0bmVzcyc6CiAgICAgICAgICAgIGlmIGRpZ2VzdCBpcyBub3QgTm9uZSBhbmQgZGlnZXN0IT1yZXN1bHRbJ2FzdF9zaGEyNTYnXTpyYWlzZSBSdW50aW1lRXJyb3IoJ0FTVCBjaGFuZ2VkIGJldHdlZW4gY29uZmlndXJhdGlvbnMvc2l6ZXMnKQogICAgICAgICAgICBkaWdlc3Q9cmVzdWx0Wydhc3Rfc2hhMjU2J10KICAgICAgICBzdW1tYXJpZXMuYXBwZW5kKHJlc3VsdCkKICAgICAgICAoT1VULygnc2l6ZXMuanNvbicgaWYgYXJncy5zdWl0ZT09J3NpemVzJyBlbHNlICdjYW1wYWlnbi5qc29uJykpLndyaXRlX3RleHQoanNvbi5kdW1wcyhzdW1tYXJpZXMsaW5kZW50PTIpKydcbicpCmlmIF9fbmFtZV9fPT0nX19tYWluX18nOm1haW4oKQo=
+#!/usr/bin/env python3
+"""Real-R2025a U integration. Native evidence only; no hardware checkpoint."""
+import argparse
+import dataclasses
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
+from tools.grand_prix.layout_u import generate,world_text
+from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
+OUT=ROOT/'ci-artifacts/grand-prix-u'
+
+def stop_groups(children):
+    for child in reversed(children):
+        try:os.killpg(child.pid,signal.SIGTERM)
+        except ProcessLookupError:pass
+        try:child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            child.wait()
+
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
+    layout=generate(seed,side);token=uuid.uuid4().hex[:10]
+    out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
+    events=out/'events.jsonl'
+    source=world_text(layout,controller='<extern>' if tcp else 'grand_prix_u_flight',window='<none>',evaluator=True)
+    if tcp:source=source.replace('controller "grand_prix_u_evaluator"','controller "<extern>"')
+    target=ROOT/f'worlds/ci_gp_u_flight_{token}.wbt'
+    target.write_text(source.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
+    (out/'layout.json').write_text(json.dumps(dataclasses.asdict(layout),indent=2)+'\n')
+    (out/'world.wbt').write_text(target.read_text())
+    env=os.environ.copy();env.update(WEBOTS_HOME=str(home),LIBGL_ALWAYS_SOFTWARE='true',
+        WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true',WEBEEBLOCKS_CI_ARTIFACT_DIR=str(out))
+    if tcp:
+        env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
+    children=[];streams=[]
+    try:
+        with (out/'webots.log').open('w') as log:
+            webots=subprocess.Popen([str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
+                '--port='+str(port),str(target)],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+            children.append(webots);limit=time.monotonic()+30
+            while webots.poll() is None and time.monotonic()<limit:
+                text=(out/'webots.log').read_text()
+                if tcp and text.count(f'Waiting for local or remote connection on port {port} ')>=2:break
+                if not tcp and 'WEBEEBLOCKS_RUNTIME_V2 READY' in text:break
+                time.sleep(.1)
+            else:raise RuntimeError('native readiness not established: '+str(out))
+            if tcp:
+                for name,path,args in (
+                  ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
+                  ('Évaluateur Grand Prix',ROOT/'controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py',[str(seed),str(side)])):
+                    stream=(out/('flight.log' if not args else 'evaluator.log')).open('w');streams.append(stream)
+                    children.append(subprocess.Popen([str(home/'webots-controller'),'--protocol=tcp','--ip-address=127.0.0.1',
+                       '--port='+str(port),'--robot-name='+name,str(path),*args],env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True))
+            node_log=(out/'node.log').open('w');streams.append(node_log)
+            node=subprocess.Popen(['node',str(ROOT/'tools/ci/grand_prix_u_node_probe.js'),str(port),mode,str(events)],
+                cwd=ROOT,env=env,stdout=node_log,stderr=subprocess.STDOUT,start_new_session=True)
+            children.append(node);node.wait(timeout=300)
+            limit=time.monotonic()+30
+            while time.monotonic()<limit and webots.poll() is None:
+                text=(out/'webots.log').read_text()
+                if tcp:text+=''.join(Path(s.name).read_text() for s in streams)
+                if 'GP_U_RESULT ' in text and (not mode.startswith('timeout') or 'TRACE LAND' in text):break
+                time.sleep(.1)
+        text=(out/'webots.log').read_text()
+        if tcp:text+=(out/'flight.log').read_text()+(out/'evaluator.log').read_text()
+        native_errors=[line for line in text.splitlines() if line.startswith('ERROR:')]
+        if tcp:native_errors=[line for line in native_errors if not (line.startswith('ERROR: Cannot listen to the local server (server name = ') and 'QLocalServer::listen: Unknown error 1' in line)]
+        if native_errors or 'Traceback (most recent call last)' in text:raise RuntimeError('native error; see '+str(out))
+        rows=[json.loads(line) for line in events.read_text().splitlines()] if events.exists() else []
+        records=[json.loads(line.split('GP_U_RESULT ',1)[1]) for line in text.splitlines() if line.startswith('GP_U_RESULT ')]
+        file=out/'native-result-1.json'
+        result=json.loads(file.read_text()) if file.exists() else (records[0] if len(records)==1 else None)
+        if result is None or any(record!=result for record in records):raise RuntimeError('native result missing/inconsistent: '+str(out))
+        fatal=[e for e in rows if e['event'] in ('wall-timeout','transport-error')]
+        errors=[e for e in rows if e['event']=='error']
+        if fatal:raise RuntimeError('transport/preparation failed: '+str(out))
+        if mode=='witness' and require_success and (errors or result['status']!='achieved'):
+            raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
+        expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
+        if mode in expected and (result['status']!='not-achieved' or result['reason']!=expected[mode]):
+            raise RuntimeError('negative accepted/wrong rejection: '+str(result))
+        if mode.startswith('timeout'):
+            admitted=[int(line.split('start_ms=',1)[1]) for line in text.splitlines() if line.startswith('GP_U_ADMISSION ')]
+            deadline=[int(line.split('time_ms=',1)[1].split()[0]) for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
+            if len(admitted)!=1 or len(deadline)!=1 or deadline[0]-admitted[0]!=210000:
+                raise RuntimeError('deadline not exactly 210 s: '+str(out))
+            if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
+                raise RuntimeError('missing independent forced LAND/failure')
+            if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
+            if not any(e['event']=='late-stop-rejected' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('late STOP not rejected')
+        if result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError('wrong native subject')
+        programs=[e['detail'] for e in rows if e['event']=='program']
+        if len(programs)!=1:raise RuntimeError('missing exact shared-interpreter AST')
+        result['ast_sha256']=hashlib.sha256(json.dumps(programs[0],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        result['claim']='native-shared-interpreter';result['webots_version']='R2025a';result['mode']=mode
+        (out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+        (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
+           for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
+        print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
+        return result
+    finally:
+        stop_groups(children)
+        for stream in streams:stream.close()
+        target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','witness','all','sizes'),default='all')
+    parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
+    args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+    print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
+    if not args.native:
+        if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
+        assets=ROOT/'.ci-grand-prix-u-webots'
+        if not assets.exists():
+            subprocess.run(['git','clone','--depth=1','--filter=blob:none','--sparse','--branch','R2025a','https://github.com/cyberbotics/webots.git',str(assets)],check=True)
+            subprocess.run(['git','-C',str(assets),'sparse-checkout','set','projects/robots/bitcraze/crazyflie','projects/objects/backgrounds','projects/objects/floors','projects/appearances','projects/default'],check=True)
+        if subprocess.check_output(['git','-C',str(assets),'rev-parse','HEAD'],text=True).strip()!=SOURCE:raise RuntimeError('wrong R2025a assets')
+        subprocess.run(['docker','pull',IMAGE],check=True)
+        node=shutil.which('node')
+        if not node:raise RuntimeError('Node 22+ required for shared WWI backend')
+        with tempfile.TemporaryDirectory(prefix='gp-u-native-') as tmp:
+            cid=Path(tmp)/'container.cid'
+            command="set -eu\npython3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\ntimeout -k 2s 10s /usr/local/bin/node --version\ntimeout -k 5s 1400s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "+args.suite+' --seed '+str(args.seed)+' --side '+str(args.side)
+            try:
+                with (OUT/'docker.log').open('w') as log:
+                    log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
+                    subprocess.run(['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
+                       '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
+                       '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
+                       stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
+            finally:
+                if cid.exists():
+                    identity=cid.read_text().strip()
+                    if not re.fullmatch('[0-9a-f]{64}',identity):raise RuntimeError('invalid owned container identity')
+                    state=subprocess.run(['docker','inspect','--format','{{.State.Running}}',identity],capture_output=True,text=True,timeout=10)
+                    if state.returncode==0 and state.stdout.strip()=='true':
+                        stopped=subprocess.run(['docker','stop','--time','5',identity],capture_output=True,text=True,timeout=20)
+                        if stopped.returncode:raise RuntimeError('container retirement unproven')
+        return
+    home=Path(os.environ['WEBOTS_HOME'])
+    if (home/'resources/version.txt').read_text().strip()!='R2025a':raise RuntimeError('wrong Webots version')
+    subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
+    subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
+    cases=[(args.seed,args.side,args.suite)]
+    if args.suite=='all':cases=[(4,2.,'short'),(4,2.,'timeout'),(0,2.,'timeout-gate'),(1,2.,'wrong-landing'),(0,2.,'low-outside')]+[(s,2.,'witness') for s in (0,1,4)]
+    if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
+    summaries=[];digest=None
+    for seed,side,mode in cases:
+        result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes')
+        if mode=='witness':
+            if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations/sizes')
+            digest=result['ast_sha256']
+        summaries.append(result)
+        (OUT/('sizes.json' if args.suite=='sizes' else 'campaign.json')).write_text(json.dumps(summaries,indent=2)+'\n')
+if __name__=='__main__':main()
