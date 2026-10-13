@@ -42,44 +42,44 @@ the missing thrust-conditioned discriminator.
 
 Run, **only after the independent bounds actually exist**:
 
-\`python3 tools/physical/conditional_flight_budget.py offline-bounds.json\`
+`python3 tools/physical/conditional_flight_budget.py offline-bounds.json`
 
-The input contains exactly \`source_sha\` (40 lowercase hex),
-\`ast_sha256\` (64 lowercase hex) and \`bounds\`. The eleven required bound
-entries each contain exactly \`value\` (finite number in its documented units)
-and \`evidence_sha256\` (lowercase digest of an independently retained source).
+The input contains exactly `source_sha` (40 lowercase hex),
+`ast_sha256` (64 lowercase hex) and `bounds`. The eleven required bound
+entries each contain exactly `value` (finite number in its documented units)
+and `evidence_sha256` (lowercase digest of an independently retained source).
 This tool checks only their *syntax*, not whether the source is real or
 whether its measurement justifies a bound. A digest copied or invented by an
 agent is **not** evidence. No example numbers in this document are measurements.
 
 | Bound name | Unit and required meaning |
 | --- | --- |
-| \`distance_to_hazard_m\` | Positive, independently measured shortest free distance toward the nearest target, enclosure or hazard |
-| \`prior_horizontal_excursion_m\` | Nonnegative worst-case radial position/tracking allowance before an abort begins |
-| \`rotor_radius_m\` | Positive swept rotor/body allowance including physical extent |
-| \`geometry_uncertainty_m\` | Nonnegative upper uncertainty for placement and witnesses |
-| \`max_hazard_approach_speed_m_s\` | Nonnegative supported upper approach speed, not just a nominal set_speed |
-| \`max_abort_to_deceleration_s\` | Supported upper time from actual gesture/trigger to effective deceleration, including host/IPC/ACK delays |
-| \`min_supported_deceleration_m_s2\` | **Positive physical lower bound** throughout the applicable deceleration domain, not a planner command |
-| \`endurance_lower_bound_s\` | Positive conservative minimum *motor-on* endurance under the exact flight configuration and battery acceptance domain |
-| \`max_planned_motor_time_s\` | Positive upper programmed motor-on time including startup/normal descent, not an arbitrary simulation clock |
-| \`max_abort_to_motor_off_s\` | Positive upper motor-on terminal tail after the trigger, including uncertain recovery/landing when appropriate |
-| \`energy_time_reserve_s\` | Nonnegative *additional* motor-on reserve for battery variation and observer uncertainty; zero requires justification |
+| `distance_to_hazard_m` | Positive, independently measured shortest free distance toward the nearest target, enclosure or hazard |
+| `prior_horizontal_excursion_m` | Nonnegative worst-case radial position/tracking allowance before an abort begins |
+| `rotor_radius_m` | Positive swept rotor/body allowance including physical extent |
+| `geometry_uncertainty_m` | Nonnegative upper uncertainty for placement and witnesses |
+| `max_hazard_approach_speed_m_s` | Nonnegative supported upper approach speed, not just a nominal set_speed |
+| `max_abort_to_deceleration_s` | Supported upper time from actual gesture/trigger to effective deceleration, including host/IPC/ACK delays |
+| `min_supported_deceleration_m_s2` | **Positive physical lower bound** throughout the applicable deceleration domain, not a planner command |
+| `endurance_lower_bound_s` | Positive conservative minimum *motor-on* endurance under the exact flight configuration and battery acceptance domain |
+| `max_planned_motor_time_s` | Positive upper programmed motor-on time including startup/normal descent, not an arbitrary simulation clock |
+| `max_abort_to_motor_off_s` | Positive upper motor-on terminal tail after the trigger, including uncertain recovery/landing when appropriate |
+| `energy_time_reserve_s` | Nonnegative *additional* motor-on reserve for battery variation and observer uncertainty; zero requires justification |
 
 The returned hypothetical travel allowance is
-\`v × L + v²/(2 × a)\`, valid **only** when the claimed bounds truly apply to
+`v × L + v²/(2 × a)`, valid **only** when the claimed bounds truly apply to
 the whole maneuver. Conditional horizontal margin is
-\`D − (R + r + u + v × L + v²/(2a))\`.
+`D − (R + r + u + v × L + v²/(2a))`.
 The energy-duration margin is
-\`T_endurance_lower − (T_planned_upper + T_abort_motor_off_upper + T_reserve)\`.
+`T_endurance_lower − (T_planned_upper + T_abort_motor_off_upper + T_reserve)`.
 The two time terms are deliberately additive/conservative; they are not a
 flight-duration prediction. If a relevant effect cannot be decelerated
-(e.g. lost estimate/epoch, absent ACK, uncontrolled fall), no positive \`a\`
+(e.g. lost estimate/epoch, absent ACK, uncontrolled fall), no positive `a`
 can be asserted for that failure mode; the sheet is **INCOMPLETE/UNPROVEN**.
 A bounded descent time does not imply bounded XY displacement or impact energy.
 
 The tool outputs **CONDITIONAL_ARITHMETIC_ONLY** even for positive margins,
-and \`flight_authorized: false\`, \`physical_qualification: UNPROVEN\`.
+and `flight_authorized: false`, `physical_qualification: UNPROVEN`.
 A negative margin refutes the supplied conditional envelope; a positive one
 does **not** validate its physical inputs, the recovery mechanism, its safety,
 or suitability for school use. Do not use output as an approval, automatic
@@ -131,7 +131,7 @@ preflight or substitute for an independent operator/containment decision.
 
 ## Independent falsification before any use
 
-The machine regression \`tools/ci/test_physical_conditional_flight_budget.py\`
+The machine regression `tools/ci/test_physical_conditional_flight_budget.py`
 must reject every absent key, forged-form digest, booleans/strings/nonfinite
 or negative inputs, and zero duration/deceleration. It proves the arithmetic,
 negative-margin preservation and non-authority output for **synthetic** fixtures.
