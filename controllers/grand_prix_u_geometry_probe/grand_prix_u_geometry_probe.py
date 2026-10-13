@@ -1,6 +1,7 @@
 """Native R2025a static perception falsifier; teleports are NOT flight proof."""
 import json
 import math
+import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -55,9 +56,15 @@ try:
         assert math.dist(node.getPosition(), (box.x, box.y, box.z)) < 1e-9
         dims = node.getField('boundingObject').getSFNode().getField('size').getSFVec3f()
         assert math.dist(dims, (box.sx, box.sy, box.sz)) < 1e-9
-    print('GP_U_GEOMETRY '+json.dumps(dict(configuration=layout.identifier,
+    result=dict(configuration=layout.identifier,
           claim='static-native-perception-only', gates=observations,
-          terminal=terminal, timestep_ms=step)), flush=True)
+          terminal=terminal, timestep_ms=step)
+    # simulationQuit can terminate Webots before it drains the child's stdout.
+    # Keep exact native data durably before requesting that shutdown.
+    output=os.environ.get('GP_U_GEOMETRY_OUT')
+    if output:Path(output).write_text(json.dumps(result,allow_nan=False)+'\n')
+    print('GP_U_GEOMETRY '+json.dumps(result), flush=True)
+    robot.step(step)
     robot.simulationQuit(0)
 except Exception:
     import traceback

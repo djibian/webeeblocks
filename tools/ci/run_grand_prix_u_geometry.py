@@ -50,6 +50,9 @@ def run_native(home, tcp=False):
                             window='<none>', evaluator=False)
         target.write_text(source.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/', 'webots://'))
         logpath = OUT/f'{layout.identifier}.log'
+        native_data=OUT/f'{layout.identifier}-native.json'
+        native_data.unlink(missing_ok=True)
+        env['GP_U_GEOMETRY_OUT']=str(native_data)
         proc = None
         try:
             with logpath.open('w') as log:
@@ -87,9 +90,13 @@ def run_native(home, tcp=False):
                 raise RuntimeError('native errors: '+str(logpath))
             records = [json.loads(line.split('GP_U_GEOMETRY ',1)[1]) for line in text.splitlines()
                        if line.startswith('GP_U_GEOMETRY ')]
-            if len(records) != 1 or records[0]['configuration'] != layout.identifier:
+            result=json.loads(native_data.read_text()) if native_data.exists() else None
+            if (result is None or result['configuration']!=layout.identifier or
+                    result['claim']!='static-native-perception-only' or
+                    len(result['gates'])!=len(layout.gates) or len(result['terminal'])!=3 or
+                    result['timestep_ms']!=8 or any(record!=result for record in records)):
                 raise RuntimeError('missing exact native perception evidence')
-            summaries.append(records[0])
+            summaries.append(result)
             print('PASS static native R2025a '+layout.identifier, flush=True)
         finally:
             if proc is not None and proc.poll() is None:
