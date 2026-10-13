@@ -1,3 +1,4 @@
+#include "simulation_clock.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,6 +55,7 @@ typedef enum {
   REQUEST_LIGHT,
   REQUEST_LAND,
   REQUEST_RANGE,
+  REQUEST_ELAPSED,
   REQUEST_RESET,
   REQUEST_STOP
 } request_kind_t;
@@ -202,6 +204,8 @@ static request_t parse_request(const char *message) {
     request.id = id;
     if (strcmp(command, "LAND") == 0)
       request.kind = REQUEST_LAND;
+    else if (strcmp(command, "ELAPSED") == 0)
+      request.kind = REQUEST_ELAPSED;
     else if (strcmp(command, "RESET") == 0)
       request.kind = REQUEST_RESET;
     else if (strcmp(command, "STOP") == 0)
@@ -356,6 +360,7 @@ int main(void) {
   double previous_z = position[2];
   double previous_time = wb_robot_get_time();
 
+  simulation_clock_t program_clock = {0.0, 0.0, 0};
   int airborne = 0;
   int failsafe_latched = 0;
   command_t command = CMD_IDLE;
@@ -433,6 +438,7 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_STOP) {
+        simulation_clock_revoke(&program_clock);
         if (command == CMD_RESET) {
           response_error(request.id, "NOT_RUNNING");
           continue;
@@ -460,6 +466,7 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_RESET) {
+        simulation_clock_revoke(&program_clock);
         stop_motors(m1, m2, m3, m4);
         wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
         wb_supervisor_field_set_sf_rotation(rotation_field, initial_rotation);
@@ -483,6 +490,14 @@ int main(void) {
       }
       if (failsafe_latched) {
         response_error(request.id, "RESET_REQUIRED");
+        continue;
+      }
+      if (request.kind == REQUEST_ELAPSED) {
+        double seconds = 0.0;
+        if (!airborne || !simulation_clock_read(&program_clock, now, &seconds))
+          response_error(request.id, "TIME_UNAVAILABLE");
+        else
+          response_value(request.id, seconds);
         continue;
       }
       if (request.kind == REQUEST_RANGE) {
@@ -543,6 +558,7 @@ int main(void) {
         target_y = y;
         target_yaw = yaw;
         target_z = origin_z + request.value;
+        simulation_clock_begin(&program_clock, now);
         command = CMD_TAKEOFF;
         stable_since = -1.0;
         action_start = now;
@@ -657,6 +673,7 @@ int main(void) {
       fprintf(stderr, PREFIX " FATAL unsafe attitude or action timeout\n");
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
+      simulation_clock_revoke(&program_clock);
       failsafe_latched = 1;
       command = CMD_IDLE;
       active_id = -1;
@@ -672,6 +689,7 @@ int main(void) {
       response_error(active_id, "RESET_TIMEOUT");
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
+      simulation_clock_revoke(&program_clock);
       failsafe_latched = 1;
       command = CMD_IDLE;
       active_id = -1;
@@ -825,6 +843,7 @@ int main(void) {
         if (now - stable_since >= STOP_WINDOW) {
           stop_motors(m1, m2, m3, m4);
           airborne = 0;
+          simulation_clock_revoke(&program_clock);
           trace_land();
           response_ok(active_id);
           command = CMD_IDLE;
