@@ -43,7 +43,13 @@ def _bound(source: dict, key: str, strictly_positive: bool) -> float:
     if type(item) is not dict or set(item) != {"value", "evidence_sha256"}:
         raise EvidenceError(key + " needs exactly value and evidence_sha256")
     value = item["value"]
-    if type(value) not in (int, float) or not isfinite(value):
+    if type(value) not in (int, float):
+        raise EvidenceError(key + " must be a finite numeric bound, not bool/string/null")
+    try:
+        finite = isfinite(value)
+    except (ValueError, OverflowError):
+        finite = False
+    if not finite:
         raise EvidenceError(key + " must be a finite numeric bound, not bool/string/null")
     if value < 0 or (strictly_positive and value == 0):
         raise EvidenceError(key + " has an impossible or missing bound")
@@ -73,13 +79,17 @@ def evaluate(sheet: object) -> dict[str, object]:
     duration = (values["max_planned_motor_time_s"]
                 + values["max_abort_to_motor_off_s"]
                 + values["energy_time_reserve_s"])
+    horizontal_margin = values["distance_to_hazard_m"] - occupied
+    endurance_margin = values["endurance_lower_bound_s"] - duration
+    if not all(isfinite(x) for x in (travel, occupied, duration, horizontal_margin, endurance_margin)):
+        raise EvidenceError("derived conditional budget overflowed; no finite bound")
     return {
         "status": "CONDITIONAL_ARITHMETIC_ONLY",
         "source_sha": source,
         "ast_sha256": ast,
         "abort_motion_allowance_m": travel,
-        "conditional_horizontal_margin_m": values["distance_to_hazard_m"] - occupied,
-        "conditional_endurance_margin_s": values["endurance_lower_bound_s"] - duration,
+        "conditional_horizontal_margin_m": horizontal_margin,
+        "conditional_endurance_margin_s": endurance_margin,
         "flight_authorized": False,
         "physical_qualification": "UNPROVEN",
         "warning": "Inputs are not physically attested; cannot infer safe flight, landing, or battery endurance.",
