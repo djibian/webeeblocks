@@ -50,7 +50,10 @@ entries each contain exactly `value` (finite number in its documented units)
 and `evidence_sha256` (lowercase digest of an independently retained source).
 Duplicate JSON keys at **any depth** are refused (including repeated bound
 values or source identifiers). Input decimal literals are interpreted exactly
-for conditional arithmetic. The displayed travel allowance is rounded
+for conditional arithmetic. Direct Python API calls with binary `float` bounds
+retain their exact binary values rather than a possibly optimistic shortened
+decimal reinterpretation. Units are required by the field contract but cannot
+be authenticated or converted from independent measurements by this tool. The displayed travel allowance is rounded
 **upward**, while both displayed margins are rounded **downward**; unrepresentable
 bounds and nonfinite derived outputs are refused. These arithmetic safeguards
 cannot make an unmeasured physical envelope reliable.
