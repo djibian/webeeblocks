@@ -391,15 +391,18 @@ class ProductionTakeoffRunController:
         # prerequisite or mistaking a failed/blocked recovery for completion.
         binding = active.teacher_authorization.binding
         try:
-            print("HOST_RECOVERY " + json.dumps({
+            from host_diagnostics import HostDiagnostics
+            recovery_log = HostDiagnostics(sys.stderr)
+            recovery_log.emit("HOST_RECOVERY", {
                 "outcome": self._recovery_outcome,
                 "phase": active.execution_domain.phase,
                 "teardownErrors": [type(exc).__name__ + ": " + str(exc)[:400] for exc in teardown_errors],
                 "connectionEpoch": binding.connection_epoch,
                 "profileId": binding.profile_id,
                 "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
-            }, sort_keys=True), file=sys.stderr, flush=True)
-        except (OSError, ValueError):
-            pass
+            })
+            recovery_log.finish()
+        except Exception:
+            pass  # A diagnostic failure must not replace the terminal outcome.
         if self._shutdown_error is not None:
             raise ProductionTakeoffRunError("physical host teardown is uncertain") from self._shutdown_error
