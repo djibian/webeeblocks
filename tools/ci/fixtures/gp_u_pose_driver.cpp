@@ -53,7 +53,11 @@ static void set_scene(long long next){
  if(takeoff && grounds() && next>=212112)pos[2]=mode=="below-ground"?-.10:.023;
  if(mode=="bounce" && next>=212512)pos[2]=.823;
  if(mode=="moving" && next>=212112)pos[0]=(next-212112)*.001;
- rot[0]=1;rot[1]=0;rot[2]=0;rot[3]=fault() && next==fault_tick()?1.3:0;
+ // IMU sampling is 32 ms: the final 16 ms deadline step retains the
+ // preceding sample. Establish the fault at that sample and hold to expiry.
+ const long long fault_from=fault_tick()-(fault_tick()==212048?16:0);
+ rot[0]=1;rot[1]=0;rot[2]=0;
+ rot[3]=fault() && next>=fault_from && next<=fault_tick()?1.3:0;
 #ifdef GP_NATIVE
  auto self=wb_supervisor_node_get_self();
  wb_supervisor_field_set_sf_vec3f(wb_supervisor_node_get_field(self,"translation"),pos);
@@ -82,6 +86,7 @@ extern "C" const double* gp_test_gps(int tag){
  const double* sample=pos;
 #endif
  std::memcpy(data,sample,sizeof(data));
+ if(tick==212048 || tick==212080)std::printf("GP_U_POSE_GPS t=%lld z=%.6f\n",tick,data[2]);
  if(tick>=212112 && (mode=="gps-nan" || (mode=="loss-recover" && tick==212688)))data[2]=NAN;
  return data;
 }
@@ -93,6 +98,7 @@ extern "C" const double* gp_test_imu(int tag){
  const double* sample=imu;
 #endif
  std::memcpy(data,sample,sizeof(data));
+ if(tick==fault_tick())std::printf("GP_U_POSE_IMU t=%lld roll=%.6f pitch=%.6f\n",tick,data[0],data[1]);
  if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
  return data;
 }
