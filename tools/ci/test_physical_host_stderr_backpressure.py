@@ -133,6 +133,16 @@ def main() -> int:
         finally:
             faulthandler.cancel_dump_traceback_later()
         return 0
+    # Static guard for the safety-critical host paths not reached by every
+    # injected-hardware scenario. A synchronous stderr flush can hang forever
+    # on the same real full pipe used below, including before first takeoff.
+    for source in (
+        PHYSICAL / "serve_physical_host.py",
+        PHYSICAL / "production_takeoff_run.py",
+        PHYSICAL / "dynamic_run_activation.py",
+    ):
+        require("file=sys.stderr, flush=True" not in source.read_text(encoding="utf-8"),
+                f"blocking host stderr diagnostic reintroduced in {source.name}")
     # Refute the old test-only failure mode before examining host behaviour:
     # an assertion after filling fd 2 must exit and report on independent stdout.
     probe = subprocess.run(
