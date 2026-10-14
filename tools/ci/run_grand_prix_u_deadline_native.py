@@ -28,12 +28,17 @@ def run_native(home):
                 'Robot { name "Probe échéance" supervisor TRUE controller "grand_prix_u_deadline_probe" window "<none>" '
                 f'controllerArgs [ "{case}" ] }}\n')
             logpath=OUT/f'deadline-{case}.log'
+            record=OUT/f'deadline-{case}-native.txt'
+            record.unlink(missing_ok=True)
+            env['GP_U_DEADLINE_OUT']=str(record)
             with logpath.open('w') as log:
                 subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
                                cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
             text=logpath.read_text()
             expected=f'GP_U_NATIVE_DEADLINE case={case} triggers={0 if case==0 else 1} trigger_ms={-1 if case==0 else 210000} claim=time-fields-only'
-            if text.count(expected)!=1 or 'GP_U_NATIVE_FAIL' in text or any(line.startswith('ERROR:') for line in text.splitlines()):
+            observed=record.read_text().strip() if record.exists() else None
+            markers=[line for line in text.splitlines() if line.startswith('GP_U_NATIVE_DEADLINE ')]
+            if observed!=expected or any(line!=expected for line in markers) or 'GP_U_NATIVE_FAIL' in text or any(line.startswith('ERROR:') for line in text.splitlines()):
                 raise RuntimeError('native deadline evidence failed: '+str(logpath))
             print('PASS real R2025a time/fields '+expected,flush=True)
     finally:

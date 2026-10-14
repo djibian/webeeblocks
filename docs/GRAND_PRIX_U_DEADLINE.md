@@ -63,3 +63,14 @@ Cette preuve native porte sur le temps et les champs, avec pose/outcome
 contrôlés. Elle ne démontre pas une trajectoire ni une descente dynamique ;
 les essais de mouvement/LAND dans des portiques appartiennent à la future
 recomposition #591. Aucun fichier de #591 ni oracle #600 n'est modifié ici.
+
+Le résultat natif du probe est écrit et fermé dans `deadline-*-native.txt`
+**après toutes les assertions et avant** la demande de fermeture Webots.
+Le runner exige le fichier frais exact ; les éventuels marqueurs stdout
+doivent être cohérents. Les premiers probes ont exposé une perte de la fin
+de stdout au shutdown (dernier tick visible 210016 ms, suivant et marqueur
+final non drainés). Comme pour les preuves géométriques natives existantes,
+stdout seul ne sert donc pas d'accusé de réception. Une assertion échouée
+écrit un enregistrement d'échec et aucun fichier absent/ancien/erroné ne
+peut être converti en PASS. Les diagnostics des deux runs défectueux sont
+conservés dans leurs artefacts CI.

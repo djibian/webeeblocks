@@ -8,8 +8,15 @@
 #include <cstring>
 extern "C" const char *webeeblocks_file_broker_receive_text(){return nullptr;}
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
+static bool persist(const char* message){
+  const char* path=std::getenv("GP_U_DEADLINE_OUT");
+  if(!path)return false;
+  FILE* file=std::fopen(path,"w");if(!file)return false;
+  const bool written=std::fprintf(file,"%s\n",message)>0 && std::fflush(file)==0;
+  return std::fclose(file)==0 && written;
+}
 static void require(bool condition,const char* why){
-  if(!condition){std::fprintf(stderr,"GP_U_NATIVE_FAIL %s\n",why);wb_supervisor_simulation_quit(1);wb_robot_cleanup();std::exit(1);}
+  if(!condition){char failure[256];std::snprintf(failure,sizeof(failure),"GP_U_NATIVE_FAIL %s",why);persist(failure);std::fprintf(stderr,"%s\n",failure);wb_supervisor_simulation_quit(1);wb_robot_cleanup();std::exit(1);}
 }
 int main(int argc,char** argv){
   wb_robot_init();require(argc==2,"case");
@@ -59,6 +66,11 @@ int main(int argc,char** argv){
     require(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 MOVE forward 0.1")==0,"late effect denied");
     require(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 4 RESET")== (mode==4?0:1),"RESET pose gate");
   }
-  std::printf("GP_U_NATIVE_DEADLINE case=%d triggers=%d trigger_ms=%lld claim=time-fields-only\n",mode,triggers,trigger_ms);std::fflush(stdout);
+  char evidence[256];
+  std::snprintf(evidence,sizeof(evidence),"GP_U_NATIVE_DEADLINE case=%d triggers=%d trigger_ms=%lld claim=time-fields-only",mode,triggers,trigger_ms);
+  // Webots can terminate before draining the controller's last stdout tick.
+  // Persist the assertion result before requesting simulation shutdown.
+  require(persist(evidence),"durable native record");
+  std::printf("%s\n",evidence);std::fflush(stdout);
   wb_supervisor_simulation_quit(0);wb_robot_cleanup();return 0;
 }
