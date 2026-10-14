@@ -47,10 +47,11 @@ def _bound(source: dict, key: str, strictly_positive: bool) -> Fraction:
     value = item["value"]
     if type(value) not in (int, float, Decimal):
         raise EvidenceError(key + " must be a finite numeric bound, not bool/string/null")
-    # JSON decimal spellings stay exact. For direct Python float callers, use
-    # the shortest round-trip decimal spelling of their externally supplied bound.
-    # Neither route attests to physical measurement accuracy or provenance.
-    number = Decimal(str(value)) if type(value) is float else Decimal(value)
+    # JSON decimal spellings stay exact. Direct Python float callers must keep
+    # their EXACT binary value: Decimal(str(float)) can erase a negative margin
+    # near zero and thereby overstate a conditional bound. Neither route attests
+    # physical measurement accuracy, units or evidence provenance.
+    number = Decimal.from_float(value) if type(value) is float else Decimal(value)
     if not number.is_finite():
         raise EvidenceError(key + " must be a finite numeric bound, not bool/string/null")
     if number < 0 or (strictly_positive and number == 0):
