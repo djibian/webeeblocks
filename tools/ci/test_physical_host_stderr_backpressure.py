@@ -7,11 +7,13 @@ StringIO or a mocked write. No hardware, teacher approval or flight is used.
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import traceback
 from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -117,7 +119,17 @@ def child(case: str) -> None:
 
 def main() -> int:
     if len(sys.argv) == 3 and sys.argv[1] == "--child":
-        child(sys.argv[2])
+        # Keep test failures and timed-out thread stacks away from the deliberately
+        # saturated production stderr fd. stdout is a separate captured OS pipe.
+        faulthandler.enable(file=sys.stdout, all_threads=True)
+        faulthandler.dump_traceback_later(5, file=sys.stdout)
+        try:
+            child(sys.argv[2])
+        except BaseException:
+            traceback.print_exc(file=sys.stdout)
+            return 1
+        finally:
+            faulthandler.cancel_dump_traceback_later()
         return 0
     for case in (
         "no-teacher", "activation", "execution", "lost-reply", "broken", "queue-full",
@@ -130,7 +142,8 @@ def main() -> int:
             )
         except subprocess.TimeoutExpired as exc:
             raise AssertionError(
-                f"{case}: actual OS stderr backpressure blocked host/exit"
+                f"{case}: child timed out under real OS stderr pressure; "
+                f"independent stdout stacks: {(exc.stdout or b'')[-6000:]!r}"
             ) from exc
         require(result.returncode == 0,
                 f"{case}: real-pipe host failed: {result.stdout[-600:]} "
