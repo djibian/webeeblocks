@@ -9,6 +9,8 @@ sys.path.insert(0,str(ROOT))
 def prepare():
     source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
     edits=[
+      ('  double stable_since = -1.0;',
+       '  double stable_since = -1.0;\n  double gp_ground_since = -1.0;'),
       ('  const int step = (int)wb_robot_get_basic_time_step();',
        '  const int step = 32; /* Preserve the shared PID/sensor update period. */'),
       ('  while (wb_robot_step(step) != -1) {',
@@ -18,7 +20,24 @@ def prepare():
     wb_robot_cleanup(); return 1;
   }
   send_text(PREFIX " READY");'''),
-      ('    const char *message;\n    while ((message = wb_robot_wwi_receive_text()) != NULL) {', '''    if (gp_u_deadline(now, !airborne && command == CMD_IDLE)) {
+      ('    const char *message;\n    while ((message = wb_robot_wwi_receive_text()) != NULL) {', '''    /* IDLE/airborne=0 also follows UNSAFE_OR_TIMEOUT: it is not a pose.
+       Confirm fresh, finite ground observations independently of command state.
+       A lost sample/gap revokes the whole continuous stability window. */
+    const int gp_ground_sample = isfinite(now) && isfinite(dt) && dt <= 0.032001 &&
+      isfinite(x) && isfinite(y) && isfinite(z) && isfinite(origin_z) &&
+      isfinite(vx_global) && isfinite(vy_global) && isfinite(vz) &&
+      isfinite(rpy[0]) && isfinite(rpy[1]) && isfinite(rpy[2]) &&
+      isfinite(gyro_values[0]) && isfinite(gyro_values[1]) && isfinite(gyro_values[2]) &&
+      fabs(z - origin_z) < ALT_TOL && hypot(vx_global, vy_global) < SPEED_TOL &&
+      fabs(vz) < VZ_TOL && fabs(rpy[0] - origin_roll) < YAW_TOL &&
+      fabs(rpy[1] - origin_pitch) < YAW_TOL &&
+      fabs(gyro_values[0]) < YAW_RATE_TOL && fabs(gyro_values[1]) < YAW_RATE_TOL &&
+      fabs(gyro_values[2]) < YAW_RATE_TOL;
+    if (!gp_ground_sample) gp_ground_since = -1.0;
+    else if (gp_ground_since < 0.0) gp_ground_since = now;
+    const int gp_pose_confirmed = !airborne && command == CMD_IDLE &&
+      gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW;
+    if (gp_u_deadline(now, gp_pose_confirmed)) {
       simulation_clock_revoke(&program_clock);
       const int interrupted_id = active_id;
       if (active_id >= 1) response_error(active_id, "TIME_LIMIT");
@@ -40,9 +59,10 @@ def prepare():
           active_id = -1; command = CMD_IDLE;
           continue;
         }
+        gp_ground_since = -1.0;
         command = CMD_TAKEOFF;'''),
       ('          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);',
-       '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_u_reset_complete();')]
+       '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();')]
     result=source
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')

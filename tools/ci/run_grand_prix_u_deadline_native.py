@@ -44,3 +44,46 @@ def run_native(home):
     finally:
         target.unlink(missing_ok=True)
         target.with_name('.ci_gp_u_deadline.wbproj').unlink(missing_ok=True)
+    run_pose_native(home,env)
+
+def run_pose_native(home,env):
+    from test_grand_prix_u_pose import instrument, CASES
+    build=ROOT/'controllers/grand_prix_u_pose_probe/build'
+    build.mkdir(parents=True,exist_ok=True)
+    instrument(build)
+    with (OUT/'pose-build.log').open('w') as log:
+        subprocess.run(['make','-C',str(build.parent)],env=env,
+                       stdout=log,stderr=subprocess.STDOUT,check=True,timeout=90)
+    source=(ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
+    robot=source[source.index('Crazyflie {'):source.index('# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN')]
+    robot=robot.replace('controller "crazyflie_runtime_v2"','controller "grand_prix_u_pose_probe"')
+    robot=robot.replace('window "blockly_v2"','window "<none>"')
+    externs='\n'.join(line.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://')
+                      for line in source.splitlines() if line.startswith('EXTERNPROTO '))
+    target=ROOT/'worlds/ci_gp_u_pose.wbt'
+    try:
+        target.write_text('#VRML_SIM R2025a utf8\n'+externs+'\n'
+            'WorldInfo { basicTimeStep 8 gravity 0 }\n'+robot+'\n'
+            'DEF GP_U_EVALUATOR Robot { name "Évaluateur pose" controller "<none>" }\n')
+        for case in CASES:
+            record=OUT/f'pose-{case}-native.txt';record.unlink(missing_ok=True)
+            env.update(GP_U_POSE_CASE=case,GP_U_POSE_OUT=str(record))
+            logpath=OUT/f'pose-{case}.log'
+            with logpath.open('w') as log:
+                subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
+                               cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
+            text=logpath.read_text()
+            positive=case in ('land','error-ground','loss-recover')
+            expected=f'GP_U_POSE_PASS case={case} teleports={int(positive)} reset_ok={int(positive)} claim=controlled-pose-composition'
+            if not record.exists() or record.read_text().strip()!=expected:
+                raise RuntimeError('missing exact composed native pose evidence: '+str(logpath))
+            # Webots may drop the final stdout, but the exact persisted record
+            # follows every assertion. LAND is earlier and must also be observed.
+            deadlines=[line for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
+            if (len(deadlines)!=1 or 'time_ms=212048 command=LAND' not in deadlines[0] or
+                    any(line.startswith('ERROR:') for line in text.splitlines()) or 'Assertion' in text):
+                raise RuntimeError('native composed pose/LAND failed: '+str(logpath))
+            print('PASS real R2025a composed '+expected,flush=True)
+    finally:
+        target.unlink(missing_ok=True)
+        target.with_name('.ci_gp_u_pose.wbproj').unlink(missing_ok=True)

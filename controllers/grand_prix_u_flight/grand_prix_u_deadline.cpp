@@ -72,6 +72,12 @@ extern "C" int gp_u_filter_raw(const char *message) {
   if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
   int id=-1;char cmd[32]={0};
   const bool parsed=message && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,cmd)==2;
+  // Also fence RESET after an abnormal termination before the deadline.
+  // Filtering here precedes the broker's pending-reset/attempt bookkeeping.
+  if(begin>=0 && parsed && !std::strcmp(cmd,"RESET") && !landed) {
+    char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR %s",id,expired?"TIME_LIMIT":"LANDING_UNCONFIRMED");
+    wb_robot_wwi_send_text(reply);return 0;
+  }
   if(expired && parsed && std::strcmp(cmd,"OUTCOME") && !(landed && !std::strcmp(cmd,"RESET"))) {
     char reply[128];std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_RUNTIME_V2 RESPONSE %d ERR TIME_LIMIT",id);
     wb_robot_wwi_send_text(reply);return 0;

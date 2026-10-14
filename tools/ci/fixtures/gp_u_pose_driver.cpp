@@ -1,0 +1,210 @@
+// Full composed runtime/broker/hook. Native mode uses real Webots sensors/time,
+// with controlled Supervisor poses; stub mode isolates causal interleavings.
+#include <webots/robot.h>
+#include <webots/supervisor.h>
+#include <webots/gps.h>
+#include <webots/gyro.h>
+#include <webots/inertial_unit.h>
+#include "file_broker_c.h"
+#ifndef GP_NATIVE
+extern "C" {
+#include "pid_controller.h"
+}
+#endif
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <vector>
+extern "C" int gp_runtime_main(void);
+static std::string mode, vehicle, evaluator;
+static long long tick=0;
+static double pos[3]={0,0,.023},rot[4]={1,0,0,0},imu[3]={0,0,0},gyro[3]={0,0,0};
+static bool takeoff=false,reset_ok=false;
+static int teleports=0,requests_at_tick=0;
+static long long receive_tick=-1;
+static std::vector<std::string> replies;
+static bool positive(){return mode=="land" || mode=="error-ground" || mode=="loss-recover";}
+static bool fault(){return mode!="land" && mode!="no-fault" && mode!="timeout" && mode!="land-timeout";}
+static long long fault_tick(){return mode=="early-error"?4096:212048;}
+static long long reset_tick(){
+ if(mode=="early-error")return 4128;
+ if(mode=="timeout")return 27104;
+ if(mode=="land-timeout")return 237104;
+ if(mode=="land" || mode=="error-ground")return 212720;
+ if(mode=="loss-recover")return 212688;
+ return 212080;
+}
+static long long end_tick(){return mode=="land-timeout"?238000:214000;}
+static bool grounds(){
+ return positive() || mode=="gps-nan" || mode=="imu-nan" || mode=="gyro-nan" ||
+        mode=="bounce" || mode=="moving" || mode=="below-ground";
+}
+static void set_scene(long long next){
+ if(teleports)return; // Preserve the real RESET transition.
+ pos[0]=0;pos[1]=0;
+ pos[2]=!takeoff?.023:mode=="timeout"?.423:.823;
+ if(takeoff && grounds() && next>=212112)pos[2]=mode=="below-ground"?-.10:.023;
+ if(mode=="bounce" && next>=212512)pos[2]=.823;
+ if(mode=="moving" && next>=212112)pos[0]=(next-212112)*.001;
+ rot[0]=1;rot[1]=0;rot[2]=0;rot[3]=fault() && next==fault_tick()?1.3:0;
+#ifdef GP_NATIVE
+ auto self=wb_supervisor_node_get_self();
+ wb_supervisor_field_set_sf_vec3f(wb_supervisor_node_get_field(self,"translation"),pos);
+ wb_supervisor_field_set_sf_rotation(wb_supervisor_node_get_field(self,"rotation"),rot);
+ wb_supervisor_node_reset_physics(self);
+#else
+ imu[0]=rot[3];
+#endif
+}
+extern "C" int gp_test_step(int dt){
+ set_scene(tick+dt);
+#ifdef GP_NATIVE
+ const int result=wb_robot_step(dt);
+ if(result==-1)return -1;
+ tick=std::llround(wb_robot_get_time()*1000);
+#else
+ tick+=dt;
+#endif
+ return tick<end_tick()?0:-1;
+}
+extern "C" const double* gp_test_gps(int tag){
+ static double data[3];
+#ifdef GP_NATIVE
+ const double* sample=wb_gps_get_values(tag);
+#else
+ const double* sample=pos;
+#endif
+ std::memcpy(data,sample,sizeof(data));
+ if(tick>=212112 && (mode=="gps-nan" || (mode=="loss-recover" && tick==212688)))data[2]=NAN;
+ return data;
+}
+extern "C" const double* gp_test_imu(int tag){
+ static double data[3];
+#ifdef GP_NATIVE
+ const double* sample=wb_inertial_unit_get_roll_pitch_yaw(tag);
+#else
+ const double* sample=imu;
+#endif
+ std::memcpy(data,sample,sizeof(data));
+ if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
+ return data;
+}
+extern "C" const double* gp_test_gyro(int tag){
+ static double data[3];
+#ifdef GP_NATIVE
+ const double* sample=wb_gyro_get_values(tag);
+#else
+ const double* sample=gyro;
+#endif
+ std::memcpy(data,sample,sizeof(data));
+ if(mode=="gyro-nan" && tick>=212112)data[0]=NAN;
+ return data;
+}
+extern "C" void gp_test_teleport(WbFieldRef field,const double* value){
+ ++teleports;
+ std::printf("GP_U_POSE_TELEPORT t=%lld before_z=%.3f after_z=%.3f\n",tick,pos[2],value[2]);
+ assert(positive() && tick>212688); // Never before actual stable observations.
+ wb_supervisor_field_set_sf_vec3f(field,value);
+}
+extern "C" const char* gp_test_receive(){
+ if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
+ const int index=requests_at_tick++;
+ if(tick==2048 && index==0){takeoff=true;return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.8";}
+ if(mode=="early-error" && tick==4064 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 8 WAIT 5";
+ if(tick==reset_tick() && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 RESET";
+ if(mode=="loss-recover" && tick==213328 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RESET";
+ // Queue RESET both at LAND admission and one tick after the fault.
+ if(!positive() && (tick==212048 || tick==212080)){
+  if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 RESET";
+  if(index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 22 MOVE forward 0.1";
+  if(index==2)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 23 COMPLETE grand-prix-u-v1";
+ }
+ // A fresh producer tries to overwrite failure after expiry.
+ if(tick==212112 && index==0){
+  wb_supervisor_field_set_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData"),
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=achieved");
+  return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 24 OUTCOME grand-prix-u-v1";
+ }
+ // Stable ground has not happened in these negative cases.
+ if(!positive() && tick==213328 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RESET";
+ return nullptr;
+}
+extern "C" void gp_test_send(const char* data,int){
+ std::string reply=data?data:"";replies.push_back(reply);
+ std::printf("GP_U_POSE_RESPONSE t=%lld %s\n",tick,reply.c_str());
+ if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK")reset_ok=true;
+}
+static bool saw(const std::string& text){
+ for(const auto& reply:replies)if(reply==text)return true;
+ return false;
+}
+extern "C" void gp_test_cleanup(){
+ const auto self=wb_supervisor_node_get_self();
+ const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
+ const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
+ assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 STATE not-achieved"));
+ assert(teleports==(positive()?1:0) && reset_ok==positive());
+ if(positive()){
+  assert(!std::strcmp(result,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"));
+  assert(!*authority);
+  if(mode=="loss-recover")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR TIME_LIMIT"));
+ }else{
+  assert(std::strstr(result,"status=not-achieved") && std::strstr(authority,"state=deadline"));
+  assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR ")+
+    ((mode=="early-error" || mode=="timeout")?"LANDING_UNCONFIRMED":"TIME_LIMIT")));
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR TIME_LIMIT"));
+ }
+ if(fault())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+
+   std::string(mode=="early-error"?"8":"2147483646")+" ERR UNSAFE_OR_TIMEOUT"));
+ if(mode=="timeout")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT"));
+ if(mode=="land-timeout")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR UNSAFE_OR_TIMEOUT"));
+ char evidence[256];
+ std::snprintf(evidence,sizeof(evidence),"GP_U_POSE_PASS case=%s teleports=%d reset_ok=%d claim=controlled-pose-composition",mode.c_str(),teleports,reset_ok);
+ const char* path=std::getenv("GP_U_POSE_OUT");
+ if(path){FILE* f=std::fopen(path,"w");assert(f);assert(std::fprintf(f,"%s\n",evidence)>0);assert(std::fclose(f)==0);}
+ std::puts(evidence);std::fflush(stdout);
+#ifdef GP_NATIVE
+ wb_supervisor_simulation_quit(0);wb_robot_cleanup();
+#endif
+}
+extern "C" WbFileBroker* wb_file_broker_create_qt(){return nullptr;}
+extern "C" void wb_file_broker_destroy(WbFileBroker*){}
+extern "C" const char* wb_file_broker_handle_message(WbFileBroker*,const char*){return nullptr;}
+#ifndef GP_NATIVE
+extern "C" void wb_robot_init(){}
+extern "C" double wb_robot_get_time(){return tick/1000.0;}
+extern "C" double wb_robot_get_basic_time_step(){return 8;}
+extern "C" int wb_robot_get_device(const char*){return 1;}
+extern "C" void wb_motor_set_position(int,double){}
+extern "C" void wb_motor_set_velocity(int,double){}
+extern "C" void wb_gps_enable(int,int){}
+extern "C" void wb_gyro_enable(int,int){}
+extern "C" void wb_inertial_unit_enable(int,int){}
+extern "C" void wb_distance_sensor_enable(int,int){}
+extern "C" double wb_distance_sensor_get_value(int){return 1000;}
+extern "C" void wb_led_set(int,int){}
+extern "C" void* wb_supervisor_node_get_self(){return (void*)1;}
+extern "C" void* wb_supervisor_node_get_from_def(const char*){return (void*)2;}
+extern "C" void* wb_supervisor_node_get_field(void* n,const char* name){
+ if(!std::strcmp(name,"translation"))return (void*)4;
+ if(!std::strcmp(name,"rotation"))return (void*)5;
+ return n==(void*)1?(void*)3:(void*)6;
+}
+extern "C" const char* wb_supervisor_field_get_sf_string(void* f){return (f==(void*)3?vehicle:evaluator).c_str();}
+extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* s){(f==(void*)3?vehicle:evaluator)=s;}
+extern "C" const double* wb_supervisor_field_get_sf_vec3f(void*){return pos;}
+extern "C" const double* wb_supervisor_field_get_sf_rotation(void*){return rot;}
+extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double* v){std::memcpy(pos,v,sizeof(pos));}
+extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double* v){std::memcpy(rot,v,sizeof(rot));}
+extern "C" void wb_supervisor_node_reset_physics(void*){}
+void init_pid_attitude_fixed_height_controller(){}
+void pid_velocity_fixed_height_controller(actual_state_t,desired_state_t*,gains_pid_t,double,motor_power_t* p){std::memset(p,0,sizeof(*p));}
+#endif
+int main(){
+ std::setvbuf(stdout,nullptr,_IONBF,0);
+ const char* name=std::getenv("GP_U_POSE_CASE");assert(name);mode=name;
+ return gp_runtime_main();
+}

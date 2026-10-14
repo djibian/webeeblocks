@@ -1,5 +1,37 @@
 # Autorité d'échéance U : composant borné (#587)
 
+Correction du NO_GO `0a64e7aea8170efe11fd40deb72fb79866126dc1` :
+le runtime partagé peut terminer `UNSAFE_OR_TIMEOUT` en `IDLE/airborne=0`
+à 0,80 m du sol. Cet état administratif ne prouve aucune pose. La composition
+exige maintenant 0,5 s d'observations natives continues : altitude à moins de
+5 cm du niveau initial (des deux côtés), vitesse horizontale < 0,12 m/s,
+verticale < 0,15 m/s, roll/pitch à moins de 2° de la pose initiale et chaque
+axe gyro < 0,10 rad/s. Temps, GPS, attitude, gyro et vitesses doivent tous être
+finis ; une perte ou un intervalle > 32 ms annule la fenêtre. Ces critères
+reprennent les tolérances du runtime ; ce sont des critères de simulation sur
+sol uniforme, jamais des marges qualifiées pour le réel.
+
+La preuve n'est disponible qu'en IDLE sans vol administratif, après la fenêtre
+observée. Elle est réévaluée avant chaque lecture du broker et révoquée au
+TAKEOFF, au RESET et à toute observation invalide. RESET est refusé également
+après une terminaison anormale avant 210 s, avant tout bookkeeping de tentative.
+Une pose effectivement observée peut permettre la récupération après erreur ;
+le simple arrêt des moteurs ne la permet jamais. La branche d'erreur d'attitude,
+l'échec irréversible et le déclencheur LAND unique à 210000 ms sont conservés.
+
+`test_grand_prix_u_pose.py` compile le C complet généré, le broker complet et
+le hook, avec wrappers aux seules frontières Webots. Les 14 cas couvrent
+erreur à l'échéance, erreur/timeout avant échéance, timeout du LAND, RESET
+en file, commandes/résultat tardifs, GPS/IMU/gyro non finis, rebond, mouvement,
+pose sous le sol, perte de confirmation puis récupération et poses positives.
+Les mêmes cas sont exécutés dans R2025a par le probe composé : temps et capteurs
+natifs, poses/attitudes imposées par Supervisor, pertes de mesures injectées
+aux getters, vrais PID et broker de simulation sans dialogue Qt.
+Le monde de probe a une gravité nulle pour isoler cette provenance de pose.
+Les wrappers enregistrent uniquement les téléportations demandées par RESET.
+Ce test prouve le filtrage de la composition, pas une descente dynamique.
+Un enregistrement frais n'est écrit qu'après toutes les assertions.
+
 Le hook natif indépendant lie le temps Webots à l'admission TAKEOFF et à
 l'identité de tentative. Le monde doit avoir un pas de base de 8 ms ; le
 contrôle partagé reste à 32 ms, avec un dernier pas de 16 ms pour atteindre
