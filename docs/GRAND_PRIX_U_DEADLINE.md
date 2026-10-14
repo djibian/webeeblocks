@@ -1,5 +1,39 @@
 # Autorité d'échéance U : composant borné (#587)
 
+Correction du NO_GO `8ea6e63ff9e219ffd74b62bd5f691fda3c114d03` :
+la normalisation par boucles soustrayant 2π ne progresse pas avec ±∞,
+ni avec un fini dont l'ULP dépasse 2π (`±1e20`, `DBL_MAX`). Le préparateur
+remplace l'unique fonction composée par `fmod` puis deux corrections bornées,
+en conservant l'intervalle (-π, π] et en renvoyant NaN pour un non-fini.
+Tous les chemins d'angle utilisent cette fonction, sans éditer la source
+partagée. Une mesure IMU n'est jamais réparée par normalisation : chaque axe
+doit être fini et dans le domaine natif (roll/yaw ±π, pitch ±π/2), y compris
+au démarrage. Une pose initiale invalide interdit READY.
+
+En vol, les observations complètes finies et fraîches sont distinctes de la
+confirmation au sol : aucune proximité du sol n'est exigée pour le contrôle.
+Une observation invalide refuse les commandes et emprunte la terminaison
+native `UNSAFE_OR_TIMEOUT`, également en IDLE avec vol administratif actif,
+avant tout PID ou sortie moteur issue de cette observation. Cela ne qualifie
+pas une récupération dynamique. L'échéance est évaluée avant ces refus :
+la boucle continue et commande LAND exactement à 210 s, même si la mesure
+reste invalide. RESET conserve ses moteurs arrêtés, sa fenêtre complète
+réarmée à chaque perte et son `RESET_TIMEOUT`, sans acquittement anticipé.
+
+Les 36 anciens cas restent présents ; 20 cas composés supplémentaires passent
+aussi dans R2025a : lacet ±∞/NaN/±1e20/DBL_MAX pendant le vol, pertes
+persistantes et transitoires, injection au tick exact de deadline, commandes
+concurrentes MOVE/TAKEOFF/RESET, lacets extrêmes pendant RESET au premier tick,
+en cours de fenêtre et au tick final, reprise après 0,5 s complètes, valeur
+2π qui ne doit pas devenir une pose valide, roll/pitch extrêmes. Un test C
+exerce le même helper sur les frontières ±π et les 4196 valeurs signées de
+puissances de deux, du subnormal au grand fini, ainsi que les non-finis.
+Les assertions du PID/moteurs contrôlés refusent les valeurs non finies.
+Les sept géométries, cinq probes temporels et plafonds de 45 s par cas sont
+conservés ; seul le budget mural agrégé passe à 900 s (job 20 min avec
+préparation/upload) pour les 56 probes composés. La sélection et CI Gate
+restent inchangés. Chaque HEAD exige ses propres preuves et revue indépendante.
+
 Correction du NO_GO `0a64e7aea8170efe11fd40deb72fb79866126dc1` :
 le runtime partagé peut terminer `UNSAFE_OR_TIMEOUT` en `IDLE/airborne=0`
 à 0,80 m du sol. Cet état administratif ne prouve aucune pose. La composition

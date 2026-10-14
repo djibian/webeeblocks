@@ -22,6 +22,7 @@ extern "C" {
 #include <cstring>
 #include <string>
 #include <vector>
+#include <cfloat>
 extern "C" int gp_runtime_main(void);
 static std::string mode, vehicle, evaluator;
 static long long tick=0;
@@ -31,13 +32,15 @@ static int teleports=0,requests_at_tick=0;
 static long long receive_tick=-1;
 static std::vector<std::string> replies;
 static bool reset_case(){return mode.find("reset-")==0;}
+static bool flight_case(){return mode.find("flight-")==0;}
 static bool reset_success(){return mode=="land" || mode=="error-ground" || mode=="loss-recover" ||
  mode.find("-recover")!=std::string::npos || mode=="reset-queue";}
 static bool positive(){return reset_case() || reset_success();}
-static bool fault(){return !reset_case() && mode!="land" && mode!="no-fault" && mode!="timeout" && mode!="land-timeout";}
+static bool fault(){return !reset_case() && !flight_case() && mode!="land" && mode!="no-fault" && mode!="timeout" && mode!="land-timeout";}
 // Interrupt immediately before the old RESET OK, after a partial valid window.
 static bool reset_loss(){
- const long long loss=mode.find("-final-")!=std::string::npos?213264:212944;
+ const long long loss=mode.find("-final-")!=std::string::npos?213264:
+  mode.find("-first-")!=std::string::npos?212752:212944;
  return reset_case() && teleports && tick>=loss &&
   (mode.find("-recover")==std::string::npos || tick==loss);
 }
@@ -46,7 +49,7 @@ static long long reset_tick(){
  if(mode=="early-error")return 4128;
  if(mode=="timeout")return 27104;
  if(mode=="land-timeout")return 237104;
- if(reset_case() || mode=="land" || mode=="error-ground")return 212720;
+ if(reset_case() || flight_case() || mode=="land" || mode=="error-ground")return 212720;
  if(mode=="loss-recover")return 212688;
  return 212080;
 }
@@ -129,6 +132,20 @@ extern "C" const double* gp_test_imu(int tag){
  if(reset_loss() && mode=="reset-yaw-infinite")data[2]=INFINITY;
  if(reset_loss() && (mode=="reset-yaw-high" || mode=="reset-yaw-recover"))data[2]=0.3;
  if(reset_loss() && mode=="reset-imu-recover")data[1]=NAN;
+ const long long flight_loss=mode=="flight-yaw-deadline-recover"?212048:2656;
+ const bool bad_angle=(flight_case() && tick>=flight_loss &&
+   (mode.find("-recover")==std::string::npos || tick==flight_loss)) || reset_loss();
+ if(bad_angle && (flight_case() || mode.find("reset-yaw-")==0 ||
+    mode=="reset-roll-extreme-loss" || mode=="reset-pitch-extreme-loss")){
+  const int axis=mode=="reset-roll-extreme-loss"?0:mode=="reset-pitch-extreme-loss"?1:2;
+  if(mode.find("extreme")!=std::string::npos)data[axis]=mode.find("negative")!=std::string::npos?-1e20:1e20;
+  if(mode.find("max")!=std::string::npos)data[axis]=DBL_MAX;
+  if(mode.find("periodic")!=std::string::npos)data[axis]=2*std::acos(-1.0);
+  if(flight_case() && mode.find("infinite")!=std::string::npos)data[axis]=mode.find("negative")!=std::string::npos?-INFINITY:INFINITY;
+  if(flight_case() && mode.find("nan")!=std::string::npos)data[axis]=NAN;
+  if(mode=="flight-yaw-deadline-recover")data[axis]=INFINITY;
+  std::printf("GP_U_POSE_INVALID_ANGLE t=%lld axis=%d value=%g\n",tick,axis,data[axis]);
+ }
  return data;
 }
 extern "C" const double* gp_test_gyro(int tag){
@@ -160,6 +177,11 @@ extern "C" const char* gp_test_receive(){
  if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
  const int index=requests_at_tick++;
  if(tick==2048 && index==0){takeoff=true;return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.8";}
+ if(flight_case() && tick==(mode=="flight-yaw-deadline-recover"?212048:2656)){
+  if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 41 MOVE forward 0.1";
+  if(index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 42 TAKEOFF 0.8";
+  if(index==2)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 43 RESET";
+ }
  if(mode=="early-error" && tick==4064 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 8 WAIT 5";
  if(tick==reset_tick() && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 RESET";
  if(mode=="loss-recover" && tick==213328 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RESET";
@@ -198,7 +220,8 @@ extern "C" void gp_test_send(const char* data,int){
    assert(reset_success());
    // First valid sample after loss/gap is 212976/213008 respectively.
    const long long earliest=mode=="reset-queue"?213264:mode=="reset-gap-recover"?213520:
-    mode.find("-final-")!=std::string::npos?213808:213488;
+    mode.find("-final-")!=std::string::npos?213808:
+    mode.find("-first-")!=std::string::npos?213296:213488;
    assert(tick>=earliest);
   }
   reset_ok=true;
@@ -233,6 +256,15 @@ extern "C" void gp_test_cleanup(){
    std::string(mode=="early-error"?"8":"2147483646")+" ERR UNSAFE_OR_TIMEOUT"));
  if(mode=="timeout")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR UNSAFE_OR_TIMEOUT"));
  if(mode=="land-timeout")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR UNSAFE_OR_TIMEOUT"));
+ if(flight_case()){
+  const bool at_deadline=mode=="flight-yaw-deadline-recover";
+  for(int id=41;id<=42;++id)assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::to_string(id)+
+   " ERR "+(at_deadline?"TIME_LIMIT":"UNSAFE_OR_TIMEOUT")));
+  assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 43 ERR ")+
+   (at_deadline?"TIME_LIMIT":"LANDING_UNCONFIRMED")));
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::string(mode=="flight-yaw-deadline-recover"?"2147483646":"1")+" ERR UNSAFE_OR_TIMEOUT"));
+  if(!reset_success())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR UNSAFE_OR_TIMEOUT"));
+ }
  char evidence[256];
  std::snprintf(evidence,sizeof(evidence),"GP_U_POSE_PASS case=%s teleports=%d reset_ok=%d claim=controlled-pose-composition",mode.c_str(),teleports,reset_ok);
  const char* path=std::getenv("GP_U_POSE_OUT");
@@ -251,7 +283,7 @@ extern "C" double wb_robot_get_time(){return tick/1000.0;}
 extern "C" double wb_robot_get_basic_time_step(){return 8;}
 extern "C" int wb_robot_get_device(const char*){return 1;}
 extern "C" void wb_motor_set_position(int,double){}
-extern "C" void wb_motor_set_velocity(int,double){}
+extern "C" void wb_motor_set_velocity(int,double value){assert(std::isfinite(value));}
 extern "C" void wb_gps_enable(int,int){}
 extern "C" void wb_gyro_enable(int,int){}
 extern "C" void wb_inertial_unit_enable(int,int){}
@@ -273,7 +305,13 @@ extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double* v){std::mem
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double* v){std::memcpy(rot,v,sizeof(rot));}
 extern "C" void wb_supervisor_node_reset_physics(void*){}
 void init_pid_attitude_fixed_height_controller(){}
-void pid_velocity_fixed_height_controller(actual_state_t,desired_state_t*,gains_pid_t,double,motor_power_t* p){std::memset(p,0,sizeof(*p));}
+void pid_velocity_fixed_height_controller(actual_state_t a,desired_state_t* d,gains_pid_t,double,motor_power_t* p){
+ assert(std::isfinite(a.roll) && std::isfinite(a.pitch) && std::isfinite(a.yaw_rate) &&
+  std::isfinite(a.altitude) && std::isfinite(a.vx) && std::isfinite(a.vy));
+ assert(std::isfinite(d->roll) && std::isfinite(d->pitch) && std::isfinite(d->yaw_rate) &&
+  std::isfinite(d->altitude) && std::isfinite(d->vx) && std::isfinite(d->vy));
+ std::memset(p,0,sizeof(*p));
+}
 #endif
 int main(){
  std::setvbuf(stdout,nullptr,_IONBF,0);

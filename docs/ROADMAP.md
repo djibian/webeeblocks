@@ -13,7 +13,26 @@ here.
 
 ## Product priority
 
-1. **#157 — representative real-device qualification and useful reference-capability coverage**
+1. **#157 — qualify one reliable, safe real-device Blockly run before extending reference capabilities**
+
+**Owner decision, 2026-10-14:** the next physical outcome is a **bounded,
+externally evidenced first run of the exact same ordinary Blockly/.wbb program
+in Webots and on the reference Crazyflie**, not further generic block coverage.
+Use the existing `tools/physical/hover_range_comparison.wbb` engineering
+candidate: take off to 0.50 m, wait 1.00 s, read `range(front)` once, and land
+on a qualified uniform floor. Retain the exact AST, current trusted single-radio
+host and teacher authority; no new physical mission or special student block.
+
+Before any separately owner-authorized hardware checkpoint, establish the
+applicable **measured** volume/clearance or containment, sensor return under
+thrust, XY/Z/attitude excursions, operator abort and terminal recovery,
+timing and under-load energy margins, and canonical simulation/CI/independent
+software evidence. No synthetic margin or 210 s Webots rule becomes a physical
+bound. Any missing evidence remains FAIL/UNPROVEN; this decision **authorizes no
+flight, flash or TEST_REQUIRED**. Prefer indispensable, falsifiable steps over
+extra speculative infrastructure; expand movements, sensors and LED capabilities
+one evidence-backed slice at a time after the first bounded physical acceptance.
+Keep #72 separately gated and #70 optional on uniform ground.
 
 #487 is now a validated product baseline rather than an active priority node.
 Activities 1–8 were materialized through the shared declarative profile/Runtime

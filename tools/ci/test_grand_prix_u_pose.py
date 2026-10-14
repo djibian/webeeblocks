@@ -17,7 +17,14 @@ CASES=('no-fault','deadline-error','early-error','timeout','land-timeout',
        *(f'reset-gyro-{axis}-final-recover' for axis in 'xyz'),
        'reset-gps-null','reset-imu-null','reset-gyro-null','reset-yaw-infinite',
        'reset-yaw-high','reset-yaw-recover',
-       'reset-gps-recover','reset-imu-recover','reset-gap-recover','reset-queue')
+       'reset-gps-recover','reset-imu-recover','reset-gap-recover','reset-queue',
+       *(f'flight-yaw-{value}-recover' for value in
+         ('infinite','negative-infinite','extreme','negative-extreme','max','nan')),
+       'flight-yaw-infinite-loss','flight-yaw-extreme-loss','flight-yaw-deadline-recover',
+       *(f'reset-yaw-{value}-{failure}' for value in
+         ('extreme','negative-extreme','max') for failure in ('loss','recover')),
+       'reset-yaw-extreme-first-recover','reset-yaw-extreme-final-recover',
+       'reset-yaw-periodic-loss','reset-roll-extreme-loss','reset-pitch-extreme-loss')
 
 def expected_reset(case):
     return case in ('land','error-ground','loss-recover','reset-queue') or case.endswith('-recover')
@@ -55,6 +62,44 @@ def instrument(base):
         (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').read_text())
 
 class PoseTests(unittest.TestCase):
+    def test_bounded_angle_and_imu_domain(self):
+        prepare()
+        source=(ROOT/'controllers/grand_prix_u_flight/build/runtime_u.c').read_text()
+        helpers=source[source.index('static int gp_valid_attitude'):source.index('static void stop_motors')]
+        with tempfile.TemporaryDirectory(prefix='gp-u-angles-') as tmp:
+            base=Path(tmp)
+            (base/'angles.c').write_text('#include <math.h>\n#include <float.h>\n#include <assert.h>\n'
+                '#define PI 3.14159265358979323846\n'+helpers+'''
+int main(void) {
+  assert(wrap_angle(PI) == PI && wrap_angle(-PI) == PI);
+  assert(wrap_angle(0) == 0 && wrap_angle(2*PI) == 0);
+  assert(wrap_angle(nextafter(PI, INFINITY)) < 0);
+  assert(wrap_angle(nextafter(-PI, -INFINITY)) > 0);
+  const double bad[] = {NAN, INFINITY, -INFINITY, 1e20, -1e20, DBL_MAX, -DBL_MAX, 2*PI};
+  for (unsigned i=0; i<sizeof(bad)/sizeof(*bad); ++i) {
+    const double result=wrap_angle(bad[i]);
+    assert(isfinite(bad[i]) ? (isfinite(result) && result > -PI && result <= PI) : isnan(result));
+    double rpy[3]={0,0,0};
+    for (int axis=0;axis<3;++axis) {
+      rpy[axis]=bad[i]; assert(!gp_valid_attitude(rpy)); rpy[axis]=0;
+    }
+  }
+  for (int exponent=-1074;exponent<=1023;++exponent) {
+    const double value=ldexp(1.0,exponent);
+    for(int sign=-1;sign<=1;sign+=2) {
+      const double result=wrap_angle(sign*value);
+      assert(isfinite(result) && result > -PI && result <= PI);
+    }
+  }
+  double rpy[3]={PI,PI/2,-PI}; assert(gp_valid_attitude(rpy));
+  rpy[2]=nextafter(PI,INFINITY); assert(!gp_valid_attitude(rpy));
+  rpy[2]=0; rpy[1]=nextafter(PI/2,INFINITY); assert(!gp_valid_attitude(rpy));
+  assert(!gp_valid_attitude(0));
+}
+''')
+            subprocess.run(['gcc','-std=c11',str(base/'angles.c'),'-lm','-o',str(base/'angles')],check=True)
+            subprocess.run([str(base/'angles')],check=True,timeout=2)
+
     def test_real_composition_pose_provenance(self):
         self.assertIsNotNone(shutil.which('gcc'))
         self.assertIsNotNone(shutil.which('c++'))

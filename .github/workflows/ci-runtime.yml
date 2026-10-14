@@ -20,9 +20,9 @@ permissions:
 jobs:
   grand-prix-u-geometry:
     runs-on: ubuntu-22.04
-    # The 660 s native campaign also needs image preparation and artifact upload.
+    # The 900 s native campaign also needs image preparation and artifact upload.
     # Keep every per-probe timeout and assertion in the runner unchanged.
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:

@@ -9,6 +9,31 @@ sys.path.insert(0,str(ROOT))
 def prepare():
     source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
     edits=[
+      ('''static double wrap_angle(double angle) {
+  while (angle > PI)
+    angle -= 2.0 * PI;
+  while (angle <= -PI)
+    angle += 2.0 * PI;
+  return angle;
+}''', '''/* Every composed angle path must terminate, including malformed input.
+   Do not normalize an invalid IMU observation into a plausible attitude. */
+static int gp_valid_attitude(const double *rpy) {
+  return rpy && isfinite(rpy[0]) && isfinite(rpy[1]) && isfinite(rpy[2]) &&
+    fabs(rpy[0]) <= PI && fabs(rpy[1]) <= PI / 2.0 && fabs(rpy[2]) <= PI;
+}
+static double wrap_angle(double angle) {
+  if (!isfinite(angle)) return NAN;
+  angle = fmod(angle, 2.0 * PI);
+  if (angle > PI) angle -= 2.0 * PI;
+  if (angle <= -PI) angle += 2.0 * PI;
+  return angle;
+}'''),
+      ('  const double origin_x = position[0];', '''  if (!position || !isfinite(position[0]) || !isfinite(position[1]) ||
+      !isfinite(position[2]) || !gp_valid_attitude(rpy)) {
+    fprintf(stderr, "GP_U_PREPARE_ERROR invalid_initial_pose\\n");
+    wb_robot_cleanup(); return 1;
+  }
+  const double origin_x = position[0];'''),
       ('  double stable_since = -1.0;',
        '  double stable_since = -1.0;\n  double gp_ground_since = -1.0;'),
       ('  const int step = (int)wb_robot_get_basic_time_step();',
@@ -20,7 +45,7 @@ def prepare():
       ('    const double x = position[0];', '''    /* Unavailable native measurements must revoke confirmation, not crash. */
     const double gp_missing[3] = {NAN, NAN, NAN};
     if (!position) position = gp_missing;
-    if (!rpy) rpy = gp_missing;
+    if (!gp_valid_attitude(rpy)) rpy = gp_missing;
     if (!gyro_values) gyro_values = gp_missing;
     const double x = position[0];'''),
       ('  send_text(PREFIX " READY");', '''  if ((long long)llround(wb_robot_get_basic_time_step()) != 8) {
@@ -31,11 +56,12 @@ def prepare():
       ('    const char *message;\n    while ((message = wb_robot_wwi_receive_text()) != NULL) {', '''    /* IDLE/airborne=0 also follows UNSAFE_OR_TIMEOUT: it is not a pose.
        Confirm fresh, finite ground observations independently of command state.
        A lost sample/gap revokes the whole continuous stability window. */
-    const int gp_ground_sample = isfinite(now) && isfinite(dt) && dt <= 0.032001 &&
+    const int gp_control_sample = isfinite(now) && isfinite(dt) && dt <= 0.032001 &&
       isfinite(x) && isfinite(y) && isfinite(z) && isfinite(origin_z) &&
       isfinite(vx_global) && isfinite(vy_global) && isfinite(vz) &&
       isfinite(rpy[0]) && isfinite(rpy[1]) && isfinite(rpy[2]) &&
-      isfinite(gyro_values[0]) && isfinite(gyro_values[1]) && isfinite(gyro_values[2]) &&
+      isfinite(gyro_values[0]) && isfinite(gyro_values[1]) && isfinite(gyro_values[2]);
+    const int gp_ground_sample = gp_control_sample &&
       fabs(z - origin_z) < ALT_TOL && hypot(vx_global, vy_global) < SPEED_TOL &&
       fabs(vz) < VZ_TOL && fabs(rpy[0] - origin_roll) < YAW_TOL &&
       fabs(rpy[1] - origin_pitch) < YAW_TOL &&
@@ -69,6 +95,18 @@ def prepare():
         }
         gp_ground_since = -1.0;
         command = CMD_TAKEOFF;'''),
+      ('      if (request.kind == REQUEST_STOP) {', '''      /* The deadline already ran for this tick. Refuse malformed samples
+         before any command can consume them; RESET still times out natively. */
+      if (!gp_control_sample) {
+        response_error(request.id, "UNSAFE_OR_TIMEOUT");
+        continue;
+      }
+      if (request.kind == REQUEST_STOP) {'''),
+      ('''    if (command != CMD_IDLE && command != CMD_RESET &&
+        (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)) {''',
+       '''    if (command != CMD_RESET &&
+        ((!gp_control_sample && (airborne || command != CMD_IDLE)) ||
+         (command != CMD_IDLE && (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)))) {'''),
       ('        command = CMD_RESET;',
        '        gp_ground_since = -1.0; /* Require post-teleport observations. */\n        command = CMD_RESET;'),
       ('      if (pose_ready && motion_ready) {',
