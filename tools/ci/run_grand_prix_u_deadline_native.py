@@ -47,7 +47,7 @@ def run_native(home):
     run_pose_native(home,env)
 
 def run_pose_native(home,env):
-    from test_grand_prix_u_pose import instrument, CASES
+    from test_grand_prix_u_pose import instrument, CASES, expected_reset, expected_teleports
     build=ROOT/'controllers/grand_prix_u_pose_probe/build'
     build.mkdir(parents=True,exist_ok=True)
     instrument(build)
@@ -75,8 +75,7 @@ def run_pose_native(home,env):
                 subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
                                cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
             text=logpath.read_text()
-            positive=case in ('land','error-ground','loss-recover')
-            expected=f'GP_U_POSE_PASS case={case} teleports={int(positive)} reset_ok={int(positive)} claim=controlled-pose-composition'
+            expected=f'GP_U_POSE_PASS case={case} teleports={int(expected_teleports(case))} reset_ok={int(expected_reset(case))} claim=controlled-pose-composition'
             if not record.exists() or record.read_text().strip()!=expected:
                 raise RuntimeError('missing exact composed native pose evidence: '+str(logpath))
             # Webots may drop the final stdout, but the exact persisted record

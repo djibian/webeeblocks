@@ -30,18 +30,27 @@ static bool takeoff=false,reset_ok=false;
 static int teleports=0,requests_at_tick=0;
 static long long receive_tick=-1;
 static std::vector<std::string> replies;
-static bool positive(){return mode=="land" || mode=="error-ground" || mode=="loss-recover";}
-static bool fault(){return mode!="land" && mode!="no-fault" && mode!="timeout" && mode!="land-timeout";}
+static bool reset_case(){return mode.find("reset-")==0;}
+static bool reset_success(){return mode=="land" || mode=="error-ground" || mode=="loss-recover" ||
+ mode.find("-recover")!=std::string::npos || mode=="reset-queue";}
+static bool positive(){return reset_case() || reset_success();}
+static bool fault(){return !reset_case() && mode!="land" && mode!="no-fault" && mode!="timeout" && mode!="land-timeout";}
+// Interrupt immediately before the old RESET OK, after a partial valid window.
+static bool reset_loss(){
+ const long long loss=mode.find("-final-")!=std::string::npos?213264:212944;
+ return reset_case() && teleports && tick>=loss &&
+  (mode.find("-recover")==std::string::npos || tick==loss);
+}
 static long long fault_tick(){return mode=="early-error"?4096:212048;}
 static long long reset_tick(){
  if(mode=="early-error")return 4128;
  if(mode=="timeout")return 27104;
  if(mode=="land-timeout")return 237104;
- if(mode=="land" || mode=="error-ground")return 212720;
+ if(reset_case() || mode=="land" || mode=="error-ground")return 212720;
  if(mode=="loss-recover")return 212688;
  return 212080;
 }
-static long long end_tick(){return mode=="land-timeout"?238000:214000;}
+static long long end_tick(){return mode=="land-timeout"?238000:reset_case() && !reset_success()?218000:214000;}
 static bool grounds(){
  return positive() || mode=="gps-nan" || mode=="imu-nan" || mode=="gyro-nan" ||
         mode=="bounce" || mode=="moving" || mode=="below-ground";
@@ -78,6 +87,8 @@ static void set_scene(long long next){
 #endif
 }
 extern "C" int gp_test_step(int dt){
+ // A real longer Webots step creates an observation gap, not a fake sample.
+ if(mode=="reset-gap-recover" && tick==212912)dt=64;
  set_scene(tick+dt);
 #ifdef GP_NATIVE
  const int result=wb_robot_step(dt);
@@ -99,6 +110,8 @@ extern "C" const double* gp_test_gps(int tag){
  if(teleports && !reset_ok)std::printf("GP_U_POSE_RESET_GPS t=%lld x=%.6f y=%.6f z=%.6f\n",tick,data[0],data[1],data[2]);
  if(tick==212048 || tick==212080)std::printf("GP_U_POSE_GPS t=%lld z=%.6f\n",tick,data[2]);
  if(tick>=212112 && (mode=="gps-nan" || (mode=="loss-recover" && tick==212688)))data[2]=NAN;
+ if(reset_loss() && mode=="reset-gps-null")return nullptr;
+ if(reset_loss() && mode=="reset-gps-recover")data[0]=NAN;
  return data;
 }
 extern "C" const double* gp_test_imu(int tag){
@@ -112,6 +125,8 @@ extern "C" const double* gp_test_imu(int tag){
  if(teleports && !reset_ok)std::printf("GP_U_POSE_RESET_IMU t=%lld roll=%.6f pitch=%.6f yaw=%.6f\n",tick,data[0],data[1],data[2]);
  if(tick==fault_tick())std::printf("GP_U_POSE_IMU t=%lld roll=%.6f pitch=%.6f\n",tick,data[0],data[1]);
  if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
+ if(reset_loss() && mode=="reset-imu-null")return nullptr;
+ if(reset_loss() && mode=="reset-imu-recover")data[1]=NAN;
  return data;
 }
 extern "C" const double* gp_test_gyro(int tag){
@@ -123,6 +138,13 @@ extern "C" const double* gp_test_gyro(int tag){
 #endif
  std::memcpy(data,sample,sizeof(data));
  if(mode=="gyro-nan" && tick>=212112)data[0]=NAN;
+ if(reset_loss()){
+  if(mode=="reset-gyro-null")return nullptr;
+  for(int axis=0;axis<3;++axis){
+   const std::string prefix=std::string("reset-gyro-")+"xyz"[axis];
+   if(mode.find(prefix)==0)data[axis]=mode.find("-high")!=std::string::npos?0.2:NAN;
+  }
+ }
  return data;
 }
 extern "C" void gp_test_teleport(WbFieldRef field,const double* value){
@@ -139,6 +161,17 @@ extern "C" const char* gp_test_receive(){
  if(mode=="early-error" && tick==4064 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 8 WAIT 5";
  if(tick==reset_tick() && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 RESET";
  if(mode=="loss-recover" && tick==213328 && index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RESET";
+ if(reset_case() && tick==213008){
+  if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 31 RESET";
+  if(index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 32 TAKEOFF 0.8";
+  if(index==2)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 33 MOVE forward 0.1";
+  if(index==3)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 34 COMPLETE grand-prix-u-v1";
+  if(index==4){
+   wb_supervisor_field_set_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData"),
+    "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=achieved");
+   return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 35 OUTCOME grand-prix-u-v1";
+  }
+ }
  // Queue RESET both at LAND admission and one tick after the fault.
  if(!positive() && (tick==212048 || tick==212080)){
   if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 RESET";
@@ -158,7 +191,16 @@ extern "C" const char* gp_test_receive(){
 extern "C" void gp_test_send(const char* data,int){
  std::string reply=data?data:"";replies.push_back(reply);
  std::printf("GP_U_POSE_RESPONSE t=%lld %s\n",tick,reply.c_str());
- if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK")reset_ok=true;
+ if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK"){
+  if(reset_case()){
+   assert(reset_success());
+   // First valid sample after loss/gap is 212976/213008 respectively.
+   const long long earliest=mode=="reset-queue"?213264:mode=="reset-gap-recover"?213520:
+    mode.find("-final-")!=std::string::npos?213808:213488;
+   assert(tick>=earliest);
+  }
+  reset_ok=true;
+ }
 }
 static bool saw(const std::string& text){
  for(const auto& reply:replies)if(reply==text)return true;
@@ -169,16 +211,21 @@ extern "C" void gp_test_cleanup(){
  const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
  const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 STATE not-achieved"));
- assert(teleports==(positive()?1:0) && reset_ok==positive());
- if(positive()){
+ assert(teleports==(positive()?1:0) && reset_ok==reset_success());
+ if(reset_case()){
+  for(int id=31;id<=34;++id)assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::to_string(id)+" ERR TIME_LIMIT"));
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 35 STATE not-achieved"));
+  if(!reset_success())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR RESET_TIMEOUT"));
+ }
+ if(reset_success()){
   assert(!std::strcmp(result,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"));
   assert(!*authority);
   if(mode=="loss-recover")assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR TIME_LIMIT"));
  }else{
   assert(std::strstr(result,"status=not-achieved") && std::strstr(authority,"state=deadline"));
-  assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR ")+
+  if(!reset_case())assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR ")+
     ((mode=="early-error" || mode=="timeout")?"LANDING_UNCONFIRMED":"TIME_LIMIT")));
-  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR TIME_LIMIT"));
+  if(!reset_case())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 ERR TIME_LIMIT"));
  }
  if(fault())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+
    std::string(mode=="early-error"?"8":"2147483646")+" ERR UNSAFE_OR_TIMEOUT"));

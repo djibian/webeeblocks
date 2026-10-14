@@ -15,6 +15,14 @@ def prepare():
        '  const int step = 32; /* Preserve the shared PID/sensor update period. */'),
       ('  while (wb_robot_step(step) != -1) {',
        '  while (wb_robot_step(gp_u_next_step(step)) != -1) {'),
+      ('    if (dt <= 0.0)\n      continue;',
+       '    if (dt <= 0.0) {\n      gp_ground_since = -1.0;\n      stable_since = -1.0;\n      continue;\n    }'),
+      ('    const double x = position[0];', '''    /* Unavailable native measurements must revoke confirmation, not crash. */
+    const double gp_missing[3] = {NAN, NAN, NAN};
+    if (!position) position = gp_missing;
+    if (!rpy) rpy = gp_missing;
+    if (!gyro_values) gyro_values = gp_missing;
+    const double x = position[0];'''),
       ('  send_text(PREFIX " READY");', '''  if ((long long)llround(wb_robot_get_basic_time_step()) != 8) {
     fprintf(stderr, "GP_U_PREPARE_ERROR required_basic_step_ms=8\\n");
     wb_robot_cleanup(); return 1;
@@ -61,6 +69,15 @@ def prepare():
         }
         gp_ground_since = -1.0;
         command = CMD_TAKEOFF;'''),
+      ('        command = CMD_RESET;',
+       '        gp_ground_since = -1.0; /* Require post-teleport observations. */\n        command = CMD_RESET;'),
+      ('      if (pose_ready && motion_ready) {',
+       '      if (pose_ready && motion_ready && gp_ground_sample) {'),
+      ('        if (now - stable_since >= RESET_WINDOW) {',
+       '''        /* The administrative RESET window cannot finalize recovery.
+           Every observation since teleport/loss must confirm the full pose. */
+        if (now - stable_since >= RESET_WINDOW && gp_ground_since >= 0.0 &&
+            now - gp_ground_since >= STOP_WINDOW) {'''),
       ('          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);',
        '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();')]
     result=source

@@ -19,11 +19,25 @@ Une pose effectivement observée peut permettre la récupération après erreur 
 le simple arrêt des moteurs ne la permet jamais. La branche d'erreur d'attitude,
 l'échec irréversible et le déclencheur LAND unique à 210000 ms sont conservés.
 
+Correction du NO_GO `550cfef818a37459e2a278d93cee841b7f076d1a` :
+la finalisation de RESET exige aussi les observations complètes de pose.
+L'admission révoque la fenêtre antérieure à la téléportation. Toute perte,
+mesure non finie, gyro instable ou gap invalide la fenêtre pendant RESET ;
+une nouvelle fenêtre continue de 0,5 s est nécessaire avant `response_ok`,
+la nouvelle identité de tentative et la clôture de l'autorité expirée.
+Les getters indisponibles sont traités comme des mesures invalides.
+Une perte persistante conserve l'échec et aboutit à `RESET_TIMEOUT`, sans
+nouvelle tentative. Le runtime partagé et son timeout restent inchangés.
+
 `test_grand_prix_u_pose.py` compile le C complet généré, le broker complet et
-le hook, avec wrappers aux seules frontières Webots. Les 14 cas couvrent
+le hook, avec wrappers aux seules frontières Webots. Les 33 cas couvrent
 erreur à l'échéance, erreur/timeout avant échéance, timeout du LAND, RESET
 en file, commandes/résultat tardifs, GPS/IMU/gyro non finis, rebond, mouvement,
 pose sous le sol, perte de confirmation puis récupération et poses positives.
+Les 19 nouveaux cas ajoutent les pertes persistantes/transitoires et vitesses
+excessives des trois axes gyro pendant RESET, la perte au tick de finalisation,
+GPS/IMU/gyro indisponibles, récupération GPS/IMU, gap natif de 64 ms et
+RESET/TAKEOFF/MOVE/COMPLETE/OUTCOME reçus pendant la fenêtre de récupération.
 Les mêmes cas sont exécutés dans R2025a par le probe composé : temps et capteurs
 natifs, poses/attitudes imposées par Supervisor, pertes de mesures injectées
 aux getters, vrais PID et broker de simulation sans dialogue Qt.

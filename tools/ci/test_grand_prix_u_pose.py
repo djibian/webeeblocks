@@ -12,7 +12,17 @@ from tools.grand_prix.prepare_u_runtime import prepare
 
 CASES=('no-fault','deadline-error','early-error','timeout','land-timeout',
        'land','error-ground','gps-nan','imu-nan','gyro-nan','bounce','moving',
-       'below-ground','loss-recover')
+       'below-ground','loss-recover',
+       *(f'reset-gyro-{axis}-{failure}' for axis in 'xyz' for failure in ('loss','recover','high')),
+       *(f'reset-gyro-{axis}-final-recover' for axis in 'xyz'),
+       'reset-gps-null','reset-imu-null','reset-gyro-null',
+       'reset-gps-recover','reset-imu-recover','reset-gap-recover','reset-queue')
+
+def expected_reset(case):
+    return case in ('land','error-ground','loss-recover','reset-queue') or case.endswith('-recover')
+
+def expected_teleports(case):
+    return expected_reset(case) or case.startswith('reset-')
 FIXTURES=ROOT/'tools/ci/fixtures'
 WRAPPERS='''#include <webots/robot.h>
 #include <webots/supervisor.h>

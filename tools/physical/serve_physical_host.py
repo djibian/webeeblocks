@@ -43,6 +43,7 @@ if __name__ == "__main__":
             sys.path.insert(0, str(physical))
 
         from caller_lifetime import CallerLifetime
+        from host_diagnostics import HostDiagnostics
         from physical_execution_domain import PhysicalExecutionDomain
         from physical_diagnostics import failure_evidence
         from physical_run_dispatch import activate_validated_run
@@ -105,6 +106,7 @@ if __name__ == "__main__":
         )
 
         caller_lifetime = CallerLifetime(caller_reader, max_message_bytes=max_message_bytes)
+        diagnostics = HostDiagnostics(sys.stderr)
 
         class _CallerBoundBridge(PostResetCapabilityHttpBridge):
             def assert_current_program(self, **kwargs):
@@ -163,14 +165,11 @@ if __name__ == "__main__":
                     activation_state["error"] = exc
                     # An activation/preflight failure can precede any execution
                     # request, so do not rely on a later caller to retrieve it.
-                    try:
-                        print("HOST_ACTIVATION_DIAGNOSTIC " + json.dumps({
-                            **failure_evidence(exc, binding=staged_state["binding"],
-                                               phase=execution_domain.phase),
-                            "bindingStage": "staged",
-                        }, sort_keys=True), file=sys.stderr, flush=True)
-                    except (OSError, ValueError):
-                        pass
+                    diagnostics.emit("HOST_ACTIVATION_DIAGNOSTIC", {
+                        **failure_evidence(exc, binding=staged_state["binding"],
+                                           phase=execution_domain.phase),
+                        "bindingStage": "staged",
+                    })
                 finally:
                     activation_complete.set()
 
@@ -282,12 +281,9 @@ if __name__ == "__main__":
                                 )
                                 # Preserve the original failure independently of a
                                 # caller socket which may already have disappeared.
-                                try:
-                                    print("HOST_DIAGNOSTIC " + json.dumps({
-                                        "requestId": request_id, **diagnostic,
-                                    }, sort_keys=True), file=sys.stderr, flush=True)
-                                except (OSError, ValueError):
-                                    pass  # Logging cannot replace the causal error.
+                                diagnostics.emit("HOST_DIAGNOSTIC", {
+                                    "requestId": request_id, **diagnostic,
+                                })
                                 response = {
                                     "requestId": request_id,
                                     "ok": False,
@@ -394,12 +390,12 @@ if __name__ == "__main__":
                     except Exception as exc:
                         teardown_error = exc
                 # This survives caller EOF, when IPC can no longer carry a reply.
-                print("HOST_TEARDOWN " + json.dumps({
+                diagnostics.emit("HOST_TEARDOWN", {
                     "phase": execution_domain.phase,
                     "callerClosure": caller_lifetime.close_reason,
                     "activationError": str(_activation_error)[:400] if _activation_error else None,
                     "teardownError": type(teardown_error).__name__ + ": " + str(teardown_error)[:400] if teardown_error else None,
-                }, sort_keys=True), file=sys.stderr, flush=True)
+                })
 
                 bridge.shutdown()
                 bridge_thread.join(timeout=1.0)
@@ -423,6 +419,7 @@ if __name__ == "__main__":
                 except OSError:
                     pass
 
+                diagnostics.finish()  # Bounded even if an OS stderr pipe is full.
                 if teardown_error is not None:
                     raise RuntimeError("physical host terminal teardown failed") from teardown_error
 

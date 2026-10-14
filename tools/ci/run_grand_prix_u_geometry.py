@@ -155,13 +155,13 @@ def main():
               '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
               IMAGE,'-lc',
               "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
-              # Seven geometry + five time + fourteen complete runtime probes.
+              # Seven geometry + five time + thirty-three complete runtime probes.
               # Simulation deadlines and every per-case assertion are unchanged.
-              'timeout -k 5s 420s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              'timeout -k 5s 660s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()
-                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=480)
+                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=720)
         finally:
             if cid.exists():
                 identifier=cid.read_text().strip()
