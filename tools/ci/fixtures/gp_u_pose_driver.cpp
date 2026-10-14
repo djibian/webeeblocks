@@ -58,6 +58,7 @@ static bool grounds(){
  return positive() || mode=="gps-nan" || mode=="imu-nan" || mode=="gyro-nan" ||
         mode=="bounce" || mode=="moving" || mode=="below-ground";
 }
+#include "gp_u_file_provider.hpp"
 static void set_scene(long long next){
  if(teleports){
   // Continue the same controlled-pose policy through RESET, holding the
@@ -100,7 +101,7 @@ extern "C" int gp_test_step(int dt){
 #else
  tick+=dt;
 #endif
- return tick<end_tick()?0:-1;
+ return tick<(file_startup()?2640:end_tick())?0:-1;
 }
 extern "C" const double* gp_test_gps(int tag){
  static double data[3];
@@ -175,14 +176,18 @@ extern "C" const double* gp_test_gyro(int tag){
 extern "C" void gp_test_teleport(WbFieldRef field,const double* value){
  ++teleports;
  std::printf("GP_U_POSE_TELEPORT t=%lld before_z=%.3f after_z=%.3f\n",tick,pos[2],value[2]);
- assert(positive() && tick>212688); // Never before actual stable observations.
+ assert(file_startup() || (positive() && tick>212688)); // Never before actual stable observations.
  wb_supervisor_field_set_sf_vec3f(field,value);
  std::memcpy(pos,value,sizeof(pos));
 }
 extern "C" const char* gp_test_receive(){
  if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
- const int index=requests_at_tick++;
- if(tick==2048 && index==0){takeoff=true;return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.8";}
+ int index=requests_at_tick++;
+ if(const char* file=file_requests(index))return file;
+ if(tick==2048 && index==0){
+  if(file_startup())return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 RESET";
+  takeoff=true;return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.8";
+ }
  if(flight_case() && tick==(mode=="flight-yaw-deadline-recover"?212048:2656)){
   if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 41 MOVE forward 0.1";
   if(index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 42 TAKEOFF 0.8";
@@ -221,7 +226,8 @@ extern "C" const char* gp_test_receive(){
 extern "C" void gp_test_send(const char* data,int){
  std::string reply=data?data:"";replies.push_back(reply);
  std::printf("GP_U_POSE_RESPONSE t=%lld %s\n",tick,reply.c_str());
- if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK"){
+ if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK" || reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK" ||
+    (file_startup() && reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 OK")){
   if(reset_case()){
    assert(reset_success());
    // First valid sample after loss/gap is 212976/213008 respectively.
@@ -241,6 +247,17 @@ extern "C" void gp_test_cleanup(){
  const auto self=wb_supervisor_node_get_self();
  const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
  const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
+ if(file_startup()){
+  assert(teleports==1 && reset_ok && !takeoff && tick>=2560);
+  assert(!std::strcmp(result,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2") && !*authority);
+  file_verify();
+  const char* path=std::getenv("GP_U_POSE_OUT");
+  if(path){FILE* f=std::fopen(path,"w");assert(f);assert(std::fprintf(f,"GP_U_FILE_STARTUP_PASS\n")>0);assert(std::fclose(f)==0);}
+#ifdef GP_NATIVE
+  wb_supervisor_simulation_quit(0);wb_robot_cleanup();
+#endif
+  return;
+ }
  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 STATE not-achieved"));
  assert(teleports==(positive()?1:0) && reset_ok==reset_success());
  if(reset_case()){
@@ -271,6 +288,7 @@ extern "C" void gp_test_cleanup(){
   assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::string(mode=="flight-yaw-deadline-recover"?"2147483646":"1")+" ERR UNSAFE_OR_TIMEOUT"));
   if(!reset_success())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR UNSAFE_OR_TIMEOUT"));
  }
+ file_verify();
  char evidence[256];
  std::snprintf(evidence,sizeof(evidence),"GP_U_POSE_PASS case=%s teleports=%d reset_ok=%d claim=controlled-pose-composition",mode.c_str(),teleports,reset_ok);
  const char* path=std::getenv("GP_U_POSE_OUT");
@@ -280,9 +298,6 @@ extern "C" void gp_test_cleanup(){
  wb_supervisor_simulation_quit(0);wb_robot_cleanup();
 #endif
 }
-extern "C" WbFileBroker* wb_file_broker_create_qt(){return nullptr;}
-extern "C" void wb_file_broker_destroy(WbFileBroker*){}
-extern "C" const char* wb_file_broker_handle_message(WbFileBroker*,const char*){return nullptr;}
 #ifndef GP_NATIVE
 extern "C" void wb_robot_init(){}
 extern "C" double wb_robot_get_time(){return tick/1000.0;}
@@ -322,5 +337,6 @@ void pid_velocity_fixed_height_controller(actual_state_t a,desired_state_t* d,ga
 int main(){
  std::setvbuf(stdout,nullptr,_IONBF,0);
  const char* name=std::getenv("GP_U_POSE_CASE");assert(name);mode=name;
+ const char* files=std::getenv("GP_U_FILE_PROBE");if(files)file_probe=files;
  return gp_runtime_main();
 }

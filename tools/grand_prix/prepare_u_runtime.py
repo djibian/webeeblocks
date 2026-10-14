@@ -85,7 +85,10 @@ static double wrap_angle(double angle) {
       fflush(stdout);
     }
     const char *message;
-    while ((message = wb_robot_wwi_receive_text()) != NULL) {'''),
+    /* Re-evaluate after each runtime request, before draining the broker.
+       An admitted TAKEOFF/RESET in this same tick must close file access. */
+    while ((gp_u_file_idle(command == CMD_IDLE && !airborne && gp_ground_sample),
+            (message = wb_robot_wwi_receive_text())) != NULL) {'''),
       ('        simulation_clock_begin(&program_clock, now);\n        command = CMD_TAKEOFF;', '''        simulation_clock_begin(&program_clock, now);
         if (!gp_u_start(now)) {
           simulation_clock_revoke(&program_clock);

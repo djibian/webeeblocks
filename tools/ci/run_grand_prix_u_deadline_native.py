@@ -4,6 +4,7 @@ No dynamic landing/trajectory claim; those belong to the later #591 composition.
 import os
 from pathlib import Path
 import subprocess
+import re
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'ci-artifacts/grand-prix-u-geometry'
@@ -47,7 +48,7 @@ def run_native(home):
     run_pose_native(home,env)
 
 def run_pose_native(home,env):
-    from test_grand_prix_u_pose import instrument, CASES, expected_reset, expected_teleports
+    from test_grand_prix_u_pose import instrument, CASES, FILE_PROBES, expected_reset, expected_teleports
     build=ROOT/'controllers/grand_prix_u_pose_probe/build'
     build.mkdir(parents=True,exist_ok=True)
     instrument(build)
@@ -67,23 +68,41 @@ def run_pose_native(home,env):
         target.write_text('#VRML_SIM R2025a utf8\n'+externs+'\n'
             'WorldInfo { basicTimeStep 8 gravity 0 }\n'+robot+'\n'
             'DEF GP_U_EVALUATOR Robot { name "Évaluateur pose" controller "<none>" }\n')
-        for case in CASES:
-            record=OUT/f'pose-{case}-native.txt';record.unlink(missing_ok=True)
-            env.update(GP_U_POSE_CASE=case,GP_U_POSE_OUT=str(record))
-            logpath=OUT/f'pose-{case}.log'
+        for case,files in [(case,'') for case in CASES]+list(FILE_PROBES):
+            identifier=f'pose-{case}'+(f'-files-{files}' if files else '')
+            record=OUT/f'{identifier}-native.txt';record.unlink(missing_ok=True)
+            file_record=OUT/f'{identifier}-provider-native.txt';file_record.unlink(missing_ok=True)
+            env.update(GP_U_POSE_CASE=case,GP_U_POSE_OUT=str(record),GP_U_FILE_PROBE=files,
+                       GP_U_FILE_OUT=str(file_record) if files else '')
+            logpath=OUT/f'{identifier}.log'
             with logpath.open('w') as log:
                 subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
                                cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
             text=logpath.read_text()
-            expected=f'GP_U_POSE_PASS case={case} teleports={int(expected_teleports(case))} reset_ok={int(expected_reset(case))} claim=controlled-pose-composition'
+            expected=('GP_U_FILE_STARTUP_PASS' if files=='startup-reset' else
+                      f'GP_U_POSE_PASS case={case} teleports={int(expected_teleports(case))} reset_ok={int(expected_reset(case))} claim=controlled-pose-composition')
             if not record.exists() or record.read_text().strip()!=expected:
                 raise RuntimeError('missing exact composed native pose evidence: '+str(logpath))
             # Webots may drop the final stdout, but the exact persisted record
             # follows every assertion. LAND is earlier and must also be observed.
             deadlines=[line for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
-            if (len(deadlines)!=1 or 'time_ms=212048 command=LAND' not in deadlines[0] or
+            if (len(deadlines)!=(0 if files=='startup-reset' else 1) or
+                    (deadlines and 'time_ms=212048 command=LAND' not in deadlines[0]) or
                     any(line.startswith('ERROR:') for line in text.splitlines()) or 'Assertion' in text):
                 raise RuntimeError('native composed pose/LAND failed: '+str(logpath))
+            if files:
+                data=file_record.read_text().strip() if file_record.exists() else ''
+                match=re.fullmatch(r'GP_U_FILE_PASS probe='+re.escape(files)+
+                    r' requests=(\d+) denied=(\d+) calls=(\d+) creations=(\d+) claim=blocking-provider-composition',data)
+                if not match:raise RuntimeError('missing exact blocking-provider evidence: '+str(logpath))
+                requests,denied,calls,creations=map(int,match.groups())
+                if denied<15 or calls!=requests-denied+creations or creations!=int(requests>denied):
+                    raise RuntimeError('invalid provider entry/denial counts')
+                if (files in ('warm','startup-reset') and requests-denied<10):
+                    raise RuntimeError('resting file semantics not demonstrated')
+                if case in ('land','land-timeout') and files!='startup-reset' and text.count('GP_U_CONTROL_APPLIED time_ms=212048 ')!=1:
+                    raise RuntimeError('first native LAND control not applied at exact expiry')
+                print('PASS real R2025a '+data,flush=True)
             print('PASS real R2025a composed '+expected,flush=True)
     finally:
         target.unlink(missing_ok=True)

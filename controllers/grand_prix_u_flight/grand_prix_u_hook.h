@@ -8,6 +8,7 @@ int gp_u_deadline(double, int);
 int gp_u_next_step(int);
 void gp_u_reset_complete(void);
 int gp_u_filter_raw(const char *);
+void gp_u_file_idle(int);
 const char *gp_u_receive(void);
 void gp_u_send(const char *, int);
 #ifdef __cplusplus

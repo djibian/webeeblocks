@@ -41,8 +41,17 @@ extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* v){*static
 extern "C" const char* webeeblocks_file_broker_receive_text(){return nullptr;}
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
 int main(){
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ gp_u_file_idle(1);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1";
  assert(gp_u_start(2.112)==1);
+ for(const char* op:{"OPEN","SAVE_AS cHJvYmUud2Ji e30=","SAVE ref e30=","RELEASE ref","CAPABILITIES"}){
+  std::string request=std::string("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 ")+op;
+  assert(gp_u_filter_raw(request.c_str())==0);
+  assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ }
  now=212.096; assert(gp_u_next_step(32)==16);
  assert(gp_u_deadline(212.111,0)==0);
  assert(gp_u_deadline(212.112,0)==1);
@@ -57,6 +66,8 @@ int main(){
  assert(gp_u_deadline(220,1)==0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 RESET")==1);
  gp_u_reset_complete(); assert(evaluator.empty());
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"; assert(gp_u_start(230)==1);
  assert(gp_u_deadline(230,0)==0);
  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=achieved";
@@ -64,6 +75,7 @@ int main(){
  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 3";assert(gp_u_start(500)==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-u-v1 status=achieved";
  assert(gp_u_deadline(709.999,1)==0);assert(gp_u_deadline(710,1)==0); // already completed before cap
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
  // First success observations at each side of the exact boundary.
  for(int elapsed:{209999,210000,210001}){
   gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";assert(gp_u_start(2.112)==1);

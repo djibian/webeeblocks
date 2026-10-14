@@ -11,6 +11,7 @@ namespace {
 long long begin=-1;
 unsigned long long attempt=0;
 bool expired=false,landed=false,success=false;
+bool fileIdle=false;
 WbFieldRef channel() {
   WbNodeRef node=wb_supervisor_node_get_from_def("GP_U_EVALUATOR");
   return node ? wb_supervisor_node_get_field(node,"customData") : nullptr;
@@ -66,10 +67,26 @@ extern "C" int gp_u_next_step(int normal) {
 }
 extern "C" void gp_u_reset_complete(void) {
   begin=-1;attempt=0;expired=false;landed=false;success=false;
+  fileIdle=false; // Only the next native idle/ground observation reopens files.
   WbFieldRef field=channel();if(field)wb_supervisor_field_set_sf_string(field,"");
 }
+extern "C" void gp_u_file_idle(int idle) { fileIdle=idle!=0; }
 extern "C" int gp_u_filter_raw(const char *message) {
   if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
+  // Every broker operation can enter a provider (including creation, metadata,
+  // read/write and release). Fence the namespace before that shared path runs.
+  // A landed/failed/successful attempt stays fenced through confirmed RESET.
+  const char *prefix="WEBEEBLOCKS_FILE_BROKER_V1 ";
+  if(message && !std::strncmp(message,prefix,std::strlen(prefix)) &&
+     (!fileIdle || begin>=0)) {
+    int fileId=-1;
+    if(std::sscanf(message,"WEBEEBLOCKS_FILE_BROKER_V1 REQUEST %d",&fileId)==1 && fileId>=1) {
+      char reply[128];
+      std::snprintf(reply,sizeof(reply),"WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE %d ERR BUSY",fileId);
+      wb_robot_wwi_send_text(reply);
+    }
+    return 0;
+  }
   int id=-1;char cmd[32]={0};
   const bool parsed=message && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,cmd)==2;
   // Also fence RESET after an abnormal termination before the deadline.

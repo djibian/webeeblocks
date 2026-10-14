@@ -1,5 +1,36 @@
 # Autorité d'échéance U : composant borné (#587)
 
+Correction du NO_GO `87f658923ab27a64ec876655c5201c1109f874a4` :
+le broker de fichiers partagé appelle son fournisseur synchroniquement.
+OPEN et SAVE_AS attendent `dialog.exec()` sous Linux ou `IFileDialog::Show()`
+sous Windows ; OPEN lit aussi le fichier et SAVE écrit sur le stockage, qui
+peut attendre. La composition refuse maintenant tout le namespace
+`WEBEEBLOCKS_FILE_BROKER_V1` avec `ERR BUSY` avant création du fournisseur
+pendant une tentative, sa descente et sa récupération. Une pose administrative
+IDLE, un succès ou une pose au sol n'ouvrent pas les fichiers de cette tentative :
+seul RESET confirmé clôt l'autorité. Sans tentative, les fichiers exigent IDLE,
+absence de vol et une observation de sol valide ; RESET reste fermé même avant
+le premier TAKEOFF. L'accès est recalculé avant chaque lecture du broker :
+TAKEOFF ou RESET reçu dans le même tick ferme immédiatement le chemin suivant.
+Les requêtes refusées sont consommées, sans mise en attente ni réexécution.
+Au repos initial et après RESET, le broker/protocole/fournisseur partagé reste
+inchangé pour CAPABILITIES, OPEN, SAVE_AS, SAVE et RELEASE.
+
+Les 56 scénarios historiques sont conservés. Cinq probes supplémentaires
+exercent le vrai FileBroker avec un fournisseur disponible dont création,
+métadonnées, OPEN/SAVE_AS/SAVE/RELEASE attendent réellement une lecture de
+tuyau OS, libérée après 100 ms par un thread indépendant. Les assertions
+comparent chaque réponse et comptent les entrées : aucun appel ni création
+pendant la tentative ou RESET, y compris avant/à/après expiration et entre
+requêtes du même tick ; appels bloquants et réponses fichiers au repos avant
+TAKEOFF et après récupération. Un RESET avant toute tentative couvre également
+la fenêtre et sa fin. Le premier PID et les quatre sorties moteurs à l'échéance
+sont observés dans les probes fichier sans erreur d'attitude ; LAND timeout et
+erreur précoce restent des négatifs. Les records frais et leurs digests sont
+retenus par la même campagne R2025a, sans élargir aucun plafond par probe.
+Cette preuve de composition n'est ni un dialogue Qt automatisé ni une descente
+dynamique ; le chargement `.wbb` conserve ses tests de projet partagés.
+
 Correction du NO_GO `8ea6e63ff9e219ffd74b62bd5f691fda3c114d03` :
 la normalisation par boucles soustrayant 2π ne progresse pas avec ±∞,
 ni avec un fini dont l'ULP dépasse 2π (`±1e20`, `DBL_MAX`). Le préparateur

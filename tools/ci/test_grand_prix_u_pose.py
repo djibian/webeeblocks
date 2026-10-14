@@ -32,6 +32,8 @@ def expected_reset(case):
 def expected_teleports(case):
     return expected_reset(case) or case.startswith('reset-')
 FIXTURES=ROOT/'tools/ci/fixtures'
+FILE_PROBES=(('land','cold'),('land','warm'),('early-error','cold'),
+             ('land-timeout','cold'),('land','startup-reset'))
 WRAPPERS='''#include <webots/robot.h>
 #include <webots/supervisor.h>
 #include <webots/gps.h>
@@ -53,7 +55,15 @@ void gp_test_teleport(WbFieldRef,const double*);
 def instrument(base):
     prepare()
     composed=ROOT/'controllers/grand_prix_u_flight/build'
-    (base/'runtime.c').write_text(WRAPPERS+(composed/'runtime_u.c').read_text())
+    runtime=(composed/'runtime_u.c').read_text()
+    motor='      wb_motor_set_velocity(m4, motor_power(power.m4));'
+    if runtime.count(motor)!=1:raise RuntimeError('composed motor anchor changed')
+    runtime=runtime.replace(motor,motor+'''
+      if (llround(now * 1000.0) == 212048) {
+        printf("GP_U_CONTROL_APPLIED time_ms=212048 command=%d\\n", command);
+        fflush(stdout);
+      }''')
+    (base/'runtime.c').write_text(WRAPPERS+runtime)
     (base/'broker.cpp').write_text(
         '#define wb_robot_wwi_receive_text gp_test_receive\n'
         '#define wb_robot_wwi_send gp_test_send\n'
@@ -117,7 +127,8 @@ int main(void) {
             binary=base/'pose'
             subprocess.run(['c++','-std=c++17','-DNDEBUG',*inc,str(base/'runtime.o'),
                             str(FIXTURES/'gp_u_pose_driver.cpp'),str(base/'broker.cpp'),
-                            str(base/'deadline.cpp'),'-o',str(binary)],check=True)
+                            str(base/'deadline.cpp'),str(ROOT/'controllers/crazyflie_runtime_v2/file_broker.cpp'),
+                            '-pthread','-o',str(binary)],check=True)
             for case in CASES:
                 with self.subTest(case=case):
                     result=subprocess.run([str(binary)],env={**os.environ,'GP_U_POSE_CASE':case},
@@ -127,5 +138,16 @@ int main(void) {
                     deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
                     self.assertEqual(len(deadlines),1,result.stdout)
                     self.assertIn('time_ms=212048 command=LAND',deadlines[0])
+            for case,probe in FILE_PROBES:
+                with self.subTest(case=case,files=probe):
+                    result=subprocess.run([str(binary)],env={**os.environ,'GP_U_POSE_CASE':case,'GP_U_FILE_PROBE':probe},
+                                          capture_output=True,text=True,timeout=10)
+                    self.assertEqual(result.returncode,0,result.stdout[-5000:]+result.stderr)
+                    self.assertIn(f'GP_U_FILE_PASS probe={probe} ',result.stdout)
+                    deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
+                    self.assertEqual(len(deadlines),0 if probe=='startup-reset' else 1,result.stdout)
+                    if deadlines:self.assertIn('time_ms=212048 command=LAND',deadlines[0])
+                    if case=='land' and probe!='startup-reset' or case=='land-timeout':
+                        self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 '),1)
 
 if __name__=='__main__':unittest.main()
