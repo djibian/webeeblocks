@@ -32,3 +32,34 @@ Les probes natifs dans #591 produisent séparément interruption/LAND à
 composant. La campagne et ses traces exactes doivent être examinées sur le
 HEAD concerné. Cette exécution auteure ne donne aucun GO et ne fusionne pas.
 Aucun vol réel ou checkpoint matériel n'est proposé.
+
+Réparation du NO_GO `770356638d808b1d6df0aea90bcbe1fdd9507da7` :
+le test entier `elapsed_ms >= 210000` précède l'acquisition d'un nouveau
+succès. Seul un succès déjà observé avant la limite avec pose native confirmée
+reste terminal. Le canal OUTCOME actuel ne prouve aucun instant antérieur de
+validation : une première observation à/après expiration est refusée même si
+l'évaluateur a écrit entre deux ticks. Aucun horodatage fourni par le programme
+ne peut antidater la réussite. Cette règle conservatrice reste explicite ;
+une future amélioration de livraison demanderait une preuve causale distincte.
+
+Autre contre-exemple recherché : un producteur écrivant `achieved` après le
+timeout. L'autorité réaffirme l'échec à chaque tick expiré et avant le traitement
+OUTCOME du broker, tout en ne déclenchant LAND qu'une fois. Les tests compilés
+conservent les anciennes assertions et ajoutent première observation à
+209999/210000/210001 ms, livraison entre ticks, succès non posé, succès déjà
+confirmé, écrasement tardif et 10000 origines d'horloge à pas natif 8 ms.
+
+Le job R2025a existant conserve toutes ses assertions de géométrie et exécute
+en plus `run_grand_prix_u_deadline_native.py`. Il compile la composition de vol
+courante et le vrai hook, puis éprouve cinq cas dans le vrai moteur : succès
+observé à 209984 ms ; premier succès à 210000 ms ; résultat livré à 210008 ms ;
+écriture à 209992 ms observée à 210000 ms ; absence de succès avec pose non
+confirmée. Les canaux Supervisor, le temps Webots, le dernier pas de 16 ms,
+le déclencheur unique à 210000 ms, le filtrage tardif et RESET sont contrôlés.
+Les logs `deadline-*.log` et `deadline-build.log` rejoignent l'artefact existant
+et son manifeste SHA-256. Une preuve manquante fait échouer le job.
+
+Cette preuve native porte sur le temps et les champs, avec pose/outcome
+contrôlés. Elle ne démontre pas une trajectoire ni une descente dynamique ;
+les essais de mouvement/LAND dans des portiques appartiennent à la future
+recomposition #591. Aucun fichier de #591 ni oracle #600 n'est modifié ici.

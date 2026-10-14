@@ -21,6 +21,12 @@ void publish(const char *state) {
   WbFieldRef field=channel();
   if(field)wb_supervisor_field_set_sf_string(field,data);
 }
+void failed_outcome() {
+  WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
+  char result[192];
+  std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=grand-prix-u-v1 status=not-achieved",attempt);
+  if(field)wb_supervisor_field_set_sf_string(field,result);
+}
 }
 extern "C" int gp_u_start(double now) {
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
@@ -36,20 +42,21 @@ extern "C" int gp_u_start(double now) {
 }
 extern "C" int gp_u_deadline(double now,int nativeLanded) {
   landed=nativeLanded!=0;
-  if(begin<0 || expired || success)return 0;
+  if(begin<0 || success)return 0;
+  if(expired){failed_outcome();return 0;}
   WbFieldRef field=wb_supervisor_node_get_field(wb_supervisor_node_get_self(),"customData");
   const char *value=field?wb_supervisor_field_get_sf_string(field):nullptr;
+  // Only a success already latched on an earlier pre-deadline observation
+  // may bypass the deadline. The outcome channel has no validation timestamp:
+  // first observations at/after expiry fail closed even if delivered late.
+  if(std::llround(now*1000)-begin>=210000) {
+    expired=true;publish("deadline");
+    failed_outcome();
+    return 1;
+  }
   unsigned long long a=0;char oracle[64]={0},status[32]={0},tail[2]={0};
   success=landed && value && std::sscanf(value,"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=%63s status=%31s %1s",&a,oracle,status,tail)==3 &&
           a==attempt && !std::strcmp(oracle,"grand-prix-u-v1") && !std::strcmp(status,"achieved");
-  if(success)return 0;
-  if(std::llround(now*1000)-begin>=210000) {
-    expired=true;publish("deadline");
-    char result[192];
-    std::snprintf(result,sizeof(result),"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=%llu oracle=grand-prix-u-v1 status=not-achieved",attempt);
-    if(field)wb_supervisor_field_set_sf_string(field,result);
-    return 1;
-  }
   return 0;
 }
 extern "C" int gp_u_next_step(int normal) {
@@ -62,6 +69,7 @@ extern "C" void gp_u_reset_complete(void) {
   WbFieldRef field=channel();if(field)wb_supervisor_field_set_sf_string(field,"");
 }
 extern "C" int gp_u_filter_raw(const char *message) {
+  if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
   int id=-1;char cmd[32]={0};
   const bool parsed=message && std::sscanf(message,"WEBEEBLOCKS_RUNTIME_V2 REQUEST %d %31s",&id,cmd)==2;
   if(expired && parsed && std::strcmp(cmd,"OUTCOME") && !(landed && !std::strcmp(cmd,"RESET"))) {

@@ -109,6 +109,11 @@ def run_native(home, tcp=False):
         webots_version=version, webots_image=os.environ.get('WEBEEBLOCKS_GP_WEBOTS_IMAGE'),
         webots_binary_sha256=hashlib.sha256((home/'bin/webots-bin').read_bytes()).hexdigest(), tcp=tcp,
         results=summaries), indent=2)+'\n')
+    # Deadline source is a separate bounded increment; retain every existing
+    # geometry assertion and add native authority evidence when present.
+    if (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').exists():
+        from run_grand_prix_u_deadline_native import run_native as run_deadline
+        run_deadline(home)
     manifest = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in OUT.iterdir()
                 if p.is_file() and p.name != 'sha256.json'}
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
