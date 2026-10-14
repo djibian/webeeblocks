@@ -59,6 +59,8 @@ def saturate_stderr(*, close_reader: bool) -> int:
 def child(case: str) -> None:
     filled = saturate_stderr(close_reader=(case == "broken"))
     base.EVENTS.clear()
+    if case == "test-channel":
+        raise AssertionError("independent child diagnostics survive full OS stderr")
     if case in {"no-teacher", "broken"}:
         base.install_fakes()
         base.run_host(teacher_enabled=False)
@@ -131,6 +133,15 @@ def main() -> int:
         finally:
             faulthandler.cancel_dump_traceback_later()
         return 0
+    # Refute the old test-only failure mode before examining host behaviour:
+    # an assertion after filling fd 2 must exit and report on independent stdout.
+    probe = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), "--child", "test-channel"],
+        cwd=ROOT, capture_output=True, text=True, timeout=8, check=False,
+    )
+    require(probe.returncode == 1 and
+            "independent child diagnostics survive full OS stderr" in probe.stdout,
+            "test oracle cannot expose its own exceptions under full OS stderr")
     for case in (
         "no-teacher", "activation", "execution", "lost-reply", "broken", "queue-full",
     ):
