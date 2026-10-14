@@ -18,6 +18,22 @@ permissions:
   contents: read
 
 jobs:
+  grand-prix-u-geometry:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - name: Falsify Grand Prix U static geometry in real R2025a
+        run: python3 tools/ci/run_grand_prix_u_geometry.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grand-prix-u-geometry-r2025a
+          path: ci-artifacts/grand-prix-u-geometry/
+          if-no-files-found: error
+
   runtime-v2-core:
     runs-on: ubuntu-22.04
     steps:

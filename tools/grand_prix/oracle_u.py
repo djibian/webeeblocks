@@ -61,6 +61,65 @@ def collides(a,b,box):
     return swept_gap(a,b,box)<RADIUS
 
 
+
+def clipped_interval(a, b, bounds):
+    """Closed segment parameters inside a convex axis-aligned region."""
+    lo, hi = 0., 1.
+    for x, y, (lower, upper) in zip(a, b, bounds):
+        delta = y-x
+        if not delta:
+            if not lower <= x <= upper: return None
+        else:
+            first, last = sorted(((lower-x)/delta, (upper-x)/delta))
+            lo, hi = max(lo, first), min(hi, last)
+            if lo > hi: return None
+    return lo, hi
+
+
+def low_segment_allowed(a, b, layout, *, final=False, takeoff_until=None):
+    """Cover the entire strictly-low part by the union of bounded exceptions.
+
+    Parameter intervals avoid endpoint-only tests and arbitrary subdivisions.
+    Closed zone boundaries and z == LOW_THRESHOLD remain legal; no epsilon
+    enlarges a permitted region. This proves the observed straight segment,
+    not an unobserved curve between samples.
+    """
+    if min(a[2], b[2]) >= LOW_THRESHOLD: return True
+    low = clipped_interval((a[2],), (b[2],), ((-math.inf, LOW_THRESHOLD),))
+    intervals = []
+    for g in layout.gates:
+        interval = clipped_interval(local(g, a), local(g, b),
+            ((-LOW_BEFORE+RADIUS, LOW_AFTER-RADIUS),
+             (-layout.width/2+RADIUS, layout.width/2-RADIUS)))
+        if interval is not None: intervals.append(interval)
+    if final:
+        interval = clipped_interval(a[:2], b[:2],
+            ((.11, .86), (layout.side-.81, layout.side+.81)))
+        if interval is not None: intervals.append(interval)
+    if takeoff_until is not None:
+        # Disk intersection plus the exact 15 s temporal bound. The caller
+        # disables this exception permanently after the first exit.
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        aa = dx*dx+dy*dy
+        bb = 2*(a[0]*dx+a[1]*dy)
+        cc = a[0]*a[0]+a[1]*a[1]-.14**2
+        if not aa:
+            if cc <= 0: intervals.append((0., min(1., takeoff_until)))
+        else:
+            disc = bb*bb-4*aa*cc
+            if disc >= 0:
+                first, last = (-bb-math.sqrt(disc))/(2*aa), (-bb+math.sqrt(disc))/(2*aa)
+                lo, hi = max(0., first), min(1., last, takeoff_until)
+                if lo <= hi: intervals.append((lo, hi))
+    covered = low[0]
+    for lo, hi in sorted(intervals):
+        if hi < covered: continue
+        if lo > covered: return False
+        covered = max(covered, hi)
+        if covered >= low[1]: return True
+    return False
+
+
 @dataclass(frozen=True)
 class Result:
     status: str
@@ -116,14 +175,14 @@ class Attempt:
         if any(len(c)!=3 or not all(math.isfinite(v) for v in c) or c[2]>.012 for c in contacts):
             return self.fail(now,'device-contact')
         if z>self.origin_z+.20:self.airborne=True
-        if math.hypot(x,y)>.14 or ms-self.start_ms>15000:self.takeoff_done=True
-        # Takeoff cannot be reused later, and cannot become a low corridor.
-        takeoff=(not self.takeoff_done and math.hypot(x,y)<=.14)
-        final=(self.side==2 and .11<=x<=.86 and abs(y-self.layout.side)<=.81)
-        band=any(-LOW_BEFORE+RADIUS<=local(g,p)[0]<=LOW_AFTER-RADIUS and
-                 abs(local(g,p)[1])<=self.layout.width/2-RADIUS for g in self.layout.gates)
-        if z<LOW_THRESHOLD and not (takeoff or final or band):
+        takeoff_until = None
+        if not self.takeoff_done:
+            remaining = self.start_ms+15000-self.last_ms
+            takeoff_until = remaining/(ms-self.last_ms) if ms>self.last_ms else (1. if remaining>=0 else -1.)
+        if not low_segment_allowed(self.previous, p, self.layout,
+                final=self.side==2, takeoff_until=takeoff_until):
             return self.fail(now,'low-outside-zone')
+        if math.hypot(x,y)>.14 or ms-self.start_ms>15000:self.takeoff_done=True
         if self.side==0 and y>.41 or self.side==1 and x<self.layout.side-.41:
             return self.fail(now,'route-shortcut')
         if self.side==2 and y<self.layout.side-.9+RADIUS:

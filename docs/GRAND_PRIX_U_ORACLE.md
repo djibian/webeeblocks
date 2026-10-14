@@ -6,7 +6,7 @@ variables, AST ni capteurs du programme. Aucun score ou tour n'est exposé.
 
 Il vérifie ordre des trois côtés, franchissement orienté et dégagement de
 chaque H (panneaux 0,48 m et rayon 0,09 m), collisions de gabarit sur le segment
-entre deux observations, basse altitude et pose stable à la destination
+entre deux observations, basse altitude sur tout le segment observé et pose stable à la destination
 centre/gauche/droite. L'échec et le résultat de tentative sont irréversibles.
 À 210 000 ms ou après, le temps est prioritaire sur une nouvelle réussite.
 Ce module ne commande **aucun LAND** ; cette autorité native est une autre
@@ -31,14 +31,14 @@ python3 tools/ci/test_grand_prix_u_oracle.py
 python3 tools/ci/test_grand_prix_simulation_time.py
 ```
 
-Huit tests **synthétiques** : succès 1/2/3 avec différentes cibles ; mauvaise
+Treize tests **synthétiques** (les huit anciens sont conservés) : succès 1/2/3 avec différentes cibles ; mauvaise
 pose persistante ; limites avant/après bande d'un seul échantillon ; vol bas
 hors bande et raccourci ; oscillation partielle sans double compte ; frontière
 209,999/210,000/210,001 s ; collision balayée entre deux extrémités libres ;
 arc de coin admissible. Les anciennes cinq régressions de temps restent actives
 dans le même harness Runtime. Les fixtures sont des géométries explicites
 issues du générateur candidat #599, jamais des données fournies au programme.
-Le composant s'exécute sans dépendre de cette PR ni de #591.
+Le composant s'exécute sans dépendre de #591. Le générateur #599 est désormais intégré sur main.
 
 La composition native expérimentale dans #591 a produit un succès à trois
 portes/pose droite sur le premier monde de 2 m, après des réfutations de
@@ -48,3 +48,21 @@ fermeture, répétabilité, reset, bruits/saturations, LAND exact et campagne de
 taille exigent leurs propres essais natifs. Aucun vol réel, backend physique
 ou activité intermédiaire changé. Nouvelle CI et autre revue exigées ;
 l'exécution auteure ne délivre aucun GO.
+
+Réparation du NO_GO `6bf9e18bceb0b1af68418fd9527e6f428bd97c18` :
+le segment est paramétré et sa portion strictement sous 0,60 m doit être
+entièrement couverte par l'union des intervalles de zones autorisées.
+Le contrôle analytique conserve les frontières fermées, sans subdivisions
+ni tolérance élargissant une bande. Il couvre les entrées/sorties verticales,
+les trois orientations, les deux sens, les limites flottantes voisines, les
+trous entre bandes et les exceptions bornées de décollage/finale. Le cas
+32 ms `(0,370 ; 0 ; 0,6001) → (0,410 ; 0 ; 0,5800)` est désormais refusé
+avec `low-outside-zone`. Les segments sûrs qui montent avant la sortie ou
+descendent après l'entrée restent autorisés. L'expiration de l'exception de
+décollage est contrôlée aussi entre échantillons ; revenir au départ ne la
+réactive pas.
+
+La preuve porte sur le segment droit entre observations, comme le contrôle
+de collision balayée existant. Elle ne certifie pas une courbe inconnue
+entre deux observations ni une trajectoire Webots complète. Les tests natifs
+de mouvement et la recomposition de #591 restent des preuves distinctes.
