@@ -11,6 +11,10 @@ extern "C" {
 #include "pid_controller.h"
 }
 #endif
+// Webots release builds define NDEBUG. Test assertions must remain executable.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <cstdio>

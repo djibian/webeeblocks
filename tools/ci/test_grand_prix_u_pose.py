@@ -59,7 +59,7 @@ class PoseTests(unittest.TestCase):
             subprocess.run(['gcc','-std=c11',*inc,'-include',str(ROOT/'controllers/grand_prix_u_flight/grand_prix_u_hook.h'),
                             '-c',str(base/'runtime.c'),'-o',str(base/'runtime.o')],check=True)
             binary=base/'pose'
-            subprocess.run(['c++','-std=c++17',*inc,str(base/'runtime.o'),
+            subprocess.run(['c++','-std=c++17','-DNDEBUG',*inc,str(base/'runtime.o'),
                             str(FIXTURES/'gp_u_pose_driver.cpp'),str(base/'broker.cpp'),
                             str(base/'deadline.cpp'),'-o',str(binary)],check=True)
             for case in CASES:
