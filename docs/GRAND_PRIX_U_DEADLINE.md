@@ -13,8 +13,15 @@ absence de vol et une observation de sol valide ; RESET reste fermé même avant
 le premier TAKEOFF. L'accès est recalculé avant chaque lecture du broker :
 TAKEOFF ou RESET reçu dans le même tick ferme immédiatement le chemin suivant.
 Les requêtes refusées sont consommées, sans mise en attente ni réexécution.
-Au repos initial et après RESET, le broker/protocole/fournisseur partagé reste
-inchangé pour CAPABILITIES, OPEN, SAVE_AS, SAVE et RELEASE.
+Au repos initial et après RESET, le broker/protocole/fournisseur natif partagé
+reste inchangé pour CAPABILITIES, OPEN, SAVE_AS, SAVE et RELEASE.
+Une initialisation tardive de Robot Window doit également retrouver les fichiers
+après RESET : le transport partagé reprend uniquement la découverte CAPABILITIES
+après `BUSY`, séquentiellement toutes les 250 ms. La promesse d'initialisation
+reste en attente au lieu d'être mise en cache comme indisponibilité définitive.
+Les autres erreurs gardent leur rejet ; aucune opération OPEN/SAVE refusée n'est
+rejouée. Des tests du module exact couvrent deux BUSY, le retour au repos, la
+promesse partagée, UNAVAILABLE définitif et OPEN refusé sans replay.
 
 Les 56 scénarios historiques sont conservés. Cinq probes supplémentaires
 exercent le vrai FileBroker avec un fournisseur disponible dont création,
