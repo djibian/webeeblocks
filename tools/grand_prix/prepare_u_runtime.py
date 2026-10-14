@@ -73,6 +73,8 @@ def prepare():
        '        gp_ground_since = -1.0; /* Require post-teleport observations. */\n        command = CMD_RESET;'),
       ('      if (pose_ready && motion_ready) {',
        '      if (pose_ready && motion_ready && gp_ground_sample) {'),
+      ('      const int pose_ready = fabs(x - origin_x)',
+       '      const int pose_ready = gp_ground_sample && fabs(x - origin_x)'),
       ('        if (now - stable_since >= RESET_WINDOW) {',
        '''        /* The administrative RESET window cannot finalize recovery.
            Every observation since teleport/loss must confirm the full pose. */

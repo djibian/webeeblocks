@@ -126,6 +126,7 @@ extern "C" const double* gp_test_imu(int tag){
  if(tick==fault_tick())std::printf("GP_U_POSE_IMU t=%lld roll=%.6f pitch=%.6f\n",tick,data[0],data[1]);
  if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
  if(reset_loss() && mode=="reset-imu-null")return nullptr;
+ if(reset_loss() && mode=="reset-yaw-infinite")data[2]=INFINITY;
  if(reset_loss() && mode=="reset-imu-recover")data[1]=NAN;
  return data;
 }

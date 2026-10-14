@@ -25,18 +25,19 @@ L'admission révoque la fenêtre antérieure à la téléportation. Toute perte,
 mesure non finie, gyro instable ou gap invalide la fenêtre pendant RESET ;
 une nouvelle fenêtre continue de 0,5 s est nécessaire avant `response_ok`,
 la nouvelle identité de tentative et la clôture de l'autorité expirée.
-Les getters indisponibles sont traités comme des mesures invalides.
+Les getters indisponibles sont traités comme des mesures invalides. Le contrôle
+précède le calcul d'angle, qui pourrait boucler avec un lacet infini.
 Une perte persistante conserve l'échec et aboutit à `RESET_TIMEOUT`, sans
 nouvelle tentative. Le runtime partagé et son timeout restent inchangés.
 
 `test_grand_prix_u_pose.py` compile le C complet généré, le broker complet et
-le hook, avec wrappers aux seules frontières Webots. Les 33 cas couvrent
+le hook, avec wrappers aux seules frontières Webots. Les 34 cas couvrent
 erreur à l'échéance, erreur/timeout avant échéance, timeout du LAND, RESET
 en file, commandes/résultat tardifs, GPS/IMU/gyro non finis, rebond, mouvement,
 pose sous le sol, perte de confirmation puis récupération et poses positives.
-Les 19 nouveaux cas ajoutent les pertes persistantes/transitoires et vitesses
+Les 20 nouveaux cas ajoutent les pertes persistantes/transitoires et vitesses
 excessives des trois axes gyro pendant RESET, la perte au tick de finalisation,
-GPS/IMU/gyro indisponibles, récupération GPS/IMU, gap natif de 64 ms et
+GPS/IMU/gyro indisponibles, lacet infini, récupération GPS/IMU, gap natif de 64 ms et
 RESET/TAKEOFF/MOVE/COMPLETE/OUTCOME reçus pendant la fenêtre de récupération.
 Les mêmes cas sont exécutés dans R2025a par le probe composé : temps et capteurs
 natifs, poses/attitudes imposées par Supervisor, pertes de mesures injectées
