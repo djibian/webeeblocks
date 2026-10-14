@@ -119,6 +119,7 @@ extern "C" const double* gp_test_gps(int tag){
 }
 extern "C" const double* gp_test_imu(int tag){
  static double data[3];
+ static bool invalid_angle_reported=false;
 #ifdef GP_NATIVE
  const double* sample=wb_inertial_unit_get_roll_pitch_yaw(tag);
 #else
@@ -135,6 +136,7 @@ extern "C" const double* gp_test_imu(int tag){
  const long long flight_loss=mode=="flight-yaw-deadline-recover"?212048:2656;
  const bool bad_angle=(flight_case() && tick>=flight_loss &&
    (mode.find("-recover")==std::string::npos || tick==flight_loss)) || reset_loss();
+ if(!bad_angle)invalid_angle_reported=false;
  if(bad_angle && (flight_case() || mode.find("reset-yaw-")==0 ||
     mode=="reset-roll-extreme-loss" || mode=="reset-pitch-extreme-loss")){
   const int axis=mode=="reset-roll-extreme-loss"?0:mode=="reset-pitch-extreme-loss"?1:2;
@@ -144,7 +146,11 @@ extern "C" const double* gp_test_imu(int tag){
   if(flight_case() && mode.find("infinite")!=std::string::npos)data[axis]=mode.find("negative")!=std::string::npos?-INFINITY:INFINITY;
   if(flight_case() && mode.find("nan")!=std::string::npos)data[axis]=NAN;
   if(mode=="flight-yaw-deadline-recover")data[axis]=INFINITY;
-  std::printf("GP_U_POSE_INVALID_ANGLE t=%lld axis=%d value=%g\n",tick,axis,data[axis]);
+  // Thousands of per-tick console writes can slow the native probe itself.
+  // Retain the first loss, every new loss after recovery, and the deadline.
+  if(!invalid_angle_reported || tick==212048)
+   std::printf("GP_U_POSE_INVALID_ANGLE t=%lld axis=%d value=%g\n",tick,axis,data[axis]);
+  invalid_angle_reported=true;
  }
  return data;
 }
