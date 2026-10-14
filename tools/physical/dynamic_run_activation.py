@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import socket
 import hashlib
-import json
 import sys
 
 from color_led_transport import ColorLedTransportError, TrustedBottomColorLedTransport
@@ -241,15 +240,18 @@ def activate_validated_dynamic_run(
             # Non-authority diagnostic: preserve successful ground observations
             # in the existing host log, without making logging a safety oracle.
             try:
-                print("HOST_RANGE_READINESS " + json.dumps({
+                from host_diagnostics import HostDiagnostics
+                ground_log = HostDiagnostics(sys.stderr)
+                ground_log.emit("HOST_RANGE_READINESS", {
                     "connectionEpoch": binding.connection_epoch,
                     "astSha256": hashlib.sha256(binding.ast_binding.encode("utf-8")).hexdigest(),
                     "samples": [{"direction": s.direction, "rawMm": s.raw_mm,
                                  "logTimestampMs": s.firmware_timestamp_ms} for s in samples],
                     "boundary": "pre-takeoff log observations; no producer-age or in-flight guarantee",
-                }, sort_keys=True), file=sys.stderr, flush=True)
-            except (OSError, ValueError):
-                pass
+                })
+                ground_log.finish()
+            except Exception:
+                pass  # A saturated diagnostic sink cannot prevent authorization checks.
             # PARAM/LOG setup and teardown can block. Re-establish mutable
             # program/teacher/session evidence after them, then obtain the
             # existing supervisor postconditions immediately before emission.
