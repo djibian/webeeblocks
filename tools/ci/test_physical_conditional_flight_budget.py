@@ -197,6 +197,49 @@ def test_reviewer_refutations_and_exact_signs():
     require(evaluate(adverse)["conditional_endurance_margin_s"] < 0,
             "tiny finite lower endurance hides a motor-time deficit")
 
+def test_direct_float_inputs_keep_their_binary_bounds():
+    # Decimal(str(x)) silently erases BOTH strictly negative binary-float
+    # margins here (0.3 - 0.1 - 0.2), unlike Decimal.from_float(x).
+    sheet = synthetic_sheet()
+    for name, value in (
+        ("distance_to_hazard_m", 0.3),
+        ("prior_horizontal_excursion_m", 0.1),
+        ("rotor_radius_m", 0.2),
+        ("geometry_uncertainty_m", 0.0),
+        ("max_hazard_approach_speed_m_s", 0.0),
+        ("max_abort_to_deceleration_s", 0.0),
+        ("endurance_lower_bound_s", 0.3),
+        ("max_planned_motor_time_s", 0.1),
+        ("max_abort_to_motor_off_s", 0.2),
+        ("energy_time_reserve_s", 0.0),
+    ):
+        sheet["bounds"][name]["value"] = value
+    exact = Fraction(0.3) - Fraction(0.1) - Fraction(0.2)
+    require(exact < 0, "synthetic float counterexample changed")
+    output = evaluate(sheet)
+    for field in ("conditional_horizontal_margin_m", "conditional_endurance_margin_s"):
+        actual = output[field]
+        require(actual < 0 and Fraction.from_float(actual) <= exact,
+                "optimistic binary-float reinterpretation: " + field)
+    require(output["physical_qualification"] == "UNPROVEN"
+            and output["flight_authorized"] is False, "float inputs conferred authority")
+    wrong_unit = synthetic_sheet()
+    wrong_unit["bounds"]["distance_to_hazard_m"]["unit"] = "cm"
+    rejected(wrong_unit)  # Units are a strict external contract, not auto-converted.
+    wrong_unit = synthetic_sheet()
+    wrong_unit["bounds"]["distance_to_hazard_m"]["value"] = "200 cm"
+    rejected(wrong_unit)
+    fake_origin = synthetic_sheet()
+    fake_origin["source_sha"] = "f" * 40
+    fake_origin["ast_sha256"] = "e" * 64
+    fake_origin["bounds"]["distance_to_hazard_m"]["evidence_sha256"] = "d" * 64
+    conditional = evaluate(fake_origin)
+    require(conditional["status"] == "CONDITIONAL_ARITHMETIC_ONLY"
+            and conditional["physical_qualification"] == "UNPROVEN"
+            and conditional["flight_authorized"] is False,
+            "syntactically valid invented digests were treated as authentic evidence")
+
+
 def test_duplicate_json_keys_fail_closed_at_every_depth():
     with tempfile.TemporaryDirectory() as temp:
         path = Path(temp) / "adversarial.json"
@@ -243,6 +286,7 @@ def main():
     test_missing_or_unattested_bounds_fail_closed()
     test_offline_cli_does_not_claim_authority()
     test_reviewer_refutations_and_exact_signs()
+    test_direct_float_inputs_keep_their_binary_bounds()
     test_duplicate_json_keys_fail_closed_at_every_depth()
     print("PASS #157 synthetic budgets: exact conservative boundaries, duplicate-key rejection, provenance form, extremes, and no physical authority")
 
