@@ -64,7 +64,8 @@ inspecting Blockly syntax.
 
 The candidate geometry starts at **2.00 m side**, about **1.00 m corridors**
 and a larger terminal landing area; native Webots R2025a tests must establish
-the largest feasible dimensions and dynamic clearance, not assume them. The
+a fixed feasible dimension with comfortable reproducible time and dynamic
+clearance margins, rather than assuming or maximizing course size. The
 floor remains uniform with **no low obstacles**. Low-altitude flight is legal
 only within marked before/after distances around each open H gate, apart from
 bounded takeoff, final landing and forced-timeout landing exceptions. Identical
@@ -86,6 +87,20 @@ See the falsifiable simulation design in
 docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
 historical gp-v2/v3/v4 native results remain scoped to their older worlds,
 not acceptance of the new course. Do not change intermediate activities.
+
+**Immediate pedagogical delivery priority (#587; owner decision 2026-10-14):**
+make the existing WebeeBlocks progression usable end-to-end in class, from a
+clear and uncluttered first activity through the Grand Prix in Webots R2025a.
+Stabilize the independent Grand Prix timeout/recovery authority, integrate the
+simplified Activity 1 scene, and deliver one maintainable U-course with the same
+ordinary Blockly/.wbb/AST program across hidden gate configurations. Keep the
+behavioral oracle, exact 210 s simulated LAND and all valid negative tests.
+Choose a fixed course with comfortably reproducible time and clearance margins
+rather than optimizing size at the expense of reliability. Archive superseded
+lap/score policies and measurements without representing them as new U evidence.
+Do not rewrite activities 2–8 or expand the feature catalogue absent observed
+classroom needs; validate the real start/simulate/observe/debug/save/reopen
+experience with users. This delivery focus does not authorize real flight.
 
 The progression should build both programming concepts **and legible
 understanding of 3D space** from a minimal first activity. The owner's
