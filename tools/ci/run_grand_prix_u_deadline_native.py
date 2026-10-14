@@ -24,8 +24,8 @@ def run_native(home):
         for case in range(5):
             target.write_text('#VRML_SIM R2025a utf8\n'
                 'WorldInfo { basicTimeStep 8 }\n'
-                'DEF GP_U_EVALUATOR Robot { controller "<none>" }\n'
-                'Robot { supervisor TRUE controller "grand_prix_u_deadline_probe" '
+                'DEF GP_U_EVALUATOR Robot { name "Évaluateur échéance" controller "<none>" }\n'
+                'Robot { name "Probe échéance" supervisor TRUE controller "grand_prix_u_deadline_probe" window "<none>" '
                 f'controllerArgs [ "{case}" ] }}\n')
             logpath=OUT/f'deadline-{case}.log'
             with logpath.open('w') as log:

@@ -23,6 +23,7 @@ int main(int argc,char** argv){
   wb_supervisor_field_set_sf_string(self,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
   require(gp_u_start(wb_robot_get_time())==1,"admission");
   const long long begin=std::llround(wb_robot_get_time()*1000);
+  std::printf("GP_U_NATIVE_START case=%d begin=%lld\n",mode,begin);std::fflush(stdout);
   int triggers=0;long long trigger_ms=-1;bool injected=false,shortened=false;
   while(true){
     int step=gp_u_next_step(32);
@@ -38,6 +39,7 @@ int main(int argc,char** argv){
     if(mode==2 && triggers && !injected)step=8;
     require(wb_robot_step(step)!=-1,"step");
     const long long elapsed=std::llround(wb_robot_get_time()*1000)-begin;
+    if(elapsed<=32 || elapsed>=209984){std::printf("GP_U_NATIVE_TICK case=%d elapsed=%lld step=%d\n",mode,elapsed,step);std::fflush(stdout);}
     if(!injected && ((mode==0 && elapsed==209984)||(mode==1 && elapsed==210000)||(mode==2 && elapsed==210008))){
       wb_supervisor_field_set_sf_string(self,achieved);injected=true;
     }
