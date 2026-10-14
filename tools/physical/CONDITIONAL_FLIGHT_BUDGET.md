@@ -54,8 +54,12 @@ for conditional arithmetic. Direct Python API calls with binary `float` bounds
 retain their exact binary values rather than a possibly optimistic shortened
 decimal reinterpretation. Units are required by the field contract but cannot
 be authenticated or converted from independent measurements by this tool. The displayed travel allowance is rounded
-**upward**, while both displayed margins are rounded **downward**; unrepresentable
-bounds and nonfinite derived outputs are refused. These arithmetic safeguards
+**upward**, while both displayed margins are rounded **downward**. The CLI
+publishes each outward-rounded binary value as its **exact decimal expansion**
+in an unquoted JSON numeric token: the shorter decimal representation from
+ordinary float JSON serialization would not always preserve these inequalities.
+Check published margins as decimal numbers, not by re-rounding them to binary
+float. Unrepresentable bounds and nonfinite derived outputs are refused. These arithmetic safeguards
 cannot make an unmeasured physical envelope reliable.
 
 This tool checks only witness identifiers' *syntax*, not whether a source is

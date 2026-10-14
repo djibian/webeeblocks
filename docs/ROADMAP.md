@@ -13,7 +13,26 @@ here.
 
 ## Product priority
 
-1. **#157 — representative real-device qualification and useful reference-capability coverage**
+1. **#157 — qualify one reliable, safe real-device Blockly run before extending reference capabilities**
+
+**Owner decision, 2026-10-14:** the next physical outcome is a **bounded,
+externally evidenced first run of the exact same ordinary Blockly/.wbb program
+in Webots and on the reference Crazyflie**, not further generic block coverage.
+Use the existing `tools/physical/hover_range_comparison.wbb` engineering
+candidate: take off to 0.50 m, wait 1.00 s, read `range(front)` once, and land
+on a qualified uniform floor. Retain the exact AST, current trusted single-radio
+host and teacher authority; no new physical mission or special student block.
+
+Before any separately owner-authorized hardware checkpoint, establish the
+applicable **measured** volume/clearance or containment, sensor return under
+thrust, XY/Z/attitude excursions, operator abort and terminal recovery,
+timing and under-load energy margins, and canonical simulation/CI/independent
+software evidence. No synthetic margin or 210 s Webots rule becomes a physical
+bound. Any missing evidence remains FAIL/UNPROVEN; this decision **authorizes no
+flight, flash or TEST_REQUIRED**. Prefer indispensable, falsifiable steps over
+extra speculative infrastructure; expand movements, sensors and LED capabilities
+one evidence-backed slice at a time after the first bounded physical acceptance.
+Keep #72 separately gated and #70 optional on uniform ground.
 
 #487 is now a validated product baseline rather than an active priority node.
 Activities 1–8 were materialized through the shared declarative profile/Runtime
@@ -27,6 +46,21 @@ obscures the objective; #589 keeps the independently reviewable minimal
 activity-1 scene. #587 and #591 supply the separate experimental Grand Prix,
 before any changes to the intermediate activities.
 
+**Owner delivery decision, 2026-10-14 (#587):** focus the pedagogical
+workstream on completing the already implemented classroom path, **not**
+expanding the catalogue: stabilize Grand Prix independent timeout/RESET
+authority (#602), integrate uncluttered Activity 1 (#589), compose/review
+the single active U-course (#591), then validate student-facing
+start / simulate / observe / correct / save / reopen in the ordinary
+Webots classroom workflow. Retain the existing activities 2–8 and
+all applicable oracle/safety invariants and historical proof. Earlier
+lap/score policy #598 is abandoned as a product candidate; gp-v4
+fixed-32-ms margin analysis #597 is not usable unchanged for 8-ms U
+traces. Preserve these PRs and their evidence as history rather
+than merging obsolete behavior or building a new diagnostic project.
+Only introduce further changes for demonstrated usability failures,
+regressions or indispensable safety/oracle boundaries. No real flight.
+
 **Superseding owner decision, 2026-10-13:** a single traverse of **three
 consecutive sides of a square**; **1–3 H gates** in reproducibly variable
 positions, at most one H per side, followed by a **terminal closed H**.
@@ -36,7 +70,7 @@ chooses a terminal landing at **center, 0.50 m left or 0.50 m right** for
 1/2/3 H respectively. Landing elsewhere fails. Memory is useful through
 observable behavior, not forced by AST inspection. Dimensions are fixed
 across configurations; first test **2.00 m side** and a wider arrival area,
-then determine the greatest size meeting geometry and time criteria.
+then select a fixed size with comfortable reproducible clearance and time margins.
 
 Mark before/after **low-altitude permitted bands at each H on the Webots
 floor**, corresponding to eventual physical floor tape. Outside a passing

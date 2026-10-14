@@ -80,6 +80,34 @@ def _outward(value: Fraction, *, lower: bool) -> float:
         raise EvidenceError("derived conditional budget overflowed; no finite bound")
     return result
 
+
+# The final JSON tokens must bound the EXACT rational inputs. json.dumps(float)
+# emits a shortest round-trippable decimal, which is not necessarily safe:
+# a float above 0.100000000000000002 can serialize as just 0.1.
+_DIRECTED_DECIMAL_FIELDS = frozenset((
+    "abort_motion_allowance_m",
+    "conditional_horizontal_margin_m",
+    "conditional_endurance_margin_s",
+))
+
+def _json_with_exact_float_decimals(result: dict[str, object]) -> str:
+    """Encode directed floats as exact JSON decimal numbers, never strings.
+
+    Decimal.from_float preserves the *whole* binary value that _outward bounded.
+    Unlike the shortest decimal produced by json.dumps(float), this exact
+    expansion cannot cross the original rational bound during publication.
+    """
+    fields = []
+    for key, value in sorted(result.items()):
+        if key in _DIRECTED_DECIMAL_FIELDS:
+            if type(value) is not float or not isfinite(value):
+                raise EvidenceError("nonfinite or missing directed numeric output")
+            encoded = str(Decimal.from_float(value))
+        else:
+            encoded = json.dumps(value, allow_nan=False)
+        fields.append(json.dumps(key) + ": " + encoded)
+    return "{" + ", ".join(fields) + "}"
+
 def evaluate(sheet: object) -> dict[str, object]:
     if type(sheet) is not dict or set(sheet) != {"source_sha", "ast_sha256", "bounds"}:
         raise EvidenceError("sheet needs exactly source_sha, ast_sha256 and bounds")
@@ -140,7 +168,7 @@ def main(argv: list[str]) -> int:
                           "physical_qualification": "UNPROVEN",
                           "error": str(exc)}, sort_keys=True))
         return 2
-    print(json.dumps(result, sort_keys=True, allow_nan=False))
+    print(_json_with_exact_float_decimals(result))
     return 0
 
 if __name__ == "__main__":

@@ -64,7 +64,8 @@ inspecting Blockly syntax.
 
 The candidate geometry starts at **2.00 m side**, about **1.00 m corridors**
 and a larger terminal landing area; native Webots R2025a tests must establish
-the largest feasible dimensions and dynamic clearance, not assume them. The
+a fixed feasible dimension with comfortable reproducible time and dynamic
+clearance margins, rather than assuming or maximizing course size. The
 floor remains uniform with **no low obstacles**. Low-altitude flight is legal
 only within marked before/after distances around each open H gate, apart from
 bounded takeoff, final landing and forced-timeout landing exceptions. Identical
@@ -86,6 +87,20 @@ See the falsifiable simulation design in
 docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
 historical gp-v2/v3/v4 native results remain scoped to their older worlds,
 not acceptance of the new course. Do not change intermediate activities.
+
+**Immediate pedagogical delivery priority (#587; owner decision 2026-10-14):**
+make the existing WebeeBlocks progression usable end-to-end in class, from a
+clear and uncluttered first activity through the Grand Prix in Webots R2025a.
+Stabilize the independent Grand Prix timeout/recovery authority, integrate the
+simplified Activity 1 scene, and deliver one maintainable U-course with the same
+ordinary Blockly/.wbb/AST program across hidden gate configurations. Keep the
+behavioral oracle, exact 210 s simulated LAND and all valid negative tests.
+Choose a fixed course with comfortably reproducible time and clearance margins
+rather than optimizing size at the expense of reliability. Archive superseded
+lap/score policies and measurements without representing them as new U evidence.
+Do not rewrite activities 2–8 or expand the feature catalogue absent observed
+classroom needs; validate the real start/simulate/observe/debug/save/reopen
+experience with users. This delivery focus does not authorize real flight.
 
 The progression should build both programming concepts **and legible
 understanding of 3D space** from a minimal first activity. The owner's
@@ -218,6 +233,30 @@ simulation progression may include richer scenarios, but the exact student
 program selected for physical execution must first be validated in simulation
 and then executed unchanged under explicit teacher authorization. A physical
 course cannot be product-ready before its relevant safety/capability gates pass.
+
+**Immediate physical milestone (#157; owner decision 2026-10-14):** establish
+reliable and safe execution of **one simple, unchanged Blockly program** on the
+real reference Crazyflie before expanding physical capabilities. The existing
+engineering candidate `tools/physical/hover_range_comparison.wbb` uses the
+ordinary project/profile/Blockly/AST/preflight/shared-interpreter path:
+take off to 0.50 m, wait 1.00 s, take one `range(front)` reading, then land
+on a uniform floor. It must first succeed with the exact same program in
+Webots. This is a **qualification witness**, not a released pupil activity or
+authorization of a real test or the physical Grand Prix.
+
+Physical acceptance requires separately authorized and externally witnessed
+evidence of the actual flight domain: in-flight ranging under thrust, observed
+XY/Z/attitude excursions, adequate clearance or containment, operator abort
+and terminal recovery under applicable faults, and justified real-world timing
+and under-load energy margins. Synthetic calculations, green CI and the
+simulation-only 210 s rule do **not** qualify these bounds. Keep single-radio
+host authority, trusted teacher approval, fail-closed recovery and independent
+V5 review/checkpoint requirements. Failed or unavailable evidence remains
+FAIL/UNPROVEN; no automatic retry or hardware action follows from this
+decision. Prefer the shortest concrete proof over additional speculative
+primitives or infrastructure. Broaden movements, sensors and LED behaviors
+incrementally **after** an accepted limited physical result, each within its
+own evidenced domain; #72 remains independently gated.
 
 Lab #70 remains optional research toward stable **world-frame altitude** across
 floor → table → floor, acceptable X/Y behavior and safe recovery. Terrain-

@@ -121,6 +121,108 @@ def test_offline_cli_does_not_claim_authority():
         require(proc.returncode == 2, "malformed JSON was accepted")
 
 
+
+def test_cli_publishes_conservative_exact_decimal_tokens():
+    # Three independent serialization NO_GO witnesses from reviewer of dd96dac.
+    # All source IDs, values and evidence digests below are SYNTHETIC.
+    reviewer = {
+        "distance_to_hazard_m": "0.499999999999999992",
+        "prior_horizontal_excursion_m": "0",
+        "rotor_radius_m": "0.1",
+        "geometry_uncertainty_m": "0",
+        "max_hazard_approach_speed_m_s": "0.2",
+        "max_abort_to_deceleration_s": "0.10000000000000001",
+        "min_supported_deceleration_m_s2": "0.25",
+        "endurance_lower_bound_s": "70.29999999999999999",
+        "max_planned_motor_time_s": "40",
+        "max_abort_to_motor_off_s": "10",
+        "energy_time_reserve_s": "20",
+    }
+    def exact_result(numbers):
+        # Independent rational oracle from the original decimal input tokens.
+        v = {key: Fraction(Decimal(spelling)) for key, spelling in numbers.items()}
+        travel = (v["max_hazard_approach_speed_m_s"] * v["max_abort_to_deceleration_s"]
+                  + v["max_hazard_approach_speed_m_s"] ** 2
+                  / (2 * v["min_supported_deceleration_m_s2"]))
+        return {
+            "abort_motion_allowance_m": travel,
+            "conditional_horizontal_margin_m": (
+                v["distance_to_hazard_m"] - v["prior_horizontal_excursion_m"]
+                - v["rotor_radius_m"] - v["geometry_uncertainty_m"] - travel),
+            "conditional_endurance_margin_s": (
+                v["endurance_lower_bound_s"] - v["max_planned_motor_time_s"]
+                - v["max_abort_to_motor_off_s"] - v["energy_time_reserve_s"]),
+        }
+
+    def numeric_json(numbers):
+        # Keep every input spelling as a literal JSON NUMBER (not quoted,
+        # not converted to Python float, and not rounded by json.dumps).
+        return ('{"source_sha":"' + "a" * 40 + '","ast_sha256":"' + "b" * 64
+                + '","bounds":{' + ",".join(
+                    json.dumps(name) + ':{"value":' + spelling
+                    + ',"evidence_sha256":"' + "c" * 64 + '"}'
+                    for name, spelling in numbers.items()) + '}}')
+
+    expected_reviewer = exact_result(reviewer)
+    require(expected_reviewer == {
+        "abort_motion_allowance_m": Fraction(Decimal("0.100000000000000002")),
+        "conditional_horizontal_margin_m": Fraction(Decimal("0.29999999999999999")),
+        "conditional_endurance_margin_s": Fraction(Decimal("0.29999999999999999")),
+    }, "reviewer decimal counterexample incorrectly reconstructed")
+    raw = numeric_json(reviewer)
+    # Explicitly reproduce the defect without restoring the buggy production
+    # serializer: binary outward floats are safe, shortest JSON decimals are not.
+    baseline = evaluate(json.loads(raw, parse_float=Decimal))
+    legacy = json.loads(json.dumps(baseline), parse_float=Decimal, parse_int=Decimal)
+    require(Fraction(legacy["abort_motion_allowance_m"])
+            < expected_reviewer["abort_motion_allowance_m"],
+            "old CLI travel underestimation witness not reproduced")
+    for field in ("conditional_horizontal_margin_m", "conditional_endurance_margin_s"):
+        require(Fraction(legacy[field]) > expected_reviewer[field],
+                "old CLI margin overestimation witness not reproduced: " + field)
+
+    cases = [reviewer]
+    # Also exercise the exact zero crossing from both sides in the emitted CLI,
+    # not only in evaluate()'s existing direct-float tests.
+    for delta in ("-0.00000000000000001", "0", "0.00000000000000001"):
+        numbers = dict(reviewer)
+        numbers.update({
+            "distance_to_hazard_m": str(Decimal("0.1") + Decimal(delta)),
+            "max_hazard_approach_speed_m_s": "0",
+            "prior_horizontal_excursion_m": "0",
+            "rotor_radius_m": "0.1",
+            "geometry_uncertainty_m": "0",
+            "endurance_lower_bound_s": str(Decimal("70") + Decimal(delta)),
+        })
+        cases.append(numbers)
+    with tempfile.TemporaryDirectory() as temp:
+        path = Path(temp) / "exact-decimal-bounds.json"
+        for numbers in cases:
+            raw = numeric_json(numbers)
+            path.write_text(raw, encoding="utf-8")
+            proc = subprocess.run(
+                [sys.executable, str(PHYSICAL / "conditional_flight_budget.py"), str(path)],
+                capture_output=True, text=True, timeout=5)
+            require(proc.returncode == 0, proc.stderr + proc.stdout)
+            emitted = json.loads(proc.stdout, parse_float=Decimal, parse_int=Decimal)
+            evaluated = evaluate(json.loads(raw, parse_float=Decimal))
+            exact = exact_result(numbers)
+            require(emitted["flight_authorized"] is False
+                    and emitted["physical_qualification"] == "UNPROVEN"
+                    and emitted["status"] == "CONDITIONAL_ARITHMETIC_ONLY",
+                    "published decimal margins conferred authority")
+            for field, rational in exact.items():
+                published = emitted[field]
+                require(type(published) is Decimal,
+                        "directed field must be a numeric JSON token: " + field)
+                require((Fraction(published) >= rational
+                         if field == "abort_motion_allowance_m"
+                         else Fraction(published) <= rational),
+                        "optimistic DECIMAL JSON field: " + field + ", " + str(published))
+                require(Fraction(published) == Fraction.from_float(evaluated[field]),
+                        "JSON lost the exact outward-rounded binary value: " + field)
+
+
 def test_reviewer_refutations_and_exact_signs():
     # Original NO_GO reproducer: naive floats returned +5.55e-17 metres
     # even though the written decimal bounds imply a NEGATIVE margin.
@@ -285,6 +387,7 @@ def main():
     test_conditional_arithmetic_and_no_authority()
     test_missing_or_unattested_bounds_fail_closed()
     test_offline_cli_does_not_claim_authority()
+    test_cli_publishes_conservative_exact_decimal_tokens()
     test_reviewer_refutations_and_exact_signs()
     test_direct_float_inputs_keep_their_binary_bounds()
     test_duplicate_json_keys_fail_closed_at_every_depth()
