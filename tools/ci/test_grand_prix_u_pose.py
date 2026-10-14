@@ -16,6 +16,7 @@ CASES=('no-fault','deadline-error','early-error','timeout','land-timeout',
        *(f'reset-gyro-{axis}-{failure}' for axis in 'xyz' for failure in ('loss','recover','high')),
        *(f'reset-gyro-{axis}-final-recover' for axis in 'xyz'),
        'reset-gps-null','reset-imu-null','reset-gyro-null','reset-yaw-infinite',
+       'reset-yaw-high','reset-yaw-recover',
        'reset-gps-recover','reset-imu-recover','reset-gap-recover','reset-queue')
 
 def expected_reset(case):

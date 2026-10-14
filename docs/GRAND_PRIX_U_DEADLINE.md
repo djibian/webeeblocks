@@ -29,15 +29,20 @@ Les getters indisponibles sont traités comme des mesures invalides. Le contrôl
 précède le calcul d'angle, qui pourrait boucler avec un lacet infini.
 Une perte persistante conserve l'échec et aboutit à `RESET_TIMEOUT`, sans
 nouvelle tentative. Le runtime partagé et son timeout restent inchangés.
+Le contre-exemple indépendant sur `f6f665f` (lacet transitoire hors tolérance,
+autres mesures valides, acquittement après seulement 288 ms de reprise) impose
+aussi la fenêtre complète à `pose_ready` : position et lacet de RESET doivent
+rester valides pendant les mêmes 0,5 s, pas seulement les critères de sol.
 
 `test_grand_prix_u_pose.py` compile le C complet généré, le broker complet et
-le hook, avec wrappers aux seules frontières Webots. Les 34 cas couvrent
+le hook, avec wrappers aux seules frontières Webots. Les 36 cas couvrent
 erreur à l'échéance, erreur/timeout avant échéance, timeout du LAND, RESET
 en file, commandes/résultat tardifs, GPS/IMU/gyro non finis, rebond, mouvement,
 pose sous le sol, perte de confirmation puis récupération et poses positives.
-Les 20 nouveaux cas ajoutent les pertes persistantes/transitoires et vitesses
+Les 22 nouveaux cas ajoutent les pertes persistantes/transitoires et vitesses
 excessives des trois axes gyro pendant RESET, la perte au tick de finalisation,
-GPS/IMU/gyro indisponibles, lacet infini, récupération GPS/IMU, gap natif de 64 ms et
+GPS/IMU/gyro indisponibles, lacet infini/hors tolérance/transitoire,
+récupération GPS/IMU, gap natif de 64 ms et
 RESET/TAKEOFF/MOVE/COMPLETE/OUTCOME reçus pendant la fenêtre de récupération.
 Les mêmes cas sont exécutés dans R2025a par le probe composé : temps et capteurs
 natifs, poses/attitudes imposées par Supervisor, pertes de mesures injectées

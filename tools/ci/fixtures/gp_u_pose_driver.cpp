@@ -127,6 +127,7 @@ extern "C" const double* gp_test_imu(int tag){
  if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
  if(reset_loss() && mode=="reset-imu-null")return nullptr;
  if(reset_loss() && mode=="reset-yaw-infinite")data[2]=INFINITY;
+ if(reset_loss() && (mode=="reset-yaw-high" || mode=="reset-yaw-recover"))data[2]=0.3;
  if(reset_loss() && mode=="reset-imu-recover")data[1]=NAN;
  return data;
 }
