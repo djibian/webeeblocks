@@ -219,6 +219,30 @@ program selected for physical execution must first be validated in simulation
 and then executed unchanged under explicit teacher authorization. A physical
 course cannot be product-ready before its relevant safety/capability gates pass.
 
+**Immediate physical milestone (#157; owner decision 2026-10-14):** establish
+reliable and safe execution of **one simple, unchanged Blockly program** on the
+real reference Crazyflie before expanding physical capabilities. The existing
+engineering candidate `tools/physical/hover_range_comparison.wbb` uses the
+ordinary project/profile/Blockly/AST/preflight/shared-interpreter path:
+take off to 0.50 m, wait 1.00 s, take one `range(front)` reading, then land
+on a uniform floor. It must first succeed with the exact same program in
+Webots. This is a **qualification witness**, not a released pupil activity or
+authorization of a real test or the physical Grand Prix.
+
+Physical acceptance requires separately authorized and externally witnessed
+evidence of the actual flight domain: in-flight ranging under thrust, observed
+XY/Z/attitude excursions, adequate clearance or containment, operator abort
+and terminal recovery under applicable faults, and justified real-world timing
+and under-load energy margins. Synthetic calculations, green CI and the
+simulation-only 210 s rule do **not** qualify these bounds. Keep single-radio
+host authority, trusted teacher approval, fail-closed recovery and independent
+V5 review/checkpoint requirements. Failed or unavailable evidence remains
+FAIL/UNPROVEN; no automatic retry or hardware action follows from this
+decision. Prefer the shortest concrete proof over additional speculative
+primitives or infrastructure. Broaden movements, sensors and LED behaviors
+incrementally **after** an accepted limited physical result, each within its
+own evidenced domain; #72 remains independently gated.
+
 Lab #70 remains optional research toward stable **world-frame altitude** across
 floor → table → floor, acceptable X/Y behavior and safe recovery. Terrain-
 following ascent/descent is not an acceptable substitute. Research #70 is not
