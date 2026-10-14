@@ -66,6 +66,16 @@ int main(int argc,char** argv){
     require(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 MOVE forward 0.1")==0,"late effect denied");
     require(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 4 RESET")== (mode==4?0:1),"RESET pose gate");
   }
+  // Successful completion is resting; expired/unfinished attempts are not.
+  // The composed controller supplies IDLE and fresh ground observations.
+  gp_u_file_idle(1);
+  require(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 41 OPEN")== (mode==0?1:0),"resting file success gate");
+  if(mode==0) {
+    require(gp_u_deadline(wb_robot_get_time(),0)==0,"no rearmed deadline on pose loss");
+    require(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 42 SAVE ref e30=")==0,"lost success pose closes files");
+    require(gp_u_deadline(wb_robot_get_time(),1)==0,"no duplicate deadline");
+    require(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 43 SAVE ref e30=")==1,"fresh successful resting pose");
+  }
   char evidence[256];
   std::snprintf(evidence,sizeof(evidence),"GP_U_NATIVE_DEADLINE case=%d triggers=%d trigger_ms=%lld claim=time-fields-only",mode,triggers,trigger_ms);
   // Webots can terminate before draining the controller's last stdout tick.

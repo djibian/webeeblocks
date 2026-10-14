@@ -75,7 +75,11 @@ int main(){
  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 3";assert(gp_u_start(500)==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-u-v1 status=achieved";
  assert(gp_u_deadline(709.999,1)==0);assert(gp_u_deadline(710,1)==0); // already completed before cap
- gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ assert(gp_u_deadline(710.001,0)==0); // lost pose confirmation closes files even after success
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(gp_u_deadline(710.002,1)==0);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
  // First success observations at each side of the exact boundary.
  for(int elapsed:{209999,210000,210001}){
   gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";assert(gp_u_start(2.112)==1);

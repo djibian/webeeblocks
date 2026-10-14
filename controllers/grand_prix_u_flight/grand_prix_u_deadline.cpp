@@ -75,10 +75,11 @@ extern "C" int gp_u_filter_raw(const char *message) {
   if(expired && begin>=0)failed_outcome(); // OUTCOME cannot expose a late overwrite
   // Every broker operation can enter a provider (including creation, metadata,
   // read/write and release). Fence the namespace before that shared path runs.
-  // A landed/failed/successful attempt stays fenced through confirmed RESET.
+  // A failed/unfinished attempt stays fenced through confirmed RESET.
+  // Verified success disarms the deadline, but still requires fresh landing.
   const char *prefix="WEBEEBLOCKS_FILE_BROKER_V1 ";
   if(message && !std::strncmp(message,prefix,std::strlen(prefix)) &&
-     (!fileIdle || begin>=0)) {
+     (!fileIdle || (begin>=0 && !(success && landed)))) {
     int fileId=-1;
     if(std::sscanf(message,"WEBEEBLOCKS_FILE_BROKER_V1 REQUEST %d",&fileId)==1 && fileId>=1) {
       char reply[128];

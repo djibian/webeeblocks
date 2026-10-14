@@ -7,8 +7,10 @@ sous Windows ; OPEN lit aussi le fichier et SAVE écrit sur le stockage, qui
 peut attendre. La composition refuse maintenant tout le namespace
 `WEBEEBLOCKS_FILE_BROKER_V1` avec `ERR BUSY` avant création du fournisseur
 pendant une tentative, sa descente et sa récupération. Une pose administrative
-IDLE, un succès ou une pose au sol n'ouvrent pas les fichiers de cette tentative :
-seul RESET confirmé clôt l'autorité. Sans tentative, les fichiers exigent IDLE,
+IDLE ou une pose au sol seule n'ouvre pas les fichiers : RESET confirmé clôt
+l'autorité. Une réussite déjà validée avant la limite désarme son échéance et
+peut rouvrir les fichiers au repos, avec confirmation native fraîche au sol ;
+une perte de confirmation les referme, ainsi que RESET dans le même tick. Sans tentative, les fichiers exigent IDLE,
 absence de vol et une observation de sol valide ; RESET reste fermé même avant
 le premier TAKEOFF. L'accès est recalculé avant chaque lecture du broker :
 TAKEOFF ou RESET reçu dans le même tick ferme immédiatement le chemin suivant.
