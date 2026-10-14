@@ -31,6 +31,14 @@ retenus par la même campagne R2025a, sans élargir aucun plafond par probe.
 Cette preuve de composition n'est ni un dialogue Qt automatisé ni une descente
 dynamique ; le chargement `.wbb` conserve ses tests de projet partagés.
 
+Le run de `bc302420` a épuisé les 900 s agrégées après 52 records historiques,
+avec 12–18 s murales par scénario et aucun échec individuel. Il n'avait pas
+encore exercé les probes fichiers. L'enveloppe agrégée est donc 1200 s / job
+25 min pour la campagne complète de 61 compositions, géométrie, temps et build.
+Le plafond de 45 s par probe et chaque assertion sont conservés. Les cinq
+nouveaux probes passent d'abord, dans des processus frais indépendants ; tous
+les anciens cas suivent. Une campagne interrompue n'est jamais un PASS global.
+
 Correction du NO_GO `8ea6e63ff9e219ffd74b62bd5f691fda3c114d03` :
 la normalisation par boucles soustrayant 2π ne progresse pas avec ±∞,
 ni avec un fini dont l'ULP dépasse 2π (`±1e20`, `DBL_MAX`). Le préparateur
@@ -61,7 +69,7 @@ exerce le même helper sur les frontières ±π et les 4196 valeurs signées de
 puissances de deux, du subnormal au grand fini, ainsi que les non-finis.
 Les assertions du PID/moteurs contrôlés refusent les valeurs non finies.
 Les sept géométries, cinq probes temporels et plafonds de 45 s par cas sont
-conservés ; seul le budget mural agrégé passe à 900 s (job 20 min avec
+conservés ; le budget mural agrégé historique était 900 s (job 20 min avec
 préparation/upload) pour les 56 probes composés. La sélection et CI Gate
 restent inchangés. Chaque HEAD exige ses propres preuves et revue indépendante.
 

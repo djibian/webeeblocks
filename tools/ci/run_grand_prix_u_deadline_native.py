@@ -68,7 +68,9 @@ def run_pose_native(home,env):
         target.write_text('#VRML_SIM R2025a utf8\n'+externs+'\n'
             'WorldInfo { basicTimeStep 8 gravity 0 }\n'+robot+'\n'
             'DEF GP_U_EVALUATOR Robot { name "Évaluateur pose" controller "<none>" }\n')
-        for case,files in [(case,'') for case in CASES]+list(FILE_PROBES):
+        # Fresh processes keep these scenarios independent. Exercise the newly
+        # repaired boundary first without removing any historical case.
+        for case,files in list(FILE_PROBES)+[(case,'') for case in CASES]:
             identifier=f'pose-{case}'+(f'-files-{files}' if files else '')
             record=OUT/f'{identifier}-native.txt';record.unlink(missing_ok=True)
             file_record=OUT/f'{identifier}-provider-native.txt';file_record.unlink(missing_ok=True)
@@ -100,7 +102,7 @@ def run_pose_native(home,env):
                     raise RuntimeError('invalid provider entry/denial counts')
                 if (files in ('warm','startup-reset') and requests-denied<10):
                     raise RuntimeError('resting file semantics not demonstrated')
-                if case in ('land','land-timeout') and files!='startup-reset' and text.count('GP_U_CONTROL_APPLIED time_ms=212048 ')!=1:
+                if case in ('land','land-timeout') and files!='startup-reset' and text.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND')!=1:
                     raise RuntimeError('first native LAND control not applied at exact expiry')
                 print('PASS real R2025a '+data,flush=True)
             print('PASS real R2025a composed '+expected,flush=True)

@@ -158,11 +158,11 @@ def main():
               # Seven geometry + five time + fifty-six existing runtime probes,
               # plus five blocking-file composition/transition probes.
               # Simulation deadlines and every per-case assertion are unchanged.
-              'timeout -k 5s 900s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              'timeout -k 5s 1200s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()
-                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=960)
+                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1260)
         finally:
             if cid.exists():
                 identifier=cid.read_text().strip()

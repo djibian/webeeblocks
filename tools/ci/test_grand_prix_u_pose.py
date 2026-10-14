@@ -60,7 +60,7 @@ def instrument(base):
     if runtime.count(motor)!=1:raise RuntimeError('composed motor anchor changed')
     runtime=runtime.replace(motor,motor+'''
       if (llround(now * 1000.0) == 212048) {
-        printf("GP_U_CONTROL_APPLIED time_ms=212048 command=%d\\n", command);
+        printf("GP_U_CONTROL_APPLIED time_ms=212048 command=%s\\n", command == CMD_LAND ? "LAND" : "OTHER");
         fflush(stdout);
       }''')
     (base/'runtime.c').write_text(WRAPPERS+runtime)
@@ -147,7 +147,7 @@ int main(void) {
                     deadlines=[line for line in result.stdout.splitlines() if line.startswith('GP_U_DEADLINE ')]
                     self.assertEqual(len(deadlines),0 if probe=='startup-reset' else 1,result.stdout)
                     if deadlines:self.assertIn('time_ms=212048 command=LAND',deadlines[0])
-                    if case=='land' and probe!='startup-reset' or case=='land-timeout':
-                        self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 '),1)
+                    if (case=='land' and probe!='startup-reset') or case=='land-timeout':
+                        self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
 
 if __name__=='__main__':unittest.main()
