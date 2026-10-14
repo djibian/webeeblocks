@@ -56,6 +56,8 @@ def run_pose_native(home,env):
                        stdout=log,stderr=subprocess.STDOUT,check=True,timeout=90)
     source=(ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
     robot=source[source.index('Crazyflie {'):source.index('# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN')]
+    # The initial native reset fields must match the imposed startup pose.
+    robot=robot.replace('Crazyflie {','Crazyflie {\n  translation 0 0 0.023\n  rotation 1 0 0 0',1)
     robot=robot.replace('controller "crazyflie_runtime_v2"','controller "grand_prix_u_pose_probe"')
     robot=robot.replace('window "blockly_v2"','window "<none>"')
     externs='\n'.join(line.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://')

@@ -28,6 +28,9 @@ Les mêmes cas sont exécutés dans R2025a par le probe composé : temps et capt
 natifs, poses/attitudes imposées par Supervisor, pertes de mesures injectées
 aux getters, vrais PID et broker de simulation sans dialogue Qt.
 Le monde de probe a une gravité nulle pour isoler cette provenance de pose.
+La pose native initiale correspond à la pose de démarrage imposée. Après
+RESET, le Supervisor maintient la pose réellement demandée par le runtime
+pendant les observations de stabilité ; aucune dérive dynamique n'est testée.
 Les wrappers enregistrent uniquement les téléportations demandées par RESET.
 Ce test prouve le filtrage de la composition, pas une descente dynamique.
 Un enregistrement frais n'est écrit qu'après toutes les assertions.

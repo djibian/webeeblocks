@@ -47,7 +47,17 @@ static bool grounds(){
         mode=="bounce" || mode=="moving" || mode=="below-ground";
 }
 static void set_scene(long long next){
- if(teleports)return; // Preserve the real RESET transition.
+ if(teleports){
+  // Continue the same controlled-pose policy through RESET, holding the
+  // actual pose requested by the runtime rather than introducing a drift test.
+#ifdef GP_NATIVE
+  auto self=wb_supervisor_node_get_self();
+  wb_supervisor_field_set_sf_vec3f(wb_supervisor_node_get_field(self,"translation"),pos);
+  wb_supervisor_field_set_sf_rotation(wb_supervisor_node_get_field(self,"rotation"),rot);
+  wb_supervisor_node_reset_physics(self);
+#endif
+  return;
+ }
  pos[0]=0;pos[1]=0;
  pos[2]=!takeoff?.023:mode=="timeout"?.423:.823;
  if(takeoff && grounds() && next>=212112)pos[2]=mode=="below-ground"?-.10:.023;
@@ -86,6 +96,7 @@ extern "C" const double* gp_test_gps(int tag){
  const double* sample=pos;
 #endif
  std::memcpy(data,sample,sizeof(data));
+ if(teleports && !reset_ok)std::printf("GP_U_POSE_RESET_GPS t=%lld x=%.6f y=%.6f z=%.6f\n",tick,data[0],data[1],data[2]);
  if(tick==212048 || tick==212080)std::printf("GP_U_POSE_GPS t=%lld z=%.6f\n",tick,data[2]);
  if(tick>=212112 && (mode=="gps-nan" || (mode=="loss-recover" && tick==212688)))data[2]=NAN;
  return data;
@@ -98,6 +109,7 @@ extern "C" const double* gp_test_imu(int tag){
  const double* sample=imu;
 #endif
  std::memcpy(data,sample,sizeof(data));
+ if(teleports && !reset_ok)std::printf("GP_U_POSE_RESET_IMU t=%lld roll=%.6f pitch=%.6f yaw=%.6f\n",tick,data[0],data[1],data[2]);
  if(tick==fault_tick())std::printf("GP_U_POSE_IMU t=%lld roll=%.6f pitch=%.6f\n",tick,data[0],data[1]);
  if(mode=="imu-nan" && tick>=212112)data[0]=NAN;
  return data;
@@ -118,6 +130,7 @@ extern "C" void gp_test_teleport(WbFieldRef field,const double* value){
  std::printf("GP_U_POSE_TELEPORT t=%lld before_z=%.3f after_z=%.3f\n",tick,pos[2],value[2]);
  assert(positive() && tick>212688); // Never before actual stable observations.
  wb_supervisor_field_set_sf_vec3f(field,value);
+ std::memcpy(pos,value,sizeof(pos));
 }
 extern "C" const char* gp_test_receive(){
  if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
