@@ -384,6 +384,9 @@ script = r'''
     );
     const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, ''));
     const expectedLightRequests = [
+      // RESET revoked the scene identity: require this one acknowledged setup
+      // before the unchanged four-command LED program, without filtering traffic.
+      'SCENE legacy-v1',
       'TAKEOFF ' + Number(0.4).toPrecision(17),
       'LIGHT blue',
       'LIGHT off',
