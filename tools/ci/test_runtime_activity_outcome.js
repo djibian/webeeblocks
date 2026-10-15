@@ -180,7 +180,7 @@ async function proveWwiOutcomeTransport() {
   assert.strictEqual(sent.length, beforeInvalidOracle, 'invalid oracle unexpectedly emitted a WWI request');
 }
 
-async function provePendingMissionOutcomeKeepsActionsGated() {
+async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxSteps) {
   const elements = {};
   function element(id) {
     if (!elements[id]) {
@@ -215,6 +215,8 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
     WebeeBlocksActivityContract:{
       async execute(profile, workspace, compiler, interpreter, backend, options) {
         executeCalls += 1;
+        assert.strictEqual(options.maxSteps, expectedMaxSteps,
+          'execution must receive the configured step budget or its default');
         options.onAst({version:1, semantics:'webeeblocks-ast-v1', program:[]});
       },
       applyFieldBounds(){}
@@ -231,7 +233,7 @@ async function provePendingMissionOutcomeKeepsActionsGated() {
   vm.createContext(context);
   vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
 
-  context.runtimeProfile = {evaluation:{type:'mission-state-v1', oracle:'world-observation-v1'}};
+  context.runtimeProfile = {runtime, evaluation:{type:'mission-state-v1', oracle:'world-observation-v1'}};
   context.workspace = {};
   context.runtimeBackend = {
     ready:true,
@@ -317,7 +319,8 @@ function proveRealWebotsOutcomeFreshness() {
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
-  await provePendingMissionOutcomeKeepsActionsGated();
+  await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
+  await provePendingMissionOutcomeKeepsActionsGated({}, 1000);
   await proveMissionFailure();
   proveRealWebotsOutcomeFreshness();
   console.log('PASS backend-neutral activity mission outcome contract, exact Reset classification, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');

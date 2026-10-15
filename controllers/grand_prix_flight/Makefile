@@ -1,0 +1,33 @@
+C_SOURCES = ../crazyflie_runtime_v2/crazyflie_runtime_v2.c ../crazyflie_square/pid_controller.c
+CFLAGS = -I../crazyflie_square
+
+
+# Firefox direct project files use the local Qt broker on supported desktop
+# Webots builds. Windows follows Webots R2025a's own bundled Qt/MSYS2 layout;
+# Linux uses the bundled Webots Qt libraries and plugin runtime environment.
+ifeq ($(OS),Windows_NT)
+ CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp grand_prix_bridge.cpp
+ USE_C_API = true
+ CFLAGS += -std=c++17 -D_USE_MATH_DEFINES -include grand_prix_interpose.h
+ QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
+ DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/msys64/mingw64/bin" -lQt6Core -lQt6Gui -lQt6Widgets -lole32 -luuid
+ INCLUDE += -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
+else
+ CXX_SOURCES = ../crazyflie_runtime_v2/file_broker.cpp ../crazyflie_runtime_v2/qt_file_dialog_provider.cpp ../crazyflie_runtime_v2/file_broker_runtime.cpp grand_prix_bridge.cpp
+ USE_C_API = true
+ CFLAGS += -std=c++17 -fPIC -include grand_prix_interpose.h
+ LDFLAGS += -pie
+ QT_INCLUDE_DIR = $(WEBOTS_HOME)/include/qt
+ DYNAMIC_LIBRARIES += -L"$(WEBOTS_HOME)/lib/webots" -lQt6Core -lQt6Gui -lQt6Widgets
+ INCLUDE += -isystem "$(QT_INCLUDE_DIR)" -isystem "$(QT_INCLUDE_DIR)/QtCore" -isystem "$(QT_INCLUDE_DIR)/QtGui" -isystem "$(QT_INCLUDE_DIR)/QtWidgets"
+endif
+
+# #589 adds a shared simulation-scene observer to the flight source.
+# Link it when that independently reviewed slice is integrated; it has no
+# physical effect API and GP uses its already-ready embedded scene.
+CXX_SOURCES += $(wildcard ../crazyflie_runtime_v2/activity_scene.cpp)
+
+null :=
+space := $(null) $(null)
+WEBOTS_HOME_PATH?=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))
+include $(WEBOTS_HOME_PATH)/resources/Makefile.include

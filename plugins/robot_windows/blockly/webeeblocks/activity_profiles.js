@@ -76,6 +76,7 @@
       requireString(profile.evaluation.oracle, 'evaluation.oracle');
     }
     if (!isObject(profile.runtime)) fail('runtime must be an object');
+    if (profile.runtime.maxSteps !== undefined && (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000)) fail('runtime.maxSteps outside [1, 20000]');
     requireStringArray(profile.runtime.allowedStatementKinds, 'runtime.allowedStatementKinds');
     requireStringArray(profile.runtime.rangeDirections, 'runtime.rangeDirections');
     requireStringArray(profile.runtime.moveDirections, 'runtime.moveDirections');

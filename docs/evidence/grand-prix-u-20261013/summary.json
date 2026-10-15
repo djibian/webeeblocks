@@ -1,0 +1,951 @@
+{
+  "claim": "native-local-observations-not-controller-GO",
+  "program_ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+  "results": [
+    {
+      "trial": "gp-u-v1-L2000-s0-witness-13e4558904",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 123.392,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s3-witness-6a701a335c",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s3",
+      "attempt": 1,
+      "seconds": 145.024,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s4-witness-16b8d787ae",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 145.568,
+      "reason": null,
+      "crossings": 3,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s3-witness-aaad4869b9",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s3",
+      "attempt": 1,
+      "seconds": 192.96,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-witness-ad00a5ffa0",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 173.312,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s14-witness-9e7e209e14",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s14",
+      "attempt": 1,
+      "seconds": 193.184,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s14-witness-8b741eb095",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s14",
+      "attempt": 1,
+      "seconds": 136.224,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s1-witness-92bcd9d978",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s1",
+      "attempt": 1,
+      "seconds": 140.032,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s17-witness-7c877d8f0c",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s17",
+      "attempt": 1,
+      "seconds": 113.28,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3500-s4-witness-0b4cd8d1f9",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3500-s4",
+      "attempt": 1,
+      "seconds": 201.92,
+      "reason": null,
+      "crossings": 3,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s4-witness-b692f49a4a",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s4",
+      "attempt": 1,
+      "seconds": 205.568,
+      "reason": null,
+      "crossings": 3,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s15-witness-99ac8534aa",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L2000-s15",
+      "attempt": 1,
+      "seconds": 123.488,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s17-witness-8c80e9c167",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s17",
+      "attempt": 1,
+      "seconds": 171.328,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s1-witness-88c34f9f31",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s1",
+      "attempt": 1,
+      "seconds": 194.272,
+      "reason": null,
+      "crossings": 2,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s15-witness-6131ad1914",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s15",
+      "attempt": 1,
+      "seconds": 175.04,
+      "reason": null,
+      "crossings": 1,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "witness"
+    }
+  ],
+  "margin_observations": [
+    {
+      "trial": "gp-u-v1-L2000-s0-witness-13e4558904",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s0",
+        "attempt": 1,
+        "seconds": 123.392,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 141.632,
+        "position": [
+          0.678841692208938,
+          2.000589856176686,
+          0.014997486569760068
+        ],
+        "velocity": [
+          -6.361473632574665e-10,
+          1.645885534170455e-11,
+          -3.7197916048454604e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 18240,
+        "completion_ms": 141128,
+        "stationary_ms": 141128,
+        "landing_target": [
+          0.7,
+          2.0
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.02360138809660338,
+      "max_sample_displacement_m": 0.004316953504538972,
+      "trace_sha256": "20e2a78afd958a68f6d98f76e57467e5e958f70badfc926dc8788aa5a2e15fff"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s3-witness-6a701a335c",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s3",
+        "attempt": 1,
+        "seconds": 145.024,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 161.984,
+        "position": [
+          0.6413907501151593,
+          1.585098718265902,
+          0.014997480216231259
+        ],
+        "velocity": [
+          -2.7815537624850935e-11,
+          -8.462172812872425e-10,
+          -3.7146955900092823e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 16960,
+        "completion_ms": 161480,
+        "stationary_ms": 161480,
+        "landing_target": [
+          0.7,
+          1.5
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.02495227102638374,
+      "max_sample_displacement_m": 0.004316979746590188,
+      "trace_sha256": "7eaf989adfcd254812edd0dbcc1170d5720c806ab99b6b811f6e13d8e58288d5"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s4-witness-16b8d787ae",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s4",
+        "attempt": 1,
+        "seconds": 145.568,
+        "reason": null,
+        "crossings": 3,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 160.928,
+        "position": [
+          0.7540289428521247,
+          2.5231235188868943,
+          0.014997476877130721
+        ],
+        "velocity": [
+          1.8408836617903812e-11,
+          5.249558223690969e-10,
+          -3.7135975967747917e-06
+        ],
+        "side": 2,
+        "crossings": 3,
+        "origin_z": 0.015,
+        "start_ms": 15360,
+        "completion_ms": 160424,
+        "stationary_ms": 160424,
+        "landing_target": [
+          0.7,
+          2.5
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.031961890466518525,
+      "max_sample_displacement_m": 0.004317001641807884,
+      "trace_sha256": "054ceb9cadf3c39807a8744e22a9654f6c6cedfcc8bb44e9d99debefece31b8a"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s3-witness-aaad4869b9",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s3",
+        "attempt": 1,
+        "seconds": 192.96,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 209.28,
+        "position": [
+          0.6780351441453074,
+          3.1806239907839258,
+          0.01499744948743157
+        ],
+        "velocity": [
+          1.0325141311811863e-12,
+          2.3072609138648115e-11,
+          -3.6902957717892662e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 16320,
+        "completion_ms": 208776,
+        "stationary_ms": 208776,
+        "landing_target": [
+          0.7,
+          3.1
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.06648834594904451,
+      "max_sample_displacement_m": 0.004682905150556199,
+      "trace_sha256": "fa82c44cf08390875b31b11ccd6bfb2d82ed5c93e368a19751d8c254d33c372c"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-witness-ad00a5ffa0",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s0",
+        "attempt": 1,
+        "seconds": 173.312,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 190.336,
+        "position": [
+          0.6987706076398436,
+          3.661359496655415,
+          0.014997481060385539
+        ],
+        "velocity": [
+          1.0591652526715222e-09,
+          -2.7333181126880328e-11,
+          -3.712678434021488e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 17024,
+        "completion_ms": 189832,
+        "stationary_ms": 189832,
+        "landing_target": [
+          0.7,
+          3.6
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.06559312652715332,
+      "max_sample_displacement_m": 0.004322118548615998,
+      "trace_sha256": "77204bd4a134a94566eeb8353e5439047e946df8bb2055533c027e6dda98c27c"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s14-witness-9e7e209e14",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s14",
+        "attempt": 1,
+        "seconds": 193.184,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 207.808,
+        "position": [
+          0.7118321038899648,
+          3.191732934958421,
+          0.01499745002834663
+        ],
+        "velocity": [
+          -1.7952762901253888e-11,
+          -6.502950600401706e-10,
+          -3.691723289415901e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 14624,
+        "completion_ms": 207304,
+        "stationary_ms": 207304,
+        "landing_target": [
+          0.7,
+          3.1
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.06434864633708581,
+      "max_sample_displacement_m": 0.004675049950016547,
+      "trace_sha256": "17c8373dd43609aed95ec322ca9a84d3a2839ceae53ca540a5c616f3da3ba6a6"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s14-witness-8b741eb095",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s14",
+        "attempt": 1,
+        "seconds": 136.224,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 152.352,
+        "position": [
+          0.6749377145015903,
+          1.523481670075558,
+          0.014997473994166271
+        ],
+        "velocity": [
+          4.671002379506287e-12,
+          1.5349228614064929e-10,
+          -3.7111612682913817e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 16128,
+        "completion_ms": 151848,
+        "stationary_ms": 151848,
+        "landing_target": [
+          0.7,
+          1.5
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.03804068044141251,
+      "max_sample_displacement_m": 0.00431699850575662,
+      "trace_sha256": "00e7560de980584d93ed82dd47efb888746814cddf554e0e355756937d263519"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s1-witness-92bcd9d978",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s1",
+        "attempt": 1,
+        "seconds": 140.032,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 159.808,
+        "position": [
+          0.7101168561437265,
+          1.5789758245861543,
+          0.014997489014442556
+        ],
+        "velocity": [
+          5.895198749229187e-12,
+          2.386578741380463e-10,
+          -3.721537180393987e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 19776,
+        "completion_ms": 159304,
+        "stationary_ms": 159304,
+        "landing_target": [
+          0.7,
+          1.5
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.023601388088604888,
+      "max_sample_displacement_m": 0.00431697438477038,
+      "trace_sha256": "a06138c6b18ac7c0eea9fbd72a9eb463d3227f0205b20b0e35ec2cb039ed6e06"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s17-witness-7c877d8f0c",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s17",
+        "attempt": 1,
+        "seconds": 113.28,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 131.648,
+        "position": [
+          0.7401393303395656,
+          1.9841987166744972,
+          0.014997457894272564
+        ],
+        "velocity": [
+          4.960706239947537e-12,
+          -1.302783520275298e-13,
+          -3.6836684639644428e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 18368,
+        "completion_ms": 131144,
+        "stationary_ms": 131144,
+        "landing_target": [
+          0.7,
+          2.0
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.07486255642294404,
+      "max_sample_displacement_m": 0.004391889261245397,
+      "trace_sha256": "85dff499ca063e4220d595e57f1de48a184597b4f3a703aa924292ef77dfc199"
+    },
+    {
+      "trial": "gp-u-v1-L3500-s4-witness-0b4cd8d1f9",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3500-s4",
+        "attempt": 1,
+        "seconds": 201.92,
+        "reason": null,
+        "crossings": 3,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 218.912,
+        "position": [
+          0.720935741363419,
+          3.937036817882858,
+          0.014997418762021833
+        ],
+        "velocity": [
+          -2.0979077553948176e-11,
+          -8.690203851129524e-10,
+          -3.6544786741067616e-06
+        ],
+        "side": 2,
+        "crossings": 3,
+        "origin_z": 0.015,
+        "start_ms": 16992,
+        "completion_ms": 218408,
+        "stationary_ms": 218408,
+        "landing_target": [
+          0.7,
+          4.0
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.040589524557375856,
+      "max_sample_displacement_m": 0.005054184134546682,
+      "trace_sha256": "1a613c37360849ae04cc25372a6f91d18f223218566d13b4cd8858b7dee33858"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s4-witness-b692f49a4a",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s4",
+        "attempt": 1,
+        "seconds": 205.568,
+        "reason": null,
+        "crossings": 3,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 223.136,
+        "position": [
+          0.7401647146278447,
+          4.043086332878766,
+          0.014997418774239287
+        ],
+        "velocity": [
+          -8.752052687815414e-12,
+          -4.1320794871997236e-10,
+          -3.6666715918327362e-06
+        ],
+        "side": 2,
+        "crossings": 3,
+        "origin_z": 0.015,
+        "start_ms": 17568,
+        "completion_ms": 222632,
+        "stationary_ms": 222632,
+        "landing_target": [
+          0.7,
+          4.1
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.04408254709749604,
+      "max_sample_displacement_m": 0.005059268585826926,
+      "trace_sha256": "192a49bf725e4d70351b725385e5a52843cc09ab4de805da1afb1dffc786d244"
+    },
+    {
+      "trial": "gp-u-v1-L2000-s15-witness-99ac8534aa",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s15",
+        "attempt": 1,
+        "seconds": 123.488,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 138.56,
+        "position": [
+          0.711896602234692,
+          2.0012214269032125,
+          0.014997485443065945
+        ],
+        "velocity": [
+          4.4146022012528663e-10,
+          -1.1567544460922839e-11,
+          -3.714492472597461e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 15072,
+        "completion_ms": 138056,
+        "stationary_ms": 138056,
+        "landing_target": [
+          0.7,
+          2.0
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.04176313718094937,
+      "max_sample_displacement_m": 0.004316980682167381,
+      "trace_sha256": "280c16eeab10f966371c42a0020ac38de68d59853eed3bfd56dabf82fa53bb3c"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s17-witness-8c80e9c167",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s17",
+        "attempt": 1,
+        "seconds": 171.328,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 190.656,
+        "position": [
+          0.709005216032617,
+          3.564462852392514,
+          0.01499746730373373
+        ],
+        "velocity": [
+          -3.969327003028322e-09,
+          -1.5435844242829783e-09,
+          -3.694164585146388e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 19328,
+        "completion_ms": 190152,
+        "stationary_ms": 190152,
+        "landing_target": [
+          0.7,
+          3.6
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.06697116164097705,
+      "max_sample_displacement_m": 0.004322120179067777,
+      "trace_sha256": "2921fefd486dbec3f28896fe6d47394ef65ec6839ef0fd0e59c299c417be932d"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s1-witness-88c34f9f31",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s1",
+        "attempt": 1,
+        "seconds": 194.272,
+        "reason": null,
+        "crossings": 2,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 208.256,
+        "position": [
+          0.6951846603540142,
+          3.1594488124929456,
+          0.014997442929882556
+        ],
+        "velocity": [
+          1.4120561658789141e-11,
+          5.296877212375979e-10,
+          -3.675107720506835e-06
+        ],
+        "side": 2,
+        "crossings": 2,
+        "origin_z": 0.015,
+        "start_ms": 13984,
+        "completion_ms": 207752,
+        "stationary_ms": 207752,
+        "landing_target": [
+          0.7,
+          3.1
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.06571149422113953,
+      "max_sample_displacement_m": 0.004665998691403992,
+      "trace_sha256": "1b9ac367971bb5838ef00f0b9b177b3bda01507522dc95978a7c02f1574e701d"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s15-witness-6131ad1914",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s15",
+        "attempt": 1,
+        "seconds": 175.04,
+        "reason": null,
+        "crossings": 1,
+        "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+        "claim": "native-shared-interpreter",
+        "webots_version": "R2025a",
+        "mode": "witness"
+      },
+      "diagnostic": {
+        "time": 189.536,
+        "position": [
+          0.6926553964626955,
+          3.58094819044966,
+          0.014997477026870001
+        ],
+        "velocity": [
+          -2.643379540445262e-10,
+          6.920413905516595e-12,
+          -3.7124870862876236e-06
+        ],
+        "side": 2,
+        "crossings": 1,
+        "origin_z": 0.015,
+        "start_ms": 14496,
+        "completion_ms": 189032,
+        "stationary_ms": 189032,
+        "landing_target": [
+          0.7,
+          3.6
+        ]
+      },
+      "min_sampled_envelope_clearance_m": 0.060476177800179776,
+      "max_sample_displacement_m": 0.004322121648029284,
+      "trace_sha256": "1a2ff0c827bc691fe58e0297887a677e68c33c748557565caa5a0629fcba75bb"
+    }
+  ],
+  "negative_results": [
+    {
+      "trial": "gp-u-v1-L3600-s0-collision-00b27d51bf",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 14.8,
+      "reason": "envelope-contact",
+      "crossings": 0,
+      "ast_sha256": "7744d4b08050bede5e6cf30f0506c99db7ff268776048b11b2f42155d09f9aa4",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "collision"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s4-short-d737bafaad",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s4",
+      "attempt": 1,
+      "seconds": 14.216,
+      "reason": "wrong-landing",
+      "crossings": 0,
+      "ast_sha256": "99b922f41e83f77de468831bb57ba4301711caa4cab7264af7c26a846ceefced",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "short"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-reset-a74e2a25db",
+      "status": "achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 173.312,
+      "reason": null,
+      "crossings": 1,
+      "second_attempt": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L3600-s0",
+        "attempt": 2,
+        "seconds": 173.344,
+        "reason": null,
+        "crossings": 1
+      },
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "reset"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s4-timeout-2a3798cb28",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s4",
+      "attempt": 1,
+      "seconds": 210.0,
+      "reason": "time-limit",
+      "crossings": 0,
+      "ast_sha256": "45e128fc766554b04a29122ccd30494f83b1988339d8f05099d374afba0cc052",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "timeout"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-low-outside-0952ea569e",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 12.536,
+      "reason": "low-outside-zone",
+      "crossings": 0,
+      "ast_sha256": "2392fe47ab535c2b5980d6f6cc92e92c4994cae19e1431f2feaf6c281144f803",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "low-outside"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s1-wrong-landing-0f9bf3e3e5",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s1",
+      "attempt": 1,
+      "seconds": 189.864,
+      "reason": "wrong-landing",
+      "crossings": 2,
+      "ast_sha256": "c57a1c80db55fa619e670957d5b0ecf2dc51884cb6a05fe40dcbdadc68575780",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "wrong-landing"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-reverse-f145c4b52b",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 30.424,
+      "reason": "reverse-crossing",
+      "crossings": 1,
+      "ast_sha256": "cd30f2d45b285b59425b9df0c09e067ea0445251efa3b36e6433b8ade3eae092",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "reverse"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-timeout-gate-068c207dd2",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 210.0,
+      "reason": "time-limit",
+      "crossings": 0,
+      "ast_sha256": "293b367fba5e34cc8faf54320ef3676b6cd1710b21fe3c6f7cb149bc82fb44b5",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "timeout-gate"
+    },
+    {
+      "trial": "gp-u-v1-L3600-s0-unavailable-e3c73e7bc8",
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L3600-s0",
+      "attempt": 1,
+      "seconds": 8.648,
+      "reason": "runtime",
+      "crossings": 0,
+      "ast_sha256": "a13e7a58525bd9cc6605b364d596052543ab40e281bb45531ae9837cf798074d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "unavailable"
+    }
+  ],
+  "archive": {
+    "size": 83697241,
+    "sha256": "58924d61fa5772627f6d46eaa3eeff9dca93a16eec05d7646220c6f6781bea71",
+    "trials": 36,
+    "filename": "Grand_Prix_Webots_R2025a_preuves.zip"
+  }
+}

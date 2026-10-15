@@ -69,7 +69,7 @@ function harness(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(mainSource, context, {filename:'blockly_v2/main.js'});
-  context.runtimeProfile = {evaluation:{type:options.legacy ? 'training-objective' : 'mission-state-v1', oracle:'progression-precise-movement-v1'}};
+  context.runtimeProfile = {runtime:{}, evaluation:{type:options.legacy ? 'training-objective' : 'mission-state-v1', oracle:'progression-precise-movement-v1'}};
   context.workspace = {};
   context.runtimeBackend = backend;
   context.updateRuntimeActions();
