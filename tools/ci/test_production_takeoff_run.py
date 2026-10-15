@@ -365,6 +365,7 @@ def test_physical_qualification_launcher_contract() -> None:
 def main() -> int:
     # Fresh process: existing composition tests intentionally install broad
     # fakes; the recovery oracle retains the real safety/transport domains.
+    subprocess.run([sys.executable, "tools/ci/test_physical_conditional_flight_budget.py"], check=True)
     subprocess.run([sys.executable, "tools/ci/test_physical_abort_landing.py"], check=True)
     test_real_controller_orders_post_reset_authority_before_takeoff()
     test_stale_candidate_fails_before_reset()
