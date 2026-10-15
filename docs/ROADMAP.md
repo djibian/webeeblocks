@@ -113,12 +113,22 @@ or the arbitrary 210 s cap.
 
 The earlier +5/H, penalty threshold T, free-lap exit and four-side/final
 corridor decisions are **superseded** and preserved only as historical
-evidence. **#588** is the documentary contract candidate to revise/review.
-**#591 Draft** must be redirected into a new versioned U-world, behavioral
-oracle for gates/altitude/three landing targets and independent timeout,
-with native R2025a adversarial proofs. Preserve gp-v2/v3/v4 evidence rather
-than silently reusing it, and keep #589 and the intermediate activities
-unchanged. See docs/GRAND_PRIX_SIMULATION_CONTRACT.md.
+evidence. The integrated contract (#588), geometry (#599), behavioral oracle
+(#600), independent native authority (#602) and composition (#591) establish
+a **technical U prototype**, with seven reproducible 2.00 m configurations,
+one ordinary Blockly/.wbb/AST witness, center/left/right landings, negative
+cases, RESET freshness and exact 210 s LAND evidence in R2025a. The exact
+source candidate and canonical CI evidence remain in #591; this result is
+not personal pedagogical acceptance or physical qualification.
+
+The pupil delivery boundary remains open: replace warehouse delivery in the
+official Activity 8 progression, provide the installed Grand Prix launch path,
+exercise the complete pupil Start/simulate/observe/debug/Save/Open workflow,
+then obtain the owner's personal acceptance of both endpoints. These are
+bounded delivery/acceptance obligations, not a reason to repeat the established
+prototype investigation or redesign Activities 2–7 early. Preserve gp-v2/v3/v4
+and warehouse scenarios, oracles and evidence as technical history. See
+docs/GRAND_PRIX_SIMULATION_CONTRACT.md.
 
 #81 (Windows classroom deployment), #80 (one-click unified classroom interface)
 and #79 (fully French student interface) remain validated baselines, not active
