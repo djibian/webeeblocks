@@ -15,9 +15,9 @@ Gauche/droite sont définies dans le sens d'arrivée à la fin du troisième cô
 
 Un H est compté exclusivement après **engagement, passage complet dans le sens prescrit et dégagement**. Oscillation, recul, observation multiple, passage partiel, porte contournée ou porte traversée à l'envers ne sont pas des franchissements valides. Le H final est découvert par perception ordinaire et observation active, non par signal secret.
 
-## Géométrie fixe et optimisation
+## Géométrie fixe et validation
 
-- **2,00 m par côté** de trajectoire centrale : **première hypothèse**, non acceptée ; chercher expérimentalement le **plus grand côté** qui permette toutes les configurations, y compris la plus lente, sous 210 s avec marges dynamiques. Couloir environ **1,00 m** à éprouver.
+- **2,00 m par côté** de trajectoire centrale : **première hypothèse**, non acceptée ; déterminer par essais natifs R2025a une **dimension fixe** commune à toutes les configurations, y compris la plus lente, offrant des dégagements dynamiques et une **marge temporelle confortable et reproductible avant 210 s**, sans rechercher systématiquement la taille maximale. Couloir environ **1,00 m** à éprouver.
 - H avec ouverture nominale **0,56 m**, panneaux latéraux, traverse supérieure ; préserver le rayon de gabarit témoin **0,09 m**, collisions et limites de perception. Les H sont placés uniquement dans les portions offrant assez de place pour détecter, descendre, passer, remonter et tourner.
 - Aire d'arrivée élargie **environ 1,70–1,80 m** (hypothèse à tester), réellement dégagée et avant le fermé ; trois cibles latéralement espacées de 0,50 m. Le H fermé ne doit pas être contournable depuis cette aire.
 - **Toutes les configurations partagent exactement les mêmes dimensions** de piste, de zone finale et les mêmes règles ; seule la disposition/nombre des H ouverts varie. Les mondes restent versionnés et reproductibles.
@@ -47,7 +47,7 @@ Pour le **Crazyflie réel**, l'objectif de surveillance indépendante à 210 s e
 
 ## Preuves et falsification
 
-Essais positifs **natifs Webots R2025a** avec 1, 2 et 3 H, positions sur chacun des trois côtés, même AST apprenant le nombre et choisissant les trois destinations ; comparer deux mondes à **fin sensorielle identique** mais destinations correctes distinctes. Mesurer pires temps, écarts au plafond 210 s, dégagements, vitesses, altitude et collisions avant d'augmenter le côté au-delà de 2,00 m.
+Essais positifs **natifs Webots R2025a** avec 1, 2 et 3 H, positions sur chacun des trois côtés, même AST apprenant le nombre et choisissant les trois destinations ; comparer deux mondes à **fin sensorielle identique** mais destinations correctes distinctes. Mesurer pires temps, écarts au plafond 210 s, dégagements, vitesses, altitude et collisions pour **valider une seule dimension fixe, sûre et reproductible** sur les configurations retenues, sans conditionner la livraison à l'augmentation du côté au-delà de 2,00 m.
 
 Cas négatifs à conserver/créer : mauvaise zone, collision sur H ouvert/fermé, H fermé contourné, raccourci, H absent raté, demi-franchissement, oscillation et décompte double, mémoire erronée, saturation de capteurs, faux fermé, bandes avant/après franchies en altitude basse **d'un seul pas**, vol bas entre H, sur côté sans H et hors aire finale, limites juste avant/à/après **210,000 s** (pas Webots 32 ms), LAND imposé au timeout **dans un H**, ACK/réponse/RESET tardif, essais successifs et course CPU/horloge. Refuser un PASS si les oracles, traces ou preuves du véritable R2025a sont insuffisants.
 

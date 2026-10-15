@@ -30,28 +30,39 @@ Do **not** add permanent automatic saving, attempt history, success/failure hist
 
 ## Pedagogical progression
 
-Target a compact guided progression of approximately **8 to 12 substantial activities**, rather than many repetitive micro-exercises.
+The official progression contains **eight substantial activities**:
 
-A reference progression is:
+1. **Activity 1 — first Blockly discovery:** a very simple sequence, blue
+   start, non-colliding checkered arrival on the floor, uncluttered scene,
+   accessible camera and immediately legible mission outcome.
+2. **Activities 2–7 — cumulative acquisition:** six new, concrete problem
+   situations, each reusing the relevant previous concepts. Their precise
+   concept order and scenarios will be co-designed after both endpoints
+   receive explicit owner acceptance.
+3. **Activity 8 — autonomous Grand Prix (#587):** the **sole official final
+   synthesis** combining earlier notions with a same-program autonomous
+   strategy across different unknown gate configurations. The previously
+   integrated warehouse-delivery Activity 8 (#529) is historical technical
+   material, not an additional official final activity.
 
-1. sequences and first movements;
-2. parameters and precise movement;
-3. repetition;
-4. sensing;
-5. conditions;
-6. sensor + condition inside repeated/reactive behavior;
-7. several perceptions / nested control flow;
-8. variables and memory;
-9. open autonomous strategy;
-10. final challenge, prepared in simulation and ultimately executed on the real Crazyflie when the physical backend is proven safe and reliable.
-
-The exact number and worlds may evolve, but activities should accumulate prior concepts instead of isolating each concept artificially. **Activity count alone is not pedagogical acceptance**: the progression is only valid when each activity is a complete problem situation whose world and mission make the intended new concept genuinely useful or necessary and deliberately reuse earlier concepts.
+Every activity must make its target concept useful through its own world and
+mission, with behaviorally observable success. Technical implementation,
+passing CI and independent Controller GO do **not** equal the owner's
+pedagogical acceptance.
 
 Progression is **teacher-guided**. WebeeBlocks itself does not need per-student unlock state. The teacher decides which activity files/resources are available, for example through Moodle or school storage.
 
-A world may support several activity profiles or difficulty levels where useful, but world reuse is not a goal in itself. Reuse one world only when its geometry, objects, events and available perceptions genuinely support the intended student missions.
+**Each of the eight activities must have a distinct pedagogical world as seen
+by pupils**, including mission-specific geometry, objects and camera. Webots
+controllers, assets and a base `.wbt` may be shared; **eight standalone `.wbt`
+files are not required**. Versioned, isolated scenes/configurations are
+appropriate when switching activities, opening a `.wbb`, restarting and
+reconnecting correctly restore the selected scene and its world evaluators.
+Technical sharing must not make pupil worlds indistinguishable. The Grand Prix
+uses **multiple reproducible configurations of its own world**, with constant
+dimensions/rules and hidden variations in number and placement of gates.
 
-The owner-requested **Grand Prix autonome** (#587) is a simulation-first
+The **official Activity 8, Grand Prix autonome** (#587), is a simulation-first
 final challenge with **one traversal of three consecutive sides of a fixed-size
 square**, with **1–3 ordinary open H gates** (at most one per side) placed
 reproducibly but unknown to the student program, and a **closed H gate** at the
@@ -64,7 +75,8 @@ inspecting Blockly syntax.
 
 The candidate geometry starts at **2.00 m side**, about **1.00 m corridors**
 and a larger terminal landing area; native Webots R2025a tests must establish
-the largest feasible dimensions and dynamic clearance, not assume them. The
+a fixed feasible dimension with comfortable reproducible time and dynamic
+clearance margins, rather than assuming or maximizing course size. The
 floor remains uniform with **no low obstacles**. Low-altitude flight is legal
 only within marked before/after distances around each open H gate, apart from
 bounded takeoff, final landing and forced-timeout landing exceptions. Identical
@@ -85,7 +97,47 @@ monitoring, margins and recovery remain unqualified and gated by #157/#72.
 See the falsifiable simulation design in
 docs/GRAND_PRIX_SIMULATION_CONTRACT.md and the controlling issue #587. All
 historical gp-v2/v3/v4 native results remain scoped to their older worlds,
-not acceptance of the new course. Do not change intermediate activities.
+not acceptance of the new course. Do not redesign intermediate activities before
+explicit personal acceptance of both Activity 1 and Activity 8.
+
+**Superseding owner pedagogical decision (#587, 2026-10-15):**
+#487 and the integrated progression 1–8 established technical capability,
+declarative scenarios and executable oracles, **not pedagogical acceptance**.
+Their profiles, missions, negative tests and evidence must remain historically
+traceable. The current Activity 8 warehouse delivery (#529) will be removed
+from the **official active progression** by a future reviewed implementation
+change and replaced by the Grand Prix, without deleting useful evidence.
+
+**Phase 1 — personally validate both endpoints.** Finalize Activity 1 (#589)
+and Grand Prix (#591) with real Webots R2025a tests, exact Ready-HEAD CI,
+independent V5 reviews and applicable oracles; then obtain the owner's
+**explicit personal pedagogical acceptance of each**. Activity 1 remains
+unaccepted pending a classroom/visual test. Grand Prix acceptance requires
+the unchanged #587 U course: multiple reproducible hidden configurations of
+1–3 open H gates, a single ordinary Blockly/.wbb/AST program across them,
+correct center/left/right landing, low-altitude bands, negative cases and the
+independent immediate LAND command at exactly 210 s. The complete pupil
+start/simulate/observe/debug/Save/Open workflow must be exercised. A green
+CI or an independent GO is **not** an owner's pedagogical PASS.
+
+**Phase 2 — mandatory rebuild of Activities 2–7 after both acceptances.**
+The currently integrated intermediate scenarios are **technical prototypes
+not personally accepted pedagogically**. Their common visually cluttered
+environment has already been judged inadequate by the owner. First agree a
+single six-activity cumulative concept/world/mission/prerequisite/outcome
+matrix with the owner. Then redesign their six distinct pedagogical
+environments and cumulative missions, in separately reviewable changes.
+Validate each pedagogically and technically, then obtain the owner's explicit
+acceptance of the complete eight-activity progression. This is an actual
+product dependency, not merely a roadmap preference. It does not block
+independent technical repair or qualification of endpoints.
+
+**Possible physical finale:** the Grand Prix may culminate **if possible** in
+a real teacher-authorized flight, but only if the exact mission and
+capabilities have been separately qualified under #157/#72 with measured
+clearances, control, recovery and energy margins. Simulation acceptance never
+authorizes a flight or implies real-world endurance at 210 s, and does not
+depend on achieving a physical finale.
 
 The progression should build both programming concepts **and legible
 understanding of 3D space** from a minimal first activity. The owner's
@@ -207,7 +259,7 @@ For almost the entire module, WebeeBlocks is a simulation environment using Webo
 
 Real flight is not a routine student action and there is no “request a flight” workflow or software queue. The project assumes **one physical Crazyflie** and teacher-managed classroom organization.
 
-Real Crazyflie execution is reserved for the **final activity/finality of the module**. The student prepares and validates the program in simulation. The teacher explicitly authorizes the physical run.
+Real Crazyflie execution is reserved for the **final activity/finality of the module**, if separately proven feasible and safe. The student prepares and validates the program in simulation. Any physical run requires explicit teacher authorization after the independent #157/#72 gates. The Grand Prix is the possible real-world culmination, not a currently qualified flight mission.
 
 The physical execution path must preserve the same backend-neutral student program and must include independent preflight/safety checks appropriate to the hardware. Real flight uses normal execution only: no step debug and no live pedagogical modification of the program during flight.
 
@@ -218,6 +270,30 @@ simulation progression may include richer scenarios, but the exact student
 program selected for physical execution must first be validated in simulation
 and then executed unchanged under explicit teacher authorization. A physical
 course cannot be product-ready before its relevant safety/capability gates pass.
+
+**Immediate physical milestone (#157; owner decision 2026-10-14):** establish
+reliable and safe execution of **one simple, unchanged Blockly program** on the
+real reference Crazyflie before expanding physical capabilities. The existing
+engineering candidate `tools/physical/hover_range_comparison.wbb` uses the
+ordinary project/profile/Blockly/AST/preflight/shared-interpreter path:
+take off to 0.50 m, wait 1.00 s, take one `range(front)` reading, then land
+on a uniform floor. It must first succeed with the exact same program in
+Webots. This is a **qualification witness**, not a released pupil activity or
+authorization of a real test or the physical Grand Prix.
+
+Physical acceptance requires separately authorized and externally witnessed
+evidence of the actual flight domain: in-flight ranging under thrust, observed
+XY/Z/attitude excursions, adequate clearance or containment, operator abort
+and terminal recovery under applicable faults, and justified real-world timing
+and under-load energy margins. Synthetic calculations, green CI and the
+simulation-only 210 s rule do **not** qualify these bounds. Keep single-radio
+host authority, trusted teacher approval, fail-closed recovery and independent
+V5 review/checkpoint requirements. Failed or unavailable evidence remains
+FAIL/UNPROVEN; no automatic retry or hardware action follows from this
+decision. Prefer the shortest concrete proof over additional speculative
+primitives or infrastructure. Broaden movements, sensors and LED behaviors
+incrementally **after** an accepted limited physical result, each within its
+own evidenced domain; #72 remains independently gated.
 
 Lab #70 remains optional research toward stable **world-frame altitude** across
 floor → table → floor, acceptable X/Y behavior and safe recovery. Terrain-

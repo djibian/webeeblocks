@@ -103,13 +103,22 @@
   WwiProjectFileTransport.prototype.waitUntilReady = function() {
     if (this.readyPromise) return this.readyPromise;
     var self = this;
-    this.readyPromise = this._request('CAPABILITIES', []).then(function(capabilities) {
-      if (!capabilities || capabilities.protocol !== 1 || capabilities.operationsReady !== true ||
-          capabilities.sameFileSave !== true || capabilities.canonicalExtension !== '.wbb')
-        throw new BrokerError('CAPABILITY_UNAVAILABLE');
-      self.capabilities = Object.freeze(capabilities);
-      return self.capabilities;
-    });
+    function discover() {
+      return self._request('CAPABILITIES', []).then(function(capabilities) {
+        if (!capabilities || capabilities.protocol !== 1 || capabilities.operationsReady !== true ||
+            capabilities.sameFileSave !== true || capabilities.canonicalExtension !== '.wbb')
+          throw new BrokerError('CAPABILITY_UNAVAILABLE');
+        self.capabilities = Object.freeze(capabilities);
+        return self.capabilities;
+      }).catch(function(error) {
+        // BUSY is a temporary native control fence, including RESET. Keep
+        // bootstrap pending until rest without entering a provider in flight.
+        // Retry only discovery: refused OPEN/SAVE effects are never replayed.
+        if (!error || error.code !== 'BUSY') throw error;
+        return new Promise(function(resolve) { setTimeout(resolve, 250); }).then(discover);
+      });
+    }
+    this.readyPromise = discover();
     return this.readyPromise;
   };
 

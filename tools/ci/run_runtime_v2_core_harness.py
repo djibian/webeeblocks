@@ -92,6 +92,10 @@ def main():
     if physical_host_activation_test.returncode:
         print('FAIL actual physical-host activation composition',file=sys.stderr);print(physical_host_activation_test.stdout,file=sys.stderr);print(physical_host_activation_test.stderr,file=sys.stderr);return physical_host_activation_test.returncode
     print(physical_host_activation_test.stdout.strip())
+    physical_host_pipe_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_stderr_backpressure.py'],text=True,capture_output=True)
+    if physical_host_pipe_test.returncode:
+        print('FAIL physical host real stderr OS-pipe backpressure',file=sys.stderr);print(physical_host_pipe_test.stdout,file=sys.stderr);print(physical_host_pipe_test.stderr,file=sys.stderr);return physical_host_pipe_test.returncode
+    print(physical_host_pipe_test.stdout.strip())
     physical_host_authority_test=subprocess.run([sys.executable,'tools/ci/test_physical_host_authority_path.py'],text=True,capture_output=True)
     if physical_host_authority_test.returncode:
         print('FAIL actual trusted physical-host authority path',file=sys.stderr);print(physical_host_authority_test.stdout,file=sys.stderr);print(physical_host_authority_test.stderr,file=sys.stderr);return physical_host_authority_test.returncode

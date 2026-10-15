@@ -45,8 +45,13 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     (out/'world.wbt').write_text(target.read_text())
     env=os.environ.copy();env.update(WEBOTS_HOME=str(home),LIBGL_ALWAYS_SOFTWARE='true',
         WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true',WEBEEBLOCKS_CI_ARTIFACT_DIR=str(out))
+    # Webots/Qt requires private runtime directories. Inside Docker these are
+    # root-owned mode 0700, so putting them in OUT prevents the host artifact
+    # uploader from even walking the evidence tree (observed in 38473674859).
+    # Keep disposable application state separate from the retained witnesses.
+    runtime_state=tempfile.TemporaryDirectory(prefix='gp-u-runtime-')
     for variable,folder in (('XDG_CONFIG_HOME','config'),('XDG_CACHE_HOME','cache'),('XDG_RUNTIME_DIR','runtime')):
-        directory=out/folder;directory.mkdir(mode=0o700);env[variable]=str(directory)
+        directory=Path(runtime_state.name)/folder;directory.mkdir(mode=0o700);env[variable]=str(directory)
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
@@ -141,6 +146,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     finally:
         stop_groups(children)
         for stream in streams:stream.close()
+        runtime_state.cleanup()
         (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
            for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
         target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
@@ -149,7 +155,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
     parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
-    parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=3.6)
+    parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
@@ -169,10 +175,15 @@ def main():
             try:
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
-                    subprocess.run(['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
-                       '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
-                       '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
-                       stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
+                    try:
+                        subprocess.run(['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
+                           '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
+                           '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
+                           stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
+                    except (subprocess.CalledProcessError,subprocess.TimeoutExpired):
+                        log.flush()
+                        print((OUT/'docker.log').read_text()[-16000:],file=sys.stderr,flush=True)
+                        raise
             finally:
                 if cid.exists():
                     identity=cid.read_text().strip()

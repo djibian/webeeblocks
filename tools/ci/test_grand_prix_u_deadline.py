@@ -41,8 +41,17 @@ extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* v){*static
 extern "C" const char* webeeblocks_file_broker_receive_text(){return nullptr;}
 extern "C" void webeeblocks_file_broker_send(const char*,int){}
 int main(){
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ gp_u_file_idle(1);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1";
  assert(gp_u_start(2.112)==1);
+ for(const char* op:{"OPEN","SAVE_AS cHJvYmUud2Ji e30=","SAVE ref e30=","RELEASE ref","CAPABILITIES"}){
+  std::string request=std::string("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 ")+op;
+  assert(gp_u_filter_raw(request.c_str())==0);
+  assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ }
  now=212.096; assert(gp_u_next_step(32)==16);
  assert(gp_u_deadline(212.111,0)==0);
  assert(gp_u_deadline(212.112,0)==1);
@@ -57,6 +66,8 @@ int main(){
  assert(gp_u_deadline(220,1)==0);
  assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 RESET")==1);
  gp_u_reset_complete(); assert(evaluator.empty());
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"; assert(gp_u_start(230)==1);
  assert(gp_u_deadline(230,0)==0);
  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=achieved";
@@ -64,6 +75,50 @@ int main(){
  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 3";assert(gp_u_start(500)==1);
  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-u-v1 status=achieved";
  assert(gp_u_deadline(709.999,1)==0);assert(gp_u_deadline(710,1)==0); // already completed before cap
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ assert(gp_u_deadline(710.001,0)==0); // lost pose confirmation closes files even after success
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(gp_u_deadline(710.002,1)==0);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ // First success observations at each side of the exact boundary.
+ for(int elapsed:{209999,210000,210001}){
+  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";assert(gp_u_start(2.112)==1);
+  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+  assert(gp_u_deadline((2112+elapsed)/1000.0,1)==(elapsed>=210000));
+  if(elapsed<210000){
+   assert(gp_u_deadline(212.112,1)==0); // confirmed before cap stays terminal
+  }else{
+   assert(evaluator=="GP_U_START attempt=4 start_ms=2112 state=deadline");
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+   assert(gp_u_deadline(212.144,1)==0); // no second LAND trigger or rescue
+   assert(evaluator=="GP_U_START attempt=4 start_ms=2112 state=deadline");
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+   assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 OUTCOME grand-prix-u-v1")==1);
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 20 MOVE forward 0.1")==0);
+  }
+ }
+ // Evaluator writes between two native observations, without a trusted
+ // validation timestamp: observing it for the first time at expiry loses.
+ gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 5";assert(gp_u_start(2.112)==1);
+ assert(gp_u_deadline(212.096,1)==0);
+ now=212.096;assert(gp_u_next_step(32)==16);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=5 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(212.112,1)==1);
+ // A success field while still airborne is not proof of a completed pose.
+ gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 6";assert(gp_u_start(2.112)==1);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=6 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(212.111,0)==0);assert(gp_u_deadline(212.112,1)==1);
+ // Native grid origins protect the rounded integer boundary from floating
+ // subtraction, even when the exact deadline falls between 32 ms ticks.
+ for(int tick=0;tick<10000;++tick){
+  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 7";
+  assert(gp_u_start(tick*8/1000.0)==1);
+  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=7 oracle=grand-prix-u-v1 status=achieved";
+  assert(gp_u_deadline((tick*8+210000)/1000.0,1)==1);
+ }
  gp_u_reset_complete();present=false;vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";
  assert(gp_u_start(800)==0); // missing independent evaluator refuses TAKEOFF
 }
@@ -71,6 +126,7 @@ int main(){
             binary=base/'test'
             subprocess.run([compiler,'-std=c++17','-I'+str(base),'-I'+str(ROOT/'controllers/grand_prix_u_flight'),
                 str(test),str(ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp'),'-o',str(binary)],check=True)
-            subprocess.run([str(binary)],check=True,timeout=10)
+            result=subprocess.run([str(binary)],capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stdout[-2000:]+result.stderr)
 
 if __name__ == '__main__': unittest.main()

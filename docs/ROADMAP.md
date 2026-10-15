@@ -13,19 +13,79 @@ here.
 
 ## Product priority
 
-1. **#157 — representative real-device qualification and useful reference-capability coverage**
+1. **#157 — qualify one reliable, safe real-device Blockly run before extending reference capabilities**
 
-#487 is now a validated product baseline rather than an active priority node.
-Activities 1–8 were materialized through the shared declarative profile/Runtime
-path with explicit student missions, cumulative prerequisite reuse and executable
-behavior-only world outcomes; the final synthesis slice was integrated in #529
-and #487 is closed as completed. Reopen that progression boundary only for new
-contradictory pedagogical or product evidence.
+**Owner decision, 2026-10-14:** the next physical outcome is a **bounded,
+externally evidenced first run of the exact same ordinary Blockly/.wbb program
+in Webots and on the reference Crazyflie**, not further generic block coverage.
+Use the existing `tools/physical/hover_range_comparison.wbb` engineering
+candidate: take off to 0.50 m, wait 1.00 s, read `range(front)` once, and land
+on a qualified uniform floor. Retain the exact AST, current trusted single-radio
+host and teacher authority; no new physical mission or special student block.
 
-The owner observed on 2026-10-12 that the common first activity world
-obscures the objective; #589 keeps the independently reviewable minimal
-activity-1 scene. #587 and #591 supply the separate experimental Grand Prix,
-before any changes to the intermediate activities.
+Before any separately owner-authorized hardware checkpoint, establish the
+applicable **measured** volume/clearance or containment, sensor return under
+thrust, XY/Z/attitude excursions, operator abort and terminal recovery,
+timing and under-load energy margins, and canonical simulation/CI/independent
+software evidence. No synthetic margin or 210 s Webots rule becomes a physical
+bound. Any missing evidence remains FAIL/UNPROVEN; this decision **authorizes no
+flight, flash or TEST_REQUIRED**. Prefer indispensable, falsifiable steps over
+extra speculative infrastructure; expand movements, sensors and LED capabilities
+one evidence-backed slice at a time after the first bounded physical acceptance.
+Keep #72 separately gated and #70 optional on uniform ground.
+
+**Owner pedagogical decision, 2026-10-15 (#587):** eight activities
+remain the target, but the integrated #487/B1/B2 progression is a
+**technical baseline only**, not an owner-validated teaching sequence.
+The owner has identified new contradictory evidence: the common cluttered
+world does not give the intermediate activities a clear educational purpose.
+Historical completion of #487 and its PRs, profiles, oracles, tests and
+proofs remains unchanged; its *pedagogical acceptance* is reopened.
+
+**The only official Activity 8 is the Grand Prix autonome** (#587/#591),
+which will replace warehouse delivery (#529) in the pupil progression.
+The old delivery work remains available as correctly labeled technical
+history until a separately reviewed retirement from active starters/profiles.
+**Each activity must present a distinct pupil world**, while sharing
+underlying Webots runtime/controller, base `.wbt` and independently loaded
+scenes when technically appropriate. Scene selection/restore/reset/`.wbb`
+open must be safe and deterministic; eight separate `.wbt` files are not
+a product requirement. The Grand Prix must offer **multiple reproducible
+configurations of its own fixed-size course**: hidden 1–3 open H gates at
+variable positions, one ordinary identical Blockly/.wbb/AST program,
+three correctly chosen landing zones, observed crossing/altitude oracles
+and independent exact LAND at 210 s, per the existing #587 contract.
+
+**Phase 1 — endpoints before intermediates:** finalize #589 (minimal
+Activity 1, blue start, non-colliding checkered arrival, accessible camera)
+and #591 (Grand Prix) in native R2025a; obtain exact Ready-HEAD CI,
+independent V5 review and explicit **personal owner pedagogical acceptance
+of each** after classroom-style testing. CI/GO alone is not pedagogical
+acceptance. No redesign of Activities 2–7 before BOTH personal acceptances.
+Independent technical repairs/main-health work may proceed.
+
+**Phase 2 — mandatory six-activity redesign after both acceptances:**
+co-design and get the owner's agreement on a cumulative matrix for 2–7,
+`new concept -> world property -> pupil mission -> prior concepts -> observable
+success`, then rebuild six distinct pupil environments and missions with
+applicable tests, independent reviews and personal acceptances. Obtain
+explicit owner acceptance of the *whole* eight-activity progression.
+
+**Optional physical finality:** the Grand Prix may eventually be flown
+on a real Crazyflie *only if* #157/#72 independently qualify its exact
+hardware domain, controls, authority, real margins and recovery, and
+the teacher explicitly authorizes execution. Simulation does not
+qualify hardware, permit a checkpoint or authorize flight.
+
+**V5 parallel Controller frame:** 0/1/N stateless Controllers independently
+reconstruct GitHub, select bounded useful endpoints or independent review
+work, use isolated branches, stable Ready candidates, canonical exact-HEAD
+CI and independent review; no Controller authors its own GO or uses
+agent ownership/locks/queues. After the personal endpoint gates, the
+owner-approved six-activity matrix constrains the bounded PR work,
+without a Controller allocation plan or parallel status database.
+Preserve #487/#587 decisions, prior grand-prix variants and existing
+oracles/tests/evidence as appropriately scoped history.
 
 **Superseding owner decision, 2026-10-13:** a single traverse of **three
 consecutive sides of a square**; **1–3 H gates** in reproducibly variable
@@ -36,7 +96,7 @@ chooses a terminal landing at **center, 0.50 m left or 0.50 m right** for
 1/2/3 H respectively. Landing elsewhere fails. Memory is useful through
 observable behavior, not forced by AST inspection. Dimensions are fixed
 across configurations; first test **2.00 m side** and a wider arrival area,
-then determine the greatest size meeting geometry and time criteria.
+then select a fixed size with comfortable reproducible clearance and time margins.
 
 Mark before/after **low-altitude permitted bands at each H on the Webots
 floor**, corresponding to eventual physical floor tape. Outside a passing
@@ -287,7 +347,7 @@ non-blocking for #72 on uniform floor. See
   work has since closed every currently justified simulation-side generic
   capability gap; physical continuity/proof remains separate.
 
-### B1 — declarative activity model and cumulative progression established
+### B1 — declarative activity model and cumulative progression (historical technical baseline)
 
 - parent: #66
 - evidence: integrated #181 on `main@8eab31ca448a966063e53f039f340238ecfec833`
@@ -304,22 +364,23 @@ non-blocking for #72 on uniform floor. See
   project/profile loader. Starting a packaged activity clears the current save
   target so student work requires an explicit Save As; no second activity
   catalogue, unlock/progress state or new Runtime semantics is introduced
-- pedagogical completion: #487 plus integrated #512/#515/#516/#518/#521/#522/
+- historic technical materialization (not owner pedagogical acceptance): #487 plus integrated #512/#515/#516/#518/#521/#522/
   #524/#529 materialize the eight retained activities one by one as concrete
   cumulative missions. Student-facing mission text is separated from the internal
   pedagogical objective, live-world evaluators judge observable current-attempt
   outcomes rather than Blockly/AST shape, and deterministic real-Webots evidence
   covers the retained success/failure/shortcut boundaries. #487 is closed as
-  completed
+  completed for that historical technical integration, not for 2026-10-15
+  personal pedagogical validation
 - finality: the teacher-authorized final real-flight activity remains separately
   gated under #72 by physical backend/capability proof and any #70 result required
   by the chosen mission; this established progression does not claim real-flight
   readiness.
 
-### B2 — executable pedagogical scenarios and cumulative progression established
+### B2 — executable scenarios (historical technical baseline; pedagogy reopened)
 
 - parent: #487 (closed completed)
-- established result: eight substantial cumulative problem situations now retain
+- integrated technical result: eight cumulative problem situations retain
   complete student-facing missions distinct from internal pedagogical objectives;
   their shared-world geometry/configurations create the intended programming need
   while naturally reusing earlier concepts
@@ -336,10 +397,11 @@ non-blocking for #72 on uniform floor. See
 - student feedback remains deliberately small: achieved / not achieved /
   interrupted, without automatic diagnosis, hints, strategy suggestions or
   persistent attempt/progress history
-- consequence: no active #487 redesign work remains without new contradictory
-  pedagogical/product evidence. Preserve the same non-goals: no accounts,
-  automatic unlocks, mastery database, grading system, leaderboard, intelligent
-  tutor, solution-shape oracle or world proliferation for its own sake.
+- consequence of new owner evidence (2026-10-15): the common world is
+  pedagogically inadequate and **redesign 2–7 is mandatory AFTER** both
+  endpoints receive explicit personal acceptance. Preserve the non-goals:
+  no accounts, automatic unlocks, mastery database, grading, leaderboard,
+  intelligent tutor, solution-shape oracle or gratuitous world proliferation.
 
 ### C1b — broaden reference Crazyflie/deck capability coverage
 

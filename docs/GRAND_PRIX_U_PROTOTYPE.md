@@ -1,5 +1,37 @@
 # Grand Prix U : composition expérimentale Draft #591
 
+## Candidat recomposé après #602 et #608 — 15 octobre 2026
+
+Le candidat reprend intégralement les huit fichiers en conflit depuis main
+`53ace39403970d4fe85f36bdefbbc8b0acaa60be` : autorité, hooks, composition,
+oracle et tests. Les corrections des mesures/angles, de la confirmation de
+pose et du RESET, de l'échec irréversible et du fournisseur fichier bloquant
+restent celles de #602 intégré. Aucun ancien GO ou essai ne qualifie cette
+nouvelle composition. Les sources physiques et le verrou natif partagé restent
+identiques à main ; aucune activité intermédiaire n'est refondue.
+
+La dimension courante du lancement et de la campagne revient à **2,00 m**,
+constante pour les sept configurations. Ce choix privilégie la marge de temps
+et les preuves historiques à 2 m plutôt que la taille 3,6 m qui ne laissait
+que 4,432 s dans le cas à trois H. La nouvelle campagne doit démontrer la marge
+réelle du HEAD courant, les sept réussites du même Blockly/.wbb/AST, les négatifs
+et deux tentatives après RESET ; rien n'est réputé acquis par ce choix.
+
+L'échec Draft `38473674859` est conservé : Docker a échoué pendant la campagne,
+puis l'upload a échoué sur un répertoire Qt/XDG privé root mode 0700 situé dans
+les preuves. L'artefact manquant ne permet pas d'attribuer la première erreur
+native. Désormais les caches/configurations temporaires vivent hors du dossier
+d'artefacts et sont nettoyés après arrêt des processus. Le journal Docker reste
+retenu et sa fin est aussi imprimée en cas d'échec. Aucun délai, oracle ou cas
+de test n'est supprimé. La CI doit établir la correction et diagnostiquer toute
+réfutation native restante ; aucune reprise aveugle n'est autorisée.
+
+Les sections suivantes et les preuves de 2026-10-13 sont historiques. Une
+acceptation pédagogique personnelle de chaque borne reste nécessaire selon
+#587/#608, indépendamment des futurs CI Gate et GO techniques.
+
+---
+
 Décision applicable : tête de #587, contrat #588 intégré sur main
 874318b5bb34644cf07d873eff8ba367777374ab. Cette version remplace la cible
 produit à tours/points ; gp-v2/v3/v4, leurs sources, mondes, traces référencées

@@ -6,7 +6,7 @@ import sys
 from types import SimpleNamespace as N
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from tools.grand_prix.oracle_u import Attempt, swept_gap, collides
+from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed
 
 FIXTURE=Path(__file__).with_name('fixtures')/'grand_prix_u_geometry.json'
 
@@ -78,6 +78,68 @@ class Tests(unittest.TestCase):
             trace.to((g.x+progress,g.y,.8))
             trace.to((g.x+progress,g.y,.59))
             self.assertEqual(trace.oracle.result.reason,'low-outside-zone')
+
+    def test_review_counterexample_between_native_32ms_samples(self):
+        trace=PathTrace(0)
+        trace.to((0.,0.,.8));trace.to((.370,0.,.6001))
+        self.assertIsNone(trace.oracle.result)
+        result=trace.sample((.410,0.,.5800))
+        self.assertEqual(result.reason,'low-outside-zone')
+        self.assertIs(trace.sample((.410,0.,.8)),result)
+
+    def test_entry_exit_vertical_transitions_all_gate_headings(self):
+        # Neither endpoint is illegally low: only the continuous segment is.
+        # Every native heading, both longitudinal boundaries and both senses.
+        for seed in (0,1,4):
+            course=layout(seed)
+            for g in course.gates:
+                for sign in (-1,1):
+                    def point(progress,z):
+                        return (g.x+progress*math.cos(g.heading),
+                                g.y+progress*math.sin(g.heading),z)
+                    outside=point(sign*.48,.6001)
+                    inside=point(sign*.44,.58)
+                    for a,b in ((outside,inside),(inside,outside)):
+                        self.assertLess(math.dist(a,b),.064)
+                        self.assertFalse(low_segment_allowed(a,b,course))
+                    # Descend only after entering; ascend before leaving.
+                    safe_out=point(sign*.48,.62)
+                    safe_in=point(sign*.44,.5999)
+                    for a,b in ((safe_out,safe_in),(safe_in,safe_out)):
+                        self.assertTrue(low_segment_allowed(a,b,course))
+
+    def test_band_threshold_boundaries_and_lateral_exit(self):
+        course=layout(0);g=course.gates[0]
+        left=g.x-.55+.09
+        for x,expected in ((left,True),(math.nextafter(left,-math.inf),False),
+                           (math.nextafter(left,math.inf),True)):
+            self.assertEqual(low_segment_allowed((x,0.,.59),(x,0.,.59),course),expected)
+        for z,expected in ((.6,True),(math.nextafter(.6,-math.inf),False),
+                           (math.nextafter(.6,math.inf),True)):
+            self.assertEqual(low_segment_allowed((.37,0.,z),(.41,0.,z),course),expected)
+        # Geometry only: lateral sweep is independently forbidden even when
+        # longitudinally in band. Collision checking remains a separate oracle.
+        self.assertFalse(low_segment_allowed((g.x,.43,.6001),(g.x,.39,.58),course))
+
+    def test_union_gap_and_bounded_takeoff_final_exceptions(self):
+        course=N(gates=[N(x=0.,y=0.,heading=0.),N(x=.93,y=0.,heading=0.)],width=1.,side=2.)
+        self.assertFalse(low_segment_allowed((.45,0.,.4),(.48,0.,.4),course))
+        course.gates[1].x=.90  # overlapping closed bands cover the whole sweep
+        self.assertTrue(low_segment_allowed((.45,0.,.4),(.48,0.,.4),course))
+        course.gates=[]
+        self.assertFalse(low_segment_allowed((.13,0.,.58),(.15,0.,.6001),course,takeoff_until=1.))
+        self.assertTrue(low_segment_allowed((.13,0.,.5999),(.15,0.,.62),course,takeoff_until=1.))
+        self.assertFalse(low_segment_allowed((0.,0.,.59),(0.,0.,.59),course,takeoff_until=.5))
+        self.assertTrue(low_segment_allowed((.85,2.,.5999),(.87,2.,.62),course,final=True))
+        self.assertFalse(low_segment_allowed((.85,2.,.58),(.87,2.,.6001),course,final=True))
+        self.assertFalse(low_segment_allowed((.7,2.,.4),(.7,2.,.4),course))
+
+    def test_takeoff_expiration_and_return_do_not_restore_exception(self):
+        trace=PathTrace(0);trace.to((0.,0.,.8));trace.to((.16,0.,.8));trace.to((0.,0.,.8));trace.to((0.,0.,.59))
+        self.assertEqual(trace.oracle.result.reason,'low-outside-zone')
+        trace=PathTrace(0)
+        self.assertIsNone(trace.oracle.sample(15.,trace.p,(0.,0.,0.)))
+        self.assertEqual(trace.oracle.sample(15.001,trace.p,(0.,0.,0.)).reason,'low-outside-zone')
 
     def test_low_floor_shortcut_and_bypass_refuse(self):
         trace=PathTrace(0);trace.to((0,0,.8));trace.to((.3,0,.8));trace.to((.3,0,.4))
