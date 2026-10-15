@@ -169,11 +169,18 @@ __COMMON__
     const stepAst = WebeeBlocksSemanticAst.compileWorkspace(workspace);
     if (JSON.stringify(stepAst) !== JSON.stringify(baselineAst)) throw new Error('step mode changed AST');
     document.getElementById('stepMode').checked = true;
-    const txStart = wwiTx.length;
+    const preparationStart = wwiTx.length;
     document.getElementById('submit').click();
     await waitFor(() => paused.length >= 1, 'takeoff pause', 5000);
     if (paused[0].blockType !== 'webeeblocks_v2_takeoff' || paused[0].kind !== 'takeoff')
       throw new Error('takeoff semantic block mismatch: ' + JSON.stringify(paused[0]));
+    // RESET invalidates the cached scene identity. The production run must
+    // acknowledge exactly one legacy scene before the first program pause;
+    // TAKEOFF and every other program request remain forbidden in this prefix.
+    const preparation = wwiTx.slice(preparationStart);
+    if (preparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1$/.test(preparation[0]))
+      throw new Error('unexpected pre-step scene preparation: ' + JSON.stringify(preparation));
+    const txStart = wwiTx.length;
     await sleep(300);
     if (wwiTx.length !== txStart) throw new Error('TAKEOFF started before Pas suivant');
     await report('STEP_TAKEOFF_HELD', paused[0]);
