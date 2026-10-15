@@ -156,6 +156,9 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             "SEQUENCE_PROBE_READY",
             "SEQUENCE_SCENE_ISOLATED",
             "LEGACY_SCENE_RESTORED",
+            "LEGACY_SCENE_REATTACHED",
+            "SEQUENCE_SCENE_REATTACHED",
+            "SEQUENCE_REATTACHED_RANGE",
             "SEQUENCE_ACHIEVED",
             "SEQUENCE_RESET_FRESH",
             "SEQUENCE_REPEAT_ACHIEVED",
@@ -186,6 +189,11 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
         if details['SEQUENCE_SCENE_ISOLATED'] != {'scene':'sequence-v1'} or details['LEGACY_SCENE_RESTORED'] != {'scene':'legacy-v1'}:
             return fail('missing physical scene switch evidence')
+        for event, scene in (("LEGACY_SCENE_REATTACHED", "legacy-v1"), ("SEQUENCE_SCENE_REATTACHED", "sequence-v1")):
+            if details[event] != {"scene": scene, "requests": 1}:
+                return fail(f"missing native reattachment acknowledgement: {event}")
+        if abs(details["SEQUENCE_REATTACHED_RANGE"].get("front", -1) - 2.0) > 0.01:
+            return fail("reattached Activity 1 did not restore isolated sensing")
         for name in ("SEQUENCE_ACHIEVED", "SEQUENCE_REPEAT_ACHIEVED", "SEQUENCE_ALTERNATIVE_ACHIEVED",
                      "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
             if details[name] != {"status": "achieved"}:

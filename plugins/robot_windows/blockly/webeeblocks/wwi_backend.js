@@ -36,7 +36,8 @@
     this.simulationStopped = false;
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;
-    this.sceneIdentity = 'legacy-v1';
+    // READY proves liveness, not which scene the surviving controller selected.
+    this.sceneIdentity = null;
     this.scenePreparationPending = false;
     var capabilities = {
       conditionalLoops: true,

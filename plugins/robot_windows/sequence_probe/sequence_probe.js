@@ -87,11 +87,27 @@ window.addEventListener('unhandledrejection', function(event) {
   try {
     const module = await import('../blockly_v2/webots/RobotWindow.js');
     const robotWindow = new module.default();
-    const backend = new WebeeBlocksWwiBackend(robotWindow, {simulationReset: true, simulationScenes: true});
+    const sent = [];
+    const transport = {send(message) { sent.push(message); robotWindow.send(message); }};
+    let backend = new WebeeBlocksWwiBackend(transport, {simulationReset: true, simulationScenes: true});
     robotWindow.receive = function(message) {
       backend.handleMessage(String(message));
     };
     await backend.waitUntilReady();
+    async function reattachScene(profile, event) {
+      // Keep the native controller and RobotWindow connection alive; replace
+      // only the page-side backend, as when attaching a fresh Robot Window.
+      backend = new WebeeBlocksWwiBackend(transport, {simulationReset:true,simulationScenes:true});
+      await backend.waitUntilReady();
+      if (backend.sceneIdentity !== null) throw new Error('reattached backend presumed scene');
+      const start = sent.length;
+      await backend.prepareActivity(profile);
+      const scene = profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+      const requests = sent.slice(start);
+      if (requests.length !== 1 || !new RegExp('^WEBEEBLOCKS_RUNTIME_V2 REQUEST \\d+ SCENE ' + scene + '$').test(requests[0]))
+        throw new Error('reattachment did not acknowledge one native scene request: ' + JSON.stringify(requests));
+      await report(event, {scene:scene, requests:requests.length});
+    }
     const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
     await backend.prepareActivity({id:'progression-sequence-v1'});
@@ -137,7 +153,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
     const precise = {type:'mission-state-v1', oracle:'progression-precise-movement-v1'};
     await resetAndProveFresh(backend, precise, 'PRECISE_INITIAL_RESET_FRESH');
-    await backend.prepareActivity({id:'progression-precise-movement-v1'});
+    await reattachScene({id:'progression-precise-movement-v1'}, 'LEGACY_SCENE_REATTACHED');
     await report('LEGACY_SCENE_RESTORED', {scene:'legacy-v1'});
 
     await backend.takeoff(0.5);
@@ -203,6 +219,13 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.completeActivityMission(precise);
     const preciseAlternative = await waitForOutcome(backend, precise, 'achieved', 8000);
     await report('PRECISE_ALTERNATIVE_ACHIEVED', preciseAlternative);
+    await backend.resetSimulation();
+    await reattachScene({id:'progression-sequence-v1'}, 'SEQUENCE_SCENE_REATTACHED');
+    await backend.takeoff(0.5);
+    const restoredRange = await backend.readRange('front');
+    if (Math.abs(restoredRange - 2.0) > 0.01) throw new Error('reattached Activity 1 retained a legacy obstacle');
+    await backend.land();
+    await report('SEQUENCE_REATTACHED_RANGE', {front:restoredRange});
     await report('PRECISE_MISSION_TEST_COMPLETE', {
       canonical:preciseAchieved.status,
       undershoot:undershoot.status,

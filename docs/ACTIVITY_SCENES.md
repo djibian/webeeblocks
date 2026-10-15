@@ -37,6 +37,14 @@ après une préparation confirmée, la restauration comprend la scène du profil
 précédent. Une erreur de restauration reste attachée à l'erreur causale ; l'UI
 conserve alors le veto terminal. Aucun import ambigu n'est automatiquement rejoué.
 
+Un nouveau backend Robot Window considère toujours la scène native inconnue,
+même après READY : ce message prouve uniquement la disponibilité du contrôleur.
+La première préparation envoie donc SCENE et attend son ACK OK corrélé avant
+d'appliquer le projet, y compris pour les activités 2–8 utilisant legacy.
+Les tests projet couvrent Démarrer/Ouvrir pour ces sept profils après
+réattachement, le trajet inverse et les réponses retardées/erronées ; le probe
+R2025a remplace aussi le backend tout en gardant le même contrôleur natif.
+
 Le lancement dans un autre monde sans les groupes identifiés peut refuser la
 scène épurée : seule la scène de lancement Runtime v2 est couverte. La lisibilité
 visuelle, les save/open/reset représentatifs et le comportement réel du modèle
