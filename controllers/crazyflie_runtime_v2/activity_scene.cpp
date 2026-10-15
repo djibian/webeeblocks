@@ -8,8 +8,9 @@
 namespace {
 std::string legacyScene;
 std::string legacyEvaluators;
-std::string selected = "legacy-v1";
-bool ready = true;
+std::string selected;
+bool ready = false;
+bool observed = false;
 bool saved = false;
 int legacyChildCount = -1;
 int evaluatorChildCount = -1;
@@ -36,18 +37,54 @@ int groupCount(const char *def) {
   WbFieldRef content = node ? wb_supervisor_node_get_field(node, "children") : nullptr;
   return content ? wb_supervisor_field_get_count(content) : -1;
 }
+bool liveSelection() {
+  if (selected == "sequence-v1")
+    return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", 18) &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS");
+  if (selected == "legacy-v1")
+    return completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount) &&
+      completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount) &&
+      !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE");
+  // Dedicated Runtime/Grand Prix worlds do not use this scene manager.
+  return !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS");
+}
+void observeWorld() {
+  if (observed) return;
+  observed = true;
+  if (wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") ||
+      wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS")) {
+    legacyChildCount = groupCount("WEBEEBLOCKS_LEGACY_SCENE");
+    evaluatorChildCount = groupCount("WEBEEBLOCKS_LEGACY_EVALUATORS");
+    selected = "legacy-v1";
+    ready = liveSelection();
+  } else {
+    // A surviving sequence scene has lost this process's legacy snapshots.
+    // Only a world reload can reconstruct them; never acknowledge legacy or
+    // authorize takeoff from invented process-initial state.
+    ready = liveSelection();
+  }
+}
 void removeDef(const char *def) {
   WbNodeRef node = wb_supervisor_node_get_from_def(def);
   if (node) wb_supervisor_node_remove(node);
 }
 }
 
-extern "C" int webeeblocks_activity_scene_ready(void) { return ready ? 1 : 0; }
+extern "C" int webeeblocks_activity_scene_ready(void) {
+  observeWorld();
+  ready = ready && liveSelection();
+  return ready ? 1 : 0;
+}
 
 // Called by the flight controller only while idle, landed, and at its reset
 // origin. No physical backend uses this API. Never reload the world or workspace.
 extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   if (!scene || (std::strcmp(scene, "sequence-v1") && std::strcmp(scene, "legacy-v1"))) return 0;
+  observeWorld();
+  ready = ready && liveSelection();
   if (ready && selected == scene) return 1;
   WbFieldRef children = wb_supervisor_node_get_field(wb_supervisor_node_get_root(), "children");
   WbNodeRef view = nullptr;
@@ -62,8 +99,6 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   if (!saved) {
     legacyScene = exported("WEBEEBLOCKS_LEGACY_SCENE");
     legacyEvaluators = exported("WEBEEBLOCKS_LEGACY_EVALUATORS");
-    legacyChildCount = groupCount("WEBEEBLOCKS_LEGACY_SCENE");
-    evaluatorChildCount = groupCount("WEBEEBLOCKS_LEGACY_EVALUATORS");
     if (legacyScene.empty() || legacyEvaluators.empty() ||
         !completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount) ||
         !completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount)) return 0;

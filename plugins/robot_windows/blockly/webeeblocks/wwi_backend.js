@@ -122,6 +122,11 @@
     if (typeof message !== 'string' || message.indexOf(PREFIX + ' ') !== 0)
       return false;
     if (message === PREFIX + ' READY') {
+      // The native process may have restarted without reloading its world.
+      // No scene identity survives that liveness message as positive evidence.
+      this.timeObservationEpoch += 1;
+      if (this.ready) this._cancelPendingForReset();
+      this.sceneIdentity = null;
       this.ready = true;
       var waiters = this.readyWaiters.splice(0);
       waiters.forEach(function(waiter) {

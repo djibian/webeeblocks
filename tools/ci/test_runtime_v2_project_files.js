@@ -115,6 +115,25 @@ async function proveScenePreparation() {
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK'); await recovered;
   assert.strictEqual(racing.sceneIdentity,'sequence-v1');
 
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  assert.strictEqual(racing.sceneIdentity,null,'native READY retained scene evidence');
+  const restarting = racing.prepareActivity(sequence);
+  const revoked = assert.rejects(restarting,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 OK');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); // ACK callback still queued.
+  await revoked;
+  assert.strictEqual(racing.sceneIdentity,null,'old ACK survived native READY');
+  const beforeAck = racing.prepareActivity(sequence);
+  const rejected = assert.rejects(beforeAck,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 OK');
+  await rejected;
+  assert.strictEqual(racing.sceneIdentity,null);
+  const afterRestart = racing.prepareActivity(sequence);
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 OK');
+  await afterRestart;
+  assert.strictEqual(racing.sceneIdentity,'sequence-v1');
+
   const live = buildWorkspace(0.2), ref = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
   let releasePreparation;
   let rejectPreparation;

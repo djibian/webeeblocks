@@ -45,6 +45,23 @@ Les tests projet couvrent Démarrer/Ouvrir pour ces sept profils après
 réattachement, le trajet inverse et les réponses retardées/erronées ; le probe
 R2025a remplace aussi le backend tout en gardant le même contrôleur natif.
 
+Un redémarrage du seul contrôleur natif est distinct d'un réattachement de
+fenêtre : ses variables de processus ne prouvent pas le monde conservé.
+Le module observe les groupes vivants avant toute autorité et revalide leur
+structure sur le chemin d'identité déjà sélectionnée et avant TAKEOFF.
+Si sequence-v1 survit sans les snapshots legacy perdus avec le processus,
+SCENE et TAKEOFF restent refusés ; il faut recharger le monde Webots pour
+reconstruire les scènes et évaluateurs. Aucun faux ACK legacy ne remplace
+cette récupération explicite. Les mondes dédiés sans aucun groupe géré
+(notamment U) conservent leur fonctionnement propre.
+
+Tout READY reçu invalide la connaissance de scène JS et l'epoch des réponses ;
+les requêtes encore en attente d'un contrôleur précédent sont annulées.
+Un ACK déjà reçu dont le callback attend ne peut pas confirmer la scène après
+ce READY. Le test C++ charge deux instances isolées du module de production
+sur les mêmes nœuds pour reproduire les statiques fraîches d'un redémarrage ;
+ce test hôte n'est pas présenté comme un redémarrage réel R2025a exécuté.
+
 Le lancement dans un autre monde sans les groupes identifiés peut refuser la
 scène épurée : seule la scène de lancement Runtime v2 est couverte. La lisibilité
 visuelle, les save/open/reset représentatifs et le comportement réel du modèle

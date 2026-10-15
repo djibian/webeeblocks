@@ -323,7 +323,7 @@ extern "C" void wb_distance_sensor_enable(int,int){}
 extern "C" double wb_distance_sensor_get_value(int){return 1000;}
 extern "C" void wb_led_set(int,int){}
 extern "C" void* wb_supervisor_node_get_self(){return (void*)1;}
-extern "C" void* wb_supervisor_node_get_from_def(const char*){return (void*)2;}
+extern "C" void* wb_supervisor_node_get_from_def(const char* name){return !std::strcmp(name,"GP_U_EVALUATOR")?(void*)2:nullptr;}
 extern "C" void* wb_supervisor_node_get_field(void* n,const char* name){
  if(!std::strcmp(name,"translation"))return (void*)4;
  if(!std::strcmp(name,"rotation"))return (void*)5;

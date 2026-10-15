@@ -37,6 +37,8 @@ PROBE=r'''
 #include <string>
 #include <vector>
 #include <webots/supervisor.h>
+extern "C" int restarted_ready();
+extern "C" int restarted_select(const char *);
 struct Node{std::string def,type,text;bool alive=true;};
 Node root{"root","Group",""},view{"","Viewpoint",""},legacy{"WEBEEBLOCKS_LEGACY_SCENE","Group","DEF WEBEEBLOCKS_LEGACY_SCENE Group { children [] }"},evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group","DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }"},extra7{"ACTIVITY7_REFERENCE","Solid",""},extra8{"ACTIVITY8_REFERENCE","Solid",""},sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false};
 std::vector<Node*> nodes{&view,&legacy,&evaluators,&extra7,&extra8,&sequence};
@@ -70,6 +72,12 @@ int main(int argc,char**argv){
  project=valid; // Official Webots getProjectPath() has NO trailing separator.
  assert(webeeblocks_select_activity_scene("sequence-v1"));assert(webeeblocks_activity_scene_ready());
  assert(sequence.alive&&!legacy.alive&&!evaluators.alive&&!extra7.alive&&!extra8.alive);
+ // A second linked instance has fresh process statics but the SAME live world.
+ // This is distinct from constructing a new JS Robot Window/backend instance.
+ assert(!restarted_ready());
+ assert(!restarted_select("legacy-v1"));assert(!restarted_ready());
+ assert(!restarted_select("sequence-v1"));assert(!restarted_ready());
+ assert(sequence.alive&&!legacy.alive&&!evaluators.alive);
  assert(removals[0]=="WEBEEBLOCKS_LEGACY_EVALUATORS");assert(removals[1]=="WEBEEBLOCKS_LEGACY_SCENE");
  assert(p[0]==-.9);assert(!webeeblocks_select_activity_scene("unknown"));assert(sequence.alive);
  assert(webeeblocks_select_activity_scene("legacy-v1"));assert(legacy.alive&&evaluators.alive&&!sequence.alive);assert(p[0]==-2);
@@ -84,6 +92,13 @@ int main(int argc,char**argv){
  missingField=nullptr;assert(webeeblocks_select_activity_scene("legacy-v1"));}
  sequence.type="Pose";assert(!webeeblocks_select_activity_scene("sequence-v1"));assert(!webeeblocks_activity_scene_ready());
  sequence.type="Group";assert(webeeblocks_select_activity_scene("legacy-v1"));
+ // Cached identity cannot attest a live group after its content disappears.
+ assert(webeeblocks_select_activity_scene("sequence-v1"));
+ sequenceChildren=0;
+ assert(!webeeblocks_activity_scene_ready());
+ rootOnly=true;assert(!webeeblocks_select_activity_scene("sequence-v1"));
+ assert(!webeeblocks_activity_scene_ready());
+ rootOnly=false;assert(webeeblocks_select_activity_scene("legacy-v1"));
  assert(webeeblocks_select_activity_scene("sequence-v1"));partialLegacy=true;
  assert(!webeeblocks_select_activity_scene("legacy-v1"));assert(!evaluators.alive);assert(!webeeblocks_activity_scene_ready());
  partialLegacy=false;assert(webeeblocks_select_activity_scene("legacy-v1"));
@@ -104,6 +119,10 @@ def main():
             path=root/file;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(HEADER)
         scenes=root/'worlds/scenes';scenes.mkdir(parents=True);(scenes/'sequence-v1.wbo').write_bytes((ROOT/'worlds/scenes/sequence-v1.wbo').read_bytes())
         (root/'probe.cpp').write_text(PROBE)
-        subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-I',str(root),'-I',str(ROOT/'controllers/crazyflie_runtime_v2'),str(ROOT/'controllers/crazyflie_runtime_v2/activity_scene.cpp'),str(root/'probe.cpp'),'-o',str(root/'probe')],check=True)
+        compiler=['g++','-std=c++17','-Wall','-Wextra','-I',str(root),'-I',str(ROOT/'controllers/crazyflie_runtime_v2')]
+        production=str(ROOT/'controllers/crazyflie_runtime_v2/activity_scene.cpp')
+        subprocess.run(compiler+['-Dwebeeblocks_activity_scene_ready=restarted_ready',
+            '-Dwebeeblocks_select_activity_scene=restarted_select','-c',production,'-o',str(root/'restarted.o')],check=True)
+        subprocess.run(compiler+[production,str(root/'probe.cpp'),str(root/'restarted.o'),'-o',str(root/'probe')],check=True)
         subprocess.run([str(root/'probe'),str(root)],check=True)
 if __name__=='__main__':main()
