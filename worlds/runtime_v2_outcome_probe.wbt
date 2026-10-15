@@ -5,7 +5,7 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
 
-WorldInfo {
+DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {
   basicTimeStep 32
   randomSeed 1
   optimalThreadCount 1

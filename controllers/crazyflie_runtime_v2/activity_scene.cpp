@@ -46,8 +46,12 @@ bool liveSelection() {
     return completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount) &&
       completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount) &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE");
-  // Dedicated Runtime/Grand Prix worlds do not use this scene manager.
-  return !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
+  // Absence is not identity: an interrupted managed-world import may also
+  // leave zero groups. Dedicated worlds opt in through a typed world root.
+  WbNodeRef world = wb_supervisor_node_get_from_def("WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD");
+  const char *type = world ? wb_supervisor_node_get_type_name(world) : nullptr;
+  return type && !std::strcmp(type, "WorldInfo") &&
+    !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") &&
     !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
     !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS");
 }

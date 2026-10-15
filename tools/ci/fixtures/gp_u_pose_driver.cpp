@@ -323,7 +323,11 @@ extern "C" void wb_distance_sensor_enable(int,int){}
 extern "C" double wb_distance_sensor_get_value(int){return 1000;}
 extern "C" void wb_led_set(int,int){}
 extern "C" void* wb_supervisor_node_get_self(){return (void*)1;}
-extern "C" void* wb_supervisor_node_get_from_def(const char* name){return !std::strcmp(name,"GP_U_EVALUATOR")?(void*)2:nullptr;}
+extern "C" void* wb_supervisor_node_get_from_def(const char* name){
+ if(!std::strcmp(name,"GP_U_EVALUATOR"))return (void*)2;
+ if(!std::strcmp(name,"WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD"))return (void*)3;
+ return nullptr;
+}
 extern "C" void* wb_supervisor_node_get_field(void* n,const char* name){
  if(!std::strcmp(name,"translation"))return (void*)4;
  if(!std::strcmp(name,"rotation"))return (void*)5;
@@ -340,7 +344,7 @@ extern "C" void wb_supervisor_node_reset_physics(void*){}
 // but reject any unexpected scene API entry; import behavior has its own probe.
 extern "C" const char* wb_robot_get_project_path(){assert(false);return nullptr;}
 extern "C" void* wb_supervisor_node_get_root(){assert(false);return nullptr;}
-extern "C" const char* wb_supervisor_node_get_type_name(void*){assert(false);return nullptr;}
+extern "C" const char* wb_supervisor_node_get_type_name(void* node){assert(node==(void*)3);return "WorldInfo";}
 extern "C" const char* wb_supervisor_node_get_def(void*){assert(false);return nullptr;}
 extern "C" const char* wb_supervisor_node_export_string(void*){assert(false);return nullptr;}
 extern "C" void wb_supervisor_node_remove(void*){assert(false);}

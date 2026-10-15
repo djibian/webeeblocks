@@ -104,7 +104,7 @@ window.addEventListener('unhandledrejection', function(event) {
       await backend.prepareActivity(profile);
       const scene = profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
       const requests = sent.slice(start);
-      if (requests.length !== 1 || !new RegExp('^WEBEEBLOCKS_RUNTIME_V2 REQUEST \\d+ SCENE ' + scene + '$').test(requests[0]))
+      if (requests.length !== 1 || !new RegExp('^WEBEEBLOCKS_RUNTIME_V2 REQUEST \\d+ SCENE ' + scene + ' [0-9a-f]{64}$').test(requests[0]))
         throw new Error('reattachment did not acknowledge one native scene request: ' + JSON.stringify(requests));
       await report(event, {scene:scene, requests:requests.length});
     }

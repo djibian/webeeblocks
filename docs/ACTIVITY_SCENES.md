@@ -52,8 +52,15 @@ structure sur le chemin d'identité déjà sélectionnée et avant TAKEOFF.
 Si sequence-v1 survit sans les snapshots legacy perdus avec le processus,
 SCENE et TAKEOFF restent refusés ; il faut recharger le monde Webots pour
 reconstruire les scènes et évaluateurs. Aucun faux ACK legacy ne remplace
-cette récupération explicite. Les mondes dédiés sans aucun groupe géré
-(notamment U) conservent leur fonctionnement propre.
+cette récupération explicite. L'absence totale des trois groupes reste elle
+aussi refusée, y compris après redémarrage : elle ne prouve pas un monde dédié.
+Les mondes dédiés déclarent positivement
+`DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo` et ne contiennent aucun
+groupe géré. Ce marqueur typé est vérifié avant chaque autorité TAKEOFF ;
+absent, de mauvais type ou supprimé, il ne peut autoriser le monde.
+Il identifie le mode de scène, sans qualifier la géométrie ou l'oracle du monde.
+Le monde sonde outcome et les générateurs/sondes U déclarent ce mode ;
+le monde pédagogique Runtime v2 conserve obligatoirement ses groupes.
 
 Tout READY reçu invalide la connaissance de scène JS et l'epoch des réponses ;
 les requêtes encore en attente d'un contrôleur précédent sont annulées.
