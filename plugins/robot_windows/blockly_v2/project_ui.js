@@ -106,7 +106,7 @@
       return browserTransport;
     }
 
-    await import('../blockly/webeeblocks/project_file_wwi_transport.js?rev=20260912-2');
+    await import('../blockly/webeeblocks/project_file_wwi_transport.js?rev=20261015-control-busy');
     if (typeof window.WebeeBlocksProjectFileWwiTransport !== 'function')
       throw new Error('Project file WWI transport module unavailable');
     var directRobotWindow = await waitForRobotWindow(5000);
