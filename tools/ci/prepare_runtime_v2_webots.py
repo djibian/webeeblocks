@@ -200,7 +200,7 @@ script = r'''
       throw new Error('unexpected WWI request framing: ' + String(message));
     const id = Number(match[1]);
     const command = match[2];
-    if (command === 'SCENE legacy-v1')
+    if (/^SCENE legacy-v1 [0-9a-f]{64}$/.test(command))
       return {id, command: 'SCENE_LEGACY'};
     if (command.startsWith('TAKEOFF '))
       return {id, command: 'TAKEOFF'};
@@ -384,7 +384,7 @@ script = r'''
     await WebeeBlocksActivityContract.execute(
       runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {maxSteps:20}
     );
-    const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, ''));
+    const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, '').replace(/^SCENE legacy-v1 [0-9a-f]{64}$/, 'SCENE legacy-v1'));
     const expectedLightRequests = [
       // RESET revoked the scene identity: require this one acknowledged setup
       // before the unchanged four-command LED program, without filtering traffic.

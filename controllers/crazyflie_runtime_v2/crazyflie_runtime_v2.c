@@ -66,6 +66,7 @@ typedef struct {
   int id;
   request_kind_t kind;
   char direction[32];
+  char scene_nonce[65];
   double value;
 } request_t;
 
@@ -151,6 +152,16 @@ static request_t parse_request(const char *message) {
   char direction[32] = {0};
   char command[32] = {0};
   char extra[2] = {0};
+
+  char scene_nonce[65] = {0};
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %64s %1s", &id, direction, scene_nonce, extra) == 3 &&
+      strlen(scene_nonce) == 64 && strspn(scene_nonce, "0123456789abcdef") == 64) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    memcpy(request.scene_nonce, scene_nonce, sizeof(scene_nonce));
+    return request;
+  }
 
   if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %1s", &id, direction, extra) == 2) {
     request.id = id;
@@ -508,7 +519,13 @@ int main(void) {
         } else if (!webeeblocks_select_activity_scene(request.direction)) {
           response_error(request.id, "SCENE_UNAVAILABLE");
         } else {
-          response_ok(request.id);
+          if (request.scene_nonce[0]) {
+            char acknowledgement[192];
+            snprintf(acknowledgement, sizeof(acknowledgement), PREFIX " RESPONSE %d SCENE_OK %s", request.id, request.scene_nonce);
+            send_text(acknowledgement);
+          } else {
+            response_ok(request.id);
+          }
         }
         continue;
       }

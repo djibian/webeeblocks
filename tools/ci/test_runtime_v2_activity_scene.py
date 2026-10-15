@@ -125,4 +125,29 @@ def main():
             '-Dwebeeblocks_select_activity_scene=restarted_select','-c',production,'-o',str(root/'restarted.o')],check=True)
         subprocess.run(compiler+[production,str(root/'probe.cpp'),str(root/'restarted.o'),'-o',str(root/'probe')],check=True)
         subprocess.run([str(root/'probe'),str(root)],check=True)
+        source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
+        types=source[source.index('typedef enum {'):source.index('static double clip(')]
+        parser=source[source.index('static int extract_id('):source.index('static void trace_range(')]
+        (root/'framing.c').write_text('#include <assert.h>\n#include <stdio.h>\n#include <string.h>\n'
+            '#define PREFIX "WEBEEBLOCKS_RUNTIME_V2"\n'+types+parser+r'''
+int main(void) {
+  const char *nonce="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  char message[256];
+  snprintf(message,sizeof(message),PREFIX " REQUEST 1 SCENE legacy-v1 %s",nonce);
+  request_t r=parse_request(message);
+  assert(r.kind==REQUEST_SCENE && r.id==1 && !strcmp(r.scene_nonce,nonce));
+  assert(!strcmp(r.direction,"legacy-v1"));
+  const char *invalid[]={"short","0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0",
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeF",
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef extra"};
+  for(unsigned i=0;i<sizeof(invalid)/sizeof(*invalid);i++) {
+    snprintf(message,sizeof(message),PREFIX " REQUEST 1 SCENE legacy-v1 %s",invalid[i]);
+    assert(parse_request(message).kind==REQUEST_INVALID);
+  }
+  r=parse_request(PREFIX " REQUEST 1 SCENE legacy-v1");
+  assert(r.kind==REQUEST_SCENE && !r.scene_nonce[0]);
+}
+''')
+        subprocess.run(['gcc','-std=c11','-Wall','-Wextra',str(root/'framing.c'),'-o',str(root/'framing')],check=True)
+        subprocess.run([str(root/'framing')],check=True)
 if __name__=='__main__':main()

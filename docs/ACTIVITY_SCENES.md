@@ -62,6 +62,19 @@ ce READY. Le test C++ charge deux instances isolées du module de production
 sur les mêmes nœuds pour reproduire les statiques fraîches d'un redémarrage ;
 ce test hôte n'est pas présenté comme un redémarrage réel R2025a exécuté.
 
+Les identifiants numériques repartent à 1 dans une nouvelle fenêtre : ils ne
+suffisent donc pas à corréler un ACK retardé d'une autre connexion. Chaque
+préparation ajoute désormais un jeton aléatoire de 256 bits, généré par
+`crypto.getRandomValues`, à SCENE. Le contrôleur le renvoie dans SCENE_OK
+seulement après sélection native réussie ; le backend exige ID ET jeton exacts
+avant confirmation. L'unicité pratique repose sur la source aléatoire système ;
+son absence refuse la préparation. Ni un ancien OK simple ni le jeton d'une
+autre préparation ne consomme la requête courante. Les erreurs restent
+refusantes. Les requêtes SCENE historiques sans jeton restent compatibles avec
+les probes natifs, mais leur OK simple ne confirme jamais une préparation du
+nouveau frontend. Les tests routent explicitement l'ancien ACK au nouveau
+récepteur avec le même ID, avant de livrer le seul bon ACK.
+
 Le lancement dans un autre monde sans les groupes identifiés peut refuser la
 scène épurée : seule la scène de lancement Runtime v2 est couverte. La lisibilité
 visuelle, les save/open/reset représentatifs et le comportement réel du modèle

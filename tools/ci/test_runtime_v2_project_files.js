@@ -80,13 +80,19 @@ function managerFor(workspace, profileRef, transport) {
   });
 }
 
+function sceneAck(backend, id) {
+  const pending=backend.pending[id];
+  assert(pending && /^[0-9a-f]{64}$/.test(pending.sceneNonce),'missing native scene correlation');
+  return 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+id+' SCENE_OK '+pending.sceneNonce;
+}
+
 async function proveScenePreparation() {
   const messages = [];
   const backend = new WwiBackend({send: m => messages.push(m)}, {simulationScenes:true,timeoutMs:1000});
   const sequence = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
   const pending = backend.prepareActivity(sequence);
-  assert.match(messages[0], / REQUEST 1 SCENE sequence-v1$/);
-  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
+  assert.match(messages[0], / REQUEST 1 SCENE sequence-v1 [0-9a-f]{64}$/);
+  backend.handleMessage(sceneAck(backend,1));
   await pending;
   const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
   await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
@@ -104,7 +110,7 @@ async function proveScenePreparation() {
   assert.strictEqual(racing.sceneIdentity,null);
   const old = racing.prepareActivity(sequence);
   const cancelled = assert.rejects(old,e=>e.code==='RESET_CANCELLED');
-  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK');
+  racing.handleMessage(sceneAck(racing,2));
   const resetting = racing.resetSimulation(); // ACK received, callback still queued.
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
   await cancelled; await resetting;
@@ -112,14 +118,14 @@ async function proveScenePreparation() {
   const recovered = racing.prepareActivity(sequence);
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK'); // stale response
   assert.strictEqual(racing.sceneIdentity,null);
-  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK'); await recovered;
+  racing.handleMessage(sceneAck(racing,4)); await recovered;
   assert.strictEqual(racing.sceneIdentity,'sequence-v1');
 
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
   assert.strictEqual(racing.sceneIdentity,null,'native READY retained scene evidence');
   const restarting = racing.prepareActivity(sequence);
   const revoked = assert.rejects(restarting,e=>e.code==='RESET_CANCELLED');
-  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 OK');
+  racing.handleMessage(sceneAck(racing,5));
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); // ACK callback still queued.
   await revoked;
   assert.strictEqual(racing.sceneIdentity,null,'old ACK survived native READY');
@@ -130,7 +136,7 @@ async function proveScenePreparation() {
   await rejected;
   assert.strictEqual(racing.sceneIdentity,null);
   const afterRestart = racing.prepareActivity(sequence);
-  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 OK');
+  racing.handleMessage(sceneAck(racing,7));
   await afterRestart;
   assert.strictEqual(racing.sceneIdentity,'sequence-v1');
 
@@ -197,14 +203,14 @@ async function proveSceneReattachment() {
         if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
           backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
         }
-        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1)$/);
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1) ([0-9a-f]{64})$/);
         assert(match,'unexpected native scene request: '+message);
         controller.scene=match[2];
-        controller.requests.push({backend,id:Number(match[1]),scene:match[2]});
+        controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
       }},{simulationScenes:true,simulationReset:true,simulationStop:true,timeoutMs:1000});
       return backend;
     }, ack(request, payload='OK') {
-      request.backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+request.id+' '+payload);
+      request.backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+request.id+' '+(payload==='OK'?'SCENE_OK '+request.nonce:payload));
     }};
   }
   for(const starter of starters.slice(1)) for(const mode of ['template','open']) for(const inverse of [false,true]) {
@@ -258,17 +264,36 @@ async function proveSceneReattachment() {
     const rejected=assert.rejects(selecting); native.ack(native.requests.at(-1),payload); await rejected;
     assert.strictEqual(backend.sceneIdentity,null,'wrong ACK established a scene');
   }
+  // Real production instances restart numeric IDs. Route OLD replies to the
+  // CURRENT receiver, as main.js does, before its own native acknowledgement.
+  const lateNative=nativeController('legacy-v1'), oldBackend=lateNative.attach();
+  await oldBackend.waitUntilReady();
+  const oldSelection=oldBackend.prepareActivity({id:sequence});
+  const oldRequest=lateNative.requests.at(-1);
+  const current=lateNative.attach(); await current.waitUntilReady();
+  const currentSelection=current.prepareActivity({id:'progression-precise-movement-v1'});
+  const currentRequest=lateNative.requests.at(-1);
+  assert.strictEqual(oldRequest.id,currentRequest.id);
+  assert.notStrictEqual(oldRequest.nonce,currentRequest.nonce);
+  current.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+oldRequest.id+' OK');
+  current.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+oldRequest.id+' SCENE_OK '+oldRequest.nonce);
+  await flush(); assert.strictEqual(current.sceneIdentity,null,'foreign connection ACK confirmed scene');
+  assert(current.pending[currentRequest.id],'foreign ACK consumed the current request');
+  lateNative.ack(currentRequest);await currentSelection;
+  assert.strictEqual(current.sceneIdentity,'legacy-v1');
+  lateNative.ack(oldRequest);await oldSelection;
+
   const sent=[], delayed=new WwiBackend({send:m=>sent.push(m)},{simulationScenes:true,simulationStop:true,timeoutMs:30});
   await assert.rejects(delayed.prepareActivity({id:sequence}),/request timeout/);
   assert.strictEqual(delayed.sceneIdentity,null);
   const retry=delayed.prepareActivity({id:'progression-precise-movement-v1'});
   delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
   await flush(); assert.strictEqual(delayed.sceneIdentity,null,'timed-out ACK confirmed later selection');
-  delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK'); await retry;
+  delayed.handleMessage(sceneAck(delayed,2)); await retry;
   const preparing=delayed.prepareActivity({id:sequence});
   const cancelled=assert.rejects(preparing,e=>e.code==='RESET_CANCELLED');
   const stopping=delayed.stopSimulation();
-  delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
+  delayed.handleMessage(sceneAck(delayed,3));
   delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');
   await cancelled; await stopping; assert.strictEqual(delayed.sceneIdentity,null);
   console.log('PASS scene reattachment: 28 Start/Open transitions across activities 1-8, ACK-before-application, targets, concurrency, wrong/late replies, timeout and STOP');

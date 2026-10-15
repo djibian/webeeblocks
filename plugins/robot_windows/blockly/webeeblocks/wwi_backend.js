@@ -91,6 +91,17 @@
 
   RuntimeV2WwiBackend.prototype._request = function(parts) {
     var self = this;
+    var sceneNonce = null;
+    if (parts[0] === 'SCENE') {
+      // Numeric request IDs restart at each Robot Window. A fresh correlation
+      // token must survive routing an old connection's ACK to this receiver.
+      var bytes = new Uint8Array(32);
+      if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== 'function')
+        return Promise.reject(new Error('Runtime v2 scene correlation unavailable'));
+      globalThis.crypto.getRandomValues(bytes);
+      sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      parts = parts.concat([sceneNonce]);
+    }
     var id = this.nextId++;
     return new Promise(function(resolve, reject) {
       var timer = setTimeout(function() {
@@ -98,7 +109,7 @@
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
       }, self.timeoutMs);
-      self.pending[id] = {resolve: resolve, reject: reject, timer: timer};
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -135,6 +146,16 @@
       });
       return true;
     }
+    var sceneAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) SCENE_OK ([0-9a-f]{64})$/);
+    if (sceneAck) {
+      var scenePending = this.pending[Number(sceneAck[1])];
+      if (scenePending && scenePending.sceneNonce === sceneAck[2]) {
+        clearTimeout(scenePending.timer);
+        delete this.pending[Number(sceneAck[1])];
+        scenePending.resolve(null);
+      }
+      return true;
+    }
     var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)|ERR ([A-Z0-9_]+))$/);
     if (!match)
       return true;
@@ -142,6 +163,8 @@
     var pending = this.pending[id];
     if (!pending)
       return true;
+    if (pending.sceneNonce && match[2] === 'OK')
+      return true; // A legacy/other connection's ACK cannot confirm this scene.
     clearTimeout(pending.timer);
     delete this.pending[id];
     if (match[2] === 'OK') {

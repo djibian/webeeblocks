@@ -142,7 +142,7 @@ __COMMON__
     const techPreparationStart = wwiTx.length;
     await runtimeBackend.prepareActivity(runtimeProfile);
     const techPreparation = wwiTx.slice(techPreparationStart);
-    if (techPreparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1$/.test(techPreparation[0]))
+    if (techPreparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1 [0-9a-f]{64}$/.test(techPreparation[0]))
       throw new Error('unexpected technical-fault scene preparation: ' + JSON.stringify(techPreparation));
     const originalTakeoff = runtimeBackend.takeoff.bind(runtimeBackend);
     const techStartId = runtimeBackend.nextId;
@@ -185,7 +185,7 @@ __COMMON__
     // acknowledge exactly one legacy scene before the first program pause;
     // TAKEOFF and every other program request remain forbidden in this prefix.
     const preparation = wwiTx.slice(preparationStart);
-    if (preparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1$/.test(preparation[0]))
+    if (preparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1 [0-9a-f]{64}$/.test(preparation[0]))
       throw new Error('unexpected pre-step scene preparation: ' + JSON.stringify(preparation));
     const txStart = wwiTx.length;
     await sleep(300);
