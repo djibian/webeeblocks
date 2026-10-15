@@ -18,6 +18,7 @@ EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
+        "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",

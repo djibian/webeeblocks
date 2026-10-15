@@ -16,7 +16,7 @@ async function testBackendReadyHandshake() {
     'concurrent readiness waiters must share one non-effect liveness probe');
   assert.strictEqual(backend.readyWaiters.length, 2);
 
-  assert.strictEqual(backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'), true);
+  assert.strictEqual(backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY HELLO'), true);
   await Promise.all([first, second]);
   assert.strictEqual(backend.ready, true);
   assert.strictEqual(backend.readyWaiters.length, 0);
@@ -25,6 +25,49 @@ async function testBackendReadyHandshake() {
   await backend.waitUntilReady();
   assert.strictEqual(sent.length, sentBeforeReadyNoop,
     'already-ready backend must not emit a new liveness probe');
+}
+
+async function testHelloReplyDoesNotForgeRestart() {
+  const prefix = 'WEBEEBLOCKS_RUNTIME_V2 ';
+  for (const replyBeforeAck of [true, false]) {
+    const sent = [];
+    const backend = new WwiBackend({send:m=>sent.push(m)}, {
+      simulationScenes:true, simulationReset:true, timeoutMs:1000
+    });
+    backend.handleMessage(prefix + 'READY HELLO');
+    assert.strictEqual(backend.ready, false, 'unsolicited liveness reply created readiness');
+    const ready = backend.waitUntilReady();
+    backend.handleMessage(prefix + 'READY');
+    await ready;
+    const epoch = backend.timeObservationEpoch;
+    const scene = backend.prepareActivity({id:'progression-sequence-v1'});
+    const request = sent[1].match(/REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
+    assert(request);
+    if (replyBeforeAck) backend.handleMessage(prefix + 'READY HELLO');
+    backend.handleMessage(prefix + 'RESPONSE ' + request[1] + ' SCENE_OK ' + request[2]);
+    if (!replyBeforeAck) backend.handleMessage(prefix + 'READY HELLO'); // .then still queued
+    await scene;
+    assert.strictEqual(backend.sceneIdentity, 'sequence-v1');
+    assert.strictEqual(backend.timeObservationEpoch, epoch);
+
+    const range = backend.readRange('front');
+    backend.handleMessage(prefix + 'READY HELLO');
+    backend.handleMessage(prefix + 'RESPONSE 2 VALUE 0.5');
+    assert.strictEqual(await range, 0.5, 'liveness cancelled an ordinary pending request');
+    const revoked = assert.rejects(backend.readRange('front'), e=>e.code==='RESET_CANCELLED');
+    backend.handleMessage(prefix + 'READY'); // genuine process-start signal still revokes
+    backend.handleMessage(prefix + 'READY HELLO');
+    backend.handleMessage(prefix + 'RESPONSE 3 VALUE 0.5');
+    await revoked;
+    assert.strictEqual(backend.sceneIdentity, null);
+    assert.strictEqual(backend.timeObservationEpoch, epoch + 1);
+
+    const reset = backend.resetSimulation();
+    backend.handleMessage(prefix + 'READY HELLO');
+    assert.strictEqual(backend.ready, false, 'late liveness reply completed a pending RESET');
+    backend.handleMessage(prefix + 'RESPONSE 4 OK');
+    await reset;
+  }
 }
 
 async function testBackendResetContract() {
@@ -272,8 +315,8 @@ function testStartupHandshakeSourceContract() {
     path.join(__dirname, '../../controllers/crazyflie_runtime_v2/file_broker_runtime.cpp'), 'utf8');
   assert.match(brokerSource, /WEBEEBLOCKS_RUNTIME_V2 HELLO/);
   assert.match(brokerSource, /WEBEEBLOCKS_RUNTIME_V2 READY/);
-  assert.match(brokerSource, /if \(isRuntimeHello\(message\)\) \{[\s\S]*wb_robot_wwi_send_text\(kRuntimeReady\);[\s\S]*continue;/,
-    'controller receive seam must answer HELLO with READY without forwarding an action');
+  assert.match(brokerSource, /if \(isRuntimeHello\(message\)\) \{[\s\S]*wb_robot_wwi_send_text\(kRuntimeHelloReady\);[\s\S]*continue;/,
+    'controller receive seam must answer HELLO without forging a startup READY or forwarding an action');
 
   const projectSource = fs.readFileSync(
     path.join(__dirname, '../../plugins/robot_windows/blockly_v2/project_ui.js'), 'utf8');
@@ -295,6 +338,7 @@ function testNativeResetTimeoutSourceContract() {
 
 (async () => {
   await testBackendReadyHandshake();
+  await testHelloReplyDoesNotForgeRestart();
   await testBackendResetContract();
   await testProjectFileOperationsOutliveReadinessTimeout();
   await testProjectOpenKeepsResetRequirementAndLocksDuringReset();

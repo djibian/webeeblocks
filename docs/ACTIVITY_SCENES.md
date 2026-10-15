@@ -82,6 +82,16 @@ les probes natifs, mais leur OK simple ne confirme jamais une préparation du
 nouveau frontend. Les tests routent explicitement l'ancien ACK au nouveau
 récepteur avec le même ID, avant de livrer le seul bon ACK.
 
+Le signal spontané `READY` indique un démarrage du contrôleur : il invalide
+toujours scène, requêtes et horloge antérieures. La réponse de disponibilité à
+`HELLO` est distincte : `READY HELLO`. Elle libère seulement une attente de
+disponibilité en cours et n'invalide pas une scène ou une commande. En effet,
+le `READY` spontané puis la réponse tardive à `HELLO` peuvent entourer une
+requête SCENE et son accusé dans une même connexion normale. Les confondre
+annulait cette préparation avec `RESET_CANCELLED` (CI Ready 38788423410).
+Les tests couvrent les deux ordres autour de SCENE_OK, y compris avant son
+callback, une commande ordinaire en attente, le vrai redémarrage et RESET.
+
 Le lancement dans un autre monde sans les groupes identifiés peut refuser la
 scène épurée : seule la scène de lancement Runtime v2 est couverte. La lisibilité
 visuelle, les save/open/reset représentatifs et le comportement réel du modèle

@@ -311,7 +311,7 @@ async function runProgram() {
   var hooks = runtimeDebug ? runtimeDebug.begin(debugRequested) : null;
   try {
     await WebeeBlocksActivityContract.execute(runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {
-      maxSteps: 1000,
+      maxSteps: runtimeProfile.runtime.maxSteps || 1000,
       hooks: hooks,
       onAst: function(ast) {
         window.dispatchEvent(new CustomEvent('webeeblocks-runtime-v2-ast', {detail: ast}));
@@ -371,7 +371,7 @@ function wireWorkspaceControls() {
 
 window.onload = async function() {
   profileFieldOptions = WebeeBlocksActivityProfiles.createFieldOptionController(WebeeBlocksActivities.DOCUMENT, WebeeBlocksActivities.BLOCK_CATALOG, Blockly);
-  runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
+  runtimeProfile = WebeeBlocksActivityProfiles.resolveById(WebeeBlocksActivities.DOCUMENT, typeof WebeeBlocksInitialActivityId === 'string' ? WebeeBlocksInitialActivityId : 'reactive-obstacle-v2', WebeeBlocksActivities.BLOCK_CATALOG);
   profileFieldOptions.setProfile(runtimeProfile, null);
   document.getElementById('activityTitle').textContent = runtimeProfile.brief.title;
   document.getElementById('activityGoal').textContent = runtimeProfile.brief.goal;

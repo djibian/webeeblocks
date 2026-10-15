@@ -147,6 +147,12 @@ static void expect_unavailable_after_complete(const std::string &seed) {
 }
 
 int main() {
+  reset_harness();
+  process({"WEBEEBLOCKS_RUNTIME_V2 HELLO", "WEBEEBLOCKS_RUNTIME_V2 HELLO"});
+  assert(sent_text.size() == 2);
+  assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 READY HELLO");
+  assert(sent_text[1] == "WEBEEBLOCKS_RUNTIME_V2 READY HELLO");
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
   for (const char *status : {"achieved", "not-achieved", "interrupted"}) {
     reset_harness();
     custom_data = std::string("WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=progression-precise-movement-v1 status=") + status;

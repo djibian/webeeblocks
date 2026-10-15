@@ -1,0 +1,18 @@
+{
+  "source_head": "60efa676e4f1e17ffd0d4098406e597210aad6f2",
+  "run": 38363324274,
+  "artifact": 11796149632,
+  "archive_sha256": "67e80f7aba0b0d2254d304c3ac1504fddec6864a0a144c1c93df2aeef31855ce",
+  "configuration": "gp-v4-0",
+  "position": [
+    -0.1944156211295113,
+    -0.83283806337068,
+    0.7824866676360743
+  ],
+  "reason": "envelope-contact",
+  "ranges": {
+    "front": 0.357027615,
+    "left": 0.690493835,
+    "right": 0.310438095
+  }
+}

@@ -1,0 +1,689 @@
+> **Archives gp-v2/v3/v4 — règles supplantées par #587, 13/10/2026.**
+> Les résultats suivants restent historiques. Le candidat actif est décrit dans
+> GRAND_PRIX_U_PROTOTYPE.md. Aucun ancien PASS n’est transféré.
+
+## gp-v4 : composition de l'horloge et nouvelle calibration native
+
+Le candidat e8e3e1ae358fdba1ce98447a1b87254c90b36ca7 a réussi **huit**
+trajectoires R2025a : run 38366692370, tentative 1, success, Select suites
+115193400908 / CI Gate (Draft) 115219021202, Runtime/Webots skipped.
+Archive 11799818464, SHA-256 **publié par GitHub**
+0704132d0e771dcbd9e7db73211ae6a44c5bc0d074aab975bb9d779efe34509e,
+13 458 496 octets. Après déconnexion locale, aucun recalcul local du digest
+n'est revendiqué. Le runner a contrôlé chaque résultat natif, identité,
+frontière et AST, et produit les CSV/analyses. Détail durable :
+https://github.com/djibian/webeeblocks/pull/591#issuecomment-6142362954.
+
+| Configuration | Politique | Tours | Temps | Points T=180 |
+| --- | --- | ---: | ---: | ---: |
+| gp-v4-0, 3 H finaux | fixe | 1 | 351,584 s | −142 |
+| gp-v4-16, 2 H boucle | fixe | 1 | 288,672 s | −89 |
+| gp-v4-16 | fixe | 2 | 504,352 s | −295 |
+| gp-v4-1, 4 H boucle | fixe | 1 | 332,256 s | −123 |
+| gp-v4-1 | fixe | 2 | 579,040 s | −350 |
+| gp-v4-4, 1 H final | fixe | 1 | 284,736 s | −80 |
+| gp-v4-16 | C, compte | 2 | 493,952 s | −284 |
+| gp-v4-1 | C, compte | 1 | 326,560 s | −117 |
+
+La collision latérale précédente est réparée dans ces cas exécutés ; les
+traversées à 1/2/3 H finaux utilisent le même AST fixe. **Résultat négatif :
+T=180, 300, 420, 450 ou 480 s conserve ici un meilleur choix fixe à un tour.**
+La mémoire C ne bat pas le meilleur choix fixe pour ces seuils. Les écarts
+C/A (10,400 s sur deux tours ; 5,696 s sur un) ne prouvent pas l'équité CPU/WWI.
+Ils ne sont pas corrigés. Aucun PASS ne se transfère au candidat composé.
+
+Une calibration **post hoc** à T=540 s produit 20/30 points A1/A2 sur
+gp-v4-16 et 30/10 sur gp-v4-1, C=30/30. Les seuils exacts d'égalité marginale
+sont 495 et 560 s. Cela justifie un **nouvel essai public fixé avant chaque
+tentative**, pas une réécriture des anciens scores. T=540 (9 min) est un
+candidat de laboratoire, non une règle définitive ni une durée physique.
+Il approche la limite externe **inchangée de 600 s** : ne pas confondre ces
+paramètres ni revendiquer une réserve batterie.
+
+Le main 021dc42f0dc24c54345ef4c2b9fd0cac584c4070 intègre #592 après GO
+indépendant exact et 34/34 CI. La composition conserve ses fichiers et
+garanties, notamment le refus physique, ainsi que la réparation CI #594.
+Elle reprend le témoin D de #598 comme candidat expérimental : vraie
+expression elapsed_time, compte appris, arithmetic/if/while ordinaires,
+budget **19482 ≤ 20000**. Le profil GP opt-in le bloc générique et sa capacité.
+L'estimation de fin **F=90 s**, publique dans l'AST de cette campagne, reste
+une hypothèse stratégique, pas une information sur les H finaux ou une borne
+de sécurité. Un choix mauvais est possible et doit rester visible.
+
+La campagne nouvelle reteste les lignes à 3/1 H, commence D à **T=180** sur
+gp-v4-16, puis compare A1/A2/D avec **le même T=540 déclaré avant essai** sur
+gp-v4-16 et gp-v4-1. Son oracle géométrique reste indépendant du programme.
+Le checker de témoin vérifie le choix D à partir de son temps effectivement
+observé ; il ne force pas une décision attendue de performance. Les mesures
+et le choix sont imprimés/archivés. Le parser diagnostique accepte désormais
+VALUE pour ELAPSED sans relâcher RANGE (0–2 m) ; ces données ne pilotent pas
+l'oracle. La perte de temps reste une erreur avant toute continuation.
+
+Le source courant ne modifie aucun contrôleur de mouvement, rayon, vitesse
+ou géométrie. Il reprend les workflows main puis uniquement le job GP
+préexistant : sa fenêtre de 40 min était incompatible avec la campagne réelle
+de huit parcours (~61 min), elle passe à **85 min pour ce seul job**.
+Cela ne change aucun timeout de commande, seuil d'oracle, limite par essai ou
+autre suite. Cette composition technique intervient après intégration #594,
+pas pendant sa validation. Aucun nouveau workflow, droit ou checkpoint.
+Les anciennes campagnes restent exécutables par --suite gp-v2/gp-v3/gp-v4/all.
+Le défaut gp-v4-time vise cette nouvelle question scientifique.
+
+Nouvelles vérifications Python et natifs attendus de la CI exacte ; les
+sources JavaScript et décisions ont été exécutés dans un isolat, sans les
+présenter comme Webots. Pas de GO auteur ni de fusion. Les essais restent
+expérimentaux, aucune activité intermédiaire, #157/#586 ni matériel concerné.
+
+---
+
+## gp-v4 : première réfutation native et réparation du témoin
+
+Le candidat **60efa676e4f1e17ffd0d4098406e597210aad6f2** est réfuté sur
+la ligne à trois H ouverts : run **38363324274**, tentative 1, failure,
+artefact **11796149632**, SHA-256 ZIP
+**67e80f7aba0b0d2254d304c3ac1504fddec6864a0a144c1c93df2aeef31855ce**.
+Même AST 9510749d3eaec3f7089f098d0589be905f5930159d863b69869d14cd67cb6345 :
+les lignes à un/deux H passent en **280,288 / 314,752 s**, 5/6 passages,
+**−76 / −105 points** à T=180. Sur gp-v4-0, collision de gabarit à
+209,184 s, avant le premier H final : (−0,1944156211 ; −0,8328380634 ;
+0,7824866676). Droite 0,310438095 m ne déclenche pas le seuil 0,300 m.
+Le recentrage de largeur normale, présent dans l'ancien témoin gp-v2,
+n'avait pas été repris. Le gabarit terminal est bien éliminé sans score.
+
+Réparation bornée du programme : centrer aussi lorsque gauche+droite est
+entre 0,9 et 1,1 m, ou dès qu'un côté est sous 0,35 m. Le vrai interpréteur,
+alimenté par ces trois retours natifs, choisit gauche 0,10 m avant progression ;
+l'ablation historique avance directement de 0,20 m. Fixture avec SHA/run/digest
+et négatif conservée. Aucun contrôle, vitesse, capteur, géométrie ou rayon
+n'est modifié. Les deux succès historiques ne sont pas transférés.
+
+Analyse des deux succès seulement : dégagement minimal enveloppe 0,070286 /
+0,055335 m ; marges latérales H 0,143177 / 0,135351 m ; marges hautes
+0,112482 / 0,080181 m ; recul à la paroi après ACK LAND 0,545142 / 0,578889 m.
+Vitesse maximale ~0,260823 m/s, inclinaison maximale ~4,591°. Les 14/21
+saturations à 2 m et mesures finies se réconcilient avec la pose et l'attitude
+natives du Multi-ranger (résidu max <5e-10 m). Ces mesures échantillonnées
+n'établissent aucune borne universelle de freinage ni qualification physique.
+
+Le nouvel essai commence par gp-v4-0, puis teste un/deux tours fixes et une
+politique C à compte découvert sur gp-v4-16 (deux H) et gp-v4-1 (quatre H),
+plus la ligne à un H. C choisit expérimentalement deux tours si le compte
+est 2, un sinon : hypothèse de coût, pas optimum annoncé. Le même AST C
+s'applique aux deux circuits. Une ablation effaçant le compte change le choix
+sans que l'oracle exige la mémoire. Budget 20 000 inchangé. La famille temps
+attend la composition du langage générique #592, sans horloge magique.
+`run_grand_prix_prototype.py --suite gp-v2|gp-v3|gp-v4|all` conserve les
+campagnes historiques exécutables ; défaut gp-v4. Aucun test partagé CI modifié.
+
+---
+
+## gp-v4 — dimensionnement expérimental du 13 octobre 2026
+
+La décision propriétaire #587 remplace la miniaturisation : gp-v4 ajoute un
+carré de trajectoire de 2,50 m, un couloir de 1,00 m, 2–4 H ouverts sur la
+boucle et 1–3 H ouverts finaux puis un H fermé. Les panneaux restent longs de
+0,48 m, le passage large de 0,56 m et la traverse à 0,62 m. Chaque côté sans H
+conserve un obstacle bas de 0,50 m et de pleine largeur. Les premiers H finaux
+sont à 1,10 m de la jonction, espacés de 1,15 m ; le fermé suit à 1,55 m.
+La cible de pose est à 0,75 m avant le fermé. Sol, murs et caméra sont agrandis.
+Le gabarit de 0,09 m, les contacts, la validation orientée et les limitations
+altitude/vitesse/effets ne sont pas relâchés. Les anciennes versions et preuves
+restent ci-dessous ; leurs PASS ne se transfèrent pas.
+
+`python3 -m tools.grand_prix.layout --version gp-v4 --seed 0 --output worlds/grand_prix_v4_seed0.wbt`
+recrée la configuration ; graines 4/1/0 donnent respectivement 1/2/3 H finaux.
+Les règles publiques fixent **T = 180 s** pour cette campagne, sans en faire
+un seuil définitif. Le calcul accepte explicitement un T entier de 1–600 s,
+figé à la création de la tentative. Les anciens essais gardent leur T=120 s.
+Le temps officiel est celui de Webots, avec durée exacte en millisecondes.
+La convention ceil reste candidate ; +5/H et −1/s sont conservés. T n'est
+pas la limite indépendante de développement de 600 s ni une réserve batterie.
+
+Le nouveau témoin distinct navigue avec le vrai AST/interpréteur : descente et
+comparaison des retours devant un H ; si la mesure centrale basse sature, un
+balayage de −20° puis retour au cap exige une mesure finie vers le mur extérieur.
+La saturation seule ne certifie jamais l'ouverture. Une rotation vers l'intérieur
+peut manquer toute paroi à la jonction : ce contre-exemple a changé le témoin.
+Il apprend la distance commandée du premier côté à un coin reconnu par capteurs.
+Après reconnaissance du fermé final, il recule de 0,50 m avant LAND.
+Les politiques fixes 1/2 tours sont deux AST constants entre graines. Préflight
+réel profil/backend et budget 20 000 conservés. Six contrôles locaux couvrent
+les neuf couples de nombres de H, les frontières T=120/180/240/300 et douze
+trajectoires idéales ; celles-ci ne démontrent ni durée native ni freinage.
+
+La campagne native initiale cible 4/1/0 à un tour. Le Supervisor conserve une
+trace de position/vitesse/attitude à chaque pas de 32 ms dans native_trace.csv,
+sans transmettre de géométrie au programme. Les traces servent à mesurer les
+marges, arrêts, virages et pose. L'absence locale de Webots/Docker est compensée
+par le probe R2025a existant de la CI Draft ; aucun moteur idéal n'est présenté
+comme preuve dynamique. Résultats natifs, négatifs et stratégies mémoire/horloge
+restent à obtenir sur ce candidat. Il reste **Draft**, sans GO propre ni fusion.
+Les CI partagées, activités intermédiaires et chantier physique ne sont pas
+modifiés par cet incrément.
+
+---
+
+## Réparation latérale validée et calibration compacte explicite
+
+Le HEAD **76020cbeaf56aee6c4af101582da801d13dbade2** passe les huit
+trajectoires réelles R2025a du run **38309097272**, tentative 1 : artefact
+**11774758930**, SHA-256
+**4c5f60b8453e7b7f52d31a2d2af804f28a907ef94052e1712fe6f4ce4db326e7**.
+Select suites et CI Gate (Draft) sont success, Runtime/Webots skipped ; aucune
+preuve Ready ni GO indépendant n'en suit.
+
+| Configuration | 1 tour efficace | Points | 2 tours efficaces | Points | 3 tours efficaces | Points |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| gp-v2-1 | 192,736 s | −48 | 328,928 s | −164 | 488,384 s | −304 |
+| gp-v2-4 | 147,936 s | −18 | 279,520 s | −140 | 408,000 s | −258 |
+
+Les références historiques du même run donnent 195,808 s / −51 et
+162,272 s / −33. Le bénéfice du témoin corrigé est donc **3,072 / 14,336 s**,
+pas les 13,440 / 15,808 s du précédent candidat qui échouait au troisième tour.
+Le centrage supplémentaire peut effacer une partie du gain : sur gp-v2-1,
+MOVE passe de 52 commandes / 109,504 s à 46 / 110,464 s ; les écarts de
+séquencement passent de 24,000 à 19,968 s. VERTICAL reste à 43,776 s.
+La somme officielle efficace est 172,192 s de service + 19,968 s d'écarts
+ACK→requête + 0,576 s de certification. Le même AST historique gp-v2-1 varie
+encore de 0,256 s contre 696e500 ; aucun contrôle de charge CPU n'en découle.
+La collision latérale du troisième tour est réparée dans ces deux géométries,
+mais **un tour reste le meilleur choix parmi 1/2/3**. La mémoire n'a toujours
+aucun avantage de score établi dans gp-v2 avec ces témoins.
+
+Le générateur ajoute donc explicitement **gp-v3**, candidat de calibration :
+`python3 -m tools.grand_prix.layout --version gp-v3 --seed 16 --output /tmp/gp-v3-16.wbt`.
+Le défaut reste gp-v2 ; les mondes gp-v2-1/4 restent identiques octet pour octet
+aux SHA-256 capturés avant cette modification. Aucun ancien résultat n'est
+transféré à gp-v3. Le côté passe de 1,40 à 1,00 m ; tous les H restent complets
+(plaques de 0,48 m, ouverture de 0,56 m, traverse à 0,62 m), le corridor reste
+large de 0,80 m et chaque côté sans H conserve son obstacle bas de pleine largeur.
+Le créneau des obstacles est à 0,60 m. La fin courte place le fermé à −0,60 m,
+la fin longue conserve ouvert à −0,46 m et fermé à −1,10 m. Le rayon 0,09 m,
+les contacts, les zones d'arrivée, les règles de tours/sortie et le barème sont
+inchangés ; seules les coordonnées dérivées du côté sont paramétrées.
+La version et la graine vont exclusivement au superviseur, jamais à l'AST.
+
+`reference_program_compact.js` est un témoin distinct : il décolle à 0,40 m,
+reste bas après le H observé, remonte devant un obstacle bas mesuré et redescend
+pour observer le fermé final. Il apprend la longueur commandée du premier côté
+jusqu'au virage reconnu par capteur ; il la réutilise au dernier côté et limite
+les grands pas à son approche. Les variantes A fixent 1/2/3 tours. La variante C
+choisit provisoirement deux tours si quatre H ont été découverts, un sinon ;
+**c'est une hypothèse de décision, pas une stratégie optimale ni un avantage
+acquis**. Chaque variante utilise le même AST sur toutes les configurations.
+Aucune hauteur/capacité/limite du profil ou du contrôleur partagé n'est modifiée.
+La famille B indépendante et la stratégie D fondée sur le temps ne sont pas
+encore démontrées ; #592 reste indépendante et non intégrée.
+
+Six tests nouveaux, avec **88 trajectoires idéales sur les 22 formes distinctes**
+du domaine gp-v3 (1/2/3 tours et choix C), passent. Le préflight réel du profil,
+les capacités du backend et le budget inchangé de 20 000 pas sont vérifiés.
+La double saturation terminale refuse LAND. Ces temps idéaux n'ont aucune
+valeur de calibration native. Deux négatifs ont conduit le témoin : tourner
+immédiatement au dégagement du dernier côté n'achève pas sa longueur ; avancer
+0,40 m sans tenir compte de la longueur apprise peut entrer trop loin dans la
+sortie et remonter sous la traverse. Les témoins corrigent ces choix de programme,
+sans changer les oracles. La campagne native compare A1/A2/C sur gp-v3-16
+(quatre H / fin courte), gp-v3-12 (deux H / fin courte), gp-v3-6 (quatre H / fin
+longue), puis réexécute les huit contrôles gp-v2 conservés. Les résultats restent
+à obtenir sur le nouveau HEAD. Toute frontière temporelle atteinte est exigée ;
+les anciens huit essais conservent l'exigence des trois frontières 119,968 / 120 /
+120,032 s. Un parcours fini avant ces instants ne reçoit aucune attente artificielle.
+
+## Diagnostic natif et témoin à déplacements regroupés
+
+Les traces de l'artefact historique 11759248567 (SHA-256
+2ff53d6cfc3abc0ec303a38ff6feaf1c5db6e7b54da7b4f4b84ed504e49f21ed)
+contiennent, pour un tour, 52 MOVE / 170 RANGE / 12 VERTICAL sur gp-v2-1,
+et 48 MOVE / 140 RANGE / 6 VERTICAL sur gp-v2-4. Elles ne contiennent pas
+les instants de chaque commande : on ne peut pas attribuer rétrospectivement
+leurs durées. Le source partagé impose après mouvement une fenêtre de stabilité
+de 0,5 s, avec convergence de position/altitude/vitesse avant ACK. Ce coût existe
+dans Webots mais pas dans le modèle de déplacement idéal.
+
+Le contrôleur expérimental journalise maintenant, uniquement vers stdout,
+la réception native et la réponse de chaque commande avec temps Webots en
+millisecondes et identité de tentative. Aucun changement du source partagé,
+de consigne, de marge, de transport ni d'évaluation. `tools/grand_prix/timing.py`
+réconcilie exactement réception→ACK, ACK→réception suivante et certification
+après LAND avec la durée officielle ; il refuse les événements perdus, doublons,
+réponses tardives, erreurs et horloges rétrogrades. Le premier intervalle inclut
+mouvement/freinage/stabilisation ; le second confond volontairement
+interpréteur/navigateur/WWI, que ces seules observations ne séparent pas.
+Aucune de ces durées n'est soustraite du chrono.
+
+Le premier témoin alternatif essayait les mêmes primitives avec des avances
+de 0,20 m dans la boucle, contre 0,10 m précédemment. La correction latérale et la ligne finale
+restent à 0,10 m. Le même AST est vérifié sur les 92 géométries idéales distinctes,
+avec deux tours libres ; ce résultat n'annonce aucun gain temporel natif.
+Une tentative de regrouper aussi les mouvements bas de la ligne finale a
+échoué sur gp-v2-1 : elle saute le petit espace de réarmement entre H ouvert
+et fermé, reste engagée et atteint la limite UNTIL sans LAND. Ne pas appliquer
+aveuglément une optimisation uniforme à toute la piste.
+
+Le premier essai instrumenté, HEAD 0dd6f6b34428b6bff83e8068013ac347e6203228,
+run 38300720627, artefact 11770454917 (SHA-256
+58c0e95c2e27dcc750c82e0aad652e432d14dda9f6fbd14dc397b83106892d5b),
+a réussi un tour historique gp-v2-1 en 194,592 s / −50 points candidats.
+Le run est néanmoins rouge : l'analyseur attendait OK au lieu de VALUE pour
+RANGE. Cette réparation est testée contre des valeurs malformées/non finies,
+les mauvaises identités et les réponses incomplètes ; l'ancien résultat rouge
+n'est pas renommé en succès global.
+
+La réanalyse de cette trace complète donne TAKEOFF 4,160 s, MOVE 109,536 s
+(52 commandes), VERTICAL 43,776 s (12), TURN 11,328 s (3), LAND 2,464 s,
+RANGE 0 s de service natif (170). Les écarts ACK→réception totalisent 22,752 s,
+dont 13,824 s précédant RANGE. La certification après LAND prend 0,576 s.
+Somme exacte : 194,592 s. Les petites avances arrêtées dominent donc le coût,
+mais les transitions verticales représentent aussi 22,5 % de la durée.
+La fenêtre de stabilité n'est pas séparée expérimentalement de la convergence
+PID ; le compteur d'ACK ne démontre ni une pause additionnelle fixe ni un
+retard CPU. Comparer 195,360 s historique à 194,592 s instrumenté expose une
+variation de 0,768 s et d'un point, sans isoler sa cause ni prouver l'équité.
+
+La campagne suivante, HEAD 696e500f28699323171c6108e686b37aac56f485,
+run 38302109081, artefact 11771462675 (SHA-256
+c6425d27284eba528e5a18acada2eb5520662bcd58ee2538226efb1ee60bf9b3),
+réussit les deux références historiques : gp-v2-1 195,552 s / −51 points,
+gp-v2-4 162,272 s / −33. MOVE prend respectivement 109,504 / 101,888 s,
+VERTICAL 43,776 / 21,696 s ; les écarts de séquencement prennent 23,744 /
+20,160 s et la certification finale 0,576 s. La même référence gp-v2-1
+varie de **0,960 s** entre les deux campagnes instrumentées ; le service natif
+ne varie que de −0,032 s, les écarts ACK→requête augmentent de 0,992 s.
+Le programme conserve le même AST et la même géométrie/image/source de vol,
+mais ces répétitions ne contrôlent pas la charge CPU. Elles localisent la
+variation dans le séquencement sans en identifier le mécanisme complet.
+
+Cette campagne **réfute** ensuite l'avance uniforme de 0,20 m : à 18,464 s,
+x=0,7103679777 m, z=0,8382996017 m, l'enveloppe touche le premier H avant
+la descente. L'observation précédente voit encore une largeur de corridor
+0,80 m et un front à 0,227709361 m : le centre s'est arrêté avant le début
+des plaques latérales, contrairement au modèle de mouvements parfaits.
+L'oracle élimine sans score ; ce point natif devient une régression négative.
+Une perturbation idéale de fin de mouvement de −0,015 m reproduit le défaut.
+Le témoin réparé emploie **0,10 m si le front observé est <0,35 m**, sinon
+0,20 m dans la boucle. Les corrections latérales et la fin restent à 0,10 m.
+La perturbation qui réfute l'avance uniforme passe avec cette garde ; la
+validation native du nouveau HEAD reste indispensable.
+
+Un nouveau contrôle isole aussi la reconnaissance finale de la navigation :
+le même témoin conserve sa navigation sensorielle de la boucle puis remplace
+seulement la fin par descente unique + six ou neuf avances fixes. Six avances
+réussissent gp-v2-4 mais échouent à l'arrivée gp-v2-1 ; neuf réussissent gp-v2-1
+mais rencontrent le gabarit fermé gp-v2-4. La comparaison idéale interdit donc
+de conclure à la reconnaissance à partir d'un seul atterrissage correct.
+Ces ablations doivent encore être confrontées à la dynamique R2025a.
+
+Le témoin avec garde front a ensuite donné quatre vrais parcours valides sur
+**855f2b7d7b4bec26b54dbc13e734e7e2921e2b9a**, run **38304145923**,
+artefact **11772869529**, SHA-256
+f217832c0284b4dea52b9d19e5b5c8b7188bfb53ef3c4aba8093a8d9f8070152.
+Les AST sont identiques entre configurations pour chaque nombre de tours.
+
+| Configuration | 1 tour | Points candidats | 2 tours | Points candidats |
+| --- | ---: | ---: | ---: | ---: |
+| gp-v2-1 | 182,112 s | −38 | 322,560 s | −158 |
+| gp-v2-4 | 146,464 s | −17 | 271,808 s | −132 |
+
+Le regroupement gardé réduit le temps observé d'un tour de 13,440 / 15,808 s
+par rapport aux références instrumentées précédentes (195,552 / 162,272 s).
+Les MOVE passent de 52 à 42 et de 48 à 36 ; leur service natif passe de
+109,504 à 102,336 s et de 101,888 à 92,736 s. RANGE passe de 170 à 134 et de
+140 à 101 ; les écarts de séquencement diminuent aussi. Le coût vertical ne
+change pas. C'est une réduction réelle mesurée, sans vitesse/marge modifiée,
+mais pas une comparaison à charge CPU contrôlée. Le tour supplémentaire coûte
+encore 140,448 / 125,344 s pour 20 / 10 points : **un tour reste le meilleur
+choix parmi ces essais ; la mémoire/stratégie n'est pas validée**.
+
+Le run global demeure rouge : trois tours terminent le circuit gp-v2-1, puis
+l'enveloppe touche un panneau latéral de la fin à 432,320 s, avant descente.
+Position (−0,1900485193 ; −0,2485793083 ; 0,8288420098), 12 franchissements /
+3 tours, aucun score. Dernières observations : gauche 0,468842561 m,
+droite 0,219328531 m, front 0,242256959 m. Somme 0,688 m : ni H certifié
+(<0,65), ni corridor de largeur normale (0,72–0,88). L'approche oblique laisse
+un capteur voir un panneau avant l'autre. Les corrections de centrage avaient
+ignoré cette observation malgré la proximité d'un côté. Le point réel est
+conservé comme négatif de gabarit, sans réduire les 9 cm.
+
+Le candidat suivant réagit aussi, dans la branche non-H, quand un côté est
+à moins de 0,30 m : le centrage ordinaire s'éloigne du côté le plus proche
+avant l'avance. Les H déjà reconnus restent dans leur branche propre. Le même
+contrôle local est composé dans la fin, qui conserve ses avances de 0,10 m.
+Un probe du vrai interpréteur, alimenté par la dernière observation native,
+vérifie `gauche 0,10 m` puis `avant 0,10 m` ; l'ablation historique avançait
+immédiatement. Cette preuve de décision n'est pas la réussite d'un troisième
+tour natif ; nouvelle campagne nécessaire, commencée par les deux cas trois
+tours pour éprouver le défaut avant de répéter les autres.
+
+La campagne native conserve 1/2/3 tours sur les deux configurations pour le
+nouveau témoin, et ajoute un tour du témoin historique dans chacune pour
+comparaison contrôlée. Les anciens circuits/résultats sont conservés. Le
+prototype reste Draft ; bénéfice mémoire/temps et équité non démontrés.
+
+## Migration expérimentale vers les tours libres (#587)
+
+L'oracle n'impose désormais aucun nombre de tours. Il valide la séquence orientée
+H/coins d'un tour, comptabilise ce tour au retour à la jonction et accepte ensuite
+la sortie volontaire. Le même portique rapporte à nouveau après un nouveau tour
+complet ; les passages d'un tour incomplet ne sont pas validés. Le noyau abstrait
+est proposé indépendamment en #593 et repris ici pour l'expérience seulement.
+La limite de 20 tours et celle de 600 s restent des bornes externes.
+
+Les stratégies témoins choisissent 1, 2 ou 3 tours, via l'AST ordinaire ; le
+Supervisor ne transmet rien au programme. Les capteurs identifient les mêmes
+jonctions à chaque tour. WHILE/UNTIL est maintenant intégré par #590 : les
+saturations provoquent une erreur avant LAND, sauf les fixtures historiques
+explicitement étiquetées fallback. Une fermeture reconnue dans la boucle fait
+cesser les translations et engage LAND ; l'oracle doit refuser cette fin.
+
+Le résultat expose configuration, tentative, durée Webots, tours et passages.
+Les points sont **expérimentaux**, selon la convention candidate de #587 :
+`5 * passages - ceil(max(0, secondes - 120))`. Aucun score officiel n'est revendiqué
+avant confirmation de la convention et reconnaissance de fin prouvée. Le probe
+R2025a confronte trois AST choisis indépendamment à deux configurations, conserve
+leur empreinte et les résultats natifs. Aucun ancien PASS trois tours n'est
+transféré à ce nouveau HEAD.
+
+Le modèle idéal (.2 m/s, sans PID/latences réelles) donne : gp-v2-1,
+1/2/3 tours = 68,608/118,400/168,192 s et 25/45/16 points candidats ; gp-v2-4 =
+53,920/95,200/136,480 s et 10/20/13 points. Cela démontre seulement l'arithmétique
+et la flexibilité de l'oracle : **aucun avantage mesuré de mémoire**, aucune
+calibration R2025a de ces durées et aucune équité CPU/WWI n'en découle. La
+reconnaissance comportementale de descente + mesure terminale n'est pas encore
+certifiée par l'oracle de trajectoire. Le prototype doit rester Draft.
+
+La campagne **9a883d99a69ba2b85bcfd35ae012c0596432e33d** a maintenant
+réussi les six essais R2025a (run 38271779409, artefact 11759248567,
+SHA-256 2ff53d6cfc3abc0ec303a38ff6feaf1c5db6e7b54da7b4f4b84ed504e49f21ed).
+Durées réelles 1/2/3 tours : gp-v2-1 = 195,360 / 347,008 / 514,848 s
+(points candidats −51 / −183 / −330) ; gp-v2-4 = 160,736 / 303,360 / 439,168 s
+(−31 / −164 / −290). Un tour est le meilleur des trois dans ces deux circuits,
+et dépasse déjà 120 s. La mémoire n'apporte donc aucun avantage établi :
+le coût marginal mesuré d'un tour (135,808 à 167,840 s) dépasse largement
+son bonus de 10 à 20 points. Réduire le nombre de petits déplacements arrêtés
+par une meilleure stratégie, puis varier la longueur du circuit, est une
+adaptation à mesurer ; ne pas réduire les marges/contrôleur ni changer le barème.
+
+Un contre-exemple de précision a ensuite été trouvé : 8,032 → 128,032 s
+représente exactement 120 000 ms, mais une différence flottante peut coûter
+un point. La durée utilise désormais les millisecondes entières de simulation
+(helper proposé indépendamment en #595), sans délai soustrait ni epsilon de
+barème. Le garde natif de 600 s utilise la même représentation. Le modèle idéal
+émet des ticks entiers de 32 ms, plutôt qu'une accumulation flottante. Les
+nouvelles preuves doivent inclure les vrais instants 119,968 / 120 / 120,032 s
+et leurs pénalités 0 / 0 / 1. Les six PASS précédents restent liés à leur ancien
+HEAD ; la nouvelle campagne native doit revalider la composition temporelle.
+
+---
+
+# Grand Prix — prototype de faisabilité #587
+
+Ce candidat est une **simulation expérimentale**, pas une validation pédagogique
+ni une qualification réelle. #588 fixe le contrat falsifiable ; #589 isole
+l'activité 1 ; #590 propose séparément la boucle générique WHILE/UNTIL. Les
+activités 2–8 et le backend physique sont inchangés. Aucun matériel, vol,
+checkpoint ou reprise de #70 n'est autorisé.
+
+## Géométrie et observations
+
+`python3 tools/grand_prix/layout.py --seed 4 --output worlds/grand_prix_v2_seed4.wbt`
+recrée exactement une configuration versionnée `gp-v2-4`. Les graines admises
+sont les entiers 0–65535. Deux mondes représentatifs sont versionnés : 1 et 4 (quatre puis deux H, arrivée longue puis courte).
+Ils utilisent le même Crazyflie, les mêmes vrais devices et le contrôleur de vol
+Runtime v2 partagé, compilé sous un nom propre au prototype.
+
+La boucle fait 1,4 m de côté, 0,8 m de largeur, avec quatre coins gauches
+ordinaires et une jonction vers la ligne finale. Elle comporte 2–4 portiques.
+Les H ont une ouverture de 0,56 m et une traverse pleine au-dessus de 0,62 m.
+Leurs panneaux latéraux s'étendent 0,24 m de part et d'autre de la traverse.
+Un segment sans H comporte à sa place un obstacle bas de 0,50 m, sur toute
+la largeur de la piste. La ligne finale contient zéro ou un H ouvert puis un H
+fermé à 0,80 m ou 1,10 m de la jonction. La zone d’arrivée suit cette fermeture
+et les deux zones possibles ne se recouvrent pas. Le gabarit conservateur de l'oracle est une sphère de rayon 0,09 m,
+uniquement pour le modèle de simulation représenté.
+
+Le programme ne reçoit ni graine, ni position, ni identité, ni nombre de portes,
+ni tour de l'évaluateur. Seuls les capteurs ordinaires, les variables et les
+commandes de l'AST sont employés. La caméra et l'identifiant affiché restent
+réservés à l'humain.
+
+Les contre-exemples ont déjà contraint le générateur :
+
+- H mince : rayons latéraux aveugles avant la traverse ; les plaques doivent
+  précéder celle-ci.
+- Quatrième côté + ligne trop longue : retour bas saturé ; la position du H du
+  quatrième côté est fixée et la fermeture terminale rapprochée.
+- Mur attendu à la jonction : aucun mur n'arrête la sortie ; il faut observer
+  l'ouverture latérale, après avoir confirmé la paroi du segment.
+- H du segment suivant : il peut masquer l'ouverture du coin à la mesure
+  latérale ; les positions admissibles et le seuil de cette observation sont
+  donc bornés ensemble.
+- Plaques terminales trop courtes : détection tardive et gabarit déjà trop près
+  de la fermeture ; le H final conserve de longues plaques.
+- Deux H trop rapprochés : pas de dégagement observable ; le générateur garde
+  un intervalle de réarmement avant le H fermé.
+
+L'analyse de rayons idéale teste 100 graines. Le **même AST** témoin passe
+les 92 géométries distinctes produites par toutes les graines 0–65535 dans ce modèle, découvre le compte au premier tour et le
+réutilise par décrémentation aux tours suivants. Le témoin confirme la paroi
+avant un coin, engage une porte une seule fois, descend et exige une mesure
+avant basse finie <1,99 m, puis remonte après dégagement et vérifie la traverse
+à l'arrière. Une saturation n'est jamais son certificat d'ouverture.
+
+Une réfutation plus forte a invalidé la géométrie gp-v1 : un AST aveugle
+(takeoff, descente unique puis déplacements/tours constants) réussit ses deux
+configurations sans capteur ni variable. Le cas positif original est conservé
+avec ses deux géométries dans
+`tools/ci/fixtures/grand_prix_v1_blind_counterexample.json`. En gp-v2, le même
+slot exige une hauteur basse pour un H et haute pour un obstacle bas dans une
+autre configuration ; l’arrivée varie aussi. Le programme aveugle est désormais
+réfuté dans la matrice, tandis que le témoin sensoriel reste accepté. Aucune
+inspection des blocs ni donnée cachée ne produit cette différence.
+
+La nécessité pédagogique du compte mémorisé est également réfutée dans cette
+topologie : remettre toutes les écritures des variables « portes » et
+« restantes » à zéro laisse le même parcours sensoriel réussir gp-v2-4. Les
+quatre coins ordinaires suffisent à la fin des trois tours. Le test conserve
+cette réussite légitime ; l'oracle ne la rejette pas pour sa forme AST. Le
+témoin original découvre et réutilise un compte, mais le monde ne rend pas
+encore cette mémoire **nécessaire**. Ce critère de #587 exige un autre design
+pédagogique ou une clarification du résultat attendu ; aucun compteur caché
+ni obligation artificielle de blocs n'est ajouté.
+
+Un autre contre-exemple borne l'identification finale : fermer inopinément le
+premier H ouvert de la ligne finale donne les mêmes mesures hautes/basses
+qu'un H terminal fermé. Le témoin sensoriel déclare alors sa fin trop tôt ;
+l'oracle de trajectoire refuse la réussite et le chrono, car un passage et la
+vraie zone d'arrivée manquent. Le test conserve cette réfutation. Aucune suite
+finie de mesures de distance ne peut donner l'identité sémantique de deux
+géométries identiques. Le prototype assume donc exclusivement les configurations
+immuables du générateur ; la reconnaissance robuste d'une fermeture imprévue
+reste **non démontrée**. Le contrat #587 ne peut pas être déclaré intégralement
+satisfait sur ce point par les seules configurations positives.
+
+Cette preuve idéale ne valide pas l'inclinaison, les marges de freinage, les
+signaux réels ou le programme dans Webots. Elle est un contrôle falsificateur,
+pas un substitut à la nouvelle CI Webots.
+
+## Oracle et temps
+
+`grand_prix_evaluator` juge la trajectoire : coins et passages orientés dans
+l'ordre pendant trois tours, ouvertures avec gabarit entier, piste, contacts,
+altitude, ligne finale complète et atterrissage terminal immobile. Il n'inspecte
+ni Blockly, ni l'AST, ni les variables du programme. Un contre-exemple a supprimé
+la contrainte injustifiée d'un passage à 12 cm du centre de chaque coin : un
+virage arrondi dégagé, dans la largeur de la piste, doit être accepté. Les
+zones de coin restent séparées des H, ordonnées et soumises au même contrôle
+de gabarit/piste ; des lectures répétées dans une zone ne font pas un tour. Les répétitions sur place,
+le recul, les raccourcis et une sortie prématurée ne donnent pas de nouveaux
+tours/portes. Un échec est terminal pour cette tentative.
+
+Le contrôleur dédié observe et borne uniquement le transport de simulation
+Webots existant. Il retient le temps de réception du takeoff, dans le même pas de
+simulation que son admission, et exige son ACK réel. Une erreur ou un STOP
+révoque définitivement cette mesure ; un ACK tardif ne l'efface pas. Reset
+consomme l'acquittement natif puis prend la nouvelle identité du broker existant.
+Il n'émet aucun mouvement de navigation ni effet physique. Une limite de
+600 secondes Webots engage une seule fois le STOP natif de simulation, même
+si le programme ou le navigateur est en attente ; le contrôleur conserve son
+fail-safe jusqu'au Reset. La borne reste active tant que le résultat n'est pas
+une réussite certifiée du même oracle et de la même tentative, avec takeoff
+acquitté ; une telle réussite au sol est terminale jusqu'au Reset. Un résultat
+ancien ou une simple complétion ne désarme pas la borne. Les commandes verticales conservent aussi une hauteur
+nominale admise de 0,30 à 1,10 m, vérifiée avant leur effet et mise à jour
+uniquement sur ACK. Cette borne publique empêche un survol des panneaux sans
+changer les commandes partagées ni lire la position oracle.
+
+Le résultat chronométré apparaît dans Webots avec l'identifiant de configuration.
+Il utilise exclusivement `Supervisor.getTime()` / `wb_robot_get_time()`, s'arrête
+après complétion du même oracle et stabilité au sol, et est absent pour tout
+échec, collision, interruption, erreur Runtime de capteur ou mode pas-à-pas. Il ne
+persiste aucune tentative. L'AST ne lit pas le chrono.
+
+**Limite non résolue :** une durée Webots sur une trajectoire donnée est
+indépendante de l'horloge murale, mais cela ne prouve pas qu'un même AST piloté
+par un navigateur produise exactement la même trajectoire/attente sur deux CPU
+ou à deux vitesses de simulation. Les latences WWI et des hooks peuvent ajouter
+du temps simulé. La répétabilité à un pas et la comparaison compétitive restent
+à démontrer ; ce prototype ne doit pas être annoncé comme un chrono compétitif
+validé. Aucune soustraction d'attentes cachées n'est introduite.
+
+## Usage et preuves manquantes
+
+Après préparation des assets Blockly et compilation du contrôleur
+`controllers/grand_prix_flight` dans R2025a, les mondes du prototype ouvrent une
+Robot Window française utilisant le même Blockly/AST/interpréteur et le même
+format `.wbb`. Ils ont leur propre profil, avec un budget de 20 000 pas borné.
+La scène courante reste attachée au monde ; le projet ne mémorise pas une graine.
+
+Le programme témoin est **un outil de preuve machine**, pas une solution livrée
+au workspace élève. Il utilise provisoirement les répétitions bornées avec
+conditions déjà intégrées. La fenêtre expose la boucle WHILE/UNTIL lorsque son entrée générique est
+intégrée par #590 ; avant cette intégration elle reste absente du profil. Elle n'est pas dissimulée dans
+un bloc spécial ou une boucle native propre à la mission.
+
+Le brouillon exécute un probe Webots non décisionnel dans `Select suites` et
+conserve ses observations ; il ne publie jamais `CI Gate`. Le candidat Ready
+exécute ce probe dans le job Runtime obligatoire `grand-prix-prototype`, qui exige les tests idéaux puis une
+exécution dans le vrai R2025a des configurations 1 et 4 avec le même AST et les
+mesures réelles. Un échec reste rouge, sans adaptation du compte attendu. Ces
+résultats, la reprise fraîche, deux stratégies différentes, les essais négatifs
+réels, l'intégration au changement automatique de sous-scène #589, les fichiers
+représentatifs et la répétabilité CPU/chrono sont encore des critères d'acceptation.
+Le prototype doit rester Draft tant que ces frontières importantes ne sont pas
+résolues ou réduites explicitement par une revue du résultat borné.
+
+
+Le probe Webots du HEAD `fbaeb657eb6232a5c675c7f6215deb9a7ad8b69e`
+(run 38231836526, artefact 11739876500) n’a pas exécuté le Crazyflie : le chemin
+`webots://projects/...` visait des PROTO absents de l’image officielle, puis
+l’évaluateur a échoué sans véhicule. C’est un échec de préparation, aucune
+preuve de vol simulé ou de détectabilité. Le runner fournit désormais les
+assets depuis le commit R2025a exact, montés en lecture seule, refuse un
+fallback/Traceback sans attendre la fenêtre complète, et écrit la perspective
+Robot Window sous son vrai nom Webots. La répétition est justifiée par cette
+correction causale ; le résultat futur reste à obtenir.
+
+Le HEAD `e60f88daf724c40dc1f42dfeb0ac39469935993b` (run 38236332327,
+artefact 11741301017) charge la géométrie et ouvre la fenêtre, mais son contrôleur
+ne démarre pas : `libQt6Core.so.6` est introuvable. La fenêtre expire sur READY ;
+aucune mesure capteur ni trajectoire n'a été obtenue. Le contrôleur reçoit désormais
+le même `runtime.ini` Qt/Webots que le Runtime partagé. Les textures par défaut
+du commit épinglé sont ajoutées au montage. La nouvelle paire 1/4 couvre aussi
+deux comptes de H distincts ; 1/3 avait quatre H dans les deux mondes.
+
+Le premier probe dynamique fonctionnel, HEAD
+`3db9611cf2bf07bf50a96bf2335812a37c0a4f57`, run 38238140957, artefact
+11742870803 (SHA-256 3ce4818d81139fdecdf24fd5e7c6555d6850211d379761edb2f421ad34fc4f33),
+est **rouge** sur gp-v2-1. Il relève 432 vraies mesures ; les variables du témoin
+rapportent trois tours et quatre H, mais l'oracle invalide dès l'ascension,
+avant l'ACK de takeoff. Ces variables ne prouvent donc aucun parcours valide.
+Le second monde n'a pas été exécuté. Un diagnostic de rejet avec temps,
+position, vitesse et invariant est ajouté exclusivement au journal superviseur,
+jamais au programme ; les seuils restent identiques. Le runner termine au
+rejet pour conserver la cause initiale sans attendre une fausse complétion.
+Le candidat ne peut être déclaré faisable dans le vrai Webots sur cette preuve.
+
+Le diagnostic du HEAD `b7f1493f7ce8054f95c15068d6b5020c8bcd693c`
+(run 38239852904, artefact 11741872557, SHA-256
+0fd465e6b525989fdd80d2795ee41c8d62092e5a6309c3a66d9a657bfc74f932)
+identifie précisément la cause : à 5,216 s Webots, la hauteur est
+1,174482845 m et la vitesse verticale 1,001077986 m/s. Le décollage nominal
+à 0,90 m dépasse le plafond relatif de 1,15 m ; l'oracle reste terminal,
+non chronométré. Cette mesure réelle devient une régression négative. Le témoin
+employait alors les mêmes commandes génériques avec un décollage à 0,50 m,
+puis une montée de 0,40 m avant navigation. La durée inclut ces deux commandes.
+Le contrôleur partagé, les seuils de l'oracle et les règles de collision restent
+identiques ; la nouvelle réussite dynamique reste à obtenir.
+
+Le HEAD `1986d330a8a74b9631fb507af6595fd98e8bbc40` (run 38240569802,
+artefact 11742728400, SHA-256
+222dd93c1ea288fa2eb62a80bd67453fe5ebde947d4c5c2222fa7f96290ebe8b)
+franchit le décollage progressif et le premier H, mais sa remontée de 0,50 m
+dépasse à son tour le plafond : z=1,170211127 m à t=38,112 s, curseur oracle 2.
+Ce second échec réel devient aussi une régression négative. Les hauteurs
+nominales du témoin sont désormais 0,80 m / 0,40 m, avec transitions de 0,40 m ;
+la mise en altitude initiale utilise 0,50 m puis +0,30 m. Tous les seuils et
+le contrôleur partagé sont conservés. La nouvelle preuve dynamique reste
+indispensable ; ces adaptations de programme ne prouvent aucune marge réelle.
+
+Le HEAD `f3475ee039cf96be77bf9b628c29350557a51eb9` passe enfin les deux
+configurations réelles gp-v2-1 et gp-v2-4 avec le même AST, découvre quatre puis
+deux H et obtient le résultat chronométré de l'oracle. Run canonique
+38241199664, tentative 1, artefact 11743243880, SHA-256
+e730aebe796aeb02040046bf850abe6978fd27a587112d620b68b7e20d866425.
+C'est un probe **Draft non décisionnel**, pas un CI Gate Ready ni un GO.
+
+La relecture falsificatrice conserve un autre défaut : avec « avant haut = 2 »
+et « avant bas = 2 » après entrée dans les plaques latérales, le témoin précédent
+acceptait une fermeture. Il exige désormais deux retours <1,99 m et refuse
+cette double saturation. Le test injecte ce défaut dans la ligne finale de
+gp-v2-4 : « invalide = 1 », « fin = 0 ». Toutefois l'atterrissage normal peut
+encore tomber dans la vraie zone d'arrivée et réussir l'oracle de trajectoire,
+avec un temps : un booléen local n'est pas une erreur Runtime. Ce contrôle
+positif est conservé. L'absence de chrono pour toute incertitude contextuelle
+n'est donc **pas satisfaite** par ce témoin. Un arrêt/échec explicite générique
+du programme est nécessaire avant de déclarer ce critère rempli ; lire le nom
+d'une variable ou ajouter une règle de forme AST à l'oracle masquerait le défaut.
+
+La vitesse horizontale native par défaut est bornée à 0,35 m/s par le contrôleur
+partagé ; le bloc de réglage proposé par ce profil admet 0,10–0,20 m/s. Une limite
+de consigne et ces probes ne démontrent aucune enveloppe réelle. Les limites
+de mémoire nécessaire, d'obstacle indistinguable, d'échec explicite et de
+répétabilité CPU/chrono maintiennent ce prototype en Draft.
+
+La composition avec #590 donne une réparation générique de cette incertitude :
+le témoin peut employer UNTIL « fin confirmée », max 20, puis atterrir seulement
+après la terminaison normale. Si « invalide » devient vrai sans fin confirmée,
+la limite provoque une erreur Runtime avant LAND/COMPLETE ; le chemin d'erreur
+arrête le backend Webots. Le témoin choisit cette forme uniquement quand le
+backend annonce la capacité de langage conditionalLoops. Son contexte ne
+contient aucune information de circuit. Le fallback de répétitions reste
+provisoire tant que #590 n'est pas intégré et conserve le contre-exemple.
+
+Expérience de composition : même interpréteur partagé exact de #590,
+configurations 1/4 idéales normales acceptées, double saturation sur chacune
+=> limite atteinte, aucun land. Le garde du budget refuse max 100 avant takeoff ;
+max 20 est admis. #590 expose donc un champ français sérialisable 1–100,
+défaut 100 compatible avec les projets existants, permettant de choisir 20
+dans Blockly. La CI teste le vrai interpréteur courant : soit cette composition,
+soit son refus avant tout effet si le langage est encore absent. La preuve
+dynamique de cette forme attend l'intégration indépendante de #590 et de
+nouveaux CI/revue sur le HEAD résultant. La dépendance est fonctionnelle,
+pas un ordre de feuille de route ni une aide cachée au programme.
+
+Les segments suivants sont aussi conditionnés à « invalide = 0 » : après une
+incertitude, aucune nouvelle translation du tour ne continue avant cet échec
+générique. Le test de perte du retour bas vérifie ce comportement stationnaire.
+
+Un contre-exemple géométrique indépendant corrige aussi une double érosion :
+un arc de centre (1,0 ; 0,4), rayon 0,095 m, aux coins intérieurs sans H adjacent,
+libère entièrement le gabarit de 0,09 m. L'ancien rectangle d'exclusion déjà
+élargi de ce rayon rejetait pourtant cette trajectoire. La piste conserve les
+mêmes murs et le même test exact de distance sphère/Box ; les coins emploient
+la zone brute de jonction de largeur 0,8 m, dont la partie réellement libre est
+jugée par ce gabarit. Les quatre zones restent disjointes. Le rayon n'est pas
+réduit, les contacts restent interdits, tous les passages/tours restent exigés.
+Le contrôle négatif (1,04 ; 0,36) conserve le rejet par collision d'enveloppe.
+Cette correction accepte une trajectoire légitime différente du témoin,
+sans ajouter de solution-shape à l'oracle.

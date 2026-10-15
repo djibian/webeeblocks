@@ -132,12 +132,21 @@
   RuntimeV2WwiBackend.prototype.handleMessage = function(message) {
     if (typeof message !== 'string' || message.indexOf(PREFIX + ' ') !== 0)
       return false;
-    if (message === PREFIX + ' READY') {
+    var startupReady = message === PREFIX + ' READY';
+    var helloReady = message === PREFIX + ' READY HELLO';
+    if (startupReady || helloReady) {
+      // A delayed HELLO reply may follow startup READY and even a scene ACK.
+      // It only releases an outstanding liveness wait; it cannot revoke or
+      // recreate evidence on an already-ready backend or after a cancelled wait.
+      if (helloReady && (this.ready || this.readyWaiters.length === 0))
+        return true;
       // The native process may have restarted without reloading its world.
       // No scene identity survives that liveness message as positive evidence.
-      this.timeObservationEpoch += 1;
-      if (this.ready) this._cancelPendingForReset();
-      this.sceneIdentity = null;
+      if (startupReady) {
+        this.timeObservationEpoch += 1;
+        if (this.ready) this._cancelPendingForReset();
+        this.sceneIdentity = null;
+      }
       this.ready = true;
       var waiters = this.readyWaiters.splice(0);
       waiters.forEach(function(waiter) {

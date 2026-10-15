@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+"""Ideal geometry/candidate-oracle checks; not Webots dynamics acceptance."""
+from pathlib import Path
+import dataclasses
+import json
+import math
+import subprocess
+import sys
+import unittest
+ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
+from tools.grand_prix.layout import Box,Gate,Layout,generate,ray_distance,world_text
+from tools.grand_prix.oracle import Attempt
+
+class Tests(unittest.TestCase):
+    def test_reproducible_and_bounded(self):
+        counts=set();finals=set()
+        for seed in range(100):
+            layout=generate(seed);self.assertEqual(world_text(layout),world_text(generate(seed)))
+            self.assertIn('boundingObject Box',world_text(layout));self.assertNotIn('lap=',world_text(layout))
+            counts.add(len(layout.gates));finals.add(len(layout.final_gates))
+            self.assertLessEqual(len(layout.gates),4)
+            for gate in layout.gates:
+                x,y=gate.x-.2*math.cos(gate.heading),gate.y-.2*math.sin(gate.heading)
+                high=ray_distance(layout,x,y,.91,gate.heading);low=ray_distance(layout,x,y,.41,gate.heading)
+                self.assertIsNotNone(high);self.assertIsNotNone(low);self.assertGreater(low,high+.3)
+                for side in [-1,1]:self.assertAlmostEqual(ray_distance(layout,x,y,.91,gate.heading+side*math.pi/2),.28,places=5)
+            final=layout.final_gates[-1];x,y=final.x-.12*math.cos(final.heading),final.y-.12*math.sin(final.heading)
+            self.assertAlmostEqual(ray_distance(layout,x,y,.91,final.heading),ray_distance(layout,x,y,.41,final.heading))
+        self.assertEqual(counts,{2,3,4});self.assertEqual(finals,{1,2})
+        for seed in [-1,65536,True,1.5]:
+            with self.assertRaises(ValueError):generate(seed)
+
+    def test_same_sensor_only_ast_across_layouts(self):
+        # Geometry is determined by these gates; absent sides receive their
+        # low obstacle deterministically. Cover every shape over the full
+        # supported seed domain, without passing any seed/count into the AST.
+        representatives={}
+        for seed in range(65536):
+            layout=generate(seed)
+            representatives.setdefault((layout.gates,layout.final_gates),seed)
+        self.assertEqual(len(representatives),92)
+        for seed in representatives.values():
+            layout=generate(seed)
+            result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(dataclasses.asdict(layout)),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            evidence=json.loads(result.stdout)
+            witness=evidence['result']['variables']
+            self.assertEqual(witness['invalide'],0,(seed,witness))
+            self.assertEqual(witness['portes'],len(layout.gates),(seed,witness))
+            self.assertEqual(witness['restantes'],0,(seed,witness))
+            self.assertEqual(witness['fin'],1,(seed,witness))
+            self.assertEqual(witness['portes finales'],len(layout.final_gates)-1)
+            active=Attempt(layout,1,.015);active.start(1,0,False)
+            landing=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:
+                active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+                if active.result and active.result.status!='achieved':break
+            self.assertIsNotNone(active.result,(seed,active.cursor,len(active.events)))
+            self.assertEqual(active.result.status,'achieved',(seed,active.cursor,evidence['trace'][-1]))
+            self.assertGreater(active.result.seconds,0)
+
+    def test_efficient_witness_preserves_all_92_geometries(self):
+        representatives={}
+        for seed in range(65536):
+            layout=generate(seed)
+            representatives.setdefault((layout.gates,layout.final_gates),seed)
+        for seed in representatives.values():
+            layout=generate(seed);payload=dataclasses.asdict(layout)
+            payload.update(efficient=True,strategyLaps=2)
+            process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,(seed,process.stderr))
+            evidence=json.loads(process.stdout)
+            active=Attempt(layout,1,.015);active.start(1,0,False)
+            landing=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:
+                active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+            self.assertEqual(active.result.status,'achieved',(seed,active.result))
+            self.assertEqual(active.result.laps,2)
+            self.assertEqual(active.result.crossings,2*len(layout.gates)+len(layout.final_gates)-1)
+
+    def test_uniform_final_grouping_skips_rearming_and_cannot_land(self):
+        payload=dataclasses.asdict(generate(1))
+        payload.update(efficient=True,strategyLaps=1,unsafeFinalStride=True)
+        process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+        self.assertNotEqual(process.returncode,0)
+        failure=json.loads(process.stderr.split('WITNESS_FAILURE ',1)[1].strip())
+        self.assertEqual(failure['lands'],0)
+        self.assertIn('iteration limit exceeded',failure['message'])
+
+    def test_front_guard_survives_endpoint_shortfall_that_refutes_uniform_stride(self):
+        def run(uniform):
+            layout=generate(1);payload=dataclasses.asdict(layout)
+            payload.update(efficient=not uniform,strategyLaps=1,moveEndpointShortfall=.015,unsafeUniformCircuitStride=uniform)
+            process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+            self.assertEqual(process.returncode,0,process.stderr)
+            evidence=json.loads(process.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+            landing=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:
+                active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+            return active
+        unsafe=run(True);self.assertEqual(unsafe.result.status,'not-achieved')
+        self.assertEqual(unsafe.failure_reason,'envelope-contact')
+        self.assertEqual(run(False).result.status,'achieved')
+
+    def test_real_uniform_stride_collision_has_no_score(self):
+        # R2025a 696e500 / run 38302109081 / artifact 11771462675.
+        active=Attempt(generate(1),1,.015);active.start(1,2.176,False)
+        active.sample(18.464,[.7103679776777012,-1.1502510447681296e-15,.8382996016970515],
+                      [.06801461343471982,7.339385118166653e-16,.0011638104707583248])
+        self.assertEqual(active.failure_reason,'envelope-contact')
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds);self.assertIsNone(active.result.candidate_points)
+
+    def test_real_third_lap_oblique_final_contact_has_no_score(self):
+        # R2025a 855f2b7 / run 38304145923 / artifact 11772869529.
+        active=Attempt(generate(1),1,.015);active.start(1,2.112,False)
+        active.sample(432.320,[-.19004851933652495,-.24857930832514724,.828842009846439],
+                      [-.007331720839909988,-.04704730470759043,-.0006952086407799071])
+        self.assertEqual(active.failure_reason,'envelope-contact')
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds);self.assertIsNone(active.result.candidate_points)
+
+    def test_mixed_width_close_side_centres_before_approaching(self):
+        # The native last observation was not a certified H or full corridor:
+        # left .468842561, right .219328531, front .242256959. A response to the
+        # nearer side is useful without inventing a gate identity.
+        script=r"""
+const assert=require('assert'),W=require('./tools/grand_prix/reference_program'),I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter');
+(async()=>{for(const efficient of [false,true]){
+ const ast=W.build(true,3,efficient);ast.program=ast.program.filter(n=>n.kind!=='repeat');const moves=[];
+ const backend={capabilities:{conditionalLoops:true},async takeoff(){},async vertical(){},async land(){throw new Error('unexpected LAND');},async readRange(d){return {front:.242256959,left:.468842561,right:.219328531}[d];},async move(d,n){moves.push([d,n]);if(d==='forward')throw new Error('END_PROBE');}};
+ await assert.rejects(()=>I.run(ast,backend,{maxSteps:20000}),/END_PROBE/);
+ assert.deepStrictEqual(moves,efficient?[['left',.1],['forward',.1]]:[['forward',.1]]);
+}console.log('PASS mixed-width native observation: nearby-side correction before forward, historical ablation retained');})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+        subprocess.run(['node','-e',script],cwd=ROOT,check=True)
+
+    def test_final_only_blind_controls_have_opposite_terminal_failures(self):
+        for steps,accepted in ((6,4),(9,1)):
+            for seed in (1,4):
+                layout=generate(seed);payload=dataclasses.asdict(layout)
+                payload.update(strategyLaps=1,fixedFinalSteps=steps)
+                process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True)
+                evidence=json.loads(process.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+                landing=evidence['trace'][-33]['time']
+                for sample in evidence['trace']:
+                    active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+                last=evidence['trace'][-1];active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+                self.assertEqual(active.result.status,'achieved' if seed==accepted else 'not-achieved')
+                if seed!=accepted:self.assertIsNone(active.result.candidate_points)
+
+    def test_native_timing_is_diagnostic_and_reconciles_exact_attempt(self):
+        from tools.grand_prix.timing import analyze
+        trace="""WEBEEBLOCKS_GP_TIMING time_ms=8032 attempt=1 phase=request id=2 command=TAKEOFF
+WEBEEBLOCKS_GP_TIMING time_ms=10032 attempt=1 phase=response id=2 payload=OK
+WEBEEBLOCKS_GP_TIMING time_ms=10064 attempt=1 phase=request id=3 command=MOVE
+WEBEEBLOCKS_GP_TIMING time_ms=12064 attempt=1 phase=response id=3 payload=OK
+WEBEEBLOCKS_GP_TIMING time_ms=12096 attempt=1 phase=request id=4 command=LAND
+WEBEEBLOCKS_GP_TIMING time_ms=14096 attempt=1 phase=response id=4 payload=OK
+"""
+        sensor=trace.replace('command=MOVE','command=RANGE').replace('id=3 payload=OK','id=3 payload=VALUE 0.416739048')
+        self.assertEqual(analyze(sensor,6.096)['by_command']['RANGE']['service_ms'],2000)
+        for sample in ('nan','inf','-1','2.001','garbage'):
+            with self.assertRaises(ValueError):analyze(sensor.replace('0.416739048',sample),6.096)
+        result=analyze(trace,6.096)
+        self.assertEqual((result['service_ms'],result['intercommand_ms'],result['post_land_certification_ms']),(6000,64,32))
+        for invalid in [trace.replace('id=3 payload','id=2 payload'),trace.replace('14096','12000'),trace.replace('payload=OK','payload=ERR BAD'),trace.rsplit('WEBEEBLOCKS_GP_TIMING',1)[0]]:
+            with self.assertRaises(ValueError):analyze(invalid,6.096)
+        with self.assertRaises(ValueError):analyze(trace,5)
+        with self.assertRaises(ValueError):analyze(trace,6.096,attempt=2)
+
+    def test_free_lap_strategies_and_candidate_points(self):
+        for seed in (1,4):
+            scores=[]
+            for laps in (1,2,3):
+                layout=generate(seed);payload=dataclasses.asdict(layout);payload['strategyLaps']=laps
+                evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+                active=Attempt(layout,1,.015);active.start(1,0,False)
+                landing=evidence['trace'][-33]['time']
+                for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+                self.assertEqual(active.result.status,'achieved')
+                self.assertEqual(active.result.laps,laps)
+                self.assertEqual(active.result.crossings,len(layout.gates)*laps+len(layout.final_gates)-1)
+                scores.append(active.result.candidate_points)
+            self.assertGreater(scores[1],scores[0]);self.assertLess(scores[2],scores[1])
+
+    def test_missing_low_return_is_neither_open_nor_closed(self):
+        layout=dataclasses.asdict(generate(1));layout['injectRangeLoss']=True;layout['useConditionalLoops']=False
+        result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(layout),cwd=ROOT,text=True,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        evidence=json.loads(result.stdout);values=evidence['result']['variables']
+        self.assertEqual(values['invalide'],1)
+        self.assertEqual(values['fin'],0)
+        invalid=[sample for sample in evidence['variables'] if sample['values'].get('invalide')==1]
+        self.assertTrue(invalid)
+        first=invalid[0]['position']
+        for sample in invalid:self.assertLess(math.hypot(sample['position'][0]-first[0],sample['position'][1]-first[1]),1e-8)
+
+    def test_double_saturation_is_uncertain_but_can_land_in_arrival(self):
+        layout=generate(4);payload=dataclasses.asdict(layout);payload['injectRangeLossBoth']=True;payload['useConditionalLoops']=False
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['invalide'],1)
+        self.assertEqual(values['fin'],0)
+        # A behavioural oracle cannot infer this variable or a sensor's
+        # semantic certainty. An explicit generic programme failure remains
+        # necessary: normal LAND/COMPLETE can still score a valid trajectory.
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        landing=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landing)
+        self.assertEqual(active.result.status,'achieved')
+        self.assertIsNotNone(active.result.seconds)
+
+    def test_generic_until_composition_or_refusal_without_language(self):
+        # Probe the actual shared interpreter, not an alternative implementation.
+        feature="""const I=require('./plugins/robot_windows/blockly/webeeblocks/interpreter');
+const ast={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.5},{kind:'while',mode:'UNTIL',condition:{kind:'number',value:1},body:[],max_iterations:20},{kind:'land'}]};
+try { I.validateProgram(ast); console.log('supported'); } catch(e) { if(!/unsupported statement/.test(e.message))throw e; console.log('unavailable'); }"""
+        supported=subprocess.run(['node','-e',feature],cwd=ROOT,text=True,capture_output=True,check=True).stdout.strip()=='supported'
+        for seed in [1,4]:
+            for fault in [False,True]:
+                payload=dataclasses.asdict(generate(seed));payload.update(useConditionalLoops=True,injectRangeLossBoth=fault)
+                process=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True)
+                if supported and not fault:
+                    self.assertEqual(process.returncode,0,process.stderr)
+                    evidence=json.loads(process.stdout)
+                    self.assertEqual(evidence['result']['variables']['fin'],1)
+                    self.assertEqual(evidence['lands'],1)
+                else:
+                    self.assertNotEqual(process.returncode,0)
+                    failure=json.loads(process.stderr.split('WITNESS_FAILURE ',1)[1].strip())
+                    self.assertEqual(failure['lands'],0)
+                    if supported:self.assertIn('iteration limit exceeded',failure['message'])
+                    else:self.assertEqual(failure['last_position'],[0,0,.015])
+
+    def test_safe_rounded_corner_is_not_a_solution_shape_oracle(self):
+        layout=next(generate(seed) for seed in range(100) if not any(g.heading==0 for g in generate(seed).gates))
+        # Independent geometry: the whole 9 cm envelope clears the island
+        # corner (1.0, .4) and the outer walls at x=1.8 and y=-.4.
+        point=[1.22,.18,.415]
+        self.assertGreater(math.hypot(point[0]-1.0,point[1]-.4),.09)
+        self.assertGreater(1.8-point[0],.09)
+        self.assertGreater(point[1]+.4,.09)
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        active.sample(4,point,[0,0,0])
+        self.assertEqual(active.cursor,1)
+        # Repeated corner readings still cannot produce the next corner/lap.
+        for i in range(1,20):active.sample(4+i*.032,point,[0,0,0])
+        self.assertEqual(active.cursor,1)
+
+    def test_inner_corner_arc_uses_exact_hull_not_double_rectangular_erosion(self):
+        layout=next(generate(seed) for seed in range(100) if all(round((g.heading%(2*math.pi))/(math.pi/2))%4 not in (0,1) for g in generate(seed).gates))
+        # No H on these adjacent sides. Low barriers are cleared at z=.815.
+        # A 9.5 cm arc around the inner corner clears the 9 cm whole hull.
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        for i in range(41):
+            angle=i*math.pi/80
+            position=[1+.095*math.sin(angle),.4-.095*math.cos(angle),.815]
+            self.assertAlmostEqual(math.hypot(position[0]-1,position[1]-.4),.095)
+            active.sample(4+i*.032,position,[0,0,0])
+            self.assertIsNone(active.result)
+        self.assertEqual(active.cursor,1)
+        for i in range(1,20):active.sample(6+i*.032,position,[0,0,0])
+        self.assertEqual(active.cursor,1,'one junction cannot become another corner or a lap')
+        # The same retained 9 cm hull still rejects the tighter, colliding arc.
+        collision=Attempt(layout,2,.015);collision.start(2,0,False)
+        collision.sample(4,[1.04,.36,.815],[0,0,0])
+        self.assertEqual(collision.failure_reason,'envelope-contact')
+        self.assertEqual(collision.result.status,'not-achieved')
+        self.assertIsNone(collision.result.seconds)
+
+    def test_v1_blind_counterexample_and_v2_repair(self):
+        def outcome(layout,blind):
+            payload=dataclasses.asdict(layout);payload['blind']=blind
+            result=subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True)
+            evidence=json.loads(result.stdout);active=Attempt(layout,1,.015);active.start(1,0,False)
+            landed=evidence['trace'][-33]['time']
+            for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+            return active.result,evidence['ranges']
+        for fixture in json.loads((ROOT/'tools/ci/fixtures/grand_prix_v1_blind_counterexample.json').read_text()):
+            v=fixture['layout'];old=Layout(v['seed'],tuple(Gate(**g) for g in v['gates']),tuple(Gate(**g) for g in v['final_gates']),tuple(Box(**b) for b in v['boxes']),'gp-v1')
+            result,reads=outcome(old,True)
+            self.assertEqual(result.status,'achieved');self.assertEqual(reads,[])
+        failed=0;targets=set()
+        for seed in range(16):
+            result,reads=outcome(generate(seed),True)
+            self.assertEqual(reads,[])
+            if result.status=='not-achieved':failed+=1
+            targets.add(generate(seed).final_gates[-1].y+.25)
+        self.assertGreater(failed,0)
+        self.assertEqual({round(t,2) for t in targets},{-.85,-.55})
+
+    def test_gate_count_memory_is_not_behaviorally_necessary_yet(self):
+        layout=generate(4);payload=dataclasses.asdict(layout);payload['forgetCounts']=True
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['portes'],0)
+        self.assertEqual(values['restantes'],0)
+        self.assertEqual(values['invalide'],0)
+        active=Attempt(layout,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        self.assertEqual(active.result.status,'achieved')
+        # Keep the positive counterexample. Rejecting this trajectory by AST
+        # shape would hide the pedagogical limitation and violate the oracle.
+
+    def test_unexpected_closure_has_same_ranges_but_no_success(self):
+        layout=generate(1)
+        opened=layout.final_gates[0]
+        self.assertFalse(opened.closed)
+        # An unforeseen lower panel has the same high/low observations as a
+        # terminal closed H. Sensors alone cannot attach a semantic identity.
+        obstruction=Box(opened.x,opened.y,.31,.56,.04,.62)
+        attack=dataclasses.replace(layout,boxes=(*layout.boxes,obstruction))
+        payload=dataclasses.asdict(attack)
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        values=evidence['result']['variables']
+        self.assertEqual(values['fin'],1)
+        self.assertEqual(values['portes finales'],0)
+        active=Attempt(attack,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        last=evidence['trace'][-1]
+        active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+        self.assertIsNotNone(active.result)
+        self.assertEqual(active.result.status,'not-achieved')
+        self.assertIsNone(active.result.seconds)
+
+    def test_unexpected_ring_closure_lands_without_points(self):
+        layout=generate(1);gate=layout.gates[0]
+        horizontal=abs(math.cos(gate.heading))>.5
+        panel=Box(gate.x,gate.y,.31,.04 if horizontal else .56,.56 if horizontal else .04,.62)
+        attack=dataclasses.replace(layout,boxes=(*layout.boxes,panel))
+        payload=dataclasses.asdict(attack);payload['strategyLaps']=1
+        evidence=json.loads(subprocess.run(['node','tools/ci/test_grand_prix_witness.js'],input=json.dumps(payload),cwd=ROOT,text=True,capture_output=True,check=True).stdout)
+        self.assertEqual(evidence['lands'],1)
+        self.assertEqual(evidence['result']['variables']['fin'],1)
+        first=next(v['position'] for v in evidence['variables'] if v['values'].get('fin')==1)
+        landing=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:
+            if sample['time']>=landing:self.assertLess(math.dist(sample['position'][:2],first[:2]),1e-8)
+        active=Attempt(attack,1,.015);active.start(1,0,False)
+        landed=evidence['trace'][-33]['time']
+        for sample in evidence['trace']:active.sample(sample['time'],sample['position'],sample['velocity'],completed=sample['time']>=landed)
+        last=evidence['trace'][-1];active.sample(last['time']+2,last['position'],[0,0,0],completed=True)
+        self.assertEqual(active.result.status,'not-achieved');self.assertIsNone(active.result.candidate_points)
+
+    def test_real_initial_overshoot_remains_rejected(self):
+        # Actual R2025a sample from b7f1493 / run 38239852904 / artifact
+        # 11741872557. Keep the altitude ceiling; repair the witness instead.
+        samples=[(5.216,[-1.2821024416431867e-16,2.263184313423007e-16,1.1744828454376302],[6.898282543315577e-16,6.500460122346386e-16,1.00107798645228]),
+                 (38.112,[1.1028303338139693,-2.448587053625974e-15,1.1702111270140578],[-.0018354002108879374,1.2401019790947692e-16,.22102079124237933])]
+        for time,position,velocity in samples:
+            active=Attempt(generate(1),1,.015);active.start(1,0,False)
+            active.sample(time,position,velocity)
+            self.assertEqual(active.failure_reason,'altitude')
+            self.assertEqual(active.result.status,'not-achieved')
+            self.assertIsNone(active.result.seconds)
+
+    def test_refutations_and_clock_binding(self):
+        layout=generate(3)
+        for position,contacts in [([.7,.7,.9],[]),([0,-.8,.4],[]),([0,0,1.3],[]),([0,0,.4],[[0,0,.1]])]:
+            attempt=Attempt(layout,1,.015);attempt.start(1,0,False)
+            attempt.sample(2,position,[0,0,0],contacts,True)
+            self.assertEqual(attempt.result.status,'not-achieved');self.assertIsNone(attempt.result.seconds)
+        attempt=Attempt(layout,2,.015)
+        self.assertFalse(attempt.start(1,0,False));self.assertIsNone(attempt.start_time)
+        attempt.start(2,1,True);attempt.start(2,2,False)
+        self.assertTrue(attempt.debug);self.assertEqual(attempt.start_time,1)
+        attempt.sample(.5,[0,0,.015],[0,0,0]);self.assertEqual(attempt.result.status,'not-achieved')
+        # A stationary vehicle / repeated corner samples cannot make any lap.
+        attempt=Attempt(layout,3,.015);attempt.start(3,0,False)
+        for i in range(1,20):attempt.sample(i*.032,[0,0,.015],[0,0,0])
+        self.assertEqual(attempt.cursor,0)
+        attempt.sample(1,[0,0,.015],[0,0,0],completed=True)
+        attempt.sample(3,[0,0,.015],[0,0,0],completed=True)
+        self.assertEqual(attempt.result.status,'not-achieved')
+
+if __name__=='__main__':unittest.main()
