@@ -15,6 +15,7 @@
 #include <webots/supervisor.h>
 
 #include "pid_controller.h"
+#include "activity_scene.h"
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -57,7 +58,8 @@ typedef enum {
   REQUEST_RANGE,
   REQUEST_ELAPSED,
   REQUEST_RESET,
-  REQUEST_STOP
+  REQUEST_STOP,
+  REQUEST_SCENE
 } request_kind_t;
 
 typedef struct {
@@ -149,6 +151,13 @@ static request_t parse_request(const char *message) {
   char direction[32] = {0};
   char command[32] = {0};
   char extra[2] = {0};
+
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
 
   if (sscanf(message, PREFIX " REQUEST %d TAKEOFF %lf %1s", &id, &value, extra) == 2) {
     request.id = id;
@@ -492,6 +501,17 @@ int main(void) {
         response_error(request.id, "RESET_REQUIRED");
         continue;
       }
+      if (request.kind == REQUEST_SCENE) {
+        if (airborne || hypot(x - origin_x, y - origin_y) > POSITION_TOL ||
+            fabs(z - origin_z) > ALT_TOL || hypot(vx_global, vy_global) > SPEED_TOL || fabs(vz) > VZ_TOL) {
+          response_error(request.id, "RESET_REQUIRED");
+        } else if (!webeeblocks_select_activity_scene(request.direction)) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+        } else {
+          response_ok(request.id);
+        }
+        continue;
+      }
       if (request.kind == REQUEST_ELAPSED) {
         double seconds = 0.0;
         if (!airborne || !simulation_clock_read(&program_clock, now, &seconds))
@@ -547,6 +567,10 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_TAKEOFF) {
+        if (!webeeblocks_activity_scene_ready()) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+          continue;
+        }
         if (airborne || !isfinite(request.value) || request.value < 0.2 || request.value > 1.5) {
           response_error(request.id, "INVALID_TAKEOFF");
           continue;

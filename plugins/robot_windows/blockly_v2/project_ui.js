@@ -35,6 +35,8 @@
     var save = document.getElementById('projectSave');
     var saveAs = document.getElementById('projectSaveAs');
     var locked = busy || !supported || runtimeLocked;
+    var blocklyDiv = document.getElementById('blocklyDiv');
+    if (blocklyDiv) blocklyDiv.inert = busy || runtimeLocked;
     if (activity) activity.disabled = locked;
     if (open) open.disabled = locked;
     if (saveAs) saveAs.disabled = locked;
@@ -51,6 +53,8 @@
   async function operation(name, action) {
     if (busy || !supported || runtimeLocked) return null;
     busy = true;
+    runtimeProjectPending = true;
+    updateRuntimeActions();
     renderButtons();
     try { return await action(); }
     catch (error) {
@@ -61,6 +65,8 @@
       return null;
     } finally {
       busy = false;
+      runtimeProjectPending = false;
+      updateRuntimeActions();
       renderButtons();
     }
   }
@@ -74,6 +80,30 @@
     if (workspace && typeof workspace.updateToolbox === 'function') workspace.updateToolbox(buildToolbox(profile));
     profileFieldOptions.applyWorkspace(workspace);
     WebeeBlocksActivityContract.applyFieldBounds(profile, workspace);
+  }
+
+  async function prepareProfileScene(profile) {
+    if (!runtimeBackend || !runtimeBackend.capabilities || runtimeBackend.capabilities.simulationScenes !== true)
+      return; // Existing non-scene test/transport composition is unchanged.
+    if (runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending)
+      throw new Error('Simulation occupée');
+    if (runtimeTerminal) {
+      await resetSimulation();
+      if (runtimeTerminal) throw new Error('Réinitialisation requise');
+    }
+    runtimeScenePending = true;
+    setRuntimeStatus('PRÉPARATION', 'Préparation de l’activité');
+    try {
+      await runtimeBackend.prepareActivity(profile);
+      setRuntimeStatus('PRÊT', 'Activité préparée');
+    } catch (error) {
+      runtimeTerminal = true;
+      setRuntimeFailure(error);
+      throw error;
+    } finally {
+      runtimeScenePending = false;
+      updateRuntimeActions();
+    }
   }
 
   function suggestedName() {
@@ -100,6 +130,12 @@
   }
 
   async function createDirectTransport() {
+    // Chrome's native file picker can be available before the asynchronous
+    // Robot Window import. Do not expose project actions before scene authority.
+    var directRobotWindow = await waitForRobotWindow(5000);
+    if (typeof runtimeBackend === 'undefined' || !runtimeBackend || typeof runtimeBackend.waitUntilReady !== 'function')
+      throw new Error('Runtime v2 backend unavailable for project files');
+    await runtimeBackend.waitUntilReady();
     var browserTransport = WebeeBlocksProjectFiles.createBrowserTransport(window, document);
     if (browserTransport.nativeFileSystemAccess) {
       browserTransport.mode = 'browser-native';
@@ -109,14 +145,7 @@
     await import('../blockly/webeeblocks/project_file_wwi_transport.js?rev=20261015-control-busy');
     if (typeof window.WebeeBlocksProjectFileWwiTransport !== 'function')
       throw new Error('Project file WWI transport module unavailable');
-    var directRobotWindow = await waitForRobotWindow(5000);
-    if (typeof runtimeBackend === 'undefined' || !runtimeBackend || typeof runtimeBackend.waitUntilReady !== 'function')
-      throw new Error('Runtime v2 backend unavailable for project files');
-
-    // The Qt file broker lives in the controller receive loop. Waiting for the
-    // Runtime handshake prevents an automatically opened Firefox window from
-    // spending its short broker readiness budget before that loop is live.
-    await runtimeBackend.waitUntilReady();
+    // The Qt broker also starts only after the Runtime handshake.
     brokerTransport = new window.WebeeBlocksProjectFileWwiTransport(directRobotWindow, {timeoutMs: 5000});
 
     // RobotWindow has one receive callback. Runtime v2 keeps ownership of the
@@ -270,6 +299,7 @@
   window.addEventListener('webeeblocks-runtime-v2', function(event) {
     var state = event && event.detail ? event.detail.state : null;
     setRuntimeLocked(state === 'EN VOL' || state === 'RÉINITIALISATION');
+    if (state === 'PRÉPARATION') setRuntimeLocked(true);
   });
 
   window.addEventListener('load', function() {
@@ -301,6 +331,7 @@
         workspace: workspace,
         getProfile: function() { return runtimeProfile; },
         setProfile: applyProfile,
+        prepareProfile: prepareProfileScene,
         transport: transport
       });
       window.WebeeBlocksProjectManager = manager;

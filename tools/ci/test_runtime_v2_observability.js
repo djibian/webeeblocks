@@ -92,7 +92,15 @@ async function proveProgramInvalidRetryWithoutReset() {
   assert.strictEqual(element('submit').disabled,false,'Lancer stayed disabled after PROGRAM_INVALID');
 
   testWorkspace.valid = true;
+  context.runtimeProjectPending = true;
+  context.updateRuntimeActions();
+  assert.strictEqual(element('submit').disabled,true,'project transaction enabled Lancer between scene ACK and workspace application');
+  await context.runProgram();
+  assert.strictEqual(compileCalls,0,'late Lancer during project transaction reached compilation');
+  assert.strictEqual(interpreterRuns,0,'late Lancer during project transaction reached backend');
+  context.runtimeProjectPending = false;
   context.onWorkspaceChange({type:'change'});
+  context.updateRuntimeActions();
   assert.strictEqual(element('submit').disabled,false,'workspace correction should not require reset');
   await context.runProgram();
   assert.strictEqual(compileCalls,1,'corrected workspace did not reach compiler on second attempt');

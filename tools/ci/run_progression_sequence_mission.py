@@ -154,6 +154,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         names = [event.get("event") for event in events]
         required = (
             "SEQUENCE_PROBE_READY",
+            "SEQUENCE_SCENE_ISOLATED",
+            "LEGACY_SCENE_RESTORED",
             "SEQUENCE_ACHIEVED",
             "SEQUENCE_RESET_FRESH",
             "SEQUENCE_REPEAT_ACHIEVED",
@@ -182,6 +184,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             return fail(f"missing causal progression events: {missing}", json.dumps(names))
 
         details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
+        if details['SEQUENCE_SCENE_ISOLATED'] != {'scene':'sequence-v1'} or details['LEGACY_SCENE_RESTORED'] != {'scene':'legacy-v1'}:
+            return fail('missing physical scene switch evidence')
         for name in ("SEQUENCE_ACHIEVED", "SEQUENCE_REPEAT_ACHIEVED", "SEQUENCE_ALTERNATIVE_ACHIEVED",
                      "PRECISE_ACHIEVED", "PRECISE_ALTERNATIVE_ACHIEVED"):
             if details[name] != {"status": "achieved"}:

@@ -205,7 +205,9 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
     workspace: {updateToolbox() {}},
     runtimeProfile: {id: 'reactive-obstacle-v2', brief: {visible: false}},
     runtimeTerminal: true,
-    runtimeBackend: {ready: true},
+    robotWindow: {send() {}, receive() {}},
+    runtimeBackend: {ready: true, waitUntilReady: async () => {}},
+    runtimeProjectPending: false,
     Blockly: {},
     WebeeBlocksActivityProfiles: {},
     WebeeBlocksActivities: {DOCUMENT: {}, BLOCK_CATALOG: {}},
@@ -250,6 +252,19 @@ async function testProjectOpenKeepsResetRequirementAndLocksDuringReset() {
   assert.strictEqual(statusCalls, 0, 'opening while terminal must not publish PRÊT');
   assert.ok(actionUpdates >= 1, 'opening while terminal must refresh action gating');
   assert.match(elements.runtimeDetail.textContent, /réinitialisez la simulation/);
+
+  let finishOpen;
+  manager.open = async () => { openCalls += 1; await new Promise(resolve => {finishOpen=resolve;}); return {name:'opened.wbb'}; };
+  openHandler();
+  await new Promise(resolve => setTimeout(resolve,0));
+  assert.strictEqual(context.runtimeProjectPending,true,'project preparation did not hold execution gating');
+  runtimeStatusHandler({detail:{state:'PRÊT'}}); // scene ACK, project not applied yet
+  assert.strictEqual(elements.blocklyDiv.inert,true,'scene ACK unlocked edits before project application');
+  assert.strictEqual(elements.projectOpen.disabled,true,'scene ACK unlocked another Open before project application');
+  finishOpen();
+  await new Promise(resolve => setTimeout(resolve,0));
+  assert.strictEqual(context.runtimeProjectPending,false,'completed project operation kept execution locked');
+  assert.strictEqual(elements.blocklyDiv.inert,false);
 }
 
 function testStartupHandshakeSourceContract() {

@@ -274,10 +274,24 @@
         throw error;
       } finally { applying = false; }
     }
+    async function prepareAndApply(validated) {
+      var previousProfile = options.getProfile();
+      if (typeof options.prepareProfile === 'function') await options.prepareProfile(validated.profile);
+      try { applyValidated(validated); }
+      catch (error) {
+        // Preparation was acknowledged, but the live workspace failed to load.
+        // Restore its scene as well as the profile/workspace restored above.
+        if (typeof options.prepareProfile === 'function') {
+          try { await options.prepareProfile(previousProfile); }
+          catch (restorationError) { error.sceneRestorationError = restorationError; }
+        }
+        throw error;
+      }
+    }
     async function applyTemplateText(name, text, mode) {
       var validated = validateProjectText(text, options.getProfile(), dependencies());
       var templateName = preserveSelectedName(name || validated.profile.id + EXTENSION);
-      applyValidated(validated);
+      await prepareAndApply(validated);
       var previousHandle = targetHandle;
       targetHandle = null;
       targetName = null;
@@ -292,7 +306,7 @@
         var nextName;
         try {
           validated = validateProjectText(opened.text, options.getProfile(), dependencies());
-          applyValidated(validated);
+          await prepareAndApply(validated);
           nextName = preserveSelectedName(opened.name || validated.profile.id + EXTENSION);
         } catch (error) {
           if (nextHandle && nextHandle !== targetHandle) await releaseTarget(nextHandle);

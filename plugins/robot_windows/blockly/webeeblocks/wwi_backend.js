@@ -36,6 +36,8 @@
     this.simulationStopped = false;
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;
+    this.sceneIdentity = 'legacy-v1';
+    this.scenePreparationPending = false;
     var capabilities = {
       conditionalLoops: true,
       elapsedSimulationTime: true,
@@ -50,6 +52,8 @@
       capabilities.simulationReset = true;
     if (options && options.simulationStop === true)
       capabilities.simulationStop = true;
+    if (options && options.simulationScenes === true)
+      capabilities.simulationScenes = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -167,6 +171,26 @@
   };
 
   RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { this.timeObservationEpoch += 1; return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.prepareActivity = function(profile) {
+    if (!this.capabilities.simulationScenes)
+      return Promise.reject(new Error('Runtime v2 simulation scenes unavailable'));
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    if (this.scenePreparationPending)
+      return Promise.reject(new RuntimeV2BackendError('SCENE_BUSY'));
+    var scene = profile && profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+    if (this.sceneIdentity === scene) return Promise.resolve();
+    this.sceneIdentity = null; // An unknown import outcome must be reconstructed.
+    this.scenePreparationPending = true;
+    var self = this, epoch = this.timeObservationEpoch;
+    return this._request(['SCENE', scene]).then(function(value) {
+      if (epoch !== self.timeObservationEpoch)
+        throw new RuntimeV2BackendError('RESET_CANCELLED');
+      if (value !== null) throw new Error('Runtime v2 invalid scene acknowledgement');
+      self.sceneIdentity = scene;
+      return value;
+    }).finally(function() { self.scenePreparationPending = false; });
+  };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.turn = function(angleDeg) { return this._guardSimulationStopped() || this._request(['TURN', Number(angleDeg).toPrecision(17)]); };
@@ -244,12 +268,14 @@
       return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
     this.timeObservationEpoch += 1;
     this.simulationStopped = true;
+    this.sceneIdentity = null;
     return this._request(['STOP']);
   };
   RuntimeV2WwiBackend.prototype.resetSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
     this.timeObservationEpoch += 1;
+    this.sceneIdentity = null;
     this._cancelPendingForReset();
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;

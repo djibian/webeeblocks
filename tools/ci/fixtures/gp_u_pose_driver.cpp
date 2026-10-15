@@ -184,10 +184,17 @@ extern "C" const char* gp_test_receive(){
  if(receive_tick!=tick){receive_tick=tick;requests_at_tick=0;}
  int index=requests_at_tick++;
  if(const char* file=file_requests(index))return file;
+ if(tick==212048){
+  if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 52 SCENE sequence-v1";
+  --index;
+ }
  if(tick==2048 && index==0){
   if(file_startup())return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 RESET";
   takeoff=true;return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.8";
  }
+ // Scene changes must not reach the importer during TAKEOFF, deadline or RESET.
+ if(tick==2048 && index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 51 SCENE sequence-v1";
+ if(reset_case() && tick==213008 && index==5)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 53 SCENE sequence-v1";
  if(flight_case() && tick==(mode=="flight-yaw-deadline-recover"?212048:2656)){
   if(index==0)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 41 MOVE forward 0.1";
   if(index==1)return "WEBEEBLOCKS_RUNTIME_V2 REQUEST 42 TAKEOFF 0.8";
@@ -248,6 +255,7 @@ extern "C" void gp_test_cleanup(){
  const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
  const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
  if(file_startup()){
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 51 ERR BUSY"));
   assert(teleports==1 && reset_ok && !takeoff && tick>=2560);
   assert(!std::strcmp(result,"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2") && !*authority);
   file_verify();
@@ -259,8 +267,11 @@ extern "C" void gp_test_cleanup(){
   return;
  }
  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 STATE not-achieved"));
+ assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 51 ERR BUSY"));
+ assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 52 ERR TIME_LIMIT"));
  assert(teleports==(positive()?1:0) && reset_ok==reset_success());
  if(reset_case()){
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 53 ERR TIME_LIMIT"));
   for(int id=31;id<=34;++id)assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::to_string(id)+" ERR TIME_LIMIT"));
   assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 35 STATE not-achieved"));
   if(!reset_success())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR RESET_TIMEOUT"));
@@ -325,6 +336,17 @@ extern "C" const double* wb_supervisor_field_get_sf_rotation(void*){return rot;}
 extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double* v){std::memcpy(pos,v,sizeof(pos));}
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double* v){std::memcpy(rot,v,sizeof(rot));}
 extern "C" void wb_supervisor_node_reset_physics(void*){}
+// This pose fixture has no activity groups. Link the production scene module,
+// but reject any unexpected scene API entry; import behavior has its own probe.
+extern "C" const char* wb_robot_get_project_path(){assert(false);return nullptr;}
+extern "C" void* wb_supervisor_node_get_root(){assert(false);return nullptr;}
+extern "C" const char* wb_supervisor_node_get_type_name(void*){assert(false);return nullptr;}
+extern "C" const char* wb_supervisor_node_get_def(void*){assert(false);return nullptr;}
+extern "C" const char* wb_supervisor_node_export_string(void*){assert(false);return nullptr;}
+extern "C" void wb_supervisor_node_remove(void*){assert(false);}
+extern "C" int wb_supervisor_field_get_count(void*){assert(false);return 0;}
+extern "C" void* wb_supervisor_field_get_mf_node(void*,int){assert(false);return nullptr;}
+extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char*){assert(false);}
 void init_pid_attitude_fixed_height_controller(){}
 void pid_velocity_fixed_height_controller(actual_state_t a,desired_state_t* d,gains_pid_t,double,motor_power_t* p){
  assert(std::isfinite(a.roll) && std::isfinite(a.pitch) && std::isfinite(a.yaw_rate) &&

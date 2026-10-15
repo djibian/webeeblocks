@@ -8,6 +8,8 @@ var runtimeTerminal = false;
 var runtimeResetPending = false;
 var runtimeStopPending = false;
 var runtimeStopRequested = false;
+var runtimeScenePending = false;
+var runtimeProjectPending = false;
 var runtimeDebug = null;
 var WEBEEBLOCKS_MAIN_SCRIPT_URL = document.currentScript && document.currentScript.src;
 
@@ -56,7 +58,7 @@ function updateRuntimeActions() {
   if (typeof submit.setAttribute === 'function') submit.setAttribute('aria-label', primaryLabel);
   submit.disabled = primaryIsStop
     ? (!stopSupported || !ready || runtimeStopPending || runtimeStopRequested)
-    : (!ready || runtimeTerminal || runtimeResetPending || runtimeStopPending);
+    : (!ready || runtimeTerminal || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending);
   if (stop) {
     stop.hidden = true;
     stop.disabled = true;
@@ -64,7 +66,7 @@ function updateRuntimeActions() {
   if (reset) {
     var resetSupported = !!(runtimeBackend && runtimeBackend.capabilities && runtimeBackend.capabilities.simulationReset === true);
     reset.hidden = !resetSupported;
-    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || runtimeStopPending || !runtimeTerminal;
+    reset.disabled = !resetSupported || !ready || runtimeRunning || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeTerminal;
   }
 }
 
@@ -295,7 +297,7 @@ async function resetSimulation() {
 }
 
 async function runProgram() {
-  if (runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending || !runtimeBackend || !runtimeBackend.ready) return;
+  if (runtimeRunning || runtimeTerminal || runtimeResetPending || runtimeStopPending || runtimeScenePending || runtimeProjectPending || !runtimeBackend || !runtimeBackend.ready) return;
   var submit = document.getElementById('submit');
   var stepMode = document.getElementById('stepMode');
   var debugRequested = stepMode.checked === true;
@@ -392,7 +394,7 @@ window.onload = async function() {
   try {
     var module = await import(new URL('./webots/RobotWindow.js', WEBEEBLOCKS_MAIN_SCRIPT_URL).href);
     robotWindow = new module.default();
-    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true});
+    runtimeBackend = new WebeeBlocksWwiBackend(robotWindow, {timeoutMs: 35000, simulationDebug: true, simulationReset: true, simulationStop: true, simulationScenes: true});
     robotWindow.receive = receiveMessage;
     setRuntimeStatus('INITIALISATION', 'Connexion à la simulation');
     await runtimeBackend.waitUntilReady();

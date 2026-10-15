@@ -49,6 +49,14 @@ async function flyCanonicalSequence(backend) {
   try { await backend.readElapsedTime(); throw new Error('time available before takeoff'); }
   catch (error) { if (error.code !== 'TIME_UNAVAILABLE') throw error; }
   await backend.takeoff(0.5);
+  const before = await backend.readRange('front');
+  if (Math.abs(before - 2.0) > 0.01) throw new Error('off-activity obstacle remains visible: ' + before);
+  try {
+    await backend.prepareActivity({id:'progression-precise-movement-v1'});
+    throw new Error('scene changed in flight');
+  } catch (error) {
+    if (!error || error.code !== 'RESET_REQUIRED') throw error;
+  }
   const start = await backend.readElapsedTime();
   if (!Number.isFinite(start) || start <= 0) throw new Error('takeoff duration missing from simulated clock');
   await backend.wait(0.5);
@@ -79,13 +87,15 @@ window.addEventListener('unhandledrejection', function(event) {
   try {
     const module = await import('../blockly_v2/webots/RobotWindow.js');
     const robotWindow = new module.default();
-    const backend = new WebeeBlocksWwiBackend(robotWindow, {simulationReset: true});
+    const backend = new WebeeBlocksWwiBackend(robotWindow, {simulationReset: true, simulationScenes: true});
     robotWindow.receive = function(message) {
       backend.handleMessage(String(message));
     };
     await backend.waitUntilReady();
     const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
+    await backend.prepareActivity({id:'progression-sequence-v1'});
+    await report('SEQUENCE_SCENE_ISOLATED', {scene:'sequence-v1'});
 
     await flyCanonicalSequence(backend);
     await backend.completeActivityMission(evaluation);
@@ -127,6 +137,8 @@ window.addEventListener('unhandledrejection', function(event) {
 
     const precise = {type:'mission-state-v1', oracle:'progression-precise-movement-v1'};
     await resetAndProveFresh(backend, precise, 'PRECISE_INITIAL_RESET_FRESH');
+    await backend.prepareActivity({id:'progression-precise-movement-v1'});
+    await report('LEGACY_SCENE_RESTORED', {scene:'legacy-v1'});
 
     await backend.takeoff(0.5);
     await backend.move('forward', 0.3);

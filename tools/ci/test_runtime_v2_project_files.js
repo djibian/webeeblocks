@@ -3,6 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
 const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
@@ -11,6 +12,7 @@ const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webee
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 const WwiProjectFileTransport = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js'));
+const WwiBackend = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 
 Blockly.defineBlocksWithJsonArray([
   {type:'webeeblocks_v2_takeoff', message0:'takeoff %1', args0:[{type:'field_number',name:'HEIGHT',value:1,min:0.2,max:1.5,precision:0.1}], previousStatement:null,nextStatement:null},
@@ -76,6 +78,123 @@ function managerFor(workspace, profileRef, transport) {
     setProfile:profile => { profileRef.value = profile; },
     transport
   });
+}
+
+async function proveScenePreparation() {
+  const messages = [];
+  const backend = new WwiBackend({send: m => messages.push(m)}, {simulationScenes:true,timeoutMs:1000});
+  const sequence = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
+  const pending = backend.prepareActivity(sequence);
+  assert.match(messages[0], / REQUEST 1 SCENE sequence-v1$/);
+  backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
+  await pending;
+  const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
+  await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
+  backend.simulationStopped = true;
+  await assert.rejects(() => backend.prepareActivity(sequence), e => e.code === 'USER_STOPPED');
+  assert.strictEqual(messages.length, 1);
+
+  const sent = [];
+  const racing = new WwiBackend({send:m=>sent.push(m)}, {simulationScenes:true,simulationReset:true,timeoutMs:1000});
+  const preparing = racing.prepareActivity(sequence);
+  await assert.rejects(()=>racing.prepareActivity({id:'reactive-obstacle-v2'}), e=>e.code==='SCENE_BUSY');
+  assert.strictEqual(sent.length,1,'overlapping selection sent a second scene command');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
+  await assert.rejects(preparing,/invalid scene acknowledgement/);
+  assert.strictEqual(racing.sceneIdentity,null);
+  const old = racing.prepareActivity(sequence);
+  const cancelled = assert.rejects(old,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK');
+  const resetting = racing.resetSimulation(); // ACK received, callback still queued.
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
+  await cancelled; await resetting;
+  assert.strictEqual(racing.sceneIdentity,null,'late scene ACK survived RESET');
+  const recovered = racing.prepareActivity(sequence);
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK'); // stale response
+  assert.strictEqual(racing.sceneIdentity,null);
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK'); await recovered;
+  assert.strictEqual(racing.sceneIdentity,'sequence-v1');
+
+  const live = buildWorkspace(0.2), ref = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
+  let releasePreparation;
+  let rejectPreparation;
+  const waiting = new Promise((resolve,reject) => {releasePreparation=resolve;rejectPreparation=reject;});
+  let preparationCalls=0;
+  const manager = ProjectFiles.createManager({
+    Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace:live,
+    getProfile:()=>ref.value,setProfile:p=>{ref.value=p;},transport:memoryTransport(),
+    prepareProfile:async p=>{assert.strictEqual(p.id,sequence.id);preparationCalls++;await waiting;}
+  });
+  const before = Blockly.serialization.workspaces.save(live);
+  const opening = manager.openTemplateText('activite.wbb',ProjectFiles.createStarterText(sequence.id));
+  await Promise.resolve();
+  assert.strictEqual(preparationCalls,1);
+  assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before,'workspace mutated before scene ACK');
+  rejectPreparation(new Error('partial scene import'));
+  await assert.rejects(()=>opening,/partial scene import/);
+  assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before,'failed preparation erased project');
+  assert.strictEqual(ref.value.id,'reactive-obstacle-v2');
+  live.dispose();
+}
+
+async function proveSceneRollback() {
+  for (const mode of ['template','open']) for (const restorationFails of [false,true]) {
+    const live = buildWorkspace(0.2), original = Profiles.resolveById(Activities.DOCUMENT,'reactive-obstacle-v2',Activities.BLOCK_CATALOG);
+    const ref = {value:original}, transport = memoryTransport();
+    let selected = original.id, failLoad = false;
+    const causal = new Error('live project application failed'), restoration = new Error('legacy scene restoration failed');
+    const manager = ProjectFiles.createManager({
+      Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+      semanticAst:SemanticAst,activityContract:ActivityContract,workspace:live,
+      getProfile:()=>ref.value,setProfile:p=>{if(failLoad && p.id==='progression-sequence-v1'){failLoad=false;throw causal;}ref.value=p;},transport,
+      prepareProfile:async p=>{if(restorationFails && failLoad===false && p.id===original.id)throw restoration;selected=p.id;}
+    });
+    await manager.saveAs('original.wbb');
+    const before = Blockly.serialization.workspaces.save(live);
+    const text = ProjectFiles.createStarterText('progression-sequence-v1');
+    transport.state.openText = text; failLoad=true;
+    await assert.rejects(mode==='open'?manager.open():manager.openTemplateText('activity.wbb',text),error=>error===causal);
+    assert.strictEqual(ref.value.id,original.id);
+    assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before);
+    assert(manager.hasCurrentTarget(),'failed project application lost original save target');
+    if(restorationFails) assert.strictEqual(causal.sceneRestorationError,restoration,'restoration error lost');
+    else assert.strictEqual(selected,original.id,'workspace restored but scene still selected for rejected project');
+    await manager.save(); // original target remains usable
+    live.dispose();
+  }
+}
+
+async function proveProjectStartupRace() {
+  for (const failReady of [false,true]) {
+    const listeners = {}, timers = [], elements = {};
+    let created = 0, releaseReady, rejectReady;
+    const readiness = new Promise((resolve,reject)=>{releaseReady=resolve;rejectReady=reject;});
+    const document = {body:{dataset:{}},getElementById:id=>elements[id] || (elements[id]={dataset:{},addEventListener(){}})};
+    const context = {
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
+      workspace:{},runtimeProfile:{id:'reactive-obstacle-v2'},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true}),
+        createManager:()=>{created++;return {nativeFileSystemAccess:true,hasCurrentTarget:()=>false};}},
+      Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date,
+      setTimeout:fn=>{timers.push(fn);}
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush = async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
+    listeners.load(); await flush();
+    assert.strictEqual(created,0,'Chrome exposed project loading before Robot Window import');
+    context.robotWindow={send(){},receive(){}};
+    context.runtimeBackend={waitUntilReady:()=>readiness};
+    timers.shift()(); await flush();
+    assert.strictEqual(created,0,'Chrome exposed project loading before native READY');
+    if(failReady) rejectReady(new Error('native READY failed')); else releaseReady();
+    await flush();
+    assert.strictEqual(created,failReady?0:1);
+    assert.strictEqual(document.body.dataset.projectFileMode,failReady?'unavailable':'browser-native');
+    if(failReady)assert.strictEqual(elements.projectOpen.disabled,true);
+  }
 }
 
 async function expectRejectedWithoutMutation(manager, transport, text, workspace, profileRef, label) {
@@ -387,5 +506,8 @@ async function exerciseWwiBoundary() {
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
-  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
+  await proveScenePreparation();
+  await proveSceneRollback();
+  await proveProjectStartupRace();
+  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
