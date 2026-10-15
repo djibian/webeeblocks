@@ -137,6 +137,13 @@ __COMMON__
 
     loadXml(__REACTIVE__);
     const baselineAst = WebeeBlocksSemanticAst.compileWorkspace(workspace);
+    // The fault below replaces TAKEOFF, not scene preparation. Establish the
+    // initial native scene first, then retain the exact no-request fault oracle.
+    const techPreparationStart = wwiTx.length;
+    await runtimeBackend.prepareActivity(runtimeProfile);
+    const techPreparation = wwiTx.slice(techPreparationStart);
+    if (techPreparation.length !== 1 || !/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ SCENE legacy-v1$/.test(techPreparation[0]))
+      throw new Error('unexpected technical-fault scene preparation: ' + JSON.stringify(techPreparation));
     const originalTakeoff = runtimeBackend.takeoff.bind(runtimeBackend);
     const techStartId = runtimeBackend.nextId;
     runtimeBackend.takeoff = function() { return Promise.reject(new Error('CI_TECHNICAL_FAILURE')); };
