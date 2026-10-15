@@ -44,7 +44,7 @@ Node root{"root","Group",""},view{"","Viewpoint",""},legacy{"WEBEEBLOCKS_LEGACY_
 std::vector<Node*> nodes{&view,&legacy,&evaluators,&extra7,&extra8,&sequence};
 Node dedicated{"WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD","WorldInfo","",false};
 std::vector<std::string> removals;
-int legacyChildren=3,evaluatorChildren=7,sequenceChildren=18;
+int legacyChildren=32,evaluatorChildren=6,sequenceChildren=18;
 bool rootOnly=false,partialEvaluators=false,partialLegacy=false;
 int missingChild=-1;void *missingField=nullptr;
 std::string project;
@@ -65,15 +65,23 @@ extern "C" const double *wb_supervisor_field_get_sf_vec3f(void*){return p;}
 extern "C" const double *wb_supervisor_field_get_sf_rotation(void*){return o;}
 extern "C" void wb_supervisor_field_set_sf_vec3f(void*,const double *v){std::memcpy(p,v,sizeof(p));}
 extern "C" void wb_supervisor_field_set_sf_rotation(void*,const double *v){std::memcpy(o,v,sizeof(o));}
-extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char *s){if(refuseImport)return;std::string text=s;for(auto*n:nodes)if(!n->def.empty()&&text.find("DEF "+n->def+" ")!=std::string::npos)n->alive=true; if(text.find("DEF WEBEEBLOCKS_SEQUENCE_SCENE ")!=std::string::npos)sequenceChildren=rootOnly?0:18; if(text.find("DEF WEBEEBLOCKS_LEGACY_SCENE ")!=std::string::npos)legacyChildren=partialLegacy?0:3; if(text.find("DEF WEBEEBLOCKS_LEGACY_EVALUATORS ")!=std::string::npos)evaluatorChildren=partialEvaluators?0:7;}
+extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char *s){if(refuseImport)return;std::string text=s;for(auto*n:nodes)if(!n->def.empty()&&text.find("DEF "+n->def+" ")!=std::string::npos)n->alive=true; if(text.find("DEF WEBEEBLOCKS_SEQUENCE_SCENE ")!=std::string::npos)sequenceChildren=rootOnly?0:18; if(text.find("DEF WEBEEBLOCKS_LEGACY_SCENE ")!=std::string::npos)legacyChildren=partialLegacy?0:32; if(text.find("DEF WEBEEBLOCKS_LEGACY_EVALUATORS ")!=std::string::npos)evaluatorChildren=partialEvaluators?0:6;}
 int main(int argc,char**argv){
  assert(argc==2 || argc==3);std::string valid=argv[1];project=valid+"/missing";
  nodes.push_back(&dedicated);
  if(argc==3){
-   legacy.alive=evaluators.alive=sequence.alive=false;
    const std::string mode=argv[2];
-   dedicated.alive=mode!="missing";
-   if(mode=="wrong-type")dedicated.type="Group";
+   const bool partial=mode=="partial-scene"||mode=="partial-evaluators"||mode=="partial-null";
+   if(partial) {
+     sequence.alive=false;dedicated.alive=false;
+     if(mode=="partial-scene")legacyChildren=31;
+     if(mode=="partial-evaluators")evaluatorChildren=5;
+     if(mode=="partial-null"){missingField=&evaluatorChildren;missingChild=5;}
+   } else {
+     legacy.alive=evaluators.alive=sequence.alive=false;
+     dedicated.alive=mode!="missing";
+     if(mode=="wrong-type")dedicated.type="Group";
+   }
    const bool expected=mode=="dedicated";
    assert(bool(webeeblocks_activity_scene_ready())==expected);
    // A second module starts with fresh statics on the identical live world.
@@ -143,7 +151,7 @@ def main():
             '-Dwebeeblocks_select_activity_scene=restarted_select','-c',production,'-o',str(root/'restarted.o')],check=True)
         subprocess.run(compiler+[production,str(root/'probe.cpp'),str(root/'restarted.o'),'-o',str(root/'probe')],check=True)
         subprocess.run([str(root/'probe'),str(root)],check=True)
-        for mode in ('missing','wrong-type','dedicated'):
+        for mode in ('missing','wrong-type','dedicated','partial-scene','partial-evaluators','partial-null'):
             subprocess.run([str(root/'probe'),str(root),mode],check=True)
         source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
         types=source[source.index('typedef enum {'):source.index('static double clip(')]

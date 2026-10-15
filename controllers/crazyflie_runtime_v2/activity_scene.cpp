@@ -12,8 +12,10 @@ std::string selected;
 bool ready = false;
 bool observed = false;
 bool saved = false;
-int legacyChildCount = -1;
-int evaluatorChildCount = -1;
+// Trusted direct-child counts in the versioned classroom launch world.
+// Never derive a trusted count from possibly damaged live scene content.
+constexpr int kLegacySceneChildren = 32;
+constexpr int kLegacyEvaluatorChildren = 6;
 double oldPosition[3];
 double oldOrientation[4];
 
@@ -32,19 +34,14 @@ bool completeGroup(const char *def, int expected) {
     if (!wb_supervisor_field_get_mf_node(content, i)) return false;
   return true;
 }
-int groupCount(const char *def) {
-  WbNodeRef node = wb_supervisor_node_get_from_def(def);
-  WbFieldRef content = node ? wb_supervisor_node_get_field(node, "children") : nullptr;
-  return content ? wb_supervisor_field_get_count(content) : -1;
-}
 bool liveSelection() {
   if (selected == "sequence-v1")
     return completeGroup("WEBEEBLOCKS_SEQUENCE_SCENE", 18) &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS");
   if (selected == "legacy-v1")
-    return completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount) &&
-      completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount) &&
+    return completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren) &&
+      completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren) &&
       !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE");
   // Absence is not identity: an interrupted managed-world import may also
   // leave zero groups. Dedicated worlds opt in through a typed world root.
@@ -60,8 +57,6 @@ void observeWorld() {
   observed = true;
   if (wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") ||
       wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS")) {
-    legacyChildCount = groupCount("WEBEEBLOCKS_LEGACY_SCENE");
-    evaluatorChildCount = groupCount("WEBEEBLOCKS_LEGACY_EVALUATORS");
     selected = "legacy-v1";
     ready = liveSelection();
   } else {
@@ -104,8 +99,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     legacyScene = exported("WEBEEBLOCKS_LEGACY_SCENE");
     legacyEvaluators = exported("WEBEEBLOCKS_LEGACY_EVALUATORS");
     if (legacyScene.empty() || legacyEvaluators.empty() ||
-        !completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount) ||
-        !completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount)) return 0;
+        !completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren) ||
+        !completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren)) return 0;
     const double *p = wb_supervisor_field_get_sf_vec3f(position);
     const double *o = wb_supervisor_field_get_sf_rotation(orientation);
     if (!p || !o) return 0;
@@ -149,9 +144,9 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
     wb_supervisor_field_set_sf_rotation(orientation, o);
   } else {
     wb_supervisor_field_import_mf_node_from_string(children, -1, legacyScene.c_str());
-    if (completeGroup("WEBEEBLOCKS_LEGACY_SCENE", legacyChildCount)) {
+    if (completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren)) {
       wb_supervisor_field_import_mf_node_from_string(children, -1, legacyEvaluators.c_str());
-      ready = completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", evaluatorChildCount);
+      ready = completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren);
     }
     wb_supervisor_field_set_sf_vec3f(position, oldPosition);
     wb_supervisor_field_set_sf_rotation(orientation, oldOrientation);

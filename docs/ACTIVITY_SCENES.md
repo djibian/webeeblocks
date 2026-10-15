@@ -48,7 +48,12 @@ R2025a remplace aussi le backend tout en gardant le même contrôleur natif.
 Un redémarrage du seul contrôleur natif est distinct d'un réattachement de
 fenêtre : ses variables de processus ne prouvent pas le monde conservé.
 Le module observe les groupes vivants avant toute autorité et revalide leur
-structure sur le chemin d'identité déjà sélectionnée et avant TAKEOFF.
+structure sur le chemin d'identité déjà sélectionnée et avant TAKEOFF. Les
+cardinalités attendues sont fixées par le monde de lancement versionné :
+**32 enfants directs de scène et 6 évaluateurs**, indépendamment d'un état
+vivant potentiellement incomplet lors du démarrage. Une seconde instance
+native aux statiques fraîches doit donc refuser une racine partiellement
+amputée, même lorsque les références restantes sont valides.
 Si sequence-v1 survit sans les snapshots legacy perdus avec le processus,
 SCENE et TAKEOFF restent refusés ; il faut recharger le monde Webots pour
 reconstruire les scènes et évaluateurs. Aucun faux ACK legacy ne remplace
