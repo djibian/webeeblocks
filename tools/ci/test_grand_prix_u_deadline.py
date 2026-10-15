@@ -1,0 +1,132 @@
+"""Compile the real native deadline hook against controlled Webots channels.
+No simulation trajectory or hardware claim follows from these interleavings.
+"""
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+
+class DeadlineTests(unittest.TestCase):
+    def test_exact_boundary_terminal_filter_and_new_attempt(self):
+        compiler = shutil.which('c++')
+        self.assertIsNotNone(compiler, 'C++ compiler required for real deadline source')
+        with tempfile.TemporaryDirectory(prefix='gp-u-deadline-') as tmp:
+            base = Path(tmp)
+            (base/'webots/plugins/robot_window').mkdir(parents=True)
+            (base/'webots/robot.h').write_text('extern "C" double wb_robot_get_time();\nextern "C" void wb_robot_wwi_send_text(const char*);\n')
+            (base/'webots/plugins/robot_window/default.h').write_text('')
+            (base/'webots/supervisor.h').write_text('''typedef void* WbNodeRef; typedef void* WbFieldRef;
+extern "C" WbNodeRef wb_supervisor_node_get_from_def(const char*);
+extern "C" WbNodeRef wb_supervisor_node_get_self();
+extern "C" WbFieldRef wb_supervisor_node_get_field(WbNodeRef,const char*);
+extern "C" void wb_supervisor_field_set_sf_string(WbFieldRef,const char*);
+extern "C" const char* wb_supervisor_field_get_sf_string(WbFieldRef);
+''')
+            test = base/'test.cpp'
+            test.write_text('''#include <cassert>
+#include <string>
+#include "grand_prix_u_hook.h"
+std::string vehicle, evaluator, reply; double now=0; bool present=true;
+extern "C" double wb_robot_get_time(){return now;}
+extern "C" void wb_robot_wwi_send_text(const char* s){reply=s;}
+extern "C" void* wb_supervisor_node_get_self(){return &vehicle;}
+extern "C" void* wb_supervisor_node_get_from_def(const char*){return present?&evaluator:nullptr;}
+extern "C" void* wb_supervisor_node_get_field(void* n,const char*){return n;}
+extern "C" const char* wb_supervisor_field_get_sf_string(void* f){return static_cast<std::string*>(f)->c_str();}
+extern "C" void wb_supervisor_field_set_sf_string(void* f,const char* v){*static_cast<std::string*>(f)=v;}
+extern "C" const char* webeeblocks_file_broker_receive_text(){return nullptr;}
+extern "C" void webeeblocks_file_broker_send(const char*,int){}
+int main(){
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ gp_u_file_idle(1);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1";
+ assert(gp_u_start(2.112)==1);
+ for(const char* op:{"OPEN","SAVE_AS cHJvYmUud2Ji e30=","SAVE ref e30=","RELEASE ref","CAPABILITIES"}){
+  std::string request=std::string("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 ")+op;
+  assert(gp_u_filter_raw(request.c_str())==0);
+  assert(reply=="WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 77 ERR BUSY");
+ }
+ now=212.096; assert(gp_u_next_step(32)==16);
+ assert(gp_u_deadline(212.111,0)==0);
+ assert(gp_u_deadline(212.112,0)==1);
+ assert(evaluator=="GP_U_START attempt=1 start_ms=2112 state=deadline");
+ assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=not-achieved");
+ for(const char* cmd:{"MOVE forward 0.1","LAND","STOP","RESET","COMPLETE grand-prix-u-v1","FAILURE grand-prix-u-v1"}){
+  std::string m=std::string("WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 ")+cmd;
+  assert(gp_u_filter_raw(m.c_str())==0);assert(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 ERR TIME_LIMIT");
+ }
+ assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 18 OUTCOME grand-prix-u-v1")==1);
+ assert(gp_u_deadline(212.120,0)==0); // one LAND trigger, no second effect
+ assert(gp_u_deadline(220,1)==0);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 RESET")==1);
+ gp_u_reset_complete(); assert(evaluator.empty());
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2"; assert(gp_u_start(230)==1);
+ assert(gp_u_deadline(230,0)==0);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=1 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(440,1)==1); // stale prior result cannot rescue attempt 2
+ gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 3";assert(gp_u_start(500)==1);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=3 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(709.999,1)==0);assert(gp_u_deadline(710,1)==0); // already completed before cap
+ gp_u_file_idle(1);assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ assert(gp_u_deadline(710.001,0)==0); // lost pose confirmation closes files even after success
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==0);
+ assert(gp_u_deadline(710.002,1)==0);
+ assert(gp_u_filter_raw("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 77 OPEN")==1);
+ // First success observations at each side of the exact boundary.
+ for(int elapsed:{209999,210000,210001}){
+  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";assert(gp_u_start(2.112)==1);
+  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+  assert(gp_u_deadline((2112+elapsed)/1000.0,1)==(elapsed>=210000));
+  if(elapsed<210000){
+   assert(gp_u_deadline(212.112,1)==0); // confirmed before cap stays terminal
+  }else{
+   assert(evaluator=="GP_U_START attempt=4 start_ms=2112 state=deadline");
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+   assert(gp_u_deadline(212.144,1)==0); // no second LAND trigger or rescue
+   assert(evaluator=="GP_U_START attempt=4 start_ms=2112 state=deadline");
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=achieved";
+   assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 OUTCOME grand-prix-u-v1")==1);
+   assert(vehicle=="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=4 oracle=grand-prix-u-v1 status=not-achieved");
+   assert(gp_u_filter_raw("WEBEEBLOCKS_RUNTIME_V2 REQUEST 20 MOVE forward 0.1")==0);
+  }
+ }
+ // Evaluator writes between two native observations, without a trusted
+ // validation timestamp: observing it for the first time at expiry loses.
+ gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 5";assert(gp_u_start(2.112)==1);
+ assert(gp_u_deadline(212.096,1)==0);
+ now=212.096;assert(gp_u_next_step(32)==16);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=5 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(212.112,1)==1);
+ // A success field while still airborne is not proof of a completed pose.
+ gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 6";assert(gp_u_start(2.112)==1);
+ vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=6 oracle=grand-prix-u-v1 status=achieved";
+ assert(gp_u_deadline(212.111,0)==0);assert(gp_u_deadline(212.112,1)==1);
+ // Native grid origins protect the rounded integer boundary from floating
+ // subtraction, even when the exact deadline falls between 32 ms ticks.
+ for(int tick=0;tick<10000;++tick){
+  gp_u_reset_complete();vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 7";
+  assert(gp_u_start(tick*8/1000.0)==1);
+  vehicle="WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=7 oracle=grand-prix-u-v1 status=achieved";
+  assert(gp_u_deadline((tick*8+210000)/1000.0,1)==1);
+ }
+ gp_u_reset_complete();present=false;vehicle="WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 4";
+ assert(gp_u_start(800)==0); // missing independent evaluator refuses TAKEOFF
+}
+''')
+            binary=base/'test'
+            subprocess.run([compiler,'-std=c++17','-I'+str(base),'-I'+str(ROOT/'controllers/grand_prix_u_flight'),
+                str(test),str(ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp'),'-o',str(binary)],check=True)
+            result=subprocess.run([str(binary)],capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stdout[-2000:]+result.stderr)
+
+if __name__ == '__main__': unittest.main()

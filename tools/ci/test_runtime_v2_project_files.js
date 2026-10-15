@@ -166,6 +166,53 @@ async function exerciseBrowserBoundary() {
   assert(!ProjectFiles.createBrowserTransport.toString().includes("createElement('input')"), 'input upload fallback must not exist');
 }
 
+async function exerciseWwiBusyDiscovery() {
+  const sent = [];
+  let transport;
+  const robotWindow = {send(message) {
+    sent.push(String(message));
+    const id = sent.at(-1).match(/REQUEST (\d+)/)[1];
+    if (!sent.at(-1).endsWith(' CAPABILITIES')) return;
+    const payload = sent.length <= 2 ? 'ERR BUSY' :
+      'CAPABILITIES {"protocol":1,"provider":"qt6-native-dialog","operationsReady":true,"sameFileSave":true,"canonicalExtension":".wbb"}';
+    Promise.resolve().then(() => transport.handleMessage(
+      `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} ${payload}`));
+  }};
+  transport = new WwiProjectFileTransport(robotWindow, {timeoutMs:1000});
+  const ready = transport.waitUntilReady();
+  assert.strictEqual(transport.waitUntilReady(), ready, 'bootstrap must stay shared while BUSY');
+  await ready;
+  assert.strictEqual(sent.length, 3, 'retry discovery after each BUSY and stop at rest');
+  assert(sent.every(message => message.endsWith(' CAPABILITIES')), 'discovery must not replay file effects');
+  assert.strictEqual(transport.waitUntilReady(), ready, 'successful discovery remains cached');
+
+  let failing;
+  let failedRequests = 0;
+  failing = new WwiProjectFileTransport({send(message) {
+    failedRequests++;
+    const id = String(message).match(/REQUEST (\d+)/)[1];
+    Promise.resolve().then(() => failing.handleMessage(
+      `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} ERR UNAVAILABLE`));
+  }}, {timeoutMs:1000});
+  await assert.rejects(failing.waitUntilReady(), error => error && error.code === 'UNAVAILABLE');
+  assert.strictEqual(failedRequests, 1, 'only BUSY permits a discovery retry');
+
+  for (const request of [
+    () => transport.open(),
+    () => transport.saveAs('probe.wbb', '{}'),
+    () => transport.save({kind:'wwi',reference:'existing'}, 'probe.wbb', '{}')
+  ]) {
+    const before = sent.length;
+    const pending = request();
+    await Promise.resolve();
+    const id = sent.at(-1).match(/REQUEST (\d+)/)[1];
+    transport.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${id} ERR BUSY`);
+    await assert.rejects(pending, error => error && error.code === 'BUSY');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.strictEqual(sent.length, before + 1, 'refused file effects must never be replayed');
+  }
+}
+
 async function exerciseWwiBoundary() {
   const sent = [];
   const robotWindow = {send(message) { sent.push(String(message)); }};
@@ -224,6 +271,7 @@ async function exerciseWwiBoundary() {
 (async function() {
   await exerciseBrowserBoundary();
   await exerciseWwiBoundary();
+  await exerciseWwiBusyDiscovery();
   assert.strictEqual(ProjectFiles.EXTENSION, '.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve'), 'eleve.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve.webeeblocks.json'), 'eleve.wbb');

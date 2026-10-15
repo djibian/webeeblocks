@@ -109,6 +109,11 @@ def run_native(home, tcp=False):
         webots_version=version, webots_image=os.environ.get('WEBEEBLOCKS_GP_WEBOTS_IMAGE'),
         webots_binary_sha256=hashlib.sha256((home/'bin/webots-bin').read_bytes()).hexdigest(), tcp=tcp,
         results=summaries), indent=2)+'\n')
+    # Deadline source is a separate bounded increment; retain every existing
+    # geometry assertion and add native authority evidence when present.
+    if (ROOT/'controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp').exists():
+        from run_grand_prix_u_deadline_native import run_native as run_deadline
+        run_deadline(home)
     manifest = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in OUT.iterdir()
                 if p.is_file() and p.name != 'sha256.json'}
     (OUT/'sha256.json').write_text(json.dumps(manifest, indent=2)+'\n')
@@ -150,11 +155,14 @@ def main():
               '-v',f'{assets / "projects"}:/usr/local/webots/projects:ro','-w','/workspace',
               IMAGE,'-lc',
               "python3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\n"
-              'timeout -k 5s 240s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
+              # Seven geometry + five time + fifty-six existing runtime probes,
+              # plus five blocking-file composition/transition probes.
+              # Simulation deadlines and every per-case assertion are unchanged.
+              'timeout -k 5s 1200s xvfb-run -a python3 -u tools/ci/run_grand_prix_u_geometry.py --native']
         try:
             with (OUT/'docker.log').open('w') as log:
                 log.write('GP_U_CONTAINER_START image='+IMAGE+'\n');log.flush()
-                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=300)
+                subprocess.run(args,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1260)
         finally:
             if cid.exists():
                 identifier=cid.read_text().strip()
