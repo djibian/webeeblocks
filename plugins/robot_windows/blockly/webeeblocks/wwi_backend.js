@@ -26,7 +26,11 @@
       throw new Error('Runtime v2 RobotWindow transport unavailable');
     this.robotWindow = robotWindow;
     this.timeoutMs = options && Number.isFinite(options.timeoutMs) ? options.timeoutMs : 35000;
-    this.outcomeSettleMs = options && Number.isFinite(options.outcomeSettleMs) ? options.outcomeSettleMs : 2000;
+    // World evaluators settle in simulation time. A separate 2 s wall budget
+    // incorrectly rejected valid negative results on a slower classroom PC.
+    // Keep the same bounded observation budget as other backend operations;
+    // only a real exact-attempt/oracle terminal response can supply the result.
+    this.outcomeSettleMs = options && Number.isFinite(options.outcomeSettleMs) ? options.outcomeSettleMs : this.timeoutMs;
     this.outcomePollMs = options && Number.isFinite(options.outcomePollMs) ? options.outcomePollMs : 50;
     this.nextId = 1;
     this.timeObservationEpoch = 0;
