@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -13,6 +14,46 @@ ARTIFACT_ROOT = ROOT / "ci-artifacts" / "progression-sequence-mission"
 WEBOTS_IMAGE = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 TEMP_WORLD = ROOT / "worlds" / "ci_progression_sequence.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_sequence.wbproj"
+
+
+def instrument_position(source: str) -> str:
+    """Observe GPS versus Supervisor coordinates without changing flight rules."""
+    if 'sequence_ci_position' in source:
+        raise ValueError('sequence position instrumentation already present')
+    helper = r'''
+static void sequence_ci_position(const char *phase, int request_id,
+                                 WbNodeRef self, WbDeviceTag gps,
+                                 WbFieldRef translation) {
+  const double *value = wb_gps_get_values(gps);
+  const double gps_copy[3] = {value[0], value[1], value[2]};
+  value = wb_supervisor_node_get_position(self);
+  const double world_copy[3] = {value[0], value[1], value[2]};
+  value = wb_supervisor_field_get_sf_vec3f(translation);
+  printf("WEBEEBLOCKS_SEQUENCE_CI_POSITION phase=%s request=%d time=%.9f node=%d gps=%.9f,%.9f,%.9f world=%.9f,%.9f,%.9f translation=%.9f,%.9f,%.9f\n",
+         phase, request_id, wb_robot_get_time(), wb_supervisor_node_get_id(self),
+         gps_copy[0], gps_copy[1], gps_copy[2],
+         world_copy[0], world_copy[1], world_copy[2], value[0], value[1], value[2]);
+  fflush(stdout);
+}
+
+'''
+    edits = (
+        ('int main(void) {', helper + 'int main(void) {'),
+        ('  send_text(PREFIX " READY");',
+         '  sequence_ci_position("ready", -1, self_node, gps, translation_field);\n'
+         '  send_text(PREFIX " READY");'),
+        ('      request_t request = parse_request(message);',
+         '      request_t request = parse_request(message);\n'
+         '      sequence_ci_position(message, request.id, self_node, gps, translation_field);'),
+        ('          if (request.scene_nonce[0]) {',
+         '          sequence_ci_position("scene-selected", request.id, self_node, gps, translation_field);\n'
+         '          if (request.scene_nonce[0]) {'),
+    )
+    for before, after in edits:
+        if source.count(before) != 1:
+            raise ValueError('ambiguous sequence position instrumentation: ' + before)
+        source = source.replace(before, after, 1)
+    return source
 
 
 def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -82,13 +123,26 @@ def main() -> int:
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
 
-        built = run([
-            "docker", "run", "--rm",
-            "-v", f"{ROOT}:/workspace",
-            "-w", "/workspace/controllers/crazyflie_runtime_v2",
-            WEBOTS_IMAGE,
-            "bash", "-lc", "make clean && make",
-        ], capture=True)
+        controller = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
+        original = controller.read_bytes()
+        diagnostic = instrument_position(original.decode("utf-8")).encode("utf-8")
+        (ARTIFACT_ROOT / "runtime-original.c").write_bytes(original)
+        (ARTIFACT_ROOT / "runtime-instrumented.c").write_bytes(diagnostic)
+        (ARTIFACT_ROOT / "runtime-source-sha256.json").write_text(json.dumps({
+            "original": hashlib.sha256(original).hexdigest(),
+            "instrumented": hashlib.sha256(diagnostic).hexdigest(),
+        }, indent=2) + "\n", encoding="utf-8")
+        try:
+            controller.write_bytes(diagnostic)
+            built = run([
+                "docker", "run", "--rm",
+                "-v", f"{ROOT}:/workspace",
+                "-w", "/workspace/controllers/crazyflie_runtime_v2",
+                WEBOTS_IMAGE,
+                "bash", "-lc", "make clean && make",
+            ], capture=True)
+        finally:
+            controller.write_bytes(original)
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
             return fail("Runtime v2/progression evaluators build failed", (built.stdout or "")[-6000:])
