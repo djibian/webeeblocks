@@ -21,6 +21,50 @@ from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
+def validate_timeout_probe(rows, text):
+    """Expire first; distinguish fenced descent from confirmed RESET recovery.
+
+    The native pose/gyro/stability probes independently establish the authority
+    boundary. This trajectory probe must not mistake its later legal recovery
+    for an expired attempt accepting continuation commands.
+    """
+    for command in ('COMPLETE','FAILURE','MOVE'):
+        if not any(e['event']=='late-command-rejected' and
+                   e['detail']=={'command':command,'code':'TIME_LIMIT'} for e in rows):
+            raise RuntimeError('late command not rejected: '+command)
+    if any(e['event'] in ('late-command-accepted','late-stop-accepted','late-outcome-error') for e in rows):
+        raise RuntimeError('expired attempt continuation accepted or outcome lost')
+    if not any(e['event']=='late-stop-rejected' and e['detail']=={'code':'TIME_LIMIT'} for e in rows):
+        raise RuntimeError('late STOP not rejected')
+    outcomes=[i for i,e in enumerate(rows) if e['event']=='late-outcome-read' and e['detail']=={'status':'not-achieved'}]
+    requests=[(i,re.fullmatch(r'WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) RESET',e['detail']))
+              for i,e in enumerate(rows) if e['event']=='request' and isinstance(e['detail'],str)]
+    resets=[(i,m.group(1)) for i,m in requests if m]
+    if len(outcomes)!=1 or len(resets)!=1 or outcomes[0]>=resets[0][0]:
+        raise RuntimeError('missing failed outcome before the sole recovery RESET')
+    reset_index,reset_id=resets[0]
+    recovery=rows[reset_index+1:]
+    accepted=[e for e in recovery if e['event']=='recovery-reset-accepted']
+    rejected=[e for e in recovery if e['event']=='recovery-reset-rejected']
+    if len(accepted)+len(rejected)!=1:
+        raise RuntimeError('ambiguous recovery RESET result')
+    if rejected:
+        if rejected[0]['detail']!={'code':'TIME_LIMIT'}:
+            raise RuntimeError('unexpected pre-pose RESET rejection')
+        if any(e['event'].startswith('recovery-outcome') or e['event']=='recovery-stale-outcome' for e in recovery):
+            raise RuntimeError('continued after refused RESET')
+        return
+    # The real runtime emits TRACE LAND at forced-LAND completion and TRACE RESET
+    # only after its complete post-teleport native pose/stability window.
+    land=text.find('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1')
+    reset=text.find('WEBEEBLOCKS_RUNTIME_V2 TRACE RESET ')
+    ack=text.find(f'WEBEEBLOCKS_RUNTIME_V2 RESPONSE {reset_id} OK')
+    if land<0 or reset<=land or ack<=reset:
+        raise RuntimeError('RESET accepted without native LAND then reset completion')
+    if any(e['event']=='recovery-stale-outcome' for e in recovery) or not any(
+            e['event']=='recovery-outcome-error' and e['detail']=={'code':'OUTCOME_UNAVAILABLE'} for e in recovery):
+        raise RuntimeError('confirmed RESET did not revoke the old outcome')
+
 def stop_groups(children):
     for child in reversed(children):
         try:os.killpg(child.pid,signal.SIGTERM)
@@ -130,10 +174,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
             if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
                 raise RuntimeError('missing independent forced LAND/failure')
             if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
-            for command in (('COMPLETE','FAILURE','RESET','MOVE') if mode.startswith('timeout') else ()):
-                if not any(e['event']=='late-command-rejected' and e['detail']['command']==command and e['detail']['code']=='TIME_LIMIT' for e in rows):
-                    raise RuntimeError('late command not rejected: '+command)
-            if mode.startswith('timeout') and not any(e['event']=='late-stop-rejected' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('late STOP not rejected')
+            if mode.startswith('timeout'):validate_timeout_probe(rows,text)
         if result['configuration']!=layout.identifier or result['attempt']!=1:raise RuntimeError('wrong native subject')
         programs=[e['detail'] for e in rows if e['event']=='program']
         if len(programs)!=1:raise RuntimeError('missing exact shared-interpreter AST')
