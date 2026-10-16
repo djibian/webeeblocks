@@ -1323,6 +1323,24 @@ jobs:
           path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
           if-no-files-found: error
 
+      - name: Build isolated Grand Prix Windows evaluator support
+        shell: pwsh
+        run: ./tools/grand_prix/build_windows_evaluator.ps1 -OutputDirectory 'ci-artifacts/gp-windows-evaluator'
+
+      - name: Falsify packaged Grand Prix evaluator dependency closure
+        shell: pwsh
+        run: |
+          ./tools/ci/test_grand_prix_windows_evaluator.ps1 `
+            -ArchivePath 'ci-artifacts/gp-windows-evaluator/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a.zip' `
+            -WebotsHome $env:WEBOTS_HOME
+
+      - name: Upload exact Grand Prix evaluator support
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-u-windows-evaluator
+          path: ci-artifacts/gp-windows-evaluator/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a.zip
+          if-no-files-found: error
+
   grand-prix-prototype:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
@@ -1335,6 +1353,7 @@ jobs:
           node-version: '22'
       - name: Falsify U behavioral boundaries and generic witness
         run: |
+          python3 tools/ci/test_grand_prix_evaluator_bootstrap.py
           python3 tools/ci/test_grand_prix_u_timeout_probe.py
           node tools/ci/test_grand_prix_u_timeout_probe.js
           python3 tools/ci/test_grand_prix_simulation_time.py
