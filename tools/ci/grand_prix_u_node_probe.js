@@ -66,12 +66,20 @@ socket.onopen=async()=>{
    report('outcome',await backend.readActivityOutcome({type:'mission-state-v1',oracle:'grand-prix-u-v1'}));
   }
   if(mode.startsWith('timeout')){
-   for(const command of [['COMPLETE','grand-prix-u-v1'],['FAILURE','grand-prix-u-v1'],['RESET'],['MOVE','forward','0.1']]){
+   // Observe the expired attempt BEFORE trying its separately permitted recovery.
+   // RESET after confirmed native landing creates a new attempt; putting it in
+   // this loop made the later MOVE/STOP/OUTCOME assertions depend on wall timing.
+   for(const command of [['COMPLETE','grand-prix-u-v1'],['FAILURE','grand-prix-u-v1'],['MOVE','forward','0.1']]){
     try{await backend._request(command);report('late-command-accepted',{command:command[0]});}
     catch(e){report('late-command-rejected',{command:command[0],code:e.code});}
    }
    try{await backend._request(['STOP']);report('late-stop-accepted',{});}catch(e){report('late-stop-rejected',{code:e.code});}
-   try{await backend._request(['OUTCOME','grand-prix-u-v1']);report('late-outcome-read',{});}catch(e){report('late-outcome-error',{code:e.code});}
+   try{const status=await backend._request(['OUTCOME','grand-prix-u-v1']);report('late-outcome-read',{status});}catch(e){report('late-outcome-error',{code:e.code});}
+   try{
+    await backend.resetSimulation();report('recovery-reset-accepted',{});
+    try{const status=await backend._request(['OUTCOME','grand-prix-u-v1']);report('recovery-stale-outcome',{status});}
+    catch(e){report('recovery-outcome-error',{code:e.code});}
+   }catch(e){report('recovery-reset-rejected',{code:e.code});}
   }
  }finally{socket.close();setTimeout(()=>process.exit(0),30);}
 };

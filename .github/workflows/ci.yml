@@ -244,6 +244,8 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.pull_request.draft == true && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('tools/ci/run_grand_prix_u_prototype.py') != ''
         shell: bash
         run: |
+          python3 tools/ci/test_grand_prix_u_timeout_probe.py
+          node tools/ci/test_grand_prix_u_timeout_probe.js
           python3 tools/ci/test_grand_prix_simulation_time.py
           python3 tools/ci/test_grand_prix_u_oracle.py
           node tools/ci/test_grand_prix_u_profile.js
