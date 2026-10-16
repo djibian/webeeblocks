@@ -1259,6 +1259,7 @@ jobs:
           sparse-checkout: |
             /projects/robots/bitcraze/crazyflie/protos/
             /projects/default/protos/textures/fast_helix.png
+            /projects/appearances/protos/textures/parquetry/chequered_parquetry_*.jpg
           sparse-checkout-cone-mode: false
           fetch-depth: 1
 

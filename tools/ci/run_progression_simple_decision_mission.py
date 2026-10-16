@@ -86,10 +86,15 @@ def main() -> int:
 
         inner = r'''
 set -e
+echo ACTIVITY4_PREPARE_STAGE=apt-update
 apt-get update >/dev/null
+echo ACTIVITY4_PREPARE_STAGE=download-tools
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
-wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+echo ACTIVITY4_PREPARE_STAGE=chrome-download
+wget -nv -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+echo ACTIVITY4_PREPARE_STAGE=chrome-install
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+echo ACTIVITY4_PREPARE_STAGE=browser-bootstrap
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 artifact_dir=/workspace/ci-artifacts/progression-simple-decision-mission
 events="$artifact_dir/browser-events.jsonl"

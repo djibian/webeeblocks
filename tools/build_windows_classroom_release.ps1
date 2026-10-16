@@ -291,6 +291,15 @@ Copy-RequiredFile `
   (Join-Path $projectsRoot 'default\protos\textures\fast_helix.png') `
   (Join-Path $packageDir 'protos\textures\fast_helix.png')
 
+# Preserve the R2025a Floor default chequered Parquetry appearance offline.
+# The existing classroom collision box and top plane remain unchanged.
+foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
+  $texture = "chequered_parquetry_${map}.jpg"
+  Copy-RequiredFile `
+    (Join-Path $projectsRoot "appearances\protos\textures\parquetry\$texture") `
+    (Join-Path $packageDir "worlds\textures\parquetry\$texture")
+}
+
 $worldSource = Join-Path $repoRoot 'worlds\crazyflie_runtime_v2.wbt'
 $worldText = Get-Content -LiteralPath $worldSource -Raw
 $remotePrefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/'
@@ -315,7 +324,17 @@ Solid {
   translation 0 0 -0.025
   children [
     Shape {
-      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }
+      appearance PBRAppearance {
+        baseColor 1 1 1
+        baseColorMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_base_color.jpg" ] }
+        roughness 1
+        roughnessMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_roughness.jpg" ] }
+        metalness 0
+        normalMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_normal.jpg" ] }
+        normalMapFactor 1
+        occlusionMap ImageTexture { url [ "textures/parquetry/chequered_parquetry_occlusion.jpg" ] }
+        textureTransform TextureTransform { scale 8 8 }
+      }
       geometry Box { size 4 4 0.05 }
     }
   ]
