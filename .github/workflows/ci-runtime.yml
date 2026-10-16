@@ -60,6 +60,13 @@ jobs:
         run: node tools/ci/test_runtime_v2_preflight.js
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
+      - name: Retain native progression evidence, including failed attempts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-core-progression
+          path: ci-artifacts/progression-*/
+          if-no-files-found: warn
 
   runtime-v2-windows-assets:
     runs-on: windows-2022
