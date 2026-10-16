@@ -81,7 +81,7 @@ def compose(classroom, controller, evaluator, output, sha):
     for key, source in [('classroom', classroom), ('controller', controller), ('evaluator', evaluator)]:
         entries = verified_files(source)
         inputs[key] = {'manifest_sha256': digest(source / 'MANIFEST.sha256'), 'files': entries}
-        if key != 'classroom' and (source / 'SOURCE_SHA').read_text().strip() != sha:
+        if key != 'classroom' and (source / 'SOURCE_SHA').read_text(encoding='utf-8').strip() != sha:
             raise ValueError('Mixed source SHAs')
     if output.exists():
         raise ValueError('Use a fresh output directory')
@@ -104,9 +104,9 @@ def compose(classroom, controller, evaluator, output, sha):
     staging = windows / 'u-staging'
     old[0].rename(staging)
     (staging / f'{old[0].name}.html').unlink()
-    html = (ROOT / 'plugins/robot_windows/grand_prix_u/grand_prix_u.html').read_text()
+    html = (ROOT / 'plugins/robot_windows/grand_prix_u/grand_prix_u.html').read_text(encoding='utf-8')
     html = html.replace('../blockly_v2/', '')
-    setup = (ROOT / 'plugins/robot_windows/grand_prix_u/setup.js').read_text()
+    setup = (ROOT / 'plugins/robot_windows/grand_prix_u/setup.js').read_text(encoding='utf-8')
     setup = replace_once(setup, "media:'../blockly_v2/vendor/media/'", "media:'vendor/media/'")
     (staging / 'setup.js').write_text(setup, encoding='utf-8')
     # Hash all shared assets as well as setup and the new top-level HTML.

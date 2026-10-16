@@ -15,7 +15,7 @@ from tools.grand_prix.package_windows_u import (compose, digest, local_world,
 
 def verify(package):
     verified_files(package)
-    inputs = json.loads((package / 'COMPOSITION.json').read_text())
+    inputs = json.loads((package / 'COMPOSITION.json').read_text(encoding='utf-8'))
     for name in ('controller', 'evaluator'):
         for relative, expected in inputs[name]['files'].items():
             if relative in ('SOURCE_SHA', 'README.md', 'THIRD_PARTY_NOTICES.md', 'BUILD_INPUTS.json'):
@@ -24,23 +24,23 @@ def verify(package):
     windows = list((package / 'plugins/robot_windows').glob('blockly_v2_[0-9a-f]*'))
     assert len(windows) == 1
     window = windows[0]
-    html = (window / (window.name + '.html')).read_text()
+    html = (window / (window.name + '.html')).read_text(encoding='utf-8')
     for relative in re.findall(r'(?:src|href)="([^"]+)"', html):
         name, query = relative.split('?wb=')
         path = (window / name).resolve()
         assert path.is_relative_to(package.resolve()) and path.is_file()
         assert digest(path)[:16] == query
-    setup = (window / 'setup.js').read_text()
-    expected = (ROOT / 'plugins/robot_windows/grand_prix_u/setup.js').read_text()
+    setup = (window / 'setup.js').read_text(encoding='utf-8')
+    expected = (ROOT / 'plugins/robot_windows/grand_prix_u/setup.js').read_text(encoding='utf-8')
     assert setup == replace_once(expected, "media:'../blockly_v2/vendor/media/'", "media:'vendor/media/'")
     for seed in (0, 1, 4):
         world = package / f'worlds/grand_prix_u_seed{seed}.wbt'
-        assert world.read_text() == local_world(seed, window.name)
+        assert world.read_text(encoding='utf-8') == local_world(seed, window.name)
         assert (world.parent / ('.' + world.stem + '.wbproj')).read_bytes() == (ROOT / 'worlds/.crazyflie_runtime_v2.wbproj').read_bytes()
-        assert f'WEBEEBLOCKS_GP_SEED={seed}' in (package / f'Lancer-Grand-Prix-{seed + 1}.cmd').read_text()
+        assert f'WEBEEBLOCKS_GP_SEED={seed}' in (package / f'Lancer-Grand-Prix-{seed + 1}.cmd').read_text(encoding='utf-8')
     starter = package / 'Activites/08-grand-prix-u.wbb'
     assert starter.read_bytes() == (ROOT / 'activities/grand-prix/02-grand-prix-u.wbb').read_bytes()
-    assert json.loads(starter.read_text())['activity']['id'] == 'progression-grand-prix-u-v1'
+    assert json.loads(starter.read_text(encoding='utf-8'))['activity']['id'] == 'progression-grand-prix-u-v1'
     assert len(list((package / 'Activites').glob('*.wbb'))) == 1
     launcher = (package / 'Launch-WebeeBlocks.ps1').read_text(encoding='utf-8-sig')
     assert 'WEBEEBLOCKS_GP_PYTHON_DIR' in launcher
@@ -54,8 +54,8 @@ def verify(package):
                  'tools/grand_prix/layout_u.py', 'tools/grand_prix/oracle_u.py',
                  'tools/grand_prix/simulation_time.py'):
         assert (package / file).is_file(), file
-    assert (package / 'runtime/python/python312._pth').read_text() == 'python312.zip\n.\n'
-    assert (package / 'controllers/grand_prix_u_evaluator/runtime.ini').read_text() == (
+    assert (package / 'runtime/python/python312._pth').read_text(encoding='utf-8') == 'python312.zip\n.\n'
+    assert (package / 'controllers/grand_prix_u_evaluator/runtime.ini').read_text(encoding='utf-8') == (
         '[python]\nCOMMAND = $(WEBEEBLOCKS_GP_PYTHON_DIR)/webeeblocks-gp-python.exe\nOPTIONS = -I\n')
     assert not (package / 'controllers/crazyflie_runtime_v2').exists()
     print('PASS assembled Windows U project: local worlds/configurations, complete HTML/media, exact profile/starter, native/evaluator closure and source manifests')
