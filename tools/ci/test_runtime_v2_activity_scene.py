@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess
 import tempfile
+import re
 ROOT=Path(__file__).resolve().parents[2]
 HEADER=r'''
 #pragma once
@@ -139,6 +140,29 @@ int main(int argc,char**argv){
 }
 '''
 def main():
+    scene=(ROOT/'worlds/scenes/sequence-v1.wbo').read_text()
+    assert not re.search(r'\b(?:Solid|boundingObject|Physics)\b',scene)
+    patches=re.findall(r'Pose \{ translation ([\d. -]+) children \[ Shape \{ appearance PBRAppearance \{ baseColor ([\d. ]+) roughness [\d.]+ \} geometry Box \{ size ([\d. ]+) \}',scene)
+    assert len(patches)==18, 'complete two-marker scene, including sixteen tiles'
+    patches=[tuple(tuple(map(float,part.split())) for part in patch) for patch in patches]
+    (center,green,outer)=patches[1]
+    assert center==(0.25,0,0.002) and outer==(0.28,0.34,0.004)
+    assert green==(0.10,0.72,0.28)
+    tiles=patches[2:]
+    xs=sorted({p[0][0] for p in tiles});ys=sorted({p[0][1] for p in tiles})
+    assert len(xs)==len(ys)==4
+    width,depth=tiles[0][2][:2]
+    for axis,values,size,origin,extent in ((0,xs,width,center[0],outer[0]),(1,ys,depth,center[1],outer[1])):
+        assert all(abs(b-a-size)<1e-6 for a,b in zip(values,values[1:])), 'no holes or overlap'
+        assert abs(values[0]-size/2-(origin-extent/2)-0.015)<1e-6
+        assert abs(origin+extent/2-(values[-1]+size/2)-0.015)<1e-6
+    for x,y in ((x,y) for x in xs for y in ys):
+        tile=[p for p in tiles if p[0][:2]==(x,y)]
+        assert len(tile)==1
+        position,color,size=tile[0]
+        assert position[2]==0.0042 and size==(width,depth,0.0002)
+        expected=(0.06,)*3 if (xs.index(x)+ys.index(y))%2==0 else (0.96,)*3
+        assert color==expected, 'alternating black/white arrival interior'
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
         for file in ['webots/robot.h','webots/supervisor.h']:
