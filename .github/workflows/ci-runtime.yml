@@ -1376,6 +1376,32 @@ jobs:
           path: ci-artifacts/gp-windows-evaluator/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a.zip
           if-no-files-found: error
 
+      - name: Compose installed Grand Prix Windows project
+        shell: pwsh
+        run: |
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/grand_prix/package_windows_u.py `
+            --classroom 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' `
+            --controller 'ci-artifacts/gp-windows-controller/WebeeBlocks-Grand-Prix-Controller-Windows-R2025a' `
+            --evaluator 'ci-artifacts/gp-windows-evaluator/WebeeBlocks-Grand-Prix-Evaluator-Windows-R2025a' `
+            --output 'ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a'
+          if ($LASTEXITCODE -ne 0) { throw 'Installed Grand Prix composition failed.' }
+
+      - name: Falsify installed Grand Prix project closure
+        shell: pwsh
+        run: |
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/test_grand_prix_windows_project.py
+          if ($LASTEXITCODE -ne 0) { throw 'Input corruption/mixed-source negatives failed.' }
+          ./tools/ci/test_grand_prix_windows_project.ps1 `
+            -ArchivePath 'ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a.zip' `
+            -WebotsHome $env:WEBOTS_HOME -PythonExe '${{ steps.gp-build-python.outputs.python-path }}'
+
+      - name: Upload installed Grand Prix Windows project
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-u-windows-project
+          path: ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a.zip
+          if-no-files-found: error
+
   grand-prix-prototype:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
