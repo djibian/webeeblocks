@@ -25,13 +25,21 @@ static void file_wait(const char* operation){
 #endif
  const auto start=std::chrono::steady_clock::now();
  std::thread release([&]{
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  // This wait establishes the blocking-provider test precondition. Release
+  // only after the observed monotonic deadline, including on Windows timers;
+  // a single relative sleep is not itself evidence that 100 ms have elapsed.
+  const auto release_at=start+std::chrono::milliseconds(100);
+  while(std::chrono::steady_clock::now()<release_at)
+   std::this_thread::sleep_for(std::chrono::milliseconds(1));
   assert(write(fds[1],"R",1)==1);
  });
  std::printf("GP_U_FILE_ENTER t=%lld op=%s\n",tick,operation);
  char value=0;assert(read(fds[0],&value,1)==1 && value=='R');
  release.join();assert(close(fds[0])==0 && close(fds[1])==0);
- assert(tick==before && std::chrono::steady_clock::now()-start>=std::chrono::milliseconds(90));
+ const auto elapsed=std::chrono::steady_clock::now()-start;
+ std::printf("GP_U_FILE_WAIT before=%lld after=%lld elapsed_us=%lld\n",before,tick,
+  static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()));
+ assert(tick==before && elapsed>=std::chrono::milliseconds(90));
  std::printf("GP_U_FILE_RELEASE t=%lld op=%s\n",tick,operation);
  ++file_calls;
 }
