@@ -11,3 +11,15 @@ The classroom archive contains the following pinned third-party material:
 
 Webots is an explicit prerequisite and is not redistributed in this archive.
 The project’s `LICENSE` and upstream notices remain authoritative.
+
+## Default Webots floor appearance
+
+The four `worlds/textures/parquetry/chequered_parquetry_*.jpg` maps are copied
+unchanged from the pinned Webots R2025a source used for this package. They restore
+the default `Floor` appearance (`Parquetry { type "chequered" }`) with the same
+0.50 m texture repeat. The existing classroom floor collision box is retained.
+
+Source: `projects/appearances/protos/textures/parquetry/` in
+https://github.com/cyberbotics/webots/tree/R2025a.
+Copyright Cyberbotics Ltd.; Webots assets license:
+https://cyberbotics.com/webots_assets_license.

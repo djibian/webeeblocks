@@ -118,6 +118,18 @@ Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $ver
 
 $worldPath = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
 $worldText = Get-Content -LiteralPath $worldPath -Raw
+# All four default Floor maps must be local, unchanged pinned R2025a bytes.
+$releaseRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
+  $texture = "chequered_parquetry_${map}.jpg"
+  $relative = "worlds\textures\parquetry\$texture"
+  $packaged = Join-Path $testRoot $relative
+  $upstream = Join-Path $releaseRepo ".ci-webots-r2025a\projects\appearances\protos\textures\parquetry\$texture"
+  Assert-Release (Test-Path -LiteralPath $packaged -PathType Leaf) "Missing default floor map: $relative"
+  Assert-Release ((Get-FileHash -LiteralPath $packaged -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $upstream -Algorithm SHA256).Hash) "Altered default floor map: $relative"
+  Assert-Release ($worldText.Contains("textures/parquetry/$texture")) "Unused default floor map: $relative"
+}
+Assert-Release ($worldText.Contains('textureTransform TextureTransform { scale 8 8 }')) 'Default floor must repeat at 0.50 m on the 4 m floor.'
 $windowPattern = '(?m)^\s*window\s+"' + [regex]::Escape($robotWindowName) + '"\s*$'
 Assert-Release ($worldText -match $windowPattern) 'Packaged world does not select the content-addressed Robot Window.'
 Assert-Release ($worldText -notmatch '(?m)^\s*window\s+"blockly_v2"\s*$') 'Packaged world still selects the stale top-level Robot Window identity.'
