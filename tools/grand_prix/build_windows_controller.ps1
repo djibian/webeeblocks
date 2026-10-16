@@ -43,6 +43,7 @@ $target = Join-Path $package 'controllers\grand_prix_u_flight'
 New-Item -ItemType Directory -Path $target -Force | Out-Null
 Copy-Item -LiteralPath $binary -Destination $target
 Copy-Item -LiteralPath $runtimeIni -Destination (Join-Path $target 'runtime.ini')
+Copy-Item -LiteralPath (Join-Path $ClassroomPackagePath 'THIRD_PARTY_NOTICES.md') -Destination (Join-Path $package 'THIRD_PARTY_NOTICES.md')
 Copy-Item -LiteralPath (Join-Path $repoRoot 'docs\GRAND_PRIX_WINDOWS_CONTROLLER.md') -Destination (Join-Path $package 'README.md')
 $sha = (& git -C $repoRoot rev-parse HEAD | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $sha -notmatch '^[0-9a-f]{40}$') { throw 'Exact controller source SHA unavailable.' }

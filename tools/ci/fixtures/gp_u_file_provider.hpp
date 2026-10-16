@@ -4,6 +4,10 @@
 #include <chrono>
 #include <thread>
 #include <unistd.h>
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
 #include <map>
 static std::string file_probe;
 static int file_creations=0,file_calls=0,file_denied=0;
@@ -13,7 +17,12 @@ static bool file_safe(){return (!takeoff && !teleports) || reset_ok;}
 static void file_wait(const char* operation){
  assert(file_safe());
  const long long before=tick;
- int fds[2];assert(pipe(fds)==0);
+ int fds[2];
+#ifdef _WIN32
+ assert(_pipe(fds,4096,_O_BINARY)==0);
+#else
+ assert(pipe(fds)==0);
+#endif
  const auto start=std::chrono::steady_clock::now();
  std::thread release([&]{
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
