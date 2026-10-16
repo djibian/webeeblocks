@@ -319,6 +319,7 @@ function proveRealWebotsOutcomeFreshness() {
   proveExactResetClassificationContract();
   proveOverlappingResetFreshnessContract();
   await proveWwiOutcomeTransport();
+  await require('./test_runtime_outcome_settling.js')();
   await provePendingMissionOutcomeKeepsActionsGated({maxSteps:20000}, 20000);
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);
   await proveMissionFailure();
