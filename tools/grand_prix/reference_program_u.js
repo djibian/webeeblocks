@@ -23,12 +23,14 @@ function build(){
     [move(.4),vertical('up'),move(.3),set('arrière',range('back')),
      iff(and(cmp('GT',v('arrière'),.30),cmp('LT',v('arrière'),.85)),[inc('portes')],[set('invalide',1),set('côté terminé',1)])],
     [set('invalide',1),set('côté terminé',1)])];
- const final=[vertical('down'),set('bas',range('front')),
+ // Approach the closed gate at normal altitude before testing its low opening.
+ // The widened corridor can be sensed just outside the permitted landing area.
+ const final=[set('avant',range('front')),{kind:'while',mode:'UNTIL',max_iterations:6,
+   condition:and(cmp('GTE',v('avant'),.63),cmp('LTE',v('avant'),.73)),
+   body:[iff(cmp('GT',v('avant'),.73),[move(.1)],[move(.1,'back')]),set('avant',range('front'))]},
+  vertical('down'),set('bas',range('front')),
   iff(and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08)))),
-   [set('bas',range('front')),{kind:'while',mode:'UNTIL',max_iterations:6,
-     condition:and(cmp('GTE',v('bas'),.63),cmp('LTE',v('bas'),.73)),
-     body:[iff(cmp('GT',v('bas'),.73),[move(.1)],[move(.1,'back')]),set('bas',range('front'))]},
-    iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right')])],
+   [iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right')])],
    [set('invalide',1)]),set('côté terminé',1)];
  const turnCorner=[{kind:'turn',angle_deg:90},set('droite',range('right')),
   {kind:'while',mode:'UNTIL',condition:cmp('GTE',v('droite'),.44),max_iterations:5,
