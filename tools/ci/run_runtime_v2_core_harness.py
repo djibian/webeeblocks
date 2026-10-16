@@ -16,6 +16,10 @@ def main():
     if clock_boundary_test.returncode:
         return clock_boundary_test.returncode
     print('PASS exact simulation duration at scoring/deadline boundaries (not mission acceptance)')
+    scene_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_activity_scene.py'],text=True,capture_output=True)
+    if scene_test.returncode:
+        print('FAIL Runtime v2 physical scene isolation',file=sys.stderr);print(scene_test.stdout,file=sys.stderr);print(scene_test.stderr,file=sys.stderr);return scene_test.returncode
+    print(scene_test.stdout.strip())
     up_range_test=subprocess.run([sys.executable,'tools/ci/test_runtime_v2_up_range.py'],text=True,capture_output=True)
     if up_range_test.returncode:
         print('FAIL Runtime v2 upward Multi-ranger wiring contract',file=sys.stderr);print(up_range_test.stdout,file=sys.stderr);print(up_range_test.stderr,file=sys.stderr);return up_range_test.returncode

@@ -36,6 +36,9 @@
     this.simulationStopped = false;
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;
+    // READY proves liveness, not which scene the surviving controller selected.
+    this.sceneIdentity = null;
+    this.scenePreparationPending = false;
     var capabilities = {
       conditionalLoops: true,
       elapsedSimulationTime: true,
@@ -50,6 +53,8 @@
       capabilities.simulationReset = true;
     if (options && options.simulationStop === true)
       capabilities.simulationStop = true;
+    if (options && options.simulationScenes === true)
+      capabilities.simulationScenes = true;
     this.capabilities = Object.freeze(capabilities);
   }
 
@@ -86,6 +91,17 @@
 
   RuntimeV2WwiBackend.prototype._request = function(parts) {
     var self = this;
+    var sceneNonce = null;
+    if (parts[0] === 'SCENE') {
+      // Numeric request IDs restart at each Robot Window. A fresh correlation
+      // token must survive routing an old connection's ACK to this receiver.
+      var bytes = new Uint8Array(32);
+      if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== 'function')
+        return Promise.reject(new Error('Runtime v2 scene correlation unavailable'));
+      globalThis.crypto.getRandomValues(bytes);
+      sceneNonce = Array.from(bytes, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      parts = parts.concat([sceneNonce]);
+    }
     var id = this.nextId++;
     return new Promise(function(resolve, reject) {
       var timer = setTimeout(function() {
@@ -93,7 +109,7 @@
         delete self.pending[id];
         reject(new Error('Runtime v2 request timeout id=' + id));
       }, self.timeoutMs);
-      self.pending[id] = {resolve: resolve, reject: reject, timer: timer};
+      self.pending[id] = {resolve: resolve, reject: reject, timer: timer, sceneNonce: sceneNonce};
       try {
         self.robotWindow.send(PREFIX + ' REQUEST ' + id + ' ' + parts.join(' '));
       } catch (error) {
@@ -116,13 +132,37 @@
   RuntimeV2WwiBackend.prototype.handleMessage = function(message) {
     if (typeof message !== 'string' || message.indexOf(PREFIX + ' ') !== 0)
       return false;
-    if (message === PREFIX + ' READY') {
+    var startupReady = message === PREFIX + ' READY';
+    var helloReady = message === PREFIX + ' READY HELLO';
+    if (startupReady || helloReady) {
+      // A delayed HELLO reply may follow startup READY and even a scene ACK.
+      // It only releases an outstanding liveness wait; it cannot revoke or
+      // recreate evidence on an already-ready backend or after a cancelled wait.
+      if (helloReady && (this.ready || this.readyWaiters.length === 0))
+        return true;
+      // The native process may have restarted without reloading its world.
+      // No scene identity survives that liveness message as positive evidence.
+      if (startupReady) {
+        this.timeObservationEpoch += 1;
+        if (this.ready) this._cancelPendingForReset();
+        this.sceneIdentity = null;
+      }
       this.ready = true;
       var waiters = this.readyWaiters.splice(0);
       waiters.forEach(function(waiter) {
         clearTimeout(waiter.timer);
         waiter.resolve();
       });
+      return true;
+    }
+    var sceneAck = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) SCENE_OK ([0-9a-f]{64})$/);
+    if (sceneAck) {
+      var scenePending = this.pending[Number(sceneAck[1])];
+      if (scenePending && scenePending.sceneNonce === sceneAck[2]) {
+        clearTimeout(scenePending.timer);
+        delete this.pending[Number(sceneAck[1])];
+        scenePending.resolve(null);
+      }
       return true;
     }
     var match = message.match(/^WEBEEBLOCKS_RUNTIME_V2 RESPONSE (\d+) (OK|VALUE ([^\s]+)|STATE ([A-Za-z-]+)|ERR ([A-Z0-9_]+))$/);
@@ -132,6 +172,8 @@
     var pending = this.pending[id];
     if (!pending)
       return true;
+    if (pending.sceneNonce && match[2] === 'OK')
+      return true; // A legacy/other connection's ACK cannot confirm this scene.
     clearTimeout(pending.timer);
     delete this.pending[id];
     if (match[2] === 'OK') {
@@ -167,6 +209,26 @@
   };
 
   RuntimeV2WwiBackend.prototype.takeoff = function(heightM) { this.timeObservationEpoch += 1; return this._guardSimulationStopped() || this._request(['TAKEOFF', Number(heightM).toPrecision(17)]); };
+  RuntimeV2WwiBackend.prototype.prepareActivity = function(profile) {
+    if (!this.capabilities.simulationScenes)
+      return Promise.reject(new Error('Runtime v2 simulation scenes unavailable'));
+    var stopped = this._guardSimulationStopped();
+    if (stopped) return stopped;
+    if (this.scenePreparationPending)
+      return Promise.reject(new RuntimeV2BackendError('SCENE_BUSY'));
+    var scene = profile && profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+    if (this.sceneIdentity === scene) return Promise.resolve();
+    this.sceneIdentity = null; // An unknown import outcome must be reconstructed.
+    this.scenePreparationPending = true;
+    var self = this, epoch = this.timeObservationEpoch;
+    return this._request(['SCENE', scene]).then(function(value) {
+      if (epoch !== self.timeObservationEpoch)
+        throw new RuntimeV2BackendError('RESET_CANCELLED');
+      if (value !== null) throw new Error('Runtime v2 invalid scene acknowledgement');
+      self.sceneIdentity = scene;
+      return value;
+    }).finally(function() { self.scenePreparationPending = false; });
+  };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.turn = function(angleDeg) { return this._guardSimulationStopped() || this._request(['TURN', Number(angleDeg).toPrecision(17)]); };
@@ -244,12 +306,14 @@
       return Promise.reject(new Error('Runtime v2 simulation stop unavailable'));
     this.timeObservationEpoch += 1;
     this.simulationStopped = true;
+    this.sceneIdentity = null;
     return this._request(['STOP']);
   };
   RuntimeV2WwiBackend.prototype.resetSimulation = function() {
     if (!this.capabilities || this.capabilities.simulationReset !== true)
       return Promise.reject(new Error('Runtime v2 simulation reset unavailable'));
     this.timeObservationEpoch += 1;
+    this.sceneIdentity = null;
     this._cancelPendingForReset();
     this.completedMissionOracle = null;
     this.failureProbeMissionOracle = null;

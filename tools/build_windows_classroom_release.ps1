@@ -334,6 +334,9 @@ if ($worldText -match '"(?:https?|webots)://') {
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
 Copy-RequiredFile `
+  (Join-Path $repoRoot 'worlds\scenes\sequence-v1.wbo') `
+  (Join-Path $packageDir 'worlds\scenes\sequence-v1.wbo')
+Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
 

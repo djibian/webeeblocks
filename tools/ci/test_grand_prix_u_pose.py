@@ -128,6 +128,7 @@ int main(void) {
             subprocess.run(['c++','-std=c++17','-DNDEBUG',*inc,str(base/'runtime.o'),
                             str(FIXTURES/'gp_u_pose_driver.cpp'),str(base/'broker.cpp'),
                             str(base/'deadline.cpp'),str(ROOT/'controllers/crazyflie_runtime_v2/file_broker.cpp'),
+                            *map(str,(ROOT/'controllers/crazyflie_runtime_v2').glob('activity_scene.cpp')),
                             '-pthread','-o',str(binary)],check=True)
             for case in CASES:
                 with self.subTest(case=case):

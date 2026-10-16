@@ -67,6 +67,10 @@
     var onAst = interpreterOptions.onAst;
     delete interpreterOptions.onAst;
     if (typeof onAst === 'function') onAst(ast);
+    if (backend.capabilities && backend.capabilities.simulationScenes === true) {
+      if (typeof backend.prepareActivity !== 'function') fail('simulation scene preparation unavailable');
+      await backend.prepareActivity(profile);
+    }
     await interpreter.run(ast, backend, interpreterOptions);
     return ast;
   }

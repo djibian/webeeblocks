@@ -200,6 +200,8 @@ script = r'''
       throw new Error('unexpected WWI request framing: ' + String(message));
     const id = Number(match[1]);
     const command = match[2];
+    if (/^SCENE legacy-v1 [0-9a-f]{64}$/.test(command))
+      return {id, command: 'SCENE_LEGACY'};
     if (command.startsWith('TAKEOFF '))
       return {id, command: 'TAKEOFF'};
     if (command === 'RANGE front')
@@ -332,12 +334,12 @@ script = r'''
     await waitFor(() => document.getElementById('runtimeState').textContent === 'TERMINÉ', 'Runtime v2 completion', 70000);
 
     const normalized = wwiTx.map(normalizeWwiRequest);
-    const expectedCommands = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'];
+    const expectedCommands = ['SCENE_LEGACY','TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND'];
     const actualCommands = normalized.map(entry => entry.command);
     const actualIds = normalized.map(entry => entry.id);
     if (JSON.stringify(actualCommands) !== JSON.stringify(expectedCommands))
       throw new Error('unexpected WWI request sequence: ' + JSON.stringify(actualCommands));
-    if (JSON.stringify(actualIds) !== JSON.stringify([1,2,3,4,5,6,7,8]))
+    if (JSON.stringify(actualIds) !== JSON.stringify([1,2,3,4,5,6,7,8,9]))
       throw new Error('unexpected WWI request ids: ' + JSON.stringify(actualIds));
     await report('WWI_SEQUENCE_OK', normalized);
 
@@ -382,8 +384,11 @@ script = r'''
     await WebeeBlocksActivityContract.execute(
       runtimeProfile, workspace, WebeeBlocksSemanticAst, WebeeBlocksInterpreter, runtimeBackend, {maxSteps:20}
     );
-    const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, ''));
+    const lightRequests = wwiTx.slice(lightTxStart).map(text => text.replace(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST \d+ /, '').replace(/^SCENE legacy-v1 [0-9a-f]{64}$/, 'SCENE legacy-v1'));
     const expectedLightRequests = [
+      // RESET revoked the scene identity: require this one acknowledged setup
+      // before the unchanged four-command LED program, without filtering traffic.
+      'SCENE legacy-v1',
       'TAKEOFF ' + Number(0.4).toPrecision(17),
       'LIGHT blue',
       'LIGHT off',

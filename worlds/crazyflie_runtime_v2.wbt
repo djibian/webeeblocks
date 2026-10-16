@@ -20,6 +20,8 @@ TexturedBackground { }
 TexturedBackgroundLight { }
 Floor { size 4 4 }
 
+DEF WEBEEBLOCKS_LEGACY_SCENE Group {
+  children [
 # WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_BEGIN
 DEF ACTIVITY5_FLOOR_EXTENSION Solid {
   translation 1.25 2.25 -0.025
@@ -390,6 +392,9 @@ DEF SECOND_OBSTACLE Solid {
   boundingObject Box { size 0.06 0.12 1.1 }
 }
 
+  ]
+}
+
 Crazyflie {
   name "Crazyflie WebeeBlocks"
   controller "crazyflie_runtime_v2"
@@ -523,6 +528,8 @@ Robot {
 }
 # WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END
 
+DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group {
+  children [
 # WEBEEBLOCKS_PRECISE_EVALUATOR_V1_BEGIN
 Robot {
   name "Progression precise movement evaluator"
@@ -588,3 +595,5 @@ Robot {
   supervisor TRUE
 }
 # WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_END
+  ]
+}

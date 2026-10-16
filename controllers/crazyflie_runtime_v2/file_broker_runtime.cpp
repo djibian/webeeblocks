@@ -14,6 +14,7 @@ namespace {
 constexpr const char *kPrefix = "WEBEEBLOCKS_FILE_BROKER_V1 ";
 constexpr const char *kRuntimeHello = "WEBEEBLOCKS_RUNTIME_V2 HELLO";
 constexpr const char *kRuntimeReady = "WEBEEBLOCKS_RUNTIME_V2 READY";
+constexpr const char *kRuntimeHelloReady = "WEBEEBLOCKS_RUNTIME_V2 READY HELLO";
 constexpr const char *kAttemptPrefix = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ";
 constexpr const char *kCompletionPrefix = "WEBEEBLOCKS_ACTIVITY_COMPLETION_V1";
 constexpr const char *kFailureProbePrefix = "WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1";
@@ -282,7 +283,9 @@ extern "C" const char *webeeblocks_file_broker_receive_text(void) {
     // Reply only once the controller has entered its normal receive loop; this
     // is a liveness handshake and never executes or replays a student action.
     if (isRuntimeHello(message)) {
-      wb_robot_wwi_send_text(kRuntimeReady);
+      // Liveness is not a new controller process. The bare startup READY must
+      // remain distinguishable so the browser can revoke old scene evidence.
+      wb_robot_wwi_send_text(kRuntimeHelloReady);
       continue;
     }
     if (handleMissionCompletionRequest(message))

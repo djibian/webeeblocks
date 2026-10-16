@@ -15,6 +15,7 @@
 #include <webots/supervisor.h>
 
 #include "pid_controller.h"
+#include "activity_scene.h"
 
 #define PI 3.14159265358979323846
 #define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
@@ -57,13 +58,15 @@ typedef enum {
   REQUEST_RANGE,
   REQUEST_ELAPSED,
   REQUEST_RESET,
-  REQUEST_STOP
+  REQUEST_STOP,
+  REQUEST_SCENE
 } request_kind_t;
 
 typedef struct {
   int id;
   request_kind_t kind;
   char direction[32];
+  char scene_nonce[65];
   double value;
 } request_t;
 
@@ -149,6 +152,23 @@ static request_t parse_request(const char *message) {
   char direction[32] = {0};
   char command[32] = {0};
   char extra[2] = {0};
+
+  char scene_nonce[65] = {0};
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %64s %1s", &id, direction, scene_nonce, extra) == 3 &&
+      strlen(scene_nonce) == 64 && strspn(scene_nonce, "0123456789abcdef") == 64) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    memcpy(request.scene_nonce, scene_nonce, sizeof(scene_nonce));
+    return request;
+  }
+
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
 
   if (sscanf(message, PREFIX " REQUEST %d TAKEOFF %lf %1s", &id, &value, extra) == 2) {
     request.id = id;
@@ -492,6 +512,23 @@ int main(void) {
         response_error(request.id, "RESET_REQUIRED");
         continue;
       }
+      if (request.kind == REQUEST_SCENE) {
+        if (airborne || hypot(x - origin_x, y - origin_y) > POSITION_TOL ||
+            fabs(z - origin_z) > ALT_TOL || hypot(vx_global, vy_global) > SPEED_TOL || fabs(vz) > VZ_TOL) {
+          response_error(request.id, "RESET_REQUIRED");
+        } else if (!webeeblocks_select_activity_scene(request.direction)) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+        } else {
+          if (request.scene_nonce[0]) {
+            char acknowledgement[192];
+            snprintf(acknowledgement, sizeof(acknowledgement), PREFIX " RESPONSE %d SCENE_OK %s", request.id, request.scene_nonce);
+            send_text(acknowledgement);
+          } else {
+            response_ok(request.id);
+          }
+        }
+        continue;
+      }
       if (request.kind == REQUEST_ELAPSED) {
         double seconds = 0.0;
         if (!airborne || !simulation_clock_read(&program_clock, now, &seconds))
@@ -547,6 +584,10 @@ int main(void) {
         continue;
       }
       if (request.kind == REQUEST_TAKEOFF) {
+        if (!webeeblocks_activity_scene_ready()) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+          continue;
+        }
         if (airborne || !isfinite(request.value) || request.value < 0.2 || request.value > 1.5) {
           response_error(request.id, "INVALID_TAKEOFF");
           continue;

@@ -140,7 +140,7 @@ def world_text(layout, *, controller='<none>', window='<none>',
     externs = '\n'.join(line for line in source.splitlines() if line.startswith('EXTERNPROTO '))
     size = layout.side + 2.5
     lines = ['#VRML_SIM R2025a utf8', externs,
-             f'WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" }}',
+             f'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" }}',
              'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }',
              'TexturedBackground { }', 'TexturedBackgroundLight { }',
              f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']

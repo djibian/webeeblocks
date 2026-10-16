@@ -66,7 +66,7 @@ def run_pose_native(home,env):
     target=ROOT/'worlds/ci_gp_u_pose.wbt'
     try:
         target.write_text('#VRML_SIM R2025a utf8\n'+externs+'\n'
-            'WorldInfo { basicTimeStep 8 gravity 0 }\n'+robot+'\n'
+            'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo { basicTimeStep 8 gravity 0 }\n'+robot+'\n'
             'DEF GP_U_EVALUATOR Robot { name "Évaluateur pose" controller "<none>" }\n')
         # Fresh processes keep these scenarios independent. Exercise the newly
         # repaired boundary first without removing any historical case.

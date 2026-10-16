@@ -102,11 +102,16 @@ $required = @(
   'protos\meshes\cf2_assembly.dae',
   'protos\meshes\ccw_prop.dae',
   'protos\textures\fast_helix.png',
-  'worlds\crazyflie_runtime_v2.wbt'
+  'worlds\crazyflie_runtime_v2.wbt',
+  'worlds\scenes\sequence-v1.wbo'
 )
 foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
 }
+
+$sceneSource = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'worlds\scenes\sequence-v1.wbo'
+$scenePackaged = Join-Path $testRoot 'worlds\scenes\sequence-v1.wbo'
+Assert-Release ((Get-FileHash -LiteralPath $sceneSource -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $scenePackaged -Algorithm SHA256).Hash) 'Packaged Activity 1 scene differs from the exact source asset.'
 
 $version = (Get-Content -LiteralPath (Join-Path $robotWindowRoot 'vendor\VERSION') -Raw).Trim()
 Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $version"
@@ -129,10 +134,10 @@ $forbiddenPaths = @($forbidden | ForEach-Object { $_.FullName })
 Assert-Release ($forbidden.Count -eq 0) ("Development-only release paths: " + ($forbiddenPaths -join ', '))
 
 $runtimeText = Get-ChildItem -LiteralPath $testRoot -Recurse -File | Where-Object {
-  $_.Extension -in @('.wbt', '.proto', '.html', '.css') -or $_.Name -in @('main.js', 'project_ui.js')
+  $_.Extension -in @('.wbt', '.wbo', '.proto', '.html', '.css') -or $_.Name -in @('main.js', 'project_ui.js')
 }
 foreach ($file in $runtimeText) {
-  if ($file.Extension -in @('.wbt', '.proto')) {
+  if ($file.Extension -in @('.wbt', '.wbo', '.proto')) {
     $pattern = '(?i)"(?:https?|webots)://'
   }
   else {

@@ -3,6 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
 const Profiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_profiles.js'));
@@ -11,6 +12,7 @@ const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webee
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 const WwiProjectFileTransport = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_file_wwi_transport.js'));
+const WwiBackend = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 
 Blockly.defineBlocksWithJsonArray([
   {type:'webeeblocks_v2_takeoff', message0:'takeoff %1', args0:[{type:'field_number',name:'HEIGHT',value:1,min:0.2,max:1.5,precision:0.1}], previousStatement:null,nextStatement:null},
@@ -76,6 +78,257 @@ function managerFor(workspace, profileRef, transport) {
     setProfile:profile => { profileRef.value = profile; },
     transport
   });
+}
+
+function sceneAck(backend, id) {
+  const pending=backend.pending[id];
+  assert(pending && /^[0-9a-f]{64}$/.test(pending.sceneNonce),'missing native scene correlation');
+  return 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+id+' SCENE_OK '+pending.sceneNonce;
+}
+
+async function proveScenePreparation() {
+  const messages = [];
+  const backend = new WwiBackend({send: m => messages.push(m)}, {simulationScenes:true,timeoutMs:1000});
+  const sequence = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
+  const pending = backend.prepareActivity(sequence);
+  assert.match(messages[0], / REQUEST 1 SCENE sequence-v1 [0-9a-f]{64}$/);
+  backend.handleMessage(sceneAck(backend,1));
+  await pending;
+  const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
+  await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
+  backend.simulationStopped = true;
+  await assert.rejects(() => backend.prepareActivity(sequence), e => e.code === 'USER_STOPPED');
+  assert.strictEqual(messages.length, 1);
+
+  const sent = [];
+  const racing = new WwiBackend({send:m=>sent.push(m)}, {simulationScenes:true,simulationReset:true,timeoutMs:1000});
+  const preparing = racing.prepareActivity(sequence);
+  await assert.rejects(()=>racing.prepareActivity({id:'reactive-obstacle-v2'}), e=>e.code==='SCENE_BUSY');
+  assert.strictEqual(sent.length,1,'overlapping selection sent a second scene command');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
+  await assert.rejects(preparing,/invalid scene acknowledgement/);
+  assert.strictEqual(racing.sceneIdentity,null);
+  const old = racing.prepareActivity(sequence);
+  const cancelled = assert.rejects(old,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage(sceneAck(racing,2));
+  const resetting = racing.resetSimulation(); // ACK received, callback still queued.
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK');
+  await cancelled; await resetting;
+  assert.strictEqual(racing.sceneIdentity,null,'late scene ACK survived RESET');
+  const recovered = racing.prepareActivity(sequence);
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK'); // stale response
+  assert.strictEqual(racing.sceneIdentity,null);
+  racing.handleMessage(sceneAck(racing,4)); await recovered;
+  assert.strictEqual(racing.sceneIdentity,'sequence-v1');
+
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  assert.strictEqual(racing.sceneIdentity,null,'native READY retained scene evidence');
+  const restarting = racing.prepareActivity(sequence);
+  const revoked = assert.rejects(restarting,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage(sceneAck(racing,5));
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); // ACK callback still queued.
+  await revoked;
+  assert.strictEqual(racing.sceneIdentity,null,'old ACK survived native READY');
+  const beforeAck = racing.prepareActivity(sequence);
+  const rejected = assert.rejects(beforeAck,e=>e.code==='RESET_CANCELLED');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY');
+  racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 OK');
+  await rejected;
+  assert.strictEqual(racing.sceneIdentity,null);
+  const afterRestart = racing.prepareActivity(sequence);
+  racing.handleMessage(sceneAck(racing,7));
+  await afterRestart;
+  assert.strictEqual(racing.sceneIdentity,'sequence-v1');
+
+  const live = buildWorkspace(0.2), ref = {value:Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG)};
+  let releasePreparation;
+  let rejectPreparation;
+  const waiting = new Promise((resolve,reject) => {releasePreparation=resolve;rejectPreparation=reject;});
+  let preparationCalls=0;
+  const manager = ProjectFiles.createManager({
+    Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+    semanticAst:SemanticAst,activityContract:ActivityContract,workspace:live,
+    getProfile:()=>ref.value,setProfile:p=>{ref.value=p;},transport:memoryTransport(),
+    prepareProfile:async p=>{assert.strictEqual(p.id,sequence.id);preparationCalls++;await waiting;}
+  });
+  const before = Blockly.serialization.workspaces.save(live);
+  const opening = manager.openTemplateText('activite.wbb',ProjectFiles.createStarterText(sequence.id));
+  await Promise.resolve();
+  assert.strictEqual(preparationCalls,1);
+  assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before,'workspace mutated before scene ACK');
+  rejectPreparation(new Error('partial scene import'));
+  await assert.rejects(()=>opening,/partial scene import/);
+  assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before,'failed preparation erased project');
+  assert.strictEqual(ref.value.id,'reactive-obstacle-v2');
+  live.dispose();
+}
+
+async function proveSceneRollback() {
+  for (const mode of ['template','open']) for (const restorationFails of [false,true]) {
+    const live = buildWorkspace(0.2), original = Profiles.resolveById(Activities.DOCUMENT,'reactive-obstacle-v2',Activities.BLOCK_CATALOG);
+    const ref = {value:original}, transport = memoryTransport();
+    let selected = original.id, failLoad = false;
+    const causal = new Error('live project application failed'), restoration = new Error('legacy scene restoration failed');
+    const manager = ProjectFiles.createManager({
+      Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,blockCatalog:Activities.BLOCK_CATALOG,
+      semanticAst:SemanticAst,activityContract:ActivityContract,workspace:live,
+      getProfile:()=>ref.value,setProfile:p=>{if(failLoad && p.id==='progression-sequence-v1'){failLoad=false;throw causal;}ref.value=p;},transport,
+      prepareProfile:async p=>{if(restorationFails && failLoad===false && p.id===original.id)throw restoration;selected=p.id;}
+    });
+    await manager.saveAs('original.wbb');
+    const before = Blockly.serialization.workspaces.save(live);
+    const text = ProjectFiles.createStarterText('progression-sequence-v1');
+    transport.state.openText = text; failLoad=true;
+    await assert.rejects(mode==='open'?manager.open():manager.openTemplateText('activity.wbb',text),error=>error===causal);
+    assert.strictEqual(ref.value.id,original.id);
+    assert.deepStrictEqual(Blockly.serialization.workspaces.save(live),before);
+    assert(manager.hasCurrentTarget(),'failed project application lost original save target');
+    if(restorationFails) assert.strictEqual(causal.sceneRestorationError,restoration,'restoration error lost');
+    else assert.strictEqual(selected,original.id,'workspace restored but scene still selected for rejected project');
+    await manager.save(); // original target remains usable
+    live.dispose();
+  }
+}
+
+async function proveSceneReattachment() {
+  const starters = fs.readdirSync(path.join(ROOT,'activities/progression')).filter(name=>name.endsWith('.wbb')).sort();
+  const sequence = 'progression-sequence-v1';
+  const flush = async () => { for(let i=0;i<8;i++) await Promise.resolve(); };
+  // One native controller outlives both Robot Window/backend instances.
+  function nativeController(initialScene) {
+    return {scene:initialScene, requests:[], attach() {
+      const controller=this;
+      let backend;
+      backend=new WwiBackend({send(message) {
+        if(message==='WEBEEBLOCKS_RUNTIME_V2 HELLO') {
+          backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 READY'); return;
+        }
+        const match=message.match(/^WEBEEBLOCKS_RUNTIME_V2 REQUEST (\d+) SCENE (sequence-v1|legacy-v1) ([0-9a-f]{64})$/);
+        assert(match,'unexpected native scene request: '+message);
+        controller.scene=match[2];
+        controller.requests.push({backend,id:Number(match[1]),scene:match[2],nonce:match[3]});
+      }},{simulationScenes:true,simulationReset:true,simulationStop:true,timeoutMs:1000});
+      return backend;
+    }, ack(request, payload='OK') {
+      request.backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+request.id+' '+(payload==='OK'?'SCENE_OK '+request.nonce:payload));
+    }};
+  }
+  for(const starter of starters.slice(1)) for(const mode of ['template','open']) for(const inverse of [false,true]) {
+    const text=fs.readFileSync(path.join(ROOT,'activities/progression',inverse?starters[0]:starter),'utf8');
+    const destination=JSON.parse(text).activity.id;
+    const source=inverse?JSON.parse(fs.readFileSync(path.join(ROOT,'activities/progression',starter),'utf8')).activity.id:sequence;
+    const native=nativeController('legacy-v1'), first=native.attach();
+    await first.waitUntilReady();
+    const selecting=first.prepareActivity({id:source});
+    if(native.requests.length)native.ack(native.requests.at(-1));
+    await selecting;
+    assert.strictEqual(native.scene,inverse?'legacy-v1':'sequence-v1');
+    const backend=native.attach(); await backend.waitUntilReady();
+    assert.strictEqual(backend.sceneIdentity,null,'READY presumed the surviving native scene');
+    const workspace=buildWorkspace(0.2), ref={value:Profiles.resolveById(Activities.DOCUMENT,'reactive-obstacle-v2',Activities.BLOCK_CATALOG)};
+    const transport=memoryTransport(); transport.state.openText=text;
+    let profileChanges=0;
+    const manager=ProjectFiles.createManager({Blockly,profiles:Profiles,activitiesDocument:Activities.DOCUMENT,
+      blockCatalog:Activities.BLOCK_CATALOG,semanticAst:SemanticAst,activityContract:ActivityContract,workspace,
+      getProfile:()=>ref.value,setProfile:p=>{profileChanges++;ref.value=p;},transport,
+      prepareProfile:p=>backend.prepareActivity(p)});
+    await manager.saveAs('original.wbb');
+    const before=Blockly.serialization.workspaces.save(workspace), count=native.requests.length;
+    let applied=false;
+    const opening=(mode==='open'?manager.open():manager.openTemplateText(starter,text)).then(value=>{applied=true;return value;});
+    await flush();
+    assert.strictEqual(native.requests.length,count+1,'reattachment skipped native selection for '+destination);
+    const request=native.requests.at(-1);
+    assert.strictEqual(request.scene,inverse?'sequence-v1':'legacy-v1');
+    assert.strictEqual(backend.sceneIdentity,null,'unacknowledged scene became known');
+    assert.strictEqual(profileChanges,0); assert.strictEqual(applied,false);
+    assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace),before);
+    assert.strictEqual(manager.currentName(),'original.wbb'); assert(manager.hasCurrentTarget());
+    await assert.rejects(backend.prepareActivity({id:source}),e=>e.code==='SCENE_BUSY');
+    backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+(request.id+999)+' OK');
+    await flush(); assert.strictEqual(applied,false,'wrong request ID applied project');
+    assert.strictEqual(native.requests.length,count+1,'concurrent preparation was sent');
+    native.ack(request); await opening;
+    assert.strictEqual(backend.sceneIdentity,native.scene); assert.strictEqual(ref.value.id,destination);
+    assert.strictEqual(manager.hasCurrentTarget(),mode==='open');
+    assert.strictEqual(manager.currentName(),mode==='open'?'eleve.wbb':null);
+    assert.strictEqual(workspace.getAllBlocks(false).length,0);
+    // A duplicate old reply cannot change an already established scene.
+    native.ack(request,'ERR SCENE_UNAVAILABLE');
+    assert.strictEqual(backend.sceneIdentity,native.scene);
+    workspace.dispose();
+  }
+  for(const payload of ['VALUE 1','STATE achieved','ERR SCENE_UNAVAILABLE']) {
+    const native=nativeController('sequence-v1'), backend=native.attach(); await backend.waitUntilReady();
+    const selecting=backend.prepareActivity({id:'progression-precise-movement-v1'});
+    const rejected=assert.rejects(selecting); native.ack(native.requests.at(-1),payload); await rejected;
+    assert.strictEqual(backend.sceneIdentity,null,'wrong ACK established a scene');
+  }
+  // Real production instances restart numeric IDs. Route OLD replies to the
+  // CURRENT receiver, as main.js does, before its own native acknowledgement.
+  const lateNative=nativeController('legacy-v1'), oldBackend=lateNative.attach();
+  await oldBackend.waitUntilReady();
+  const oldSelection=oldBackend.prepareActivity({id:sequence});
+  const oldRequest=lateNative.requests.at(-1);
+  const current=lateNative.attach(); await current.waitUntilReady();
+  const currentSelection=current.prepareActivity({id:'progression-precise-movement-v1'});
+  const currentRequest=lateNative.requests.at(-1);
+  assert.strictEqual(oldRequest.id,currentRequest.id);
+  assert.notStrictEqual(oldRequest.nonce,currentRequest.nonce);
+  current.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+oldRequest.id+' OK');
+  current.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+oldRequest.id+' SCENE_OK '+oldRequest.nonce);
+  await flush(); assert.strictEqual(current.sceneIdentity,null,'foreign connection ACK confirmed scene');
+  assert(current.pending[currentRequest.id],'foreign ACK consumed the current request');
+  lateNative.ack(currentRequest);await currentSelection;
+  assert.strictEqual(current.sceneIdentity,'legacy-v1');
+  lateNative.ack(oldRequest);await oldSelection;
+
+  const sent=[], delayed=new WwiBackend({send:m=>sent.push(m)},{simulationScenes:true,simulationStop:true,timeoutMs:30});
+  await assert.rejects(delayed.prepareActivity({id:sequence}),/request timeout/);
+  assert.strictEqual(delayed.sceneIdentity,null);
+  const retry=delayed.prepareActivity({id:'progression-precise-movement-v1'});
+  delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
+  await flush(); assert.strictEqual(delayed.sceneIdentity,null,'timed-out ACK confirmed later selection');
+  delayed.handleMessage(sceneAck(delayed,2)); await retry;
+  const preparing=delayed.prepareActivity({id:sequence});
+  const cancelled=assert.rejects(preparing,e=>e.code==='RESET_CANCELLED');
+  const stopping=delayed.stopSimulation();
+  delayed.handleMessage(sceneAck(delayed,3));
+  delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK');
+  await cancelled; await stopping; assert.strictEqual(delayed.sceneIdentity,null);
+  console.log('PASS scene reattachment: 28 Start/Open transitions across activities 1-8, ACK-before-application, targets, concurrency, wrong/late replies, timeout and STOP');
+}
+
+async function proveProjectStartupRace() {
+  for (const failReady of [false,true]) {
+    const listeners = {}, timers = [], elements = {};
+    let created = 0, releaseReady, rejectReady;
+    const readiness = new Promise((resolve,reject)=>{releaseReady=resolve;rejectReady=reject;});
+    const document = {body:{dataset:{}},getElementById:id=>elements[id] || (elements[id]={dataset:{},addEventListener(){}})};
+    const context = {
+      window:{addEventListener:(name,fn)=>{listeners[name]=fn;},dispatchEvent(){}},document,
+      workspace:{},runtimeProfile:{id:'reactive-obstacle-v2'},
+      WebeeBlocksProjectFiles:{createBrowserTransport:()=>({nativeFileSystemAccess:true}),
+        createManager:()=>{created++;return {nativeFileSystemAccess:true,hasCurrentTarget:()=>false};}},
+      Blockly:{},WebeeBlocksActivityProfiles:{},WebeeBlocksActivities:{DOCUMENT:{},BLOCK_CATALOG:{}},
+      WebeeBlocksSemanticAst:{},WebeeBlocksActivityContract:{},
+      CustomEvent:function(){},console:{error(){},warn(){}},Date,
+      setTimeout:fn=>{timers.push(fn);}
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT,'plugins/robot_windows/blockly_v2/project_ui.js'),'utf8'),context);
+    const flush = async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
+    listeners.load(); await flush();
+    assert.strictEqual(created,0,'Chrome exposed project loading before Robot Window import');
+    context.robotWindow={send(){},receive(){}};
+    context.runtimeBackend={waitUntilReady:()=>readiness};
+    timers.shift()(); await flush();
+    assert.strictEqual(created,0,'Chrome exposed project loading before native READY');
+    if(failReady) rejectReady(new Error('native READY failed')); else releaseReady();
+    await flush();
+    assert.strictEqual(created,failReady?0:1);
+    assert.strictEqual(document.body.dataset.projectFileMode,failReady?'unavailable':'browser-native');
+    if(failReady)assert.strictEqual(elements.projectOpen.disabled,true);
+  }
 }
 
 async function expectRejectedWithoutMutation(manager, transport, text, workspace, profileRef, label) {
@@ -387,5 +640,9 @@ async function exerciseWwiBoundary() {
   assert(uiSource.includes('project_file_wwi_transport.js'), 'UI must load local WWI transport for Firefox');
   assert(!uiSource.includes('utilisez Google Chrome'), 'UI must not hard-code Chrome as the only direct-file browser');
   assert(!uiSource.includes('Nouvelle copie'), 'UI must not advertise download copies');
-  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave');
+  await proveScenePreparation();
+  await proveSceneReattachment();
+  await proveSceneRollback();
+  await proveProjectStartupRace();
+  console.log('PASS project-files: Chrome+WWI direct .wbb/options/same-handle/templates/state/fail-closed/profile-field-injection/no-fallback/no-autosave/scene-ACK-before-project-mutation');
 })().catch(error => { console.error(error); process.exit(1); });
