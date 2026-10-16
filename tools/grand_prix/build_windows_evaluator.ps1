@@ -35,6 +35,7 @@ function Copy-Source([string]$Source, [string]$Target) {
 }
 $runtime = Join-Path $package 'runtime\python'
 Expand-Archive -LiteralPath $PythonArchive -DestinationPath $runtime
+Move-Item -LiteralPath (Join-Path $runtime 'python.exe') -Destination (Join-Path $runtime 'webeeblocks-gp-python.exe')
 $pathFile = Join-Path $runtime 'python312._pth'
 $pathText = "python312.zip`n.`n"
 [IO.File]::WriteAllText($pathFile, $pathText, [Text.UTF8Encoding]::new($false))
@@ -48,7 +49,7 @@ Copy-Source 'docs\GRAND_PRIX_WINDOWS_EVALUATOR.md' 'README.md'
 # Webots R2025a resolves $(...) using the controller environment before COMMAND.
 # A future product launcher must set this to the absolute packaged executable.
 # No PATH/default-Python fallback is admitted by this controller configuration.
-$ini = "[python]`nCOMMAND = `$(WEBEEBLOCKS_GP_PYTHON)`nOPTIONS = -I`n"
+$ini = "[python]`nCOMMAND = `$(WEBEEBLOCKS_GP_PYTHON_DIR)/webeeblocks-gp-python.exe`nOPTIONS = -I`n"
 [IO.File]::WriteAllText((Join-Path $package 'controllers\grand_prix_u_evaluator\runtime.ini'), $ini, [Text.UTF8Encoding]::new($false))
 $sourceSha = (& git -C $repoRoot rev-parse HEAD | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or $sourceSha -notmatch '^[0-9a-f]{40}$') { throw 'Exact source SHA unavailable.' }

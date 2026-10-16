@@ -38,12 +38,12 @@ foreach ($pair in $sourcePairs) {
   Require ((Get-FileHash -LiteralPath (Join-Path $repoRoot $pair[0]) -Algorithm SHA256).Hash -eq
     (Get-FileHash -LiteralPath (Join-Path $testRoot $pair[1]) -Algorithm SHA256).Hash) "Changed evaluator source: $($pair[0])"
 }
-$python = Join-Path $testRoot 'runtime\python\python.exe'
+$python = Join-Path $testRoot 'runtime\python\webeeblocks-gp-python.exe'
 $entry = Join-Path $testRoot 'controllers\grand_prix_u_evaluator\grand_prix_u_evaluator.py'
 $pth = Get-Content -LiteralPath (Join-Path $testRoot 'runtime\python\python312._pth') -Raw
 Require ($pth -eq "python312.zip`n.`n") 'Unexpected embedded Python search path.'
 $ini = Get-Content -LiteralPath (Join-Path $testRoot 'controllers\grand_prix_u_evaluator\runtime.ini') -Raw
-Require ($ini -eq "[python]`nCOMMAND = `$(WEBEEBLOCKS_GP_PYTHON)`nOPTIONS = -I`n") 'Interpreter selection admits an ambient fallback.'
+Require ($ini -eq "[python]`nCOMMAND = `$(WEBEEBLOCKS_GP_PYTHON_DIR)/webeeblocks-gp-python.exe`nOPTIONS = -I`n") 'Interpreter selection admits an ambient fallback.'
 $oldWebots = $env:WEBOTS_HOME
 $oldPath = $env:PATH
 $oldPythonPath = $env:PYTHONPATH

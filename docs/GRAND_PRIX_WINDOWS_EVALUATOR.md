@@ -20,9 +20,10 @@ installation Python, pip ou dépendance Internet n'est requis à l'exécution.
 
 Pour composer ce support avec un futur paquet Grand Prix, conserver sa structure
 `runtime/`, `tools/` et `controllers/`, et définir **dans l'environnement du
-processus Webots** `WEBEEBLOCKS_GP_PYTHON` au chemin absolu de
-`runtime/python/python.exe`. Le `runtime.ini` de l'évaluateur sélectionne
-explicitement cet exécutable. `WEBOTS_HOME` désigne l'installation R2025a.
+processus Webots** `WEBEEBLOCKS_GP_PYTHON_DIR` au chemin absolu du dossier
+`runtime/python/`. Le `runtime.ini` de l'évaluateur sélectionne
+explicitement `webeeblocks-gp-python.exe` dans ce dossier. Une variable absente
+ne peut pas produire une commande vide et sélectionner le Python par défaut. `WEBOTS_HOME` désigne l'installation R2025a.
 Le bootstrap ajoute uniquement la racine du paquet et l'API Python de cette
 installation aux chemins isolés de CPython. `PYTHONPATH`, site-packages et le
 Python par défaut du poste ne fournissent aucun module au contrôleur.

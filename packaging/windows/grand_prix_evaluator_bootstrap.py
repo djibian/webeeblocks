@@ -14,6 +14,9 @@ import sys
 def main():
     directory = Path(__file__).resolve().parent
     root = directory.parents[1]
+    if sys.platform == 'win32' and Path(sys.executable).resolve() != (
+            root / 'runtime/python/webeeblocks-gp-python.exe').resolve():
+        raise RuntimeError('Packaged evaluator interpreter identity mismatch')
     webots = Path(os.environ['WEBOTS_HOME']).resolve(strict=True)
     api = webots / 'lib/controller/python'
     if not (api / 'controller/__init__.py').is_file():
