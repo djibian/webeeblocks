@@ -1322,6 +1322,34 @@ jobs:
           path: ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a.zip
           if-no-files-found: error
 
+      - name: Select exact Python for Grand Prix build-time composition
+        uses: actions/setup-python@v5
+        id: gp-build-python
+        with:
+          python-version: '3.12.10'
+
+      - name: Compile and package native Windows Grand Prix controller
+        shell: pwsh
+        run: |
+          ./tools/grand_prix/build_windows_controller.ps1 `
+            -WebotsHome $env:WEBOTS_HOME -PythonExe '${{ steps.gp-build-python.outputs.python-path }}' `
+            -ClassroomPackagePath 'ci-artifacts/windows-release/WebeeBlocks-Windows-R2025a' `
+            -OutputDirectory 'ci-artifacts/gp-windows-controller'
+
+      - name: Falsify native Windows Grand Prix controller composition
+        shell: pwsh
+        run: |
+          ./tools/ci/test_grand_prix_windows_controller.ps1 `
+            -ArchivePath 'ci-artifacts/gp-windows-controller/WebeeBlocks-Grand-Prix-Controller-Windows-R2025a.zip' `
+            -WebotsHome $env:WEBOTS_HOME -PythonExe '${{ steps.gp-build-python.outputs.python-path }}'
+
+      - name: Upload exact Windows Grand Prix controller
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-u-windows-controller
+          path: ci-artifacts/gp-windows-controller/WebeeBlocks-Grand-Prix-Controller-Windows-R2025a.zip
+          if-no-files-found: error
+
   grand-prix-prototype:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
