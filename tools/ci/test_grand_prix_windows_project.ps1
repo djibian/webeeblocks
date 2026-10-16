@@ -36,4 +36,7 @@ $env:WEBOTS_HOME = (Resolve-Path -LiteralPath $WebotsHome).Path
 & (Join-Path $testRoot 'runtime\python\webeeblocks-gp-python.exe') -I `
   (Join-Path $testRoot 'controllers\grand_prix_u_evaluator\grand_prix_u_evaluator.py') --verify-imports
 if ($LASTEXITCODE -ne 0) { throw 'Final assembled evaluator imports failed.' }
-Write-Host 'PASS assembled U Windows package: exact manifests, three launcher/session/HTTP configurations, invalid configuration rejection and relocated embedded evaluator; full pupil GUI/mission acceptance remains unproven.'
+& $PythonExe (Join-Path $PSScriptRoot 'run_grand_prix_windows_native.py') `
+  --package $testRoot --webots-home $WebotsHome --output (Join-Path $repoRoot 'ci-artifacts\gp-windows-native')
+if ($LASTEXITCODE -ne 0) { throw 'Installed native Windows U campaign failed.' }
+Write-Host 'PASS assembled U Windows package: exact manifests, launcher/session/HTTP closure, relocated embedded evaluator and real native missions; full pupil GUI/pedagogical acceptance remains unproven.'

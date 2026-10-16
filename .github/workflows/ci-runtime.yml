@@ -1391,9 +1391,19 @@ jobs:
         run: |
           & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/test_grand_prix_windows_project.py
           if ($LASTEXITCODE -ne 0) { throw 'Input corruption/mixed-source negatives failed.' }
+          & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/test_grand_prix_windows_native.py
+          if ($LASTEXITCODE -ne 0) { throw 'Installed native evidence rejection tests failed.' }
           ./tools/ci/test_grand_prix_windows_project.ps1 `
             -ArchivePath 'ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a.zip' `
             -WebotsHome $env:WEBOTS_HOME -PythonExe '${{ steps.gp-build-python.outputs.python-path }}'
+
+      - name: Retain installed Windows Grand Prix native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-u-windows-native
+          path: ci-artifacts/gp-windows-native/
+          if-no-files-found: warn
 
       - name: Upload installed Grand Prix Windows project
         uses: actions/upload-artifact@v4

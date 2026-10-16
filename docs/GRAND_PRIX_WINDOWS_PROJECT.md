@@ -28,3 +28,12 @@ distinctes de chargement natif Windows ne valent pas un parcours élève complet
 ni l'acceptation pédagogique personnelle. Le lancement réel et le parcours
 Démarrer/simuler/observer/pas à pas/Enregistrer/Ouvrir restent à accepter sur
 le poste de référence via le mécanisme de checkpoint du projet.
+
+La CI exécute aussi l'archive extraite dans le vrai Webots Windows R2025a,
+avec les contrôleurs et l'interpréteur embarqué du paquet, sur les trois
+configurations 1/2/5. Le même témoin Blockly compilé et prévalidé doit réussir
+avec les trois atterrissages, sans modifier géométrie, autorité ni oracle.
+Les traces natives, résultats, diagnostics et empreinte de l'AST sont retenus
+dans `grand-prix-u-windows-native`, y compris en cas d'échec. Ce contrôle
+par WWI est une preuve d'exécution technique de l'assemblage, pas une preuve
+du lanceur GUI, de manipulation des fichiers ou d'acceptation personnelle.

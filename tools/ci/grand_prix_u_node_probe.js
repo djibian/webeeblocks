@@ -1,7 +1,11 @@
 'use strict';
 const fs=require('fs');
-const Backend=require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend.js');
-const Interpreter=require('../../plugins/robot_windows/blockly/webeeblocks/interpreter.js');
+const path=require('path');
+// Optional installed-package root: exercise the shipped runtime bytes, while
+// the developer witness is still constructed/preflighted by ordinary Blockly.
+const moduleRoot=process.argv[5]?path.resolve(process.argv[5]):path.resolve(__dirname,'../..');
+const Backend=require(path.join(moduleRoot,'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
+const Interpreter=require(path.join(moduleRoot,'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 const WorkspaceWitness=require('../grand_prix/witness_workspace_u.js');
 const Witness={build:()=>WorkspaceWitness.build().ast};
 const port=Number(process.argv[2]),mode=process.argv[3]||'witness',output=process.argv[4];
