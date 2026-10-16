@@ -1353,6 +1353,8 @@ jobs:
       - name: Falsify U behavioral boundaries and generic witness
         run: |
           python3 tools/ci/test_grand_prix_evaluator_bootstrap.py
+          python3 tools/ci/test_grand_prix_u_timeout_probe.py
+          node tools/ci/test_grand_prix_u_timeout_probe.js
           python3 tools/ci/test_grand_prix_simulation_time.py
           node tools/ci/test_grand_prix_u_profile.js
           node tools/ci/test_grand_prix_u_witness.js
