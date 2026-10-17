@@ -45,8 +45,11 @@ retenir taille et SHA-256 du binaire réellement produit et actualiser le verrou
 Une CI Ready ne peut réutiliser ni un cache d'une autre source ni l'ancien
 digest. Cette maintenance ne constitue aucune qualification physique.
 
-Ce résultat traite le monde de départ de #621. La perspective des panneaux
-est proposée séparément dans #622 ; le rectangle noir demande encore un
-diagnostic causal et l'expérience complète doit être observée sur Windows
-R2025a. Aucun PASS de nouvelle archive, acceptation du Grand Prix ou vol réel
-n'est déduit de ces changements.
+Ce résultat traite le monde de départ de #621 et est intégré via #623.
+La perspective des panneaux est également intégrée via #622. Leur présence
+dans le code et les tests ne constitue pas une validation humaine du rendu
+Windows : le rectangle noir signalé au démarrage reste de cause inconnue et
+l'expérience complète doit être observée sur Webots R2025a. Un checkpoint
+Windows séparé est requis pour statuer sur le démarrage exact ; aucun PASS du
+nouveau paquet, acceptation du Grand Prix ou vol réel n'est déduit de ces
+changements.

@@ -28,8 +28,14 @@ panneaux possible. Cela vérifie le format Qt, pas le rendu réel Windows/R2025a
 
 ## Frontières encore ouvertes de #621
 
-Cette modification ne clôture pas #621. Le monde de départ neutre et le
-rectangle noir demandent leurs propres corrections et preuves réelles Windows.
+Les changements #622 (perspective) et #623 (vrai monde d'accueil neutre)
+sont désormais intégrés. Le paquet Windows utilise ce monde au démarrage ;
+les anciennes scènes ne sont chargées qu'après la sélection explicite de
+l'activité. La CI de #623 a vérifié le changement de scènes, le refus d'un
+TAKEOFF sans SCENE et la fermeture du paquet, mais **pas** le rendu graphique
+sur le poste Windows de référence. La disparition du rectangle noir et le
+parcours complet de démarrage restent donc à observer dans #621 ; aucune
+acceptation humaine du nouveau paquet n'est encore établie.
 Le Runtime n'active pas la caméra 324 × 324 du PROTO Crazyflie. Le code R2025a
 de `WbWrenTextureOverlay` alloue une image noire sans données mais **masque
 initialement** l'overlay. L'hypothèse d'un aperçu caméra restauré doit donc
