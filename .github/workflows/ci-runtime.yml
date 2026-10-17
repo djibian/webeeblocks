@@ -1386,8 +1386,32 @@ jobs:
             --output 'ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a'
           if ($LASTEXITCODE -ne 0) { throw 'Installed Grand Prix composition failed.' }
 
+      # R2025a's own Windows test suite uses Mesa 24.2.1 release-mingw on
+      # hosted runners. Install only on this disposable CI host, after building
+      # the archives, and verify the exact upstream archive before execution.
+      - name: Prepare verified software OpenGL for native Windows simulation
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'mesa3d-24.2.1-release-mingw.7z'
+          Invoke-WebRequest -Uri 'https://github.com/pal1000/mesa-dist-win/releases/download/24.2.1/mesa3d-24.2.1-release-mingw.7z' -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f8355fa7274d8414f88160f0f0af3469bf0f9f192f84d7a7ffb06a4887ceb214') {
+            throw 'Mesa CI renderer archive checksum mismatch.'
+          }
+          $mesa = Join-Path $env:RUNNER_TEMP 'Webots CI Mesa'
+          & 7z.exe x $archive "-o$mesa" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Mesa CI renderer extraction failed.' }
+          Push-Location $mesa
+          try {
+            & .\systemwidedeploy.cmd 1
+            if ($LASTEXITCODE -ne 0) { throw 'Mesa CI renderer deployment failed.' }
+          }
+          finally { Pop-Location }
+
       - name: Falsify installed Grand Prix project closure
         shell: pwsh
+        env:
+          MESA_GL_VERSION_OVERRIDE: '3.3'
+          LIBGL_ALWAYS_SOFTWARE: 'true'
         run: |
           & '${{ steps.gp-build-python.outputs.python-path }}' tools/ci/test_grand_prix_windows_project.py
           if ($LASTEXITCODE -ne 0) { throw 'Input corruption/mixed-source negatives failed.' }

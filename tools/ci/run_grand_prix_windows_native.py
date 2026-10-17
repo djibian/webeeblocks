@@ -105,7 +105,9 @@ def trial(package, home, output, seed):
                str(package / f'worlds/grand_prix_u_seed{seed}.wbt')]
     metadata = dict(command=command, cwd=str(package), path=env['PATH'],
                     source_sha=(package / 'SOURCE_SHA').read_text().strip(),
-                    node_executable=node_exe, webots_exit=None, node_exit=None)
+                    node_executable=node_exe, webots_exit=None, node_exit=None,
+                    mesa_gl_version=env.get('MESA_GL_VERSION_OVERRIDE'),
+                    software_gl=env.get('LIBGL_ALWAYS_SOFTWARE'))
     webots = node = None
     try:
         with (directory / 'sysinfo.log').open('w', encoding='utf-8') as log:

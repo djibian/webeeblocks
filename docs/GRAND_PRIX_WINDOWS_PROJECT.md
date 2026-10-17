@@ -37,3 +37,11 @@ Les traces natives, résultats, diagnostics et empreinte de l'AST sont retenus
 dans `grand-prix-u-windows-native`, y compris en cas d'échec. Ce contrôle
 par WWI est une preuve d'exécution technique de l'assemblage, pas une preuve
 du lanceur GUI, de manipulation des fichiers ou d'acceptation personnelle.
+
+Sur le runner Windows automatisé, cette campagne utilise Mesa logiciel
+24.2.1 release-mingw, comme la [CI Windows officielle de Webots R2025a](https://github.com/cyberbotics/webots/blob/R2025a/.github/workflows/test_suite_windows.yml).
+L'archive est vérifiée par SHA-256 avant installation sur ce seul hôte jetable,
+après construction des paquets ; elle n'est pas distribuée aux élèves.
+`--sysinfo`, la commande et les codes de sortie du moteur sont retenus avec
+les traces. Cette preuve ne qualifie pas les performances graphiques d'un PC
+de classe ni la lisibilité de sa fenêtre ; ces observations restent humaines.
