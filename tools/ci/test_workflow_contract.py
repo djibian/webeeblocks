@@ -190,8 +190,8 @@ class WorkflowTests(unittest.TestCase):
             release.index("test_grand_prix_windows_project.ps1"),
             release.index("name: grand-prix-u-windows-project"),
         )
-        native = release.split("      - name: Falsify installed Grand Prix project closure\\n", 1)[-1]
-        upload = release.split("      - name: Upload installed Grand Prix Windows project\\n", 1)[-1]
+        native = release.split("      - name: Falsify installed Grand Prix project closure", 1)[1]
+        upload = release.split("      - name: Upload installed Grand Prix Windows project", 1)[1]
         self.assertIn("test_grand_prix_windows_native.py", native)
         self.assertIn("test_grand_prix_windows_project.ps1", native)
         self.assertIn("if-no-files-found: error", upload)
