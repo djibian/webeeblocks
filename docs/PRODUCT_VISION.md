@@ -111,8 +111,12 @@ change and replaced by the Grand Prix, without deleting useful evidence.
 **Phase 1 — personally validate both endpoints.** Finalize Activity 1 (#589)
 and Grand Prix (#591) with real Webots R2025a tests, exact Ready-HEAD CI,
 independent V5 reviews and applicable oracles; then obtain the owner's
-**explicit personal pedagogical acceptance of each**. Activity 1 remains
-unaccepted pending a classroom/visual test. Grand Prix acceptance requires
+**explicit personal pedagogical acceptance of each**. Activity 1 received the
+owner's [explicit personal pedagogical PASS on #619](https://github.com/djibian/webeeblocks/issues/619#issuecomment-6230830327)
+on 2026-10-17 for exact `a38839628c99bf38278ca950ed8e68f363d1b5b3`
+(Windows R2025a / Chrome, artifact 12073312927). Startup improvements remain
+open in #621; this PASS accepts neither the Grand Prix nor Activities 2–7.
+Grand Prix acceptance remains outstanding and requires
 the unchanged #587 U course: multiple reproducible hidden configurations of
 1–3 open H gates, a single ordinary Blockly/.wbb/AST program across them,
 correct center/left/right landing, low-altitude bands, negative cases and the
