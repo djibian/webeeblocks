@@ -33,8 +33,13 @@ class BootstrapTests(unittest.TestCase):
             (poison / 'controller.py').write_text("raise RuntimeError('ambient controller')\n")
             env = {**os.environ, 'WEBOTS_HOME': str(base / 'Webots'), 'PYTHONPATH': str(poison)}
             command = [sys.executable, '-I', '-S', str(entry)]
+            def inventory():
+                return {p.relative_to(package): p.read_bytes()
+                        for p in package.rglob('*') if p.is_file()}
+            before = inventory()
             result = subprocess.run(command + ['--verify-imports'], env=env, cwd=poison,
                                     capture_output=True, text=True, check=True)
+            self.assertEqual(inventory(), before, 'Import verification mutated the exact package')
             record = json.loads(result.stdout)
             self.assertEqual(Path(record['layout']), tools / 'layout_u.py')
             self.assertEqual(Path(record['oracle_module']), tools / 'oracle_u.py')
@@ -43,8 +48,10 @@ class BootstrapTests(unittest.TestCase):
             # runpy must retain both world arguments and execute the implementation.
             (controller / 'evaluator_impl.py').write_text(
                 "import json,sys\nprint(json.dumps({'args':sys.argv[1:],'file':__file__}))\n")
+            before = inventory()
             result = subprocess.run(command + ['17', '2.000'], env=env, cwd=poison,
                                     capture_output=True, text=True, check=True)
+            self.assertEqual(inventory(), before, 'Controller bootstrap mutated the exact package')
             record = json.loads(result.stdout)
             self.assertEqual(record['args'], ['17', '2.000'])
             self.assertEqual(Path(record['file']), controller / 'evaluator_impl.py')

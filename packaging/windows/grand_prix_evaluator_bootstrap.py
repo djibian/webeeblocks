@@ -12,6 +12,9 @@ import sys
 
 
 def main():
+    # -I isolates imports but still permits .pyc writes. Keep the distributed
+    # project byte-for-byte verifiable before and after dependency validation.
+    sys.dont_write_bytecode = True
     directory = Path(__file__).resolve().parent
     root = directory.parents[1]
     if sys.platform == 'win32' and Path(sys.executable).resolve() != (
