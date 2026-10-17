@@ -64,6 +64,13 @@ of each** after classroom-style testing. CI/GO alone is not pedagogical
 acceptance. No redesign of Activities 2–7 before BOTH personal acceptances.
 Independent technical repairs/main-health work may proceed.
 
+The owner [personally accepted Activity 1 through #619](https://github.com/djibian/webeeblocks/issues/619#issuecomment-6230830327)
+on 2026-10-17: exact `a38839628c99bf38278ca950ed8e68f363d1b5b3`,
+Windows R2025a / Chrome, artifact 12073312927. The nominal, negative, replay,
+step mode and `.wbb`/scene restoration workflow were accepted. The startup
+improvements in #621 remain open. **Grand Prix personal acceptance is still
+required before Phase 2**; #619 grants no acceptance of Activities 2–7 or flight.
+
 **Phase 2 — mandatory six-activity redesign after both acceptances:**
 co-design and get the owner's agreement on a cumulative matrix for 2–7,
 `new concept -> world property -> pupil mission -> prior concepts -> observable
@@ -124,7 +131,8 @@ not personal pedagogical acceptance or physical qualification.
 The pupil delivery boundary remains open: replace warehouse delivery in the
 official Activity 8 progression, provide the installed Grand Prix launch path,
 exercise the complete pupil Start/simulate/observe/debug/Save/Open workflow,
-then obtain the owner's personal acceptance of both endpoints. These are
+then obtain the owner's personal acceptance of the Grand Prix; Activity 1's
+bounded #619 acceptance is recorded above. These are
 bounded delivery/acceptance obligations, not a reason to repeat the established
 prototype investigation or redesign Activities 2–7 early. Preserve gp-v2/v3/v4
 and warehouse scenarios, oracles and evidence as technical history. See
