@@ -74,32 +74,55 @@ def trial(package, home, output, seed):
         probe.bind(('127.0.0.1', 0))
         port = probe.getsockname()[1]
     env = os.environ.copy()
+    node_exe = shutil.which('node')
+    # Reproduce R2025a launcher.c's DLL environment, then start its exact
+    # engine directly so redirected handles and the exit code remain ours.
+    # Bound PATH as in the other Windows native probes; no ambient Python/DLL
+    # installation is a dependency of the extracted project.
+    env['PATH'] = os.pathsep.join(str(p) for p in (
+        home / 'msys64/mingw64/bin', home / 'msys64/mingw64/bin/cpp',
+        home / 'msys64/usr/bin', Path(env['SystemRoot']) / 'System32',
+        Path(env['SystemRoot'])))
+    env['QT_ENABLE_HIGHDPI_SCALING'] = '1'
+    env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
     env.update(WEBOTS_HOME=str(home), WEBEEBLOCKS_GP_PYTHON_DIR=str(package / 'runtime/python'),
                WEBEEBLOCKS_CI_ARTIFACT_DIR=str(directory),
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
     # Prove selection of the embedded interpreter, not ambient Python lookup.
     env['PYTHONHOME'] = str(directory / 'absent ambient Python')
     env['PYTHONPATH'] = env['PYTHONHOME']
+    engine = str(home / 'msys64/mingw64/bin/webots-bin.exe')
+    command = [engine, '--stdout', '--stderr', '--batch', '--mode=fast',
+               '--no-rendering', f'--port={port}',
+               str(package / f'worlds/grand_prix_u_seed{seed}.wbt')]
+    metadata = dict(command=command, cwd=str(package), path=env['PATH'],
+                    source_sha=(package / 'SOURCE_SHA').read_text().strip(),
+                    node_executable=node_exe, webots_exit=None, node_exit=None)
     webots = node = None
     try:
+        with (directory / 'sysinfo.log').open('w', encoding='utf-8') as log:
+            try:
+                diagnostic = subprocess.run([engine, '--sysinfo'], cwd=package,
+                    env=env, stdout=log, stderr=subprocess.STDOUT, timeout=20)
+                metadata['sysinfo_exit'] = diagnostic.returncode
+            except subprocess.TimeoutExpired:
+                metadata['sysinfo_timeout'] = True
         with (directory / 'webots.stdout.log').open('w', encoding='utf-8') as stdout, \
                 (directory / 'webots.stderr.log').open('w', encoding='utf-8') as stderr, \
                 (directory / 'node.log').open('w', encoding='utf-8') as node_log:
-            webots = subprocess.Popen([str(home / 'msys64/mingw64/bin/webots.exe'),
-                '--stdout', '--stderr', '--batch', '--mode=fast', '--no-rendering',
-                f'--port={port}', str(package / f'worlds/grand_prix_u_seed{seed}.wbt')],
+            webots = subprocess.Popen(command,
                 cwd=package, env=env, stdout=stdout, stderr=stderr)
             deadline = time.monotonic() + 60
             while True:
                 logs = read(directory / 'webots.stdout.log') + read(directory / 'webots.stderr.log')
                 if webots.poll() is not None:
-                    raise RuntimeError('Installed Webots exited before native readiness')
+                    raise RuntimeError(f'Installed Webots exited before native readiness: {webots.returncode} (0x{webots.returncode & 0xffffffff:08x})')
                 if 'WEBEEBLOCKS_RUNTIME_V2 READY' in logs:
                     break
                 if time.monotonic() >= deadline:
                     raise RuntimeError('Installed native readiness not established')
                 time.sleep(.1)
-            node = subprocess.Popen([shutil.which('node'), str(ROOT / 'tools/ci/grand_prix_u_node_probe.js'),
+            node = subprocess.Popen([node_exe, str(ROOT / 'tools/ci/grand_prix_u_node_probe.js'),
                 str(port), 'witness', str(directory / 'events.jsonl'), str(package)],
                 cwd=ROOT, env=env, stdout=node_log, stderr=subprocess.STDOUT)
             if node.wait(timeout=600) != 0:
@@ -112,9 +135,14 @@ def trial(package, home, output, seed):
                 time.sleep(.1)
     finally:
         try:
-            stop(node)
+            try:
+                metadata['node_exit'] = node.poll() if node else None
+                metadata['webots_exit'] = webots.poll() if webots else None
+                stop(node)
+            finally:
+                stop(webots)
         finally:
-            stop(webots)
+            (directory / 'launch.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     result = validate(directory, seed)
     (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     return result
