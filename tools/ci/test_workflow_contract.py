@@ -155,6 +155,34 @@ class WorkflowTests(unittest.TestCase):
         for obsolete in ("READY_FOR_REVIEW", "SESSION_LIMIT", "RELANCE CONTRÔLEUR", "Candidate Evidence"):
             self.assertNotIn(obsolete, text)
 
+    def test_grand_prix_windows_checkpoint_requires_exact_native_artifact(self):
+        checkpoint = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
+        suite = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        self.assertIn("'grand-prix-windows': 'grand-prix-u-windows-project',", checkpoint)
+        self.assertIn("'grand-prix-windows': {'checkpoint'},", checkpoint)
+        self.assertNotIn("'grand-prix-windows': {'checkpoint', 'release'}", checkpoint)
+        self.assertIn("full: true", checkpoint)
+        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", checkpoint)
+        self.assertIn("needs.runtime.result == 'success'", checkpoint)
+        self.assertIn("matching = [a for a in artifacts if a.get('name') == required_artifact]", checkpoint)
+        self.assertIn("if len(matching) != 1:", checkpoint)
+        self.assertIn("if artifact.get('expired'):", checkpoint)
+        self.assertIn("sha256:[0-9a-f]{64}", checkpoint)
+        release = suite.split("\n  runtime-v2-windows-release:\n", 1)[1].split(
+            "\n  grand-prix-prototype:\n", 1
+        )[0]
+        self.assertIn("inputs.full", release)
+        self.assertIn("ref: ${{ inputs.target_sha || github.sha }}", release)
+        self.assertIn("Falsify installed Grand Prix project closure", release)
+        self.assertIn("test_grand_prix_windows_project.ps1", release)
+        self.assertIn("name: grand-prix-u-windows-native", release)
+        self.assertIn("name: grand-prix-u-windows-project", release)
+        self.assertIn(
+            "path: ci-artifacts/gp-windows-project/WebeeBlocks-Grand-Prix-Windows-R2025a.zip",
+            release,
+        )
+        self.assertIn("if-no-files-found: error", release)
+
     def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
         blocks = text.split("          python3 - <<'PY'\n")[1:]
