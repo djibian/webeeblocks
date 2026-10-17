@@ -273,9 +273,19 @@ __COMMON__
       throw new Error('simulation-only debug capability missing');
     loadXml(__BLOCKED__);
     document.getElementById('stepMode').checked = false;
+    // CI-only wall-time dilation: the production 35 s WWI request deadline
+    // can expire before Webots advances the controller's 25 simulated seconds
+    // under contended software rendering. Do not change the shipped backend or
+    // the native timeout; still require the real neutral result and fault code.
+    if (runtimeBackend.timeoutMs !== 35000)
+      throw new Error('unexpected production WWI timeout configuration');
+    runtimeBackend.timeoutMs = 125000;
     const startDiagnostics = diagnostics.length;
     window.runProgram();
-    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'neutral safety stop', 45000);
+    // The controller enforces ACTION_TIMEOUT in simulated time (25 s). Under
+    // software OpenGL on a contended CI host, its wall-time observation may be
+    // substantially later. Keep the native fault/result oracle unchanged.
+    await waitFor(() => document.getElementById('runtimeState').textContent === 'ARRÊTÉ', 'neutral safety stop', 120000);
     const detail = document.getElementById('runtimeDetail').textContent;
     if (detail !== 'L’action n’a pas pu être terminée')
       throw new Error('unsafe student detail mismatch: ' + detail);

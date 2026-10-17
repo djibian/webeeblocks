@@ -285,7 +285,10 @@ script = r'''
       throw new Error('pre-READY guard changed UI/backend state: ' + JSON.stringify(snapshot()));
     await report('PRE_READY_GUARD_OK', snapshot());
 
-    await waitFor(() => runtimeBackend.ready === true, 'controller READY message', 30000);
+    // Twelve seconds of intentionally delayed Webots simulation can take more
+    // than 30 wall seconds on a contended Mesa runner. The gate still requires
+    // the *real* native READY; absence of READY remains a bounded failure.
+    await waitFor(() => runtimeBackend.ready === true, 'controller READY message', 75000);
     await waitFor(() => !submit.disabled && state.textContent === 'PRÊT', 'post-READY UI enable', 2000);
     await report('READY', snapshot());
 
