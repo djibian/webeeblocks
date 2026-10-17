@@ -67,24 +67,32 @@ def stop(process):
     process.wait(timeout=20)
 
 
+def engine_environment(home, ambient):
+    # os.environ is case-insensitive on Windows; its plain copied dict is not.
+    env = {key.upper(): value for key, value in ambient.items()}
+    if not env.get('SYSTEMROOT'):
+        raise ValueError('Windows SYSTEMROOT is required for native DLL lookup')
+    system = Path(env['SYSTEMROOT'])
+    env['PATH'] = os.pathsep.join(str(p) for p in (
+        home / 'msys64/mingw64/bin', home / 'msys64/mingw64/bin/cpp',
+        home / 'msys64/usr/bin', system / 'System32', system))
+    env['QT_ENABLE_HIGHDPI_SCALING'] = '1'
+    env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
+    return env
+
+
 def trial(package, home, output, seed):
     directory = output / f'seed-{seed}'
     directory.mkdir()
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0))
         port = probe.getsockname()[1]
-    env = os.environ.copy()
+    env = engine_environment(home, os.environ)
     node_exe = shutil.which('node')
     # Reproduce R2025a launcher.c's DLL environment, then start its exact
     # engine directly so redirected handles and the exit code remain ours.
     # Bound PATH as in the other Windows native probes; no ambient Python/DLL
     # installation is a dependency of the extracted project.
-    env['PATH'] = os.pathsep.join(str(p) for p in (
-        home / 'msys64/mingw64/bin', home / 'msys64/mingw64/bin/cpp',
-        home / 'msys64/usr/bin', Path(env['SystemRoot']) / 'System32',
-        Path(env['SystemRoot'])))
-    env['QT_ENABLE_HIGHDPI_SCALING'] = '1'
-    env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
     env.update(WEBOTS_HOME=str(home), WEBEEBLOCKS_GP_PYTHON_DIR=str(package / 'runtime/python'),
                WEBEEBLOCKS_CI_ARTIFACT_DIR=str(directory),
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')

@@ -7,11 +7,25 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_grand_prix_windows_native import validate
+from tools.ci.run_grand_prix_windows_native import engine_environment, validate
 from tools.grand_prix.layout_u import generate
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_real_windows_uppercase_copy_and_mixed_case_inputs(self):
+        for root_key in ('SYSTEMROOT', 'SystemRoot'):
+            ambient = {root_key: '/Windows', 'Path': '/ambient',
+                       'qt_qpa_platform_plugin_path': '/foreign-qt'}
+            env = engine_environment(Path('/Webots'), ambient)
+            self.assertEqual(env['SYSTEMROOT'], '/Windows')
+            self.assertNotIn('/ambient', env['PATH'])
+            self.assertIn(str(Path('/Windows') / 'System32'), env['PATH'])
+            self.assertNotIn('QT_QPA_PLATFORM_PLUGIN_PATH', env)
+            self.assertEqual(env['QT_ENABLE_HIGHDPI_SCALING'], '1')
+            self.assertIn('qt_qpa_platform_plugin_path', ambient)
+        with self.assertRaises(ValueError):
+            engine_environment(Path('/Webots'), {'PATH': '/ambient'})
+
     def fixture(self, root):
         layout = generate(0)
         result = dict(status='achieved', configuration=layout.identifier, attempt=1,
