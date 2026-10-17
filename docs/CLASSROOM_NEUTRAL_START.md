@@ -37,6 +37,14 @@ Les tests C++ injectés couvrent aussi le démarrage neutre, les ressources
 absentes/vides/surdimensionnées, un mauvais type de WorldInfo, les groupes
 partiels existants, l'import partiel et les allers-retours de scène.
 
+Le changement du contrôleur natif invalide aussi les entrées générées de
+qualification physique. Leur préparation suit le chemin Draft existant de
+`.github/workflows/ci.yml` : reconstruire dans l'image R2025a épinglée,
+retenir taille et SHA-256 du binaire réellement produit et actualiser le verrou
+`tools/physical/qualification_generated_lock.json` si ces octets changent.
+Une CI Ready ne peut réutiliser ni un cache d'une autre source ni l'ancien
+digest. Cette maintenance ne constitue aucune qualification physique.
+
 Ce résultat traite le monde de départ de #621. La perspective des panneaux
 est proposée séparément dans #622 ; le rectangle noir demande encore un
 diagnostic causal et l'expérience complète doit être observée sur Windows
