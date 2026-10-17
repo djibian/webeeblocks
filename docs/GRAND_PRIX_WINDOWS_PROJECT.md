@@ -27,7 +27,15 @@ l'assemblage extrait et le lanceur pour chaque configuration. Les preuves
 distinctes de chargement natif Windows ne valent pas un parcours élève complet
 ni l'acceptation pédagogique personnelle. Le lancement réel et le parcours
 Démarrer/simuler/observer/pas à pas/Enregistrer/Ouvrir restent à accepter sur
-le poste de référence via le mécanisme de checkpoint du projet.
+le poste de référence via le mécanisme de checkpoint du projet. Le profil
+`grand-prix-windows` est exclusivement destiné à un `checkpoint` : il exige
+l'artefact exact `grand-prix-u-windows-project` créé et éprouvé par le job
+Windows natif de la suite Runtime complète du SHA demandé, en plus des
+autres preuves déterministes du mécanisme commun. Il ne transforme ni la
+réussite native en acceptation personnelle, ni l'archive en activité 8
+installée dans le catalogue scolaire ordinaire. Le checkpoint doit respecter
+la déduplication et l'unique test humain ouvert, et n'est demandé que pour
+un objet produit prêt à être soumis à l'acceptation humaine.
 
 La CI exécute aussi l'archive extraite dans le vrai Webots Windows R2025a,
 avec les contrôleurs et l'interpréteur embarqué du paquet, sur les trois
