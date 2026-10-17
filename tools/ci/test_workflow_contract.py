@@ -182,6 +182,19 @@ class WorkflowTests(unittest.TestCase):
             release,
         )
         self.assertIn("if-no-files-found: error", release)
+        self.assertLess(
+            release.index("Falsify installed Grand Prix project closure"),
+            release.index("Upload installed Grand Prix Windows project"),
+        )
+        self.assertLess(
+            release.index("test_grand_prix_windows_project.ps1"),
+            release.index("name: grand-prix-u-windows-project"),
+        )
+        native = release.split("      - name: Falsify installed Grand Prix project closure\\n", 1)[-1]
+        upload = release.split("      - name: Upload installed Grand Prix Windows project\\n", 1)[-1]
+        self.assertIn("test_grand_prix_windows_native.py", native)
+        self.assertIn("test_grand_prix_windows_project.ps1", native)
+        self.assertIn("if-no-files-found: error", upload)
 
     def test_checkpoint_python_heredocs_remain_inside_yaml_scalars(self):
         text = (WORKFLOWS / "human-checkpoint.yml").read_text(encoding="utf-8")
