@@ -1,17 +1,42 @@
 """Ensure installed-campaign evidence never turns incomplete execution into PASS."""
 import copy
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_grand_prix_windows_native import engine_environment, validate
+from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate
 from tools.grand_prix.layout_u import generate
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_native_capture_uses_pipes_and_drains_both_channels(self):
+        # Exercise R2025a's FILE_TYPE_PIPE discriminator on Windows too.
+        code = '''
+import os, sys
+if sys.platform == 'win32':
+ import ctypes
+ kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+ kernel.GetStdHandle.restype = ctypes.c_void_p
+ kernel.GetFileType.argtypes = [ctypes.c_void_p]
+ assert kernel.GetFileType(kernel.GetStdHandle(-11)) == 3
+ assert kernel.GetFileType(kernel.GetStdHandle(-12)) == 3
+for i in range(128):
+ os.write(1, b'R' * 4096)
+ os.write(2, b'E' * 4096)
+print('WEBEEBLOCKS_RUNTIME_V2 READY', flush=True)
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stdout, stderr = root / 'stdout', root / 'stderr'
+            with captured_engine([sys.executable, '-c', code], root, os.environ.copy(), stdout, stderr) as process:
+                self.assertEqual(process.wait(timeout=20), 0)
+            self.assertEqual(stdout.read_bytes(), b'R' * (128 * 4096) + b'WEBEEBLOCKS_RUNTIME_V2 READY' + os.linesep.encode())
+            self.assertEqual(stderr.read_bytes(), b'E' * (128 * 4096))
+
     def test_real_windows_uppercase_copy_and_mixed_case_inputs(self):
         for root_key in ('SYSTEMROOT', 'SystemRoot'):
             ambient = {root_key: '/Windows', 'Path': '/ambient',

@@ -4,6 +4,7 @@ This is test tooling, not a pupil launcher. No package byte, world, controller,
 oracle or timeout is changed. Retain native traces and the exact ordinary AST.
 """
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import math
@@ -13,6 +14,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +83,42 @@ def engine_environment(home, ambient):
     return env
 
 
+@contextmanager
+def captured_engine(command, cwd, env, stdout_path, stderr_path):
+    # R2025a gui/main.cpp RedirectIOToConsole retains redirected handles only
+    # for FILE_TYPE_PIPE. A disk handle makes it reopen CONOUT$, losing logs.
+    # Drain both pipes concurrently, including while waiting for READY/results.
+    errors = []
+    def drain(source, target):
+        try:
+            with source:
+                while chunk := source.read1(65536):
+                    target.write(chunk)
+                    target.flush()
+        except Exception as error:
+            errors.append(error)
+
+    with stdout_path.open('wb') as stdout, stderr_path.open('wb') as stderr:
+        process = subprocess.Popen(command, cwd=cwd, env=env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        threads = [threading.Thread(target=drain, args=(source, target), daemon=True)
+                   for source, target in ((process.stdout, stdout), (process.stderr, stderr))]
+        for thread in threads:
+            thread.start()
+        try:
+            yield process
+        finally:
+            try:
+                stop(process)
+            finally:
+                for thread in threads:
+                    thread.join(timeout=20)
+                if any(thread.is_alive() for thread in threads):
+                    raise RuntimeError('Native output pipes did not close after process cleanup')
+                if errors:
+                    raise RuntimeError('Native output capture failed') from errors[0]
+
+
 def trial(package, home, output, seed):
     directory = output / f'seed-{seed}'
     directory.mkdir()
@@ -110,18 +148,17 @@ def trial(package, home, output, seed):
                     software_gl=env.get('LIBGL_ALWAYS_SOFTWARE'))
     webots = node = None
     try:
-        with (directory / 'sysinfo.log').open('w', encoding='utf-8') as log:
-            try:
-                diagnostic = subprocess.run([engine, '--sysinfo'], cwd=package,
-                    env=env, stdout=log, stderr=subprocess.STDOUT, timeout=20)
-                metadata['sysinfo_exit'] = diagnostic.returncode
-            except subprocess.TimeoutExpired:
-                metadata['sysinfo_timeout'] = True
-        with (directory / 'webots.stdout.log').open('w', encoding='utf-8') as stdout, \
-                (directory / 'webots.stderr.log').open('w', encoding='utf-8') as stderr, \
+        try:
+            diagnostic = subprocess.run([engine, '--sysinfo'], cwd=package,
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+            metadata['sysinfo_exit'] = diagnostic.returncode
+            (directory / 'sysinfo.log').write_bytes(diagnostic.stdout)
+        except subprocess.TimeoutExpired as error:
+            metadata['sysinfo_timeout'] = True
+            (directory / 'sysinfo.log').write_bytes(error.output or b'')
+        with captured_engine(command, package, env,
+                directory / 'webots.stdout.log', directory / 'webots.stderr.log') as webots, \
                 (directory / 'node.log').open('w', encoding='utf-8') as node_log:
-            webots = subprocess.Popen(command,
-                cwd=package, env=env, stdout=stdout, stderr=stderr)
             deadline = time.monotonic() + 60
             while True:
                 logs = read(directory / 'webots.stdout.log') + read(directory / 'webots.stderr.log')

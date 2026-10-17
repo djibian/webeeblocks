@@ -45,3 +45,9 @@ après construction des paquets ; elle n'est pas distribuée aux élèves.
 `--sysinfo`, la commande et les codes de sortie du moteur sont retenus avec
 les traces. Cette preuve ne qualifie pas les performances graphiques d'un PC
 de classe ni la lisibilité de sa fenêtre ; ces observations restent humaines.
+
+Le moteur R2025a est capturé par deux pipes drainés simultanément : son
+`gui/main.cpp` conserve les handles redirigés seulement pour `FILE_TYPE_PIPE`
+et rouvre sinon `CONOUT$`. Des fichiers directs perdaient donc les journaux
+sur Windows. Le banc conserve le même READY et les mêmes résultats natifs ;
+il ne remplace pas ces preuves par la seule présence d'une trajectoire.
