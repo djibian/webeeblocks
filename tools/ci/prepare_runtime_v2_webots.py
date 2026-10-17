@@ -138,6 +138,22 @@ if wait_end_needle not in controller:
 controller = controller.replace(wait_end_needle, wait_end_replacement, 1)
 controller_path.write_text(controller, encoding='utf-8')
 
+# The native controller is deliberately held back until 12 simulated seconds,
+# which can exceed the production 35-second READY handshake wall budget on
+# software-rendered CI. Extend ONLY the CI-instrumented READY waiter, not the
+# production file or any WWI command/effect timeout. The real native READY,
+# blocked Submit/AST pre-READY, and causal post-READY evidence remain mandatory.
+backend_path = ROOT / 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'
+backend = backend_path.read_text(encoding='utf-8')
+ready_timeout_needle = "reject(new Error('Runtime v2 READY timeout'));\n      }, self.timeoutMs);"
+if backend.count(ready_timeout_needle) != 1:
+    raise SystemExit('Runtime v2 READY timeout instrumentation point not unique')
+backend_path.write_text(
+    backend.replace(ready_timeout_needle,
+                    "reject(new Error('Runtime v2 READY timeout'));\n      }, 90000);", 1),
+    encoding='utf-8',
+)
+
 script = r'''
 <script>
 (async function() {

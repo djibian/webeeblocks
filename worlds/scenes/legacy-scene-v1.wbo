@@ -1,0 +1,374 @@
+DEF WEBEEBLOCKS_LEGACY_SCENE Group {
+  children [
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_BEGIN
+DEF ACTIVITY5_FLOOR_EXTENSION Solid {
+  translation 1.25 2.25 -0.025
+  name "Activity 5 warehouse floor extension"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }
+      geometry Box { size 1.5 0.5 0.05 }
+    }
+  ]
+  boundingObject Box { size 1.5 0.5 0.05 }
+}
+# WEBEEBLOCKS_REACTIVE_FLOOR_EXTENSION_V1_END
+
+# WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN
+Pose {
+  translation 0 0 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.12 0.42 0.90
+        transparency 0.18
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.30 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 0.25 0 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.72 0.28
+        transparency 0.14
+        roughness 0.9
+      }
+      geometry Box { size 0.28 0.34 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_SEQUENCE_MISSION_V1_END
+
+# WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN
+Pose {
+  translation 0.30 0.40 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.72 0.10
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_END
+
+# WEBEEBLOCKS_REPEAT_MISSION_V1_BEGIN
+Pose {
+  translation 0.20 0.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.56 0.24 0.82
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.16 0.16 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 0.40 1.20 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.56 0.24 0.82
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.16 0.16 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 0.60 1.80 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.56 0.24 0.82
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.16 0.16 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 0.80 1.80 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.08 0.72 0.72
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_REPEAT_MISSION_V1_END
+
+# WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_BEGIN
+Pose {
+  translation 1.00 0.80 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.22 0.48 0.88
+        transparency 0.30
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_PASSAGES_V1_BEGIN
+Pose {
+  translation 1.30 0.80 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.66 0.92
+        transparency 0.16
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.00 1.10 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.66 0.92
+        transparency 0.16
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_PASSAGES_V1_END
+Pose {
+  translation 1.40 1.20 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.10 0.72 0.28
+        transparency 0.10
+        roughness 0.9
+      }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY4_BARRIER Solid {
+  translation 1.20 0.80 0.55
+  name "Activity 4 mobile barrier"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.90 0.08 0.08
+        roughness 0.5
+      }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_MISSION_V1_END
+
+# WEBEEBLOCKS_REACTIVE_MISSION_V1_BEGIN
+Pose {
+  translation 0.90 1.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.22 0.48 0.88
+        transparency 0.28
+        roughness 0.9
+      }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_BEGIN
+Pose {
+  translation 1.20 1.75 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.48 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.50 1.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.78 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.80 2.05 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.90 0.72 0.12 transparency 0.28 roughness 0.9 }
+      geometry Box { size 0.18 0.48 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_REACTIVE_ROW_CHECKPOINTS_V1_END
+Pose {
+  translation 1.80 1.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.12 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.80 2.20 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.12 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY5_BARRIER_1 Solid {
+  translation 1.05 1.60 0.55
+  name "Activity 5 row 1 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY5_BARRIER_2 Solid {
+  translation 1.35 2.20 0.55
+  name "Activity 5 row 2 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY5_BARRIER_3 Solid {
+  translation 1.65 1.90 0.55
+  name "Activity 5 row 3 parcel"
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.88 0.24 0.08 roughness 0.55 }
+      geometry Box { size 0.14 0.14 1.10 }
+    }
+  ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_REACTIVE_MISSION_V1_END
+
+# WEBEEBLOCKS_COMBINED_DECISIONS_MISSION_V1_BEGIN
+Pose {
+  translation 1.40 -0.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.22 0.48 0.88 transparency 0.24 roughness 0.9 }
+      geometry Box { size 0.20 0.20 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_BEGIN
+Pose {
+  translation 1.70 -0.60 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.40 -0.30 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+Pose {
+  translation 1.40 -0.90 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.66 0.92 transparency 0.16 roughness 0.9 }
+      geometry Box { size 0.18 0.18 0.004 }
+    }
+  ]
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_ROUTES_V1_END
+Pose {
+  translation 1.80 -0.30 0.002
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.10 0.72 0.28 transparency 0.10 roughness 0.9 }
+      geometry Box { size 0.24 0.24 0.004 }
+    }
+  ]
+}
+DEF ACTIVITY6_FRONT_BARRIER Solid {
+  translation 1.65 -0.60 0.55
+  name "Activity 6 front passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY6_LEFT_BARRIER Solid {
+  translation 1.40 -0.35 0.55
+  name "Activity 6 left passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+DEF ACTIVITY6_RIGHT_BARRIER Solid {
+  translation 1.40 -0.85 0.55
+  name "Activity 6 right passage blocker"
+  children [ Shape { appearance PBRAppearance { baseColor 0.84 0.16 0.10 roughness 0.55 } geometry Box { size 0.14 0.14 1.10 } } ]
+  boundingObject Box { size 0.14 0.14 1.10 }
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_MISSION_V1_END
+
+DEF FIRST_OBSTACLE Solid {
+  translation 0.45 0 0.55
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.85 0.15 0.1 roughness 0.6 }
+      geometry Box { size 0.06 0.12 1.1 }
+    }
+  ]
+  boundingObject Box { size 0.06 0.12 1.1 }
+}
+DEF SECOND_OBSTACLE Solid {
+  translation 0.70 0.30 0.55
+  children [
+    Shape {
+      appearance PBRAppearance { baseColor 0.9 0.55 0.05 roughness 0.6 }
+      geometry Box { size 0.06 0.12 1.1 }
+    }
+  ]
+  boundingObject Box { size 0.06 0.12 1.1 }
+}
+
+  ]
+}

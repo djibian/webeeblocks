@@ -11,6 +11,7 @@ def proofs_for_job(job: str) -> tuple[str, ...]:
     freshness = "tools/ci/run_runtime_v2_outcome_freshness.py"
     progression = (
         "tools/ci/run_progression_sequence_mission.py",
+        "tools/ci/run_classroom_neutral_start.py",
         "tools/ci/run_progression_repeat_mission.py",
         "tools/ci/run_progression_simple_decision_mission.py",
         "tools/ci/run_progression_reactive_mission.py",

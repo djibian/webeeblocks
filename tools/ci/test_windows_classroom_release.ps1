@@ -103,7 +103,9 @@ $required = @(
   'protos\meshes\ccw_prop.dae',
   'protos\textures\fast_helix.png',
   'worlds\crazyflie_runtime_v2.wbt',
-  'worlds\scenes\sequence-v1.wbo'
+  'worlds\scenes\sequence-v1.wbo',
+  'worlds\scenes\legacy-scene-v1.wbo',
+  'worlds\scenes\legacy-evaluators-v1.wbo'
 )
 foreach ($relative in $required) {
   Assert-Release (Test-Path -LiteralPath (Join-Path $testRoot $relative) -PathType Leaf) "Missing required release path: $relative"
@@ -118,8 +120,16 @@ Assert-Release ($version -eq '13.2.1') "Unexpected Blockly release version: $ver
 
 $worldPath = Join-Path $testRoot 'worlds\crazyflie_runtime_v2.wbt'
 $worldText = Get-Content -LiteralPath $worldPath -Raw
-# All four default Floor maps must be local, unchanged pinned R2025a bytes.
 $releaseRepo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+Assert-Release ($worldText.Contains('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {')) 'Release must open the typed neutral classroom world.'
+Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_SCENE')) 'Legacy scenario was preloaded before activity selection.'
+Assert-Release (-not $worldText.Contains('DEF WEBEEBLOCKS_LEGACY_EVALUATORS')) 'Legacy evaluators were preloaded before activity selection.'
+foreach ($scene in @('legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+  $source = Join-Path $releaseRepo "worlds\scenes\$scene"
+  $packaged = Join-Path $testRoot "worlds\scenes\$scene"
+  Assert-Release ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $packaged -Algorithm SHA256).Hash) "Restoration scene differs from exact source: $scene"
+}
+# All four default Floor maps must be local, unchanged pinned R2025a bytes.
 foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
   $texture = "chequered_parquetry_${map}.jpg"
   $relative = "worlds\textures\parquetry\$texture"

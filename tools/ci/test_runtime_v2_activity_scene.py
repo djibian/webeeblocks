@@ -44,6 +44,7 @@ struct Node{std::string def,type,text;bool alive=true;};
 Node root{"root","Group",""},view{"","Viewpoint",""},legacy{"WEBEEBLOCKS_LEGACY_SCENE","Group","DEF WEBEEBLOCKS_LEGACY_SCENE Group { children [] }"},evaluators{"WEBEEBLOCKS_LEGACY_EVALUATORS","Group","DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group { children [] }"},extra7{"ACTIVITY7_REFERENCE","Solid",""},extra8{"ACTIVITY8_REFERENCE","Solid",""},sequence{"WEBEEBLOCKS_SEQUENCE_SCENE","Group","",false};
 std::vector<Node*> nodes{&view,&legacy,&evaluators,&extra7,&extra8,&sequence};
 Node dedicated{"WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD","WorldInfo","",false};
+Node classroom{"WEBEEBLOCKS_CLASSROOM_START_WORLD","WorldInfo","",false};
 std::vector<std::string> removals;
 int legacyChildren=32,evaluatorChildren=6,sequenceChildren=18;
 bool rootOnly=false,partialEvaluators=false,partialLegacy=false;
@@ -70,8 +71,39 @@ extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const c
 int main(int argc,char**argv){
  assert(argc==2 || argc==3);std::string valid=argv[1];project=valid+"/missing";
  nodes.push_back(&dedicated);
+ nodes.push_back(&classroom);
  if(argc==3){
    const std::string mode=argv[2];
+   if(mode.rfind("classroom",0)==0){
+     legacy.alive=evaluators.alive=sequence.alive=extra7.alive=extra8.alive=false;
+     classroom.alive=true;
+     if(mode=="classroom-wrong-type")classroom.type="Group";
+     if(mode=="classroom-partial-existing"){legacy.alive=true;legacyChildren=31;}
+     if(mode!="classroom-missing")project=valid;
+     assert(!webeeblocks_activity_scene_ready());
+     if(mode=="classroom-missing"||mode=="classroom-bad-assets"||mode=="classroom-wrong-type"||mode=="classroom-partial-existing"){
+       assert(!webeeblocks_select_activity_scene("legacy-v1"));
+       assert(!webeeblocks_select_activity_scene("sequence-v1"));
+       assert(!webeeblocks_activity_scene_ready());
+       assert(removals.empty());
+     }else{
+       if(mode=="classroom-partial-import"){
+         partialLegacy=true;
+         assert(!webeeblocks_select_activity_scene("legacy-v1"));
+         assert(!webeeblocks_activity_scene_ready()&&!evaluators.alive);
+         partialLegacy=false;
+       }
+       assert(webeeblocks_select_activity_scene("sequence-v1"));
+       assert(webeeblocks_activity_scene_ready()&&sequence.alive&&!legacy.alive&&!evaluators.alive);
+       assert(webeeblocks_select_activity_scene("legacy-v1"));
+       assert(webeeblocks_activity_scene_ready()&&legacy.alive&&evaluators.alive&&!sequence.alive);
+       assert(p[0]==-2);
+       assert(webeeblocks_select_activity_scene("sequence-v1"));
+       assert(webeeblocks_activity_scene_ready()&&!legacy.alive&&!evaluators.alive);
+     }
+     std::cout<<"PASS typed neutral startup "<<mode<<"\n";
+     return 0;
+   }
    const bool partial=mode=="partial-scene"||mode=="partial-evaluators"||mode=="partial-null";
    if(partial) {
      sequence.alive=false;dedicated.alive=false;
@@ -140,6 +172,13 @@ int main(int argc,char**argv){
 }
 '''
 def main():
+    original=(ROOT/'worlds/crazyflie_runtime_v2.wbt').read_text()
+    legacy=re.search(r'(?ms)^DEF WEBEEBLOCKS_LEGACY_SCENE Group \{\n.*?^\}\n(?=\nCrazyflie \{)',original).group()
+    evaluators=original[original.index('DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group {'):]
+    assert (ROOT/'worlds/scenes/legacy-scene-v1.wbo').read_text()==legacy
+    assert (ROOT/'worlds/scenes/legacy-evaluators-v1.wbo').read_text()==evaluators
+    expected=original.replace(legacy,'').replace(evaluators,'').replace('WorldInfo {','DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {',1).replace('title "WebeeBlocks — obstacle réactif"','title "WebeeBlocks — accueil"')
+    assert (ROOT/'worlds/crazyflie_classroom_start.wbt').read_text()==expected
     scene=(ROOT/'worlds/scenes/sequence-v1.wbo').read_text()
     assert not re.search(r'\b(?:Solid|boundingObject|Physics)\b',scene)
     patches=re.findall(r'Pose \{ translation ([\d. -]+) children \[ Shape \{ appearance PBRAppearance \{ baseColor ([\d. ]+) roughness [\d.]+ \} geometry Box \{ size ([\d. ]+) \}',scene)
@@ -168,6 +207,8 @@ def main():
         for file in ['webots/robot.h','webots/supervisor.h']:
             path=root/file;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(HEADER)
         scenes=root/'worlds/scenes';scenes.mkdir(parents=True);(scenes/'sequence-v1.wbo').write_bytes((ROOT/'worlds/scenes/sequence-v1.wbo').read_bytes())
+        for name in ('legacy-scene-v1.wbo','legacy-evaluators-v1.wbo'):
+            (scenes/name).write_bytes((ROOT/'worlds/scenes'/name).read_bytes())
         (root/'probe.cpp').write_text(PROBE)
         compiler=['g++','-std=c++17','-Wall','-Wextra','-I',str(root),'-I',str(ROOT/'controllers/crazyflie_runtime_v2')]
         production=str(ROOT/'controllers/crazyflie_runtime_v2/activity_scene.cpp')
@@ -175,8 +216,19 @@ def main():
             '-Dwebeeblocks_select_activity_scene=restarted_select','-c',production,'-o',str(root/'restarted.o')],check=True)
         subprocess.run(compiler+[production,str(root/'probe.cpp'),str(root/'restarted.o'),'-o',str(root/'probe')],check=True)
         subprocess.run([str(root/'probe'),str(root)],check=True)
-        for mode in ('missing','wrong-type','dedicated','partial-scene','partial-evaluators','partial-null'):
+        for mode in ('missing','wrong-type','dedicated','partial-scene','partial-evaluators','partial-null',
+                     'classroom','classroom-missing','classroom-wrong-type',
+                     'classroom-partial-existing','classroom-partial-import'):
             subprocess.run([str(root/'probe'),str(root),mode],check=True)
+        for mutation in ('missing-scene','empty-evaluators','oversized-scene'):
+            case=root/mutation
+            target=case/'worlds/scenes';target.mkdir(parents=True)
+            for name in ('sequence-v1.wbo','legacy-scene-v1.wbo','legacy-evaluators-v1.wbo'):
+                (target/name).write_bytes((scenes/name).read_bytes())
+            if mutation=='missing-scene':(target/'legacy-scene-v1.wbo').unlink()
+            if mutation=='empty-evaluators':(target/'legacy-evaluators-v1.wbo').write_bytes(b'')
+            if mutation=='oversized-scene':(target/'legacy-scene-v1.wbo').write_bytes(b' ' * 32769)
+            subprocess.run([str(root/'probe'),str(case),'classroom-bad-assets'],check=True)
         source=(ROOT/'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
         types=source[source.index('typedef enum {'):source.index('static double clip(')]
         parser=source[source.index('static int extract_id('):source.index('static void trace_range(')]

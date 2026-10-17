@@ -1,0 +1,69 @@
+DEF WEBEEBLOCKS_LEGACY_EVALUATORS Group {
+  children [
+# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression precise movement evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "precise-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_PRECISE_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_REPEAT_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression repeat evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "repeat-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_REPEAT_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression simple decision evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "simple-decision-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_SIMPLE_DECISION_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression reactive evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "reactive-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_REACTIVE_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression combined decisions evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "combined-decisions-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_COMBINED_DECISIONS_EVALUATOR_V1_END
+
+# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression autonomous strategy evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "autonomous-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_AUTONOMOUS_EVALUATOR_V1_END
+  ]
+}

@@ -10,7 +10,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-ARTIFACT_ROOT = ROOT / "ci-artifacts" / "progression-sequence-mission"
+NEUTRAL_START = os.environ.get('WEBEEBLOCKS_CI_NEUTRAL_START') == '1'
+ARTIFACT_ROOT = ROOT / "ci-artifacts" / ("progression-neutral-start" if NEUTRAL_START else "progression-sequence-mission")
 WEBOTS_IMAGE = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 TEMP_WORLD = ROOT / "worlds" / "ci_progression_sequence.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_sequence.wbproj"
@@ -40,6 +41,10 @@ static void sequence_ci_position(const char *phase, int request_id,
     edits = (
         ('int main(void) {', helper + 'int main(void) {'),
         ('  send_text(PREFIX " READY");',
+         '  printf("WEBEEBLOCKS_SEQUENCE_CI_STARTUP legacy=%d evaluators=%d sequence=%d\\n",\n'
+         '         wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") != 0,\n'
+         '         wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") != 0,\n'
+         '         wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE") != 0);\n'
          '  sequence_ci_position("ready", -1, self_node, gps, translation_field);\n'
          '  send_text(PREFIX " READY");'),
         ('      request_t request = parse_request(message);',
@@ -98,10 +103,11 @@ def main() -> int:
         if result.returncode:
             return fail("progression mission source validation failed", result.stdout)
 
-    source_world = (ROOT / "worlds" / "crazyflie_runtime_v2.wbt").read_text(encoding="utf-8")
+    world_name = 'crazyflie_classroom_start.wbt' if NEUTRAL_START else 'crazyflie_runtime_v2.wbt'
+    source_world = (ROOT / "worlds" / world_name).read_text(encoding="utf-8")
     if source_world.count('window "blockly_v2"') != 1:
         return fail("Runtime v2 world Robot Window identity is ambiguous")
-    for marker in (
+    markers = (
         "WEBEEBLOCKS_SEQUENCE_MISSION_V1_BEGIN",
         "WEBEEBLOCKS_PRECISE_MOVEMENT_MISSION_V1_BEGIN",
         'name "Crazyflie WebeeBlocks"',
@@ -109,10 +115,16 @@ def main() -> int:
         '"sequence-evaluator-v1"',
         'name "Progression precise movement evaluator"',
         '"precise-evaluator-v1"',
-    ):
+    ) if not NEUTRAL_START else (
+        'DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {',
+        'name "Crazyflie WebeeBlocks"', 'name "Progression sequence evaluator"',
+        '"sequence-evaluator-v1"',
+    )
+    for marker in markers:
         if marker not in source_world:
             return fail(f"missing progression world marker: {marker}")
-    TEMP_WORLD.write_text(source_world.replace('window "blockly_v2"', 'window "sequence_probe"', 1), encoding="utf-8")
+    probe = 'sequence_neutral_probe' if NEUTRAL_START else 'sequence_probe'
+    TEMP_WORLD.write_text(source_world.replace('window "blockly_v2"', f'window "{probe}"', 1), encoding="utf-8")
     TEMP_PROJECT.write_text(
         "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
         encoding="utf-8",
@@ -167,6 +179,7 @@ trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
 timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_sequence.wbt
 '''.strip()
+        inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)
 
         env = os.environ.copy()
         run_result = subprocess.run(
@@ -174,7 +187,7 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
                 "docker", "run", "--rm",
                 "-e", "LIBGL_ALWAYS_SOFTWARE=true",
                 "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
-                "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/progression-sequence-mission",
+                "-e", f"WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/{ARTIFACT_ROOT.name}",
                 "-v", f"{ROOT}:/workspace",
                 "-w", "/workspace",
                 WEBOTS_IMAGE,
@@ -192,6 +205,8 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")
         if run_result.returncode not in (0, 124):
             return fail(f"Webots progression mission exited with {run_result.returncode}", webots_log[-14000:])
+        if NEUTRAL_START and webots_log.count('WEBEEBLOCKS_SEQUENCE_CI_STARTUP legacy=0 evaluators=0 sequence=0') != 1:
+            return fail('neutral launch did not prove absence of preloaded native scenarios', webots_log[-14000:])
 
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if not event_path.exists() or event_path.stat().st_size == 0:
@@ -241,6 +256,12 @@ timeout -k 5s 260s xvfb-run -a webots --stdout --stderr --batch --mode=realtime 
             return fail(f"missing causal progression events: {missing}", json.dumps(names))
 
         details = {name: next(event["detail"] for event in events if event.get("event") == name) for name in required}
+        if NEUTRAL_START:
+            refusals = [event for event in events if event.get('event') == 'NEUTRAL_TAKEOFF_REFUSED']
+            if len(refusals) != 1 or refusals[0]['detail'] != {'code':'SCENE_UNAVAILABLE'}:
+                return fail('missing exact native TAKEOFF refusal before scene preparation')
+            if names.index('NEUTRAL_TAKEOFF_REFUSED') > names.index('SEQUENCE_SCENE_ISOLATED'):
+                return fail('neutral TAKEOFF refusal did not precede scene selection')
         if details['SEQUENCE_SCENE_ISOLATED'] != {'scene':'sequence-v1'} or details['LEGACY_SCENE_RESTORED'] != {'scene':'legacy-v1'}:
             return fail('missing physical scene switch evidence')
         for event, scene in (("LEGACY_SCENE_REATTACHED", "legacy-v1"), ("SEQUENCE_SCENE_REATTACHED", "sequence-v1")):

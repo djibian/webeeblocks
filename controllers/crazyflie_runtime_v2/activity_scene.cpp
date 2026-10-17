@@ -24,6 +24,23 @@ std::string exported(const char *def) {
   const char *text = node ? wb_supervisor_node_export_string(node) : nullptr;
   return text ? std::string(text) : std::string();
 }
+bool classroomStart() {
+  WbNodeRef node = wb_supervisor_node_get_from_def("WEBEEBLOCKS_CLASSROOM_START_WORLD");
+  const char *type = node ? wb_supervisor_node_get_type_name(node) : nullptr;
+  return type && !std::strcmp(type, "WorldInfo");
+}
+std::string sceneFile(const char *name) {
+  const std::string path = std::string(wb_robot_get_project_path()) + "/worlds/scenes/" + name;
+  FILE *file = std::fopen(path.c_str(), "rb");
+  if (!file) return {};
+  char buffer[32769];
+  const size_t size = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+  const bool complete = !std::ferror(file) && std::feof(file);
+  std::fclose(file);
+  if (!complete || !size) return {};
+  buffer[size] = '\0';
+  return std::string(buffer, size);
+}
 bool completeGroup(const char *def, int expected) {
   WbNodeRef node = wb_supervisor_node_get_from_def(def);
   const char *type = node ? wb_supervisor_node_get_type_name(node) : nullptr;
@@ -98,9 +115,19 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   if (!saved) {
     legacyScene = exported("WEBEEBLOCKS_LEGACY_SCENE");
     legacyEvaluators = exported("WEBEEBLOCKS_LEGACY_EVALUATORS");
-    if (legacyScene.empty() || legacyEvaluators.empty() ||
-        !completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren) ||
-        !completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren)) return 0;
+    if (classroomStart() &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_SCENE") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_LEGACY_EVALUATORS") &&
+        !wb_supervisor_node_get_from_def("WEBEEBLOCKS_SEQUENCE_SCENE")) {
+      // A typed, empty classroom launch has no live scenario to export. Its
+      // versioned restoration assets remain subject to the same post-import
+      // type/count/node checks. An interrupted/partial scene is never empty.
+      legacyScene = sceneFile("legacy-scene-v1.wbo");
+      legacyEvaluators = sceneFile("legacy-evaluators-v1.wbo");
+      if (legacyScene.empty() || legacyEvaluators.empty()) return 0;
+    } else if (legacyScene.empty() || legacyEvaluators.empty() ||
+               !completeGroup("WEBEEBLOCKS_LEGACY_SCENE", kLegacySceneChildren) ||
+               !completeGroup("WEBEEBLOCKS_LEGACY_EVALUATORS", kLegacyEvaluatorChildren)) return 0;
     const double *p = wb_supervisor_field_get_sf_vec3f(position);
     const double *o = wb_supervisor_field_get_sf_rotation(orientation);
     if (!p || !o) return 0;
@@ -110,16 +137,8 @@ extern "C" int webeeblocks_select_activity_scene(const char *scene) {
   }
   std::string nextScene;
   if (std::strcmp(scene, "sequence-v1") == 0) {
-    const std::string path = std::string(wb_robot_get_project_path()) + "/worlds/scenes/sequence-v1.wbo";
-    FILE *file = std::fopen(path.c_str(), "rb");
-    if (!file) return 0;
-    char buffer[32769];
-    const size_t size = std::fread(buffer, 1, sizeof(buffer) - 1, file);
-    const bool complete = !std::ferror(file) && std::feof(file);
-    std::fclose(file);
-    if (!complete || !size) return 0;
-    buffer[size] = '\0';
-    nextScene.assign(buffer, size);
+    nextScene = sceneFile("sequence-v1.wbo");
+    if (nextScene.empty()) return 0;
   }
   ready = false;
   // Stop controllers before removing any node to which they hold field refs.
