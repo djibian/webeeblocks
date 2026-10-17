@@ -30,7 +30,7 @@ function build(){
    body:[iff(cmp('GT',v('avant'),.73),[move(.1)],[move(.1,'back')]),set('avant',range('front'))]},
   vertical('down'),set('bas',range('front')),
   iff(and(cmp('LT',v('avant'),1.99),and(cmp('GTE',v('bas'),ar('MINUS',v('avant'),.08)),cmp('LTE',v('bas'),ar('ADD',v('avant'),.08)))),
-   [iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right')])],
+   [iff(cmp('EQ',v('portes'),2),[move(.4,'left'),move(.1,'left')]),iff(cmp('EQ',v('portes'),3),[move(.4,'right'),move(.1,'right'),move(.1,'right')])],
    [set('invalide',1)]),set('côté terminé',1)];
  const turnCorner=[{kind:'turn',angle_deg:90},set('droite',range('right')),
   {kind:'while',mode:'UNTIL',condition:cmp('GTE',v('droite'),.44),max_iterations:5,
