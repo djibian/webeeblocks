@@ -110,6 +110,15 @@ window.addEventListener('unhandledrejection', function(event) {
     }
     const evaluation = {type:'mission-state-v1', oracle:'progression-sequence-v1'};
     await report('SEQUENCE_PROBE_READY', {ready:backend.ready});
+    if (window.WebeeBlocksNeutralStartupProbe === true) {
+      try {
+        await backend.takeoff(0.5);
+        throw new Error('neutral startup accepted TAKEOFF before SCENE');
+      } catch (error) {
+        if (!error || error.code !== 'SCENE_UNAVAILABLE') throw error;
+        await report('NEUTRAL_TAKEOFF_REFUSED', {code:error.code});
+      }
+    }
     await backend.prepareActivity({id:'progression-sequence-v1'});
     await report('SEQUENCE_SCENE_ISOLATED', {scene:'sequence-v1'});
 

@@ -1,0 +1,156 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+
+DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {
+  basicTimeStep 32
+  randomSeed 1
+  optimalThreadCount 1
+  title "WebeeBlocks — accueil"
+}
+Viewpoint {
+  orientation -0.45 0.47 0.76 1.05
+  position -2.4 -2.4 2.2
+  follow "Crazyflie WebeeBlocks"
+}
+TexturedBackground { }
+TexturedBackgroundLight { }
+Floor { size 4 4 }
+
+
+Crazyflie {
+  name "Crazyflie WebeeBlocks"
+  controller "crazyflie_runtime_v2"
+  window "blockly_v2"
+  supervisor TRUE
+  synchronization TRUE
+  extensionSlot [
+    # WEBEEBLOCKS_COLOR_LED_DECK_VISUAL_V1_BEGIN
+    Pose {
+      translation 0 0 0.0066
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.04 0.09 0.05
+            roughness 0.62
+            metalness 0
+          }
+          geometry Box {
+            size 0.0347 0.0347 0.0015
+          }
+        }
+        Pose {
+          translation -0.0135 -0.0135 0.004
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
+              geometry Box { size 0.0022 0.0022 0.0065 }
+            }
+          ]
+        }
+        Pose {
+          translation -0.0135 0.0135 0.004
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
+              geometry Box { size 0.0022 0.0022 0.0065 }
+            }
+          ]
+        }
+        Pose {
+          translation 0.0135 -0.0135 0.004
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
+              geometry Box { size 0.0022 0.0022 0.0065 }
+            }
+          ]
+        }
+        Pose {
+          translation 0.0135 0.0135 0.004
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.18 roughness 0.35 metalness 0.2 }
+              geometry Box { size 0.0022 0.0022 0.0065 }
+            }
+          ]
+        }
+        LED {
+          translation 0 0 -0.0058
+          name "color_led"
+          gradual TRUE
+          color [ ]
+          children [
+            Group {
+              children [
+                Shape {
+                  appearance PBRAppearance {
+                    baseColor 0.82 0.84 0.82
+                    emissiveColor 0 0 0
+                    transparency 0.12
+                    roughness 0.25
+                    metalness 0
+                  }
+                  geometry Cylinder {
+                    height 0.0101
+                    radius 0.01735
+                    subdivision 48
+                  }
+                }
+                Shape {
+                  appearance PBRAppearance {
+                    baseColor 0.10 0.10 0.10
+                    emissiveColor 0 0 0
+                    transparency 0.78
+                    roughness 0.25
+                    metalness 0
+                  }
+                  geometry Cylinder {
+                    height 0.012
+                    radius 0.022
+                    subdivision 48
+                  }
+                }
+                PointLight {
+                  attenuation 1 0 300
+                  intensity 0.7
+                  radius 0.18
+                  castShadows FALSE
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    # WEBEEBLOCKS_COLOR_LED_DECK_VISUAL_V1_END
+    Pose {
+      translation 0 0 0.02
+      rotation 0 1 0 -1.57079632679
+      children [
+        DistanceSensor {
+          name "range_up"
+          lookupTable [
+            0 0 0
+            2 2000 0
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_BEGIN
+Robot {
+  name "Progression sequence evaluator"
+  controller "crazyflie_runtime_v2"
+  controllerArgs [
+    "sequence-evaluator-v1"
+  ]
+  supervisor TRUE
+}
+# WEBEEBLOCKS_SEQUENCE_EVALUATOR_V1_END
+

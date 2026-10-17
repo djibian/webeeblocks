@@ -300,7 +300,7 @@ foreach ($map in @('base_color', 'roughness', 'normal', 'occlusion')) {
     (Join-Path $packageDir "worlds\textures\parquetry\$texture")
 }
 
-$worldSource = Join-Path $repoRoot 'worlds\crazyflie_runtime_v2.wbt'
+$worldSource = Join-Path $repoRoot 'worlds\crazyflie_classroom_start.wbt'
 $worldText = Get-Content -LiteralPath $worldSource -Raw
 $remotePrefix = 'https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/'
 if (($worldText.Split($remotePrefix).Count - 1) -ne 4) {
@@ -352,9 +352,11 @@ if ($worldText -match '"(?:https?|webots)://') {
   throw 'The classroom world still contains a remote runtime asset.'
 }
 Write-Utf8NoBom (Join-Path $packageDir 'worlds\crazyflie_runtime_v2.wbt') $worldText
-Copy-RequiredFile `
-  (Join-Path $repoRoot 'worlds\scenes\sequence-v1.wbo') `
-  (Join-Path $packageDir 'worlds\scenes\sequence-v1.wbo')
+foreach ($scene in @('sequence-v1.wbo', 'legacy-scene-v1.wbo', 'legacy-evaluators-v1.wbo')) {
+  Copy-RequiredFile `
+    (Join-Path $repoRoot "worlds\scenes\$scene") `
+    (Join-Path $packageDir "worlds\scenes\$scene")
+}
 Copy-RequiredFile `
   (Join-Path $repoRoot 'worlds\.crazyflie_runtime_v2.wbproj') `
   (Join-Path $packageDir 'worlds\.crazyflie_runtime_v2.wbproj')
