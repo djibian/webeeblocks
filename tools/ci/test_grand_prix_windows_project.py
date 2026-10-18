@@ -42,6 +42,13 @@ def verify(package):
     assert starter.read_bytes() == (ROOT / 'activities/grand-prix/02-grand-prix-u.wbb').read_bytes()
     assert json.loads(starter.read_text(encoding='utf-8'))['activity']['id'] == 'progression-grand-prix-u-v1'
     assert len(list((package / 'Activites').glob('*.wbb'))) == 1
+    # The teacher demo is separately packaged, never exposed as a pupil starter.
+    demo = package / 'Exemples/Grand-Prix-demo-enseignant.wbb'
+    project = json.loads(demo.read_text(encoding='utf-8'))
+    assert project['format'] == 'webeeblocks-project' and project['version'] == 1
+    assert project['activity'] == {'id': 'progression-grand-prix-u-v1', 'semantics': 'webeeblocks-ast-v1'}
+    assert project['workspace']['blocks']['blocks'], 'Teacher demonstration must not be empty'
+    assert len(list((package / 'Exemples').glob('*.wbb'))) == 1
     launcher = (package / 'Launch-WebeeBlocks.ps1').read_text(encoding='utf-8-sig')
     assert 'WEBEEBLOCKS_GP_PYTHON_DIR' in launcher
     assert "if ($seed -notin @('0', '1', '4'))" in launcher

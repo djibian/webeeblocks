@@ -13,6 +13,12 @@ Attendre PRÊT puis utiliser « Démarrer une activité » pour le Grand Prix.
 Les fichiers `.wbb` restent ordinaires : Enregistrer sous au premier
 enregistrement, Enregistrer pour le même fichier, Ouvrir pour reprendre.
 Un même programme enregistré peut être essayé dans les trois configurations.
+Pour la qualification par l'enseignant, ouvrir avec « Ouvrir » le projet
+`Exemples/Grand-Prix-demo-enseignant.wbb` : ce programme Blockly témoin complet,
+produit et vérifié à partir de l'AST sensoriel ordinaire du dépôt, sert à tester
+les trois configurations sans le reconstruire manuellement. Il n'est pas
+un corrigé destiné à être distribué aux élèves. Le fichier de départ
+`Activites/08-grand-prix-u.wbb` reste délibérément vide.
 Les commandes pas à pas restent exclusivement simulées ; le temps Webots
 continue d'appartenir à la mission et son plafond de 210 s reste inchangé.
 

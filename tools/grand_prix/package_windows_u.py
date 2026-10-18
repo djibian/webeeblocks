@@ -145,6 +145,13 @@ def compose(classroom, controller, evaluator, output, sha):
     launcher.write_text(text, encoding='utf-8-sig')
     (output / 'Activites').mkdir()
     shutil.copyfile(ROOT / 'activities/grand-prix/02-grand-prix-u.wbb', output / 'Activites/08-grand-prix-u.wbb')
+    # Teacher-only runnable witness: do not replace the empty pupil starter.
+    demonstration = output / 'Exemples/Grand-Prix-demo-enseignant.wbb'
+    demonstration.parent.mkdir()
+    subprocess.run(['node', str(ROOT / 'tools/grand_prix/witness_workspace_u.js'),
+                    str(demonstration)], cwd=ROOT, check=True)
+    if not demonstration.is_file() or demonstration.stat().st_size == 0:
+        raise ValueError('Teacher Grand Prix witness was not generated')
     shutil.copyfile(ROOT / 'docs/GRAND_PRIX_WINDOWS_PROJECT.md', output / 'README-WINDOWS.md')
     (output / 'SOURCE_SHA').write_text(sha + '\n', encoding='utf-8')
     (output / 'COMPOSITION.json').write_text(json.dumps(inputs, sort_keys=True, indent=2) + '\n', encoding='utf-8')
