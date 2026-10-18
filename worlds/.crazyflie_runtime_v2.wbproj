@@ -3,4 +3,5 @@ perspectives: 000000ff00000000fd0000000200000001000000fc0000031afc0200000001fb00
 simulationViewPerspectives: 000000ff000000010000000200000000000008e20100000002010000000100
 maximizedDockId: -1
 centralWidgetVisible: 1
+renderingDevicePerspectives: Crazyflie WebeeBlocks:camera;0;1;0;0
 robotWindow: Crazyflie WebeeBlocks

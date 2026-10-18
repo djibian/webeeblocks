@@ -269,6 +269,33 @@ class WindowsReleaseContractTests(unittest.TestCase):
             readme,
         )
 
+    def test_webots_perspective_hides_camera_overlay_only(self) -> None:
+        # The R2025a Crazyflie PROTO has a 324x324 Camera device named
+        # "camera". Its magenta-bordered image overlay must not cover the
+        # pupil's 3D world, but the Camera sensor stays in the robot.
+        perspective = (ROOT / "worlds" / ".crazyflie_runtime_v2.wbproj").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(
+            re.findall(r"(?m)^renderingDevicePerspectives: .+$", perspective),
+            ["renderingDevicePerspectives: Crazyflie WebeeBlocks:camera;0;1;0;0"],
+        )
+        world = (ROOT / "worlds" / "crazyflie_runtime_v2.wbt").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('Crazyflie {', world)
+        self.assertIn('  name "Crazyflie WebeeBlocks"', world)
+        launcher = (PACKAGING / "Launch-WebeeBlocks.ps1").read_text(
+            encoding="utf-8"
+        )
+        # Session .wbproj inherits all device perspectives; only robotWindow
+        # is stripped to prevent Webots opening a duplicate browser.
+        self.assertIn("$sessionPerspectiveText = [regex]::Replace(", launcher)
+        self.assertIn(
+            "[System.IO.File]::WriteAllText($sessionPerspective, $sessionPerspectiveText",
+            launcher,
+        )
+
     def test_launcher_opens_only_packaged_world_with_r2025a(self) -> None:
         launcher = (PACKAGING / "Launch-WebeeBlocks.ps1").read_text(
             encoding="utf-8"
