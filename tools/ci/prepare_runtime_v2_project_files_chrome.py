@@ -123,7 +123,9 @@ harness = r'''
 
     window.addEventListener('load', async function() {
       try {
-        await waitFor(() => window.workspace && window.WebeeBlocksProjectManager, 'project manager', 10000);
+        // Runtime READY has a 35 s transport budget; the CI browser must not
+        // time out before that same product handshake can finish on software GL.
+        await waitFor(() => window.workspace && window.WebeeBlocksProjectManager, 'project manager', 35000);
         await report('FILE_API_BOUNDARY', window.__webeeblocksCiRealFileApi);
         if (String(Blockly.VERSION) !== '13.2.1') throw new Error('unexpected Blockly version ' + Blockly.VERSION);
         if (!document.getElementById('projectOpen') || !document.getElementById('projectSave') || !document.getElementById('projectSaveAs'))
