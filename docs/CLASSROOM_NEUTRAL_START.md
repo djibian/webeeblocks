@@ -45,11 +45,12 @@ retenir taille et SHA-256 du binaire réellement produit et actualiser le verrou
 Une CI Ready ne peut réutiliser ni un cache d'une autre source ni l'ancien
 digest. Cette maintenance ne constitue aucune qualification physique.
 
-Ce résultat traite le monde de départ de #621 et est intégré via #623.
-La perspective des panneaux est également intégrée via #622. Leur présence
-dans le code et les tests ne constitue pas une validation humaine du rendu
-Windows : le rectangle noir signalé au démarrage reste de cause inconnue et
-l'expérience complète doit être observée sur Webots R2025a. Un checkpoint
-Windows séparé est requis pour statuer sur le démarrage exact ; aucun PASS du
-nouveau paquet, acceptation du Grand Prix ou vol réel n'est déduit de ces
-changements.
+Le monde neutre (#623), la perspective des panneaux (#622) et la suppression
+de l'overlay visible (#630) sont intégrés. Le [PASS humain #632](https://github.com/djibian/webeeblocks/issues/632#issuecomment-6247199523)
+sur le SHA exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`, Windows /
+Webots R2025a / Chrome, confirme sur cet artefact le démarrage `PRÊT`,
+l'absence du rectangle noir, les panneaux masqués et réouvrables, ainsi
+que les scénarios positif/négatif, RESET, transitions de scènes, Save/Open
+`.wbb` et pas-à-pas. #621 est clôturée ; l'ancien FAIL #629 reste historique.
+Ce PASS ne concerne ni le Grand Prix, ni l'acceptation des activités 2–7,
+ni le vol réel.

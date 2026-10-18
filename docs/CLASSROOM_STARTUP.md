@@ -26,23 +26,25 @@ les panneaux sont visibles, aux largeurs 800 et 1800 px : éditeur caché,
 console visible, largeur d'arbre nulle, vue 3D positive ; réouverture des deux
 panneaux possible. Cela vérifie le format Qt, pas le rendu réel Windows/R2025a.
 
-## Frontières encore ouvertes de #621
+## Qualification Windows de l'accueil — #621 clôturée
 
-Les changements #622 (perspective) et #623 (vrai monde d'accueil neutre)
-sont désormais intégrés. Le paquet Windows utilise ce monde au démarrage ;
-les anciennes scènes ne sont chargées qu'après la sélection explicite de
-l'activité. La CI de #623 a vérifié le changement de scènes, le refus d'un
-TAKEOFF sans SCENE et la fermeture du paquet, mais **pas** le rendu graphique
-sur le poste Windows de référence. La disparition du rectangle noir et le
-parcours complet de démarrage restent donc à observer dans #621 ; aucune
-acceptation humaine du nouveau paquet n'est encore établie.
-Le Runtime n'active pas la caméra 324 × 324 du PROTO Crazyflie. Le code R2025a
-de `WbWrenTextureOverlay` alloue une image noire sans données mais **masque
-initialement** l'overlay. L'hypothèse d'un aperçu caméra restauré doit donc
-être vérifiée sur la fenêtre observée ; la présence de la caméra seule ne
-prouve pas l'origine du rectangle. Ne pas supprimer le capteur ou modifier le
-rendu global pour masquer une cause non établie.
+Les corrections #622 (panneaux), #623 (monde d'accueil neutre) et #630
+(perspective de l'overlay Camera Webots 324 × 324, sans suppression du capteur)
+sont intégrées. Leur résultat réel a été **accepté par le propriétaire** au
+[checkpoint #632](https://github.com/djibian/webeeblocks/issues/632#issuecomment-6247199523),
+sur le SHA exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`,
+l'artefact Windows `WebeeBlocks-Windows-R2025a` ID `12127577400`
+et Webots R2025a + Chrome. L'issue #621 est clôturée.
 
-Le PASS humain #619 accepte l'activité 1 au SHA
-`a38839628c99bf38278ca950ed8e68f363d1b5b3`. Il ne constitue pas un test de
-cette nouvelle perspective ni une acceptation du Grand Prix ou d'un vol réel.
+Le PASS observé couvre l'accueil neutre et `PRÊT`, l'absence du rectangle noir
+bordé de magenta, les panneaux initialement masqués puis réouvrables, la caméra,
+les cas nominal et négatif de l'activité 1, RESET, le parcours 2 → 1,
+Enregistrer sous / Enregistrer / Ouvrir `.wbb`, la restauration de scène
+et le pas-à-pas. La correspondance de l'ancien rectangle avec l'overlay motive
+#630 ; le PASS constate sa disparition dans cet environnement, sans prouver
+une absence universelle de défaut sur toute plateforme.
+
+Le [FAIL #629](https://github.com/djibian/webeeblocks/issues/629) sur son
+ancien SHA et le [PASS pédagogique #619](https://github.com/djibian/webeeblocks/issues/619)
+sur `a38839628c99bf38278ca950ed8e68f363d1b5b3` gardent chacun leur sujet.
+#632 n'accepte ni le Grand Prix, ni les activités 2–7, ni le vol réel.
