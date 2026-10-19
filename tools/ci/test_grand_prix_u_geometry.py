@@ -1,11 +1,15 @@
 """Geometric counterexamples, independent of any reference solution."""
+import csv
 import dataclasses
+from io import StringIO
+import json
 import math
 from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.layout_u import generate, world_text, local, RADIUS
+from tools.grand_prix.contact_trace import encode_contact_points
 
 
 def gap(p, b):
@@ -73,6 +77,34 @@ class Tests(unittest.TestCase):
                 self.assertTrue(all('geometry Box { size .0625 .0625 .0002 }' in line
                                     for line in markers))
             self.assertEqual(len(layout.gate_boxes), len(generate(seed).gate_boxes))
+
+
+    def test_native_contact_manifold_trace_is_ordered_lossless_and_explicit(self):
+        # Trace metadata only. The oracle still consumes the original points.
+        class Contact:
+            def __init__(self, point):
+                self.point = point
+
+        contacts = [Contact((0.2, -0.4, 0.015)),
+                    Contact((0.12, -0.41, 0.011)),
+                    Contact((-0.08, 0.3, 0.017))]
+        self.assertEqual(encode_contact_points(None), '')
+        self.assertEqual(encode_contact_points([]), '[]')
+        encoded = encode_contact_points(contacts)
+        self.assertEqual(json.loads(encoded), [list(c.point) for c in contacts])
+        out = StringIO()
+        writer = csv.writer(out)
+        writer.writerow(['contact_count', 'contact_points_xyz'])
+        writer.writerow([len(contacts), encoded])
+        writer.writerow([0, encode_contact_points([])])
+        out.seek(0)
+        rows = list(csv.DictReader(out))
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(int(rows[0]['contact_count']), len(json.loads(rows[0]['contact_points_xyz'])))
+        self.assertEqual(json.loads(rows[1]['contact_points_xyz']), [])
+        for bad in [(1, 2), (1, float('nan'), 3), (0, float('inf'), 3)]:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                encode_contact_points([Contact(bad)])
 
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):

@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from controller import Supervisor
 from tools.grand_prix.layout_u import generate
+from tools.grand_prix.contact_trace import encode_contact_points
 from tools.grand_prix.oracle_u import Attempt, ORACLE
 robot=Supervisor();step=int(robot.getBasicTimeStep())
 layout=generate(int(sys.argv[1]),float(sys.argv[2]))
@@ -27,7 +28,7 @@ trace_path=os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR')
 trace_file=(Path(trace_path)/'native_trace.csv').open('w',buffering=1) if trace_path else None
 trace=csv.writer(trace_file) if trace_file else None
 if trace:trace.writerow(['time','attempt','x','y','z','vx','vy','vz',*[f'r{i}' for i in range(9)],
-                        'contact_count','contact_min_z','contact_max_z'])
+                        'contact_count','contact_min_z','contact_max_z','contact_points_xyz'])
 robot.setLabel(0,f'{layout.identifier} — prêt',.02,.03,.065,0xFFFFFF,0,'Arial')
 while robot.step(step)!=-1:
     now=robot.getTime();data=channel.getSFString()
@@ -40,7 +41,8 @@ while robot.step(step)!=-1:
     contact_z=[c.point[2] for c in contacts] if contacts is not None else []
     if trace:trace.writerow([now,active.attempt if active else 0,*vehicle.getPosition(),*vehicle.getVelocity()[:3],*vehicle.getOrientation(),
                             len(contacts) if contacts is not None else '',
-                            min(contact_z) if contact_z else '',max(contact_z) if contact_z else ''])
+                            min(contact_z) if contact_z else '',max(contact_z) if contact_z else '',
+                            encode_contact_points(contacts)])
     if active is None:continue
     marker=re.fullmatch(r'GP_U_START attempt=(\d+) start_ms=(\d+) state=(admitted|deadline|failed)',control.getSFString())
     if marker and int(marker[1])==active.attempt:
