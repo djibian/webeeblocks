@@ -77,10 +77,18 @@ def main() -> int:
 
     inner = r'''
 set -e
+# Fail closed with the failing phase named. wget -q otherwise hides HTTP errors
+# and a pre-Webots exit can be mistaken for an outcome freshness failure.
+phase=apt_index
+trap 'rc=$?; printf "WEBEEBLOCKS_OUTCOME_PROBE_STEP_FAILED phase=%s exit=%d\n" "$phase" "$rc" >&2; exit "$rc"' ERR
 apt-get update >/dev/null
+phase=apt_packages
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+phase=chrome_download
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+phase=chrome_install
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+phase=webots_setup
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/runtime-v2-outcome-provider /root/.config/Cyberbotics
 printf "%s\n" \
@@ -93,6 +101,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
+phase=webots_execution
 timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/runtime_v2_outcome_probe.wbt
 '''.strip()
 
