@@ -34,14 +34,6 @@ RUNTIME = (
     "plugins/robot_windows/blockly/webeeblocks/**",
     "tools/prepare_runtime_v2.*",
     "tools/ci/*runtime_v2*",
-    # Each of these runs or checks the autonomous R2025a RESET probe.
-    # Their earlier generic tools/ci match selected Webots only, silently
-    # skipping the real runtime-v2-core job that owns their native evidence.
-    "tools/ci/run_progression_autonomous_mission.py",
-    "tools/ci/test_progression_autonomous_contract.js",
-    "tools/ci/fixtures/autonomous_reset_observer.py",
-    "tools/ci/reset_native_summary.py",
-    "tools/ci/test_reset_native_summary.py",
     "tools/ci/test_physical_host_activation.py",
     "experiments/runtime-v2-student-ui/**",
 )
@@ -62,6 +54,14 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # Each of these runs or checks the autonomous R2025a RESET probe.
+    # Their earlier generic tools/ci match selected Webots only, silently
+    # skipping the real runtime-v2-core job that owns their native evidence.
+    "tools/ci/run_progression_autonomous_mission.py",
+    "tools/ci/test_progression_autonomous_contract.js",
+    "tools/ci/fixtures/autonomous_reset_observer.py",
+    "tools/ci/reset_native_summary.py",
+    "tools/ci/test_reset_native_summary.py",
     "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
