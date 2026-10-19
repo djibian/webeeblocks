@@ -53,6 +53,25 @@ class Tests(unittest.TestCase):
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
+    def test_terminal_closed_h_has_distinct_uprights_and_blocking_infill(self):
+        for seed in (0, 1, 2, 5):
+            layout = generate(seed)
+            text = world_text(layout)
+            # Native geometry probe still locates the same GP_U_BOX index and
+            # validates the same complete collision barrier boundingObject.
+            name = f'DEF GP_U_BOX_{len(layout.boxes)-1} Solid {{'
+            terminal = [line for line in text.splitlines()
+                        if line.startswith(name)]
+            self.assertEqual(len(terminal), 1)
+            visual = terminal[0]
+            self.assertIn('name "H final fermé"', visual)
+            self.assertEqual(visual.count('Pose { translation'), 4)
+            self.assertEqual(visual.count('geometry Box { size'), 4)
+            self.assertIn('baseColor .82 .16 .13', visual)
+            self.assertIn('geometry Box { size 0.040000 0.560000 0.620000 }', visual)
+            self.assertIn('boundingObject Box { size 0.040000 1.840000 1.300000 }', visual)
+            self.assertEqual(text.count('DEF GP_U_BOX_'), len(layout.boxes))
+
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
             with self.assertRaises(ValueError): generate(seed)
