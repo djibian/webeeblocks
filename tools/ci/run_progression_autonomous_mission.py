@@ -98,6 +98,7 @@ def main() -> int:
 
     checks = (
         [sys.executable, "tools/ci/test_runtime_v2_autonomous_observer.py"],
+        [sys.executable, "tools/ci/test_reset_native_summary.py"],
         ["node", "tools/ci/test_progression_autonomous_contract.js"],
         ["node", "--check", "plugins/robot_windows/autonomous_probe/autonomous_probe.js"],
     )
@@ -379,6 +380,16 @@ exit "$runner_rc"
         print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, pairs identical downstream worlds with both parcel classes, proves downstream sensing cannot replace departure memory, accepts two distinct stored-value strategies, and rejects fixed-route, front-only and incomplete shortcuts from observable world state in real R2025a")
         return 0
     finally:
+        # Supplemental forensic report only; no reset/CI decision is taken here.
+        # On a failing probe the raw trace, or its explicit absence, remains primary.
+        try:
+            from reset_native_summary import summarize
+            forensic_report = summarize(ARTIFACT_ROOT / "native-reset-state.jsonl")
+        except Exception as exc:
+            forensic_report = {"schema": "webeeblocks-reset-native-forensics-v1",
+                               "status": "UNPROVEN", "error": str(exc)}
+        (ARTIFACT_ROOT / "native-reset-summary.json").write_text(
+            json.dumps(forensic_report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         # Preserve byte identity even for a failing/partial native campaign.
         digests = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                    for path in ARTIFACT_ROOT.iterdir() if path.is_file()}
