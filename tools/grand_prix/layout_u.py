@@ -146,7 +146,30 @@ def world_text(layout, *, controller='<none>', window='<none>',
              f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']
     for i, b in enumerate(layout.boxes):
         dims = f'{b.sx:.6f} {b.sy:.6f} {b.sz:.6f}'
-        lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor .75 .55 .25 roughness 1 }} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
+        if i == len(layout.boxes)-1:
+            # Show a genuine closed H, not an undifferentiated terminal wall:
+            # two full-height uprights, high crossbar and red blocking infill.
+            # Preserve the exact versioned collider Box and DEF for the native
+            # geometry probe and the independent no-bypass oracle.
+            pillar_width = (ARRIVAL_WIDTH - GAP) / 2
+            pillar_offset = (ARRIVAL_WIDTH + GAP) / 4
+            upper_height = WALL_HEIGHT - TOP_BOTTOM
+            shapes = []
+            for y, z, sy, sz, color in (
+                    (-pillar_offset, 0., pillar_width, WALL_HEIGHT, '.75 .55 .25'),
+                    (pillar_offset, 0., pillar_width, WALL_HEIGHT, '.75 .55 .25'),
+                    (0., TOP_BOTTOM/2, GAP, upper_height, '.75 .55 .25'),
+                    (0., -upper_height/2, GAP, TOP_BOTTOM, '.82 .16 .13')):
+                shapes.append(
+                    f'Pose {{ translation 0 {y:.6f} {z:.6f} children [ '
+                    f'Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} '
+                    f'geometry Box {{ size {b.sx:.6f} {sy:.6f} {sz:.6f} }} }} ] }}')
+            lines.append(
+                f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} '
+                f'name "H final fermé" children [ {" ".join(shapes)} ] '
+                f'boundingObject Box {{ size {dims} }} }}')
+        else:
+            lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor .75 .55 .25 roughness 1 }} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
     def mark(name, x, y, sx, sy, color):
         lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
