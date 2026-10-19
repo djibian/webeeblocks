@@ -150,6 +150,15 @@ def world_text(layout, *, controller='<none>', window='<none>',
     def mark(name, x, y, sx, sy, color):
         lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
+    # Non-colliding white course guide. The three legs form a single U;
+    # visual marks cannot enforce track boundaries or replace the oracle.
+    guide = (
+        (layout.side/2, 0., layout.side, .025),
+        (layout.side, layout.side/2, .025, layout.side),
+        (layout.side/2, layout.side, layout.side, .025),
+    )
+    for i, (x, y, sx, sy) in enumerate(guide):
+        mark(f'GP_U_GUIDE_{i}', x, y, sx, sy, '1 1 1')
     for count in (1, 2, 3):
         x, y = layout.landing_target(count)
         mark(f'GP_U_TARGET_{count}', x, y, .28, .28, '.10 .72 .28')
