@@ -122,8 +122,16 @@ def generate(seed, side=2.):
                              .48 if horizontal else .04, .04 if horizontal else .48, 1.3))
         boxes.append(Box(g.x, g.y, (.62+1.3)/2, .04 if horizontal else GAP,
                          GAP if horizontal else .04, 1.3-.62))
-    # Full arrival width, with no side or high bypass within the permitted z.
-    boxes.append(Box(0., side, .65, .04, ARRIVAL_WIDTH+.04, WALL_HEIGHT))
+    # A recognisable closed H: two full-height uprights, one mid-height
+    # horizontal beam, and a *visible translucent* full-height closure panel.
+    # All four are physical Solid colliders. The panel keeps the previously
+    # proven whole-width, whole-height no-bypass envelope: no invisible wall.
+    boxes.extend((
+        Box(0., side-.87, .65, .08, .10, WALL_HEIGHT),
+        Box(0., side+.87, .65, .08, .10, WALL_HEIGHT),
+        Box(0., side, .75, .08, ARRIVAL_WIDTH+.04, .12),
+        Box(0., side, .65, .04, ARRIVAL_WIDTH+.04, WALL_HEIGHT),
+    ))
     return Layout(seed, side, tuple(gates), (closed,), tuple(walls), tuple(boxes), polygon)
 
 
@@ -146,7 +154,12 @@ def world_text(layout, *, controller='<none>', window='<none>',
              f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']
     for i, b in enumerate(layout.boxes):
         dims = f'{b.sx:.6f} {b.sy:.6f} {b.sz:.6f}'
-        lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor .75 .55 .25 roughness 1 }} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
+        # The terminal closure is translucent but deliberately visible and
+        # collidable. The opaque uprights/crossbar make the closed H legible.
+        appearance = ('PBRAppearance { baseColor .35 .65 .58 roughness .55 transparency .65 }'
+                      if i == len(layout.boxes)-1 else
+                      'PBRAppearance { baseColor .75 .55 .25 roughness 1 }')
+        lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance {appearance} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
     def mark(name, x, y, sx, sy, color):
         lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
