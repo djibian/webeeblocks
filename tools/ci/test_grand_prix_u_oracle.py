@@ -6,7 +6,8 @@ import sys
 from types import SimpleNamespace as N
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed, inside, swept_inside
+from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed, inside, swept_inside, swept_envelope_inside, RADIUS
+from tools.grand_prix.layout_u import generate
 
 FIXTURE=Path(__file__).with_name('fixtures')/'grand_prix_u_geometry.json'
 
@@ -200,6 +201,50 @@ class Tests(unittest.TestCase):
         self.assertEqual(swept_gap((-.2,0,.5),(.2,0,.5),box),0.)
         self.assertTrue(collides((-.2,0,.5),(.2,0,.5),box))
         self.assertFalse(collides((-.2,.12,.5),(.2,.12,.5),box))
+
+    def test_painted_limits_reject_whole_craft_departure_without_colliders(self):
+        course = generate(0)
+        # The center remains on the track while a rotor envelope crosses the
+        # red line. No wall/contact oracle may be credited with this rejection.
+        for sign in (-1, 1):
+            p = (.30, sign*(course.width/2-RADIUS+.001), .8)
+            self.assertTrue(swept_inside(p,p,course.polygon))
+            self.assertFalse(swept_envelope_inside(p,p,course.polygon))
+            bare = N(polygon=course.polygon, boxes=[], identifier='no-wall-envelope-test')
+            attempt = Attempt(bare,1,.023)
+            self.assertTrue(attempt.start(1,0.))
+            attempt.previous = p
+            result = attempt.sample(.032,p,(0.,0.,0.))
+            self.assertEqual(result.reason,'off-track')
+            self.assertIs(attempt.sample(.064,(.30,0.,.8),(0.,0.,0.)),result)
+
+    def test_concave_corner_envelope_sweep_between_clear_native_samples(self):
+        course = generate(0)
+        corner = (course.side-course.width/2, course.width/2)
+        offset, half = (RADIUS-.001)/math.sqrt(2), .020/math.sqrt(2)
+        a = (corner[0]+offset-half, corner[1]-offset-half, .8)
+        b = (corner[0]+offset+half, corner[1]-offset+half, .8)
+        self.assertLess(math.dist(a,b),.064)
+        self.assertTrue(swept_inside(a,b,course.polygon))
+        for p in (a,b):
+            self.assertTrue(swept_envelope_inside(p,p,course.polygon))
+        for first,last in ((a,b),(b,a)):
+            self.assertFalse(swept_envelope_inside(first,last,course.polygon))
+            attempt = Attempt(N(polygon=course.polygon,boxes=[],identifier='no-wall-corner-test'),1,.023)
+            attempt.start(1,0.); attempt.previous=first
+            self.assertEqual(attempt.sample(.032,last,(0.,0.,0.)).reason,'off-track')
+
+    def test_whole_craft_boundary_preserves_clear_routes_and_tangency(self):
+        for seed in (0,1,4,65535):
+            course = generate(seed)
+            points = ((0.,0.),(2.,0.),(2.,2.),(.7,2.))
+            for a,b in zip(points,points[1:]):
+                self.assertTrue(swept_envelope_inside(a,b,course.polygon))
+                self.assertTrue(swept_envelope_inside(b,a,course.polygon))
+        square = ((0.,0.),(1.,0.),(1.,1.),(0.,1.))
+        self.assertTrue(swept_envelope_inside((RADIUS,.2),(RADIUS,.8),square))
+        outside = math.nextafter(RADIUS,0.)
+        self.assertFalse(swept_envelope_inside((outside,.2),(outside,.8),square))
 
     def test_valid_corner_arc_not_forced_through_exact_center(self):
         trace=PathTrace(0)

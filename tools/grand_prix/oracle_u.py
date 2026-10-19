@@ -91,6 +91,33 @@ def swept_inside(a, b, polygon):
     return True
 
 
+def point_segment_gap(point, a, b):
+    """Euclidean XY distance to a closed boundary segment, including vertices."""
+    dx, dy = b[0]-a[0], b[1]-a[1]
+    length2 = dx*dx+dy*dy
+    t = 0. if not length2 else max(0., min(1.,
+        ((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length2))
+    return math.hypot(point[0]-a[0]-t*dx, point[1]-a[1]-t*dy)
+
+
+def swept_envelope_inside(a, b, polygon):
+    """Keep the complete radius-RADIUS craft envelope inside painted limits.
+
+    swept_inside first excludes centerline crossings. For two non-crossing
+    segments their minimum distance is attained by an endpoint projection.
+    Checking all four projections also covers concave vertices and stationary
+    samples; checking only the two craft poses misses a corner during a sweep.
+    This proves the observed straight segment, not an unobserved curved path.
+    """
+    if not swept_inside(a, b, polygon):
+        return False
+    for c, d in zip(polygon, polygon[1:]+polygon[:1]):
+        if min(point_segment_gap(a,c,d), point_segment_gap(b,c,d),
+               point_segment_gap(c,a,b), point_segment_gap(d,a,b)) < RADIUS:
+            return False
+    return True
+
+
 def collides(a,b,box):
     # Distance to a closed set is 1-Lipschitz. A remote box cannot meet a
     # segment shorter than its initial clearance minus the preserved radius.
@@ -208,7 +235,7 @@ class Attempt:
         x,y,z=p
         if z<self.origin_z-.02 or z>self.origin_z+1.15:
             return self.fail(now,'altitude')
-        if not swept_inside(self.previous,p,self.layout.polygon): return self.fail(now,'off-track')
+        if not swept_envelope_inside(self.previous,p,self.layout.polygon): return self.fail(now,'off-track')
         if any(collides(self.previous,p,b) for b in self.layout.boxes):
             return self.fail(now,'envelope-contact')
         if any(len(c)!=3 or not all(math.isfinite(v) for v in c) or c[2]>.012 for c in contacts):
