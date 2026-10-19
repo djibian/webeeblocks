@@ -334,21 +334,23 @@ function testNativeResetTimeoutSourceContract() {
   assert.match(source, /command == CMD_RESET && now - action_start > RESET_TIMEOUT/);
   assert.match(source, /response_error\(active_id, "RESET_TIMEOUT"\)/);
   assert.match(source, /failsafe_latched = 1;/);
-  // Counters are reset for each RESET and only observe the existing decisions.
+  // Scope assertions to the request and the timed stability branch.
+  // Dead code or declarations elsewhere cannot masquerade as real samples.
+  const resetRequest = source.match(/if \(request.kind == REQUEST_RESET\) \{([\s\S]*?)if \(failsafe_latched\) \{/);
+  const resetLoop = source.match(/if \(command == CMD_RESET\) \{([\s\S]*?)if \(command == CMD_TAKEOFF\) \{/);
+  assert(resetRequest && resetLoop, 'native RESET branches missing');
   for (const name of ['reset_pose_bad_samples', 'reset_motion_bad_samples', 'reset_both_ready_samples']) {
     assert(source.includes('unsigned long ' + name + ' = 0;'));
-    assert(source.includes('        ' + name + ' = 0;'));
+    assert(resetRequest[1].includes(name + ' = 0;'), 'RESET must clear ' + name);
   }
-  assert(source.includes('reset_max_stable = 0.0;'));
-  assert(source.includes('if (!pose_ready)'));
-  assert(source.includes('++reset_pose_bad_samples;'));
-  assert(source.includes('if (!motion_ready)'));
-  assert(source.includes('++reset_motion_bad_samples;'));
-  assert(source.includes('++reset_both_ready_samples;'));
-  assert(source.includes('if (now - stable_since > reset_max_stable)'));
-  assert(source.includes('pose_bad=%lu motion_bad=%lu'));
-  assert(source.includes('both_ready=%lu max_stable=%.6f'));
-  assert(source.includes('if (now - stable_since >= RESET_WINDOW)'));
+  assert(resetRequest[1].includes('reset_max_stable = 0.0;'));
+  assert.match(resetLoop[1], /if \(!pose_ready\)\s*\+\+reset_pose_bad_samples;/);
+  assert.match(resetLoop[1], /if \(!motion_ready\)\s*\+\+reset_motion_bad_samples;/);
+  assert.match(resetLoop[1], /if \(pose_ready && motion_ready\) \{\s*\+\+reset_both_ready_samples;/);
+  assert.match(resetLoop[1], /if \(now - stable_since > reset_max_stable\)/);
+  assert.match(resetLoop[1], /if \(now - stable_since >= RESET_WINDOW\)/);
+  assert.match(source, /pose_bad=%lu motion_bad=%lu/);
+  assert.match(source, /both_ready=%lu max_stable=%\.6f/);
 }
 
 (async () => {
