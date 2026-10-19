@@ -75,14 +75,29 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
-def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
+def without_checker_cells(source):
+    """Visual A/B: remove exactly 48 non-colliding checker tiles, nothing else."""
+    lines=source.splitlines(keepends=True)
+    marker=re.compile(r'^DEF GP_U_TARGET_[123]_CELL_[0-3]_[0-3] Pose ')
+    cells=[line for line in lines if marker.match(line)]
+    if len(cells)!=48 or len(set(cells))!=48 or any('boundingObject' in line for line in cells):
+        raise RuntimeError('checkerboard control is not isolated to 48 non-colliding cells')
+    return ''.join(line for line in lines if not marker.match(line))
+
+
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,visual_variant='checkered'):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
-    out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
+    suffix='-flat' if visual_variant=='flat' else ''
+    out=OUT/f'{layout.identifier}-{mode}{suffix}-{token}';out.mkdir(parents=True,exist_ok=False)
     with socket.socket() as probe:
         probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
     events=out/'events.jsonl'
     source=world_text(layout,controller='<extern>' if tcp else 'grand_prix_u_flight',window='<none>',evaluator=True)
     if tcp:source=source.replace('controller "grand_prix_u_evaluator"','controller "<extern>"')
+    if visual_variant=='flat':
+        source=without_checker_cells(source)
+    elif visual_variant!='checkered':
+        raise ValueError('unknown landing visual variant')
     target=ROOT/f'worlds/ci_gp_u_flight_{token}.wbt'
     target.write_text(source.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
     (out/'layout.json').write_text(json.dumps(dataclasses.asdict(layout),indent=2)+'\n')
@@ -181,6 +196,8 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         if second is not None:result['second_attempt']=second
         result['ast_sha256']=hashlib.sha256(json.dumps(programs[0],sort_keys=True,separators=(',',':')).encode()).hexdigest()
         result['claim']='native-shared-interpreter';result['webots_version']='R2025a';result['mode']=mode
+        result['visual_variant']=visual_variant
+        result['artifact_dir']=out.name
         (out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
         print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
         return result
@@ -195,7 +212,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes','landing-contrast'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -241,6 +258,21 @@ def main():
     cases=[(args.seed,args.side,args.suite)]
     if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
+    if args.suite in ('all','landing-contrast'):
+        # Diagnose seed 14 with strictly isolated visual difference. These
+        # diagnostic outcomes cannot replace or waive required native oracles.
+        flat=trial(home,14,args.side,'witness',args.tcp,require_success=False,visual_variant='flat')
+        checkered=trial(home,14,args.side,'witness',args.tcp,require_success=False)
+        if flat['configuration']!=checkered['configuration'] or flat['ast_sha256']!=checkered['ast_sha256']:
+            raise RuntimeError('landing contrast changed configuration or Blockly AST')
+        flat_world=OUT/flat['artifact_dir']/'world.wbt'
+        checker_world=OUT/checkered['artifact_dir']/'world.wbt'
+        if flat_world.read_text()!=without_checker_cells(checker_world.read_text()):
+            raise RuntimeError('landing contrast changed non-checker world content')
+        contrast={'claim':'R2025a-native-visual-contrast-diagnostic-not-acceptance','flat':flat,'checkered':checkered}
+        (OUT/'landing-contrast.json').write_text(json.dumps(contrast,indent=2)+'\n')
+        print('GP_U_LANDING_CONTRAST '+json.dumps(contrast,sort_keys=True),flush=True)
+        if args.suite=='landing-contrast':return
     summaries=[];digest=None
     for seed,side,mode in cases:
         result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes')

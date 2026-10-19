@@ -9,6 +9,7 @@ import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.grand_prix.layout_u import generate, world_text, local, RADIUS
+from tools.ci.run_grand_prix_u_prototype import without_checker_cells
 from tools.grand_prix.contact_trace import encode_contact_points
 
 
@@ -105,6 +106,26 @@ class Tests(unittest.TestCase):
         for bad in [(1, 2), (1, float('nan'), 3), (0, float('inf'), 3)]:
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 encode_contact_points([Contact(bad)])
+
+    def test_visual_landing_contrast_preserves_every_non_checker_node(self):
+        for seed in (0, 3, 14):
+            world = world_text(generate(seed), evaluator=True)
+            flat = without_checker_cells(world)
+            self.assertEqual(world.count('_CELL_'), 48)
+            self.assertNotIn('_CELL_', flat)
+            self.assertEqual(
+                [line for line in world.splitlines() if '_CELL_' not in line],
+                flat.splitlines())
+            for marker in ('GP_U_TARGET_1 Pose', 'GP_U_TARGET_2 Pose',
+                           'GP_U_TARGET_3 Pose', 'boundingObject',
+                           'DEF GP_U_EVALUATOR', 'DEF GP_U_BAND_'):
+                self.assertIn(marker, flat)
+            with self.assertRaises(RuntimeError):
+                without_checker_cells(flat)
+            with self.assertRaises(RuntimeError):
+                without_checker_cells(world.replace(
+                    'DEF GP_U_TARGET_1_CELL_0_0 Pose',
+                    'DEF GP_U_TARGET_1_CELL_0_0 Pose boundingObject'))
 
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
