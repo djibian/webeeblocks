@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
 from pathlib import Path
 import shutil
@@ -13,6 +15,55 @@ ARTIFACT_ROOT = ROOT / "ci-artifacts" / "progression-autonomous-mission"
 WEBOTS_IMAGE = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
 TEMP_WORLD = ROOT / "worlds" / "ci_progression_autonomous.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_autonomous.wbproj"
+OBSERVER_NAME = "ci_autonomous_reset_observer"
+OBSERVER_DIRECTORY = ROOT / "controllers" / OBSERVER_NAME
+OBSERVER_SOURCE = ROOT / "tools/ci/fixtures/autonomous_reset_observer.py"
+
+
+def observed_world(source_world: str) -> str:
+    """Give the existing vehicle a DEF and append an empty, read-only observer."""
+    anchor = 'Crazyflie {\n  name "Crazyflie WebeeBlocks"'
+    if source_world.count(anchor) != 1 or source_world.count('window "blockly_v2"') != 1:
+        raise ValueError("autonomous observer vehicle/window identity is ambiguous")
+    return source_world.replace(anchor, "DEF CI_AUTONOMOUS_CRAZYFLIE " + anchor, 1).replace(
+        'window "blockly_v2"', 'window "autonomous_probe"', 1
+    ) + ('\nRobot {\n  name "CI autonomous read-only state observer"\n'
+         f'  controller "{OBSERVER_NAME}"\n  supervisor TRUE\n'
+         '  synchronization TRUE\n}\n')
+
+
+def validate_observer_trace(path: Path, *, required_attempts=()) -> None:
+    """Require actual streaming observations, never infer a RESET verdict."""
+    with path.open(encoding="utf-8") as stream:
+        header = json.loads(next(stream))
+        if header != {"type": "header", "version": 1, "step_ms": 32,
+                      "scope": "read-only-native-state-not-runtime-ack"}:
+            raise ValueError("invalid native observer header")
+        previous = 0.0
+        count = 0
+        attempts = set()
+        for line in stream:
+            sample = json.loads(line)
+            now = sample["time"]
+            if (sample["type"] != "sample" or type(now) not in (float, int)
+                    or not math.isfinite(now) or now <= previous):
+                raise ValueError("invalid/non-increasing native observer time")
+            if any(len(sample[key]) != length for key, length in
+                   (("position", 3), ("orientation", 9), ("velocity", 6))):
+                raise ValueError("incomplete native observer state")
+            if not isinstance(sample["custom_data"], str) or not isinstance(sample["contacts"], list):
+                raise ValueError("incomplete native observer identity/contact evidence")
+            prefix = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 "
+            if sample["custom_data"].startswith(prefix):
+                token = sample["custom_data"][len(prefix):]
+                if token.isdigit():
+                    attempts.add(int(token))
+            previous = now
+            count += 1
+        if count < 2:
+            raise ValueError("missing native observer samples")
+        if not set(required_attempts).issubset(attempts):
+            raise ValueError("missing observations around autonomous attempt-7 RESET")
 
 
 def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -46,6 +97,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = (
+        [sys.executable, "tools/ci/test_runtime_v2_autonomous_observer.py"],
         ["node", "tools/ci/test_progression_autonomous_contract.js"],
         ["node", "--check", "plugins/robot_windows/autonomous_probe/autonomous_probe.js"],
     )
@@ -66,13 +118,21 @@ def main() -> int:
     ):
         if marker not in source_world:
             return fail(f"missing Activity 8 evaluator world marker: {marker}")
-    TEMP_WORLD.write_text(
-        source_world.replace('window "blockly_v2"', 'window "autonomous_probe"', 1),
-        encoding="utf-8",
-    )
-    TEMP_PROJECT.write_text("Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n", encoding="utf-8")
-
+    world = observed_world(source_world)
+    # An unexpected existing controller is not ours to overwrite or remove.
+    OBSERVER_DIRECTORY.mkdir()
+    observer_script = OBSERVER_DIRECTORY / f"{OBSERVER_NAME}.py"
     try:
+        shutil.copyfile(OBSERVER_SOURCE, observer_script)
+        TEMP_WORLD.write_text(world, encoding="utf-8")
+        (ARTIFACT_ROOT / "world.wbt").write_text(world, encoding="utf-8")
+        provenance = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                      for path in (TEMP_WORLD, OBSERVER_SOURCE,
+                                   ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c")}
+        (ARTIFACT_ROOT / "native-reset-provenance.json").write_text(
+            json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+        TEMP_PROJECT.write_text("Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n", encoding="utf-8")
+
         pull = run(["docker", "pull", WEBOTS_IMAGE], capture=True)
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
@@ -310,10 +370,23 @@ exit "$runner_rc"
         if "ERROR:" in webots_log:
             return fail("Webots emitted an ERROR line", webots_log[-16000:])
 
+        try:
+            validate_observer_trace(ARTIFACT_ROOT / "native-reset-state.jsonl",
+                                    required_attempts=(7, 8))
+        except (OSError, ValueError, KeyError, TypeError, StopIteration) as exc:
+            return fail(f"native reset diagnostic evidence unavailable: {exc}")
+
         print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, pairs identical downstream worlds with both parcel classes, proves downstream sensing cannot replace departure memory, accepts two distinct stored-value strategies, and rejects fixed-route, front-only and incomplete shortcuts from observable world state in real R2025a")
         return 0
     finally:
+        # Preserve byte identity even for a failing/partial native campaign.
+        digests = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                   for path in ARTIFACT_ROOT.iterdir() if path.is_file()}
+        (ARTIFACT_ROOT / "sha256.json").write_text(
+            json.dumps(digests, indent=2) + "\n", encoding="utf-8")
         cleanup()
+        observer_script.unlink(missing_ok=True)
+        OBSERVER_DIRECTORY.rmdir()
 
 
 if __name__ == "__main__":
