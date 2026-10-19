@@ -130,10 +130,13 @@ static double wrap_angle(double angle) {
         fprintf(stderr, "GP_U_LAND_CONTROL {\\\"time_ms\\\":%lld,\\\"id\\\":%d,\\\"phase\\\":\\\"control\\\","
                         "\\\"position\\\":[%.9f,%.9f,%.9f],\\\"velocity_world\\\":[%.9f,%.9f,%.9f],"
                         "\\\"rpy\\\":[%.9f,%.9f,%.9f],\\\"desired_velocity_body\\\":[%.9f,%.9f],"
+                        "\\\"actual_velocity_body\\\":[%.9f,%.9f],\\\"actual_yaw_rate\\\":%.9f,"
+                        "\\\"attitude_cmd\\\":[%.9f,%.9f,%.9f],"
                         "\\\"desired_altitude\\\":%.9f,\\\"motors\\\":[%.9f,%.9f,%.9f,%.9f]}\\n",
                 (long long)llround(now * 1000.0), active_id,
                 x, y, z, vx_global, vy_global, vz, rpy[0], rpy[1], yaw,
-                desired.vx, desired.vy, desired.altitude,
+                desired.vx, desired.vy, actual.vx, actual.vy, actual.yaw_rate,
+                desired.roll, desired.pitch, desired.yaw_rate, desired.altitude,
                 -motor_power(power.m1), motor_power(power.m2),
                 -motor_power(power.m3), motor_power(power.m4));
       }'''),
