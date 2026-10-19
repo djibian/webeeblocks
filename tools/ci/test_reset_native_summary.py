@@ -50,6 +50,52 @@ class SummaryTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.report(rows)
 
+    def test_native_failure_probe_and_outcome_keep_post_collision_reset_in_attempt(self):
+        # Reproduces the independent NO_GO: in native Webots customData evolves
+        # ATTEMPT -> FAILURE_PROBE -> OUTCOME while retaining attempt=N.
+        failure = "WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt=7 oracle=progression-autonomous-strategy-v1"
+        outcome = "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=7 oracle=progression-autonomous-strategy-v1 status=not-achieved"
+        outcome8 = "WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=8 oracle=progression-autonomous-strategy-v1 status=not-achieved"
+        contact = [{"point": [.75, -2.22, .499], "node_id": 42}]
+        def phase_row(t, n, p, raw, contacts=None):
+            row = s(t, n, p, contacts=contacts)
+            row["custom_data"] = raw
+            return row
+        data = self.report([
+            s(10., 7, [.75, -2.218, .499], contacts=contact),
+            phase_row(10.032, 7, [.76, -2.218, .499], failure, contact),
+            phase_row(10.064, 7, [.76, -2.218, .499], outcome),
+            phase_row(10.096, 7, [0., 0., .015], outcome),
+            s(10.128, 8, [0., 0., .015]),
+            phase_row(10.160, 8, [.1, .1, .5], outcome8),
+            phase_row(10.192, 8, [0., 0., .015], outcome8),
+        ])
+        self.assertEqual(set(data["attempts"]), {"7", "8"})
+        seven, eight = data["attempts"]["7"], data["attempts"]["8"]
+        self.assertEqual(seven["samples"], 4)
+        self.assertEqual(seven["phases"], {"attempt": 1, "failure_probe": 1, "outcome": 2})
+        self.assertEqual(eight["phases"], {"attempt": 1, "outcome": 2})
+        self.assertEqual(seven["last_sample"]["custom_data"], outcome)
+        self.assertEqual(seven["first_contact"]["phase"], "attempt")
+        self.assertEqual(seven["last_contact"]["phase"], "failure_probe")
+        self.assertEqual(seven["largest_observed_xyz_jump"]["from"]["custom_data"], outcome)
+        self.assertEqual(seven["largest_observed_xyz_jump"]["to"]["custom_data"], outcome)
+        self.assertAlmostEqual(seven["largest_observed_xyz_jump"]["distance_m"],
+                               math.dist([.76, -2.218, .499], [0., 0., .015]))
+        self.assertAlmostEqual(eight["largest_observed_xyz_jump"]["distance_m"],
+                               math.dist([.1, .1, .5], [0., 0., .015]))
+        self.assertNotEqual(seven["largest_observed_xyz_jump"]["distance_m"],
+                            eight["largest_observed_xyz_jump"]["distance_m"])
+
+    def test_unrecognized_identity_stays_explicitly_unattributed(self):
+        row = s(.064, 9, [0., 0., .015])
+        row["custom_data"] = "OUTCOME attempt=7 status=achieved"
+        data = self.report([s(.032, 7, [.75, -2.218, .499]), row])
+        self.assertEqual(set(data["attempts"]), {"7", "unattributed"})
+        self.assertEqual(data["attempts"]["unattributed"]["last_sample"]["phase"], "unknown")
+        self.assertEqual(data["attempts"]["unattributed"]["last_sample"]["custom_data"],
+                         row["custom_data"])
+
     def test_nan_strings_do_not_become_motion_or_zero(self):
         data = self.report([s(.032, 7, ["nan", 0, 0]), s(.064, 7, [0, 0, 0])])
         self.assertIsNone(data["attempts"]["7"]["largest_observed_xyz_jump"])

@@ -9,11 +9,34 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 HEADER = {"type": "header", "version": 1, "step_ms": 32,
           "scope": "read-only-native-state-not-runtime-ack"}
-PREFIX = "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 "
+# Exact supervisor customData contracts in progression_autonomous_evaluator.c.
+# A failed attempt changes identity ATTEMPT -> FAILURE_PROBE -> OUTCOME
+# before RESET. Every phase is still part of that same numbered attempt.
+ORACLE = "progression-autonomous-strategy-v1"
+PHASES = (
+    ("attempt", re.compile(r"WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 ([0-9]+)")),
+    ("failure_probe", re.compile(
+        r"WEBEEBLOCKS_ACTIVITY_FAILURE_PROBE_V1 attempt=([0-9]+) oracle="
+        + re.escape(ORACLE))),
+    ("outcome", re.compile(
+        r"WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt=([0-9]+) oracle="
+        + re.escape(ORACLE) + r" status=(?:achieved|not-achieved)")),
+)
+
+
+def attribution(raw):
+    """Attribute only explicit, complete native messages; never guess an ACK."""
+    for phase, pattern in PHASES:
+        match = pattern.fullmatch(raw)
+        if match:
+            return str(int(match.group(1))), phase
+    return "unattributed", "unknown"
+
 
 
 def _numeric_position(sample):
@@ -51,9 +74,7 @@ def summarize(path: Path) -> dict:
             identity = sample.get("custom_data")
             if not isinstance(identity, str):
                 raise ValueError(f"missing customData on line {line_no}")
-            attempt = None
-            if identity.startswith(PREFIX) and identity[len(PREFIX):].isdigit():
-                attempt = int(identity[len(PREFIX):])
+            key, phase = attribution(identity)
             if not isinstance(sample.get("contacts"), list):
                 raise ValueError(f"missing contacts on line {line_no}")
             if not isinstance(sample.get("velocity"), list) or len(sample["velocity"]) != 6:
@@ -61,25 +82,29 @@ def summarize(path: Path) -> dict:
             if not isinstance(sample.get("orientation"), list) or len(sample["orientation"]) != 9:
                 raise ValueError(f"incomplete orientation on line {line_no}")
             pos = _numeric_position(sample)
-            key = str(attempt) if attempt is not None else "unattributed"
             row = groups.setdefault(key, {"samples": 0, "first_time": now,
+                                          "phases": {},
                                           "last_time": now, "samples_with_contacts": 0,
                                           "first_contact": None, "last_contact": None,
                                           "largest_observed_xyz_jump": None,
                                           "last_sample": None})
             row["samples"] += 1
+            row["phases"][phase] = row["phases"].get(phase, 0) + 1
             row["last_time"] = now
-            row["last_sample"] = {"time": now, "position": sample.get("position"),
+            row["last_sample"] = {"time": now, "custom_data": identity, "phase": phase,
+                                  "position": sample.get("position"),
                                   "orientation": sample["orientation"],
                                   "velocity": sample["velocity"],
                                   "contacts": sample["contacts"]}
             if sample["contacts"]:
                 row["samples_with_contacts"] += 1
                 if row["first_contact"] is None:
-                    row["first_contact"] = {"time": now, "position": sample.get("position"),
+                    row["first_contact"] = {"time": now, "custom_data": identity,
+                                            "phase": phase, "position": sample.get("position"),
                                             "velocity": sample["velocity"],
                                             "contacts": sample["contacts"]}
-                row["last_contact"] = {"time": now, "position": sample.get("position"),
+                row["last_contact"] = {"time": now, "custom_data": identity,
+                                        "phase": phase, "position": sample.get("position"),
                                         "velocity": sample["velocity"],
                                         "contacts": sample["contacts"]}
             if pos is not None and previous_position is not None and previous_identity == key:
@@ -88,10 +113,12 @@ def summarize(path: Path) -> dict:
                 if old is None or jump > old["distance_m"]:
                     row["largest_observed_xyz_jump"] = {
                         "distance_m": jump, "from": previous_sample,
-                        "to": {"time": now, "position": pos, "orientation": sample["orientation"],
+                        "to": {"time": now, "custom_data": identity, "phase": phase,
+                               "position": pos, "orientation": sample["orientation"],
                                "velocity": sample["velocity"], "contacts": sample["contacts"]}}
             previous_time, previous_identity, previous_position = now, key, pos
-            previous_sample = {"time": now, "position": pos,
+            previous_sample = {"time": now, "custom_data": identity, "phase": phase,
+                               "position": pos,
                                "orientation": sample["orientation"],
                                "velocity": sample["velocity"], "contacts": sample["contacts"]}
             total += 1
