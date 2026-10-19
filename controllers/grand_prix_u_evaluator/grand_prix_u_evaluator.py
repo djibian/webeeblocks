@@ -26,14 +26,21 @@ origin=vehicle.getPosition()[2];active=None;printed=False
 trace_path=os.environ.get('WEBEEBLOCKS_CI_ARTIFACT_DIR')
 trace_file=(Path(trace_path)/'native_trace.csv').open('w',buffering=1) if trace_path else None
 trace=csv.writer(trace_file) if trace_file else None
-if trace:trace.writerow(['time','attempt','x','y','z','vx','vy','vz',*[f'r{i}' for i in range(9)]])
+if trace:trace.writerow(['time','attempt','x','y','z','vx','vy','vz',*[f'r{i}' for i in range(9)],
+                        'contact_count','contact_min_z','contact_max_z'])
 robot.setLabel(0,f'{layout.identifier} — prêt',.02,.03,.065,0xFFFFFF,0,'Arial')
 while robot.step(step)!=-1:
     now=robot.getTime();data=channel.getSFString()
     reset=re.fullmatch(r'WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 (\d+)',data)
     if reset and (active is None or active.attempt!=int(reset[1])):
         active=Attempt(layout,int(reset[1]),origin);printed=False
-    if trace:trace.writerow([now,active.attempt if active else 0,*vehicle.getPosition(),*vehicle.getVelocity()[:3],*vehicle.getOrientation()])
+    # Preserve the existing single native contact query and feed the very same
+    # observations to the oracle. Empty pre-attempt fields mean not observed.
+    contacts=vehicle.getContactPoints(True) if active is not None else None
+    contact_z=[c.point[2] for c in contacts] if contacts is not None else []
+    if trace:trace.writerow([now,active.attempt if active else 0,*vehicle.getPosition(),*vehicle.getVelocity()[:3],*vehicle.getOrientation(),
+                            len(contacts) if contacts is not None else '',
+                            min(contact_z) if contact_z else '',max(contact_z) if contact_z else ''])
     if active is None:continue
     marker=re.fullmatch(r'GP_U_START attempt=(\d+) start_ms=(\d+) state=(admitted|deadline|failed)',control.getSFString())
     if marker and int(marker[1])==active.attempt:
@@ -42,7 +49,7 @@ while robot.step(step)!=-1:
         if marker[3]=='failed':active.fail(now,'runtime')
     complete=data==f'WEBEEBLOCKS_ACTIVITY_COMPLETION_V1 attempt={active.attempt} oracle={ORACLE}'
     result=active.sample(now,vehicle.getPosition(),vehicle.getVelocity()[:3],
-                         [c.point for c in vehicle.getContactPoints(True)],completed=complete)
+                         [c.point for c in contacts],completed=complete)
     if result is not None:
         expected=f'WEBEEBLOCKS_ACTIVITY_OUTCOME_V1 attempt={active.attempt} oracle={ORACLE} status={result.status}'
         if data!=expected:channel.setSFString(expected)

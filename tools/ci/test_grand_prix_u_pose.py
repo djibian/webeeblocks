@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import os
+import json
 import unittest
 import sys
 ROOT=Path(__file__).resolve().parents[2]
@@ -150,5 +151,35 @@ int main(void) {
                     if deadlines:self.assertIn('time_ms=212048 command=LAND',deadlines[0])
                     if (case=='land' and probe!='startup-reset') or case=='land-timeout':
                         self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
+            # The real composed runtime must expose its applied LAND commands
+            # without changing any response, deadline, file or recovery event.
+            quiet_env={**os.environ,'GP_U_POSE_CASE':'land'}
+            quiet_env.pop('WEBEEBLOCKS_CI_ARTIFACT_DIR',None)
+            quiet=subprocess.run([str(binary)],env=quiet_env,capture_output=True,text=True,timeout=10)
+            observed=subprocess.run([str(binary)],
+                env={**quiet_env,'WEBEEBLOCKS_CI_ARTIFACT_DIR':str(base)},
+                capture_output=True,text=True,timeout=10)
+            self.assertEqual(quiet.returncode,0,quiet.stdout+quiet.stderr)
+            self.assertEqual(observed.returncode,0,observed.stdout+observed.stderr)
+            prefix='GP_U_LAND_CONTROL '
+            self.assertNotIn(prefix,quiet.stdout+quiet.stderr)
+            self.assertEqual(quiet.stdout,observed.stdout)
+            retained=[line for line in observed.stderr.splitlines() if not line.startswith(prefix)]
+            self.assertEqual(quiet.stderr.splitlines(),retained)
+            records=[json.loads(line[len(prefix):]) for line in observed.stderr.splitlines()
+                     if line.startswith(prefix)]
+            self.assertTrue(any(row['phase']=='control' for row in records))
+            self.assertTrue(any(row['phase']=='stop' for row in records))
+            for row in records:
+                self.assertEqual(len(row['position']),3)
+                self.assertEqual(len(row['velocity_world']),3)
+                self.assertEqual(len(row['rpy']),3)
+                self.assertEqual(len(row['motors']),4)
+                if row['phase']=='stop':self.assertEqual(row['motors'],[0,0,0,0])
+                else:
+                    self.assertLessEqual(row['motors'][0],0)
+                    self.assertGreaterEqual(row['motors'][1],0)
+                    self.assertLessEqual(row['motors'][2],0)
+                    self.assertGreaterEqual(row['motors'][3],0)
 
 if __name__=='__main__':unittest.main()
