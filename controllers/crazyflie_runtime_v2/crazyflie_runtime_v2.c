@@ -727,6 +727,19 @@ int main(void) {
     }
 
     if (command == CMD_RESET && now - action_start > RESET_TIMEOUT) {
+      // Preserve fail-closed Reset semantics; retain the measured state that
+      // prevented a fresh attempt after a native Webots collision.
+      fprintf(stderr, PREFIX " RESET_TIMEOUT_DIAGNOSTIC id=%d elapsed=%.6f "
+                      "position=%.9f,%.9f,%.9f origin=%.9f,%.9f,%.9f "
+                      "rpy=%.9f,%.9f,%.9f origin_rpy=%.9f,%.9f,%.9f "
+                      "velocity_world=%.9f,%.9f,%.9f yaw_rate=%.9f "
+                      "stable_duration=%.6f dt=%.6f\n",
+              active_id, now - action_start,
+              x, y, z, origin_x, origin_y, origin_z,
+              rpy[0], rpy[1], yaw, origin_roll, origin_pitch, origin_yaw,
+              vx_global, vy_global, vz, actual.yaw_rate,
+              stable_since < 0.0 ? -1.0 : now - stable_since, dt);
+      fflush(stderr);
       response_error(active_id, "RESET_TIMEOUT");
       stop_motors(m1, m2, m3, m4);
       airborne = 0;
