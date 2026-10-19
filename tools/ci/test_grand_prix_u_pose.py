@@ -153,7 +153,7 @@ int main(void) {
                         self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
             # The real composed runtime must expose its applied LAND commands
             # without changing any response, deadline, file or recovery event.
-            quiet_env={**os.environ,'GP_U_POSE_CASE':'land'}
+            quiet_env={**os.environ,'GP_U_POSE_CASE':'land','GP_U_TEST_NONZERO_POWER':'1'}
             quiet_env.pop('WEBEEBLOCKS_CI_ARTIFACT_DIR',None)
             quiet=subprocess.run([str(binary)],env=quiet_env,capture_output=True,text=True,timeout=10)
             observed=subprocess.run([str(binary)],
@@ -177,9 +177,7 @@ int main(void) {
                 self.assertEqual(len(row['motors']),4)
                 if row['phase']=='stop':self.assertEqual(row['motors'],[0,0,0,0])
                 else:
-                    self.assertLessEqual(row['motors'][0],0)
-                    self.assertGreaterEqual(row['motors'][1],0)
-                    self.assertLessEqual(row['motors'][2],0)
-                    self.assertGreaterEqual(row['motors'][3],0)
+                    self.assertEqual(row['motors'],[0,600,-37,42],
+                        'must record signed applied commands after both clamps, not raw PID power')
 
 if __name__=='__main__':unittest.main()
