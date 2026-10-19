@@ -53,6 +53,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
+    def test_three_checkered_landing_targets_are_visible_and_noncolliding(self):
+        layout = generate(0)
+        text = world_text(layout)
+        self.assertEqual(text.count('_CHECKER_'), 3 * 4 * 4)
+        for count in (1, 2, 3):
+            x, y = layout.landing_target(count)
+            self.assertIn(
+                f'DEF GP_U_TARGET_{count} Pose {{ translation {x:.6f} {y:.6f} .002 '
+                'children [ Shape { appearance PBRAppearance { baseColor .10 .72 .28 '
+                'roughness 1 } geometry Box { size .360000 .360000 .004 }', text)
+            for row in range(4):
+                for col in range(4):
+                    xx = x + (col - 1.5) * .07
+                    yy = y + (row - 1.5) * .07
+                    color = '.98 .98 .98' if (row + col) % 2 else '.06 .06 .06'
+                    self.assertIn(
+                        f'DEF GP_U_TARGET_{count}_CHECKER_{row}_{col} Pose {{ '
+                        f'translation {xx:.6f} {yy:.6f} .006 children [ Shape {{ '
+                        f'appearance PBRAppearance {{ baseColor {color} roughness 1 }} '
+                        'geometry Box { size .070000 .070000 .004 }', text)
+        # Checkerboard marks are visual-only; physical envelope and evaluator
+        # consume exactly the same collider list as before.
+        self.assertEqual(layout.boxes, generate(0).boxes)
+
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
             with self.assertRaises(ValueError): generate(seed)

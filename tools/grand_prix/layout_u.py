@@ -147,12 +147,22 @@ def world_text(layout, *, controller='<none>', window='<none>',
     for i, b in enumerate(layout.boxes):
         dims = f'{b.sx:.6f} {b.sy:.6f} {b.sz:.6f}'
         lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance PBRAppearance {{ baseColor .75 .55 .25 roughness 1 }} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
-    def mark(name, x, y, sx, sy, color):
-        lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
+    def mark(name, x, y, sx, sy, color, z=.002):
+        # Visual-only floor ink: Pose/Shape, with no Solid or boundingObject.
+        lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} {z:.3f} children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
     for count in (1, 2, 3):
         x, y = layout.landing_target(count)
-        mark(f'GP_U_TARGET_{count}', x, y, .28, .28, '.10 .72 .28')
+        # Same legible checkerboard vocabulary as Activity 1: full black/white
+        # interior, green 4 cm outline. No geometry or landing oracle changes.
+        mark(f'GP_U_TARGET_{count}', x, y, .36, .36, '.10 .72 .28')
+        cell = .07
+        for row in range(4):
+            for col in range(4):
+                tile_x, tile_y = x + (col - 1.5) * cell, y + (row - 1.5) * cell
+                color = '.98 .98 .98' if (row + col) % 2 else '.06 .06 .06'
+                mark(f'GP_U_TARGET_{count}_CHECKER_{row}_{col}',
+                     tile_x, tile_y, cell, cell, color, z=.006)
     for i, g in enumerate(layout.gates):
         for kind, distance in (('BEFORE', -LOW_BEFORE), ('AFTER', LOW_AFTER)):
             x, y = g.x + distance*math.cos(g.heading), g.y + distance*math.sin(g.heading)
