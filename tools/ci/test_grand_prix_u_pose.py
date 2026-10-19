@@ -177,6 +177,10 @@ int main(void) {
                 self.assertEqual(len(row['motors']),4)
                 if row['phase']=='stop':self.assertEqual(row['motors'],[0,0,0,0])
                 else:
+                    self.assertEqual(len(row['actual_velocity_body']),2)
+                    self.assertEqual(len(row['attitude_cmd']),3)
+                    self.assertIsInstance(row['actual_yaw_rate'],(int,float))
+                    self.assertEqual(row['desired_velocity_body'],[0,0])
                     self.assertEqual(row['motors'],[0,600,-37,42],
                         'must record signed applied commands after both clamps, not raw PID power')
 
