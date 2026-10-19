@@ -256,7 +256,9 @@ def main():
     # Native controlled contrast for #646: same seed/world/controller and pinned
     # software renderer, with only the Viewpoint follow fields differing.
     # This is diagnostic startup evidence, never an activity/mission PASS.
-    if args.suite in ('all','camera-contrast'):
+    if args.suite=='camera-contrast' and args.tcp:
+        raise ValueError('camera contrast requires an in-process Webots controller')
+    if args.suite in ('all','camera-contrast') and not args.tcp:
         contrast=[]
         for camera in ('static','tracking'):
             record=trial(home,1,args.side,'camera-'+camera,args.tcp,camera_probe=camera)
