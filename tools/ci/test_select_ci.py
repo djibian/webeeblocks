@@ -38,6 +38,20 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(result.runtime)
                 self.assertTrue(result.webots)  # retain the previous selection too
 
+    def test_autonomous_reset_probe_changes_select_the_real_runtime_oracle(self) -> None:
+        for path in (
+            "tools/ci/run_progression_autonomous_mission.py",
+            "tools/ci/test_progression_autonomous_contract.js",
+            "tools/ci/fixtures/autonomous_reset_observer.py",
+            "tools/ci/reset_native_summary.py",
+            "tools/ci/test_reset_native_summary.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)  # existing Webots evidence retained
+                self.assertFalse(selection.full)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)
