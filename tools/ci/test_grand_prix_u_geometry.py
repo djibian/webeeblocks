@@ -34,6 +34,24 @@ class Tests(unittest.TestCase):
             self.assertNotIn('candidate_points', text)
         self.assertEqual(seen, {1,2,3})
 
+    def test_white_u_guidance_is_visible_three_sided_and_non_colliding(self):
+        # The drawn route is pupil guidance, not a physical wall or oracle.
+        for side in (2., 3.):
+            for seed in (0, 2, 5, 17, 65535):
+                text = world_text(generate(seed, side))
+                markers = [line for line in text.splitlines()
+                           if line.startswith('DEF GP_U_GUIDE_')]
+                self.assertEqual(len(markers), 3)
+                expected = ((side / 2, 0., side, .025),
+                            (side, side / 2, .025, side),
+                            (side / 2, side, side, .025))
+                for i, (x, y, sx, sy) in enumerate(expected):
+                    self.assertTrue(markers[i].startswith(
+                        f'DEF GP_U_GUIDE_{i} Pose {{ translation {x:.6f} {y:.6f} .002'))
+                    self.assertIn(f'baseColor 1 1 1 roughness 1', markers[i])
+                    self.assertIn(f'geometry Box {{ size {sx:.6f} {sy:.6f} .004 }}', markers[i])
+                    self.assertNotIn('boundingObject', markers[i])
+
     def test_low_gate_envelope_and_high_collision_are_discriminated(self):
         for seed in range(32):
             layout = generate(seed)
