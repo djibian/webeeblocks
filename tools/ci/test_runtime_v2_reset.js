@@ -334,6 +334,21 @@ function testNativeResetTimeoutSourceContract() {
   assert.match(source, /command == CMD_RESET && now - action_start > RESET_TIMEOUT/);
   assert.match(source, /response_error\(active_id, "RESET_TIMEOUT"\)/);
   assert.match(source, /failsafe_latched = 1;/);
+  // Counters are reset for each RESET and only observe the existing decisions.
+  for (const name of ['reset_pose_bad_samples', 'reset_motion_bad_samples', 'reset_both_ready_samples']) {
+    assert(source.includes('unsigned long ' + name + ' = 0;'));
+    assert(source.includes('        ' + name + ' = 0;'));
+  }
+  assert(source.includes('reset_max_stable = 0.0;'));
+  assert(source.includes('if (!pose_ready)'));
+  assert(source.includes('++reset_pose_bad_samples;'));
+  assert(source.includes('if (!motion_ready)'));
+  assert(source.includes('++reset_motion_bad_samples;'));
+  assert(source.includes('++reset_both_ready_samples;'));
+  assert(source.includes('if (now - stable_since > reset_max_stable)'));
+  assert(source.includes('pose_bad=%lu motion_bad=%lu'));
+  assert(source.includes('both_ready=%lu max_stable=%.6f'));
+  assert(source.includes('if (now - stable_since >= RESET_WINDOW)'));
 }
 
 (async () => {
