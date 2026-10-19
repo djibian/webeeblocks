@@ -53,6 +53,30 @@ def validate_events(mode, rows, native_text):
         for name in ('fixed-negative', 'memory-negative', 'front-negative'):
             if outcomes.get(name, {}).get('status') != 'not-achieved':
                 raise ValueError('historical negative case missing')
+        # This baseline specifically probes collision -> irreversible runtime
+        # refusal -> RESET. An ordinary negative outcome alone is insufficient.
+        if 'WEBEEBLOCKS_AUTONOMOUS_COLLISION attempt=7 ' not in native_text:
+            raise ValueError('native collision attempt 7 missing')
+        if 'WEBEEBLOCKS_AUTONOMOUS_RESULT attempt=7 status=not-achieved' not in native_text:
+            raise ValueError('native terminal collision outcome missing')
+        front = [index for index, row in enumerate(rows) if row['event'] == 'front-negative']
+        fresh = [index for index, row in enumerate(rows) if row['event'] == 'front-reset'
+                 and row['detail'] == {'code': 'OUTCOME_UNAVAILABLE'}]
+        reset_index = next(index for index, row in enumerate(rows) if row['event'] == 'request'
+                           and row['detail'] == 'WEBEEBLOCKS_RUNTIME_V2 REQUEST ' + ids[-1] + ' RESET')
+        previous_ack = next(index for index, row in enumerate(rows) if row['event'] == 'response'
+                            and row['detail'] == 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + ids[-2] + ' OK')
+        reset_ack = next(index for index, row in enumerate(rows) if row['event'] == 'response'
+                        and row['detail'] == 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + ids[-1] + ' OK')
+        if (len(front) != 1 or len(fresh) != 1
+                or not previous_ack < front[0] < reset_index < reset_ack < fresh[0]
+                or rows[front[0]]['detail'].get('runtime_code') != 'UNSAFE_OR_TIMEOUT'):
+            raise ValueError('collision failure -> RESET -> fresh outcome chronology missing')
+        unsafe = [index for index, row in enumerate(rows) if row['event'] == 'response'
+                  and re.fullmatch(r'WEBEEBLOCKS_RUNTIME_V2 RESPONSE [0-9]+ ERR UNSAFE_OR_TIMEOUT', row['detail'])
+                  and previous_ack < index < front[0]]
+        if len(unsafe) != 1:
+            raise ValueError('exact post-sixth-RESET runtime unsafe refusal missing/ambiguous')
     return {'mode': mode, 'reset_acknowledgements': expected,
             'collision_attempt7_observed': 'WEBEEBLOCKS_AUTONOMOUS_COLLISION attempt=7 ' in native_text,
             'scope': 'diagnostic-only; no historical failure reproduction or main-health claim'}

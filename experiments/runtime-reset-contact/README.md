@@ -104,9 +104,15 @@ request/ACK oracles. Its chronology differs from the canonical browser run.
 
 The final synthetic sweep's exact results are recorded in `RESULTS.json` and its
 raw evidence archive. Each accepted RESET still used the original production
-pose/motion predicates, 250 ms window and 5 s deadline. The three adversarial
+pose/motion predicates, 250 ms window and 5 s deadline. The five adversarial
 local evidence tests reject a completion marker alone, absent native RESET
-traces, timeout/refusal, duplicated cases and stale/wrong ACKs.
+traces, timeout/refusal, duplicated cases and stale/wrong ACKs. The baseline additionally requires its
+native collision 7, native terminal failure, protocol `UNSAFE_OR_TIMEOUT` after
+the sixth RESET, followed in order by the negative outcome, seventh RESET/ACK
+and unavailable stale outcome. A normal negative outcome without collision is
+refused. `VALIDATION.json` records revalidation of the unchanged raw archives
+with this strengthened validator; it does not relabel their original runner
+provenance or claim a new native campaign.
 
 **Conclusion:** these observations do not reproduce the historical scheduled
 `RESET_TIMEOUT`, identify its cause, prove its disappearance or restore main
