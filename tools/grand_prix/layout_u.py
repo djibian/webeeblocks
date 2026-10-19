@@ -152,7 +152,15 @@ def world_text(layout, *, controller='<none>', window='<none>',
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
     for count in (1, 2, 3):
         x, y = layout.landing_target(count)
+        # Match Activity 1's non-colliding 15 mm green border and black/white
+        # checkerboard, rather than presenting a uniformly filled green square.
         mark(f'GP_U_TARGET_{count}', x, y, .28, .28, '.10 .72 .28')
+        for col in range(4):
+            for row in range(4):
+                tx = x - .125 + (col + .5) * .0625
+                ty = y - .125 + (row + .5) * .0625
+                shade = '.06 .06 .06' if (col + row) % 2 == 0 else '.96 .96 .96'
+                lines.append(f'DEF GP_U_TARGET_{count}_CELL_{col}_{row} Pose {{ translation {tx:.6f} {ty:.6f} .0042 children [ Shape {{ appearance PBRAppearance {{ baseColor {shade} roughness 1 }} geometry Box {{ size .0625 .0625 .0002 }} }} ] }}')
     for i, g in enumerate(layout.gates):
         for kind, distance in (('BEFORE', -LOW_BEFORE), ('AFTER', LOW_AFTER)):
             x, y = g.x + distance*math.cos(g.heading), g.y + distance*math.sin(g.heading)

@@ -53,6 +53,27 @@ class Tests(unittest.TestCase):
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
+    def test_three_checkered_targets_have_visible_border_without_collisions(self):
+        # Three independent 4x4 grids, same green margin and contrasts as
+        # sequence-v1; visual markers must not add physical collisions.
+        for seed in (0, 1, 2, 5, 65535):
+            layout = generate(seed)
+            world = world_text(layout)
+            for count in (1, 2, 3):
+                x, y = layout.landing_target(count)
+                self.assertIn(
+                    f'DEF GP_U_TARGET_{count} Pose {{ translation {x:.6f} {y:.6f} .002',
+                    world)
+                markers = [line for line in world.splitlines()
+                           if line.startswith(f'DEF GP_U_TARGET_{count}_CELL_')]
+                self.assertEqual(len(markers), 16)
+                self.assertTrue(all('boundingObject' not in line for line in markers))
+                self.assertEqual(sum('baseColor .06 .06 .06' in line for line in markers), 8)
+                self.assertEqual(sum('baseColor .96 .96 .96' in line for line in markers), 8)
+                self.assertTrue(all('geometry Box { size .0625 .0625 .0002 }' in line
+                                    for line in markers))
+            self.assertEqual(len(layout.gate_boxes), len(generate(seed).gate_boxes))
+
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
             with self.assertRaises(ValueError): generate(seed)
