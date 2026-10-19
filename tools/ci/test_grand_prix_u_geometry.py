@@ -34,6 +34,22 @@ class Tests(unittest.TestCase):
             self.assertNotIn('candidate_points', text)
         self.assertEqual(seen, {1,2,3})
 
+    def test_viewpoint_tracks_the_crazyflie_without_authority(self):
+        # Native Viewpoint fields exist in the pinned Webots R2025a contract;
+        # the tracked name is the one already required by the native evaluator.
+        for seed in (0, 1, 5):
+            text = world_text(generate(seed))
+            view = [line for line in text.splitlines()
+                    if line.startswith('Viewpoint {')]
+            self.assertEqual(len(view), 1)
+            self.assertIn('follow "Crazyflie WebeeBlocks"', view[0])
+            self.assertIn('followType "Tracking Shot"', view[0])
+            self.assertIn('followSmoothness 0.20', view[0])
+            self.assertEqual(text.count('Viewpoint {'), 1)
+            self.assertNotIn('supervisor TRUE', view[0])
+        # Nothing in layout generation or the independent mission oracle
+        # derives steering, success or gate counts from this camera setting.
+
     def test_low_gate_envelope_and_high_collision_are_discriminated(self):
         for seed in range(32):
             layout = generate(seed)
