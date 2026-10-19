@@ -67,9 +67,12 @@ Independent technical repairs/main-health work may proceed.
 The owner [personally accepted Activity 1 through #619](https://github.com/djibian/webeeblocks/issues/619#issuecomment-6230830327)
 on 2026-10-17: exact `a38839628c99bf38278ca950ed8e68f363d1b5b3`,
 Windows R2025a / Chrome, artifact 12073312927. The nominal, negative, replay,
-step mode and `.wbb`/scene restoration workflow were accepted. The startup
-improvements in #621 remain open. **Grand Prix personal acceptance is still
-required before Phase 2**; #619 grants no acceptance of Activities 2–7 or flight.
+step mode and `.wbb`/scene restoration workflow were accepted. The separately qualified Windows startup corrections (#622/#623/#630) received
+an [owner-authoritative PASS on #632](https://github.com/djibian/webeeblocks/issues/632#issuecomment-6247199523)
+for exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`; #621 is closed.
+That later result does not change #619's original scope. **Grand Prix personal
+acceptance is still required before Phase 2**; neither PASS accepts Activities
+2–7 or flight.
 
 **Phase 2 — mandatory six-activity redesign after both acceptances:**
 co-design and get the owner's agreement on a cumulative matrix for 2–7,
