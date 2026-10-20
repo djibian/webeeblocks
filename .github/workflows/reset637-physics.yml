@@ -1,0 +1,35 @@
+name: RESET 637 ODE observation without Runtime queries
+on:
+  push:
+    branches: ['experiment/reset637-physics-observation-20261020']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    name: One native ODE acquisition (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate instrumentation and original contracts
+        run: |
+          python3 experiments/runtime-reset-physics/test_physics.py
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+          node tools/ci/test_progression_autonomous_contract.js
+      - name: Prepare original Blockly assets
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Execute exactly one original browser acquisition
+        run: python3 experiments/runtime-reset-physics/run.py
+      - name: Preserve every started acquisition
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-physics-${{ github.sha }}
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
