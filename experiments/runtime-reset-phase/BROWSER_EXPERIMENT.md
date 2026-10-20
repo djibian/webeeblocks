@@ -24,9 +24,10 @@ downloaded version. No historical scheduling identity is claimed.
 
 ## Execution
 
-An initial targeted step in the existing Runtime core job sets
-`WEBEEBLOCKS_RESET_PHASE_TRACE=1` and runs the unchanged complete autonomous
-browser probe before the full core harness. Only
+The original canonical Runtime core step sets `WEBEEBLOCKS_RESET_PHASE_TRACE=1`
+and explicitly `WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS=0`. Only its existing full
+autonomous browser acquisition gains the two output-only prints; message delivery
+is unchanged. No extra campaign is automatically repeated. Only
 `tools/ci/run_progression_autonomous_mission.py` consumes it. It reuses exactly
 the two output-only `fprintf` insertions of `instrument.py` for that probe's
 Docker build, then restores the original C immediately, including on build
@@ -42,7 +43,7 @@ replay ACK, delay or strategy change is introduced. The extra prints/observer
 can affect host scheduling, so a successful run cannot establish absence of
 intermittence. No production correction is claimed.
 
-The immediately published `reset-phase-browser-r2025a` artifact retains the original and
+The existing `runtime-v2-core-progression` artifact retains the original and
 instrumented C, exact candidate/image/build/executable provenance, raw internal
 samples in `webots.log`, complete native JSONL, browser events, world and SHA-256
 manifest. `reset-phase-summary.json` reuses #652's predicate/window recalculation;
@@ -50,12 +51,10 @@ partial/unreadable evidence stays UNPROVEN and cannot replace the raw trace or
 turn a failed native run into PASS. A successful requested acquisition also
 requires all 14 complete internal RESET records. No threshold is relaxed.
 
-After success the diagnostic output directory is moved aside, then the entire
-original core harness executes without the tracing flag. It therefore runs its
-own ordinary autonomous oracle as before; no core property is skipped. The final
-`runtime-v2-core-progression` artifact preserves both runs. On a targeted refusal
-the job stays failed and uploads the failed trajectory immediately; it does not
-retry that RESET or claim that the remaining core harness succeeded.
+The entire original core harness and its existing autonomous oracle still execute;
+no property or negative/freshness assertion is skipped. On a refusal the job
+stays failed and its existing always-upload step preserves the failed trajectory.
+There is no retry and no fabricated claim that later tests succeeded.
 
 In an unrestricted Docker environment, from a clean isolated checkout:
 
@@ -122,10 +121,27 @@ phases only bounds those actual trajectories. The native traces establish which
 phases were reached; neither delay values nor observer timestamps are relabeled
 as historical or internal receipt evidence.
 
-The existing Runtime job runs each `campaign.py --steps N` sequentially, uploads
+The experimental candidate 32bdcf06 ran each `campaign.py --steps N` sequentially, uploaded
 `reset-phase-browser-delayN-r2025a` immediately, and only on complete success
-continues to the entire original core harness without tracing/delay flags.
+continued to the original core harness without tracing/delay flags.
 Every original autonomous oracle still executes in each case and in the
 canonical harness. A refusal fails the job and skips later cases; its evidence
 is uploaded. The primary acquisition manifest is retained alongside a wrapper
 manifest containing the case configuration, timing validation and source files.
+
+
+## Final delivery after the bounded experiment
+
+The preregistered cases completed once each: 42 strict RESETs, all accepted. The
+manifested archives and measured receipt states are listed in BROWSER_RESULTS.json
+and issue #637. All 427 compared post-transient observations agreed with native
+state. These finite controls did not reproduce the historical timeout and do not
+justify a production repair. The source of main's known failure remains unknown.
+
+The final workflow removes the three recurring timing cases and retains only the
+two output-only prints in the ordinary undelayed core acquisition. The explicit
+DEFER_STEPS=0 means the experimental receiver is not compiled into that binary.
+`campaign.py`, `defer.py` and their tests remain as manually invocable bounded
+research tools. The original canonical test sequence, timeouts, safety, freshness
+and negative oracles remain. The final candidate requires fresh exact-HEAD CI and
+independent review; no earlier green case is its CI Gate or a health verdict.

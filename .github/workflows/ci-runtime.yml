@@ -58,37 +58,11 @@ jobs:
           node --check tools/ci/test_runtime_v2_preflight.js
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
-      - name: Acquire browser RESET with seventh receipt delayed 1 native steps
-        id: reset-delay1
-        run: python3 experiments/runtime-reset-phase/campaign.py --steps 1
-      - name: Retain native delay-1 trajectory immediately, including refusal
-        if: always() && steps.reset-delay1.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: reset-phase-browser-delay1-r2025a
-          path: ci-artifacts/progression-reset-phase-delay1/
-          if-no-files-found: error
-      - name: Acquire browser RESET with seventh receipt delayed 8 native steps
-        id: reset-delay8
-        run: python3 experiments/runtime-reset-phase/campaign.py --steps 8
-      - name: Retain native delay-8 trajectory immediately, including refusal
-        if: always() && steps.reset-delay8.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: reset-phase-browser-delay8-r2025a
-          path: ci-artifacts/progression-reset-phase-delay8/
-          if-no-files-found: error
-      - name: Acquire browser RESET with seventh receipt delayed 16 native steps
-        id: reset-delay16
-        run: python3 experiments/runtime-reset-phase/campaign.py --steps 16
-      - name: Retain native delay-16 trajectory immediately, including refusal
-        if: always() && steps.reset-delay16.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: reset-phase-browser-delay16-r2025a
-          path: ci-artifacts/progression-reset-phase-delay16/
-          if-no-files-found: error
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
+        env:
+          # #637: preserve original delivery timing; capture only original RESET locals.
+          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+          WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
         if: always()
