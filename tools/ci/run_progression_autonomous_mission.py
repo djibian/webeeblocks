@@ -28,6 +28,9 @@ def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
     if enabled not in ("0", "1"):
         raise ValueError("invalid RESET phase trace selection")
     modified = original
+    defer_steps = int(os.environ.get("WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS", "0"))
+    if defer_steps not in (0, 1, 8, 16) or (defer_steps and enabled != "1"):
+        raise ValueError("invalid experimental RESET delay selection")
     if enabled == "1":
         import importlib.util
         instrument_path = ROOT / "experiments/runtime-reset-phase/instrument.py"
@@ -35,6 +38,12 @@ def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         modified = module.instrument(original.decode("utf-8")).encode("utf-8")
+        if defer_steps:
+            defer_path = ROOT / "experiments/runtime-reset-phase/defer.py"
+            spec = importlib.util.spec_from_file_location("reset_phase_defer", defer_path)
+            timing = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(timing)
+            modified = timing.defer(modified.decode("utf-8"), defer_steps).encode("utf-8")
         (ARTIFACT_ROOT / "runtime-original.c").write_bytes(original)
         (ARTIFACT_ROOT / "runtime-instrumented.c").write_bytes(modified)
     try:
@@ -51,10 +60,12 @@ def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
     if enabled == "1":
         executable = source.with_suffix("")
         provenance = {
-            "scope": "output-only RESET locals; not a production repair or health verdict",
+            "scope": ("experimental seventh-RESET delivery delay and original RESET locals" if defer_steps else
+                      "output-only RESET locals; not a production repair or health verdict"),
             "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
             "image": WEBOTS_IMAGE,
             "build_exit": built.returncode,
+            "defer_steps": defer_steps,
             "source_restored": source.read_bytes() == original,
             "sha256": {
                 "runtime-original.c": hashlib.sha256(original).hexdigest(),
@@ -64,6 +75,8 @@ def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
         }
         if built.returncode == 0:
             provenance["executable_sha256"] = hashlib.sha256(executable.read_bytes()).hexdigest()
+        if defer_steps:
+            provenance["sha256"][str(defer_path.relative_to(ROOT))] = hashlib.sha256(defer_path.read_bytes()).hexdigest()
         (ARTIFACT_ROOT / "reset-phase-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     return built
 

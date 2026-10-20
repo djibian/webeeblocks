@@ -58,21 +58,36 @@ jobs:
           node --check tools/ci/test_runtime_v2_preflight.js
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
-      - name: Acquire historical browser RESET phases before the full core suite
-        env:
-          # #637: reuse #652's two output-only fprintf in the full browser probe.
-          # Original C is restored immediately after its diagnostic build.
-          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
-        run: python3 tools/ci/run_progression_autonomous_mission.py
-      - name: Retain the targeted browser acquisition immediately, including refusal
-        if: always()
+      - name: Acquire browser RESET with seventh receipt delayed 1 native steps
+        id: reset-delay1
+        run: python3 experiments/runtime-reset-phase/campaign.py --steps 1
+      - name: Retain native delay-1 trajectory immediately, including refusal
+        if: always() && steps.reset-delay1.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
-          name: reset-phase-browser-r2025a
-          path: ci-artifacts/progression-autonomous-mission/
+          name: reset-phase-browser-delay1-r2025a
+          path: ci-artifacts/progression-reset-phase-delay1/
           if-no-files-found: error
-      - name: Preserve targeted acquisition before the canonical runner recreates its directory
-        run: mv ci-artifacts/progression-autonomous-mission ci-artifacts/progression-autonomous-instrumented
+      - name: Acquire browser RESET with seventh receipt delayed 8 native steps
+        id: reset-delay8
+        run: python3 experiments/runtime-reset-phase/campaign.py --steps 8
+      - name: Retain native delay-8 trajectory immediately, including refusal
+        if: always() && steps.reset-delay8.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset-phase-browser-delay8-r2025a
+          path: ci-artifacts/progression-reset-phase-delay8/
+          if-no-files-found: error
+      - name: Acquire browser RESET with seventh receipt delayed 16 native steps
+        id: reset-delay16
+        run: python3 experiments/runtime-reset-phase/campaign.py --steps 16
+      - name: Retain native delay-16 trajectory immediately, including refusal
+        if: always() && steps.reset-delay16.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset-phase-browser-delay16-r2025a
+          path: ci-artifacts/progression-reset-phase-delay16/
+          if-no-files-found: error
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
