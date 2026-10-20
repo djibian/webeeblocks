@@ -1,0 +1,563 @@
+{
+  "run": 39492689767,
+  "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+  "trials": [
+    {
+      "trial": 1,
+      "artifact": 12297090035,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "2c30e6e55e4513a45952be2ceee7f367aa00e3e12cfc5d1c72451c6602a9c764",
+      "zip_bytes": 25377597,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 37566,
+      "comparison_samples": 146,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 347,
+        "receipt_time": 775.552,
+        "elapsed": 0.32,
+        "receipt_sample": {
+          "id": 347,
+          "time": 775.552,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.757276185,
+            -2.286674703,
+            0.451905521
+          ],
+          "previous": [
+            0.75727602,
+            -2.280157169,
+            0.467862695
+          ],
+          "rpy": [
+            0.350672662,
+            0.000007815,
+            0.000002104
+          ],
+          "gyro": [
+            1.880791632,
+            0.000038876,
+            -0.000082389
+          ],
+          "velocity": [
+            0.000005174,
+            -0.203672942,
+            -0.49866168
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 2,
+      "artifact": 12297031062,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "8edc89fca5ab2c5b5c40581ea975cc75a2a624feccb88bb00688c7872694b2c4",
+      "zip_bytes": 20067273,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 27738,
+      "comparison_samples": 142,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 267,
+        "receipt_time": 498.144,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 267,
+          "time": 498.144,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.755272047,
+            -2.399556007,
+            0.17693296
+          ],
+          "previous": [
+            0.755270499,
+            -2.374355385,
+            0.23040846
+          ],
+          "rpy": [
+            0.735926548,
+            0.000074901,
+            -0.000043091
+          ],
+          "gyro": [
+            1.693379499,
+            0.000080229,
+            -0.000506065
+          ],
+          "velocity": [
+            0.000048364,
+            -0.787519429,
+            -1.67110937
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 3,
+      "artifact": 12296887157,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "f16d20ab5bede09c42dc63b711939f0e23edd616e6fdfe989fca452f1e9c3b20",
+      "zip_bytes": 19365300,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 26290,
+      "comparison_samples": 140,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 267,
+        "receipt_time": 460.992,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 267,
+          "time": 460.992,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.752513167,
+            -2.371167206,
+            0.269734858
+          ],
+          "previous": [
+            0.752511725,
+            -2.349220977,
+            0.312824498
+          ],
+          "rpy": [
+            0.666873647,
+            0.000058394,
+            -0.000019473
+          ],
+          "gyro": [
+            1.678813687,
+            0.000094567,
+            -0.000483589
+          ],
+          "velocity": [
+            0.000045062,
+            -0.685819661,
+            -1.346551251
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 4,
+      "artifact": 12296981112,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "289a5a49a77a4d4f06fd00a3ef41e61bf4608cdb222597d3a7fa385f10b167af",
+      "zip_bytes": 20569240,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 28840,
+      "comparison_samples": 140,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 298,
+        "receipt_time": 528.608,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 298,
+          "time": 528.608,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.759703624,
+            -2.584648637,
+            0.015696588
+          ],
+          "previous": [
+            0.759703625,
+            -2.584651263,
+            0.014963164
+          ],
+          "rpy": [
+            0.073997961,
+            0.000047131,
+            -0.000275813
+          ],
+          "gyro": [
+            -0.005485922,
+            -0.000002993,
+            -3.7e-8
+          ],
+          "velocity": [
+            -2.2e-8,
+            0.00008208,
+            0.022919507
+          ],
+          "pose_ready": 0,
+          "motion_ready": 1,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 5,
+      "artifact": 12297095326,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "3a6aade1df60d3a7e661ee239d6357ab7c8f900b67cf4732eef20b0d30f166e6",
+      "zip_bytes": 20606009,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 28918,
+      "comparison_samples": 142,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 299,
+        "receipt_time": 529.824,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 299,
+          "time": 529.824,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.761853072,
+            -2.516388481,
+            0.054631991
+          ],
+          "previous": [
+            0.76185267,
+            -2.521044515,
+            0.020838296
+          ],
+          "rpy": [
+            0.780840183,
+            0.000127801,
+            -0.000084093
+          ],
+          "gyro": [
+            -3.028541092,
+            -0.000724964,
+            -0.000467239
+          ],
+          "velocity": [
+            0.000012585,
+            0.145501055,
+            1.05605296
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 6,
+      "artifact": 12295359241,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "a68e4cd1c6ee917951b816cc357a5e34c67722ffa67f86703d16a7580c754dad",
+      "zip_bytes": 19248767,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 26113,
+      "comparison_samples": 140,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 265,
+        "receipt_time": 453.76,
+        "elapsed": 0.32,
+        "receipt_sample": {
+          "id": 265,
+          "time": 453.76,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.756615603,
+            -2.289048862,
+            0.451931576
+          ],
+          "previous": [
+            0.756615119,
+            -2.281921464,
+            0.468044119
+          ],
+          "rpy": [
+            0.360403668,
+            0.000013998,
+            0.000030011
+          ],
+          "gyro": [
+            1.852048199,
+            0.000068204,
+            -0.000221448
+          ],
+          "velocity": [
+            0.000015114,
+            -0.222731195,
+            -0.503516973
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 7,
+      "artifact": 12295478705,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "369225cdec115f466358d72424aae1a9f29116434dfe47becb86d45b96dc3cc7",
+      "zip_bytes": 19248208,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 26034,
+      "comparison_samples": 141,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 265,
+        "receipt_time": 450.496,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 265,
+          "time": 450.496,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.760239312,
+            -2.507303023,
+            0.116847878
+          ],
+          "previous": [
+            0.760238522,
+            -2.504208664,
+            0.104644879
+          ],
+          "rpy": [
+            0.523060734,
+            0.00011608,
+            -0.000159189
+          ],
+          "gyro": [
+            -2.884808586,
+            -0.000447232,
+            -0.000605277
+          ],
+          "velocity": [
+            0.000024689,
+            -0.096698716,
+            0.381343743
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    },
+    {
+      "trial": 8,
+      "artifact": 12295654388,
+      "run": 39492689767,
+      "head": "6e219066f3387572c7fd2c09c5538c1ad8ee73a2",
+      "zip_sha256": "d0e2040e8703db09b2530348a5426ca8049c0e06c40b32ccf7985e54073701ee",
+      "zip_bytes": 19149620,
+      "manifest_files": 27,
+      "outer_result": {
+        "runner_exit": 0,
+        "exception": null,
+        "source_restored": true,
+        "planned": 1,
+        "retry": false
+      },
+      "resets": 14,
+      "native_samples": 26050,
+      "comparison_samples": 141,
+      "predicate_disagreements": 0,
+      "reset7": {
+        "id": 265,
+        "receipt_time": 452.672,
+        "elapsed": 0.352,
+        "receipt_sample": {
+          "id": 265,
+          "time": 452.672,
+          "elapsed": 0,
+          "dt": 0.032,
+          "position": [
+            0.754772317,
+            -2.518586147,
+            0.118175644
+          ],
+          "previous": [
+            0.754771735,
+            -2.514897685,
+            0.112909385
+          ],
+          "rpy": [
+            0.358585233,
+            0.000075989,
+            -0.000140886
+          ],
+          "gyro": [
+            -3.310418888,
+            -0.000379822,
+            -0.000449657
+          ],
+          "velocity": [
+            0.000018163,
+            -0.115264432,
+            0.164570615
+          ],
+          "pose_ready": 0,
+          "motion_ready": 0,
+          "stable_since": -1
+        }
+      },
+      "browser_version": "Google Chrome 156.0.8078.47",
+      "browser_sha256": [
+        "6c92cd22e90c6e3e255d782991543fa2091db8614e8536a971a7433a5c4d7ac8  /tmp/google-chrome.deb",
+        "95dc9473b4f904cb3ab0800fc7206081fcae12abc094a088bd741a13f1747b72  /opt/google/chrome/chrome"
+      ],
+      "host": {
+        "cpu_count": 4,
+        "affinity_cpus": 4
+      },
+      "scope": "finite observations, not causal correction or disappearance proof"
+    }
+  ],
+  "total_resets": 112,
+  "total_native_samples": 227549,
+  "comparison_samples": 1132,
+  "predicate_disagreements": 0,
+  "scope": "finite controls, no historical cause, correction or health restoration"
+}

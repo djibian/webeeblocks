@@ -1,0 +1,73 @@
+{
+  "trial": 0,
+  "artifact": 12297455612,
+  "run": 39493737597,
+  "head": "4e28216f20db08ebb708fd9ca7211a969a9a9f6d",
+  "zip_sha256": "6b25b78afba73ae5485824ecae3535c6ad91793c51216f58458e820e792ff80c",
+  "zip_bytes": 19116428,
+  "manifest_files": 31,
+  "outer_result": {
+    "runner_exit": 0,
+    "exception": null,
+    "source_restored": true,
+    "planned": 1,
+    "retry": false
+  },
+  "resets": 14,
+  "native_samples": 26030,
+  "comparison_samples": 141,
+  "predicate_disagreements": 0,
+  "reset7": {
+    "id": 265,
+    "receipt_time": 452.576,
+    "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 265 OK",
+    "elapsed": 0.352,
+    "receipt_sample": {
+      "id": 265,
+      "time": 452.576,
+      "elapsed": 0,
+      "dt": 0.032,
+      "position": [
+        0.754124813,
+        -2.607346494,
+        0.084529753
+      ],
+      "previous": [
+        0.754123449,
+        -2.590694044,
+        0.103486916
+      ],
+      "rpy": [
+        0.730244281,
+        0.000215826,
+        -0.00018393
+      ],
+      "gyro": [
+        -1.146098081,
+        -0.000124053,
+        -0.000734212
+      ],
+      "velocity": [
+        0.000042631,
+        -0.52038906,
+        -0.592411343
+      ],
+      "pose_ready": 0,
+      "motion_ready": 0,
+      "stable_since": -1
+    },
+    "compared": 10,
+    "runtime_false_native_true": [],
+    "runtime_true_native_false": [],
+    "max_position_error": 4.904693913803418e-10,
+    "max_velocity_error": 4.970041229425664e-10,
+    "max_gyro_error": 4.908891557131589e-10
+  },
+  "browser_version": "Google Chrome 155.0.8059.84",
+  "browser_sha256": [
+    "8fbd2ae69cdf7ee98b7513c3396a7b5e06f974f8625fdd590df3091dd0c3e9de  /tmp/google-chrome.deb",
+    "cb19b59995072b86cc7f887b3b1c7ab1f63518a7f2ed9f0d33249e1a040e2c76  /opt/google/chrome/chrome"
+  ],
+  "host": null,
+  "scope": "finite observations, not causal correction or disappearance proof"
+}
