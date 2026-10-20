@@ -1,0 +1,59 @@
+name: RESET 637 bounded ODE variability cohort
+on:
+  push:
+    branches: ['experiment/reset637-physics-cohort-20261020']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    name: Native cohort trial ${{ matrix.trial }} (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        trial: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate instrumentation and original contracts
+        run: |
+          python3 experiments/runtime-reset-physics/test_physics.py
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+          node tools/ci/test_progression_autonomous_contract.js
+      - name: Prepare original Blockly assets
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Execute one original browser acquisition without replacement
+        run: python3 experiments/runtime-reset-physics/run.py
+      - name: Preserve cohort identity and actual host metadata
+        if: always()
+        env:
+          COHORT_TRIAL: ${{ matrix.trial }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          p=pathlib.Path('ci-artifacts/progression-autonomous-mission')
+          p.mkdir(parents=True,exist_ok=True)
+          (p/'cohort-trial.json').write_text(json.dumps({
+            'trial':int(os.environ['COHORT_TRIAL']), 'run':os.environ['GITHUB_RUN_ID'],
+            'head':os.environ['GITHUB_SHA'], 'fixed_cohort':8, 'replacement':False,
+            'cpu_count':os.cpu_count(), 'affinity_cpus':len(os.sched_getaffinity(0)),
+            'uname':subprocess.check_output(['uname','-a'],text=True).strip(),
+            'scope':'host metadata; no historical hardware identity claim'
+          },indent=2)+'\n')
+          (p/'sha256.json').write_text(json.dumps({f.name:hashlib.sha256(f.read_bytes()).hexdigest()
+            for f in p.iterdir() if f.is_file() and f.name!='sha256.json'},indent=2)+'\n')
+          PY
+      - name: Preserve every started acquisition, including refusals
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-ode-cohort-${{ matrix.trial }}-${{ github.sha }}
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
