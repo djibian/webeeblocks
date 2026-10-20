@@ -1,0 +1,36 @@
+name: RESET 637 known Chrome155 ODE control
+on:
+  push:
+    branches: ['experiment/reset637-ode-chrome155-20261020']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    name: One pinned Chrome155 native control (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate exact browser selection and original contracts
+        run: |
+          python3 experiments/runtime-reset-physics/pin155.py self-test
+          python3 experiments/runtime-reset-physics/test_physics.py
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+          node tools/ci/test_progression_autonomous_contract.js
+      - name: Prepare original Blockly assets
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Acquire exactly one known-binary Chrome155 control
+        run: python3 experiments/runtime-reset-physics/pin155.py
+      - name: Preserve native or preparation refusal without replacement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-ode-chrome155-${{ github.sha }}
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
