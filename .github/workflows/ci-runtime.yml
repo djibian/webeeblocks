@@ -643,7 +643,9 @@ jobs:
               server=$!
               trap "kill $server 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 150s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              # READY (20s), four programs (45s each) and three resets (12s each)
+              # already allow 236s, before browser startup. Native RESET stays 5s.
+              timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-reset/webots.log
           code=${PIPESTATUS[0]}
