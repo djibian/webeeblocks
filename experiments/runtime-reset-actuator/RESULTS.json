@@ -181,6 +181,262 @@
           "final_stable_span": 0.2560000000000855
         }
       ]
+    },
+    "early-reset-collision": {
+      "archive": "evidence/early-reset-collision.tar.gz",
+      "sha256": "d7aa625cca5b75ab182b16ff2058e4f8439b0bad02abefb82f834f0fc3df06dd",
+      "bytes": 8396209,
+      "kind": "native-early-reset",
+      "summary": {
+        "scope": "early RESET intervention, no original terminal-outcome-7 claim or historical replay",
+        "reset_acks": 7,
+        "unsafe_to_reset_no_intervening_request": true
+      },
+      "resets": [
+        {
+          "id": 429,
+          "begin_time": 945.536,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 429 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 450,
+          "begin_time": 999.296,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 450 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 476,
+          "begin_time": 1070.368,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 476 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 502,
+          "begin_time": 1139.808,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 502 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999998581
+        },
+        {
+          "id": 513,
+          "begin_time": 1194.656,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 513 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 534,
+          "begin_time": 1252.288,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 534 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 4,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 552,
+          "begin_time": 1328.096,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 552 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999998581
+        }
+      ]
+    },
+    "browser-undelayed": {
+      "archive": "evidence/browser-undelayed.zip",
+      "format": "zip",
+      "sha256": "3bba4de4a83f7957b82d5e9718159bf198b4a8b43fcc1c449c011028b25a1821",
+      "bytes": 4539961,
+      "kind": "native-browser",
+      "git_head": "2ffb3d440e50330373b7d06738500da4f54f108e",
+      "run": 39380546728,
+      "artifact": 12245069155,
+      "resets": [
+        {
+          "id": 139,
+          "begin_time": 92.384,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 139 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000002
+        },
+        {
+          "id": 161,
+          "begin_time": 141.12,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 161 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000002
+        },
+        {
+          "id": 187,
+          "begin_time": 203.84,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 187 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000002
+        },
+        {
+          "id": 213,
+          "begin_time": 266.688,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 213 OK",
+          "samples": 12,
+          "last_sample_elapsed": 0.352,
+          "pose_bad": 1,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.064,
+          "final_stable_span": 0.25600000000002865
+        },
+        {
+          "id": 224,
+          "begin_time": 314.656,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 224 OK",
+          "samples": 12,
+          "last_sample_elapsed": 0.352,
+          "pose_bad": 1,
+          "motion_bad": 3,
+          "last_bad_elapsed": 0.064,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 247,
+          "begin_time": 364.768,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 247 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 3,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 267,
+          "begin_time": 433.216,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 267 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.25600000000002865
+        },
+        {
+          "id": 290,
+          "begin_time": 480.704,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 290 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 4,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.25600000000002865
+        },
+        {
+          "id": 311,
+          "begin_time": 529.408,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 311 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 335,
+          "begin_time": 579.616,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 335 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 3,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 360,
+          "begin_time": 642.176,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 360 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 385,
+          "begin_time": 705.248,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 385 OK",
+          "samples": 12,
+          "last_sample_elapsed": 0.352,
+          "pose_bad": 1,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.064,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 407,
+          "begin_time": 754.144,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 407 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 429,
+          "begin_time": 802.944,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 429 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        }
+      ]
     }
   }
 }

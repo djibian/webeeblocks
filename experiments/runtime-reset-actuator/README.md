@@ -81,3 +81,62 @@ requires identifying the mechanism in a relevant failing trajectory, preserving
 freshness and the negative instability oracles, canonical exact-HEAD CI and an
 independent review. PR #653 acquires the internal-controller browser path with
 unchanged original oracles. Keep #637 open and ordinary integrations suspended.
+
+## Early request control after the actual collision
+
+A further single native TCP acquisition changes only the *post-unsafe protocol
+sequence*: after six original strict RESETs and real collision 7, the ordinary
+RESET is requested immediately when the interpreter rejects UNSAFE_OR_TIMEOUT,
+before the failure-probe/outcome-7 exchange. The source only gains output traces;
+there is no fixture, motor/body injection or altered RESET handler. This tests
+whether the original post-error exchanges merely allowed rotors to slow down.
+It does **not** claim the original seventh terminal-outcome oracle was exercised.
+
+Native safety stop is at t=1328.064 s, RESET receipt t=1328.096 s (**32 ms** later).
+The wire trace verifies no intervening request after the unsafe response. All
+seven RESETs still succeed, the last in 320 ms with 256 ms stable and fresh
+attempt 8. Its receipt position is approximately (0.75309,-2.27134,0.51113), roll
+-0.11072 rad and gyro X=0.15667 rad/s. This finite early success further limits
+an unconditional residual-actuator explanation; it does not establish the
+historical actuator state or rule out rare asymmetry/solver conditions.
+
+The full raw acquisition and executed wrapper/probe are in
+`evidence/early-reset-collision.tar.gz`, with both source and file hashes. To
+repeat the *distinct early-request experiment* in a prepared R2025a environment,
+restore its archived `run.py`, `probe.js` and `cases.json` into an isolated
+`main@4ff57f7` checkout under `experiments/runtime-reset-fast/`, then run:
+
+```sh
+python3 experiments/runtime-reset-fast/run.py --mode baseline \
+  --webots-home /absolute/path/to/webots --assets-root /absolute/path/to/r2025a-source \
+  --xvfb /absolute/path/to/Xvfb --output /absolute/path/to/new-output
+```
+
+The `baseline` option selects the existing native TCP transport/observer setup;
+the wrapper's explicit early-request validator does not mislabel its scope as
+canonical progression acceptance. Preserve a first refusal; do not retry for
+success.
+
+## Original full browser control retained
+
+`evidence/browser-undelayed.zip` is the unchanged GitHub artifact 12245069155 from
+run 39380546728, candidate 2ffb3d4. Its ZIP hash matches GitHub, all 13 manifested
+files and the original/instrumented source relationship were checked. It really
+executes all 14 RESETs and the original complete browser mission oracles. RESET 7
+is received at t=433.216 s during a fall (Z=0.46856 m, roll=0.29895 rad,
+gyro X=1.84932 rad/s) and succeeds in 320 ms.
+
+`compare_phase.py` aligns internal samples at/after +64 ms with native state,
+converts world angular velocity through the native orientation into the gyro
+frame, and recalculates native pose/motion predicates. All 135 compared samples
+across the 14 RESETs agree; maximum position/velocity/gyro discrepancies are
+approximately 5e-10, compatible with nine-decimal trace rounding. The first two
+samples are excluded explicitly: pre-teleport locals and the teleport-crossing
+finite difference are not native instantaneous velocity. Equal timestamps alone
+do not establish simultaneous reads, especially in the receipt iteration.
+
+The complete control ZIP and recalculated comparison are now retained here as
+well as in GitHub Actions. This remains a successful finite control, not evidence
+of historical failure disappearance. The subsequent 1/8/16 native-step delivery
+intervention belongs to the separate #653 candidate and preserves the original
+strict RESET/oracles; no claim is transferred between candidates.

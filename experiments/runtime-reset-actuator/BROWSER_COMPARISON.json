@@ -1,0 +1,173 @@
+{
+  "scope": "aligned observations after +64 ms; no universal cause or health verdict",
+  "resets": [
+    {
+      "id": 139,
+      "receipt_time": 92.384,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 139 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.695990176578624e-10,
+      "max_velocity_error": 4.986971901716777e-10,
+      "max_gyro_error": 4.729150265836424e-10
+    },
+    {
+      "id": 161,
+      "receipt_time": 141.12,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 161 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.884078089878452e-10,
+      "max_velocity_error": 4.790824531215128e-10,
+      "max_gyro_error": 4.995340577816643e-10
+    },
+    {
+      "id": 187,
+      "receipt_time": 203.84,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 187 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.214731273678111e-10,
+      "max_velocity_error": 4.889565466924262e-10,
+      "max_gyro_error": 4.718623380483428e-10
+    },
+    {
+      "id": 213,
+      "receipt_time": 266.688,
+      "elapsed": 0.352,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 213 OK",
+      "compared": 10,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.850919793687757e-10,
+      "max_velocity_error": 4.90977958620244e-10,
+      "max_gyro_error": 4.5940003732571066e-10
+    },
+    {
+      "id": 224,
+      "receipt_time": 314.656,
+      "elapsed": 0.352,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 224 OK",
+      "compared": 10,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.95797467317538e-10,
+      "max_velocity_error": 4.829478070711088e-10,
+      "max_gyro_error": 4.778406056255013e-10
+    },
+    {
+      "id": 247,
+      "receipt_time": 364.768,
+      "elapsed": 0.384,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 247 OK",
+      "compared": 11,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.993115546405354e-10,
+      "max_velocity_error": 4.969879901700939e-10,
+      "max_gyro_error": 4.378597900922543e-10
+    },
+    {
+      "id": 267,
+      "receipt_time": 433.216,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 267 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.780532282984243e-10,
+      "max_velocity_error": 4.72988634370175e-10,
+      "max_gyro_error": 4.990818929190375e-10
+    },
+    {
+      "id": 290,
+      "receipt_time": 480.704,
+      "elapsed": 0.384,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 290 OK",
+      "compared": 11,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.89908793640712e-10,
+      "max_velocity_error": 4.4793259575283796e-10,
+      "max_gyro_error": 4.570538947312741e-10
+    },
+    {
+      "id": 311,
+      "receipt_time": 529.408,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 311 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.333086091483963e-10,
+      "max_velocity_error": 4.808170029658998e-10,
+      "max_gyro_error": 4.3846857698467967e-10
+    },
+    {
+      "id": 335,
+      "receipt_time": 579.616,
+      "elapsed": 0.384,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 335 OK",
+      "compared": 11,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.861787028263083e-10,
+      "max_velocity_error": 4.90596625823958e-10,
+      "max_gyro_error": 4.879976466323765e-10
+    },
+    {
+      "id": 360,
+      "receipt_time": 642.176,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 360 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.70625731094354e-10,
+      "max_velocity_error": 4.951450742474162e-10,
+      "max_gyro_error": 4.711182533499725e-10
+    },
+    {
+      "id": 385,
+      "receipt_time": 705.248,
+      "elapsed": 0.352,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 385 OK",
+      "compared": 10,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.586939917724706e-10,
+      "max_velocity_error": 4.898239623288151e-10,
+      "max_gyro_error": 4.790238691820825e-10
+    },
+    {
+      "id": 407,
+      "receipt_time": 754.144,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 407 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.905749805475122e-10,
+      "max_velocity_error": 4.895403422910949e-10,
+      "max_gyro_error": 4.3864609167165725e-10
+    },
+    {
+      "id": 429,
+      "receipt_time": 802.944,
+      "elapsed": 0.32,
+      "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 429 OK",
+      "compared": 9,
+      "runtime_false_native_true": [],
+      "runtime_true_native_false": [],
+      "max_position_error": 4.862132710337086e-10,
+      "max_velocity_error": 4.986267683471102e-10,
+      "max_gyro_error": 4.75564578168719e-10
+    }
+  ]
+}
