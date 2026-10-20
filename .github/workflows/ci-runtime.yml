@@ -59,6 +59,10 @@ jobs:
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
+        env:
+          # #637: preserve original delivery timing; capture only original RESET locals.
+          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+          WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
         if: always()

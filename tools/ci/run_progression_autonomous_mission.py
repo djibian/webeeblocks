@@ -20,6 +20,67 @@ OBSERVER_DIRECTORY = ROOT / "controllers" / OBSERVER_NAME
 OBSERVER_SOURCE = ROOT / "tools/ci/fixtures/autonomous_reset_observer.py"
 
 
+def build_runtime_for_probe() -> subprocess.CompletedProcess[str]:
+    """Optionally reuse #652's output-only locals on the historical browser path."""
+    source = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
+    original = source.read_bytes()
+    enabled = os.environ.get("WEBEEBLOCKS_RESET_PHASE_TRACE", "0")
+    if enabled not in ("0", "1"):
+        raise ValueError("invalid RESET phase trace selection")
+    modified = original
+    defer_steps = int(os.environ.get("WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS", "0"))
+    if defer_steps not in (0, 1, 8, 16) or (defer_steps and enabled != "1"):
+        raise ValueError("invalid experimental RESET delay selection")
+    if enabled == "1":
+        import importlib.util
+        instrument_path = ROOT / "experiments/runtime-reset-phase/instrument.py"
+        spec = importlib.util.spec_from_file_location("reset_phase_instrument", instrument_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        modified = module.instrument(original.decode("utf-8")).encode("utf-8")
+        if defer_steps:
+            defer_path = ROOT / "experiments/runtime-reset-phase/defer.py"
+            spec = importlib.util.spec_from_file_location("reset_phase_defer", defer_path)
+            timing = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(timing)
+            modified = timing.defer(modified.decode("utf-8"), defer_steps).encode("utf-8")
+        (ARTIFACT_ROOT / "runtime-original.c").write_bytes(original)
+        (ARTIFACT_ROOT / "runtime-instrumented.c").write_bytes(modified)
+    try:
+        if enabled == "1":
+            source.write_bytes(modified)
+        built = run([
+            "docker", "run", "--rm", "-v", f"{ROOT}:/workspace",
+            "-w", "/workspace/controllers/crazyflie_runtime_v2", WEBOTS_IMAGE,
+            "bash", "-lc", "make clean && make",
+        ], capture=True)
+    finally:
+        if enabled == "1":
+            source.write_bytes(original)
+    if enabled == "1":
+        executable = source.with_suffix("")
+        provenance = {
+            "scope": ("experimental seventh-RESET delivery delay and original RESET locals" if defer_steps else
+                      "output-only RESET locals; not a production repair or health verdict"),
+            "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+            "image": WEBOTS_IMAGE,
+            "build_exit": built.returncode,
+            "defer_steps": defer_steps,
+            "source_restored": source.read_bytes() == original,
+            "sha256": {
+                "runtime-original.c": hashlib.sha256(original).hexdigest(),
+                "runtime-instrumented.c": hashlib.sha256(modified).hexdigest(),
+                str(instrument_path.relative_to(ROOT)): hashlib.sha256(instrument_path.read_bytes()).hexdigest(),
+            },
+        }
+        if built.returncode == 0:
+            provenance["executable_sha256"] = hashlib.sha256(executable.read_bytes()).hexdigest()
+        if defer_steps:
+            provenance["sha256"][str(defer_path.relative_to(ROOT))] = hashlib.sha256(defer_path.read_bytes()).hexdigest()
+        (ARTIFACT_ROOT / "reset-phase-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+    return built
+
+
 def observed_world(source_world: str) -> str:
     """Give the existing vehicle a DEF and append an empty, read-only observer."""
     anchor = 'Crazyflie {\n  name "Crazyflie WebeeBlocks"'
@@ -137,11 +198,7 @@ def main() -> int:
         pull = run(["docker", "pull", WEBOTS_IMAGE], capture=True)
         if pull.returncode:
             return fail("pinned Webots image could not be prepared", pull.stdout)
-        built = run([
-            "docker", "run", "--rm", "-v", f"{ROOT}:/workspace",
-            "-w", "/workspace/controllers/crazyflie_runtime_v2", WEBOTS_IMAGE,
-            "bash", "-lc", "make clean && make",
-        ], capture=True)
+        built = build_runtime_for_probe()
         (ARTIFACT_ROOT / "build.log").write_text(built.stdout or "", encoding="utf-8")
         if built.returncode:
             return fail("Runtime v2/Activity 8 evaluator build failed", (built.stdout or "")[-6000:])
@@ -205,6 +262,21 @@ exit "$runner_rc"
         webots_log = result.stdout or ""
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
+        phase_complete = True
+        if os.environ.get("WEBEEBLOCKS_RESET_PHASE_TRACE") == "1":
+            import importlib.util
+            analyzer_path = ROOT / "experiments/runtime-reset-phase/analyze.py"
+            spec = importlib.util.spec_from_file_location("reset_phase_analyze", analyzer_path)
+            analyzer = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(analyzer)
+            try:
+                phase_summary = analyzer.summarize(webots_log)
+                phase_complete = (len(phase_summary["resets"]) == 14 and
+                                  all(row["terminal"].endswith(" OK") for row in phase_summary["resets"]))
+            except Exception as exc:
+                phase_summary = {"status": "UNPROVEN", "error": str(exc)}
+                phase_complete = False
+            (ARTIFACT_ROOT / "reset-phase-summary.json").write_text(json.dumps(phase_summary, indent=2) + "\n")
         event_path = ARTIFACT_ROOT / "browser-events.jsonl"
         if result.returncode == 124:
             detail = webots_log[-16000:]
@@ -376,6 +448,9 @@ exit "$runner_rc"
                                     required_attempts=(7, 8))
         except (OSError, ValueError, KeyError, TypeError, StopIteration) as exc:
             return fail(f"native reset diagnostic evidence unavailable: {exc}")
+
+        if not phase_complete:
+            return fail("requested internal RESET observations incomplete; preserve raw trace")
 
         print("PASS Activity 8 autonomous synthesis: the mission owns and removes its parcel signal, pairs identical downstream worlds with both parcel classes, proves downstream sensing cannot replace departure memory, accepts two distinct stored-value strategies, and rejects fixed-route, front-only and incomplete shortcuts from observable world state in real R2025a")
         return 0

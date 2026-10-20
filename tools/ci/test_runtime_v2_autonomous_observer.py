@@ -6,10 +6,14 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 import sys
+import subprocess
+import shutil
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.ci.run_progression_autonomous_mission import observed_world, validate_observer_trace
+from tools.ci import run_progression_autonomous_mission as runner
 
 spec = importlib.util.spec_from_file_location(
     "autonomous_reset_observer", ROOT / "tools/ci/fixtures/autonomous_reset_observer.py")
@@ -67,6 +71,47 @@ def state(time, position, velocity, contacts=(), custom_data="WEBEEBLOCKS_ACTIVI
 
 
 class ObserverTests(unittest.TestCase):
+    def test_diagnostic_build_restores_source_on_refusal_and_exception(self):
+        original = (ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c").read_bytes()
+        cases = [(failure, steps) for failure in (
+            subprocess.CompletedProcess([], 17, "build refused"), OSError("build unavailable"))
+                 for steps in (0, 1, 8, 16)]
+        for failure, steps in cases:
+            with self.subTest(failure=failure, steps=steps), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
+                source.parent.mkdir(parents=True)
+                source.write_bytes(original)
+                instrument = root / "experiments/runtime-reset-phase/instrument.py"
+                instrument.parent.mkdir(parents=True)
+                shutil.copyfile(ROOT / "experiments/runtime-reset-phase/instrument.py", instrument)
+                shutil.copyfile(ROOT / "experiments/runtime-reset-phase/defer.py", instrument.with_name("defer.py"))
+                artifact = root / "evidence"
+                artifact.mkdir()
+                def refused(*args, **kwargs):
+                    self.assertIn(b"RESET_PHASE_SAMPLE", source.read_bytes())
+                    self.assertEqual(b"static const char *reset_phase_receive" in source.read_bytes(), steps != 0)
+                    self.assertNotEqual(source.read_bytes(), original)
+                    if isinstance(failure, Exception):
+                        raise failure
+                    return failure
+                with mock.patch.multiple(runner, ROOT=root, ARTIFACT_ROOT=artifact), \
+                     mock.patch.dict(runner.os.environ, {"WEBEEBLOCKS_RESET_PHASE_TRACE": "1",
+                                                        "WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS": str(steps)}), \
+                     mock.patch.object(runner, "run", side_effect=refused), \
+                     mock.patch.object(runner.subprocess, "check_output", return_value="test-head\n"):
+                    if isinstance(failure, Exception):
+                        with self.assertRaises(OSError):
+                            runner.build_runtime_for_probe()
+                    else:
+                        self.assertEqual(runner.build_runtime_for_probe().returncode, 17)
+                        proof = json.loads((artifact / "reset-phase-provenance.json").read_text())
+                        self.assertEqual(proof["build_exit"], 17)
+                        self.assertEqual(proof["defer_steps"], steps)
+                        self.assertTrue(proof["source_restored"])
+                self.assertEqual(source.read_bytes(), original)
+                self.assertEqual((artifact / "runtime-original.c").read_bytes(), original)
+
     def test_world_change_is_only_def_window_and_empty_observer(self):
         source = (ROOT / "worlds/crazyflie_runtime_v2.wbt").read_text()
         world = observed_world(source)
