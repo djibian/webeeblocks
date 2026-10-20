@@ -46,3 +46,22 @@ Header reads and plugin logging may affect scheduling; that limit survives a PAS
 
 No production correction follows without a relevant failed reference and causal
 intervention. Preserve #637 open, 5 s/250 ms, negative oracles and fail-closed.
+
+## Preparation finding and distinct supported-environment acquisition
+
+The one local attempt at 698f10b2 identified native motor IDs 227/238/249/260 but
+never started the internal controllers: QLocalServer Unix sockets are unavailable
+in the local host. It also reported missing default visual assets. The harness
+stopped that preparation through an explicitly attributed ERROR event; this is
+not a Runtime RESET failure or an acquired flight. Its complete logs are retained.
+There is no second local attempt and no reinterpretation of that refusal as PASS.
+
+Before any supported-environment acquisition: exactly ONE distinct GitHub Actions
+process, original pinned Docker R2025a, Ubuntu22/Node22, unchanged browser program,
+14 RESETs and 1500 s budget. It uses the same direct native getter source and
+buffered consumed values; the upstream engine headers are read-only and pinned.
+This environment has demonstrated internal-controller support in canonical CI.
+Browser actual version and deb/executable digests are retained. No retry,
+replacement worker, cohort expansion or homonymous CI Gate. Existing conditions,
+predictions and failure rules above apply. The local preparation is a separate
+retained stratum, not a baseline physical failure for a causal A/B comparison.

@@ -1,0 +1,42 @@
+name: RESET 637 direct native actuator observation
+on:
+  push:
+    branches: ['experiment/reset637-direct-current-20261020']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    name: One native actuator acquisition (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate unchanged business contracts
+        run: |
+          node tools/ci/test_progression_autonomous_contract.js
+          node tools/ci/test_runtime_v2_reset.js
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+      - name: Fetch exact read-only engine headers
+        run: |
+          git clone --depth 1 --branch R2025a --filter=blob:none --sparse https://github.com/cyberbotics/webots.git "$RUNNER_TEMP/webots-engine"
+          git -C "$RUNNER_TEMP/webots-engine" sparse-checkout set src/webots include/controller
+          test "$(git -C "$RUNNER_TEMP/webots-engine" rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      - name: Prepare original Blockly assets
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Acquire once with actual native speed, thrust and torque
+        env:
+          WEBOTS_ENGINE_SOURCE: ${{ runner.temp }}/webots-engine
+        run: python3 experiments/runtime-reset-current/run_docker.py
+      - name: Preserve every started acquisition
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-direct-current-${{ github.sha }}
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
