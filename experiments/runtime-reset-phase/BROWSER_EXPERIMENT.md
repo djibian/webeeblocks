@@ -24,8 +24,9 @@ downloaded version. No historical scheduling identity is claimed.
 
 ## Execution
 
-The normal canonical Runtime core step sets
-`WEBEEBLOCKS_RESET_PHASE_TRACE=1`. Only
+An initial targeted step in the existing Runtime core job sets
+`WEBEEBLOCKS_RESET_PHASE_TRACE=1` and runs the unchanged complete autonomous
+browser probe before the full core harness. Only
 `tools/ci/run_progression_autonomous_mission.py` consumes it. It reuses exactly
 the two output-only `fprintf` insertions of `instrument.py` for that probe's
 Docker build, then restores the original C immediately, including on build
@@ -41,13 +42,20 @@ replay ACK, delay or strategy change is introduced. The extra prints/observer
 can affect host scheduling, so a successful run cannot establish absence of
 intermittence. No production correction is claimed.
 
-The existing `runtime-v2-core-progression` artifact retains the original and
+The immediately published `reset-phase-browser-r2025a` artifact retains the original and
 instrumented C, exact candidate/image/build/executable provenance, raw internal
 samples in `webots.log`, complete native JSONL, browser events, world and SHA-256
 manifest. `reset-phase-summary.json` reuses #652's predicate/window recalculation;
 partial/unreadable evidence stays UNPROVEN and cannot replace the raw trace or
 turn a failed native run into PASS. A successful requested acquisition also
 requires all 14 complete internal RESET records. No threshold is relaxed.
+
+After success the diagnostic output directory is moved aside, then the entire
+original core harness executes without the tracing flag. It therefore runs its
+own ordinary autonomous oracle as before; no core property is skipped. The final
+`runtime-v2-core-progression` artifact preserves both runs. On a targeted refusal
+the job stays failed and uploads the failed trajectory immediately; it does not
+retry that RESET or claim that the remaining core harness succeeded.
 
 In an unrestricted Docker environment, from a clean isolated checkout:
 

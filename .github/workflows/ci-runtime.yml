@@ -58,11 +58,22 @@ jobs:
           node --check tools/ci/test_runtime_v2_preflight.js
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
-      - name: Exercise reactive semantics through product Blockly and Runtime v2 core
+      - name: Acquire historical browser RESET phases before the full core suite
         env:
           # #637: reuse #652's two output-only fprintf in the full browser probe.
           # Original C is restored immediately after its diagnostic build.
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+        run: python3 tools/ci/run_progression_autonomous_mission.py
+      - name: Retain the targeted browser acquisition immediately, including refusal
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset-phase-browser-r2025a
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
+      - name: Preserve targeted acquisition before the canonical runner recreates its directory
+        run: mv ci-artifacts/progression-autonomous-mission ci-artifacts/progression-autonomous-instrumented
+      - name: Exercise reactive semantics through product Blockly and Runtime v2 core
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
         if: always()
