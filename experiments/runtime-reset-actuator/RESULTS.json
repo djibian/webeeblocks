@@ -1,0 +1,186 @@
+{
+  "main": "4ff57f7621fbff42756b90b089afbe40569f2514",
+  "scope": "synthetic actuator mechanism confirmed; historical #637 cause not established; no production correction",
+  "experiments": {
+    "actuator600": {
+      "archive": "evidence/actuator600.tar.gz",
+      "sha256": "283d223ae6139df17fd4a9f65c47b9e88648226abf5d36a33fbf3f673305a2e6",
+      "bytes": 20917,
+      "kind": "preparation-error"
+    },
+    "actuator600-prepared": {
+      "archive": "evidence/actuator600-prepared.tar.gz",
+      "sha256": "27ddef05a58a72a9bba77694df92498ad973980b699b8d0e106c990aea261677",
+      "bytes": 52519,
+      "kind": "native-acquisition",
+      "summary": {
+        "scope": "synthetic actuator intervention, not historical reproduction or acceptance",
+        "terminal": {
+          "event": "RESET_REFUSED",
+          "detail": {
+            "code": "RESET_TIMEOUT"
+          },
+          "wall_ms": 1792477050131
+        }
+      },
+      "resets": [
+        {
+          "id": 1,
+          "begin_time": 30.368,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR RESET_TIMEOUT",
+          "samples": 157,
+          "last_sample_elapsed": 4.992,
+          "pose_bad": 155,
+          "motion_bad": 155,
+          "last_bad_elapsed": 4.992,
+          "final_stable_span": 0
+        }
+      ]
+    },
+    "actuator0-control": {
+      "archive": "evidence/actuator0-control.tar.gz",
+      "sha256": "a5062909ec5646e009cb0c47caab9cfc558c8a3a412b0fab60b4fbcc4cbf07e3",
+      "bytes": 67819,
+      "kind": "native-acquisition",
+      "summary": {
+        "scope": "synthetic actuator intervention, not historical reproduction or acceptance",
+        "terminal": {
+          "event": "RESET_OK",
+          "detail": {},
+          "wall_ms": 1792477093844
+        }
+      },
+      "resets": [
+        {
+          "id": 1,
+          "begin_time": 27.616,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK",
+          "samples": 14,
+          "last_sample_elapsed": 0.416,
+          "pose_bad": 0,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.128,
+          "final_stable_span": 0.2560000000000002
+        }
+      ]
+    },
+    "actuator600-cleared": {
+      "archive": "evidence/actuator600-cleared.tar.gz",
+      "sha256": "4875d048f9749986b560a54541e0a6180a05a154d26c3d6b922dafe0061c9632",
+      "bytes": 72289,
+      "kind": "native-acquisition",
+      "summary": {
+        "scope": "synthetic actuator intervention, not historical reproduction or acceptance",
+        "terminal": {
+          "event": "RESET_OK",
+          "detail": {},
+          "wall_ms": 1792477286160
+        }
+      },
+      "resets": [
+        {
+          "id": 1,
+          "begin_time": 28.16,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK",
+          "samples": 15,
+          "last_sample_elapsed": 0.448,
+          "pose_bad": 0,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.16,
+          "final_stable_span": 0.2560000000000002
+        }
+      ]
+    },
+    "actuator-collision-baseline": {
+      "archive": "evidence/actuator-collision-baseline.tar.gz",
+      "sha256": "76b7899623a6b1f16b80d4fc0bc2a90c3ec83d76f739c84a739f69db3c4c28fc",
+      "bytes": 7992753,
+      "kind": "native-acquisition",
+      "summary": {
+        "mode": "baseline",
+        "reset_acknowledgements": 7,
+        "collision_attempt7_observed": true,
+        "scope": "diagnostic-only; no historical failure reproduction or main-health claim"
+      },
+      "resets": [
+        {
+          "id": 402,
+          "begin_time": 860.064,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 402 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 423,
+          "begin_time": 915.168,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 423 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 449,
+          "begin_time": 985.792,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 449 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 1,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999999718
+        },
+        {
+          "id": 476,
+          "begin_time": 1058.752,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 476 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 3,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.2559999999998581
+        },
+        {
+          "id": 487,
+          "begin_time": 1113.76,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 487 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2559999999998581
+        },
+        {
+          "id": 508,
+          "begin_time": 1173.824,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 508 OK",
+          "samples": 13,
+          "last_sample_elapsed": 0.384,
+          "pose_bad": 1,
+          "motion_bad": 3,
+          "last_bad_elapsed": 0.096,
+          "final_stable_span": 0.2560000000000855
+        },
+        {
+          "id": 528,
+          "begin_time": 1248.64,
+          "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 528 OK",
+          "samples": 11,
+          "last_sample_elapsed": 0.32,
+          "pose_bad": 1,
+          "motion_bad": 2,
+          "last_bad_elapsed": 0.032,
+          "final_stable_span": 0.2560000000000855
+        }
+      ]
+    }
+  }
+}
