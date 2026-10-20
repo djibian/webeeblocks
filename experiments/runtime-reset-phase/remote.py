@@ -221,18 +221,20 @@ def download_and_verify(artifact, expected, head, run_id, directory):
     emit("DOWNLOADED_ZIP_VERIFIED", report)
 
 
-def acquire(count):
-    if count != 8:
-        raise ValueError("this preregistered campaign has exactly eight trials")
+def acquire(count, cpu_limit=None):
+    if (count, cpu_limit) not in ((8, None), (1, 1.0)):
+        raise ValueError("only preregistered eight baseline trials or one CPU=1 trial")
     OUT.mkdir(parents=True, exist_ok=False)
-    configuration = {"question": "variability of unchanged native browser path, first actual refusal",
+    configuration = {"question": ("CPU quota influence on original browser RESET receipt phase" if cpu_limit else
+                                  "variability of unchanged native browser path, first actual refusal"),
+                     "native_cpu_limit": cpu_limit,
                      "head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
                      "source_candidate": ORIGINAL_HEAD, "planned": count, "started": [],
-                     "stop_rule": "first refusal/preparation error, otherwise exactly eight; no retry",
+                     "stop_rule": "first refusal/preparation error, otherwise exactly " + str(count) + "; no retry",
                      "defer_steps": 0, "scope": "diagnostic-only; never repair or main-health"}
     write_json(OUT / "campaign.json", configuration)
     shutil.copyfile(__file__, OUT / "executed-remote.py")
-    shutil.copyfile(HERE / "VARIABILITY_PROTOCOL.md", OUT / "VARIABILITY_PROTOCOL.md")
+    shutil.copyfile(HERE / ("CPU_PROTOCOL.md" if cpu_limit else "VARIABILITY_PROTOCOL.md"), OUT / "EXECUTED_PROTOCOL.md")
     shutil.copyfile(ROOT / ".github/workflows/reset637-variability.yml", OUT / "executed-workflow.yml")
     (OUT / "cpuinfo.txt").write_text(Path("/proc/cpuinfo").read_text())
     original_c = (ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c").read_bytes()
@@ -257,10 +259,19 @@ def acquire(count):
                     after = before.replace(anchor, anchor + "\n"
                         "google-chrome --version > /workspace/ci-artifacts/progression-autonomous-mission/browser-version.txt\n"
                         "sha256sum /tmp/google-chrome.deb /opt/google/chrome/chrome > /workspace/ci-artifacts/progression-autonomous-mission/browser-sha256.txt")
+                    if cpu_limit:
+                        after += "\n" if not after.endswith("\n") else ""
+                        # Insert before Webots starts; this branch requires cgroup v2 evidence.
+                        after = after.replace(anchor, anchor + "\ncat /sys/fs/cgroup/cpu.max > /workspace/ci-artifacts/progression-autonomous-mission/native-cpu-max.txt", 1)
                     (runner.ARTIFACT_ROOT / "browser-command-original.sh").write_text(before)
                     (runner.ARTIFACT_ROOT / "browser-command-measured.sh").write_text(after)
                     preparation_captures.append(1)
                     command = [*command[:-1], after]
+                    if cpu_limit:
+                        if command[1] != "run":
+                            raise ValueError("not the native Docker run")
+                        command = [*command[:2], "--cpus=" + str(cpu_limit), *command[2:]]
+                    (runner.ARTIFACT_ROOT / "native-docker-command.json").write_text(json.dumps(command, indent=2) + "\n")
                     if arguments:
                         arguments[0] = command
                     else:
@@ -288,6 +299,11 @@ def acquire(count):
             # These outer result/analysis files are covered by the campaign manifest,
             # not retroactively inserted into the original acquisition manifest.
             try:
+                if cpu_limit:
+                    quota = (destination / "native-cpu-max.txt").read_text().split()
+                    if len(quota) != 2 or quota[0] == "max" or abs(int(quota[0]) / int(quota[1]) - cpu_limit) > 1e-9:
+                        raise ValueError("actual native cgroup CPU quota not established")
+                    result["native_cpu_max"] = quota
                 report = analyze(destination, status == 0, configuration["head"])
                 write_json(destination / "recalculated-analysis.json", report)
                 if status == 0 and len(preparation_captures) != 1:
@@ -306,7 +322,7 @@ def acquire(count):
                 configuration["stopped"] = "first refusal or preparation/verification error"
                 write_json(OUT / "campaign.json", configuration)
                 return 1
-        configuration["stopped"] = "eight trials completed; no disappearance/health claim"
+        configuration["stopped"] = str(count) + " trials completed; no disappearance/health claim"
         write_json(OUT / "campaign.json", configuration)
         return 0
     finally:
@@ -354,6 +370,7 @@ def main():
     sub.add_parser("self-test")
     run = sub.add_parser("run")
     run.add_argument("--count", type=int, required=True)
+    run.add_argument("--cpu-limit", type=float, choices=(1.0,))
     verify = sub.add_parser("verify")
     verify.add_argument("--artifact", type=int, required=True)
     verify.add_argument("--sha256", required=True)
@@ -365,7 +382,7 @@ def main():
         self_test()
         return 0
     if arguments.command == "run":
-        return acquire(arguments.count)
+        return acquire(arguments.count, arguments.cpu_limit)
     download_and_verify(arguments.artifact, arguments.sha256, arguments.head, arguments.run, arguments.directory)
     return 0
 

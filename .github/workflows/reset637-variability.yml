@@ -1,15 +1,15 @@
-name: RESET 637 bounded native variability
+name: RESET 637 native CPU scheduling discriminator
 on:
   push:
-    branches: ['experiment/reset637-browser-variability-20261020']
+    branches: ['experiment/reset637-browser-cpu1-20261020']
 permissions:
   contents: read
   actions: read
 jobs:
   acquire-and-verify:
-    name: Bounded native investigation (not CI Gate)
+    name: One native CPU=1 investigation (not CI Gate)
     runs-on: ubuntu-22.04
-    timeout-minutes: 240
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,14 +36,14 @@ jobs:
           --directory ci-artifacts/reset637-canonical-verified
       - name: Prepare unchanged product Blockly assets
         run: bash ./tools/prepare_runtime_v2.sh
-      - name: Eight original browser acquisitions; stop on first refusal
-        run: python3 experiments/runtime-reset-phase/remote.py run --count 8
+      - name: One original browser acquisition at CPU=1; no retry
+        run: python3 experiments/runtime-reset-phase/remote.py run --count 1 --cpu-limit 1
       - name: Preserve every started acquisition
         id: archive
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reset637-native-variability-${{ github.sha }}
+          name: reset637-native-cpu1-${{ github.sha }}
           path: |
             ci-artifacts/reset637-variability/
             ci-artifacts/progression-autonomous-mission/
@@ -63,7 +63,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reset637-byte-verification-${{ github.sha }}
+          name: reset637-cpu1-byte-verification-${{ github.sha }}
           path: |
             ci-artifacts/reset637-canonical-verified/
             ci-artifacts/reset637-campaign-verified/verification.json
