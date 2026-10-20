@@ -1,0 +1,35 @@
+name: RESET 637 buffered self observation
+on:
+  push:
+    branches: ['experiment/reset637-buffered-self-observation-20261020']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    name: One buffered native acquisition (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate measurement transform and unchanged oracles
+        run: |
+          python3 experiments/runtime-reset-buffered/test_buffered.py
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+          node tools/ci/test_progression_autonomous_contract.js
+      - name: Prepare original Blockly assets
+        run: bash tools/prepare_runtime_v2.sh
+      - name: Execute exactly one browser acquisition
+        run: python3 experiments/runtime-reset-buffered/run.py
+      - name: Preserve complete or refused acquisition
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-buffered-${{ github.sha }}
+          path: ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: error
