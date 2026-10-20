@@ -1,0 +1,70 @@
+name: RESET 637 bounded native variability
+on:
+  push:
+    branches: ['experiment/reset637-browser-variability-20261020']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  acquire-and-verify:
+    name: Bounded native investigation (not CI Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate remote verifier and original probe contracts
+        run: |
+          python3 -m py_compile experiments/runtime-reset-phase/remote.py
+          python3 experiments/runtime-reset-phase/remote.py self-test
+          python3 experiments/runtime-reset-phase/test_defer.py
+          python3 tools/ci/test_runtime_v2_autonomous_observer.py
+      - name: Revalidate exact canonical archive before using it
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 experiments/runtime-reset-phase/remote.py verify
+          --artifact 12249263506
+          --sha256 e8ee7a4b8b1eb240f8f51ae06af3ff2a253fbfe33e6bc49ac3006ec8281b4b83
+          --head 635343ebc9f715c3deff894889d6309c84acac9f
+          --run 39385917836
+          --directory ci-artifacts/reset637-canonical-verified
+      - name: Prepare unchanged product Blockly assets
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Eight original browser acquisitions; stop on first refusal
+        run: python3 experiments/runtime-reset-phase/remote.py run --count 8
+      - name: Preserve every started acquisition
+        id: archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-native-variability-${{ github.sha }}
+          path: |
+            ci-artifacts/reset637-variability/
+            ci-artifacts/progression-autonomous-mission/
+          if-no-files-found: warn
+      - name: Download and verify actual ZIP and every manifested byte
+        if: always() && steps.archive.outputs.artifact-id != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.archive.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.archive.outputs.artifact-digest }}
+        run: >-
+          python3 experiments/runtime-reset-phase/remote.py verify
+          --artifact "$ARTIFACT_ID" --sha256 "$ARTIFACT_DIGEST"
+          --head "${{ github.sha }}" --run "${{ github.run_id }}"
+          --directory ci-artifacts/reset637-campaign-verified
+      - name: Preserve verification reports and prior canonical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset637-byte-verification-${{ github.sha }}
+          path: |
+            ci-artifacts/reset637-canonical-verified/
+            ci-artifacts/reset637-campaign-verified/verification.json
+          if-no-files-found: warn
