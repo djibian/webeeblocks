@@ -1,0 +1,17 @@
+[
+  {
+    "name": "historical-s3.tar.xz",
+    "size": 1865028,
+    "sha256": "149d836e18f2f518db03e6447c50379c783ade3946fa57955cafbad9b7a12ad5"
+  },
+  {
+    "name": "candidate-s0.tar.xz",
+    "size": 1455524,
+    "sha256": "533ccae34071fe48c44656360b9781333207a06cde653b19c8a7ac431de09047"
+  },
+  {
+    "name": "candidate-s3.tar.xz",
+    "size": 1759296,
+    "sha256": "a6f58d19ce907e6b69a794ff783969d4a735c4fc3440af112d4c3c3610fcb88f"
+  }
+]
