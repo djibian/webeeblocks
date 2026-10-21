@@ -108,3 +108,36 @@ Une erreur de préparation Blockly a refusé avant acquisition le déplacement
 inverse historique à 0,35 m (pas de champ de 0,10 m) ; le négatif ordinaire
 utilise 0,30 m, suffisant seulement si le vrai oracle confirme un passage
 entier préalable. Aucun résultat natif n'est déduit de cette préparation.
+
+## Refus conservés pendant l'extension
+
+s1 et s17 : SIGSEGV de chargement Webots avant admission, aucun résultat
+algorithmique, aucun rejeu. s14 et s5 : résultat natif `achieved`, mais
+l'archive complète ne correspond pas à son manifeste interne pour un log
+(`node.log` / `flight.log`). Les archives originales et diagnostics restent
+inchangés ; ce sont des preuves partielles, jamais des PASS complets.
+La sérialisation de l'accès au dossier a été essayée avant s15/s2/s5 ;
+l'incohérence s5 montre qu'elle ne suffit pas à établir la cause ni à corriger
+le problème de capture. Aucun correctif du runner partagé n'est proposé ici.
+Les variantes s2/s5 explorent des positions supplémentaires : leurs numéros
+ne sont pas présumés équivalents aux numéros affichés par les lanceurs Windows.
+
+Le premier driver local de vérification du `.wbb` utilisait dans le contexte
+Node stdin une liaison lexicale `Blockly` qui masquait le global temporaire
+attendu par le module de blocs. Il a échoué avant de vérifier le fichier ; son
+log est conservé dans `static-checks-initial.log`. Le driver autonome
+`verify_programs.js` évite cette collision de noms et vérifie le vrai fichier
+publié, son AST exact et les préflights négatifs ; `static-checks.log` contient
+la vérification corrigée et les 22 tests géométriques/oracle.
+
+Vérification hors simulation des archives originales, des refus connus et des
+cinq rejeux positifs :
+
+```sh
+node experiments/grand-prix-no-wall/verify_programs.js
+python3 experiments/grand-prix-no-wall/verify_evidence.py
+```
+
+Le second script utilise Python 3.12 (`tarfile` avec filtre `data`). Aucun
+lancement natif supplémentaire n'est nécessaire pour vérifier les octets.
+Consulter `RESULTS.md` pour le verdict B, les résultats partiels et les limites.

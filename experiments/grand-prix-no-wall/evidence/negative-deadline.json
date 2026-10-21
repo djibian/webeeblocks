@@ -1,0 +1,38 @@
+{
+  "runner_exit": 1,
+  "result": {
+    "status": "not-achieved",
+    "configuration": "gp-u-v1-L2000-s3",
+    "attempt": 1,
+    "seconds": 210.0,
+    "reason": "time-limit",
+    "crossings": 0
+  },
+  "internal_manifest_mismatches": {},
+  "archive_sha256": "9be0c27869d1d3ce637f06373969ef86c7f316f53a41979c71113cae493e661c",
+  "archive_bytes": 8562316,
+  "no_reset_sent": true,
+  "deadline_records": [
+    "GP_U_ADMISSION attempt=1 start_ms=16288",
+    "GP_U_DEADLINE time_ms=226288 command=LAND interrupted_id=59"
+  ],
+  "late_rejections": [
+    {
+      "command": "COMPLETE",
+      "code": "TIME_LIMIT"
+    },
+    {
+      "command": "FAILURE",
+      "code": "TIME_LIMIT"
+    },
+    {
+      "command": "MOVE",
+      "code": "TIME_LIMIT"
+    },
+    {
+      "command": "STOP",
+      "code": "TIME_LIMIT"
+    }
+  ],
+  "native_land_completed": false
+}
