@@ -1,0 +1,3 @@
+# Native evidence retains original bytes, including the CSV writer's CRLF.
+data/** -text
+data/*/native-land-window.csv whitespace=cr-at-eol

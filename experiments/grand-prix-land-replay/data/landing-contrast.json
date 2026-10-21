@@ -1,0 +1,31 @@
+{
+  "claim": "R2025a-native-visual-contrast-diagnostic-not-acceptance",
+  "flat": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s14",
+    "attempt": 1,
+    "seconds": 168.288,
+    "reason": null,
+    "crossings": 2,
+    "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+    "claim": "native-shared-interpreter",
+    "webots_version": "R2025a",
+    "mode": "witness",
+    "visual_variant": "flat",
+    "artifact_dir": "gp-u-v1-L2000-s14-witness-flat-57fdab8644"
+  },
+  "checkered": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s14",
+    "attempt": 1,
+    "seconds": 170.272,
+    "reason": null,
+    "crossings": 2,
+    "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+    "claim": "native-shared-interpreter",
+    "webots_version": "R2025a",
+    "mode": "witness",
+    "visual_variant": "checkered",
+    "artifact_dir": "gp-u-v1-L2000-s14-witness-814c30f29d"
+  }
+}

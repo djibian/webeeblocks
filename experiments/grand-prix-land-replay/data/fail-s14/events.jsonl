@@ -1,0 +1,387 @@
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 HELLO"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 READY"}
+{"event":"program","detail":{"version":1,"semantics":"webeeblocks-ast-v1","program":[{"kind":"takeoff","height_m":0.4},{"kind":"vertical","direction":"up","distance_m":0.4},{"kind":"set_variable","variable":{"id":"gpu-avant","name":"avant"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-gauche","name":"gauche"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-droite","name":"droite"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-bas","name":"bas"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-arrière","name":"arrière"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-côté","name":"côté"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-portes","name":"portes"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-paroi vue","name":"paroi vue"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-invalide","name":"invalide"},"value":{"kind":"number","value":0}},{"kind":"repeat","count":3,"body":[{"kind":"set_variable","variable":{"id":"gpu-paroi vue","name":"paroi vue"},"value":{"kind":"number","value":0}},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":0}},{"kind":"while","mode":"UNTIL","condition":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-côté terminé","name":"côté terminé"}},"right":{"kind":"number","value":1}},"body":[{"kind":"if","condition":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-invalide","name":"invalide"}},"right":{"kind":"number","value":0}},"then":[{"kind":"set_variable","variable":{"id":"gpu-avant","name":"avant"},"value":{"kind":"range","direction":"front","unit":"m"}},{"kind":"set_variable","variable":{"id":"gpu-gauche","name":"gauche"},"value":{"kind":"range","direction":"left","unit":"m"}},{"kind":"set_variable","variable":{"id":"gpu-droite","name":"droite"},"value":{"kind":"range","direction":"right","unit":"m"}},{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":0.65}},"then":[{"kind":"set_variable","variable":{"id":"gpu-paroi vue","name":"paroi vue"},"value":{"kind":"number","value":1}},{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"arithmetic","op":"MINUS","left":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}},"right":{"kind":"number","value":0.06}}},"then":[{"kind":"move","direction":"right","distance_m":0.1}],"else":[{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}},"right":{"kind":"arithmetic","op":"MINUS","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"number","value":0.06}}},"then":[{"kind":"move","direction":"left","distance_m":0.1}]}]},{"kind":"vertical","direction":"down","distance_m":0.4},{"kind":"set_variable","variable":{"id":"gpu-bas","name":"bas"},"value":{"kind":"range","direction":"front","unit":"m"}},{"kind":"if","condition":{"kind":"compare","op":"GTE","left":{"kind":"variable_get","variable":{"id":"gpu-bas","name":"bas"}},"right":{"kind":"number","value":1.99}},"then":[{"kind":"turn","angle_deg":-20},{"kind":"set_variable","variable":{"id":"gpu-bas","name":"bas"},"value":{"kind":"range","direction":"front","unit":"m"}},{"kind":"turn","angle_deg":20}]},{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-bas","name":"bas"}},"right":{"kind":"number","value":1.99}},"right":{"kind":"compare","op":"GT","left":{"kind":"variable_get","variable":{"id":"gpu-bas","name":"bas"}},"right":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.3}}}},"then":[{"kind":"move","direction":"forward","distance_m":0.4},{"kind":"vertical","direction":"up","distance_m":0.4},{"kind":"move","direction":"forward","distance_m":0.3},{"kind":"set_variable","variable":{"id":"gpu-arrière","name":"arrière"},"value":{"kind":"range","direction":"back","unit":"m"}},{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"GT","left":{"kind":"variable_get","variable":{"id":"gpu-arrière","name":"arrière"}},"right":{"kind":"number","value":0.3}},"right":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-arrière","name":"arrière"}},"right":{"kind":"number","value":0.85}}},"then":[{"kind":"set_variable","variable":{"id":"gpu-portes","name":"portes"},"value":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-portes","name":"portes"}},"right":{"kind":"number","value":1}}}],"else":[{"kind":"set_variable","variable":{"id":"gpu-invalide","name":"invalide"},"value":{"kind":"number","value":1}},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":1}}]}],"else":[{"kind":"set_variable","variable":{"id":"gpu-invalide","name":"invalide"},"value":{"kind":"number","value":1}},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":1}}]}],"else":[{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-côté","name":"côté"}},"right":{"kind":"number","value":2}},"right":{"kind":"logic","op":"AND","left":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"GT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":1.65}},"right":{"kind":"compare","op":"LT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":1.9}}},"right":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.85}}}},"then":[{"kind":"set_variable","variable":{"id":"gpu-avant","name":"avant"},"value":{"kind":"range","direction":"front","unit":"m"}},{"kind":"while","mode":"UNTIL","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"GTE","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.63}},"right":{"kind":"compare","op":"LTE","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.73}}},"body":[{"kind":"if","condition":{"kind":"compare","op":"GT","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.73}},"then":[{"kind":"move","direction":"forward","distance_m":0.1}],"else":[{"kind":"move","direction":"back","distance_m":0.1}]},{"kind":"set_variable","variable":{"id":"gpu-avant","name":"avant"},"value":{"kind":"range","direction":"front","unit":"m"}}],"max_iterations":6},{"kind":"vertical","direction":"down","distance_m":0.4},{"kind":"set_variable","variable":{"id":"gpu-bas","name":"bas"},"value":{"kind":"range","direction":"front","unit":"m"}},{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":1.99}},"right":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"GTE","left":{"kind":"variable_get","variable":{"id":"gpu-bas","name":"bas"}},"right":{"kind":"arithmetic","op":"MINUS","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.08}}},"right":{"kind":"compare","op":"LTE","left":{"kind":"variable_get","variable":{"id":"gpu-bas","name":"bas"}},"right":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.08}}}}},"then":[{"kind":"if","condition":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-portes","name":"portes"}},"right":{"kind":"number","value":2}},"then":[{"kind":"move","direction":"left","distance_m":0.4},{"kind":"move","direction":"left","distance_m":0.1}]},{"kind":"if","condition":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-portes","name":"portes"}},"right":{"kind":"number","value":3}},"then":[{"kind":"move","direction":"right","distance_m":0.4},{"kind":"move","direction":"right","distance_m":0.1},{"kind":"move","direction":"right","distance_m":0.1}]}],"else":[{"kind":"set_variable","variable":{"id":"gpu-invalide","name":"invalide"},"value":{"kind":"number","value":1}}]},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":1}}],"else":[{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"number","value":0.75}},"then":[{"kind":"set_variable","variable":{"id":"gpu-paroi vue","name":"paroi vue"},"value":{"kind":"number","value":1}}]},{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-côté","name":"côté"}},"right":{"kind":"number","value":2}},"right":{"kind":"compare","op":"LTE","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.2}}},"then":[{"kind":"turn","angle_deg":90},{"kind":"set_variable","variable":{"id":"gpu-droite","name":"droite"},"value":{"kind":"range","direction":"right","unit":"m"}},{"kind":"while","mode":"UNTIL","condition":{"kind":"compare","op":"GTE","left":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}},"right":{"kind":"number","value":0.44}},"body":[{"kind":"move","direction":"left","distance_m":0.1},{"kind":"set_variable","variable":{"id":"gpu-droite","name":"droite"},"value":{"kind":"range","direction":"right","unit":"m"}}],"max_iterations":5},{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":1}}],"else":[{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"EQ","left":{"kind":"variable_get","variable":{"id":"gpu-côté","name":"côté"}},"right":{"kind":"number","value":2}},"right":{"kind":"compare","op":"GT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":1.65}}},"then":[{"kind":"move","direction":"forward","distance_m":0.1}],"else":[{"kind":"if","condition":{"kind":"logic","op":"AND","left":{"kind":"compare","op":"GT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":0.9}},"right":{"kind":"compare","op":"LT","left":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}}},"right":{"kind":"number","value":1.1}}},"then":[{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"arithmetic","op":"MINUS","left":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}},"right":{"kind":"number","value":0.06}}},"then":[{"kind":"move","direction":"right","distance_m":0.1}],"else":[{"kind":"if","condition":{"kind":"compare","op":"LT","left":{"kind":"variable_get","variable":{"id":"gpu-droite","name":"droite"}},"right":{"kind":"arithmetic","op":"MINUS","left":{"kind":"variable_get","variable":{"id":"gpu-gauche","name":"gauche"}},"right":{"kind":"number","value":0.06}}},"then":[{"kind":"move","direction":"left","distance_m":0.1}]}]}]},{"kind":"if","condition":{"kind":"compare","op":"GT","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.75}},"then":[{"kind":"move","direction":"forward","distance_m":0.4}],"else":[{"kind":"if","condition":{"kind":"compare","op":"GT","left":{"kind":"variable_get","variable":{"id":"gpu-avant","name":"avant"}},"right":{"kind":"number","value":0.35}},"then":[{"kind":"move","direction":"forward","distance_m":0.2}],"else":[{"kind":"move","direction":"forward","distance_m":0.1}]}]}]}]}]}]}],"else":[{"kind":"set_variable","variable":{"id":"gpu-côté terminé","name":"côté terminé"},"value":{"kind":"number","value":1}}]}],"max_iterations":35},{"kind":"set_variable","variable":{"id":"gpu-côté","name":"côté"},"value":{"kind":"arithmetic","op":"ADD","left":{"kind":"variable_get","variable":{"id":"gpu-côté","name":"côté"}},"right":{"kind":"number","value":1}}}]},{"kind":"land"}]}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 READY HELLO"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 VERTICAL up 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK"}
+{"event":"count","detail":{"avant":0,"gauche":0,"droite":0,"bas":0,"arrière":0,"côté":0,"portes":0}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 VALUE 1.130000000"}
+{"event":"sensor","detail":{"direction":"front","value":1.13}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 4 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"left","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 5 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 6 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 7 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 VALUE 0.746685076"}
+{"event":"sensor","detail":{"direction":"front","value":0.746685076}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 8 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"left","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 9 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 9 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 10 MOVE forward 0.20000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 10 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 11 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 11 VALUE 0.554951370"}
+{"event":"sensor","detail":{"direction":"front","value":0.55495137}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 12 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 12 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"left","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 13 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 13 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 14 MOVE forward 0.20000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 14 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 15 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 15 VALUE 0.364312702"}
+{"event":"sensor","detail":{"direction":"front","value":0.364312702}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 16 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 16 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"left","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 18 MOVE forward 0.20000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 18 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 19 VALUE 0.172572138"}
+{"event":"sensor","detail":{"direction":"front","value":0.172572138}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 20 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 20 VALUE 0.280000089"}
+{"event":"sensor","detail":{"direction":"left","value":0.280000089}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 21 VALUE 0.280000089"}
+{"event":"sensor","detail":{"direction":"right","value":0.280000089}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 22 VERTICAL down 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 22 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 23 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 23 VALUE 1.514328712"}
+{"event":"sensor","detail":{"direction":"front","value":1.514328712}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 24 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 25 VERTICAL up 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 25 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 26 MOVE forward 0.29999999999999999"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 26 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 27 RANGE back"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 27 VALUE 0.462720572"}
+{"event":"sensor","detail":{"direction":"back","value":0.462720572}}
+{"event":"count","detail":{"avant":0.172572138,"gauche":0.280000089,"droite":0.280000089,"bas":1.514328712,"arrière":0.462720572,"côté":0,"portes":1,"paroi vue":1,"côté terminé":0,"invalide":0}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 28 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 28 VALUE 0.842484486"}
+{"event":"sensor","detail":{"direction":"front","value":0.842484486}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 29 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 29 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 30 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 30 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 31 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 31 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 32 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 32 VALUE 0.455101618"}
+{"event":"sensor","detail":{"direction":"front","value":0.455101618}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 33 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 33 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 34 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 34 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 35 MOVE forward 0.20000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 35 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 36 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 36 VALUE 0.263954902"}
+{"event":"sensor","detail":{"direction":"front","value":0.263954902}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 37 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 37 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 38 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 38 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 39 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 39 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 40 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 40 VALUE 0.172901777"}
+{"event":"sensor","detail":{"direction":"front","value":0.172901777}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 41 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 41 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 42 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 42 VALUE 0.480000152"}
+{"event":"sensor","detail":{"direction":"right","value":0.480000152}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 43 TURN 90.000000000000000"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 43 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 44 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 44 VALUE 0.164336763"}
+{"event":"sensor","detail":{"direction":"right","value":0.164336763}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 45 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 45 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 46 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 46 VALUE 0.247438009"}
+{"event":"sensor","detail":{"direction":"right","value":0.247438009}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 47 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 47 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 48 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 48 VALUE 0.335149975"}
+{"event":"sensor","detail":{"direction":"right","value":0.335149975}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 49 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 49 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 50 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 50 VALUE 0.423085614"}
+{"event":"sensor","detail":{"direction":"right","value":0.423085614}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 51 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 51 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 52 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 52 VALUE 0.511057662"}
+{"event":"sensor","detail":{"direction":"right","value":0.511057662}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 53 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 53 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"front","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 54 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 54 VALUE 0.793749261"}
+{"event":"sensor","detail":{"direction":"left","value":0.793749261}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 55 VALUE 0.519220483"}
+{"event":"sensor","detail":{"direction":"right","value":0.519220483}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 56 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 56 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 57 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 57 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"front","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 58 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 58 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 59 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 59 VALUE 0.516193740"}
+{"event":"sensor","detail":{"direction":"right","value":0.51619374}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 60 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 60 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 61 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 61 VALUE 1.702245150"}
+{"event":"sensor","detail":{"direction":"front","value":1.70224515}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 62 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 62 VALUE 0.447374372"}
+{"event":"sensor","detail":{"direction":"left","value":0.447374372}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 63 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 63 VALUE 0.512660166"}
+{"event":"sensor","detail":{"direction":"right","value":0.512660166}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 64 MOVE right 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 64 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 65 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 65 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 66 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 66 VALUE 1.310174662"}
+{"event":"sensor","detail":{"direction":"front","value":1.310174662}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 67 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 67 VALUE 0.534220277"}
+{"event":"sensor","detail":{"direction":"left","value":0.534220277}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 68 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 68 VALUE 0.425825065"}
+{"event":"sensor","detail":{"direction":"right","value":0.425825065}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 69 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 69 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 70 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 70 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 71 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 71 VALUE 0.916535142"}
+{"event":"sensor","detail":{"direction":"front","value":0.916535142}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 72 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 72 VALUE 1.954344389"}
+{"event":"sensor","detail":{"direction":"left","value":1.954344389}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 73 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 73 VALUE 0.505751414"}
+{"event":"sensor","detail":{"direction":"right","value":0.505751414}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 74 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 74 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 75 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 75 VALUE 0.524538176"}
+{"event":"sensor","detail":{"direction":"front","value":0.524538176}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 76 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 76 VALUE 0.657868292"}
+{"event":"sensor","detail":{"direction":"left","value":0.657868292}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 77 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 77 VALUE 0.502175772"}
+{"event":"sensor","detail":{"direction":"right","value":0.502175772}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 78 MOVE forward 0.20000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 78 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 79 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 79 VALUE 0.333117081"}
+{"event":"sensor","detail":{"direction":"front","value":0.333117081}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 80 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 80 VALUE 0.659578295"}
+{"event":"sensor","detail":{"direction":"left","value":0.659578295}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 81 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 81 VALUE 0.500465743"}
+{"event":"sensor","detail":{"direction":"right","value":0.500465743}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 82 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 82 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 83 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 83 VALUE 0.241237627"}
+{"event":"sensor","detail":{"direction":"front","value":0.241237627}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 84 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 84 VALUE 0.660390604"}
+{"event":"sensor","detail":{"direction":"left","value":0.660390604}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 85 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 85 VALUE 0.499653363"}
+{"event":"sensor","detail":{"direction":"right","value":0.499653363}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 86 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 86 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 87 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 87 VALUE 0.149863083"}
+{"event":"sensor","detail":{"direction":"front","value":0.149863083}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 88 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 88 VALUE 1.961274196"}
+{"event":"sensor","detail":{"direction":"left","value":1.961274196}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 89 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 89 VALUE 0.498831465"}
+{"event":"sensor","detail":{"direction":"right","value":0.498831465}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 TURN 90.000000000000000"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 91 VALUE 0.141267726"}
+{"event":"sensor","detail":{"direction":"right","value":0.141267726}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 92 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 92 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 93 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 93 VALUE 0.224362585"}
+{"event":"sensor","detail":{"direction":"right","value":0.224362585}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 94 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 94 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 95 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 95 VALUE 0.312440354"}
+{"event":"sensor","detail":{"direction":"right","value":0.312440354}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 96 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 96 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 97 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 97 VALUE 0.400392577"}
+{"event":"sensor","detail":{"direction":"right","value":0.400392577}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 98 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 98 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 99 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 99 VALUE 0.488362392"}
+{"event":"sensor","detail":{"direction":"right","value":0.488362392}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 100 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 100 VALUE 0.655054037"}
+{"event":"sensor","detail":{"direction":"front","value":0.655054037}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 101 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 101 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 102 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 102 VALUE 0.496525360"}
+{"event":"sensor","detail":{"direction":"right","value":0.49652536}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 103 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 103 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 104 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 104 VALUE 0.571929485"}
+{"event":"sensor","detail":{"direction":"front","value":0.571929485}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 105 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 105 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 106 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 106 VALUE 0.496003407"}
+{"event":"sensor","detail":{"direction":"right","value":0.496003407}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 107 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 107 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 108 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 108 VALUE 0.480302556"}
+{"event":"sensor","detail":{"direction":"front","value":0.480302556}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 109 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 109 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 110 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 110 VALUE 0.494122509"}
+{"event":"sensor","detail":{"direction":"right","value":0.494122509}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 111 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 111 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 112 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 112 VALUE 0.389200727"}
+{"event":"sensor","detail":{"direction":"front","value":0.389200727}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 113 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 113 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 114 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 114 VALUE 0.492495168"}
+{"event":"sensor","detail":{"direction":"right","value":0.492495168}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 115 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 115 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 116 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 116 VALUE 0.297577364"}
+{"event":"sensor","detail":{"direction":"front","value":0.297577364}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 117 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 117 VALUE 2.000000000"}
+{"event":"sensor","detail":{"direction":"left","value":2}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 118 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 118 VALUE 0.490881471"}
+{"event":"sensor","detail":{"direction":"right","value":0.490881471}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 119 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 119 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 120 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 120 VALUE 0.207803713"}
+{"event":"sensor","detail":{"direction":"front","value":0.207803713}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 121 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 121 VALUE 0.270853118"}
+{"event":"sensor","detail":{"direction":"left","value":0.270853118}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 122 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 122 VALUE 0.289228838"}
+{"event":"sensor","detail":{"direction":"right","value":0.289228838}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 123 VERTICAL down 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 123 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 124 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 124 VALUE 1.499219654"}
+{"event":"sensor","detail":{"direction":"front","value":1.499219654}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 125 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 125 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 126 VERTICAL up 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 126 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 127 MOVE forward 0.29999999999999999"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 127 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 128 RANGE back"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 128 VALUE 0.428054712"}
+{"event":"sensor","detail":{"direction":"back","value":0.428054712}}
+{"event":"count","detail":{"avant":0.207803713,"gauche":0.270853118,"droite":0.289228838,"bas":1.499219654,"arrière":0.428054712,"côté":2,"portes":2,"paroi vue":1,"côté terminé":0,"invalide":0}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 129 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 129 VALUE 0.829085116"}
+{"event":"sensor","detail":{"direction":"front","value":0.829085116}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 130 RANGE left"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 130 VALUE 0.882980599"}
+{"event":"sensor","detail":{"direction":"left","value":0.882980599}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 131 RANGE right"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 131 VALUE 0.877250199"}
+{"event":"sensor","detail":{"direction":"right","value":0.877250199}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 132 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 132 VALUE 0.825509085"}
+{"event":"sensor","detail":{"direction":"front","value":0.825509085}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 133 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 133 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 134 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 134 VALUE 0.739910716"}
+{"event":"sensor","detail":{"direction":"front","value":0.739910716}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 135 MOVE forward 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 135 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 136 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 136 VALUE 0.651945359"}
+{"event":"sensor","detail":{"direction":"front","value":0.651945359}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 137 VERTICAL down 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 137 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 138 RANGE front"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 138 VALUE 0.648008147"}
+{"event":"sensor","detail":{"direction":"front","value":0.648008147}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 139 MOVE left 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 139 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 140 MOVE left 0.10000000000000001"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 140 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 141 LAND"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 141 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 142 COMPLETE grand-prix-u-v1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 142 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 143 OUTCOME grand-prix-u-v1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 143 STATE not-achieved"}
+{"event":"outcome","detail":{"status":"not-achieved"}}

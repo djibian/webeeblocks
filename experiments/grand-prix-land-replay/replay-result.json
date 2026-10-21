@@ -1,0 +1,459 @@
+{
+  "claim": "open-loop PID replay of retained native LAND states; no plant counterfactual",
+  "original_archives_verified": true,
+  "cases": [
+    {
+      "name": "fail-s14",
+      "result": {
+        "status": "not-achieved",
+        "configuration": "gp-u-v1-L2000-s14",
+        "attempt": 1,
+        "seconds": 153.192,
+        "reason": "envelope-contact",
+        "crossings": 2
+      },
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "compared_control_samples": 63,
+      "clipped_mix_excluded_ms": [
+        175392,
+        175424
+      ],
+      "maximum_replay_error": 2.1621526613557762e-07,
+      "first_contact_ms": 174360,
+      "first_contact_count": 1,
+      "first_contact_position": [
+        0.6595164862974298,
+        1.5318520594794012,
+        0.0150037799509497
+      ],
+      "first_contact_xy_error": 0.05151182946455599,
+      "first_contact_native_velocity": [
+        -2.1817615974513253e-05,
+        -0.0012294887779495417,
+        -0.4531558969967696
+      ],
+      "max_post_contact_native_xy_speed": 2.168148252632706,
+      "max_post_contact_native_roll_degrees": 42.0532350356393,
+      "max_requested_roll_before_verdict_degrees": 292.3340827589029,
+      "max_requested_roll_until_stop_degrees": 2227.0443593622963,
+      "first_contact_control_landmarks": [
+        {
+          "time_ms": 174368,
+          "actual_roll_degrees": -4.488968594921284,
+          "requested_roll_degrees": 37.09084063019713,
+          "measured_body_vy": 0.03803484281013341,
+          "roll_mix": 2.6360787286554412,
+          "derivative_off_requested_roll_degrees": 4.358471775432074
+        },
+        {
+          "time_ms": 174400,
+          "actual_roll_degrees": 2.435634935438423,
+          "requested_roll_degrees": -89.96514457053206,
+          "measured_body_vy": -0.05536984786141016,
+          "roll_mix": -7.807507522243478,
+          "derivative_off_requested_roll_degrees": -6.344917036088039
+        },
+        {
+          "time_ms": 174432,
+          "actual_roll_degrees": 7.63392361915406,
+          "requested_roll_degrees": -4.314091640734104,
+          "measured_body_vy": -0.053358807032220915,
+          "roll_mix": 4.283751489196057,
+          "derivative_off_requested_roll_degrees": -6.114469014812747
+        }
+      ],
+      "motor_stop": {
+        "time_ms": 175456,
+        "id": 141,
+        "phase": "stop",
+        "position": [
+          0.569128405,
+          2.732105461,
+          0.028133555
+        ],
+        "velocity_world": [
+          -0.03449966,
+          -0.924435836,
+          0.064001518
+        ],
+        "rpy": [
+          0.261328464,
+          -0.095164828,
+          2.793921455
+        ],
+        "motors": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "flat-s14",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s14",
+        "attempt": 1,
+        "seconds": 168.288,
+        "reason": null,
+        "crossings": 2
+      },
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "compared_control_samples": 74,
+      "clipped_mix_excluded_ms": [],
+      "maximum_replay_error": 9.930474753616636e-08,
+      "first_contact_ms": 196000,
+      "first_contact_count": 4,
+      "first_contact_position": [
+        0.7338812980076933,
+        1.5349163182057364,
+        0.0116644729867126
+      ],
+      "first_contact_xy_error": 0.04865276592065823,
+      "first_contact_native_velocity": [
+        -1.052131142570246e-05,
+        -0.0011820993208987755,
+        -0.45055531553936234
+      ],
+      "max_post_contact_native_xy_speed": 0.0021726835187261336,
+      "max_post_contact_native_roll_degrees": 0.05557107452902199,
+      "max_requested_roll_before_verdict_degrees": 1.829821249647496,
+      "max_requested_roll_until_stop_degrees": 1.829821249647496,
+      "first_contact_control_landmarks": [
+        {
+          "time_ms": 196000,
+          "actual_roll_degrees": 0.030059199397507407,
+          "requested_roll_degrees": -0.0504077795812705,
+          "measured_body_vy": 0.001253582657608469,
+          "roll_mix": 0.000316593454378733,
+          "derivative_off_requested_roll_degrees": 0.14364999064298264
+        },
+        {
+          "time_ms": 196032,
+          "actual_roll_degrees": 0.03440565723136983,
+          "requested_roll_degrees": -1.2258518017808335,
+          "measured_body_vy": -0.00010257708099468584,
+          "roll_mix": -0.07534540927140654,
+          "derivative_off_requested_roll_degrees": -0.01175446791324433
+        },
+        {
+          "time_ms": 196064,
+          "actual_roll_degrees": 0.03904764669596073,
+          "requested_roll_degrees": -0.2074163445226503,
+          "measured_body_vy": -0.00029633276869988555,
+          "roll_mix": 0.05314305205092751,
+          "derivative_off_requested_roll_degrees": -0.033957232613857205
+        }
+      ],
+      "motor_stop": {
+        "time_ms": 197376,
+        "id": 137,
+        "phase": "stop",
+        "position": [
+          0.733889224,
+          1.535803173,
+          0.016703884
+        ],
+        "velocity_world": [
+          -2.817e-06,
+          -0.000315226,
+          -0.006908257
+        ],
+        "rpy": [
+          -0.000251017,
+          -3e-09,
+          3.132643809
+        ],
+        "motors": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "checkered-a-s14",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s14",
+        "attempt": 1,
+        "seconds": 170.272,
+        "reason": null,
+        "crossings": 2
+      },
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "compared_control_samples": 74,
+      "clipped_mix_excluded_ms": [],
+      "maximum_replay_error": 9.090503283459839e-08,
+      "first_contact_ms": 201984,
+      "first_contact_count": 4,
+      "first_contact_position": [
+        0.651593103198039,
+        1.5410366164944869,
+        0.012249711779479644
+      ],
+      "first_contact_xy_error": 0.0634604723533578,
+      "first_contact_native_velocity": [
+        -1.1819774617362009e-05,
+        -0.00117887661188893,
+        -0.4514014253275124
+      ],
+      "max_post_contact_native_xy_speed": 0.002177384570295332,
+      "max_post_contact_native_roll_degrees": 0.055725497537378134,
+      "max_requested_roll_before_verdict_degrees": 1.8294592441278739,
+      "max_requested_roll_until_stop_degrees": 1.8294592441278739,
+      "first_contact_control_landmarks": [
+        {
+          "time_ms": 201984,
+          "actual_roll_degrees": 0.029992564405933692,
+          "requested_roll_degrees": -0.05057453907258506,
+          "measured_body_vy": 0.0012502468389307794,
+          "roll_mix": 0.00032815930618568245,
+          "derivative_off_requested_roll_degrees": 0.14326774017329993
+        },
+        {
+          "time_ms": 202016,
+          "actual_roll_degrees": 0.034355065058059776,
+          "requested_roll_degrees": -1.2228271302553155,
+          "measured_body_vy": -0.00010253916320329126,
+          "roll_mix": -0.07514538265174764,
+          "derivative_off_requested_roll_degrees": -0.011750122338787042
+        },
+        {
+          "time_ms": 202048,
+          "actual_roll_degrees": 0.039023811651683296,
+          "requested_roll_degrees": -0.20711212761125658,
+          "measured_body_vy": -0.0002959979005470447,
+          "roll_mix": 0.05299607754691493,
+          "derivative_off_requested_roll_degrees": -0.03391885949052216
+        }
+      ],
+      "motor_stop": {
+        "time_ms": 203360,
+        "id": 139,
+        "phase": "stop",
+        "position": [
+          0.651602034,
+          1.541925048,
+          0.017026626
+        ],
+        "velocity_world": [
+          -3.172e-06,
+          -0.000315594,
+          -0.006976282
+        ],
+        "rpy": [
+          -0.000251386,
+          -2e-09,
+          3.1315323
+        ],
+        "motors": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "checkered-b-s14",
+      "result": {
+        "status": "achieved",
+        "configuration": "gp-u-v1-L2000-s14",
+        "attempt": 1,
+        "seconds": 169.728,
+        "reason": null,
+        "crossings": 2
+      },
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "compared_control_samples": 74,
+      "clipped_mix_excluded_ms": [],
+      "maximum_replay_error": 9.648787191451902e-08,
+      "first_contact_ms": 199328,
+      "first_contact_count": 4,
+      "first_contact_position": [
+        0.7374178949287218,
+        1.5354440634028779,
+        0.012232528942704884
+      ],
+      "first_contact_xy_error": 0.05154008625724343,
+      "first_contact_native_velocity": [
+        -1.0241501299861203e-05,
+        -0.001178832692694734,
+        -0.4509455197542368
+      ],
+      "max_post_contact_native_xy_speed": 0.0021773065411214627,
+      "max_post_contact_native_roll_degrees": 0.05572736929909005,
+      "max_requested_roll_before_verdict_degrees": 1.829459913090033,
+      "max_requested_roll_until_stop_degrees": 1.829459913090033,
+      "first_contact_control_landmarks": [
+        {
+          "time_ms": 199328,
+          "actual_roll_degrees": 0.029978526939952985,
+          "requested_roll_degrees": -0.05050384078003315,
+          "measured_body_vy": 0.0012501551788211768,
+          "roll_mix": 0.0003297689477861354,
+          "derivative_off_requested_roll_degrees": 0.14325722808528046
+        },
+        {
+          "time_ms": 199360,
+          "actual_roll_degrees": 0.03434056922584297,
+          "requested_roll_degrees": -1.2227033845461317,
+          "measured_body_vy": -0.00010249788142198946,
+          "roll_mix": -0.0751412573699426,
+          "derivative_off_requested_roll_degrees": -0.011745392399436274
+        },
+        {
+          "time_ms": 199392,
+          "actual_roll_degrees": 0.03901040443927723,
+          "requested_roll_degrees": -0.207020116559281,
+          "measured_body_vy": -0.0002958701880080399,
+          "roll_mix": 0.052995207461570715,
+          "derivative_off_requested_roll_degrees": -0.03390422527661688
+        }
+      ],
+      "motor_stop": {
+        "time_ms": 200704,
+        "id": 137,
+        "phase": "stop",
+        "position": [
+          0.737425636,
+          1.536332438,
+          0.016995238
+        ],
+        "velocity_world": [
+          -2.751e-06,
+          -0.000315648,
+          -0.006969131
+        ],
+        "rpy": [
+          -0.000251416,
+          -2e-09,
+          3.132870403
+        ],
+        "motors": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "historical_negative_results": [
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 14.216,
+      "reason": "wrong-landing",
+      "crossings": 0,
+      "ast_sha256": "99b922f41e83f77de468831bb57ba4301711caa4cab7264af7c26a846ceefced",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "short",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s4-short-7db628e6bf"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 210.0,
+      "reason": "time-limit",
+      "crossings": 0,
+      "ast_sha256": "45e128fc766554b04a29122ccd30494f83b1988339d8f05099d374afba0cc052",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "timeout",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s4-timeout-731c5717f6"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 210.0,
+      "reason": "time-limit",
+      "crossings": 0,
+      "ast_sha256": "293b367fba5e34cc8faf54320ef3676b6cd1710b21fe3c6f7cb149bc82fb44b5",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "timeout-gate",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s0-timeout-gate-c271a9b3d2"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s1",
+      "attempt": 1,
+      "seconds": 162.76,
+      "reason": "wrong-landing",
+      "crossings": 2,
+      "ast_sha256": "378fc990d729bd86e08f2529962d4428ee026d8e717e61d865bb552d07297ea0",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "wrong-landing",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s1-wrong-landing-353423959e"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 12.536,
+      "reason": "low-outside-zone",
+      "crossings": 0,
+      "ast_sha256": "2392fe47ab535c2b5980d6f6cc92e92c4994cae19e1431f2feaf6c281144f803",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "low-outside",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s0-low-outside-0286185507"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 14.8,
+      "reason": "envelope-contact",
+      "crossings": 0,
+      "ast_sha256": "7744d4b08050bede5e6cf30f0506c99db7ff268776048b11b2f42155d09f9aa4",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "collision",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s0-collision-87b6a48cb5"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 30.424,
+      "reason": "reverse-crossing",
+      "crossings": 1,
+      "ast_sha256": "cd30f2d45b285b59425b9df0c09e067ea0445251efa3b36e6433b8ade3eae092",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "reverse",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s0-reverse-b026849f5d"
+    },
+    {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 8.648,
+      "reason": "runtime",
+      "crossings": 0,
+      "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d",
+      "claim": "native-shared-interpreter",
+      "webots_version": "R2025a",
+      "mode": "unavailable",
+      "visual_variant": "checkered",
+      "artifact_dir": "gp-u-v1-L2000-s0-unavailable-6a9eecb519"
+    }
+  ]
+}

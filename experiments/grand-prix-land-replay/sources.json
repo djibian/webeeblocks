@@ -1,0 +1,90 @@
+{
+  "claim": "archive-reanalysis-only; no new native acquisition",
+  "cases": [
+    {
+      "name": "fail-s14",
+      "run": 39301132293,
+      "artifact": 12212133156,
+      "head": "2a7b4cc6c98f5e03a50dda4d23d136e68f39a2c6",
+      "archive_sha256": "71a4430fb849d06774521ee602126292741d91f5706d79db2c1092a2c48d36ae",
+      "source_folder": "gp-u-v1-L2000-s14-witness-9dbf192f7f",
+      "source_manifest_entries": 8,
+      "native_excerpt": {
+        "source": "native_trace.csv",
+        "retained": "native-land-window.csv",
+        "header_bytes": 98,
+        "first_line_index": 21660,
+        "last_line_index_inclusive": 21996,
+        "byte_start": 7048768,
+        "byte_end_exclusive": 7162845,
+        "start_seconds": 173.28,
+        "end_seconds": 175.968
+      }
+    },
+    {
+      "name": "flat-s14",
+      "run": 39311714756,
+      "artifact": 12216162199,
+      "head": "149c0b61b48f335eb4cb925113ccc03afce80cca",
+      "archive_sha256": "52129f0936a6168d0d7a895cb2110d80b08b750be046099f5285f23e502094f7",
+      "source_folder": "gp-u-v1-L2000-s14-witness-flat-57fdab8644",
+      "source_manifest_entries": 9,
+      "native_excerpt": {
+        "source": "native_trace.csv",
+        "retained": "native-land-window.csv",
+        "header_bytes": 117,
+        "first_line_index": 24364,
+        "last_line_index_inclusive": 24736,
+        "byte_start": 8910518,
+        "byte_end_exclusive": 9052989,
+        "start_seconds": 194.91199999999998,
+        "end_seconds": 197.888
+      }
+    },
+    {
+      "name": "checkered-a-s14",
+      "run": 39311714756,
+      "artifact": 12216162199,
+      "head": "149c0b61b48f335eb4cb925113ccc03afce80cca",
+      "archive_sha256": "52129f0936a6168d0d7a895cb2110d80b08b750be046099f5285f23e502094f7",
+      "source_folder": "gp-u-v1-L2000-s14-witness-814c30f29d",
+      "source_manifest_entries": 9,
+      "native_excerpt": {
+        "source": "native_trace.csv",
+        "retained": "native-land-window.csv",
+        "header_bytes": 117,
+        "first_line_index": 25112,
+        "last_line_index_inclusive": 25484,
+        "byte_start": 9293980,
+        "byte_end_exclusive": 9435571,
+        "start_seconds": 200.896,
+        "end_seconds": 203.872
+      }
+    },
+    {
+      "name": "checkered-b-s14",
+      "run": 39311714756,
+      "artifact": 12216162199,
+      "head": "149c0b61b48f335eb4cb925113ccc03afce80cca",
+      "archive_sha256": "52129f0936a6168d0d7a895cb2110d80b08b750be046099f5285f23e502094f7",
+      "source_folder": "gp-u-v1-L2000-s14-witness-8853d6d9b0",
+      "source_manifest_entries": 9,
+      "native_excerpt": {
+        "source": "native_trace.csv",
+        "retained": "native-land-window.csv",
+        "header_bytes": 117,
+        "first_line_index": 24780,
+        "last_line_index_inclusive": 25152,
+        "byte_start": 9116193,
+        "byte_end_exclusive": 9257789,
+        "start_seconds": 198.23999999999998,
+        "end_seconds": 201.216
+      }
+    }
+  ],
+  "pid_sources": {
+    "controllers/crazyflie_square/pid_controller.c": "f5787862c885645b4a55fe3ca16b8cf8feb227300e74a263d1bafba6e70f5b71",
+    "controllers/crazyflie_square/pid_controller.h": "ec4349aada0848a8d97cc729bb7c8edef820fa18c2730ee1c849255197c24690",
+    "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443"
+  }
+}
