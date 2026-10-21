@@ -1,0 +1,43 @@
+{
+  "archive_sha256": "9be0c27869d1d3ce637f06373969ef86c7f316f53a41979c71113cae493e661c",
+  "archive_bytes": 8562316,
+  "archive_git_blob": "ad68e9d5ecdfe948cbeca94a216d35f7abc74255",
+  "source_head": "6c0a58daecd86b4ad7fa6f4d768f8491603eb3f7",
+  "source_folder": "gp-u-v1-L2000-s3-deadline-88e9a59da4",
+  "source_csv_sha256": "c3634d7871837bf6cca9fe698c0bf825ba86bfce99a78dd5fec75fb4edb6f75a",
+  "source_csv_bytes": 41370532,
+  "window": {
+    "header_bytes": 56,
+    "byte_start": 8786183,
+    "byte_end_exclusive": 8981762,
+    "rows": 626,
+    "start_ms": 225000,
+    "end_ms": 230000
+  },
+  "last_source_sample": {
+    "time": "1118.04",
+    "attempt": "1",
+    "x": "1.0290445177461032",
+    "y": "9.003000968448915e-13",
+    "z": "0.014995094999999996",
+    "vx": "8.490192255546944e-19",
+    "vy": "8.084633308431128e-18",
+    "vz": "6.647682427798205e-17",
+    "r0": "-1.0",
+    "r1": "7.819578854861182e-12",
+    "r2": "-1.2246467991474471e-16",
+    "r3": "7.819578854861182e-12",
+    "r4": "1.0",
+    "r5": "-2.4003906813806128e-18",
+    "r6": "1.2246467991472593e-16",
+    "r7": "-2.4003906823382352e-18",
+    "r8": "-1.0"
+  },
+  "source_hashes": {
+    "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c": "8cf1a492e9f3417c5a8ad90005ddd35e373d1af8a3fd18f7699799c3e16d76d9",
+    "controllers/crazyflie_square/pid_controller.c": "f5787862c885645b4a55fe3ca16b8cf8feb227300e74a263d1bafba6e70f5b71",
+    "tools/grand_prix/prepare_u_runtime.py": "44004daa20f009d627a768126701e865a21b6d8c3f298c05a856156fe7dce0f8",
+    "controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp": "82752e13cf5d7ea52c737cd2fcc303361905186c1eb9551bbb1caf3238a26954",
+    "controllers/grand_prix_u_flight/build/runtime_u.c": "c6b47c499dfe482f438432e9ed9a36d58611080f644644cd2ad42c18b00a3a99"
+  }
+}

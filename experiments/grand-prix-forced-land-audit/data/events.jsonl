@@ -1,0 +1,138 @@
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 HELLO"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 READY"}
+{"event":"program","detail":{"version":1,"semantics":"webeeblocks-ast-v1","program":[{"kind":"takeoff","height_m":0.4},{"kind":"vertical","direction":"up","distance_m":0.4},{"kind":"repeat","count":20,"body":[{"kind":"repeat","count":2,"body":[{"kind":"move","direction":"forward","distance_m":0.4},{"kind":"move","direction":"back","distance_m":0.4}]}]},{"kind":"land"}]}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 1 TAKEOFF 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 READY HELLO"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 2 VERTICAL up 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 3 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 4 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 5 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 5 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 6 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 6 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 7 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 7 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 8 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 8 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 9 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 9 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 10 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 10 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 11 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 11 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 12 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 12 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 13 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 13 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 14 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 14 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 15 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 15 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 16 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 16 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 17 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 17 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 18 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 18 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 19 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 19 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 20 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 20 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 21 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 21 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 22 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 22 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 23 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 23 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 24 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 24 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 25 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 25 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 26 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 26 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 27 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 27 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 28 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 28 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 29 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 29 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 30 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 30 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 31 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 31 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 32 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 32 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 33 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 33 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 34 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 34 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 35 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 35 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 36 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 36 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 37 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 37 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 38 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 38 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 39 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 39 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 40 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 40 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 41 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 41 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 42 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 42 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 43 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 43 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 44 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 44 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 45 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 45 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 46 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 46 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 47 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 47 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 48 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 48 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 49 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 49 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 50 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 50 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 51 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 51 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 52 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 52 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 53 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 53 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 54 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 54 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 55 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 55 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 56 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 56 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 57 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 57 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 58 MOVE back 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 58 OK"}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 59 MOVE forward 0.40000000000000002"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 59 ERR TIME_LIMIT"}
+{"event":"error","detail":{"message":"RuntimeV2BackendError: Runtime v2 backend error: TIME_LIMIT","code":"TIME_LIMIT"}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 60 COMPLETE grand-prix-u-v1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 60 ERR TIME_LIMIT"}
+{"event":"late-command-rejected","detail":{"command":"COMPLETE","code":"TIME_LIMIT"}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 61 FAILURE grand-prix-u-v1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 61 ERR TIME_LIMIT"}
+{"event":"late-command-rejected","detail":{"command":"FAILURE","code":"TIME_LIMIT"}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 62 MOVE forward 0.1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 62 ERR TIME_LIMIT"}
+{"event":"late-command-rejected","detail":{"command":"MOVE","code":"TIME_LIMIT"}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 63 STOP"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 63 ERR TIME_LIMIT"}
+{"event":"late-command-rejected","detail":{"command":"STOP","code":"TIME_LIMIT"}}
+{"event":"request","detail":"WEBEEBLOCKS_RUNTIME_V2 REQUEST 64 OUTCOME grand-prix-u-v1"}
+{"event":"response","detail":"WEBEEBLOCKS_RUNTIME_V2 RESPONSE 64 STATE not-achieved"}
+{"event":"late-outcome-read","detail":{"status":"not-achieved"}}

@@ -1,0 +1,12 @@
+WARNING: It is not recommended to run Webots as root.
+WARNING: Crazyflie "Crazyflie WebeeBlocks" > Pose  > LED "color_led" > Group  > PointLight : A quadratic 'attenuation' should be preferred to have a realistic simulation of light. Only the third component of the 'attenuation' field should be greater than 0.
+INFO: 'Crazyflie WebeeBlocks' extern controller: Waiting for local or remote connection on port 57877 targeting robot named 'Crazyflie WebeeBlocks' (Crazyflie%20WebeeBlocks).
+ERROR: Cannot listen to the local server (server name = '/tmp/webots/gp-witness/57877/ipc/Crazyflie%20WebeeBlocks/extern'): QLocalServer::listen: Unknown error 1
+INFO: 'Évaluateur Grand Prix' extern controller: Waiting for local or remote connection on port 57877 targeting robot named 'Évaluateur Grand Prix' (%C3%89valuateur%20Grand%20Prix).
+ERROR: Cannot listen to the local server (server name = '/tmp/webots/gp-witness/57877/ipc/%C3%89valuateur%20Grand%20Prix/extern'): QLocalServer::listen: Unknown error 1
+INFO: 'Crazyflie WebeeBlocks' extern controller: connected.
+INFO: 'Évaluateur Grand Prix' extern controller: connected.
+INFO: 'Évaluateur Grand Prix' extern controller: disconnected, waiting for new connection.
+INFO: 'Crazyflie WebeeBlocks' extern controller: disconnected, waiting for new connection.
+INFO: 'Évaluateur Grand Prix' extern controller: disconnected.
+INFO: 'Crazyflie WebeeBlocks' extern controller: disconnected.

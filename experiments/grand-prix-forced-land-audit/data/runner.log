@@ -1,0 +1,15 @@
+GP_U_COMPOSED_BROKER_SHA256 2b59b3b253463cb01a058ff9dfce3609354041df70a73d26d7304c82e6ae00ad
+GP_U_SHARED_SOURCE_SHA256 8cf1a492e9f3417c5a8ad90005ddd35e373d1af8a3fd18f7699799c3e16d76d9
+GP_U_COMPOSED_SOURCE_SHA256 c6b47c499dfe482f438432e9ed9a36d58611080f644644cd2ad42c18b00a3a99
+make: Entering directory '/workspace/scratch/4e691a2ec01f/webeeblocks-gp/controllers/grand_prix_u_flight'
+make: Nothing to be done for 'release'.
+make: Leaving directory '/workspace/scratch/4e691a2ec01f/webeeblocks-gp/controllers/grand_prix_u_flight'
+Traceback (most recent call last):
+  File "/workspace/scratch/4e691a2ec01f/webeeblocks-gp/experiments/grand-prix-no-wall/run_negative.py", line 206, in <module>
+    if __name__=='__main__':main()
+                            ^^^^^^
+  File "/workspace/scratch/4e691a2ec01f/webeeblocks-gp/experiments/grand-prix-no-wall/run_negative.py", line 205, in main
+    trial(home,args.seed,2.,args.mode,True,require_success=False)
+  File "/workspace/scratch/4e691a2ec01f/webeeblocks-gp/experiments/grand-prix-no-wall/run_negative.py", line 175, in trial
+    raise RuntimeError('missing independent forced LAND/failure')
+RuntimeError: missing independent forced LAND/failure
