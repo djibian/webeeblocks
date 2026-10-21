@@ -60,6 +60,8 @@
       case 'webeeblocks_v2_light':{var color=String(field(block,'COLOR'));if(LIGHT_COLORS.indexOf(color)<0)fail('unsupported light color: '+color);return{kind:'set_light',color:color};}
       case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'math_change':{var changedVariable=variableReference(block);return{kind:'set_variable',variable:changedVariable,value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:changedVariable},right:valueChild(block,'DELTA')}};}
+      // Classroom UNTIL reuses bounded AST, preserving legacy loop serialization.
+      case 'webeeblocks_v2_until':return{kind:'while',mode:'UNTIL',condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:25};
       case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');var rawLimit=field(block,'MAX_ITERATIONS');var max=rawLimit==null||rawLimit===''?100:finite(rawLimit,'max_iterations');if(Math.floor(max)!==max||max<1||max>100)studentFail('invalid conditional loop limit','La limite de boucle doit être un entier de 1 à 100.');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:max};}
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
       case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
