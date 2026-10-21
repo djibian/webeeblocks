@@ -70,3 +70,29 @@ Limitations: artificial held-body initialization; measured motor vector but no
 collision; synchronous Supervisor logging influences scheduling; transport is
 direct in-process, not RobotWindow. A/B semantics include motor-mode restoration
 and finite-precision/contact evolution, with no identical ODE-state claim.
+
+## Causally diagnosed witness failure; no repeated A-idle
+
+Original series stopped after its FIRST process, as preregistered. Run39561830185
+on b78d5f1, artifact12328027041: ZIP16,459 bytes,
+SHA256759cd7b53ad89b7ac5af7c092576f610cb5d1aae1bd6ce10a567bb7cd221ce29;
+all eight manifest members and CRC independently checked. A-idle has native
+process exit0, production RESET ACK at4.512 s (+256 ms) and50 post-ACK samples
+through6.112 s, no predicate violation. The final COMPLETE stdout event is
+absent. The harvester correctly records completed=false and refuses the series.
+This is NOT a RESET_TIMEOUT, not a demonstrated physical failure, and not PASS.
+Source ends this idle case by printing COMPLETE then calling simulationQuit
+at precisely that last observed time; forwarding the last controller stdout
+through Webots is an insufficient exit witness. The transport loss mechanism
+is inferred, not directly measured. No sample is invented to fill that gap.
+
+Amendment fixed BEFORE further acquisition: persist every control event to a
+separate case-specific file, closed before simulationQuit. Its required ACK and
+terminal events supplement stdout samples; absence still fails closed. Only
+the THREE UNSTARTED cases B-idle, A-takeoff, B-takeoff may now run, once each,
+with first-refusal stop. A-idle is never repeated/replaced/relabelled; total
+native processes cannot exceed the original four. The first case remains a
+partial physical observation, so the idle comparison is explicitly asymmetric
+in completion provenance. No reset/flight predicates, API operations or native
+steps are changed by this host-witness repair. Any further witness defect stops
+the remaining protocol; no replacement or automatically extended series.

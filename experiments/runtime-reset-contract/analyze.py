@@ -4,8 +4,12 @@ import math
 from pathlib import Path
 import sys
 
-def analyze(text,mode):
+def analyze(text,mode,journal=None):
     rows=[json.loads(line[3:]) for line in text.splitlines() if line.startswith('FX ')]
+    if journal is not None:
+        # Samples remain the original stdout observations. Only control events
+        # come from the separately persisted journal, including exit witnesses.
+        rows=[r for r in rows if r['event'] in ('sample','target')]+journal
     samples=[r for r in rows if r['event']=='sample']
     if not samples or any(not math.isfinite(x) for r in samples for key in ('gps','rpy','gyro','native_velocity') for x in r[key]):
         raise ValueError('missing/nonfinite physical data')
@@ -37,4 +41,5 @@ def analyze(text,mode):
     return result
 
 if __name__=='__main__':
-    print(json.dumps(analyze(Path(sys.argv[1]).read_text(),sys.argv[2]),indent=2))
+    journal=[json.loads(l) for l in Path(sys.argv[3]).read_text().splitlines()] if len(sys.argv)>3 else None
+    print(json.dumps(analyze(Path(sys.argv[1]).read_text(),sys.argv[2],journal),indent=2))

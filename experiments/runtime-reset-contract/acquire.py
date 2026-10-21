@@ -13,7 +13,8 @@ SOURCE='c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 
 def main():
-    out=ROOT/'ci-artifacts/reset-contract'
+    if sys.argv[1:]!=['--remaining']:raise ValueError('original series stopped; only the three unstarted cases remain eligible')
+    out=ROOT/'ci-artifacts/reset-contract-remaining'
     out.mkdir(parents=True,exist_ok=False)
     engine=ROOT/'engine'
     if subprocess.check_output(['git','-C',engine,'rev-parse','HEAD'],text=True).strip()!=SOURCE:
@@ -66,14 +67,16 @@ timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --no-rendering --
 '''
     (out/'native-command.sh').write_text(native)
     try:
-        for mode in ('idle','takeoff'):
-            for variant in ('A','B'):
+        for mode,variants in (('idle',('B',)),('takeoff',('A','B'))):
+            for variant in variants:
                 name=variant+'-'+mode
-                result=docker(native,{'RESET_CONTRACT_VARIANT':variant,'RESET_CONTRACT_MODE':mode})
+                result=docker(native,{'RESET_CONTRACT_VARIANT':variant,'RESET_CONTRACT_MODE':mode,
+                                     'RESET_CONTRACT_JOURNAL':'/workspace/ci-artifacts/reset-contract-remaining/'+name+'.events.jsonl'})
                 (out/(name+'.log')).write_text(result.stdout)
                 (out/(name+'.exit')).write_text(str(result.returncode)+'\n')
                 from analyze import analyze
-                summary=analyze(result.stdout,mode)
+                journal=[json.loads(line) for line in (out/(name+'.events.jsonl')).read_text().splitlines()]
+                summary=analyze(result.stdout,mode,journal)
                 (out/(name+'.json')).write_text(json.dumps(summary,indent=2)+'\n')
                 if result.returncode or not summary['completed']:raise RuntimeError('first refusal: '+name)
     finally:

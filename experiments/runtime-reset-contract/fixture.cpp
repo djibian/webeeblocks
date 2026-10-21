@@ -23,6 +23,15 @@ static bool fx_clear=false, fx_takeoff=false;
 static void fx_event(const char *event, const char *message="") {
   printf("FX {\"event\":\"%s\",\"time\":%.9f,\"message\":\"%s\"}\n",
          event, wb_robot_get_time(), message); fflush(stdout);
+  // The simulator can terminate before relaying its controller's final stdout.
+  // Retain the event independently before requesting simulationQuit.
+  const char *path=getenv("RESET_CONTRACT_JOURNAL");
+  if(path) {
+    FILE *f=fopen(path,"a");
+    if(!f) {fx_failed=1;return;}
+    fprintf(f,"{\"event\":\"%s\",\"time\":%.9f,\"message\":\"%s\"}\n",event,wb_robot_get_time(),message);
+    if(fclose(f))fx_failed=1;
+  }
 }
 static void fx_sample() {
   const double *p=wb_gps_get_values(fx_gps), *r=wb_inertial_unit_get_roll_pitch_yaw(fx_imu);
