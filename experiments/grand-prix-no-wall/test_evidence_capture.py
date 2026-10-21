@@ -10,8 +10,16 @@ import tarfile
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+import evidence_capture as capture
 
 from evidence_capture import EvidenceError, archive_capture, close_capture, _group_members
+
+try:
+    capture.qualify_procfs()
+    HOST_QUALIFIED = True
+except EvidenceError:
+    HOST_QUALIFIED = False
 
 
 def sample(root):
@@ -19,7 +27,11 @@ def sample(root):
     folder.mkdir()
     (folder / 'node.log').write_text('mission status = achieved\n')
     (folder / 'flight.log').write_text('flight output\n')
-    close_capture([], [], folder)
+    # Archive fixtures are synthetic. Host process qualification is tested
+    # separately and must never be inferred from these injected attestations.
+    with patch.object(capture, 'qualify_procfs', return_value={'synthetic': True}), \
+         patch.object(capture, '_open_writer_fds', return_value=[]):
+        close_capture([], [], folder)
     return folder
 
 
@@ -103,7 +115,7 @@ class ArchiveSafety(unittest.TestCase):
             results = list(pool.map(archive_worker, [(self.folder, self.dest)] * 2))
         self.assertEqual(sorted(results), ['created', 'refused'])
 
-    @unittest.skipUnless(Path('/proc/self/stat').is_file(), 'Linux process group evidence')
+    @unittest.skipUnless(HOST_QUALIFIED, 'host procfs unqualified; real group test refused')
     def test_descendant_still_alive_after_leader_exits(self):
         folder = self.root / 'descendant'
         folder.mkdir()
@@ -126,7 +138,7 @@ class ArchiveSafety(unittest.TestCase):
         self.assertFalse(late.exists(), 'descendant wrote after proof closure')
         self.assertTrue((folder / 'capture-seal.json').exists())
 
-    @unittest.skipUnless(Path('/proc/self/stat').is_file(), 'Linux /proc required')
+    @unittest.skipUnless(HOST_QUALIFIED, 'host procfs unqualified; real FD test refused')
     def test_detached_writer_fd_refuses_seal(self):
         target = self.folder / 'flight.log'
         code = ("import pathlib,time; f=open(%r, 'a'); "
@@ -156,10 +168,14 @@ class ArchiveSafety(unittest.TestCase):
             closed = False
             def close(self):
                 raise OSError('close failure')
-        with self.assertRaises(OSError):
-            close_capture([], [BrokenStream()], self.root / 'failed')
+        with patch.object(capture, 'qualify_procfs', return_value={'synthetic': True}):
+            with self.assertRaises(OSError):
+                close_capture([], [BrokenStream()], self.root / 'failed')
         self.assertFalse((self.root / 'failed' / 'capture-seal.json').exists())
 
 
 if __name__ == '__main__':
+    if os.environ.get('GP_CAPTURE_REQUIRE_HOST') == '1' and not HOST_QUALIFIED:
+        print('REFUSED: coherent procfs required for all twelve historical tests', file=sys.stderr)
+        raise SystemExit(77)
     unittest.main()

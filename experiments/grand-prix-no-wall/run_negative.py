@@ -19,7 +19,8 @@ import uuid
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
-from evidence_capture import close_capture
+from evidence_capture import (close_capture, spawn_writer, observe_exit, wait_writer,
+                              qualify_procfs, preserve_errors)
 OUT=ROOT/'ci-artifacts/grand-prix-no-wall-negatives'
 
 def validate_timeout_probe(rows, text):
@@ -68,6 +69,7 @@ def validate_timeout_probe(rows, text):
 
 
 def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
+    qualify_procfs()  # Refuse unsupported capture host before any native launch.
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
     with socket.socket() as probe:
@@ -91,40 +93,41 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
-    children=[];streams=[]
+    children=[];streams=[];native_error=None
     try:
-        with (out/'webots.log').open('w') as log:
-            launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
-                '--no-rendering','--port='+str(port),str(target)]
-            if not tcp:
-                xvfb=shutil.which('xvfb-run')
-                if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
-                launch=[xvfb,'-a',*launch]
-            webots=subprocess.Popen(launch,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-            children.append(webots);limit=time.monotonic()+30
-            while webots.poll() is None and time.monotonic()<limit:
-                text=(out/'webots.log').read_text()
-                if tcp and text.count(f'Waiting for local or remote connection on port {port} ')>=2:break
-                if not tcp and 'WEBEEBLOCKS_RUNTIME_V2 READY' in text:break
-                time.sleep(.1)
-            else:raise RuntimeError('native readiness not established: '+str(out))
-            if tcp:
-                for name,path,args in (
-                  ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
-                  ('Évaluateur Grand Prix',ROOT/'controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py',[str(seed),str(side)])):
-                    stream=(out/('flight.log' if not args else 'evaluator.log')).open('w');streams.append(stream)
-                    children.append(subprocess.Popen([str(home/'webots-controller'),'--protocol=tcp','--ip-address=127.0.0.1',
-                       '--port='+str(port),'--robot-name='+name,str(path),*args],env=env,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True))
-            node_log=(out/'node.log').open('w');streams.append(node_log)
-            node=subprocess.Popen(['node',str(ROOT/'experiments/grand-prix-no-wall/negative_probe.js'),str(port),mode,str(events)],
-                cwd=ROOT,env=env,stdout=node_log,stderr=subprocess.STDOUT,start_new_session=True)
-            children.append(node);node.wait(timeout=600)
-            limit=time.monotonic()+30
-            while time.monotonic()<limit and webots.poll() is None:
-                text=(out/'webots.log').read_text()
-                if tcp:text+=''.join(Path(s.name).read_text() for s in streams)
-                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or 'TRACE LAND' in text):break
-                time.sleep(.1)
+        log=(out/'webots.log').open('w');streams.append(log)
+        launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
+            '--no-rendering','--port='+str(port),str(target)]
+        if not tcp:
+            xvfb=shutil.which('xvfb-run')
+            if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
+            launch=[xvfb,'-a',*launch]
+        webots=spawn_writer(launch,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
+        children.append(webots);limit=time.monotonic()+30
+        while observe_exit(webots) is None and time.monotonic()<limit:
+            text=(out/'webots.log').read_text()
+            if tcp and text.count(f'Waiting for local or remote connection on port {port} ')>=2:break
+            if not tcp and 'WEBEEBLOCKS_RUNTIME_V2 READY' in text:break
+            time.sleep(.1)
+        else:raise RuntimeError('native readiness not established: '+str(out))
+        if tcp:
+            for name,path,args in (
+              ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
+              ('Évaluateur Grand Prix',ROOT/'controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py',[str(seed),str(side)])):
+                stream=(out/('flight.log' if not args else 'evaluator.log')).open('w');streams.append(stream)
+                children.append(spawn_writer([str(home/'webots-controller'),'--protocol=tcp','--ip-address=127.0.0.1',
+                   '--port='+str(port),'--robot-name='+name,str(path),*args],env=env,stdout=stream,stderr=subprocess.STDOUT))
+                observe_exit(children[-1])
+        node_log=(out/'node.log').open('w');streams.append(node_log)
+        node=spawn_writer(['node',str(ROOT/'experiments/grand-prix-no-wall/negative_probe.js'),str(port),mode,str(events)],
+            cwd=ROOT,env=env,stdout=node_log,stderr=subprocess.STDOUT)
+        children.append(node);wait_writer(node, timeout=600)
+        limit=time.monotonic()+30
+        while time.monotonic()<limit and observe_exit(webots) is None:
+            text=(out/'webots.log').read_text()
+            if tcp:text+=''.join(Path(s.name).read_text() for s in streams if s is not log)
+            if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or 'TRACE LAND' in text):break
+            time.sleep(.1)
         text=(out/'webots.log').read_text()
         if tcp:text+=(out/'flight.log').read_text()+(out/'evaluator.log').read_text()
         native_errors=[line for line in text.splitlines() if line.startswith('ERROR:')]
@@ -174,21 +177,26 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         result['ast_sha256']=hashlib.sha256(json.dumps(programs[0],sort_keys=True,separators=(',',':')).encode()).hexdigest()
         result['claim']='native-shared-interpreter';result['webots_version']='R2025a';result['mode']=mode
         (out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
-        print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
-        return result
+    except BaseException as error:
+        native_error=error
+        raise
     finally:
-        try:
-            close_capture(children, streams, out)
-        finally:
-            runtime_state.cleanup()
-            target.unlink(missing_ok=True)
-            target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
+        with preserve_errors(native_error) as attempt:
+            attempt(lambda: close_capture(children, streams, out))
+            attempt(runtime_state.cleanup)
+            attempt(lambda: target.unlink(missing_ok=True))
+            attempt(lambda: target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True))
+    # Native result != capture closure != independently validated external archive.
+    print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
+    print('GP_U_CAPTURE_CLOSED '+str(out),flush=True)
+    return result
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--seed',type=int,required=True)
     parser.add_argument('--mode',choices=('wrong-landing','deadline','low-outside','collision','reverse'),required=True)
     args=parser.parse_args()
+    qualify_procfs()
     home=Path(os.environ['WEBOTS_HOME'])
     if (home/'resources/version.txt').read_text().strip()!='R2025a':raise RuntimeError('wrong Webots version')
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
