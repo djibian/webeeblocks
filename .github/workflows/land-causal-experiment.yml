@@ -1,0 +1,27 @@
+name: LAND 638 bounded causal experiment (non-decision)
+on:
+  push:
+    branches: [experiment/638-land-causal-20261021]
+    paths:
+      - experiments/grand-prix-land-causal/**
+      - .github/workflows/land-causal-experiment.yml
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 experiments/grand-prix-land-causal/run.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: land-causal-r2025a
+          path: ci-artifacts/land-causal/
+          if-no-files-found: error
