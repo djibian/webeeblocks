@@ -125,9 +125,20 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,*,ca
                 time.sleep(.1)
             else:raise RuntimeError('native readiness not established: '+str(out))
             if camera_probe is not None:
+                # READY is necessary, but a Webots process dying just after it
+                # must not be counted as a valid native camera startup.
+                until=time.monotonic()+0.6
+                while time.monotonic()<until:
+                    if webots.poll() is not None:
+                        raise RuntimeError('camera native process exited after READY: '+str(out))
+                    time.sleep(.1)
+                startup_log=(out/'webots.log').read_text()
+                if startup_log.count('WEBEEBLOCKS_RUNTIME_V2 READY')!=1 or 'Segmentation fault' in startup_log:
+                    raise RuntimeError('camera READY/liveness contradiction: '+str(out))
                 record={'camera':camera_probe,'seed':seed,'side':side,
                         'configuration':layout.identifier,'ready':True,
-                        'claim':'R2025a-native-startup-only'}
+                        'post_ready_alive':True,
+                        'claim':'R2025a-native-startup-and-liveness-only'}
                 (out/'camera-startup.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
                 print('GP_U_CAMERA_STARTUP '+json.dumps(record,sort_keys=True),flush=True)
                 return record
@@ -260,8 +271,13 @@ def main():
         raise ValueError('camera contrast requires an in-process Webots controller')
     if args.suite in ('all','camera-contrast') and not args.tcp:
         contrast=[]
-        for camera in ('static','tracking'):
-            record=trial(home,1,args.side,'camera-'+camera,args.tcp,camera_probe=camera)
+        # Bounded order crossover: seed 1, same controller and renderer.
+        # A crash fails closed immediately with per-attempt native artifacts.
+        for sequence,camera in enumerate(('static','tracking','tracking','static'),1):
+            record=trial(home,1,args.side,
+                         'camera-'+camera+'-crossover-'+str(sequence),
+                         args.tcp,camera_probe=camera)
+            record['sequence']=sequence
             contrast.append(record)
             (OUT/'camera-comparison.json').write_text(json.dumps(contrast,indent=2)+'\n')
         if args.suite=='camera-contrast':
