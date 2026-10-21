@@ -19,6 +19,7 @@ import uuid
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
+from evidence_capture import close_capture
 OUT=ROOT/'ci-artifacts/grand-prix-no-wall'
 
 def validate_timeout_probe(rows, text):
@@ -65,15 +66,6 @@ def validate_timeout_probe(rows, text):
             e['event']=='recovery-outcome-error' and e['detail']=={'code':'OUTCOME_UNAVAILABLE'} for e in recovery):
         raise RuntimeError('confirmed RESET did not revoke the old outcome')
 
-def stop_groups(children):
-    for child in reversed(children):
-        try:os.killpg(child.pid,signal.SIGTERM)
-        except ProcessLookupError:pass
-        try:child.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            try:os.killpg(child.pid,signal.SIGKILL)
-            except ProcessLookupError:pass
-            child.wait()
 
 def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
@@ -185,12 +177,12 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
         return result
     finally:
-        stop_groups(children)
-        for stream in streams:stream.close()
-        runtime_state.cleanup()
-        (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
-           for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
-        target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
+        try:
+            close_capture(children, streams, out)
+        finally:
+            runtime_state.cleanup()
+            target.unlink(missing_ok=True)
+            target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
 
 def main():
     parser=argparse.ArgumentParser()
