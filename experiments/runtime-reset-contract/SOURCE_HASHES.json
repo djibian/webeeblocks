@@ -1,0 +1,21 @@
+{
+  "upstream_sha": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "files": {
+    "docs/reference/supervisor.md": "17bbfbe98476dc0bc3fdded6180629d82282f3d9cdde98bb6f532d4d1ce821b5",
+    "docs/reference/motor.md": "6c6f9077e1aac238a9c227992fcd03cc3c7ea48fa90277592ffba0e52eb6a4d9",
+    "docs/reference/propeller.md": "899e99ec9ede5e1391c309f0a8492c74cb8c74d96e377a6c0df54f2e3671cd1b",
+    "src/controller/c/supervisor.c": "a1933935fc0e8610fb8fac62144eddd54ba9297d84e5e3ac20a47cef4481183d",
+    "src/webots/nodes/WbMotor.cpp": "46c875b5ac7a7ecb9afa192fd04da2b9052d6a0de590e4524beae6ae77dac707",
+    "src/webots/nodes/WbMotor.hpp": "a112df7067a9bde9be0c285fae028aaa298d81449b36ac021133bcafa9a7877e",
+    "src/webots/nodes/WbPropeller.cpp": "8c0527c1ba8937706af7492c6c3879825cb01afc7cef22160c77931b26fee576",
+    "src/webots/nodes/WbJoint.cpp": "0fc1541d902c3cd5d8ac72c4750d4cf6852c10f1e575847ef11d5606e0d5dd9c",
+    "src/webots/nodes/WbSolid.cpp": "4c6b486948e9f46d96a0e0c70d688a363dac35175842c0696e297b0d1d1555dd",
+    "src/webots/nodes/utils/WbSupervisorUtilities.cpp": "40556184800d05c124f34d1902c28eb1bcab03474265e2a2a962210d4188c42f",
+    "src/webots/engine/WbSimulationWorld.cpp": "e19863bd26e6be478683700dc6aa6ae406a8c9e75e84f4ac5ca77537d0727f79",
+    "src/webots/engine/WbSimulationCluster.cpp": "72d5ab5261ed8502e19bc76c9f38bc8064c1a8023643bccbab65c1cfc7adf14b",
+    "src/webots/ode/WbOdeContext.cpp": "f5fc3eee26cfc2bfedd32fe31b6636e526c9ea6779930496613c6a60558e7387",
+    "src/ode/ode/src/ode.cpp": "0d42676c60e62b96deeea4268027dd0aa97782a73f22d646a16d8a63515a20cd",
+    "src/ode/ode/src/ode_MT/ode_MT.cpp": "5a2254308134ce9980b99ff680e0a63be1d59332571391158c0b75e6bb31d54e",
+    "projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto": "a434208247886102b1f855eb3cbd592741fb83c33b8a842ea85892e610eb6778"
+  }
+}

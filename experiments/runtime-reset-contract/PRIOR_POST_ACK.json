@@ -1,0 +1,202 @@
+{
+  "source_zip_sha256": "1033ddddd492d0bb69251f090e49089f2d034ee5fa92371dc342ed88eb543684",
+  "scope": "offline new calculation, not new acquisition",
+  "resets": [
+    {
+      "id": 173,
+      "receipt": 172.896,
+      "ack": 173.248,
+      "current_at_ack": [
+        -13.253607965586141,
+        13.236284139182288,
+        -13.235744413993629,
+        13.253068241339605
+      ],
+      "total_thrust_at_ack": 0.028067443596831405,
+      "extinction": 173.696,
+      "next_nonzero_target": 174.4
+    },
+    {
+      "id": 194,
+      "receipt": 223.616,
+      "ack": 223.936,
+      "current_at_ack": [
+        -33.41306555399562,
+        33.395742056984275,
+        -33.396281796128775,
+        33.413605292198
+      ],
+      "total_thrust_at_ack": 0.17853956774725926,
+      "extinction": 225.056,
+      "next_nonzero_target": 226.272
+    },
+    {
+      "id": 220,
+      "receipt": 291.104,
+      "ack": 291.456,
+      "current_at_ack": [
+        -16.133624979608364,
+        16.116316682862966,
+        -16.115754506367303,
+        16.133062804092397
+      ],
+      "total_thrust_at_ack": 0.041600911086210314,
+      "extinction": 292.0,
+      "next_nonzero_target": 293.152
+    },
+    {
+      "id": 246,
+      "receipt": 357.472,
+      "ack": 357.792,
+      "current_at_ack": [
+        -34.37307910799942,
+        34.355769775850355,
+        -34.356303695657054,
+        34.37361302687335
+      ],
+      "total_thrust_at_ack": 0.18894913441621902,
+      "extinction": 358.944,
+      "next_nonzero_target": 359.584
+    },
+    {
+      "id": 257,
+      "receipt": 407.296,
+      "ack": 407.648,
+      "current_at_ack": [
+        -20.43667494836611,
+        20.721317018882708,
+        -20.72110858575015,
+        20.437744312972576
+      ],
+      "total_thrust_at_ack": 0.0677638558226842,
+      "extinction": 408.352,
+      "next_nonzero_target": 410.944
+    },
+    {
+      "id": 279,
+      "receipt": 461.92,
+      "ack": 462.304,
+      "current_at_ack": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total_thrust_at_ack": 0,
+      "extinction": 462.304,
+      "next_nonzero_target": 464.16
+    },
+    {
+      "id": 299,
+      "receipt": 532.864,
+      "ack": 533.216,
+      "current_at_ack": [
+        -11.025161870629148,
+        11.025555019378842,
+        -10.795381440532097,
+        10.795467379859957
+      ],
+      "total_thrust_at_ack": 0.019047977366205202,
+      "extinction": 533.6,
+      "next_nonzero_target": 535.648
+    },
+    {
+      "id": 320,
+      "receipt": 582.176,
+      "ack": 582.56,
+      "current_at_ack": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total_thrust_at_ack": 0,
+      "extinction": 582.56,
+      "next_nonzero_target": 585.024
+    },
+    {
+      "id": 341,
+      "receipt": 633.696,
+      "ack": 634.048,
+      "current_at_ack": [
+        -19.013975775642244,
+        18.99605650826171,
+        -18.995498686148828,
+        19.013417954504853
+      ],
+      "total_thrust_at_ack": 0.057788818812398064,
+      "extinction": 634.688,
+      "next_nonzero_target": 635.68
+    },
+    {
+      "id": 365,
+      "receipt": 686.464,
+      "ack": 686.848,
+      "current_at_ack": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total_thrust_at_ack": 0,
+      "extinction": 686.848,
+      "next_nonzero_target": 688.64
+    },
+    {
+      "id": 390,
+      "receipt": 753.12,
+      "ack": 753.472,
+      "current_at_ack": [
+        -25.733965614848657,
+        25.71606233197444,
+        -25.715500681148526,
+        25.733403965004484
+      ],
+      "total_thrust_at_ack": 0.10588191612145867,
+      "extinction": 754.336,
+      "next_nonzero_target": 755.36
+    },
+    {
+      "id": 415,
+      "receipt": 818.368,
+      "ack": 818.72,
+      "current_at_ack": [
+        -24.773079158064142,
+        24.75576982823518,
+        -24.75630374405346,
+        24.77361307294965
+      ],
+      "total_thrust_at_ack": 0.09812640282065316,
+      "extinction": 819.552,
+      "next_nonzero_target": 820.512
+    },
+    {
+      "id": 437,
+      "receipt": 871.04,
+      "ack": 871.392,
+      "current_at_ack": [
+        -6.53360797588809,
+        6.51628413337666,
+        -6.515744410311244,
+        6.533068253764798
+      ],
+      "total_thrust_at_ack": 0.006811435924733462,
+      "extinction": 871.616,
+      "next_nonzero_target": 873.184
+    },
+    {
+      "id": 459,
+      "receipt": 922.496,
+      "ack": 922.848,
+      "current_at_ack": [
+        -26.693068046617974,
+        26.675744105890196,
+        -26.67628385059428,
+        26.69360779037988
+      ],
+      "total_thrust_at_ack": 0.11393152089153678,
+      "extinction": 923.744,
+      "next_nonzero_target": null
+    }
+  ]
+}
