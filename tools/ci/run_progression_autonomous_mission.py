@@ -213,6 +213,8 @@ chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 artifact_dir=/workspace/ci-artifacts/progression-autonomous-mission
 events="$artifact_dir/browser-events.jsonl"
 mkdir -p "$artifact_dir" /root/.config/Cyberbotics
+google-chrome --version > "$artifact_dir/browser-version.txt"
+sha256sum /tmp/google-chrome.deb /opt/google/chrome/chrome > "$artifact_dir/browser-sha256.txt"
 printf "%s\n" \
   "[RobotWindow]" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
