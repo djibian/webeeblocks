@@ -1,0 +1,133 @@
+
+/usr/local/webots/bin/webots-bin:     file format elf64-x86-64
+
+
+Disassembly of section .init:
+
+Disassembly of section .plt:
+
+Disassembly of section .plt.got:
+
+Disassembly of section .plt.sec:
+
+Disassembly of section .text:
+
+00000000003be6d0 <_ZN7WbMotor19runKinematicControlEdRd@@Base>:
+  3be6d0:	f3 0f 1e fa          	endbr64 
+  3be6d4:	f2 0f 10 9f 78 02 00 	movsd  0x278(%rdi),%xmm3
+  3be6db:	00 
+  3be6dc:	f3 0f 7e 0d cc 0b 32 	movq   0x320bcc(%rip),%xmm1        # 6df2b0 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x8>
+  3be6e3:	00 
+  3be6e4:	48 89 f8             	mov    %rdi,%rax
+  3be6e7:	66 0f 28 d3          	movapd %xmm3,%xmm2
+  3be6eb:	66 0f 54 d1          	andpd  %xmm1,%xmm2
+  3be6ef:	66 0f 2e 15 19 a2 32 	ucomisd 0x32a219(%rip),%xmm2        # 6e8910 <_ZTS22DoubleClickInputDialog@@Base+0x4e0>
+  3be6f6:	00 
+  3be6f7:	0f 86 03 01 00 00    	jbe    3be800 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x130>
+  3be6fd:	48 8b 97 18 02 00 00 	mov    0x218(%rdi),%rdx
+  3be704:	f2 0f 10 af 70 02 00 	movsd  0x270(%rdi),%xmm5
+  3be70b:	00 
+  3be70c:	f2 0f 10 52 10       	movsd  0x10(%rdx),%xmm2
+  3be711:	48 8b 97 10 02 00 00 	mov    0x210(%rdi),%rdx
+  3be718:	f2 0f 10 62 10       	movsd  0x10(%rdx),%xmm4
+  3be71d:	66 0f 2e e2          	ucomisd %xmm2,%xmm4
+  3be721:	7a 0a                	jp     3be72d <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x5d>
+  3be723:	f2 0f 10 3d 1d 8d 32 	movsd  0x328d1d(%rip),%xmm7        # 6e7448 <_ZTS13WbOdeGeomData@@Base+0x658>
+  3be72a:	00 
+  3be72b:	74 2a                	je     3be757 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x87>
+  3be72d:	f2 0f 10 36          	movsd  (%rsi),%xmm6
+  3be731:	66 0f 2f f2          	comisd %xmm2,%xmm6
+  3be735:	0f 83 25 01 00 00    	jae    3be860 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x190>
+  3be73b:	66 0f 2f e6          	comisd %xmm6,%xmm4
+  3be73f:	72 0e                	jb     3be74f <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x7f>
+  3be741:	66 0f ef d2          	pxor   %xmm2,%xmm2
+  3be745:	66 0f 2f d5          	comisd %xmm5,%xmm2
+  3be749:	0f 83 1f 01 00 00    	jae    3be86e <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x19e>
+  3be74f:	f2 0f 10 3d f1 8c 32 	movsd  0x328cf1(%rip),%xmm7        # 6e7448 <_ZTS13WbOdeGeomData@@Base+0x658>
+  3be756:	00 
+  3be757:	48 8b 90 28 02 00 00 	mov    0x228(%rax),%rdx
+  3be75e:	f2 0f 59 05 fa 53 32 	mulsd  0x3253fa(%rip),%xmm0        # 6e3b60 <_ZTSPFviE@@Base+0x135e>
+  3be765:	00 
+  3be766:	f2 0f 10 b0 20 02 00 	movsd  0x220(%rax),%xmm6
+  3be76d:	00 
+  3be76e:	f2 0f 10 52 10       	movsd  0x10(%rdx),%xmm2
+  3be773:	66 0f 2e 15 ad 0d 32 	ucomisd 0x320dad(%rip),%xmm2        # 6df528 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x280>
+  3be77a:	00 
+  3be77b:	7a 02                	jp     3be77f <_ZN7WbMotor19runKinematicControlEdRd@@Base+0xaf>
+  3be77d:	74 04                	je     3be783 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0xb3>
+  3be77f:	f2 0f 5d f2          	minsd  %xmm2,%xmm6
+  3be783:	f2 0f 10 90 80 02 00 	movsd  0x280(%rax),%xmm2
+  3be78a:	00 
+  3be78b:	66 0f 28 e5          	movapd %xmm5,%xmm4
+  3be78f:	f2 0f 5c e2          	subsd  %xmm2,%xmm4
+  3be793:	66 0f 54 cc          	andpd  %xmm4,%xmm1
+  3be797:	66 0f 2f cf          	comisd %xmm7,%xmm1
+  3be79b:	76 28                	jbe    3be7c5 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0xf5>
+  3be79d:	f2 0f 59 f0          	mulsd  %xmm0,%xmm6
+  3be7a1:	66 0f 2f ea          	comisd %xmm2,%xmm5
+  3be7a5:	0f 86 e5 00 00 00    	jbe    3be890 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x1c0>
+  3be7ab:	f2 0f 58 d6          	addsd  %xmm6,%xmm2
+  3be7af:	66 0f 2f d5          	comisd %xmm5,%xmm2
+  3be7b3:	0f 86 e5 00 00 00    	jbe    3be89e <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x1ce>
+  3be7b9:	f2 0f 11 a8 80 02 00 	movsd  %xmm5,0x280(%rax)
+  3be7c0:	00 
+  3be7c1:	66 0f 28 d5          	movapd %xmm5,%xmm2
+  3be7c5:	f2 0f 10 0e          	movsd  (%rsi),%xmm1
+  3be7c9:	f2 0f 59 c2          	mulsd  %xmm2,%xmm0
+  3be7cd:	66 0f 2f d9          	comisd %xmm1,%xmm3
+  3be7d1:	76 5d                	jbe    3be830 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x160>
+  3be7d3:	c7 80 ac 02 00 00 01 	movl   $0x1,0x2ac(%rax)
+  3be7da:	00 00 00 
+  3be7dd:	f2 0f 58 c8          	addsd  %xmm0,%xmm1
+  3be7e1:	f2 0f 11 0e          	movsd  %xmm1,(%rsi)
+  3be7e5:	f2 0f 10 80 78 02 00 	movsd  0x278(%rax),%xmm0
+  3be7ec:	00 
+  3be7ed:	66 0f 2f c8          	comisd %xmm0,%xmm1
+  3be7f1:	76 04                	jbe    3be7f7 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x127>
+  3be7f3:	f2 0f 11 06          	movsd  %xmm0,(%rsi)
+  3be7f7:	b8 01 00 00 00       	mov    $0x1,%eax
+  3be7fc:	c3                   	ret    
+  3be7fd:	0f 1f 00             	nopl   (%rax)
+  3be800:	66 0f 28 d3          	movapd %xmm3,%xmm2
+  3be804:	f2 0f 5c 16          	subsd  (%rsi),%xmm2
+  3be808:	f2 0f 10 3d 38 8c 32 	movsd  0x328c38(%rip),%xmm7        # 6e7448 <_ZTS13WbOdeGeomData@@Base+0x658>
+  3be80f:	00 
+  3be810:	66 0f 54 d1          	andpd  %xmm1,%xmm2
+  3be814:	66 0f 2f fa          	comisd %xmm2,%xmm7
+  3be818:	77 54                	ja     3be86e <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x19e>
+  3be81a:	f2 0f 10 af 70 02 00 	movsd  0x270(%rdi),%xmm5
+  3be821:	00 
+  3be822:	e9 30 ff ff ff       	jmp    3be757 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x87>
+  3be827:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+  3be82e:	00 00 
+  3be830:	c7 80 ac 02 00 00 ff 	movl   $0xffffffff,0x2ac(%rax)
+  3be837:	ff ff ff 
+  3be83a:	f2 0f 5c c8          	subsd  %xmm0,%xmm1
+  3be83e:	f2 0f 11 0e          	movsd  %xmm1,(%rsi)
+  3be842:	f2 0f 10 80 78 02 00 	movsd  0x278(%rax),%xmm0
+  3be849:	00 
+  3be84a:	66 0f 2f c1          	comisd %xmm1,%xmm0
+  3be84e:	76 a7                	jbe    3be7f7 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x127>
+  3be850:	f2 0f 11 06          	movsd  %xmm0,(%rsi)
+  3be854:	eb a1                	jmp    3be7f7 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x127>
+  3be856:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  3be85d:	00 00 00 
+  3be860:	66 0f 2f 2d 50 0a 32 	comisd 0x320a50(%rip),%xmm5        # 6df2b8 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x10>
+  3be867:	00 
+  3be868:	0f 82 cd fe ff ff    	jb     3be73b <_ZN7WbMotor19runKinematicControlEdRd@@Base+0x6b>
+  3be86e:	48 c7 80 80 02 00 00 	movq   $0x0,0x280(%rax)
+  3be875:	00 00 00 00 
+  3be879:	c7 80 ac 02 00 00 00 	movl   $0x0,0x2ac(%rax)
+  3be880:	00 00 00 
+  3be883:	31 c0                	xor    %eax,%eax
+  3be885:	c3                   	ret    
+  3be886:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  3be88d:	00 00 00 
+  3be890:	f2 0f 5c d6          	subsd  %xmm6,%xmm2
+  3be894:	66 0f 2f ea          	comisd %xmm2,%xmm5
+  3be898:	0f 87 1b ff ff ff    	ja     3be7b9 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0xe9>
+  3be89e:	f2 0f 11 90 80 02 00 	movsd  %xmm2,0x280(%rax)
+  3be8a5:	00 
+  3be8a6:	e9 1a ff ff ff       	jmp    3be7c5 <_ZN7WbMotor19runKinematicControlEdRd@@Base+0xf5>
+
+Disassembly of section .fini:

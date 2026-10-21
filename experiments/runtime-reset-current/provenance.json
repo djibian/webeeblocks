@@ -1,0 +1,15 @@
+{
+  "scope": "direct native getters, experimental not CI Gate",
+  "git_head": "668d77b883fd594b72681d5cfe23e54a1a6b3e16",
+  "image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+  "source_sha": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "source_restored": true,
+  "build_exit": 0,
+  "sha256": {
+    "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443",
+    "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2": "1a6e6b85dfc2b6766d1d65791ea4f6a775ea66e932883995b0c1907cd323e061",
+    "experiments/runtime-reset-current/observer.cpp": "9e6b147ca99b818d171e961b1b8dd7ba455c7793a918e9a96ff92dfe3891d25d",
+    "experiments/runtime-reset-current/buffered.h": "22d4f7c984f326499e62995b19dcc4e868532729df230ae3fd696413901bb12a",
+    "plugins/physics/reset637_current/libreset637_current.so": "753a1fe2e780846f7803232a4b7bf7bc852a8a4d93ca4b237a2dbb23ffffefc9"
+  }
+}

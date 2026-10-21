@@ -1,0 +1,55 @@
+{
+  "scope": "Exact original JSONL lines in fourteen [-96,+1024] ms RESET windows, not full trajectories",
+  "source_run": 39506425669,
+  "source_artifact": 12303527298,
+  "original_zip_sha256": "1033ddddd492d0bb69251f090e49089f2d034ee5fa92371dc342ed88eb543684",
+  "files": {
+    "physics-state.jsonl.windows.gz": {
+      "bytes": 268629,
+      "sha256": "67a42d75005d5435a49f6068629fc9bb01276fb5826551683c3ba8f3e156728b",
+      "parts": [
+        {
+          "name": "physics-state.jsonl.windows.gz.part000",
+          "bytes": 49152,
+          "sha256": "2166b627b9e359a7569ea7b0c1ead98f9a44b95b8016480608becef7d7d730cd"
+        },
+        {
+          "name": "physics-state.jsonl.windows.gz.part001",
+          "bytes": 49152,
+          "sha256": "4ff5cddc6c6cf8dd3999e08bc0068475ef405254521948ca57defdd9d60e3f1b"
+        },
+        {
+          "name": "physics-state.jsonl.windows.gz.part002",
+          "bytes": 49152,
+          "sha256": "e7c061bc06ed98b7ddf89c1f5588c692d56e6f94208de42fcb3aa0764aa8686e"
+        },
+        {
+          "name": "physics-state.jsonl.windows.gz.part003",
+          "bytes": 49152,
+          "sha256": "8cf3ceee219ab2f1452bc258ac6a215ea53dd71c1878d43c2320031d739dc77b"
+        },
+        {
+          "name": "physics-state.jsonl.windows.gz.part004",
+          "bytes": 49152,
+          "sha256": "c52feecf8824e69c8d3618aa5940b9ea82ea4f8a58d67fd5958f47ede8ca6e68"
+        },
+        {
+          "name": "physics-state.jsonl.windows.gz.part005",
+          "bytes": 22869,
+          "sha256": "020fade402d2b5b70de0f68f09b5772313299a7166119be835daa08d3c5dafbe"
+        }
+      ]
+    },
+    "consumed-state.jsonl.windows.gz": {
+      "bytes": 48977,
+      "sha256": "b4d4e240c8c91667ff7fb5180eebd9b1fb4585c42d9d7b03b7d9d631f9506a0b",
+      "parts": [
+        {
+          "name": "consumed-state.jsonl.windows.gz.part000",
+          "bytes": 48977,
+          "sha256": "b4d4e240c8c91667ff7fb5180eebd9b1fb4585c42d9d7b03b7d9d631f9506a0b"
+        }
+      ]
+    }
+  }
+}

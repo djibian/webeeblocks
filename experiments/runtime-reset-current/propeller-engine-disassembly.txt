@@ -1,0 +1,799 @@
+
+/usr/local/webots/bin/webots-bin:     file format elf64-x86-64
+
+
+Disassembly of section .init:
+
+Disassembly of section .plt:
+
+Disassembly of section .plt.got:
+
+Disassembly of section .plt.sec:
+
+Disassembly of section .text:
+
+000000000042cbf0 <_ZN11WbPropeller14prePhysicsStepEd@@Base>:
+  42cbf0:	f3 0f 1e fa          	endbr64 
+  42cbf4:	41 57                	push   %r15
+  42cbf6:	66 0f ef c9          	pxor   %xmm1,%xmm1
+  42cbfa:	41 56                	push   %r14
+  42cbfc:	41 55                	push   %r13
+  42cbfe:	41 54                	push   %r12
+  42cc00:	55                   	push   %rbp
+  42cc01:	48 89 fd             	mov    %rdi,%rbp
+  42cc04:	53                   	push   %rbx
+  42cc05:	48 81 ec 68 01 00 00 	sub    $0x168,%rsp
+  42cc0c:	f2 0f 11 44 24 08    	movsd  %xmm0,0x8(%rsp)
+  42cc12:	64 48 8b 04 25 28 00 	mov    %fs:0x28,%rax
+  42cc19:	00 00 
+  42cc1b:	48 89 84 24 58 01 00 	mov    %rax,0x158(%rsp)
+  42cc22:	00 
+  42cc23:	31 c0                	xor    %eax,%eax
+  42cc25:	0f 11 8f 40 02 00 00 	movups %xmm1,0x240(%rdi)
+  42cc2c:	e8 9f f1 ff ff       	call   42bdd0 <_ZNK11WbPropeller5motorEv@@Base>
+  42cc31:	48 85 c0             	test   %rax,%rax
+  42cc34:	74 46                	je     42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42cc36:	f2 0f 10 44 24 08    	movsd  0x8(%rsp),%xmm0
+  42cc3c:	48 8d b5 10 02 00 00 	lea    0x210(%rbp),%rsi
+  42cc43:	48 89 c7             	mov    %rax,%rdi
+  42cc46:	48 89 c3             	mov    %rax,%rbx
+  42cc49:	e8 82 1a f9 ff       	call   3be6d0 <_ZN7WbMotor19runKinematicControlEdRd@@Base>
+  42cc4e:	84 c0                	test   %al,%al
+  42cc50:	74 2a                	je     42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42cc52:	f2 0f 10 9b 80 02 00 	movsd  0x280(%rbx),%xmm3
+  42cc59:	00 
+  42cc5a:	66 0f ef ff          	pxor   %xmm7,%xmm7
+  42cc5e:	66 0f 28 f3          	movapd %xmm3,%xmm6
+  42cc62:	66 0f 54 35 46 26 2b 	andpd  0x2b2646(%rip),%xmm6        # 6df2b0 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x8>
+  42cc69:	00 
+  42cc6a:	f2 0f 11 5c 24 10    	movsd  %xmm3,0x10(%rsp)
+  42cc70:	66 0f 2f f7          	comisd %xmm7,%xmm6
+  42cc74:	f2 0f 11 74 24 08    	movsd  %xmm6,0x8(%rsp)
+  42cc7a:	77 2c                	ja     42cca8 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xb8>
+  42cc7c:	48 8b 84 24 58 01 00 	mov    0x158(%rsp),%rax
+  42cc83:	00 
+  42cc84:	64 48 2b 04 25 28 00 	sub    %fs:0x28,%rax
+  42cc8b:	00 00 
+  42cc8d:	0f 85 f0 0b 00 00    	jne    42d883 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc93>
+  42cc93:	48 81 c4 68 01 00 00 	add    $0x168,%rsp
+  42cc9a:	5b                   	pop    %rbx
+  42cc9b:	5d                   	pop    %rbp
+  42cc9c:	41 5c                	pop    %r12
+  42cc9e:	41 5d                	pop    %r13
+  42cca0:	41 5e                	pop    %r14
+  42cca2:	41 5f                	pop    %r15
+  42cca4:	c3                   	ret    
+  42cca5:	0f 1f 00             	nopl   (%rax)
+  42cca8:	48 89 ef             	mov    %rbp,%rdi
+  42ccab:	e8 40 2f e7 ff       	call   29fbf0 <_ZNK10WbBaseNode10upperSolidEv@@Base>
+  42ccb0:	48 8b b8 60 03 00 00 	mov    0x360(%rax),%rdi
+  42ccb7:	4c 8b a8 68 03 00 00 	mov    0x368(%rax),%r13
+  42ccbe:	48 85 ff             	test   %rdi,%rdi
+  42ccc1:	0f 84 39 04 00 00    	je     42d100 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x510>
+  42ccc7:	f0 83 07 01          	lock addl $0x1,(%rdi)
+  42cccb:	8b 47 04             	mov    0x4(%rdi),%eax
+  42ccce:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42ccd4:	f2 0f 10 5c 24 10    	movsd  0x10(%rsp),%xmm3
+  42ccda:	85 c0                	test   %eax,%eax
+  42ccdc:	0f 84 0e 04 00 00    	je     42d0f0 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x500>
+  42cce2:	f0 83 2f 01          	lock subl $0x1,(%rdi)
+  42cce6:	0f 84 de 0b 00 00    	je     42d8ca <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xcda>
+  42ccec:	4d 85 ed             	test   %r13,%r13
+  42ccef:	0f 84 0b 04 00 00    	je     42d100 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x510>
+  42ccf5:	4d 8b 65 58          	mov    0x58(%r13),%r12
+  42ccf9:	4d 85 e4             	test   %r12,%r12
+  42ccfc:	0f 84 fe 03 00 00    	je     42d100 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x510>
+  42cd02:	48 89 ef             	mov    %rbp,%rdi
+  42cd05:	f2 0f 11 5c 24 10    	movsd  %xmm3,0x10(%rsp)
+  42cd0b:	f2 0f 11 74 24 08    	movsd  %xmm6,0x8(%rsp)
+  42cd11:	e8 5a 2e e7 ff       	call   29fb70 <_ZNK10WbBaseNode9upperPoseEv@@Base>
+  42cd16:	48 8b 8d d8 01 00 00 	mov    0x1d8(%rbp),%rcx
+  42cd1d:	4c 8d b0 f8 01 00 00 	lea    0x1f8(%rax),%r14
+  42cd24:	4c 89 f7             	mov    %r14,%rdi
+  42cd27:	4c 8d 79 10          	lea    0x10(%rcx),%r15
+  42cd2b:	e8 c0 be 16 00       	call   598bf0 <_ZNK14WbAbstractPose6matrixEv@@Base>
+  42cd30:	48 8d 7c 24 70       	lea    0x70(%rsp),%rdi
+  42cd35:	4c 89 fa             	mov    %r15,%rdx
+  42cd38:	48 89 c6             	mov    %rax,%rsi
+  42cd3b:	e8 e0 1a 1a 00       	call   5ce820 <_ZNK9WbMatrix4mlERK9WbVector3@@Base>
+  42cd40:	f2 0f 10 4c 24 78    	movsd  0x78(%rsp),%xmm1
+  42cd46:	f2 0f 10 44 24 70    	movsd  0x70(%rsp),%xmm0
+  42cd4c:	4c 89 e7             	mov    %r12,%rdi
+  42cd4f:	f2 0f 10 94 24 80 00 	movsd  0x80(%rsp),%xmm2
+  42cd56:	00 00 
+  42cd58:	48 8d b4 24 f0 00 00 	lea    0xf0(%rsp),%rsi
+  42cd5f:	00 
+  42cd60:	e8 db 44 dd ff       	call   201240 <dBodyGetPointVel@plt>
+  42cd65:	f2 0f 10 85 30 02 00 	movsd  0x230(%rbp),%xmm0
+  42cd6c:	00 
+  42cd6d:	f2 0f 10 8d 28 02 00 	movsd  0x228(%rbp),%xmm1
+  42cd74:	00 
+  42cd75:	f2 0f 59 84 24 f8 00 	mulsd  0xf8(%rsp),%xmm0
+  42cd7c:	00 00 
+  42cd7e:	48 8b 85 e8 01 00 00 	mov    0x1e8(%rbp),%rax
+  42cd85:	f2 0f 59 8c 24 f0 00 	mulsd  0xf0(%rsp),%xmm1
+  42cd8c:	00 00 
+  42cd8e:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42cd94:	f2 0f 10 50 18       	movsd  0x18(%rax),%xmm2
+  42cd99:	f2 0f 10 5c 24 10    	movsd  0x10(%rsp),%xmm3
+  42cd9f:	f2 0f 59 d6          	mulsd  %xmm6,%xmm2
+  42cda3:	f2 0f 58 c1          	addsd  %xmm1,%xmm0
+  42cda7:	f2 0f 10 8c 24 00 01 	movsd  0x100(%rsp),%xmm1
+  42cdae:	00 00 
+  42cdb0:	f2 0f 59 8d 38 02 00 	mulsd  0x238(%rbp),%xmm1
+  42cdb7:	00 
+  42cdb8:	f2 0f 58 c1          	addsd  %xmm1,%xmm0
+  42cdbc:	f2 0f 10 48 10       	movsd  0x10(%rax),%xmm1
+  42cdc1:	48 8b 83 08 02 00 00 	mov    0x208(%rbx),%rax
+  42cdc8:	f2 0f 59 cb          	mulsd  %xmm3,%xmm1
+  42cdcc:	f2 0f 59 d0          	mulsd  %xmm0,%xmm2
+  42cdd0:	f2 0f 59 ce          	mulsd  %xmm6,%xmm1
+  42cdd4:	f2 0f 5c ca          	subsd  %xmm2,%xmm1
+  42cdd8:	f2 0f 10 50 10       	movsd  0x10(%rax),%xmm2
+  42cddd:	66 0f 28 e1          	movapd %xmm1,%xmm4
+  42cde1:	66 0f 54 25 c7 24 2b 	andpd  0x2b24c7(%rip),%xmm4        # 6df2b0 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x8>
+  42cde8:	00 
+  42cde9:	f2 0f 11 8d 48 02 00 	movsd  %xmm1,0x248(%rbp)
+  42cdf0:	00 
+  42cdf1:	66 0f 2f e2          	comisd %xmm2,%xmm4
+  42cdf5:	0f 87 75 03 00 00    	ja     42d170 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x580>
+  42cdfb:	f3 0f 7e 3d 2d 6b 2b 	movq   0x2b6b2d(%rip),%xmm7        # 6e3930 <_ZTSPFviE@@Base+0x112e>
+  42ce02:	00 
+  42ce03:	0f 29 7c 24 10       	movaps %xmm7,0x10(%rsp)
+  42ce08:	48 8b 85 e0 01 00 00 	mov    0x1e0(%rbp),%rax
+  42ce0f:	66 0f 28 ce          	movapd %xmm6,%xmm1
+  42ce13:	4c 89 f6             	mov    %r14,%rsi
+  42ce16:	f2 0f 11 74 24 08    	movsd  %xmm6,0x8(%rsp)
+  42ce1c:	48 8d bc 24 10 01 00 	lea    0x110(%rsp),%rdi
+  42ce23:	00 
+  42ce24:	f2 0f 59 48 18       	mulsd  0x18(%rax),%xmm1
+  42ce29:	f2 0f 59 58 10       	mulsd  0x10(%rax),%xmm3
+  42ce2e:	f2 0f 59 c1          	mulsd  %xmm1,%xmm0
+  42ce32:	f2 0f 59 de          	mulsd  %xmm6,%xmm3
+  42ce36:	f2 0f 5c d8          	subsd  %xmm0,%xmm3
+  42ce3a:	f2 0f 11 9d 40 02 00 	movsd  %xmm3,0x240(%rbp)
+  42ce41:	00 
+  42ce42:	e8 19 be 16 00       	call   598c60 <_ZNK14WbAbstractPose14rotationMatrixEv@@Base>
+  42ce47:	f2 0f 10 85 28 02 00 	movsd  0x228(%rbp),%xmm0
+  42ce4e:	00 
+  42ce4f:	f2 0f 10 8d 30 02 00 	movsd  0x230(%rbp),%xmm1
+  42ce56:	00 
+  42ce57:	f2 44 0f 10 8c 24 40 	movsd  0x140(%rsp),%xmm9
+  42ce5e:	01 00 00 
+  42ce61:	41 80 7d 68 00       	cmpb   $0x0,0x68(%r13)
+  42ce66:	f2 0f 10 9c 24 48 01 	movsd  0x148(%rsp),%xmm3
+  42ce6d:	00 00 
+  42ce6f:	f2 0f 10 95 38 02 00 	movsd  0x238(%rbp),%xmm2
+  42ce76:	00 
+  42ce77:	f2 44 0f 59 c8       	mulsd  %xmm0,%xmm9
+  42ce7c:	f2 0f 10 ad 48 02 00 	movsd  0x248(%rbp),%xmm5
+  42ce83:	00 
+  42ce84:	f2 0f 10 a4 24 28 01 	movsd  0x128(%rsp),%xmm4
+  42ce8b:	00 00 
+  42ce8d:	f2 0f 59 d9          	mulsd  %xmm1,%xmm3
+  42ce91:	66 0f 57 6c 24 10    	xorpd  0x10(%rsp),%xmm5
+  42ce97:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42ce9d:	f2 0f 59 e0          	mulsd  %xmm0,%xmm4
+  42cea1:	f2 44 0f 58 cb       	addsd  %xmm3,%xmm9
+  42cea6:	f2 0f 10 9c 24 50 01 	movsd  0x150(%rsp),%xmm3
+  42cead:	00 00 
+  42ceaf:	f2 0f 59 da          	mulsd  %xmm2,%xmm3
+  42ceb3:	f2 44 0f 58 cb       	addsd  %xmm3,%xmm9
+  42ceb8:	f2 0f 10 9c 24 30 01 	movsd  0x130(%rsp),%xmm3
+  42cebf:	00 00 
+  42cec1:	f2 0f 59 d9          	mulsd  %xmm1,%xmm3
+  42cec5:	f2 0f 59 8c 24 18 01 	mulsd  0x118(%rsp),%xmm1
+  42cecc:	00 00 
+  42cece:	f2 0f 58 e3          	addsd  %xmm3,%xmm4
+  42ced2:	f2 0f 10 9c 24 38 01 	movsd  0x138(%rsp),%xmm3
+  42ced9:	00 00 
+  42cedb:	f2 0f 59 da          	mulsd  %xmm2,%xmm3
+  42cedf:	f2 0f 59 94 24 20 01 	mulsd  0x120(%rsp),%xmm2
+  42cee6:	00 00 
+  42cee8:	f2 0f 58 e3          	addsd  %xmm3,%xmm4
+  42ceec:	f2 0f 10 9c 24 10 01 	movsd  0x110(%rsp),%xmm3
+  42cef3:	00 00 
+  42cef5:	f2 0f 59 d8          	mulsd  %xmm0,%xmm3
+  42cef9:	f2 0f 10 85 40 02 00 	movsd  0x240(%rbp),%xmm0
+  42cf00:	00 
+  42cf01:	f2 0f 58 d9          	addsd  %xmm1,%xmm3
+  42cf05:	66 0f 28 c8          	movapd %xmm0,%xmm1
+  42cf09:	f2 0f 59 cc          	mulsd  %xmm4,%xmm1
+  42cf0d:	f2 0f 59 e5          	mulsd  %xmm5,%xmm4
+  42cf11:	f2 0f 58 da          	addsd  %xmm2,%xmm3
+  42cf15:	66 0f 28 d0          	movapd %xmm0,%xmm2
+  42cf19:	f2 41 0f 59 d1       	mulsd  %xmm9,%xmm2
+  42cf1e:	f2 44 0f 59 cd       	mulsd  %xmm5,%xmm9
+  42cf23:	f2 0f 59 eb          	mulsd  %xmm3,%xmm5
+  42cf27:	f2 0f 59 c3          	mulsd  %xmm3,%xmm0
+  42cf2b:	66 44 0f 28 c4       	movapd %xmm4,%xmm8
+  42cf30:	66 0f 28 fd          	movapd %xmm5,%xmm7
+  42cf34:	0f 84 e6 07 00 00    	je     42d720 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xb30>
+  42cf3a:	f2 0f 10 64 24 78    	movsd  0x78(%rsp),%xmm4
+  42cf40:	f2 0f 10 5c 24 70    	movsd  0x70(%rsp),%xmm3
+  42cf46:	4c 89 e7             	mov    %r12,%rdi
+  42cf49:	f2 0f 11 74 24 08    	movsd  %xmm6,0x8(%rsp)
+  42cf4f:	f2 0f 10 ac 24 80 00 	movsd  0x80(%rsp),%xmm5
+  42cf56:	00 00 
+  42cf58:	f2 0f 11 7c 24 28    	movsd  %xmm7,0x28(%rsp)
+  42cf5e:	f2 44 0f 11 44 24 20 	movsd  %xmm8,0x20(%rsp)
+  42cf65:	f2 44 0f 11 4c 24 10 	movsd  %xmm9,0x10(%rsp)
+  42cf6c:	e8 6f 47 dd ff       	call   2016e0 <dBodyAddForceAtPos@plt>
+  42cf71:	f2 44 0f 10 4c 24 10 	movsd  0x10(%rsp),%xmm9
+  42cf78:	f2 44 0f 10 44 24 20 	movsd  0x20(%rsp),%xmm8
+  42cf7f:	4c 89 e7             	mov    %r12,%rdi
+  42cf82:	f2 0f 10 7c 24 28    	movsd  0x28(%rsp),%xmm7
+  42cf88:	66 41 0f 28 d1       	movapd %xmm9,%xmm2
+  42cf8d:	66 41 0f 28 c8       	movapd %xmm8,%xmm1
+  42cf92:	66 0f 28 c7          	movapd %xmm7,%xmm0
+  42cf96:	e8 65 e3 dc ff       	call   1fb300 <dBodyAddTorque@plt>
+  42cf9b:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42cfa1:	be 01 00 00 00       	mov    $0x1,%esi
+  42cfa6:	48 89 ef             	mov    %rbp,%rdi
+  42cfa9:	66 0f 28 c6          	movapd %xmm6,%xmm0
+  42cfad:	e8 ae ef ff ff       	call   42bf60 <_ZN11WbPropeller11updateHelixEdb@@Base>
+  42cfb2:	48 8b 9d 18 02 00 00 	mov    0x218(%rbp),%rbx
+  42cfb9:	48 85 db             	test   %rbx,%rbx
+  42cfbc:	0f 84 ba fc ff ff    	je     42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42cfc2:	f2 0f 10 a5 28 02 00 	movsd  0x228(%rbp),%xmm4
+  42cfc9:	00 
+  42cfca:	f2 0f 10 9d 30 02 00 	movsd  0x230(%rbp),%xmm3
+  42cfd1:	00 
+  42cfd2:	f2 0f 10 95 38 02 00 	movsd  0x238(%rbp),%xmm2
+  42cfd9:	00 
+  42cfda:	f2 0f 10 85 10 02 00 	movsd  0x210(%rbp),%xmm0
+  42cfe1:	00 
+  42cfe2:	66 0f 28 cc          	movapd %xmm4,%xmm1
+  42cfe6:	66 0f 28 eb          	movapd %xmm3,%xmm5
+  42cfea:	f2 0f 11 64 24 30    	movsd  %xmm4,0x30(%rsp)
+  42cff0:	f2 0f 59 cc          	mulsd  %xmm4,%xmm1
+  42cff4:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42cff8:	f2 0f 11 5c 24 20    	movsd  %xmm3,0x20(%rsp)
+  42cffe:	f2 0f 59 eb          	mulsd  %xmm3,%xmm5
+  42d002:	f2 0f 11 54 24 10    	movsd  %xmm2,0x10(%rsp)
+  42d008:	f2 0f 58 cd          	addsd  %xmm5,%xmm1
+  42d00c:	66 0f 28 ea          	movapd %xmm2,%xmm5
+  42d010:	f2 0f 59 ea          	mulsd  %xmm2,%xmm5
+  42d014:	f2 0f 58 cd          	addsd  %xmm5,%xmm1
+  42d018:	66 0f 2f cc          	comisd %xmm4,%xmm1
+  42d01c:	f2 0f 11 4c 24 08    	movsd  %xmm1,0x8(%rsp)
+  42d022:	0f 87 78 01 00 00    	ja     42d1a0 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x5b0>
+  42d028:	f2 0f 10 25 68 56 2b 	movsd  0x2b5668(%rip),%xmm4        # 6e2698 <_ZTS7QString@@Base+0x38>
+  42d02f:	00 
+  42d030:	48 c7 44 24 10 00 00 	movq   $0x0,0x10(%rsp)
+  42d037:	00 00 
+  42d039:	48 c7 44 24 08 00 00 	movq   $0x0,0x8(%rsp)
+  42d040:	00 00 
+  42d042:	48 c7 44 24 30 00 00 	movq   $0x0,0x30(%rsp)
+  42d049:	00 00 
+  42d04b:	f2 0f 11 64 24 20    	movsd  %xmm4,0x20(%rsp)
+  42d051:	f2 0f 11 64 24 28    	movsd  %xmm4,0x28(%rsp)
+  42d057:	48 8b 45 00          	mov    0x0(%rbp),%rax
+  42d05b:	48 8b 80 b8 00 00 00 	mov    0xb8(%rax),%rax
+  42d062:	48 3b 05 57 70 42 00 	cmp    0x427057(%rip),%rax        # 8540c0 <_ZTVN4wren13UniformBufferE@@Base+0x44b8>
+  42d069:	0f 85 d1 07 00 00    	jne    42d840 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc50>
+  42d06f:	48 8d 45 30          	lea    0x30(%rbp),%rax
+  42d073:	48 8b 93 00 03 00 00 	mov    0x300(%rbx),%rdx
+  42d07a:	48 85 d2             	test   %rdx,%rdx
+  42d07d:	0f 84 f6 01 00 00    	je     42d279 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x689>
+  42d083:	48 8b 5a 18          	mov    0x18(%rdx),%rbx
+  42d087:	4c 8d 6a 10          	lea    0x10(%rdx),%r13
+  42d08b:	48 85 db             	test   %rbx,%rbx
+  42d08e:	0f 84 e5 01 00 00    	je     42d279 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x689>
+  42d094:	4c 8b 78 10          	mov    0x10(%rax),%r15
+  42d098:	4c 8b 70 08          	mov    0x8(%rax),%r14
+  42d09c:	4d 89 ec             	mov    %r13,%r12
+  42d09f:	eb 16                	jmp    42d0b7 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x4c7>
+  42d0a1:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+  42d0a8:	48 85 d2             	test   %rdx,%rdx
+  42d0ab:	0f 84 9f 01 00 00    	je     42d250 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x660>
+  42d0b1:	48 89 d0             	mov    %rdx,%rax
+  42d0b4:	48 89 c3             	mov    %rax,%rbx
+  42d0b7:	48 8b 7b 30          	mov    0x30(%rbx),%rdi
+  42d0bb:	48 8b 73 28          	mov    0x28(%rbx),%rsi
+  42d0bf:	4c 89 fa             	mov    %r15,%rdx
+  42d0c2:	4c 89 f1             	mov    %r14,%rcx
+  42d0c5:	41 b8 01 00 00 00    	mov    $0x1,%r8d
+  42d0cb:	e8 80 1d dd ff       	call   1fee50 <_ZN9QtPrivate14compareStringsE11QStringViewS0_N2Qt15CaseSensitivityE@plt>
+  42d0d0:	48 8b 53 18          	mov    0x18(%rbx),%rdx
+  42d0d4:	41 89 c0             	mov    %eax,%r8d
+  42d0d7:	48 8b 43 10          	mov    0x10(%rbx),%rax
+  42d0db:	45 85 c0             	test   %r8d,%r8d
+  42d0de:	78 c8                	js     42d0a8 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x4b8>
+  42d0e0:	48 85 c0             	test   %rax,%rax
+  42d0e3:	0f 84 6a 01 00 00    	je     42d253 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x663>
+  42d0e9:	49 89 dc             	mov    %rbx,%r12
+  42d0ec:	eb c6                	jmp    42d0b4 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x4c4>
+  42d0ee:	66 90                	xchg   %ax,%ax
+  42d0f0:	f0 83 2f 01          	lock subl $0x1,(%rdi)
+  42d0f4:	75 0a                	jne    42d100 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x510>
+  42d0f6:	e8 d5 ed dc ff       	call   1fbed0 <_ZdlPv@plt>
+  42d0fb:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+  42d100:	48 8d 35 f9 1e 41 00 	lea    0x411ef9(%rip),%rsi        # 83f000 <_ZN11WbPropeller16staticMetaObjectE@@Base>
+  42d107:	4c 8d a4 24 d0 00 00 	lea    0xd0(%rsp),%r12
+  42d10e:	00 
+  42d10f:	41 b8 ff ff ff ff    	mov    $0xffffffff,%r8d
+  42d115:	31 c9                	xor    %ecx,%ecx
+  42d117:	4c 89 e7             	mov    %r12,%rdi
+  42d11a:	48 8d 15 bf 5a 2c 00 	lea    0x2c5abf(%rip),%rdx        # 6f2be0 <_ZTS9WbVersion@@Base+0xcc0>
+  42d121:	e8 3a 27 dd ff       	call   1ff860 <_ZNK11QMetaObject2trEPKcS1_i@plt>
+  42d126:	4c 89 e6             	mov    %r12,%rsi
+  42d129:	48 89 ef             	mov    %rbp,%rdi
+  42d12c:	e8 ef ec fa ff       	call   3dbe20 <_ZNK6WbNode11parsingWarnERK7QString@@Base>
+  42d131:	48 8b 84 24 d0 00 00 	mov    0xd0(%rsp),%rax
+  42d138:	00 
+  42d139:	48 85 c0             	test   %rax,%rax
+  42d13c:	0f 84 3a fb ff ff    	je     42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42d142:	f0 83 28 01          	lock subl $0x1,(%rax)
+  42d146:	0f 85 30 fb ff ff    	jne    42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42d14c:	48 8b bc 24 d0 00 00 	mov    0xd0(%rsp),%rdi
+  42d153:	00 
+  42d154:	ba 08 00 00 00       	mov    $0x8,%edx
+  42d159:	be 02 00 00 00       	mov    $0x2,%esi
+  42d15e:	e8 fd ff dc ff       	call   1fd160 <_ZN10QArrayData10deallocateEPS_xx@plt>
+  42d163:	e9 14 fb ff ff       	jmp    42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42d168:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+  42d16f:	00 
+  42d170:	66 0f ef ff          	pxor   %xmm7,%xmm7
+  42d174:	66 0f 2f cf          	comisd %xmm7,%xmm1
+  42d178:	0f 86 b2 00 00 00    	jbe    42d230 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x640>
+  42d17e:	f3 0f 7e 25 aa 67 2b 	movq   0x2b67aa(%rip),%xmm4        # 6e3930 <_ZTSPFviE@@Base+0x112e>
+  42d185:	00 
+  42d186:	0f 29 64 24 10       	movaps %xmm4,0x10(%rsp)
+  42d18b:	f2 0f 11 95 48 02 00 	movsd  %xmm2,0x248(%rbp)
+  42d192:	00 
+  42d193:	e9 70 fc ff ff       	jmp    42ce08 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x218>
+  42d198:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+  42d19f:	00 
+  42d1a0:	f2 0f 59 05 90 23 2b 	mulsd  0x2b2390(%rip),%xmm0        # 6df538 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x290>
+  42d1a7:	00 
+  42d1a8:	48 8d 7c 24 68       	lea    0x68(%rsp),%rdi
+  42d1ad:	48 8d 74 24 60       	lea    0x60(%rsp),%rsi
+  42d1b2:	e8 49 fc dc ff       	call   1fce00 <sincos@plt>
+  42d1b7:	f2 0f 10 64 24 60    	movsd  0x60(%rsp),%xmm4
+  42d1bd:	f2 0f 10 4c 24 08    	movsd  0x8(%rsp),%xmm1
+  42d1c3:	f2 0f 10 6c 24 68    	movsd  0x68(%rsp),%xmm5
+  42d1c9:	f2 0f 10 54 24 10    	movsd  0x10(%rsp),%xmm2
+  42d1cf:	f2 0f 11 64 24 28    	movsd  %xmm4,0x28(%rsp)
+  42d1d5:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d1d9:	f2 0f 10 5c 24 20    	movsd  0x20(%rsp),%xmm3
+  42d1df:	66 0f 2e e1          	ucomisd %xmm1,%xmm4
+  42d1e3:	f2 0f 10 64 24 30    	movsd  0x30(%rsp),%xmm4
+  42d1e9:	0f 87 99 06 00 00    	ja     42d888 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc98>
+  42d1ef:	f2 0f 51 c9          	sqrtsd %xmm1,%xmm1
+  42d1f3:	f2 0f 5e e9          	divsd  %xmm1,%xmm5
+  42d1f7:	f2 0f 10 3d 99 54 2b 	movsd  0x2b5499(%rip),%xmm7        # 6e2698 <_ZTS7QString@@Base+0x38>
+  42d1fe:	00 
+  42d1ff:	f2 0f 11 7c 24 20    	movsd  %xmm7,0x20(%rsp)
+  42d205:	f2 0f 59 e5          	mulsd  %xmm5,%xmm4
+  42d209:	f2 0f 59 dd          	mulsd  %xmm5,%xmm3
+  42d20d:	f2 0f 59 d5          	mulsd  %xmm5,%xmm2
+  42d211:	f2 0f 11 64 24 30    	movsd  %xmm4,0x30(%rsp)
+  42d217:	f2 0f 11 5c 24 08    	movsd  %xmm3,0x8(%rsp)
+  42d21d:	f2 0f 11 54 24 10    	movsd  %xmm2,0x10(%rsp)
+  42d223:	e9 2f fe ff ff       	jmp    42d057 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x467>
+  42d228:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+  42d22f:	00 
+  42d230:	f3 0f 7e 3d f8 66 2b 	movq   0x2b66f8(%rip),%xmm7        # 6e3930 <_ZTSPFviE@@Base+0x112e>
+  42d237:	00 
+  42d238:	0f 29 7c 24 10       	movaps %xmm7,0x10(%rsp)
+  42d23d:	66 0f 57 d7          	xorpd  %xmm7,%xmm2
+  42d241:	e9 45 ff ff ff       	jmp    42d18b <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x59b>
+  42d246:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  42d24d:	00 00 00 
+  42d250:	4c 89 e3             	mov    %r12,%rbx
+  42d253:	49 39 dd             	cmp    %rbx,%r13
+  42d256:	74 21                	je     42d279 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x689>
+  42d258:	48 8b 53 30          	mov    0x30(%rbx),%rdx
+  42d25c:	48 8b 4b 28          	mov    0x28(%rbx),%rcx
+  42d260:	4c 89 ff             	mov    %r15,%rdi
+  42d263:	4c 89 f6             	mov    %r14,%rsi
+  42d266:	41 b8 01 00 00 00    	mov    $0x1,%r8d
+  42d26c:	e8 df 1b dd ff       	call   1fee50 <_ZN9QtPrivate14compareStringsE11QStringViewS0_N2Qt15CaseSensitivityE@plt>
+  42d271:	85 c0                	test   %eax,%eax
+  42d273:	0f 89 17 04 00 00    	jns    42d690 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xaa0>
+  42d279:	f2 0f 10 6c 24 20    	movsd  0x20(%rsp),%xmm5
+  42d27f:	66 0f ef f6          	pxor   %xmm6,%xmm6
+  42d283:	66 0f 28 d6          	movapd %xmm6,%xmm2
+  42d287:	66 0f 28 e6          	movapd %xmm6,%xmm4
+  42d28b:	66 0f 28 dd          	movapd %xmm5,%xmm3
+  42d28f:	66 0f 28 cd          	movapd %xmm5,%xmm1
+  42d293:	f2 0f 51 db          	sqrtsd %xmm3,%xmm3
+  42d297:	f2 0f 5e e3          	divsd  %xmm3,%xmm4
+  42d29b:	f2 0f 10 7c 24 08    	movsd  0x8(%rsp),%xmm7
+  42d2a1:	f2 44 0f 10 44 24 30 	movsd  0x30(%rsp),%xmm8
+  42d2a8:	f2 0f 59 f9          	mulsd  %xmm1,%xmm7
+  42d2ac:	f2 44 0f 59 c1       	mulsd  %xmm1,%xmm8
+  42d2b1:	f2 0f 59 f4          	mulsd  %xmm4,%xmm6
+  42d2b5:	f2 0f 59 d4          	mulsd  %xmm4,%xmm2
+  42d2b9:	f2 0f 59 e5          	mulsd  %xmm5,%xmm4
+  42d2bd:	f2 0f 10 6c 24 10    	movsd  0x10(%rsp),%xmm5
+  42d2c3:	f2 0f 59 e9          	mulsd  %xmm1,%xmm5
+  42d2c7:	f2 0f 59 4c 24 28    	mulsd  0x28(%rsp),%xmm1
+  42d2cd:	66 0f 28 de          	movapd %xmm6,%xmm3
+  42d2d1:	f2 44 0f 10 54 24 28 	movsd  0x28(%rsp),%xmm10
+  42d2d8:	f2 44 0f 10 6c 24 30 	movsd  0x30(%rsp),%xmm13
+  42d2df:	f2 44 0f 10 74 24 08 	movsd  0x8(%rsp),%xmm14
+  42d2e6:	f2 44 0f 10 64 24 10 	movsd  0x10(%rsp),%xmm12
+  42d2ed:	66 41 0f 28 c2       	movapd %xmm10,%xmm0
+  42d2f2:	f2 0f 59 c4          	mulsd  %xmm4,%xmm0
+  42d2f6:	66 41 0f 28 f6       	movapd %xmm14,%xmm6
+  42d2fb:	f2 0f 59 f2          	mulsd  %xmm2,%xmm6
+  42d2ff:	f2 0f 58 c5          	addsd  %xmm5,%xmm0
+  42d303:	66 41 0f 28 ed       	movapd %xmm13,%xmm5
+  42d308:	f2 0f 59 eb          	mulsd  %xmm3,%xmm5
+  42d30c:	f2 0f 58 e8          	addsd  %xmm0,%xmm5
+  42d310:	66 41 0f 28 c2       	movapd %xmm10,%xmm0
+  42d315:	f2 0f 59 c3          	mulsd  %xmm3,%xmm0
+  42d319:	f2 0f 5c ee          	subsd  %xmm6,%xmm5
+  42d31d:	66 41 0f 28 f4       	movapd %xmm12,%xmm6
+  42d322:	f2 0f 59 f2          	mulsd  %xmm2,%xmm6
+  42d326:	f2 0f 11 ac 24 c8 00 	movsd  %xmm5,0xc8(%rsp)
+  42d32d:	00 00 
+  42d32f:	f2 0f 58 c7          	addsd  %xmm7,%xmm0
+  42d333:	66 41 0f 28 fd       	movapd %xmm13,%xmm7
+  42d338:	f2 0f 59 fc          	mulsd  %xmm4,%xmm7
+  42d33c:	f2 0f 58 f0          	addsd  %xmm0,%xmm6
+  42d340:	66 41 0f 28 c2       	movapd %xmm10,%xmm0
+  42d345:	f2 0f 59 c2          	mulsd  %xmm2,%xmm0
+  42d349:	f2 41 0f 59 d5       	mulsd  %xmm13,%xmm2
+  42d34e:	f2 0f 5c f7          	subsd  %xmm7,%xmm6
+  42d352:	66 41 0f 28 fe       	movapd %xmm14,%xmm7
+  42d357:	f2 0f 59 fc          	mulsd  %xmm4,%xmm7
+  42d35b:	f2 41 0f 59 e4       	mulsd  %xmm12,%xmm4
+  42d360:	f2 0f 11 b4 24 c0 00 	movsd  %xmm6,0xc0(%rsp)
+  42d367:	00 00 
+  42d369:	f2 41 0f 58 c0       	addsd  %xmm8,%xmm0
+  42d36e:	66 45 0f 28 c4       	movapd %xmm12,%xmm8
+  42d373:	f2 44 0f 59 c3       	mulsd  %xmm3,%xmm8
+  42d378:	f2 0f 5c ca          	subsd  %xmm2,%xmm1
+  42d37c:	f2 41 0f 59 de       	mulsd  %xmm14,%xmm3
+  42d381:	f2 0f 58 f8          	addsd  %xmm0,%xmm7
+  42d385:	f2 41 0f 5c f8       	subsd  %xmm8,%xmm7
+  42d38a:	f2 0f 5c cb          	subsd  %xmm3,%xmm1
+  42d38e:	f2 0f 11 bc 24 b8 00 	movsd  %xmm7,0xb8(%rsp)
+  42d395:	00 00 
+  42d397:	f2 0f 5c cc          	subsd  %xmm4,%xmm1
+  42d39b:	66 0f 2e 4c 24 20    	ucomisd 0x20(%rsp),%xmm1
+  42d3a1:	f2 0f 11 8c 24 b0 00 	movsd  %xmm1,0xb0(%rsp)
+  42d3a8:	00 00 
+  42d3aa:	0f 8a d0 03 00 00    	jp     42d780 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xb90>
+  42d3b0:	0f 85 ca 03 00 00    	jne    42d780 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xb90>
+  42d3b6:	4c 8d a4 24 d0 00 00 	lea    0xd0(%rsp),%r12
+  42d3bd:	00 
+  42d3be:	48 8d b4 24 b0 00 00 	lea    0xb0(%rsp),%rsi
+  42d3c5:	00 
+  42d3c6:	4c 89 e7             	mov    %r12,%rdi
+  42d3c9:	e8 22 d3 1d 00       	call   60a6f0 <_ZN10WbRotation14fromQuaternionERK12WbQuaternion@@Base>
+  42d3ce:	66 0f ef ff          	pxor   %xmm7,%xmm7
+  42d3d2:	66 0f 2e bc 24 e8 00 	ucomisd 0xe8(%rsp),%xmm7
+  42d3d9:	00 00 
+  42d3db:	7a 2f                	jp     42d40c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x81c>
+  42d3dd:	75 2d                	jne    42d40c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x81c>
+  42d3df:	f2 0f 10 85 38 02 00 	movsd  0x238(%rbp),%xmm0
+  42d3e6:	00 
+  42d3e7:	66 0f 10 bd 28 02 00 	movupd 0x228(%rbp),%xmm7
+  42d3ee:	00 
+  42d3ef:	48 c7 84 24 e8 00 00 	movq   $0x0,0xe8(%rsp)
+  42d3f6:	00 00 00 00 00 
+  42d3fb:	0f 29 bc 24 d0 00 00 	movaps %xmm7,0xd0(%rsp)
+  42d402:	00 
+  42d403:	f2 0f 11 84 24 e0 00 	movsd  %xmm0,0xe0(%rsp)
+  42d40a:	00 00 
+  42d40c:	48 8b 9d 18 02 00 00 	mov    0x218(%rbp),%rbx
+  42d413:	4c 8b b5 d8 01 00 00 	mov    0x1d8(%rbp),%r14
+  42d41a:	48 8d 83 f8 01 00 00 	lea    0x1f8(%rbx),%rax
+  42d421:	48 89 44 24 38       	mov    %rax,0x38(%rsp)
+  42d426:	48 8b 45 00          	mov    0x0(%rbp),%rax
+  42d42a:	48 8b 80 b8 00 00 00 	mov    0xb8(%rax),%rax
+  42d431:	48 3b 05 88 6c 42 00 	cmp    0x426c88(%rip),%rax        # 8540c0 <_ZTVN4wren13UniformBufferE@@Base+0x44b8>
+  42d438:	0f 85 f2 03 00 00    	jne    42d830 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc40>
+  42d43e:	48 83 c5 30          	add    $0x30,%rbp
+  42d442:	48 8b 93 f8 02 00 00 	mov    0x2f8(%rbx),%rdx
+  42d449:	48 85 d2             	test   %rdx,%rdx
+  42d44c:	0f 84 99 00 00 00    	je     42d4eb <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8fb>
+  42d452:	48 8b 5a 18          	mov    0x18(%rdx),%rbx
+  42d456:	48 8d 42 10          	lea    0x10(%rdx),%rax
+  42d45a:	48 89 44 24 40       	mov    %rax,0x40(%rsp)
+  42d45f:	48 85 db             	test   %rbx,%rbx
+  42d462:	0f 84 83 00 00 00    	je     42d4eb <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8fb>
+  42d468:	4c 8b 6d 10          	mov    0x10(%rbp),%r13
+  42d46c:	4c 8b 7d 08          	mov    0x8(%rbp),%r15
+  42d470:	48 89 c5             	mov    %rax,%rbp
+  42d473:	eb 0e                	jmp    42d483 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x893>
+  42d475:	0f 1f 00             	nopl   (%rax)
+  42d478:	48 85 d2             	test   %rdx,%rdx
+  42d47b:	74 43                	je     42d4c0 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8d0>
+  42d47d:	48 89 d0             	mov    %rdx,%rax
+  42d480:	48 89 c3             	mov    %rax,%rbx
+  42d483:	48 8b 7b 30          	mov    0x30(%rbx),%rdi
+  42d487:	48 8b 73 28          	mov    0x28(%rbx),%rsi
+  42d48b:	4c 89 ea             	mov    %r13,%rdx
+  42d48e:	4c 89 f9             	mov    %r15,%rcx
+  42d491:	41 b8 01 00 00 00    	mov    $0x1,%r8d
+  42d497:	e8 b4 19 dd ff       	call   1fee50 <_ZN9QtPrivate14compareStringsE11QStringViewS0_N2Qt15CaseSensitivityE@plt>
+  42d49c:	48 8b 53 18          	mov    0x18(%rbx),%rdx
+  42d4a0:	41 89 c0             	mov    %eax,%r8d
+  42d4a3:	48 8b 43 10          	mov    0x10(%rbx),%rax
+  42d4a7:	45 85 c0             	test   %r8d,%r8d
+  42d4aa:	78 cc                	js     42d478 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x888>
+  42d4ac:	48 85 c0             	test   %rax,%rax
+  42d4af:	74 12                	je     42d4c3 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8d3>
+  42d4b1:	48 89 dd             	mov    %rbx,%rbp
+  42d4b4:	eb ca                	jmp    42d480 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x890>
+  42d4b6:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  42d4bd:	00 00 00 
+  42d4c0:	48 89 eb             	mov    %rbp,%rbx
+  42d4c3:	48 3b 5c 24 40       	cmp    0x40(%rsp),%rbx
+  42d4c8:	74 21                	je     42d4eb <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8fb>
+  42d4ca:	48 8b 53 30          	mov    0x30(%rbx),%rdx
+  42d4ce:	48 8b 4b 28          	mov    0x28(%rbx),%rcx
+  42d4d2:	4c 89 ef             	mov    %r13,%rdi
+  42d4d5:	4c 89 fe             	mov    %r15,%rsi
+  42d4d8:	41 b8 01 00 00 00    	mov    $0x1,%r8d
+  42d4de:	e8 6d 19 dd ff       	call   1fee50 <_ZN9QtPrivate14compareStringsE11QStringViewS0_N2Qt15CaseSensitivityE@plt>
+  42d4e3:	85 c0                	test   %eax,%eax
+  42d4e5:	0f 89 15 02 00 00    	jns    42d700 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xb10>
+  42d4eb:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d4ef:	66 44 0f 28 cc       	movapd %xmm4,%xmm9
+  42d4f4:	66 44 0f 28 c4       	movapd %xmm4,%xmm8
+  42d4f9:	f2 44 0f 10 54 24 30 	movsd  0x30(%rsp),%xmm10
+  42d500:	f2 44 0f 10 7c 24 28 	movsd  0x28(%rsp),%xmm15
+  42d507:	4c 89 e2             	mov    %r12,%rdx
+  42d50a:	48 8d b4 24 90 00 00 	lea    0x90(%rsp),%rsi
+  42d511:	00 
+  42d512:	f2 44 0f 10 5c 24 10 	movsd  0x10(%rsp),%xmm11
+  42d519:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42d51f:	66 41 0f 28 d2       	movapd %xmm10,%xmm2
+  42d524:	66 41 0f 28 ff       	movapd %xmm15,%xmm7
+  42d529:	66 45 0f 28 e7       	movapd %xmm15,%xmm12
+  42d52e:	f2 41 0f 10 6e 20    	movsd  0x20(%r14),%xmm5
+  42d534:	f2 41 0f 58 d2       	addsd  %xmm10,%xmm2
+  42d539:	66 41 0f 28 db       	movapd %xmm11,%xmm3
+  42d53e:	f2 41 0f 58 ff       	addsd  %xmm15,%xmm7
+  42d543:	f2 45 0f 10 76 10    	movsd  0x10(%r14),%xmm14
+  42d549:	f2 41 0f 58 db       	addsd  %xmm11,%xmm3
+  42d54e:	66 0f 28 c6          	movapd %xmm6,%xmm0
+  42d552:	f2 0f 5c e5          	subsd  %xmm5,%xmm4
+  42d556:	f2 0f 11 6c 24 40    	movsd  %xmm5,0x40(%rsp)
+  42d55c:	f2 0f 58 c6          	addsd  %xmm6,%xmm0
+  42d560:	66 41 0f 28 ef       	movapd %xmm15,%xmm5
+  42d565:	66 41 0f 28 cb       	movapd %xmm11,%xmm1
+  42d56a:	f2 45 0f 10 6e 18    	movsd  0x18(%r14),%xmm13
+  42d570:	f2 0f 59 f2          	mulsd  %xmm2,%xmm6
+  42d574:	f2 45 0f 5c c6       	subsd  %xmm14,%xmm8
+  42d579:	48 8b 7c 24 38       	mov    0x38(%rsp),%rdi
+  42d57e:	f2 41 0f 59 ff       	mulsd  %xmm15,%xmm7
+  42d583:	f2 45 0f 5c cd       	subsd  %xmm13,%xmm9
+  42d588:	f2 44 0f 59 fb       	mulsd  %xmm3,%xmm15
+  42d58d:	f2 0f 59 ca          	mulsd  %xmm2,%xmm1
+  42d591:	f2 0f 59 ea          	mulsd  %xmm2,%xmm5
+  42d595:	f2 41 0f 59 d2       	mulsd  %xmm10,%xmm2
+  42d59a:	66 44 0f 28 d6       	movapd %xmm6,%xmm10
+  42d59f:	f2 0f 5c 54 24 20    	subsd  0x20(%rsp),%xmm2
+  42d5a5:	f2 44 0f 59 e0       	mulsd  %xmm0,%xmm12
+  42d5aa:	f2 45 0f 5c d7       	subsd  %xmm15,%xmm10
+  42d5af:	f2 44 0f 11 7c 24 28 	movsd  %xmm15,0x28(%rsp)
+  42d5b6:	f2 44 0f 59 d8       	mulsd  %xmm0,%xmm11
+  42d5bb:	f2 0f 58 74 24 28    	addsd  0x28(%rsp),%xmm6
+  42d5c1:	f2 0f 59 44 24 08    	mulsd  0x8(%rsp),%xmm0
+  42d5c7:	f2 0f 58 d7          	addsd  %xmm7,%xmm2
+  42d5cb:	f2 0f 59 5c 24 10    	mulsd  0x10(%rsp),%xmm3
+  42d5d1:	f2 41 0f 59 f0       	mulsd  %xmm8,%xmm6
+  42d5d6:	66 45 0f 28 fa       	movapd %xmm10,%xmm15
+  42d5db:	66 44 0f 28 d1       	movapd %xmm1,%xmm10
+  42d5e0:	f2 45 0f 59 f9       	mulsd  %xmm9,%xmm15
+  42d5e5:	f2 45 0f 58 d4       	addsd  %xmm12,%xmm10
+  42d5ea:	f2 41 0f 5c cc       	subsd  %xmm12,%xmm1
+  42d5ef:	f2 41 0f 59 d0       	mulsd  %xmm8,%xmm2
+  42d5f4:	f2 41 0f 59 c8       	mulsd  %xmm8,%xmm1
+  42d5f9:	f2 41 0f 58 d7       	addsd  %xmm15,%xmm2
+  42d5fe:	66 45 0f 28 fa       	movapd %xmm10,%xmm15
+  42d603:	f2 44 0f 59 fc       	mulsd  %xmm4,%xmm15
+  42d608:	f2 41 0f 58 d7       	addsd  %xmm15,%xmm2
+  42d60d:	f2 41 0f 58 d6       	addsd  %xmm14,%xmm2
+  42d612:	f2 0f 11 94 24 90 00 	movsd  %xmm2,0x90(%rsp)
+  42d619:	00 00 
+  42d61b:	f2 0f 10 54 24 20    	movsd  0x20(%rsp),%xmm2
+  42d621:	f2 0f 5c c2          	subsd  %xmm2,%xmm0
+  42d625:	f2 0f 5c da          	subsd  %xmm2,%xmm3
+  42d629:	f2 0f 58 c7          	addsd  %xmm7,%xmm0
+  42d62d:	f2 0f 58 df          	addsd  %xmm7,%xmm3
+  42d631:	f2 41 0f 59 c1       	mulsd  %xmm9,%xmm0
+  42d636:	f2 0f 59 dc          	mulsd  %xmm4,%xmm3
+  42d63a:	f2 0f 58 f0          	addsd  %xmm0,%xmm6
+  42d63e:	66 41 0f 28 c3       	movapd %xmm11,%xmm0
+  42d643:	f2 0f 5c c5          	subsd  %xmm5,%xmm0
+  42d647:	f2 41 0f 58 eb       	addsd  %xmm11,%xmm5
+  42d64c:	f2 0f 59 c4          	mulsd  %xmm4,%xmm0
+  42d650:	f2 41 0f 59 e9       	mulsd  %xmm9,%xmm5
+  42d655:	f2 0f 58 f0          	addsd  %xmm0,%xmm6
+  42d659:	f2 0f 58 cd          	addsd  %xmm5,%xmm1
+  42d65d:	f2 41 0f 58 f5       	addsd  %xmm13,%xmm6
+  42d662:	f2 0f 58 cb          	addsd  %xmm3,%xmm1
+  42d666:	f2 0f 58 4c 24 40    	addsd  0x40(%rsp),%xmm1
+  42d66c:	f2 0f 11 b4 24 98 00 	movsd  %xmm6,0x98(%rsp)
+  42d673:	00 00 
+  42d675:	f2 0f 11 8c 24 a0 00 	movsd  %xmm1,0xa0(%rsp)
+  42d67c:	00 00 
+  42d67e:	e8 3d c0 16 00       	call   5996c0 <_ZN14WbAbstractPose25setTranslationAndRotationERK9WbVector3RK10WbRotation@@Base>
+  42d683:	e9 f4 f5 ff ff       	jmp    42cc7c <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x8c>
+  42d688:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+  42d68f:	00 
+  42d690:	f2 0f 10 53 38       	movsd  0x38(%rbx),%xmm2
+  42d695:	f2 0f 10 73 40       	movsd  0x40(%rbx),%xmm6
+  42d69a:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d69e:	f2 0f 10 6b 48       	movsd  0x48(%rbx),%xmm5
+  42d6a3:	f2 0f 10 43 50       	movsd  0x50(%rbx),%xmm0
+  42d6a8:	66 0f 28 da          	movapd %xmm2,%xmm3
+  42d6ac:	66 0f 28 ce          	movapd %xmm6,%xmm1
+  42d6b0:	f2 0f 59 ce          	mulsd  %xmm6,%xmm1
+  42d6b4:	f2 0f 59 da          	mulsd  %xmm2,%xmm3
+  42d6b8:	f2 0f 58 d9          	addsd  %xmm1,%xmm3
+  42d6bc:	66 0f 28 cd          	movapd %xmm5,%xmm1
+  42d6c0:	f2 0f 59 cd          	mulsd  %xmm5,%xmm1
+  42d6c4:	f2 0f 58 d9          	addsd  %xmm1,%xmm3
+  42d6c8:	66 0f 2f dc          	comisd %xmm4,%xmm3
+  42d6cc:	0f 87 1a 02 00 00    	ja     42d8ec <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xcfc>
+  42d6d2:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d6d6:	f2 0f 10 4c 24 28    	movsd  0x28(%rsp),%xmm1
+  42d6dc:	f2 44 0f 10 44 24 30 	movsd  0x30(%rsp),%xmm8
+  42d6e3:	f2 0f 10 7c 24 08    	movsd  0x8(%rsp),%xmm7
+  42d6e9:	f2 0f 10 6c 24 10    	movsd  0x10(%rsp),%xmm5
+  42d6ef:	66 0f 28 dc          	movapd %xmm4,%xmm3
+  42d6f3:	66 0f 28 d4          	movapd %xmm4,%xmm2
+  42d6f7:	e9 d5 fb ff ff       	jmp    42d2d1 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x6e1>
+  42d6fc:	0f 1f 40 00          	nopl   0x0(%rax)
+  42d700:	f2 44 0f 10 43 38    	movsd  0x38(%rbx),%xmm8
+  42d706:	f2 44 0f 10 4b 40    	movsd  0x40(%rbx),%xmm9
+  42d70c:	f2 0f 10 63 48       	movsd  0x48(%rbx),%xmm4
+  42d711:	e9 e3 fd ff ff       	jmp    42d4f9 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x909>
+  42d716:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  42d71d:	00 00 00 
+  42d720:	4c 89 e7             	mov    %r12,%rdi
+  42d723:	f2 0f 11 44 24 40    	movsd  %xmm0,0x40(%rsp)
+  42d729:	f2 0f 11 4c 24 38    	movsd  %xmm1,0x38(%rsp)
+  42d72f:	f2 0f 11 54 24 30    	movsd  %xmm2,0x30(%rsp)
+  42d735:	f2 44 0f 11 4c 24 10 	movsd  %xmm9,0x10(%rsp)
+  42d73c:	f2 0f 11 6c 24 28    	movsd  %xmm5,0x28(%rsp)
+  42d742:	f2 0f 11 64 24 20    	movsd  %xmm4,0x20(%rsp)
+  42d748:	e8 f3 38 dd ff       	call   201040 <dBodyEnable@plt>
+  42d74d:	f2 0f 10 44 24 40    	movsd  0x40(%rsp),%xmm0
+  42d753:	f2 0f 10 4c 24 38    	movsd  0x38(%rsp),%xmm1
+  42d759:	f2 0f 10 54 24 30    	movsd  0x30(%rsp),%xmm2
+  42d75f:	f2 0f 10 7c 24 28    	movsd  0x28(%rsp),%xmm7
+  42d765:	f2 44 0f 10 44 24 20 	movsd  0x20(%rsp),%xmm8
+  42d76c:	f2 44 0f 10 4c 24 10 	movsd  0x10(%rsp),%xmm9
+  42d773:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42d779:	e9 bc f7 ff ff       	jmp    42cf3a <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x34a>
+  42d77e:	66 90                	xchg   %ax,%ax
+  42d780:	66 0f 28 d6          	movapd %xmm6,%xmm2
+  42d784:	66 0f 28 c7          	movapd %xmm7,%xmm0
+  42d788:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d78c:	f2 0f 59 d6          	mulsd  %xmm6,%xmm2
+  42d790:	f2 0f 59 c7          	mulsd  %xmm7,%xmm0
+  42d794:	f2 0f 58 c2          	addsd  %xmm2,%xmm0
+  42d798:	66 0f 28 d5          	movapd %xmm5,%xmm2
+  42d79c:	f2 0f 59 d5          	mulsd  %xmm5,%xmm2
+  42d7a0:	f2 0f 58 c2          	addsd  %xmm2,%xmm0
+  42d7a4:	66 0f 28 d1          	movapd %xmm1,%xmm2
+  42d7a8:	f2 0f 59 d1          	mulsd  %xmm1,%xmm2
+  42d7ac:	f2 0f 58 c2          	addsd  %xmm2,%xmm0
+  42d7b0:	66 0f 2e c4          	ucomisd %xmm4,%xmm0
+  42d7b4:	7a 06                	jp     42d7bc <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xbcc>
+  42d7b6:	0f 84 8e 00 00 00    	je     42d84a <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc5a>
+  42d7bc:	f2 0f 10 64 24 20    	movsd  0x20(%rsp),%xmm4
+  42d7c2:	f2 0f 10 1d 7e 63 2b 	movsd  0x2b637e(%rip),%xmm3        # 6e3b48 <_ZTSPFviE@@Base+0x1346>
+  42d7c9:	00 
+  42d7ca:	66 0f 28 d4          	movapd %xmm4,%xmm2
+  42d7ce:	f2 0f 5c d0          	subsd  %xmm0,%xmm2
+  42d7d2:	66 0f 54 15 d6 1a 2b 	andpd  0x2b1ad6(%rip),%xmm2        # 6df2b0 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x8>
+  42d7d9:	00 
+  42d7da:	66 0f 2f da          	comisd %xmm2,%xmm3
+  42d7de:	76 7e                	jbe    42d85e <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc6e>
+  42d7e0:	66 0f 28 d0          	movapd %xmm0,%xmm2
+  42d7e4:	f2 0f 10 1d 64 63 2b 	movsd  0x2b6364(%rip),%xmm3        # 6e3b50 <_ZTSPFviE@@Base+0x134e>
+  42d7eb:	00 
+  42d7ec:	f2 0f 58 d4          	addsd  %xmm4,%xmm2
+  42d7f0:	f2 0f 5e da          	divsd  %xmm2,%xmm3
+  42d7f4:	f2 0f 59 cb          	mulsd  %xmm3,%xmm1
+  42d7f8:	f2 0f 59 fb          	mulsd  %xmm3,%xmm7
+  42d7fc:	f2 0f 59 f3          	mulsd  %xmm3,%xmm6
+  42d800:	f2 0f 59 dd          	mulsd  %xmm5,%xmm3
+  42d804:	f2 0f 11 8c 24 b0 00 	movsd  %xmm1,0xb0(%rsp)
+  42d80b:	00 00 
+  42d80d:	f2 0f 11 bc 24 b8 00 	movsd  %xmm7,0xb8(%rsp)
+  42d814:	00 00 
+  42d816:	f2 0f 11 b4 24 c0 00 	movsd  %xmm6,0xc0(%rsp)
+  42d81d:	00 00 
+  42d81f:	f2 0f 11 9c 24 c8 00 	movsd  %xmm3,0xc8(%rsp)
+  42d826:	00 00 
+  42d828:	e9 89 fb ff ff       	jmp    42d3b6 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x7c6>
+  42d82d:	0f 1f 00             	nopl   (%rax)
+  42d830:	48 89 ef             	mov    %rbp,%rdi
+  42d833:	ff d0                	call   *%rax
+  42d835:	48 89 c5             	mov    %rax,%rbp
+  42d838:	e9 05 fc ff ff       	jmp    42d442 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x852>
+  42d83d:	0f 1f 00             	nopl   (%rax)
+  42d840:	48 89 ef             	mov    %rbp,%rdi
+  42d843:	ff d0                	call   *%rax
+  42d845:	e9 29 f8 ff ff       	jmp    42d073 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x483>
+  42d84a:	f2 0f 10 7c 24 20    	movsd  0x20(%rsp),%xmm7
+  42d850:	f2 0f 11 bc 24 b0 00 	movsd  %xmm7,0xb0(%rsp)
+  42d857:	00 00 
+  42d859:	e9 58 fb ff ff       	jmp    42d3b6 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x7c6>
+  42d85e:	66 0f ef e4          	pxor   %xmm4,%xmm4
+  42d862:	66 0f 2e e0          	ucomisd %xmm0,%xmm4
+  42d866:	0f 87 2f 01 00 00    	ja     42d99b <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xdab>
+  42d86c:	66 0f 28 d0          	movapd %xmm0,%xmm2
+  42d870:	f2 0f 51 d2          	sqrtsd %xmm2,%xmm2
+  42d874:	f2 0f 10 5c 24 20    	movsd  0x20(%rsp),%xmm3
+  42d87a:	f2 0f 5e da          	divsd  %xmm2,%xmm3
+  42d87e:	e9 71 ff ff ff       	jmp    42d7f4 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc04>
+  42d883:	e8 88 dc dc ff       	call   1fb510 <__stack_chk_fail@plt>
+  42d888:	66 0f 28 c1          	movapd %xmm1,%xmm0
+  42d88c:	f2 0f 11 6c 24 30    	movsd  %xmm5,0x30(%rsp)
+  42d892:	f2 0f 11 64 24 20    	movsd  %xmm4,0x20(%rsp)
+  42d898:	f2 0f 11 5c 24 10    	movsd  %xmm3,0x10(%rsp)
+  42d89e:	f2 0f 11 54 24 08    	movsd  %xmm2,0x8(%rsp)
+  42d8a4:	e8 e7 e3 dc ff       	call   1fbc90 <sqrt@plt>
+  42d8a9:	f2 0f 10 6c 24 30    	movsd  0x30(%rsp),%xmm5
+  42d8af:	f2 0f 10 64 24 20    	movsd  0x20(%rsp),%xmm4
+  42d8b5:	f2 0f 10 5c 24 10    	movsd  0x10(%rsp),%xmm3
+  42d8bb:	f2 0f 10 54 24 08    	movsd  0x8(%rsp),%xmm2
+  42d8c1:	66 0f 28 c8          	movapd %xmm0,%xmm1
+  42d8c5:	e9 29 f9 ff ff       	jmp    42d1f3 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x603>
+  42d8ca:	f2 0f 11 5c 24 10    	movsd  %xmm3,0x10(%rsp)
+  42d8d0:	f2 0f 11 74 24 08    	movsd  %xmm6,0x8(%rsp)
+  42d8d6:	e8 f5 e5 dc ff       	call   1fbed0 <_ZdlPv@plt>
+  42d8db:	f2 0f 10 5c 24 10    	movsd  0x10(%rsp),%xmm3
+  42d8e1:	f2 0f 10 74 24 08    	movsd  0x8(%rsp),%xmm6
+  42d8e7:	e9 00 f4 ff ff       	jmp    42ccec <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xfc>
+  42d8ec:	48 8d 7c 24 68       	lea    0x68(%rsp),%rdi
+  42d8f1:	f2 0f 59 05 3f 1c 2b 	mulsd  0x2b1c3f(%rip),%xmm0        # 6df538 <_ZN11WbDragEvent9cFloatMaxE@@Base+0x290>
+  42d8f8:	00 
+  42d8f9:	48 8d 74 24 60       	lea    0x60(%rsp),%rsi
+  42d8fe:	f2 0f 11 6c 24 50    	movsd  %xmm5,0x50(%rsp)
+  42d904:	f2 0f 11 54 24 48    	movsd  %xmm2,0x48(%rsp)
+  42d90a:	f2 0f 11 74 24 40    	movsd  %xmm6,0x40(%rsp)
+  42d910:	f2 0f 11 5c 24 38    	movsd  %xmm3,0x38(%rsp)
+  42d916:	e8 e5 f4 dc ff       	call   1fce00 <sincos@plt>
+  42d91b:	f2 0f 10 5c 24 38    	movsd  0x38(%rsp),%xmm3
+  42d921:	66 0f ef ff          	pxor   %xmm7,%xmm7
+  42d925:	f2 0f 10 4c 24 60    	movsd  0x60(%rsp),%xmm1
+  42d92b:	f2 0f 10 64 24 68    	movsd  0x68(%rsp),%xmm4
+  42d931:	f2 0f 10 74 24 40    	movsd  0x40(%rsp),%xmm6
+  42d937:	66 0f 2e fb          	ucomisd %xmm3,%xmm7
+  42d93b:	f2 0f 10 54 24 48    	movsd  0x48(%rsp),%xmm2
+  42d941:	f2 0f 10 6c 24 50    	movsd  0x50(%rsp),%xmm5
+  42d947:	0f 86 46 f9 ff ff    	jbe    42d293 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x6a3>
+  42d94d:	66 0f 28 c3          	movapd %xmm3,%xmm0
+  42d951:	f2 0f 11 6c 24 58    	movsd  %xmm5,0x58(%rsp)
+  42d957:	f2 0f 11 64 24 50    	movsd  %xmm4,0x50(%rsp)
+  42d95d:	f2 0f 11 4c 24 48    	movsd  %xmm1,0x48(%rsp)
+  42d963:	f2 0f 11 54 24 40    	movsd  %xmm2,0x40(%rsp)
+  42d969:	f2 0f 11 74 24 38    	movsd  %xmm6,0x38(%rsp)
+  42d96f:	e8 1c e3 dc ff       	call   1fbc90 <sqrt@plt>
+  42d974:	f2 0f 10 6c 24 58    	movsd  0x58(%rsp),%xmm5
+  42d97a:	f2 0f 10 64 24 50    	movsd  0x50(%rsp),%xmm4
+  42d980:	f2 0f 10 4c 24 48    	movsd  0x48(%rsp),%xmm1
+  42d986:	f2 0f 10 54 24 40    	movsd  0x40(%rsp),%xmm2
+  42d98c:	66 0f 28 d8          	movapd %xmm0,%xmm3
+  42d990:	f2 0f 10 74 24 38    	movsd  0x38(%rsp),%xmm6
+  42d996:	e9 fc f8 ff ff       	jmp    42d297 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0x6a7>
+  42d99b:	f2 0f 11 4c 24 50    	movsd  %xmm1,0x50(%rsp)
+  42d9a1:	f2 0f 11 7c 24 48    	movsd  %xmm7,0x48(%rsp)
+  42d9a7:	f2 0f 11 74 24 40    	movsd  %xmm6,0x40(%rsp)
+  42d9ad:	f2 0f 11 6c 24 38    	movsd  %xmm5,0x38(%rsp)
+  42d9b3:	e8 d8 e2 dc ff       	call   1fbc90 <sqrt@plt>
+  42d9b8:	f2 0f 10 4c 24 50    	movsd  0x50(%rsp),%xmm1
+  42d9be:	f2 0f 10 7c 24 48    	movsd  0x48(%rsp),%xmm7
+  42d9c4:	f2 0f 10 74 24 40    	movsd  0x40(%rsp),%xmm6
+  42d9ca:	f2 0f 10 6c 24 38    	movsd  0x38(%rsp),%xmm5
+  42d9d0:	66 0f 28 d0          	movapd %xmm0,%xmm2
+  42d9d4:	e9 9b fe ff ff       	jmp    42d874 <_ZN11WbPropeller14prePhysicsStepEd@@Base+0xc84>
+  42d9d9:	f3 0f 1e fa          	endbr64 
+  42d9dd:	48 89 c5             	mov    %rax,%rbp
+  42d9e0:	e9 4d c8 de ff       	jmp    21a232 <_ZNK20QOpenGLShaderProgram15uniformLocationEPKc@plt+0x18912>
+
+Disassembly of section .fini:
