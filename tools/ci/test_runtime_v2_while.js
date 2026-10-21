@@ -40,7 +40,25 @@ async function prove() {
   const loadedStudent=new Blockly.Workspace();
   Blockly.serialization.workspaces.load(savedStudent,loadedStudent);
   assert.deepStrictEqual(Compiler.compileStatement(loadedStudent.getTopBlocks(true)[0]),expected);
-  loadedStudent.dispose();studentWs.dispose();
+  // A full pupil sequence must map both the new loop condition and its body.
+  const takeoff=loadedStudent.newBlock('webeeblocks_v2_takeoff');
+  const land=loadedStudent.newBlock('webeeblocks_v2_land');
+  const loadedUntil=loadedStudent.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_until');
+  const move=loadedStudent.newBlock('webeeblocks_v2_move');
+  takeoff.nextConnection.connect(loadedUntil.previousConnection);
+  loadedUntil.nextConnection.connect(land.previousConnection);
+  loadedUntil.getInput('DO').connection.connect(move.previousConnection);
+  const sourceMap=Observer.buildSourceMap(loadedStudent);
+  assert.strictEqual(sourceMap['program/1'],loadedUntil.id);
+  assert.strictEqual(sourceMap['program/1/condition'],loadedUntil.getInputTargetBlock('BOOL').id);
+  assert.strictEqual(sourceMap['program/1/condition/left'],loadedUntil.getInputTargetBlock('BOOL').getInputTargetBlock('A').id);
+  assert.strictEqual(sourceMap['program/1/body/0'],move.id);
+  const fullAst=Compiler.compileWorkspace(loadedStudent);
+  const reopened=new Blockly.Workspace();
+  Blockly.serialization.workspaces.load(Blockly.serialization.workspaces.save(loadedStudent),reopened);
+  assert.deepStrictEqual(Compiler.compileWorkspace(reopened),fullAst);
+  assert.deepStrictEqual(Observer.buildSourceMap(reopened),sourceMap);
+  reopened.dispose();loadedStudent.dispose();studentWs.dispose();
   Compiler.installConditionalLoopBounds(Blockly);
   Compiler.installConditionalLoopBounds(Blockly); // repeated loads must not duplicate the field
   const ws = new Blockly.Workspace();
