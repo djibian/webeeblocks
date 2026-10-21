@@ -1,0 +1,8 @@
+Read-only synthetic observation of evidence_capture.py at ff0d91b29f80ee320ddf3a6bbe47ceb6033410b0.
+Controlled child: /bin/sleep 1, start_new_session=True; explicitly terminated and waited afterward.
+syscall_child_pid_pgid 7
+group_members_reported [7]
+child_poll_during_observation None
+own_children_proc_identities [{'proc_pid': 13903, 'proc_pgid': 13903, 'nspid': 'NSpid:\t13903\t7'}]
+The returned procfs PID 7 is not the controlled child (procfs PID 13903).
+This is a namespace-mapping counterexample, not a Webots crash or a full review of #656.

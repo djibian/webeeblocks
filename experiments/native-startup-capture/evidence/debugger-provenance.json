@@ -1,0 +1,61 @@
+{
+  "origin": "https://archive.ubuntu.com/ubuntu/",
+  "method": "download, SHA-256 check against local Ubuntu APT metadata, dpkg-deb extraction into scratch; no system package installation",
+  "packages": [
+    {
+      "Package": "gdb",
+      "Version": "15.0.50.20240403-0ubuntu1",
+      "Filename": "pool/main/g/gdb/gdb_15.0.50.20240403-0ubuntu1_amd64.deb",
+      "SHA256": "af69a5097def0b3a35f01261ffa1412a9cb491f0382aa45e691f5ae4b4d4eb72"
+    },
+    {
+      "Package": "libbabeltrace1",
+      "Version": "1.5.11-3build3",
+      "Filename": "pool/main/b/babeltrace/libbabeltrace1_1.5.11-3build3_amd64.deb",
+      "SHA256": "30f0b9fbe68115d7b50d478458e4d830695bce579529b52c7827720da9c0c2df"
+    },
+    {
+      "Package": "libdebuginfod1t64",
+      "Version": "0.190-1.1ubuntu0.1",
+      "Filename": "pool/main/e/elfutils/libdebuginfod1t64_0.190-1.1ubuntu0.1_amd64.deb",
+      "SHA256": "7ff18c57198200f4af7e50e0dce29366dc832c10d8c475ca7e0403083e042ea7"
+    },
+    {
+      "Package": "libdw1t64",
+      "Version": "0.190-1.1ubuntu0.1",
+      "Filename": "pool/main/e/elfutils/libdw1t64_0.190-1.1ubuntu0.1_amd64.deb",
+      "SHA256": "edaa9ce4221d95f4bd72a9805100902e313092a2f31a7a51e7186be97734714d"
+    },
+    {
+      "Package": "libipt2",
+      "Version": "2.0.6-1build1",
+      "Filename": "pool/main/i/intel-processor-trace/libipt2_2.0.6-1build1_amd64.deb",
+      "SHA256": "c14702719d594c1ca099e2cd9ff0e9bbd0215c9bb6bebb4a0d7651f984600995"
+    },
+    {
+      "Package": "libsource-highlight4t64",
+      "Version": "3.1.9-4.3build1",
+      "Filename": "pool/main/s/source-highlight/libsource-highlight4t64_3.1.9-4.3build1_amd64.deb",
+      "SHA256": "e0ef35d9b76669f22c2ad4ab3b9141ac46d3662823c5bbea248c21db53879470"
+    },
+    {
+      "Package": "libsource-highlight-common",
+      "Version": "3.1.9-4.3build1",
+      "Filename": "pool/main/s/source-highlight/libsource-highlight-common_3.1.9-4.3build1_all.deb",
+      "SHA256": "3f331e390caadcff33f42f56acad1a8c7e8a1f282eb31316f489c38f6c2460a5"
+    },
+    {
+      "Package": "libboost-regex1.83.0",
+      "Version": "1.83.0-2.1ubuntu3.2",
+      "Filename": "pool/main/b/boost1.83/libboost-regex1.83.0_1.83.0-2.1ubuntu3.2_amd64.deb",
+      "SHA256": "ad62758e356034a6ef5cc3257bb527439687b6c1a68c65ad89e9dae994efffa5"
+    },
+    {
+      "Package": "libpython3.12t64",
+      "Version": "3.12.3-1",
+      "Filename": "pool/main/p/python3.12/libpython3.12t64_3.12.3-1_amd64.deb",
+      "SHA256": "31df8af8521fb3fdf198d7507765d4ebf435c7165a50013b39d2761fd6c0d98c"
+    }
+  ],
+  "note": "The snapshot download-only attempt failed before installation; missing updated libpython was obtained as the independently pinned base noble package. This is qualification tooling, not a reconstruction of the historical Webots environment."
+}

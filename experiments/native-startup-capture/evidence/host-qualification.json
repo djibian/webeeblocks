@@ -1,0 +1,32 @@
+{
+  "acquisition_allowed": false,
+  "assertions": {
+    "direct_sigsegv": true,
+    "gdb_real_sigsegv_stack": false,
+    "live_wrapper_after_child_gone": true,
+    "mapped_objects_fingerprinted": true,
+    "native_child_identity_observed": true,
+    "no_fixture_timeout": true,
+    "normal_exit42": true,
+    "some_build_ids_available": true,
+    "stopped_native_snapshot": true,
+    "wrapper_exit_zero": true,
+    "wrapper_wait_identifies_child_signal": true,
+    "wrong_starttime_refused": true
+  },
+  "fixture_sha256": "9bd15cbf7d6f421f05eeb122148b54723cc5ee586c189a6d1fb26d7010c1b312",
+  "gdb": {
+    "path": "/workspace/scratch/6b27c7b37b5c/debugger-debs/root/usr/bin/gdb",
+    "sha256": "f0068d3b418ae039c309574b33901b82404025eb46c2e983246b9c3976ba7e83"
+  },
+  "host_prerequisites_passed": false,
+  "native_capture_backend_qualified": false,
+  "ptrace_probe_returncode": 77,
+  "remaining": "A direct-fixture stack is necessary but not sufficient: validate the wrapper/fork/exec GDB recipe before Webots.",
+  "scope": "host prerequisite qualification only; no Webots run or READY result",
+  "support_sha256": {
+    "fixture.c": "5a425a07a55c3b3745639981fc014021dcc083ae20d75bd983ae3d63785d3bbf",
+    "qualify.py": "cd5c0bd994fe01c500ee0c087dd87bca094d53a1af86383034e6487cd383c0cf",
+    "support.py": "196466872fbfd61b04faadc3b1e8e92df2ef64a9763c863ffc58ae52b9309671"
+  }
+}

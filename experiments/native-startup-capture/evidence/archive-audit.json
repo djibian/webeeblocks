@@ -1,0 +1,1877 @@
+{
+  "head655": "6c0a58daecd86b4ad7fa6f4d768f8491603eb3f7",
+  "archives655": [
+    {
+      "name": "candidate-s0.tar.xz",
+      "sha256": "533ccae34071fe48c44656360b9781333207a06cde653b19c8a7ac431de09047",
+      "size": 1455524,
+      "members": [
+        "gp-u-v1-L2000-s0-witness-cc85649970/evaluator.log",
+        "gp-u-v1-L2000-s0-witness-cc85649970/events.jsonl",
+        "gp-u-v1-L2000-s0-witness-cc85649970/flight.log",
+        "gp-u-v1-L2000-s0-witness-cc85649970/layout.json",
+        "gp-u-v1-L2000-s0-witness-cc85649970/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-witness-cc85649970/native-result-1.json",
+        "gp-u-v1-L2000-s0-witness-cc85649970/native_trace.csv",
+        "gp-u-v1-L2000-s0-witness-cc85649970/node.log",
+        "gp-u-v1-L2000-s0-witness-cc85649970/result.json",
+        "gp-u-v1-L2000-s0-witness-cc85649970/sha256.json",
+        "gp-u-v1-L2000-s0-witness-cc85649970/webots.log",
+        "gp-u-v1-L2000-s0-witness-cc85649970/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s0-witness-cc85649970",
+          "world_sha256": "d779382de350dd83193038f069f92d1c94bf8b66187c77fba7493b42bd47271a",
+          "world_bytes": 16599,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s0-witness-cc85649970/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s14-late-log-snapshot.tar.xz",
+      "sha256": "a60addd7be6cd8c4b3bd5f9a172d8ae333a3b90ec7d3cd6148153b2f746c33d0",
+      "size": 5352,
+      "members": [
+        "events.jsonl",
+        "node.log",
+        "flight.log",
+        "sha256.json"
+      ],
+      "cases": [],
+      "manifest_checks": [
+        {
+          "member": "sha256.json",
+          "missing": [
+            "evaluator.log",
+            "native-result-1.json",
+            "world.wbt",
+            "webots.log",
+            "native-diagnostic-1.json",
+            "layout.json",
+            "native_trace.csv",
+            "result.json"
+          ],
+          "mismatches": [
+            "events.jsonl",
+            "node.log",
+            "flight.log"
+          ]
+        }
+      ],
+      "world_absent": true
+    },
+    {
+      "name": "candidate-s14.tar.xz",
+      "sha256": "2c4d5f8bf0f752684c90517b9c0bbc0f66f96ec53c1bf7432680547670159999",
+      "size": 1789324,
+      "members": [
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/evaluator.log",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/events.jsonl",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/flight.log",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/layout.json",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/native-result-1.json",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/native_trace.csv",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/node.log",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/result.json",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/sha256.json",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/webots.log",
+        "gp-u-v1-L2000-s14-witness-e4b9209cce/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s14-witness-e4b9209cce",
+          "world_sha256": "6970e5a1391274363cc9bded20125896a67308bb0255849bfb0f6b0808182f3b",
+          "world_bytes": 17802,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [
+            "node.log"
+          ],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s14-witness-e4b9209cce/sha256.json",
+          "missing": [],
+          "mismatches": [
+            "node.log"
+          ]
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s15.tar.xz",
+      "sha256": "3b9b394edad510b53fe4f98e63a8f5afdbe38a1154e877ea48cf4b55b7f3d5e0",
+      "size": 1514300,
+      "members": [
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/evaluator.log",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/events.jsonl",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/flight.log",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/layout.json",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/native-result-1.json",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/native_trace.csv",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/node.log",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/result.json",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/sha256.json",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/webots.log",
+        "gp-u-v1-L2000-s15-witness-1ba23ccd0c/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s15-witness-1ba23ccd0c",
+          "world_sha256": "3d22c58c8931ef17e9afd0091051ec37a9e92169647eb2b7de66fad6472216ff",
+          "world_bytes": 16601,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s15-witness-1ba23ccd0c/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s2.tar.xz",
+      "sha256": "5c51ff3dc745a4450b981b2320b089a9f180c42a891d28cb19ff0e0b353851b6",
+      "size": 1606732,
+      "members": [
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/evaluator.log",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/events.jsonl",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/flight.log",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/layout.json",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/native-result-1.json",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/native_trace.csv",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/node.log",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/result.json",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/sha256.json",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/webots.log",
+        "gp-u-v1-L2000-s2-witness-5c0344b4f7/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s2-witness-5c0344b4f7",
+          "world_sha256": "79ddc0db7e187e2779575340715996d6891387a63904b2810c2681f5e2438598",
+          "world_bytes": 16599,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s2-witness-5c0344b4f7/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s3.tar.xz",
+      "sha256": "a6f58d19ce907e6b69a794ff783969d4a735c4fc3440af112d4c3c3610fcb88f",
+      "size": 1759296,
+      "members": [
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/evaluator.log",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/events.jsonl",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/flight.log",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/layout.json",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/native-result-1.json",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/native_trace.csv",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/node.log",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/result.json",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/sha256.json",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/webots.log",
+        "gp-u-v1-L2000-s3-witness-f6468a83e6/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s3-witness-f6468a83e6",
+          "world_sha256": "df635617c2937b634b8f6b0c6f0ff067b4fcfaa2e4ecf7188a51a8f166580794",
+          "world_bytes": 17798,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s3-witness-f6468a83e6/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s4.tar.xz",
+      "sha256": "7cc1a5c437178f8786ee1f009ee97ae8329e515d4003ba32497cac2ee8b207aa",
+      "size": 2044220,
+      "members": [
+        "gp-u-v1-L2000-s4-witness-06a41ee320/evaluator.log",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/events.jsonl",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/flight.log",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/layout.json",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/native-result-1.json",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/native_trace.csv",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/node.log",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/result.json",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/sha256.json",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/webots.log",
+        "gp-u-v1-L2000-s4-witness-06a41ee320/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s4-witness-06a41ee320",
+          "world_sha256": "197af4b2e659e42b66cb8f473ba0ff0e07aedd2550f4a2d3e9d842ec2b65a250",
+          "world_bytes": 18999,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s4-witness-06a41ee320/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "candidate-s5.tar.xz",
+      "sha256": "885e9a6a7eeb465db338212e04449ab239279ea15854afef5f32bf6b98955781",
+      "size": 1973752,
+      "members": [
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/evaluator.log",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/events.jsonl",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/flight.log",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/layout.json",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/native-result-1.json",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/native_trace.csv",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/node.log",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/result.json",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/sha256.json",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/webots.log",
+        "gp-u-v1-L2000-s5-witness-a9507dfdb3/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s5-witness-a9507dfdb3",
+          "world_sha256": "35d0ba14bdf151d87f98b459d5a35d161d6e525f848a7a1d8d10ed61cd2c19a9",
+          "world_bytes": 18999,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [
+            "flight.log"
+          ],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s5-witness-a9507dfdb3/sha256.json",
+          "missing": [],
+          "mismatches": [
+            "flight.log"
+          ]
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "historical-s3.tar.xz",
+      "sha256": "149d836e18f2f518db03e6447c50379c783ade3946fa57955cafbad9b7a12ad5",
+      "size": 1865028,
+      "members": [
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/evaluator.log",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/events.jsonl",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/flight.log",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/layout.json",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/native-result-1.json",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/native_trace.csv",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/node.log",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/sha256.json",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/webots.log",
+        "gp-u-v1-L2000-s3-witness-0e472b60ab/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s3-witness-0e472b60ab",
+          "world_sha256": "df635617c2937b634b8f6b0c6f0ff067b4fcfaa2e4ecf7188a51a8f166580794",
+          "world_bytes": 17798,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s3-witness-0e472b60ab/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "negative-deadline.tar.xz",
+      "sha256": "9be0c27869d1d3ce637f06373969ef86c7f316f53a41979c71113cae493e661c",
+      "size": 8562316,
+      "members": [
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/evaluator.log",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/events.jsonl",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/flight.log",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/layout.json",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/native-result-1.json",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/native_trace.csv",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/node.log",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/sha256.json",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/webots.log",
+        "gp-u-v1-L2000-s3-deadline-88e9a59da4/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s3-deadline-88e9a59da4",
+          "world_sha256": "df635617c2937b634b8f6b0c6f0ff067b4fcfaa2e4ecf7188a51a8f166580794",
+          "world_bytes": 17798,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s3-deadline-88e9a59da4/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "preparation-s1.tar.xz",
+      "sha256": "c59cf4b1ff8bd493a6b5dc168c923fa2314913c46c639c3740e7618b4c585bda",
+      "size": 3644,
+      "members": [
+        "gp-u-v1-L2000-s1-witness-d869a07e38/layout.json",
+        "gp-u-v1-L2000-s1-witness-d869a07e38/sha256.json",
+        "gp-u-v1-L2000-s1-witness-d869a07e38/webots.log",
+        "gp-u-v1-L2000-s1-witness-d869a07e38/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s1-witness-d869a07e38",
+          "world_sha256": "50f0c8657be237d6f7b3e590a8ff1861607902148d39296e7daa694a5a06fcf6",
+          "world_bytes": 17799,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [
+            "/workspace/scratch/4e691a2ec01f/native-runtime/webots/webots: line 105:    47 Segmentation fault      \"$webots_home/bin/webots-bin\" \"$@\""
+          ],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s1-witness-d869a07e38/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    },
+    {
+      "name": "preparation-s17.tar.xz",
+      "sha256": "2e36a338637fdb919f0f06cc27205a1a63f72e47c2c6395ac1a55f1dcb1f1b2f",
+      "size": 3544,
+      "members": [
+        "gp-u-v1-L2000-s17-witness-7938ae6d14/layout.json",
+        "gp-u-v1-L2000-s17-witness-7938ae6d14/sha256.json",
+        "gp-u-v1-L2000-s17-witness-7938ae6d14/webots.log",
+        "gp-u-v1-L2000-s17-witness-7938ae6d14/world.wbt",
+        "runner.log",
+        "xvfb.log"
+      ],
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s17-witness-7938ae6d14",
+          "world_sha256": "dbe25c32c79256bff7332c0f5f99f7784ed071a73df344370e47782cc970394e",
+          "world_bytes": 16601,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [
+            "/workspace/scratch/4e691a2ec01f/native-runtime/webots/webots: line 105:   115 Segmentation fault      \"$webots_home/bin/webots-bin\" \"$@\""
+          ],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": [],
+          "byte_equal_to_exact_generator_tcp_world": true
+        }
+      ],
+      "manifest_checks": [
+        {
+          "member": "gp-u-v1-L2000-s17-witness-7938ae6d14/sha256.json",
+          "missing": [],
+          "mismatches": []
+        }
+      ],
+      "world_absent": false
+    }
+  ],
+  "artifacts646": [
+    {
+      "id": 12193597782,
+      "sha256": "f017e3d1f7c84e420177100986de9e21a013c0e6c364eb8634ccbd1627e28b86",
+      "size": 21306450,
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s0-collision-0da4b2b0be",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-low-outside-d612ee37a7",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reset-452a59cd43",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reverse-5d72b9c1b2",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-unavailable-1f267bd2db",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-witness-ba53fb9ade",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-witness-6d0b79629b",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 0,
+          "segfault_log_lines": [
+            "/usr/local/webots/webots: line 105:   581 Segmentation fault      (core dumped) \"$webots_home/bin/webots-bin\" \"$@\""
+          ],
+          "controller_start_lines": [],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-wrong-landing-d0244322a5",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-short-fdf2580069",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-timeout-2716e4b732",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        }
+      ],
+      "members": [
+        "campaign.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/events.jsonl",
+        "docker.log",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/layout.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/native-result-1.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/native_trace.csv",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/node.log",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/result.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/sha256.json",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/webots.log",
+        "gp-u-v1-L2000-s0-collision-0da4b2b0be/world.wbt",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/events.jsonl",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/layout.json",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/native-result-1.json",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/native_trace.csv",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/node.log",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/result.json",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/sha256.json",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/webots.log",
+        "gp-u-v1-L2000-s0-low-outside-d612ee37a7/world.wbt",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/events.jsonl",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/layout.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/native-result-1.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/native-diagnostic-2.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/native-result-2.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/native_trace.csv",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/node.log",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/result.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/sha256.json",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/webots.log",
+        "gp-u-v1-L2000-s0-reset-452a59cd43/world.wbt",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/events.jsonl",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/layout.json",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/native-result-1.json",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/native_trace.csv",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/node.log",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/result.json",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/sha256.json",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/webots.log",
+        "gp-u-v1-L2000-s0-reverse-5d72b9c1b2/world.wbt",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/events.jsonl",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/layout.json",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/native-result-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/native_trace.csv",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/node.log",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/result.json",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/sha256.json",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/webots.log",
+        "gp-u-v1-L2000-s0-timeout-gate-c4bdf11f8d/world.wbt",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/events.jsonl",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/layout.json",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/native-result-1.json",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/native_trace.csv",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/node.log",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/result.json",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/sha256.json",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/webots.log",
+        "gp-u-v1-L2000-s0-unavailable-1f267bd2db/world.wbt",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/events.jsonl",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/layout.json",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/native-result-1.json",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/native_trace.csv",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/node.log",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/result.json",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/sha256.json",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/webots.log",
+        "gp-u-v1-L2000-s0-witness-ba53fb9ade/world.wbt",
+        "gp-u-v1-L2000-s1-witness-6d0b79629b/layout.json",
+        "gp-u-v1-L2000-s1-witness-6d0b79629b/sha256.json",
+        "gp-u-v1-L2000-s1-witness-6d0b79629b/webots.log",
+        "gp-u-v1-L2000-s1-witness-6d0b79629b/world.wbt",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/events.jsonl",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/layout.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/native-result-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/native_trace.csv",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/node.log",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/result.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/webots.log",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/sha256.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d0244322a5/world.wbt",
+        "gp-u-v1-L2000-s4-short-fdf2580069/events.jsonl",
+        "gp-u-v1-L2000-s4-short-fdf2580069/layout.json",
+        "gp-u-v1-L2000-s4-short-fdf2580069/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-short-fdf2580069/native-result-1.json",
+        "gp-u-v1-L2000-s4-short-fdf2580069/native_trace.csv",
+        "gp-u-v1-L2000-s4-short-fdf2580069/node.log",
+        "gp-u-v1-L2000-s4-short-fdf2580069/result.json",
+        "gp-u-v1-L2000-s4-short-fdf2580069/sha256.json",
+        "gp-u-v1-L2000-s4-short-fdf2580069/webots.log",
+        "gp-u-v1-L2000-s4-short-fdf2580069/world.wbt",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/events.jsonl",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/layout.json",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/native-result-1.json",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/native_trace.csv",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/node.log",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/result.json",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/sha256.json",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/webots.log",
+        "gp-u-v1-L2000-s4-timeout-2716e4b732/world.wbt"
+      ]
+    },
+    {
+      "id": 12197204926,
+      "sha256": "c781622fe2fc68831114d0594ea792d38b51febd23b2c98d6a13fe21387feb74",
+      "size": 33942018,
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s0-collision-f632e0001d",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-low-outside-e6564ff31b",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reset-d53acc56fe",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reverse-a175b06ecd",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-unavailable-ca81918410",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-witness-e94f10fd5a",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-static-8bb421825a",
+          "world_sha256": "cbd1b953ec9314721de513d5920838b86830a20d0b44762625a9a84a40830e15",
+          "world_bytes": 10533,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-witness-260af4b71f",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-wrong-landing-d2d9407503",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s14-witness-30c6fa366d",
+          "world_sha256": "bf991c486c096da73901058b97f596749b25d21fbae6ea26d4bd1e224d584659",
+          "world_bytes": 10616,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 14 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 14 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s15-witness-b2cea49145",
+          "world_sha256": "6fa4975a6a5c7cccd48bf65b42d6fa773e2ea7061abce2539f63230082cdb258",
+          "world_bytes": 9409,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 15 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 15 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s17-witness-2cc7a20d6f",
+          "world_sha256": "e67d181821cb7e31f0657bbe4227fbfee46402759bfb0052af1b3b9f62a69661",
+          "world_bytes": 9409,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 17 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 17 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s3-witness-5cac8646c4",
+          "world_sha256": "00bc3a969bcf4c5eadf996f8f2a984f9902cea73599d4feeff1e1e335481d1f1",
+          "world_bytes": 10612,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 3 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 3 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-short-6867916c88",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-timeout-46b9cf72fd",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-witness-b43d8a7405",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        }
+      ],
+      "members": [
+        "camera-comparison.json",
+        "docker.log",
+        "campaign.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/events.jsonl",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/layout.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/native-result-1.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/native_trace.csv",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/node.log",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/result.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/sha256.json",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/webots.log",
+        "gp-u-v1-L2000-s0-collision-f632e0001d/world.wbt",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/events.jsonl",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/layout.json",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/native-result-1.json",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/native_trace.csv",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/node.log",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/result.json",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/sha256.json",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/webots.log",
+        "gp-u-v1-L2000-s0-low-outside-e6564ff31b/world.wbt",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/events.jsonl",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/layout.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/native-diagnostic-2.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/native-result-1.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/native-result-2.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/native_trace.csv",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/node.log",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/result.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/sha256.json",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/webots.log",
+        "gp-u-v1-L2000-s0-reset-d53acc56fe/world.wbt",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/events.jsonl",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/layout.json",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/native-result-1.json",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/native_trace.csv",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/node.log",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/result.json",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/sha256.json",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/webots.log",
+        "gp-u-v1-L2000-s0-reverse-a175b06ecd/world.wbt",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/events.jsonl",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/layout.json",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/native-result-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/native_trace.csv",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/node.log",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/result.json",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/sha256.json",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/webots.log",
+        "gp-u-v1-L2000-s0-timeout-gate-689cf8fa7e/world.wbt",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/events.jsonl",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/layout.json",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/native-result-1.json",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/native_trace.csv",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/node.log",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/result.json",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/sha256.json",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/webots.log",
+        "gp-u-v1-L2000-s0-unavailable-ca81918410/world.wbt",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/events.jsonl",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/layout.json",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/native-result-1.json",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/native_trace.csv",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/node.log",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/result.json",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/sha256.json",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/webots.log",
+        "gp-u-v1-L2000-s0-witness-e94f10fd5a/world.wbt",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/layout.json",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/sha256.json",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/webots.log",
+        "gp-u-v1-L2000-s1-camera-static-8bb421825a/world.wbt",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/layout.json",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/sha256.json",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/webots.log",
+        "gp-u-v1-L2000-s1-camera-tracking-ceb2fe548d/world.wbt",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/events.jsonl",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/layout.json",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/native-result-1.json",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/native_trace.csv",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/node.log",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/result.json",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/sha256.json",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/webots.log",
+        "gp-u-v1-L2000-s1-witness-260af4b71f/world.wbt",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/events.jsonl",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/layout.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/native-result-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/native_trace.csv",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/node.log",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/result.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/sha256.json",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/webots.log",
+        "gp-u-v1-L2000-s1-wrong-landing-d2d9407503/world.wbt",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/events.jsonl",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/layout.json",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/native-result-1.json",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/native_trace.csv",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/node.log",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/result.json",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/sha256.json",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/webots.log",
+        "gp-u-v1-L2000-s14-witness-30c6fa366d/world.wbt",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/events.jsonl",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/layout.json",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/native-result-1.json",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/native_trace.csv",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/node.log",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/result.json",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/sha256.json",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/webots.log",
+        "gp-u-v1-L2000-s15-witness-b2cea49145/world.wbt",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/events.jsonl",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/layout.json",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/native-result-1.json",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/native_trace.csv",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/node.log",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/result.json",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/sha256.json",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/webots.log",
+        "gp-u-v1-L2000-s17-witness-2cc7a20d6f/world.wbt",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/events.jsonl",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/layout.json",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/native-result-1.json",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/native_trace.csv",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/node.log",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/result.json",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/sha256.json",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/webots.log",
+        "gp-u-v1-L2000-s3-witness-5cac8646c4/world.wbt",
+        "gp-u-v1-L2000-s4-short-6867916c88/events.jsonl",
+        "gp-u-v1-L2000-s4-short-6867916c88/layout.json",
+        "gp-u-v1-L2000-s4-short-6867916c88/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-short-6867916c88/native-result-1.json",
+        "gp-u-v1-L2000-s4-short-6867916c88/native_trace.csv",
+        "gp-u-v1-L2000-s4-short-6867916c88/node.log",
+        "gp-u-v1-L2000-s4-short-6867916c88/result.json",
+        "gp-u-v1-L2000-s4-short-6867916c88/sha256.json",
+        "gp-u-v1-L2000-s4-short-6867916c88/webots.log",
+        "gp-u-v1-L2000-s4-short-6867916c88/world.wbt",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/events.jsonl",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/layout.json",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/native-result-1.json",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/native_trace.csv",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/node.log",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/result.json",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/sha256.json",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/webots.log",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/events.jsonl",
+        "gp-u-v1-L2000-s4-timeout-46b9cf72fd/world.wbt",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/layout.json",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/native-result-1.json",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/native_trace.csv",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/node.log",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/result.json",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/sha256.json",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/webots.log",
+        "gp-u-v1-L2000-s4-witness-b43d8a7405/world.wbt"
+      ]
+    },
+    {
+      "id": 12329503523,
+      "sha256": "a08591122f676fa76d64b9cbb32ddc898867ec99a03513fc9e6d902e38fb6ccf",
+      "size": 35514161,
+      "cases": [
+        {
+          "case": "gp-u-v1-L2000-s0-collision-dace160aaf",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-low-outside-8e8a6efb40",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reset-562438975f",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-reverse-0d593f9e1a",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-timeout-gate-00e7200da4",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-unavailable-2681652bb1",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s0-witness-7f24916c1e",
+          "world_sha256": "0e504b8e50a9f3b03cc02946ad9de2c973a91526688373b3f8752fa07fb8be61",
+          "world_bytes": 9407,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 0 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 0 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf",
+          "world_sha256": "cbd1b953ec9314721de513d5920838b86830a20d0b44762625a9a84a40830e15",
+          "world_bytes": 10533,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49",
+          "world_sha256": "cbd1b953ec9314721de513d5920838b86830a20d0b44762625a9a84a40830e15",
+          "world_bytes": 10533,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-witness-fd394a40e0",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e",
+          "world_sha256": "7e2ee944f301483b0c86a83fefba02ec1fe67f856ae62fa36dcd35b6acff6edf",
+          "world_bytes": 10613,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 1 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 1 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s14-witness-e2420bba9b",
+          "world_sha256": "bf991c486c096da73901058b97f596749b25d21fbae6ea26d4bd1e224d584659",
+          "world_bytes": 10616,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 14 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 14 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s15-witness-abc3120c7f",
+          "world_sha256": "6fa4975a6a5c7cccd48bf65b42d6fa773e2ea7061abce2539f63230082cdb258",
+          "world_bytes": 9409,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 15 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 15 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s17-witness-4f27fc9700",
+          "world_sha256": "e67d181821cb7e31f0657bbe4227fbfee46402759bfb0052af1b3b9f62a69661",
+          "world_bytes": 9409,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 17 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 17 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s3-witness-08aed65765",
+          "world_sha256": "00bc3a969bcf4c5eadf996f8f2a984f9902cea73599d4feeff1e1e335481d1f1",
+          "world_bytes": 10612,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 3 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 3 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-short-1597df63bb",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-timeout-92c8459489",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        },
+        {
+          "case": "gp-u-v1-L2000-s4-witness-0cabe541bf",
+          "world_sha256": "9e806d5a847209b31a5c37e4194412da48bda26c11d1631ba2f7d315de25f397",
+          "world_bytes": 11819,
+          "viewpoints": [
+            "Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 follow \"Crazyflie WebeeBlocks\" followType \"Tracking Shot\" followSmoothness 0.20 }"
+          ],
+          "ready_count_webots_log": 1,
+          "segfault_log_lines": [],
+          "controller_start_lines": [
+            "INFO: grand_prix_u_flight: Starting controller: /workspace/controllers/grand_prix_u_flight/grand_prix_u_flight 4 2.000",
+            "INFO: grand_prix_u_evaluator: Starting controller: python3 -u grand_prix_u_evaluator.py 4 2.000"
+          ],
+          "manifest_missing": [],
+          "manifest_mismatches": [],
+          "unlisted_members": []
+        }
+      ],
+      "members": [
+        "camera-comparison.json",
+        "docker.log",
+        "campaign.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/events.jsonl",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/layout.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/native-result-1.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/native_trace.csv",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/node.log",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/result.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/sha256.json",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/webots.log",
+        "gp-u-v1-L2000-s0-collision-dace160aaf/world.wbt",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/events.jsonl",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/layout.json",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/native-result-1.json",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/native_trace.csv",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/node.log",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/result.json",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/sha256.json",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/world.wbt",
+        "gp-u-v1-L2000-s0-low-outside-8e8a6efb40/webots.log",
+        "gp-u-v1-L2000-s0-reset-562438975f/events.jsonl",
+        "gp-u-v1-L2000-s0-reset-562438975f/layout.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/native-diagnostic-2.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/native-result-1.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/native-result-2.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/native_trace.csv",
+        "gp-u-v1-L2000-s0-reset-562438975f/node.log",
+        "gp-u-v1-L2000-s0-reset-562438975f/result.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/sha256.json",
+        "gp-u-v1-L2000-s0-reset-562438975f/webots.log",
+        "gp-u-v1-L2000-s0-reset-562438975f/world.wbt",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/events.jsonl",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/layout.json",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/native-result-1.json",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/native_trace.csv",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/node.log",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/result.json",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/sha256.json",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/webots.log",
+        "gp-u-v1-L2000-s0-reverse-0d593f9e1a/world.wbt",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/events.jsonl",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/layout.json",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/native-result-1.json",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/native_trace.csv",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/node.log",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/result.json",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/sha256.json",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/webots.log",
+        "gp-u-v1-L2000-s0-timeout-gate-00e7200da4/world.wbt",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/events.jsonl",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/layout.json",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/native-result-1.json",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/native_trace.csv",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/node.log",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/result.json",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/sha256.json",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/webots.log",
+        "gp-u-v1-L2000-s0-unavailable-2681652bb1/world.wbt",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/events.jsonl",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/layout.json",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/native-result-1.json",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/native_trace.csv",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/node.log",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/result.json",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/sha256.json",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/webots.log",
+        "gp-u-v1-L2000-s0-witness-7f24916c1e/world.wbt",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/layout.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/sha256.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/webots.log",
+        "gp-u-v1-L2000-s1-camera-static-crossover-1-5f08285fcf/world.wbt",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/layout.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/sha256.json",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/webots.log",
+        "gp-u-v1-L2000-s1-camera-static-crossover-4-51e0fe6d49/world.wbt",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/layout.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/sha256.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/webots.log",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-2-63f1b8438b/world.wbt",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/camera-startup.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/layout.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/native_trace.csv",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/sha256.json",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/webots.log",
+        "gp-u-v1-L2000-s1-camera-tracking-crossover-3-2263ddf68d/world.wbt",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/events.jsonl",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/layout.json",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/native-result-1.json",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/native_trace.csv",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/node.log",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/result.json",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/sha256.json",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/webots.log",
+        "gp-u-v1-L2000-s1-witness-fd394a40e0/world.wbt",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/events.jsonl",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/layout.json",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/native-result-1.json",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/native_trace.csv",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/node.log",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/result.json",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/sha256.json",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/webots.log",
+        "gp-u-v1-L2000-s1-wrong-landing-bfe4e5c83e/world.wbt",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/events.jsonl",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/layout.json",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/native-result-1.json",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/native_trace.csv",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/node.log",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/result.json",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/sha256.json",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/webots.log",
+        "gp-u-v1-L2000-s14-witness-e2420bba9b/world.wbt",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/events.jsonl",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/layout.json",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/native-result-1.json",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/native_trace.csv",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/node.log",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/result.json",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/sha256.json",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/webots.log",
+        "gp-u-v1-L2000-s15-witness-abc3120c7f/world.wbt",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/layout.json",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/events.jsonl",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/native-result-1.json",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/native_trace.csv",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/node.log",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/result.json",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/sha256.json",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/webots.log",
+        "gp-u-v1-L2000-s17-witness-4f27fc9700/world.wbt",
+        "gp-u-v1-L2000-s3-witness-08aed65765/events.jsonl",
+        "gp-u-v1-L2000-s3-witness-08aed65765/layout.json",
+        "gp-u-v1-L2000-s3-witness-08aed65765/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s3-witness-08aed65765/native-result-1.json",
+        "gp-u-v1-L2000-s3-witness-08aed65765/native_trace.csv",
+        "gp-u-v1-L2000-s3-witness-08aed65765/node.log",
+        "gp-u-v1-L2000-s3-witness-08aed65765/result.json",
+        "gp-u-v1-L2000-s3-witness-08aed65765/sha256.json",
+        "gp-u-v1-L2000-s3-witness-08aed65765/webots.log",
+        "gp-u-v1-L2000-s3-witness-08aed65765/world.wbt",
+        "gp-u-v1-L2000-s4-short-1597df63bb/events.jsonl",
+        "gp-u-v1-L2000-s4-short-1597df63bb/layout.json",
+        "gp-u-v1-L2000-s4-short-1597df63bb/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-short-1597df63bb/native-result-1.json",
+        "gp-u-v1-L2000-s4-short-1597df63bb/native_trace.csv",
+        "gp-u-v1-L2000-s4-short-1597df63bb/node.log",
+        "gp-u-v1-L2000-s4-short-1597df63bb/result.json",
+        "gp-u-v1-L2000-s4-short-1597df63bb/sha256.json",
+        "gp-u-v1-L2000-s4-short-1597df63bb/webots.log",
+        "gp-u-v1-L2000-s4-short-1597df63bb/world.wbt",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/events.jsonl",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/layout.json",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/native-result-1.json",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/native_trace.csv",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/node.log",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/result.json",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/sha256.json",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/webots.log",
+        "gp-u-v1-L2000-s4-timeout-92c8459489/world.wbt",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/events.jsonl",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/layout.json",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/native-diagnostic-1.json",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/native-result-1.json",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/native_trace.csv",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/node.log",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/result.json",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/sha256.json",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/webots.log",
+        "gp-u-v1-L2000-s4-witness-0cabe541bf/world.wbt"
+      ]
+    }
+  ],
+  "comparisons646": {
+    "crash_and_success_world_bytes_equal": true,
+    "tracking_equals_static_after_exact_follow_field_removal": true
+  }
+}
