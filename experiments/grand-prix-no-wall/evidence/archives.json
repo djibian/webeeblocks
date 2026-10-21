@@ -13,5 +13,15 @@
     "name": "candidate-s3.tar.xz",
     "size": 1759296,
     "sha256": "a6f58d19ce907e6b69a794ff783969d4a735c4fc3440af112d4c3c3610fcb88f"
+  },
+  {
+    "name": "candidate-s4.tar.xz",
+    "size": 2044220,
+    "sha256": "7cc1a5c437178f8786ee1f009ee97ae8329e515d4003ba32497cac2ee8b207aa"
+  },
+  {
+    "name": "preparation-s1.tar.xz",
+    "size": 3644,
+    "sha256": "c59cf4b1ff8bd493a6b5dc168c923fa2314913c46c639c3740e7618b4c585bda"
   }
 ]

@@ -90,3 +90,21 @@ python3 experiments/grand-prix-no-wall/run_native.py --seed 3
 résultat, sans le transformer en succès. Exiger explicitement `achieved`
 pour revendiquer une réussite ; erreur/absence de résultat = UNPROVEN.
 Ni CI Gate, ni GO indépendant, ni PASS humain ne sont fournis par ce dossier.
+
+## Négatifs distincts préparés après les trois comptes positifs
+
+`negative_program.js`/`negative_workspace.js` construisent aussi de vrais blocs,
+préflightent et exigent leur AST exact. Modes séparés : mauvaise pose s3,
+vol bas hors bande s3, collision s0, franchissement inverse s0, échéance s3.
+Le mode `deadline` oscille à altitude haute sur le premier côté libre jusqu'à
+l'interruption indépendante ; après refus TIME_LIMIT, seules des requêtes
+inopérantes tardives testent le verrouillage. **Aucun RESET n'est envoyé.**
+Les autres capacités et les critères/210000 ms restent inchangés.
+Le runner négatif utilise l'argument `--mode`, pas les anciens modes timeout
+qui testaient aussi la récupération RESET. Arrêt sur le premier résultat non
+interprétable ou non conforme, conservation de tout cas commencé.
+
+Une erreur de préparation Blockly a refusé avant acquisition le déplacement
+inverse historique à 0,35 m (pas de champ de 0,10 m) ; le négatif ordinaire
+utilise 0,30 m, suffisant seulement si le vrai oracle confirme un passage
+entier préalable. Aucun résultat natif n'est déduit de cette préparation.
