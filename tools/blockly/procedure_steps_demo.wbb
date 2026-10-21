@@ -1,0 +1,131 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "i!wp:SB.wmg?uh9}~d7%",
+          "x": 20,
+          "y": 40,
+          "fields": {
+            "HEIGHT": 0.8
+          },
+          "next": {
+            "block": {
+              "type": "variables_set",
+              "id": "NO#mZOn=j~lw.$hq8o~{",
+              "fields": {
+                "VAR": {
+                  "id": "yKvM?LWy/jY6pjmJ+nTW"
+                }
+              },
+              "inputs": {
+                "VALUE": {
+                  "block": {
+                    "type": "math_number",
+                    "id": "+lOSw~@}x_af9$lfa_0H",
+                    "fields": {
+                      "NUM": 0
+                    }
+                  }
+                }
+              },
+              "next": {
+                "block": {
+                  "type": "controls_repeat_ext",
+                  "id": "1W@ZOaj,{hiqE}eql]1N",
+                  "inputs": {
+                    "TIMES": {
+                      "block": {
+                        "type": "math_number",
+                        "id": "p+rL04THC#%2G)a*5XUR",
+                        "fields": {
+                          "NUM": 3
+                        }
+                      }
+                    },
+                    "DO": {
+                      "block": {
+                        "type": "procedures_callnoreturn",
+                        "id": "NVBrj@llyQCo{1I[iEd?",
+                        "extraState": {
+                          "name": "avancer_un_pas"
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "webeeblocks_v2_land",
+                      "id": "%*p2e.S1|_kv=@kG$a!s"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "procedures_defnoreturn",
+          "id": ")`(oE$E8%$3)kkxq9?]z",
+          "x": 520,
+          "y": 40,
+          "fields": {
+            "NAME": "avancer_un_pas"
+          },
+          "inputs": {
+            "STACK": {
+              "block": {
+                "type": "webeeblocks_v2_move",
+                "id": "XCkR$*|g=Dv{^xJ[cEK)",
+                "fields": {
+                  "DIRECTION": "forward",
+                  "DISTANCE": 0.1
+                },
+                "next": {
+                  "block": {
+                    "type": "math_change",
+                    "id": "F(3H~+haD)kWx@z]h/6^",
+                    "fields": {
+                      "VAR": {
+                        "id": "yKvM?LWy/jY6pjmJ+nTW"
+                      }
+                    },
+                    "inputs": {
+                      "DELTA": {
+                        "block": {
+                          "type": "math_number",
+                          "id": "fa5P3#?6S)=A??nwVjV-",
+                          "fields": {
+                            "NUM": 1
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "pas",
+        "id": "yKvM?LWy/jY6pjmJ+nTW"
+      },
+      {
+        "name": "item",
+        "id": "9#Ipv`Qtm#m,+y$b==]a"
+      }
+    ]
+  }
+}

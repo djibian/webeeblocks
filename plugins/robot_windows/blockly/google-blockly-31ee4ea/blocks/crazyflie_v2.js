@@ -11,4 +11,13 @@
 {type:'webeeblocks_v2_elapsed',message0:'temps simulé depuis le départ (s)',output:'Number',style:'sensor_blocks'},
 {type:'webeeblocks_v2_range',message0:'distance %1',args0:[{type:'field_dropdown',name:'DIRECTION',options:[['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']]}],output:'Number',style:'sensor_blocks'},
 {type:'webeeblocks_v2_until',message0:'répéter jusqu’à %1 %2',args0:[{type:'input_value',name:'BOOL',check:'Boolean'},{type:'input_statement',name:'DO'}],previousStatement:null,nextStatement:null,style:'control_blocks'}
-]);})();
+ ]);
+// Keep Blockly's public naming, rename/call synchronization and serialization.
+// This first procedure vocabulary deliberately has no parameters or return value.
+var procedureDefinition=Blockly.Blocks&&Blockly.Blocks.procedures_defnoreturn;
+if(procedureDefinition&&!procedureDefinition.webeeblocksNoParameters){
+  var initializeProcedure=procedureDefinition.init;
+  procedureDefinition.init=function(){initializeProcedure.call(this);this.setMutator(null);};
+  procedureDefinition.webeeblocksNoParameters=true;
+}
+})();

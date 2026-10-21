@@ -45,6 +45,7 @@
     this.scenePreparationPending = false;
     var capabilities = {
       conditionalLoops: true,
+      procedures: true,
       elapsedSimulationTime: true,
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],

@@ -38,8 +38,10 @@ Save/Open .wbb, `execution_observer.js` relie les pas aux blocs.
 
 Le compilateur actuel exige un unique programme connecté, avec
 takeoff en première instruction et LAND à la fin, jamais imbriqué.
-Il ne gère ni les procédures élèves, ni les choix par cas,
-ni un déplacement surveillé comme instruction.
+Le nouvel incrément de [procédures élèves](BLOCKLY_PROCEDURES.md) étend ce
+contrat : une pile principale et des définitions Blockly séparées, sans
+paramètres, appels acycliques bornés et observables, simulation seulement.
+Il ne gère encore ni les choix par cas, ni le déplacement surveillé.
 
 ## Première réalisation (cette branche)
 
@@ -53,11 +55,17 @@ personnalisées sérialisées restent disponibles et inchangés.
 pas la faisabilité du futur programme élève. Les tests ajoutés
 couvrent compilation/Save-Open et exposition du profil.
 
+## Procédures — premier incrément implémenté, qualification bornée
+
+Définition/appel Blockly, renommage, préflight anti-récursion, budget, restrictions
+de profil/backend, source map et Save/Open : voir [le contrat et le démonstrateur](BLOCKLY_PROCEDURES.md).
+La sortie terminale et la progression mesurée restent séparées et non implémentées.
+
 ## Incréments suivants — non implémentés
 
-1. **Procédures Blockly** : définir/appeler dans le même .wbb,
-   préflight anti-récursion, signature et définition présentes,
-   budget conservateur, source map, debug et Save/Open.
+1. **Qualification des procédures** : CI canonique Ready exacte, revue indépendante
+   et composition native du futur franchissement, sans confondre le démonstrateur
+   générique avec le programme Grand Prix.
 2. **Déplacement surveillé** : avancer au plus de D mètres
    tant que capteur et seuil choisis le permettent; pas bornés,
    tests NaN/saturation, échec fermé sur mesure non fiable,
