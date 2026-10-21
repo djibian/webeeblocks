@@ -1,0 +1,16 @@
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.150s
+
+OK
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.309s
+
+OK
+PASS persisted .wbb exact AST, round-trip and positive budget 13370
+PASS negative Blockly preflight wrong-landing budget 13370
+PASS negative Blockly preflight deadline budget 104
+PASS negative Blockly preflight low-outside budget 5
+PASS negative Blockly preflight collision budget 5
+PASS negative Blockly preflight reverse budget 10

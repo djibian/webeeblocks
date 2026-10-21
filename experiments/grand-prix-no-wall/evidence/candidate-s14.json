@@ -1,0 +1,20 @@
+{
+  "status": "UNPROVEN evidence completeness",
+  "native_result": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s14",
+    "attempt": 1,
+    "seconds": 124.064,
+    "reason": null,
+    "crossings": 2
+  },
+  "archive_manifest_mismatches": {
+    "node.log": {
+      "expected": "7600b114062782c2b32217b337630ee7d8959fab7a019df26ef69ccc49302216",
+      "actual": "b978e3b54540e6bb84683abee0c4e355bcd6d83a1e4dcccc214f4601a9827244"
+    }
+  },
+  "archive_sha256": "2c4d5f8bf0f752684c90517b9c0bbc0f66f96ec53c1bf7432680547670159999",
+  "archive_bytes": 1789324,
+  "repeated": false
+}

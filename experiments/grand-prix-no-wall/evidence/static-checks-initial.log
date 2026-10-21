@@ -1,0 +1,27 @@
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.155s
+
+OK
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.357s
+
+OK
+/workspace/scratch/4e691a2ec01f/webeeblocks-gp/plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js:2
+(function(){'use strict';Blockly.defineBlocksWithJsonArray([
+                         ^
+
+ReferenceError: Blockly is not defined
+    at /workspace/scratch/4e691a2ec01f/webeeblocks-gp/plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js:2:26
+    at Object.<anonymous> (/workspace/scratch/4e691a2ec01f/webeeblocks-gp/plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js:13:6)
+    at Module._compile (node:internal/modules/cjs/loader:1872:14)
+    at Object..js (node:internal/modules/cjs/loader:2003:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1617:12)
+    at require (node:internal/modules/helpers:153:16)
+    at Object.<anonymous> (/workspace/scratch/4e691a2ec01f/webeeblocks-gp/experiments/grand-prix-no-wall/workspace.js:7:1)
+
+Node.js v24.19.0

@@ -1,0 +1,10 @@
+{
+  "source_sha": "64969bfee49d0cc9bd0aba7e015280ac229b6a6e",
+  "seed": 17,
+  "status": "UNPROVEN",
+  "stage": "native readiness",
+  "reason": "Webots SIGSEGV during world load; no admission/events/native result",
+  "repeated": false,
+  "archive_bytes": 3544,
+  "archive_sha256": "2e36a338637fdb919f0f06cc27205a1a63f72e47c2c6395ac1a55f1dcb1f1b2f"
+}

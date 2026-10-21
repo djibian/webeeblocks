@@ -1,0 +1,20 @@
+{
+  "status": "UNPROVEN evidence completeness",
+  "native_result": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s5",
+    "attempt": 1,
+    "seconds": 137.664,
+    "reason": null,
+    "crossings": 3
+  },
+  "archive_manifest_mismatches": {
+    "flight.log": {
+      "expected": "df5062cccfebf9028527eb886eb02b07d40aa462bf732bcc9b774a099a1a2f15",
+      "actual": "b95773097680b7dfb5efce8ece0bf046fecea977d230915e5b697123f6610993"
+    }
+  },
+  "archive_sha256": "885e9a6a7eeb465db338212e04449ab239279ea15854afef5f32bf6b98955781",
+  "archive_bytes": 1973752,
+  "repeated": false
+}

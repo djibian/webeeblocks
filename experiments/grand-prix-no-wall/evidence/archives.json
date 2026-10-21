@@ -1,0 +1,82 @@
+[
+  {
+    "name": "candidate-s0.tar.xz",
+    "size": 1455524,
+    "sha256": "533ccae34071fe48c44656360b9781333207a06cde653b19c8a7ac431de09047",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "candidate-s14-late-log-snapshot.tar.xz",
+    "size": 5352,
+    "sha256": "a60addd7be6cd8c4b3bd5f9a172d8ae333a3b90ec7d3cd6148153b2f746c33d0",
+    "internal_manifest_mismatches": [
+      "events.jsonl",
+      "node.log",
+      "flight.log"
+    ]
+  },
+  {
+    "name": "candidate-s14.tar.xz",
+    "size": 1789324,
+    "sha256": "2c4d5f8bf0f752684c90517b9c0bbc0f66f96ec53c1bf7432680547670159999",
+    "internal_manifest_mismatches": [
+      "node.log"
+    ]
+  },
+  {
+    "name": "candidate-s15.tar.xz",
+    "size": 1514300,
+    "sha256": "3b9b394edad510b53fe4f98e63a8f5afdbe38a1154e877ea48cf4b55b7f3d5e0",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "candidate-s2.tar.xz",
+    "size": 1606732,
+    "sha256": "5c51ff3dc745a4450b981b2320b089a9f180c42a891d28cb19ff0e0b353851b6",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "candidate-s3.tar.xz",
+    "size": 1759296,
+    "sha256": "a6f58d19ce907e6b69a794ff783969d4a735c4fc3440af112d4c3c3610fcb88f",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "candidate-s4.tar.xz",
+    "size": 2044220,
+    "sha256": "7cc1a5c437178f8786ee1f009ee97ae8329e515d4003ba32497cac2ee8b207aa",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "candidate-s5.tar.xz",
+    "size": 1973752,
+    "sha256": "885e9a6a7eeb465db338212e04449ab239279ea15854afef5f32bf6b98955781",
+    "internal_manifest_mismatches": [
+      "flight.log"
+    ]
+  },
+  {
+    "name": "historical-s3.tar.xz",
+    "size": 1865028,
+    "sha256": "149d836e18f2f518db03e6447c50379c783ade3946fa57955cafbad9b7a12ad5",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "negative-deadline.tar.xz",
+    "size": 8562316,
+    "sha256": "9be0c27869d1d3ce637f06373969ef86c7f316f53a41979c71113cae493e661c",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "preparation-s1.tar.xz",
+    "size": 3644,
+    "sha256": "c59cf4b1ff8bd493a6b5dc168c923fa2314913c46c639c3740e7618b4c585bda",
+    "internal_manifest_mismatches": []
+  },
+  {
+    "name": "preparation-s17.tar.xz",
+    "size": 3544,
+    "sha256": "2e36a338637fdb919f0f06cc27205a1a63f72e47c2c6395ac1a55f1dcb1f1b2f",
+    "internal_manifest_mismatches": []
+  }
+]
