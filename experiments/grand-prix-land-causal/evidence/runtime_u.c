@@ -1,0 +1,1072 @@
+#include "simulation_clock.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <webots/distance_sensor.h>
+#include <webots/gps.h>
+#include <webots/gyro.h>
+#include <webots/inertial_unit.h>
+#include <webots/led.h>
+#include <webots/motor.h>
+#include <webots/plugins/robot_window/default.h>
+#include <webots/robot.h>
+#include <webots/supervisor.h>
+
+#include "pid_controller.h"
+#include "activity_scene.h"
+
+#define PI 3.14159265358979323846
+#define PREFIX "WEBEEBLOCKS_RUNTIME_V2"
+#define VX_MAX 0.35
+#define POSITION_KP 1.0
+#define YAW_KP 1.5
+#define YAW_RATE_MAX 0.7
+#define POSITION_TOL 0.03
+#define YAW_TOL (2.0 * PI / 180.0)
+#define SPEED_TOL 0.12
+#define YAW_RATE_TOL 0.10
+#define VZ_TOL 0.15
+#define ALT_TOL 0.05
+#define STOP_WINDOW 0.5
+#define RESET_WINDOW 0.25
+#define RESET_TIMEOUT 5.0
+#define ACTION_TIMEOUT 25.0
+
+typedef enum {
+  CMD_IDLE,
+  CMD_TAKEOFF,
+  CMD_MOVE,
+  CMD_VERTICAL,
+  CMD_TURN,
+  CMD_WAIT,
+  CMD_LAND,
+  CMD_RESET
+} command_t;
+
+typedef enum {
+  REQUEST_INVALID,
+  REQUEST_TAKEOFF,
+  REQUEST_MOVE,
+  REQUEST_VERTICAL,
+  REQUEST_TURN,
+  REQUEST_WAIT,
+  REQUEST_SPEED,
+  REQUEST_LIGHT,
+  REQUEST_LAND,
+  REQUEST_RANGE,
+  REQUEST_ELAPSED,
+  REQUEST_RESET,
+  REQUEST_STOP,
+  REQUEST_SCENE
+} request_kind_t;
+
+typedef struct {
+  int id;
+  request_kind_t kind;
+  char direction[32];
+  char scene_nonce[65];
+  double value;
+} request_t;
+
+static double clip(double value, double limit) {
+  if (value > limit)
+    return limit;
+  if (value < -limit)
+    return -limit;
+  return value;
+}
+
+static void clip_vector(double *x, double *y, double limit) {
+  const double magnitude = hypot(*x, *y);
+  if (magnitude > limit && magnitude > 0.0) {
+    const double scale = limit / magnitude;
+    *x *= scale;
+    *y *= scale;
+  }
+}
+
+static double motor_power(double value) {
+  if (value < 0.0)
+    return 0.0;
+  if (value > 600.0)
+    return 600.0;
+  return value;
+}
+
+/* Every composed angle path must terminate, including malformed input.
+   Do not normalize an invalid IMU observation into a plausible attitude. */
+static int gp_valid_attitude(const double *rpy) {
+  return rpy && isfinite(rpy[0]) && isfinite(rpy[1]) && isfinite(rpy[2]) &&
+    fabs(rpy[0]) <= PI && fabs(rpy[1]) <= PI / 2.0 && fabs(rpy[2]) <= PI;
+}
+static double wrap_angle(double angle) {
+  if (!isfinite(angle)) return NAN;
+  angle = fmod(angle, 2.0 * PI);
+  if (angle > PI) angle -= 2.0 * PI;
+  if (angle <= -PI) angle += 2.0 * PI;
+  return angle;
+}
+
+static void stop_motors(WbDeviceTag m1, WbDeviceTag m2, WbDeviceTag m3, WbDeviceTag m4) {
+  wb_motor_set_velocity(m1, 0.0);
+  wb_motor_set_velocity(m2, 0.0);
+  wb_motor_set_velocity(m3, 0.0);
+  wb_motor_set_velocity(m4, 0.0);
+}
+
+static void send_text(const char *text) {
+  wb_robot_wwi_send_text(text);
+  printf("%s\n", text);
+  fflush(stdout);
+}
+
+static void response_ok(int id) {
+  char message[128];
+  snprintf(message, sizeof(message), PREFIX " RESPONSE %d OK", id);
+  send_text(message);
+}
+
+static void response_value(int id, double value) {
+  char message[160];
+  snprintf(message, sizeof(message), PREFIX " RESPONSE %d VALUE %.9f", id, value);
+  send_text(message);
+}
+
+static void response_error(int id, const char *reason) {
+  char message[160];
+  snprintf(message, sizeof(message), PREFIX " RESPONSE %d ERR %s", id, reason);
+  send_text(message);
+}
+
+static int extract_id(const char *message) {
+  int id = -1;
+  if (message)
+    sscanf(message, PREFIX " REQUEST %d", &id);
+  return id;
+}
+
+static request_t parse_request(const char *message) {
+  request_t request;
+  memset(&request, 0, sizeof(request));
+  request.id = -1;
+  request.kind = REQUEST_INVALID;
+
+  int id = -1;
+  double value = 0.0;
+  char direction[32] = {0};
+  char command[32] = {0};
+  char extra[2] = {0};
+
+  char scene_nonce[65] = {0};
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %64s %1s", &id, direction, scene_nonce, extra) == 3 &&
+      strlen(scene_nonce) == 64 && strspn(scene_nonce, "0123456789abcdef") == 64) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    memcpy(request.scene_nonce, scene_nonce, sizeof(scene_nonce));
+    return request;
+  }
+
+  if (sscanf(message, PREFIX " REQUEST %d SCENE %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_SCENE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
+
+  if (sscanf(message, PREFIX " REQUEST %d TAKEOFF %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_TAKEOFF;
+    request.value = value;
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d MOVE %31s %lf %1s", &id, direction, &value, extra) == 3) {
+    request.id = id;
+    request.kind = REQUEST_MOVE;
+    request.value = value;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d VERTICAL %31s %lf %1s", &id, direction, &value, extra) == 3) {
+    request.id = id;
+    request.kind = REQUEST_VERTICAL;
+    request.value = value;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d TURN %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_TURN;
+    request.value = value;
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d WAIT %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_WAIT;
+    request.value = value;
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d SPEED %lf %1s", &id, &value, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_SPEED;
+    request.value = value;
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d LIGHT %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_LIGHT;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d RANGE %31s %1s", &id, direction, extra) == 2) {
+    request.id = id;
+    request.kind = REQUEST_RANGE;
+    strncpy(request.direction, direction, sizeof(request.direction) - 1);
+    return request;
+  }
+  if (sscanf(message, PREFIX " REQUEST %d %31s %1s", &id, command, extra) == 2) {
+    request.id = id;
+    if (strcmp(command, "LAND") == 0)
+      request.kind = REQUEST_LAND;
+    else if (strcmp(command, "ELAPSED") == 0)
+      request.kind = REQUEST_ELAPSED;
+    else if (strcmp(command, "RESET") == 0)
+      request.kind = REQUEST_RESET;
+    else if (strcmp(command, "STOP") == 0)
+      request.kind = REQUEST_STOP;
+    return request;
+  }
+
+  request.id = extract_id(message);
+  return request;
+}
+
+static void trace_range(const char *direction, double value) {
+  printf(PREFIX " TRACE RANGE %s value=%.9f\n", direction, value);
+  fflush(stdout);
+}
+
+static void trace_takeoff(double value) {
+  printf(PREFIX " TRACE TAKEOFF height=%.9f stop=1\n", value);
+  fflush(stdout);
+}
+
+static void trace_move(const char *direction, double value) {
+  printf(PREFIX " TRACE MOVE %s distance=%.9f stop=1\n", direction, value);
+  fflush(stdout);
+}
+
+static void trace_vertical(const char *direction, double value) {
+  printf(PREFIX " TRACE VERTICAL %s distance=%.9f stop=1\n", direction, value);
+  fflush(stdout);
+}
+
+static void trace_turn(double value) {
+  printf(PREFIX " TRACE TURN angle_deg=%.9f stop=1\n", value);
+  fflush(stdout);
+}
+
+static void trace_wait(double seconds, double elapsed) {
+  printf(PREFIX " TRACE WAIT seconds=%.9f elapsed=%.9f stop=1\n", seconds, elapsed);
+  fflush(stdout);
+}
+
+static void trace_speed(double speed_m_s) {
+  printf(PREFIX " TRACE SPEED speed_m_s=%.9f\n", speed_m_s);
+  fflush(stdout);
+}
+
+static int light_value(const char *color, int *value) {
+  if (strcmp(color, "off") == 0)
+    *value = 0x000000;
+  else if (strcmp(color, "red") == 0)
+    *value = 0xff0000;
+  else if (strcmp(color, "green") == 0)
+    *value = 0x00ff00;
+  else if (strcmp(color, "blue") == 0)
+    *value = 0x0000ff;
+  else if (strcmp(color, "yellow") == 0)
+    *value = 0xffff00;
+  else if (strcmp(color, "white") == 0)
+    *value = 0xffffff;
+  else
+    return 0;
+  return 1;
+}
+
+static void trace_light(const char *color, int value) {
+  printf(PREFIX " TRACE LIGHT color=%s rgb=%06x\n", color, value & 0xffffff);
+  fflush(stdout);
+}
+
+static void trace_land(void) {
+  printf(PREFIX " TRACE LAND stop=1\n");
+  fflush(stdout);
+}
+
+static void trace_reset(double x, double y, double z, double origin_x, double origin_y, double origin_z) {
+  printf(PREFIX " TRACE RESET x=%.9f y=%.9f z=%.9f origin_x=%.9f origin_y=%.9f origin_z=%.9f\n",
+         x, y, z, origin_x, origin_y, origin_z);
+  fflush(stdout);
+}
+
+int main(void) {
+  wb_robot_init();
+  const int step = 32; /* Preserve the shared PID/sensor update period. */
+
+  WbDeviceTag m1 = wb_robot_get_device("m1_motor");
+  WbDeviceTag m2 = wb_robot_get_device("m2_motor");
+  WbDeviceTag m3 = wb_robot_get_device("m3_motor");
+  WbDeviceTag m4 = wb_robot_get_device("m4_motor");
+  WbDeviceTag gps = wb_robot_get_device("gps");
+  WbDeviceTag imu = wb_robot_get_device("inertial_unit");
+  WbDeviceTag gyro = wb_robot_get_device("gyro");
+  WbDeviceTag range_front = wb_robot_get_device("range_front");
+  WbDeviceTag range_back = wb_robot_get_device("range_back");
+  WbDeviceTag range_left = wb_robot_get_device("range_left");
+  WbDeviceTag range_right = wb_robot_get_device("range_right");
+  WbDeviceTag range_up = wb_robot_get_device("range_up");
+  WbDeviceTag color_led = wb_robot_get_device("color_led");
+
+  if (!m1 || !m2 || !m3 || !m4 || !gps || !imu || !gyro || !range_front || !range_back || !range_left || !range_right || !range_up || !color_led) {
+    fprintf(stderr, PREFIX " FATAL missing required Webots device\n");
+    wb_robot_cleanup();
+    return 1;
+  }
+
+  WbNodeRef self_node = wb_supervisor_node_get_self();
+  WbFieldRef translation_field = self_node ? wb_supervisor_node_get_field(self_node, "translation") : 0;
+  WbFieldRef rotation_field = self_node ? wb_supervisor_node_get_field(self_node, "rotation") : 0;
+  if (!self_node || !translation_field || !rotation_field) {
+    fprintf(stderr, PREFIX " FATAL supervisor reset fields unavailable\n");
+    wb_robot_cleanup();
+    return 1;
+  }
+  const double *initial_translation_ref = wb_supervisor_field_get_sf_vec3f(translation_field);
+  const double *initial_rotation_ref = wb_supervisor_field_get_sf_rotation(rotation_field);
+  double initial_translation[3] = {initial_translation_ref[0], initial_translation_ref[1], initial_translation_ref[2]};
+  double initial_rotation[4] = {initial_rotation_ref[0], initial_rotation_ref[1], initial_rotation_ref[2], initial_rotation_ref[3]};
+
+  wb_motor_set_position(m1, INFINITY);
+  wb_motor_set_position(m2, INFINITY);
+  wb_motor_set_position(m3, INFINITY);
+  wb_motor_set_position(m4, INFINITY);
+  stop_motors(m1, m2, m3, m4);
+
+  wb_gps_enable(gps, step);
+  wb_inertial_unit_enable(imu, step);
+  wb_gyro_enable(gyro, step);
+  wb_distance_sensor_enable(range_front, step);
+  wb_distance_sensor_enable(range_back, step);
+  wb_distance_sensor_enable(range_left, step);
+  wb_distance_sensor_enable(range_right, step);
+  wb_distance_sensor_enable(range_up, step);
+  wb_led_set(color_led, 0);
+
+  while (wb_robot_step(step) != -1 && wb_robot_get_time() < 2.0) {
+  }
+
+  const double *position = wb_gps_get_values(gps);
+  const double *rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
+  if (!position || !isfinite(position[0]) || !isfinite(position[1]) ||
+      !isfinite(position[2]) || !gp_valid_attitude(rpy)) {
+    fprintf(stderr, "GP_U_PREPARE_ERROR invalid_initial_pose\n");
+    wb_robot_cleanup(); return 1;
+  }
+  const double origin_x = position[0];
+  const double origin_y = position[1];
+  const double origin_z = position[2];
+  const double origin_roll = rpy[0];
+  const double origin_pitch = rpy[1];
+  const double origin_yaw = rpy[2];
+  double target_x = origin_x;
+  double target_y = origin_y;
+  double target_z = origin_z;
+  double target_yaw = origin_yaw;
+
+  double previous_x = position[0];
+  double previous_y = position[1];
+  double previous_z = position[2];
+  double previous_time = wb_robot_get_time();
+
+  simulation_clock_t program_clock = {0.0, 0.0, 0};
+  int airborne = 0;
+  int failsafe_latched = 0;
+  command_t command = CMD_IDLE;
+  int active_id = -1;
+  double active_value = 0.0;
+  double move_speed_limit = VX_MAX;
+  char active_direction[32] = {0};
+  double stable_since = -1.0;
+  int causal_contact = 0;
+  const int causal_ablate = getenv("GP_LAND_ABLATE") && strcmp(getenv("GP_LAND_ABLATE"), "1") == 0;
+  char causal_path[4096];
+  snprintf(causal_path, sizeof(causal_path), "%s/causal-control.jsonl", getenv("WEBEEBLOCKS_CI_ARTIFACT_DIR"));
+  FILE *causal_file = fopen(causal_path, "w");
+  if (!causal_file) { wb_robot_cleanup(); return 2; }
+  setvbuf(causal_file, NULL, _IOLBF, 0);
+  extern double pastVxError, pastVyError;
+  double gp_ground_since = -1.0;
+  double action_start = 0.0;
+
+  gains_pid_t gains;
+  memset(&gains, 0, sizeof(gains));
+  gains.kp_att_y = 1.0;
+  gains.kd_att_y = 0.5;
+  gains.kp_att_rp = 0.5;
+  gains.kd_att_rp = 0.1;
+  gains.kp_vel_xy = 2.0;
+  gains.kd_vel_xy = 0.5;
+  gains.kp_z = 10.0;
+  gains.ki_z = 5.0;
+  gains.kd_z = 5.0;
+  init_pid_attitude_fixed_height_controller();
+
+  actual_state_t actual;
+  desired_state_t desired;
+  motor_power_t power;
+  memset(&actual, 0, sizeof(actual));
+  memset(&desired, 0, sizeof(desired));
+  memset(&power, 0, sizeof(power));
+
+  if ((long long)llround(wb_robot_get_basic_time_step()) != 8) {
+    fprintf(stderr, "GP_U_PREPARE_ERROR required_basic_step_ms=8\n");
+    wb_robot_cleanup(); return 1;
+  }
+  send_text(PREFIX " READY");
+
+  while (wb_robot_step(gp_u_next_step(step)) != -1) {
+    const double now = wb_robot_get_time();
+    const double dt = now - previous_time;
+    if (dt <= 0.0) {
+      gp_ground_since = -1.0;
+      stable_since = -1.0;
+      continue;
+    }
+
+    position = wb_gps_get_values(gps);
+    rpy = wb_inertial_unit_get_roll_pitch_yaw(imu);
+    const double *gyro_values = wb_gyro_get_values(gyro);
+    /* Unavailable native measurements must revoke confirmation, not crash. */
+    const double gp_missing[3] = {NAN, NAN, NAN};
+    if (!position) position = gp_missing;
+    if (!gp_valid_attitude(rpy)) rpy = gp_missing;
+    if (!gyro_values) gyro_values = gp_missing;
+    const double x = position[0];
+    const double y = position[1];
+    const double z = position[2];
+    const double yaw = rpy[2];
+    const double vx_global = (x - previous_x) / dt;
+    const double vy_global = (y - previous_y) / dt;
+    const double vz = (z - previous_z) / dt;
+    const double cy = cos(yaw);
+    const double sy = sin(yaw);
+
+    actual.roll = rpy[0];
+    actual.pitch = rpy[1];
+    actual.yaw_rate = gyro_values[2];
+    actual.altitude = z;
+    actual.vx = vx_global * cy + vy_global * sy;
+    actual.vy = -vx_global * sy + vy_global * cy;
+
+    fprintf(causal_file, "{\"phase\":\"sample\",\"time\":%.9f,\"command\":%d,\"airborne\":%d}\n", now, (int)command, airborne);
+    desired.roll = 0.0;
+    desired.pitch = 0.0;
+    desired.vx = 0.0;
+    desired.vy = 0.0;
+    desired.yaw_rate = 0.0;
+    desired.altitude = airborne ? target_z : origin_z;
+
+    /* IDLE/airborne=0 also follows UNSAFE_OR_TIMEOUT: it is not a pose.
+       Confirm fresh, finite ground observations independently of command state.
+       A lost sample/gap revokes the whole continuous stability window. */
+    const int gp_control_sample = isfinite(now) && isfinite(dt) && dt <= 0.032001 &&
+      isfinite(x) && isfinite(y) && isfinite(z) && isfinite(origin_z) &&
+      isfinite(vx_global) && isfinite(vy_global) && isfinite(vz) &&
+      isfinite(rpy[0]) && isfinite(rpy[1]) && isfinite(rpy[2]) &&
+      isfinite(gyro_values[0]) && isfinite(gyro_values[1]) && isfinite(gyro_values[2]);
+    const int gp_ground_sample = gp_control_sample &&
+      fabs(z - origin_z) < ALT_TOL && hypot(vx_global, vy_global) < SPEED_TOL &&
+      fabs(vz) < VZ_TOL && fabs(rpy[0] - origin_roll) < YAW_TOL &&
+      fabs(rpy[1] - origin_pitch) < YAW_TOL &&
+      fabs(gyro_values[0]) < YAW_RATE_TOL && fabs(gyro_values[1]) < YAW_RATE_TOL &&
+      fabs(gyro_values[2]) < YAW_RATE_TOL;
+    if (!gp_ground_sample) gp_ground_since = -1.0;
+    else if (gp_ground_since < 0.0) gp_ground_since = now;
+    const int gp_pose_confirmed = !airborne && command == CMD_IDLE &&
+      gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW;
+    if (gp_u_deadline(now, gp_pose_confirmed)) {
+      simulation_clock_revoke(&program_clock);
+      const int interrupted_id = active_id;
+      if (active_id >= 1) response_error(active_id, "TIME_LIMIT");
+      target_x = x; target_y = y; target_yaw = yaw; target_z = origin_z;
+      airborne = 1; /* Native LAND also completes if already grounded. */
+      command = CMD_LAND; active_id = 2147483646;
+      active_value = 0.0; active_direction[0] = '\0';
+      stable_since = -1.0; action_start = now;
+      printf("GP_U_DEADLINE time_ms=%lld command=LAND interrupted_id=%d\n",
+             (long long)llround(now * 1000.0), interrupted_id);
+      fflush(stdout);
+    }
+    const char *message;
+    /* Re-evaluate after each runtime request, before draining the broker.
+       An admitted TAKEOFF/RESET in this same tick must close file access. */
+    while ((gp_u_file_idle(command == CMD_IDLE && !airborne && gp_ground_sample),
+            (message = wb_robot_wwi_receive_text())) != NULL) {
+      if (strncmp(message, PREFIX " REQUEST ", strlen(PREFIX " REQUEST ")) != 0)
+        continue;
+      request_t request = parse_request(message);
+      if (request.id < 1)
+        continue;
+      if (request.kind == REQUEST_INVALID) {
+        response_error(request.id, "INVALID_REQUEST");
+        continue;
+      }
+      /* The deadline already ran for this tick. Refuse malformed samples
+         before any command can consume them; RESET still times out natively. */
+      if (!gp_control_sample) {
+        response_error(request.id, "UNSAFE_OR_TIMEOUT");
+        continue;
+      }
+      if (request.kind == REQUEST_STOP) {
+        simulation_clock_revoke(&program_clock);
+        if (command == CMD_RESET) {
+          response_error(request.id, "NOT_RUNNING");
+          continue;
+        }
+        if (active_id >= 1)
+          response_error(active_id, "USER_STOPPED");
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        airborne = z > origin_z + ALT_TOL ? 1 : 0;
+        failsafe_latched = 1;
+        command = CMD_IDLE;
+        active_id = -1;
+        active_value = 0.0;
+        active_direction[0] = '\0';
+        stable_since = -1.0;
+        response_ok(request.id);
+        if (!airborne)
+          stop_motors(m1, m2, m3, m4);
+        continue;
+      }
+      if (command != CMD_IDLE) {
+        response_error(request.id, "BUSY");
+        continue;
+      }
+      if (request.kind == REQUEST_RESET) {
+        simulation_clock_revoke(&program_clock);
+        stop_motors(m1, m2, m3, m4);
+        wb_supervisor_field_set_sf_vec3f(translation_field, initial_translation);
+        wb_supervisor_field_set_sf_rotation(rotation_field, initial_rotation);
+        wb_supervisor_node_reset_physics(self_node);
+        wb_led_set(color_led, 0);
+        init_pid_attitude_fixed_height_controller();
+        airborne = 0;
+        failsafe_latched = 0;
+        target_x = origin_x;
+        target_y = origin_y;
+        target_z = origin_z;
+        target_yaw = origin_yaw;
+        active_id = request.id;
+        active_value = 0.0;
+        active_direction[0] = '\0';
+        move_speed_limit = VX_MAX;
+        gp_ground_since = -1.0; /* Require post-teleport observations. */
+        command = CMD_RESET;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (failsafe_latched) {
+        response_error(request.id, "RESET_REQUIRED");
+        continue;
+      }
+      if (request.kind == REQUEST_SCENE) {
+        if (airborne || hypot(x - origin_x, y - origin_y) > POSITION_TOL ||
+            fabs(z - origin_z) > ALT_TOL || hypot(vx_global, vy_global) > SPEED_TOL || fabs(vz) > VZ_TOL) {
+          response_error(request.id, "RESET_REQUIRED");
+        } else if (!webeeblocks_select_activity_scene(request.direction)) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+        } else {
+          if (request.scene_nonce[0]) {
+            char acknowledgement[192];
+            snprintf(acknowledgement, sizeof(acknowledgement), PREFIX " RESPONSE %d SCENE_OK %s", request.id, request.scene_nonce);
+            send_text(acknowledgement);
+          } else {
+            response_ok(request.id);
+          }
+        }
+        continue;
+      }
+      if (request.kind == REQUEST_ELAPSED) {
+        double seconds = 0.0;
+        if (!airborne || !simulation_clock_read(&program_clock, now, &seconds))
+          response_error(request.id, "TIME_UNAVAILABLE");
+        else
+          response_value(request.id, seconds);
+        continue;
+      }
+      if (request.kind == REQUEST_RANGE) {
+        WbDeviceTag range_sensor = 0;
+        if (strcmp(request.direction, "front") == 0)
+          range_sensor = range_front;
+        else if (strcmp(request.direction, "back") == 0)
+          range_sensor = range_back;
+        else if (strcmp(request.direction, "left") == 0)
+          range_sensor = range_left;
+        else if (strcmp(request.direction, "right") == 0)
+          range_sensor = range_right;
+        else if (strcmp(request.direction, "up") == 0)
+          range_sensor = range_up;
+        if (!range_sensor) {
+          response_error(request.id, "CAPABILITY_UNAVAILABLE");
+          continue;
+        }
+        const double range_m = wb_distance_sensor_get_value(range_sensor) / 1000.0;
+        if (!isfinite(range_m) || range_m < 0.0 || range_m > 2.001) {
+          response_error(request.id, "INVALID_RANGE_SAMPLE");
+          continue;
+        }
+        trace_range(request.direction, range_m);
+        response_value(request.id, range_m);
+        continue;
+      }
+      if (request.kind == REQUEST_SPEED) {
+        if (!isfinite(request.value) || request.value < 0.1 || request.value > VX_MAX) {
+          response_error(request.id, "INVALID_SPEED");
+          continue;
+        }
+        move_speed_limit = request.value;
+        trace_speed(move_speed_limit);
+        response_ok(request.id);
+        continue;
+      }
+      if (request.kind == REQUEST_LIGHT) {
+        int rgb = 0;
+        if (!light_value(request.direction, &rgb)) {
+          response_error(request.id, "INVALID_LIGHT");
+          continue;
+        }
+        wb_led_set(color_led, rgb);
+        trace_light(request.direction, rgb);
+        response_ok(request.id);
+        continue;
+      }
+      if (request.kind == REQUEST_TAKEOFF) {
+        if (!webeeblocks_activity_scene_ready()) {
+          response_error(request.id, "SCENE_UNAVAILABLE");
+          continue;
+        }
+        if (airborne || !isfinite(request.value) || request.value < 0.2 || request.value > 1.5) {
+          response_error(request.id, "INVALID_TAKEOFF");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
+        target_z = origin_z + request.value;
+        simulation_clock_begin(&program_clock, now);
+        if (!gp_u_start(now)) {
+          simulation_clock_revoke(&program_clock);
+          response_error(active_id, "INVALID_ATTEMPT");
+          active_id = -1; command = CMD_IDLE;
+          continue;
+        }
+        gp_ground_since = -1.0;
+        command = CMD_TAKEOFF;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (request.kind == REQUEST_MOVE) {
+        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 2.0 ||
+            (strcmp(request.direction, "forward") != 0 && strcmp(request.direction, "back") != 0 &&
+             strcmp(request.direction, "left") != 0 && strcmp(request.direction, "right") != 0)) {
+          response_error(request.id, "INVALID_MOVE");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        strncpy(active_direction, request.direction, sizeof(active_direction) - 1);
+        active_direction[sizeof(active_direction) - 1] = '\0';
+        target_yaw = yaw;
+        if (strcmp(request.direction, "forward") == 0) {
+          target_x = x + cos(yaw) * request.value;
+          target_y = y + sin(yaw) * request.value;
+        } else if (strcmp(request.direction, "back") == 0) {
+          target_x = x - cos(yaw) * request.value;
+          target_y = y - sin(yaw) * request.value;
+        } else if (strcmp(request.direction, "left") == 0) {
+          target_x = x - sin(yaw) * request.value;
+          target_y = y + cos(yaw) * request.value;
+        } else {
+          target_x = x + sin(yaw) * request.value;
+          target_y = y - cos(yaw) * request.value;
+        }
+        command = CMD_MOVE;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (request.kind == REQUEST_VERTICAL) {
+        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 0.8 ||
+            (strcmp(request.direction, "up") != 0 && strcmp(request.direction, "down") != 0)) {
+          response_error(request.id, "INVALID_VERTICAL");
+          continue;
+        }
+        const double next_target_z = z + (strcmp(request.direction, "up") == 0 ? request.value : -request.value);
+        if (next_target_z < origin_z + 0.2 || next_target_z > origin_z + 1.5) {
+          response_error(request.id, "VERTICAL_LIMIT");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        strncpy(active_direction, request.direction, sizeof(active_direction) - 1);
+        active_direction[sizeof(active_direction) - 1] = '\0';
+        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
+        target_z = next_target_z;
+        command = CMD_VERTICAL;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (request.kind == REQUEST_TURN) {
+        if (!airborne || !isfinite(request.value) || fabs(request.value) < 1.0 || fabs(request.value) > 179.0) {
+          response_error(request.id, "INVALID_TURN");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = wrap_angle(yaw + request.value * PI / 180.0);
+        command = CMD_TURN;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (request.kind == REQUEST_WAIT) {
+        if (!airborne || !isfinite(request.value) || request.value < 0.1 || request.value > 5.0) {
+          response_error(request.id, "INVALID_WAIT");
+          continue;
+        }
+        active_id = request.id;
+        active_value = request.value;
+        active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_z = z;
+        target_yaw = yaw;
+        command = CMD_WAIT;
+        stable_since = -1.0;
+        action_start = now;
+        continue;
+      }
+      if (request.kind == REQUEST_LAND) {
+        if (!airborne) {
+          response_error(request.id, "INVALID_LAND");
+          continue;
+        }
+        active_id = request.id;
+        active_value = 0.0;
+        active_direction[0] = '\0';
+        target_z = origin_z;
+        command = CMD_LAND;
+        stable_since = -1.0;
+        action_start = now;
+      }
+    }
+
+    if (command != CMD_RESET &&
+        ((!gp_control_sample && (airborne || command != CMD_IDLE)) ||
+         (command != CMD_IDLE && (fabs(actual.roll) > 1.2 || fabs(actual.pitch) > 1.2 || now - action_start > ACTION_TIMEOUT)))) {
+      response_error(active_id, "UNSAFE_OR_TIMEOUT");
+      fprintf(stderr, PREFIX " FATAL unsafe attitude or action timeout\n");
+      stop_motors(m1, m2, m3, m4);
+      airborne = 0;
+      simulation_clock_revoke(&program_clock);
+      failsafe_latched = 1;
+      command = CMD_IDLE;
+      active_id = -1;
+      stable_since = -1.0;
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
+    if (command == CMD_RESET && now - action_start > RESET_TIMEOUT) {
+      // Preserve fail-closed Reset semantics; retain the measured state that
+      // prevented a fresh attempt after a native Webots collision.
+      fprintf(stderr, PREFIX " RESET_TIMEOUT_DIAGNOSTIC id=%d elapsed=%.6f "
+                      "position=%.9f,%.9f,%.9f origin=%.9f,%.9f,%.9f "
+                      "rpy=%.9f,%.9f,%.9f origin_rpy=%.9f,%.9f,%.9f "
+                      "velocity_world=%.9f,%.9f,%.9f yaw_rate=%.9f "
+                      "stable_duration=%.6f dt=%.6f\n",
+              active_id, now - action_start,
+              x, y, z, origin_x, origin_y, origin_z,
+              rpy[0], rpy[1], yaw, origin_roll, origin_pitch, origin_yaw,
+              vx_global, vy_global, vz, actual.yaw_rate,
+              stable_since < 0.0 ? -1.0 : now - stable_since, dt);
+      fflush(stderr);
+      response_error(active_id, "RESET_TIMEOUT");
+      stop_motors(m1, m2, m3, m4);
+      airborne = 0;
+      simulation_clock_revoke(&program_clock);
+      failsafe_latched = 1;
+      command = CMD_IDLE;
+      active_id = -1;
+      stable_since = -1.0;
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
+    if (command == CMD_RESET) {
+      stop_motors(m1, m2, m3, m4);
+      const int pose_ready = gp_ground_sample && fabs(x - origin_x) < POSITION_TOL && fabs(y - origin_y) < POSITION_TOL &&
+                             fabs(z - origin_z) < ALT_TOL && fabs(rpy[0] - origin_roll) < YAW_TOL &&
+                             fabs(rpy[1] - origin_pitch) < YAW_TOL && fabs(wrap_angle(yaw - origin_yaw)) < YAW_TOL;
+      const int motion_ready = hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(vz) < VZ_TOL &&
+                               fabs(actual.yaw_rate) < YAW_RATE_TOL;
+      if (pose_ready && motion_ready && gp_ground_sample && now > action_start) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        /* The administrative RESET window cannot finalize recovery.
+           Every observation since teleport/loss must confirm the full pose. */
+        if (now - stable_since >= STOP_WINDOW) {
+          trace_reset(x, y, z, origin_x, origin_y, origin_z);
+          response_ok(active_id);
+          gp_ground_since = -1.0;
+          gp_u_reset_complete();
+          command = CMD_IDLE;
+          active_id = -1;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+      previous_time = now;
+      previous_x = x;
+      previous_y = y;
+      previous_z = z;
+      continue;
+    }
+
+    if (command == CMD_TAKEOFF) {
+      desired.altitude = target_z;
+      if (fabs(z - target_z) < ALT_TOL && fabs(vz) < VZ_TOL && hypot(actual.vx, actual.vy) < SPEED_TOL &&
+          fabs(actual.yaw_rate) < YAW_RATE_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          airborne = 1;
+          trace_takeoff(active_value);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_MOVE) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, move_speed_limit);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          trace_move(active_direction, active_value);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_VERTICAL) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          trace_vertical(active_direction, active_value);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_TURN) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          trace_turn(active_value);
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_WAIT) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+      if (now - action_start >= active_value &&
+          hypot(error_x, error_y) <= POSITION_TOL && fabs(wrap_angle(target_yaw - yaw)) <= YAW_TOL &&
+          hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(actual.yaw_rate) < YAW_RATE_TOL && fabs(vz) < VZ_TOL &&
+          fabs(z - target_z) < ALT_TOL) {
+        trace_wait(active_value, now - action_start);
+        response_ok(active_id);
+        command = CMD_IDLE;
+        stable_since = -1.0;
+      }
+    } else if (command == CMD_LAND) {
+      desired.altitude = origin_z;
+      if (z <= origin_z + ALT_TOL && fabs(vz) < VZ_TOL) {
+        if (stable_since < 0.0)
+          stable_since = now;
+        if (now - stable_since >= STOP_WINDOW) {
+          stop_motors(m1, m2, m3, m4);
+          airborne = 0;
+          simulation_clock_revoke(&program_clock);
+          if (getenv("WEBEEBLOCKS_CI_ARTIFACT_DIR")) {
+            fprintf(stderr, "GP_U_LAND_CONTROL {\"time_ms\":%lld,\"id\":%d,\"phase\":\"stop\","
+                            "\"position\":[%.9f,%.9f,%.9f],\"velocity_world\":[%.9f,%.9f,%.9f],"
+                            "\"rpy\":[%.9f,%.9f,%.9f],\"motors\":[0,0,0,0]}\n",
+                    (long long)llround(now * 1000.0), active_id,
+                    x, y, z, vx_global, vy_global, vz, rpy[0], rpy[1], yaw);
+          }
+          trace_land();
+          response_ok(active_id);
+          command = CMD_IDLE;
+          stable_since = -1.0;
+          previous_time = now;
+          previous_x = x;
+          previous_y = y;
+          previous_z = z;
+          continue;
+        }
+      } else {
+        stable_since = -1.0;
+      }
+    } else if (airborne) {
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = target_z;
+    }
+
+    if (airborne || command != CMD_IDLE) {
+      int causal_count = 0;
+      if (command == CMD_LAND) {
+        int count = 0;
+        WbContactPoint *points = wb_supervisor_node_get_contact_points(self_node, true, &count);
+        for (int i = 0; i < count; ++i)
+          if (fabs(points[i].point[2]) <= 0.005) ++causal_count;
+        if (causal_count) causal_contact = 1;
+      }
+      const double causal_ex = desired.vx - actual.vx;
+      const double causal_ey = desired.vy - actual.vy;
+      const double causal_dx = (causal_ex - pastVxError) / dt;
+      const double causal_dy = (causal_ey - pastVyError) / dt;
+      const int causal_active = command == CMD_LAND && causal_contact && causal_ablate;
+      if (causal_active) { pastVxError = causal_ex; pastVyError = causal_ey; }
+      pid_velocity_fixed_height_controller(actual, &desired, gains, dt, &power);
+      fprintf(causal_file, "{\"phase\":\"control\",\"time\":%.9f,\"dt\":%.9f,\"land\":%d,\"contact_count\":%d,\"contact_seen\":%d,\"ablation\":%d,\"actual_body\":[%.12g,%.12g],\"error\":[%.12g,%.12g],\"derivative_before\":[%.12g,%.12g],\"attitude_cmd\":[%.12g,%.12g],\"motors\":[%.12g,%.12g,%.12g,%.12g]}\n",
+        now, dt, command == CMD_LAND, causal_count, causal_contact, causal_active,
+        actual.vx, actual.vy, causal_ex, causal_ey, causal_dx, causal_dy,
+        desired.roll, desired.pitch, -motor_power(power.m1), motor_power(power.m2),
+        -motor_power(power.m3), motor_power(power.m4));
+      wb_motor_set_velocity(m1, -motor_power(power.m1));
+      wb_motor_set_velocity(m2, motor_power(power.m2));
+      wb_motor_set_velocity(m3, -motor_power(power.m3));
+      wb_motor_set_velocity(m4, motor_power(power.m4));
+      if (command == CMD_LAND && getenv("WEBEEBLOCKS_CI_ARTIFACT_DIR")) {
+        fprintf(stderr, "GP_U_LAND_CONTROL {\"time_ms\":%lld,\"id\":%d,\"phase\":\"control\","
+                        "\"position\":[%.9f,%.9f,%.9f],\"velocity_world\":[%.9f,%.9f,%.9f],"
+                        "\"rpy\":[%.9f,%.9f,%.9f],\"desired_velocity_body\":[%.9f,%.9f],"
+                        "\"actual_velocity_body\":[%.9f,%.9f],\"actual_yaw_rate\":%.9f,"
+                        "\"attitude_cmd\":[%.9f,%.9f,%.9f],"
+                        "\"desired_altitude\":%.9f,\"motors\":[%.9f,%.9f,%.9f,%.9f]}\n",
+                (long long)llround(now * 1000.0), active_id,
+                x, y, z, vx_global, vy_global, vz, rpy[0], rpy[1], yaw,
+                desired.vx, desired.vy, actual.vx, actual.vy, actual.yaw_rate,
+                desired.roll, desired.pitch, desired.yaw_rate, desired.altitude,
+                -motor_power(power.m1), motor_power(power.m2),
+                -motor_power(power.m3), motor_power(power.m4));
+      }
+    } else {
+      stop_motors(m1, m2, m3, m4);
+    }
+
+    previous_time = now;
+    previous_x = x;
+    previous_y = y;
+    previous_z = z;
+  }
+
+  stop_motors(m1, m2, m3, m4);
+  wb_led_set(color_led, 0);
+  wb_robot_cleanup();
+  return 0;
+}

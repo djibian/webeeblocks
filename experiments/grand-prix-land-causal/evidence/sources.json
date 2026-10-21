@@ -1,0 +1,72 @@
+{
+  "run": 39568761023,
+  "job": 119117401548,
+  "artifact": 12329814708,
+  "experiment_head": "3c1cd33c6d0e8aca42c038591e8366e7dc736355",
+  "zip_bytes": 14494523,
+  "zip_sha256": "62e4df7850591afbdfb636aafd426aeb75394d2337ffc735f2813b4163c549c4",
+  "zip_crc_verified": true,
+  "original_manifests_verified": {
+    "root": 9,
+    "scenario": 11
+  },
+  "source_folder": "1-A/gp-u-v1-L2000-s14-witness-539d015feb",
+  "excerpts": [
+    {
+      "source": "native_trace.csv",
+      "retained": "native-land-window.csv",
+      "header_bytes": 117,
+      "first_line_index": 20492,
+      "last_line_index_inclusive": 21047,
+      "byte_start": 7155379,
+      "byte_end_exclusive": 7413256,
+      "source_sha256": "00d124dbec90039107fbc8c193c66092ff579dc455f7044be1fba63142ef6402",
+      "lower_seconds": 163.93599999999998,
+      "upper_seconds": 1000000000.0
+    },
+    {
+      "source": "native-rotors.csv",
+      "retained": "rotors-land-window.csv",
+      "header_bytes": 102,
+      "first_line_index": 20492,
+      "last_line_index_inclusive": 21047,
+      "byte_start": 3679491,
+      "byte_end_exclusive": 3774878,
+      "source_sha256": "cd2e8db442a5d4513be52663e51d8e19c54e70c6fd3ddf848e3f4bd96e95af9b",
+      "lower_seconds": 163.93599999999998,
+      "upper_seconds": 1000000000.0
+    },
+    {
+      "source": "native-rotors.csv",
+      "retained": "rotors-switch-window.csv",
+      "header_bytes": 102,
+      "first_line_index": 2213,
+      "last_line_index_inclusive": 2237,
+      "byte_start": 175273,
+      "byte_end_exclusive": 179497,
+      "source_sha256": "cd2e8db442a5d4513be52663e51d8e19c54e70c6fd3ddf848e3f4bd96e95af9b",
+      "lower_seconds": 17.7,
+      "upper_seconds": 17.9
+    },
+    {
+      "source": "causal-control.jsonl",
+      "retained": "control-land-window.jsonl",
+      "header_bytes": 0,
+      "first_line_index": 9678,
+      "last_line_index_inclusive": 9892,
+      "byte_start": 2122460,
+      "byte_end_exclusive": 2161199,
+      "source_sha256": "c432fca880ea404781a9a7f46d77d0976e7813b4e666bdd09497af41fffab80f",
+      "lower_seconds": 163.93599999999998,
+      "upper_seconds": 1000000000.0
+    }
+  ],
+  "not_retained": [
+    "reference.tar",
+    "grand_prix_u_flight binary",
+    "complete native_trace.csv",
+    "complete native-rotors.csv",
+    "complete causal-control.jsonl"
+  ],
+  "note": "Complete originals remain in the cited GitHub artifact; excerpts are contiguous byte slices plus original header."
+}

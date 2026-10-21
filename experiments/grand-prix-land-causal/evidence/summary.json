@@ -1,0 +1,83 @@
+{
+  "claim": "one unmodified reference observation; no A/B comparison",
+  "native_processes_started": 1,
+  "native_processes_not_started": [
+    "B1",
+    "B2",
+    "A2"
+  ],
+  "protocol_stopped": true,
+  "run_conclusion": "failure",
+  "outcome": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s14",
+    "attempt": 1,
+    "seconds": 150.784,
+    "reason": null,
+    "crossings": 2
+  },
+  "land_start": 163.968,
+  "first_contact": {
+    "time": 165.016,
+    "attempt": 1.0,
+    "x": 0.6573799489279923,
+    "y": 1.5227175542233182,
+    "z": 0.0149391432731447,
+    "vx": -2.1344421374903683e-05,
+    "vy": -0.00122925644678798,
+    "vz": -0.45175481036058146,
+    "r0": -0.999847869698918,
+    "r1": -0.017442401304190235,
+    "r2": 9.76111834578729e-06,
+    "r3": 0.017442404035404053,
+    "r4": -0.9998477118620395,
+    "r5": 0.0005618057583717172,
+    "r6": -3.960964927442107e-08,
+    "r7": 0.0005618905480625712,
+    "r8": 0.9999998421394928,
+    "contact_count": 4.0,
+    "contact_min_z": -8.894888635082038e-05,
+    "contact_max_z": -3.275983154456327e-05
+  },
+  "first_contact_target_xy_error": 0.04829654256020757,
+  "max_postcontact_xy_speed": 0.0035297388654422185,
+  "max_postcontact_displacement": 0.0010391230152640165,
+  "max_postcontact_roll_degrees": 0.1361317142414796,
+  "stop": {
+    "time_ms": 166368,
+    "id": 141,
+    "phase": "stop",
+    "position": [
+      0.657365314,
+      1.5218728,
+      0.016041327
+    ],
+    "velocity_world": [
+      6.525e-06,
+      0.000376802,
+      -0.024696725
+    ],
+    "rpy": [
+      -2.6452e-05,
+      -1e-09,
+      3.124149365
+    ],
+    "motors": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "last_native_time": 168.376,
+  "retained_coast_seconds": 2.0080000000000098,
+  "required_coast_seconds": 3.0,
+  "rotor_reconstruction_valid": false,
+  "forces_observed": false,
+  "defect_exercised": false,
+  "product_fix_validated": false,
+  "independent_go": false,
+  "main": "b478f9dd1854d83345abe13ed20fcf7baeffaca5",
+  "pr638_head": "149c0b61b48f335eb4cb925113ccc03afce80cca",
+  "pr638_draft": true
+}

@@ -1,0 +1,92 @@
+GP_U_COMPOSED_BROKER_SHA256 2b59b3b253463cb01a058ff9dfce3609354041df70a73d26d7304c82e6ae00ad
+GP_U_SHARED_SOURCE_SHA256 8cf1a492e9f3417c5a8ad90005ddd35e373d1af8a3fd18f7699799c3e16d76d9
+GP_U_COMPOSED_SOURCE_SHA256 6fb171ded353c2b5ef41aef563adc83ff75e5e38ee4de5a3a7d196cb7e1df716
+make: Entering directory '/workspace/.land-causal-reference/controllers/grand_prix_u_flight'
+# updating activity_scene.d
+# updating grand_prix_u_deadline.d
+# updating file_broker_u.d
+# updating qt_file_dialog_provider.d
+# updating file_broker.d
+# updating pid_controller.d
+cc1: warning: command-line option ‘-std=c++17’ is valid for C++/ObjC++ but not for C
+# updating runtime_u.d
+cc1: warning: command-line option ‘-std=c++17’ is valid for C++/ObjC++ but not for C
+# compiling runtime_u.c
+cc1: warning: command-line option ‘-std=c++17’ is valid for C++/ObjC++ but not for C
+In file included from /usr/include/string.h:535,
+                 from build/runtime_u.c:5:
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:167:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:226:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:220:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:196:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:189:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+In function ‘strncpy’,
+    inlined from ‘parse_request’ at build/runtime_u.c:175:5,
+    inlined from ‘main’ at build/runtime_u.c:520:27:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: ‘__builtin_strncpy’ output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+   95 |   return __builtin___strncpy_chk (__dest, __src, __len,
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   96 |                                   __glibc_objsize (__dest));
+      |                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+# compiling pid_controller.c
+cc1: warning: command-line option ‘-std=c++17’ is valid for C++/ObjC++ but not for C
+# compiling file_broker.cpp
+# compiling qt_file_dialog_provider.cpp
+# compiling file_broker_u.cpp
+# compiling grand_prix_u_deadline.cpp
+# compiling activity_scene.cpp
+# linking grand_prix_u_flight
+# copying to grand_prix_u_flight
+make: Leaving directory '/workspace/.land-causal-reference/controllers/grand_prix_u_flight'
+GP_U_NATIVE {"artifact_dir": "gp-u-v1-L2000-s14-witness-539d015feb", "ast_sha256": "89f955f1fcbcb6434e547a940c5a6f3db308608e45a0723d52df8120ca2c8d7d", "attempt": 1, "claim": "native-shared-interpreter", "configuration": "gp-u-v1-L2000-s14", "crossings": 2, "mode": "witness", "reason": null, "seconds": 150.784, "status": "achieved", "visual_variant": "checkered", "webots_version": "R2025a"}
+Traceback (most recent call last):
+  File "/workspace/experiments/grand-prix-land-causal/run.py", line 152, in <module>
+    if __name__=='__main__':main()
+  File "/workspace/experiments/grand-prix-land-causal/run.py", line 110, in main
+    native();return
+  File "/workspace/experiments/grand-prix-land-causal/run.py", line 88, in native
+    runner.trial(home,14,2.,'witness',False,require_success=False)
+  File "/workspace/.land-causal-reference/tools/ci/run_grand_prix_u_prototype.py", line 205, in trial
+    stop_groups(children)
+  File "/workspace/experiments/grand-prix-land-causal/run.py", line 62, in stop_with_coast
+    text=(folder/'webots.log').read_text()
+  File "/usr/lib/python3.10/pathlib.py", line 1134, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+  File "/usr/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+NotADirectoryError: [Errno 20] Not a directory: '/workspace/ci-artifacts/land-causal/1-A/started.json/webots.log'

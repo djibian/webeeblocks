@@ -1,0 +1,7 @@
+{
+  "reference": "149c0b61b48f335eb4cb925113ccc03afce80cca",
+  "image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099",
+  "assets": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "experiment_head": "3c1cd33c6d0e8aca42c038591e8366e7dc736355",
+  "protocol_sha256": "66d6324038b9d1d83a738f0d0e6bf1a9690752edc5ba7a8f3e1eac95a5982d1d"
+}
