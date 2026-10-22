@@ -58,6 +58,16 @@ class Complexity(unittest.TestCase):
         self.assertEqual(result['max_input_nesting'], 0)
         self.assertEqual(result['max_connected_chain_blocks'], 200)
 
+    def test_existing_exact_project_fixture(self):
+        # A versioned real Blockly project on main, not a synthetic AST.
+        source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
+        metrics = analyze(json.loads(source.read_text(encoding='utf-8')))
+        self.assertEqual(metrics['total_blocks'], 5)
+        self.assertEqual(metrics['main_chain_blocks'], 4)
+        self.assertEqual(metrics['declared_variables'], 1)
+        self.assertEqual(metrics['referenced_variables'], 1)
+        self.assertEqual(metrics['max_input_nesting'], 1)
+
     def test_invalid_duplicate_ids_and_version(self):
         with self.assertRaisesRegex(InvalidWorkspace, 'duplicate'):
             analyze(project([b('x', 'same'), b('y', 'same')]))
