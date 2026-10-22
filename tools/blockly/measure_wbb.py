@@ -24,6 +24,9 @@ class InvalidWorkspace(ValueError):
 def analyze(project):
     if not isinstance(project, dict) or project.get('format') != 'webeeblocks-project' or project.get('version') != 1:
         raise InvalidWorkspace('not a supported WebeeBlocks .wbb project (format/version)')
+    activity = project.get('activity', {})
+    if not isinstance(activity, dict) or (activity.get('id') is not None and not isinstance(activity['id'], str)):
+        raise InvalidWorkspace('malformed activity metadata')
     ws = project.get('workspace')
     if not isinstance(ws, dict) or not isinstance(ws.get('blocks'), dict):
         raise InvalidWorkspace('missing Blockly workspace.blocks')
@@ -81,7 +84,11 @@ def analyze(project):
             for name, entry in inputs.items():
                 if not isinstance(entry, dict):
                     raise InvalidWorkspace('malformed Blockly input')
-                child = entry.get('block') or entry.get('shadow')
+                # An explicit but malformed connected block must never be
+                # hidden by a valid fallback shadow.
+                child = entry['block'] if 'block' in entry else entry.get('shadow')
+                if child is not None and not isinstance(child, dict):
+                    raise InvalidWorkspace('malformed Blockly connected block or shadow')
                 if child is not None:
                     visit(child, nesting + 1, statement_nesting + bool(STATEMENT_INPUT.fullmatch(name)), depth + 1)
             successor = block.get('next')
@@ -113,7 +120,7 @@ def analyze(project):
     return {
         'schema_version': 1,
         'basis': 'serialized Blockly workspace; no runtime/learner/ergonomic acceptance',
-        'activity_id': (project.get('activity') or {}).get('id'),
+        'activity_id': activity.get('id'),
         'total_blocks': instances,
         'block_types': dict(sorted(counts.items())),
         'top_level_stacks': len(roots),
