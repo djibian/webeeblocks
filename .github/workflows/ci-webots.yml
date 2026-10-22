@@ -1401,7 +1401,10 @@ jobs:
   strategy-timing:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # CI 39809565629: the original 12-min job budget cancelled the two real
+    # Webots/Blockly strategies while Docker apt/Chrome preparation was still
+    # active. Preserve both trials, contact checks, timings and inner bounds.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2286,7 +2289,10 @@ jobs:
   webots-smoke:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 7
+    # CI 39809565629: the original 7-min job budget cancelled the unchanged
+    # Blockly sidecar protocol at apt-get update: external Ubuntu archive
+    # downloads stalled for >4 minutes. Do not weaken native smoke oracles.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository

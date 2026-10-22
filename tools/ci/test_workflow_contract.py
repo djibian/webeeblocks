@@ -221,6 +221,47 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("continue-on-error:", webots)
         self.assertNotIn("if: false", webots)
 
+    def test_historical_webots_jobs_keep_all_oracles_with_runner_headroom(self):
+        # CI 39809565629: apt index/network stalls consumed the entire
+        # external envelopes (smoke 7 min; strategy 12 min). No native oracle,
+        # offline-world condition or test-level timeout may be altered.
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        smoke = suite.split("\n  webots-smoke:\n", 1)[1]
+        strategy = suite.split("\n  strategy-timing:\n", 1)[1].split(
+            "\n  historical-blockly-ui:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Checkout pinned Webots R2025a projects",
+            "Execute historical Blockly browser oracle",
+            "Rebuild and exercise Blockly sidecar protocol",
+            "Rebuild supervisor for Webots R2025a",
+            "Run historical empty world in Webots R2025a",
+            "Validate Webots runtime diagnostics",
+            "Execute generated historical controller in box challenge",
+            "Exercise simulation reset and controller restart",
+            "Validate controller restart diagnostics",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, smoke)
+        self.assertEqual(smoke.count("--network none"), 3)
+        for required in (
+            "timeout-minutes: 30",
+            "Run both Blockly strategies in fresh Webots processes",
+            "run_strategy S0 controllers/Blockly_Programs/CrazyflieL.xml",
+            "run_strategy S1 controllers/Blockly_Programs/CrazyflieShortcut85.xml",
+            "source /workspace/tools/ci/stop_webots_group.sh",
+            "Compare physical success and Webots times",
+            "assert delta > 0.0",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, strategy)
+        for text in (smoke, strategy):
+            self.assertNotIn("continue-on-error:", text)
+            self.assertNotIn("if: false", text)
+
     def test_native_progression_partition_is_complete_and_fail_closed(self):
         # Unit-check the actual dispatch code; never run or stub a physical
         # acceptance oracle. The required native scripts run in CI unchanged.
