@@ -121,7 +121,35 @@ static double wrap_angle(double angle) {
            Every observation since teleport/loss must confirm the full pose. */
         if (now - stable_since >= STOP_WINDOW) {'''),
       ('          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);',
-       '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();')]
+       '          trace_reset(x, y, z, origin_x, origin_y, origin_z);\n          response_ok(active_id);\n          gp_ground_since = -1.0;\n          gp_u_reset_complete();'),
+      # CI-only observations of the actual commands after the existing PID and
+      # clamps, and of the exact motor-stop/ack boundary. No control is changed.
+      ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
+       '''      wb_motor_set_velocity(m4, motor_power(power.m4));
+      if (command == CMD_LAND && getenv("WEBEEBLOCKS_CI_ARTIFACT_DIR")) {
+        fprintf(stderr, "GP_U_LAND_CONTROL {\\\"time_ms\\\":%lld,\\\"id\\\":%d,\\\"phase\\\":\\\"control\\\","
+                        "\\\"position\\\":[%.9f,%.9f,%.9f],\\\"velocity_world\\\":[%.9f,%.9f,%.9f],"
+                        "\\\"rpy\\\":[%.9f,%.9f,%.9f],\\\"desired_velocity_body\\\":[%.9f,%.9f],"
+                        "\\\"actual_velocity_body\\\":[%.9f,%.9f],\\\"actual_yaw_rate\\\":%.9f,"
+                        "\\\"attitude_cmd\\\":[%.9f,%.9f,%.9f],"
+                        "\\\"desired_altitude\\\":%.9f,\\\"motors\\\":[%.9f,%.9f,%.9f,%.9f]}\\n",
+                (long long)llround(now * 1000.0), active_id,
+                x, y, z, vx_global, vy_global, vz, rpy[0], rpy[1], yaw,
+                desired.vx, desired.vy, actual.vx, actual.vy, actual.yaw_rate,
+                desired.roll, desired.pitch, desired.yaw_rate, desired.altitude,
+                -motor_power(power.m1), motor_power(power.m2),
+                -motor_power(power.m3), motor_power(power.m4));
+      }'''),
+      ('          trace_land();\n          response_ok(active_id);',
+       '''          if (getenv("WEBEEBLOCKS_CI_ARTIFACT_DIR")) {
+            fprintf(stderr, "GP_U_LAND_CONTROL {\\\"time_ms\\\":%lld,\\\"id\\\":%d,\\\"phase\\\":\\\"stop\\\","
+                            "\\\"position\\\":[%.9f,%.9f,%.9f],\\\"velocity_world\\\":[%.9f,%.9f,%.9f],"
+                            "\\\"rpy\\\":[%.9f,%.9f,%.9f],\\\"motors\\\":[0,0,0,0]}\\n",
+                    (long long)llround(now * 1000.0), active_id,
+                    x, y, z, vx_global, vy_global, vz, rpy[0], rpy[1], yaw);
+          }
+          trace_land();
+          response_ok(active_id);''')]
     result=source
     for old,new in edits:
         if result.count(old)!=1:raise RuntimeError('shared Runtime anchor changed; revalidation required')

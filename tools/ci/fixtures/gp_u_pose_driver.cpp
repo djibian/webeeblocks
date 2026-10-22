@@ -358,6 +358,11 @@ void pid_velocity_fixed_height_controller(actual_state_t a,desired_state_t* d,ga
  assert(std::isfinite(d->roll) && std::isfinite(d->pitch) && std::isfinite(d->yaw_rate) &&
   std::isfinite(d->altitude) && std::isfinite(d->vx) && std::isfinite(d->vy));
  std::memset(p,0,sizeof(*p));
+ // Independently chosen fake PID outputs exercise both clipping boundaries
+ // and motor signs in the composed runtime's optional command observation.
+ if(std::getenv("GP_U_TEST_NONZERO_POWER")){
+  p->m1=-1; p->m2=620; p->m3=37; p->m4=42;
+ }
 }
 #endif
 int main(){
