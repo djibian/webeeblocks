@@ -101,6 +101,24 @@ technical/native success is necessary but **not sufficient** for the owner's
 pedagogical PASS; no particular block count or syntax shape is mandatory.
 
 
+**Grand Prix checkpoint #635 — owner-authoritative pedagogical FAIL** on exact
+`8b12e52b6a0fe1fa9f929b157a07f081a0964d5b`
+([observations and screenshots](https://github.com/djibian/webeeblocks/issues/635#issuecomment-6267569452)).
+The *same* teacher demonstration technically completed configurations 1/2/5
+(1/2/3 H) at 123.392 / 139.968 / 147.328 simulated seconds, but this is
+**not** pedagogical acceptance: the terminal object is a wall, not a recognisable
+closed H. Before a new exact-artifact human qualification, repair the three
+black/white checkered, green-bordered landing zones; show the U with a white
+floor guide; replace lateral walls with narrower, H-aligned dashed red
+**enforced** mission boundaries; restore the accepted Webots floor appearance;
+use dashed yellow low-flight markings; and provide a useful smooth external
+camera follow. Preserve actual geometry/collision/low-altitude/landing oracles,
+the same ordinary Blockly project across unknown configurations, negative
+counterexamples and independent LAND at exactly 210 s. The proposed longer
+course and detectable drift-correction landmarks are **feasibility questions**,
+not approved geometry changes. The checkpoint #635 is closed FAIL, not a pending
+or reusable PASS; #619 remains independently accepted and Phase 2 stays gated.
+
 **Phase 2 — mandatory six-activity redesign after both acceptances:**
 co-design and get the owner's agreement on a cumulative matrix for 2–7,
 `new concept -> world property -> pupil mission -> prior concepts -> observable
