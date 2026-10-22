@@ -4,6 +4,8 @@ import argparse
 import os
 import subprocess
 import sys
+import json
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 FRESHNESS = "tools/ci/run_runtime_v2_outcome_freshness.py"
@@ -22,10 +24,13 @@ PROGRESSION = (
         "tools/ci/run_progression_autonomous_mission.py",
     )
 
-# Three nearly equal wall-clock groups, based on 2026-10-21 R2025a logs:
-# sequence/reactive/overwrite, neutral/combined/autonomous, repeat/simple/memory.
-# This table partitions the nine *entire* scripts without slicing their tests.
-SHARD_INDICES = ((0, 4, 7), (1, 5, 8), (2, 3, 6))
+# 2026-10-22 adversarial CI #39768379510 falsified the original three-way
+# timing estimate: e.g. repeat took ~18 min rather than ~5, while all three
+# 30-minute jobs were cancelled before their final mission. Partition seven
+# isolated runners by native cost, leaving variable/heavy missions separate.
+# The nine complete original programs, physical oracles and negative cases
+# remain unchanged; only scheduling/runner budgets change.
+SHARD_INDICES = ((0, 3), (1,), (2,), (4, 7), (5,), (6,), (8,))
 
 
 def proofs_for_shard(shard: int) -> tuple[str, ...]:
@@ -53,11 +58,40 @@ def main() -> int:
     args = parser.parse_args()
     proofs = (proofs_for_shard(args.shard) if args.shard is not None
               else proofs_for_job(os.environ.get("GITHUB_JOB", "")))
+    # Do not conflate an Actions pull-request merge ref with the exact tested
+    # candidate. Every native runner checks the checkout against its target SHA.
+    if args.shard is not None:
+        checkout_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        expected_sha = os.environ.get("WEBEEBLOCKS_CI_TARGET_SHA")
+        if expected_sha and checkout_sha != expected_sha:
+            print(f"FAIL native shard checkout {checkout_sha} != {expected_sha}", file=sys.stderr)
+            return 2
+
+    completed = []
     for proof in proofs:
+        began = time.monotonic()
+        print(f"BEGIN native R2025a proof {proof}", flush=True)
         result = subprocess.run([sys.executable, proof], cwd=ROOT, check=False)
+        seconds = round(time.monotonic() - began, 2)
+        print(f"END native R2025a proof {proof}: exit={result.returncode} elapsed={seconds}s", flush=True)
         if result.returncode:
             return result.returncode
+        completed.append({"script": proof, "elapsed_seconds": seconds})
     if args.shard is not None:
+        # A full-shard manifest only exists when *every* native subprocess
+        # succeeded. On abort/timeout only diagnostic artifacts are retained.
+        manifest = ROOT / f"ci-artifacts/runtime-v2-progression-shard-{args.shard}/manifest.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({
+            "schema_version": 1,
+            "head_sha": checkout_sha,
+            "shard": args.shard,
+            "required_proofs": list(proofs),
+            "completed_proofs": completed,
+            "complete": True,
+        }, indent=2) + "\n", encoding="utf-8")
         print(f"PASS native R2025a freshness and entire progression shard {args.shard}")
     elif len(proofs) == 1:
         print("PASS real-Webots activity outcome foundation; progression missions are proved by the required Runtime suite on the same exact CI target")

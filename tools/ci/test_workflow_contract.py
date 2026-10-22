@@ -98,17 +98,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'", core)
         for required in (
             "runs-on: ubuntu-22.04",
-            "timeout-minutes: 30",
+            "timeout-minutes: 60",
             "fail-fast: false",
-            "shard: [0, 1, 2]",
+            "shard: [0, 1, 2, 3, 4, 5, 6]",
             "ref: ${{ inputs.target_sha || github.sha }}",
             "node-version: '22'",
             "bash ./tools/prepare_runtime_v2.sh",
             "WEBEEBLOCKS_RESET_PHASE_TRACE: '1'",
             "WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'",
+            "WEBEEBLOCKS_CI_TARGET_SHA: ${{ inputs.target_sha || github.sha }}",
             'python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"',
+            "Require full native shard attestation",
+            "test -s ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/manifest.json",
             "if: always()",
             "name: runtime-v2-progression-shard-${{ matrix.shard }}",
+            "ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/",
             "ci-artifacts/runtime-v2-outcome-provider/",
             "ci-artifacts/progression-*/",
             "if-no-files-found: error",
@@ -157,17 +161,17 @@ class WorkflowTests(unittest.TestCase):
                          (probe.FRESHNESS, *exact_scripts))
         self.assertEqual(probe.proofs_for_job("runtime-v2-webots"), (probe.FRESHNESS,))
         self.assertEqual(probe.proofs_for_job("student-ui"), (probe.FRESHNESS,))
-        expected_groups = ((0, 4, 7), (1, 5, 8), (2, 3, 6))
+        expected_groups = ((0, 3), (1,), (2,), (4, 7), (5,), (6,), (8,))
         self.assertEqual(probe.SHARD_INDICES, expected_groups)
         visited = []
-        for shard in range(3):
+        for shard in range(len(expected_groups)):
             actual = probe.proofs_for_shard(shard)
             self.assertEqual(actual[0], probe.FRESHNESS)
             self.assertEqual(actual[1:], tuple(exact_scripts[i] for i in expected_groups[shard]))
             visited.extend(actual[1:])
         self.assertEqual(len(visited), 9)
         self.assertEqual(set(visited), set(exact_scripts))
-        for invalid in (-1, 3, 99):
+        for invalid in (-1, len(expected_groups), 99):
             with self.assertRaises(ValueError):
                 probe.proofs_for_shard(invalid)
 

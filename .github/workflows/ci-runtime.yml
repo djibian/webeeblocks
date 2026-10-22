@@ -70,17 +70,19 @@ jobs:
       # fail-closed by each required runtime-v2-progression matrix leg.
 
 
-  # Exactly three independent runners preserve all nine complete real R2025a
-  # missions, including negative configurations and the #637 RESET collision.
+  # Seven bounded native runners preserve all nine complete R2025a missions.
+  # The former three 30-min runners were all cancelled at deadline (run
+  # 39768379510), leaving their final scripts unproven. 60 min is an outer
+  # CI budget, NOT a change to any native physical probe's timeouts or oracles.
   # The reusable Runtime suite cannot succeed if any matrix leg fails.
   runtime-v2-progression:
     name: runtime-v2-progression (shard ${{ matrix.shard }})
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,13 +96,17 @@ jobs:
         env:
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
           WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
+          WEBEEBLOCKS_CI_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
         run: python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"
+      - name: Require full native shard attestation
+        run: test -s ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/manifest.json
       - name: Retain native evidence even when a mission fails
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runtime-v2-progression-shard-${{ matrix.shard }}
           path: |
+            ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/
             ci-artifacts/runtime-v2-outcome-provider/
             ci-artifacts/progression-*/
           if-no-files-found: error
