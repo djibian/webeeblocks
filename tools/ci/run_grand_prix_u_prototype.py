@@ -19,6 +19,7 @@ import uuid
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
+from tools.ci.webots_startup_diagnostics import StartupEvidence
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def validate_timeout_probe(rows, text):
@@ -75,7 +76,7 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
-def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
     with socket.socket() as probe:
@@ -99,7 +100,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
-    children=[];streams=[]
+    children=[];streams=[];startup=None
     try:
         with (out/'webots.log').open('w') as log:
             launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
@@ -108,14 +109,18 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
                 xvfb=shutil.which('xvfb-run')
                 if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
                 launch=[xvfb,'-a',*launch]
+            startup=StartupEvidence(out,sequence_index,launch,env,cwd=ROOT)
             webots=subprocess.Popen(launch,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             children.append(webots);limit=time.monotonic()+30
             while webots.poll() is None and time.monotonic()<limit:
+                startup.observe(webots)
                 text=(out/'webots.log').read_text()
                 if tcp and text.count(f'Waiting for local or remote connection on port {port} ')>=2:break
                 if not tcp and 'WEBEEBLOCKS_RUNTIME_V2 READY' in text:break
                 time.sleep(.1)
-            else:raise RuntimeError('native readiness not established: '+str(out))
+            else:
+                startup.failure(webots,home,out/'webots.log')
+                raise RuntimeError('native readiness not established: '+str(out))
             if tcp:
                 for name,path,args in (
                   ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
@@ -186,6 +191,8 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         return result
     finally:
         stop_groups(children)
+        if startup is not None and startup.failed:
+            startup.after_cleanup(webots.pid)
         for stream in streams:stream.close()
         runtime_state.cleanup()
         (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
@@ -242,8 +249,8 @@ def main():
     if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
-    for seed,side,mode in cases:
-        result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes')
+    for sequence_index,(seed,side,mode) in enumerate(cases,1):
+        result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index)
         if mode=='witness':
             if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations/sizes')
             digest=result['ast_sha256']
