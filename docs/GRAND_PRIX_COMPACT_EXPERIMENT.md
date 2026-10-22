@@ -1,11 +1,11 @@
-# Expérience : trois côtés avec 69 blocs et deux variables
+# Expérience : trois côtés avec 67 blocs et trois variables
 
 Ce candidat d'ingénierie est un vrai programme Blockly, **pas encore un Grand
 Prix qualifié**. Il n'est ni le projet initial élève ni une nouvelle activité.
 Les règles, monde, oracle, autorité à 210 secondes, RESET, LAND et contrôleur
 restent inchangés. Aucune acceptation pédagogique ou physique n'en découle.
 
-**Révision courante : 69 blocs, 2 variables, 0 procédure, profondeur 4, budget 3514.**
+**Révision courante : 67 blocs, 3 variables, 0 procédure, profondeur 3, budget 3153.**
 Le programme initial à 47 blocs est conservé dans `compact_u_47_initial.wbb`.
 Les sections initiales ci-dessous décrivent cette première expérience ; la
 réfutation native et la révision sont détaillées à la fin.
@@ -284,3 +284,57 @@ le défilement reste nécessaire. L'utilité d'une procédure pour **décomposer
 mettre en page** reste donc à comparer, même si elle augmenterait le nombre de
 blocs. Le69 ne reçoit aucun PASS natif anticipé : même sept seeds requis,
 toutes les obligations historiques, aucun nouveau délai ni tolérance.
+
+
+## Le 69 réfute la comparaison latérale près d'un coin ; révision67
+
+Run **39750665195**, HEAD `040ffa91072d46bf8ddbd6d355bf17e6c3a4c68b` :
+seed0 achieved144,544s, seed1 achieved156,000s, puis seed3 refuse
+`envelope-contact` à112,744s, un H franchi et `UNSAFE_OR_TIMEOUT`. Les quatre
+seeds suivants ne sont pas exécutés. Le premier H du seed3 est donc passé,
+mais la correction n'est pas suffisante pour le suivant.
+Archive **12413865919**, SHA256
+`b4e96797c9dac48fe52ee29443df55ad9567bb5588dd4bdc0bed03e8f53c7b10`, CRC vérifié ;
+tous les fichiers des trois manifestes9/9/8 vérifient leurs empreintes.
+
+La trace décisive montre RANGE gauche=2 (saturée) et droite=0,659484446 à
+l'approche du H du troisième côté ; le programme choisit donc MOVE gauche0,10.
+Le refus est localisé à `(1,6813988565 ; 1,7995728319 ; 0,7815278283)`, avant la
+traversée du deuxième H. Près du coin, les deux rayons n'observent pas des
+surfaces symétriques du même couloir : leur comparaison ne fournit pas son
+centre. La disponibilité d'une distance finie n'établit pas cette hypothèse
+supplémentaire. Le69 est conservé dans `compact_u_69_gate_correction.wbb`.
+
+**Architecture révisée :** supprimer cette correction latérale approximative.
+À la fin des deux premiers côtés, remplacer la terminaison sur2m *commandés*
+par une approche **mesurée** : UNTIL distance devant≤0,50m, avances surveillées
+ordinaires. Le mur extérieur du monde courant permet de recaler la coordonnée
+qui deviendra latérale après le virage. Le compteur de commandes ne prétend
+plus établir l'abscisse exacte du coin.
+
+Une troisième variable `côté`, initialisée0 et incrémentée après chaque corps,
+distingue les deux virages de l'arrivée : si `côté<2`, terminer l'approche du
+coin puis tourner ; lors du troisième passage, rejoindre la pose. Elle évite
+le discriminant frontal0,90m devenu fragile lorsque les coins sont recalés.
+C'est un compteur élève ordinaire, pas un numéro fourni par le monde. La
+répétition de trois côtés reste visible ; ni bloc de côté ni état caché.
+Le recentrage terminal du63 et les placements mesurés restent conservés.
+
+Mesures67 : **3 variables utilisées, 0 procédure, imbrication3, budget3153/20000**.
+Gain198 blocs, environ75 % face au265. Le choix initial de deux variables et
+la tentative de correction locale sont révisés sur preuves, pas maintenus comme
+objectifs. Ce programme est plus explicite mais nécessite encore des
+recalages sur les murs actuels. Il ne qualifie pas #635 sans murs ; la recherche
+initiale jusqu'à1,20m reste également une hypothèse de domaine à justifier
+publiquement, pas une garantie pour tous les placements imaginables.
+
+Le modèle67 passe les mêmes99 dispositions dans les cinq domaines idéaux
+séparés (`ideal-model-67.json`). Probe Chromium/Zelos :67 blocs, trois variables,
+Save As/Open/AST/source map fidèles, zéro erreur, pile2200 unités à0,55
+(`ui-67.json`), défilement nécessaire. Aucun PASS natif n'est anticipé.
+
+Reproduction des anciennes versions avec le constructeur courant :
+`cornerSensors:false,sideCounter:false` désactive les deux nouveautés du67 ;
+ajouter `gateCorrection:true` pour le69, sinonfalse pour le63 ; les options
+`lateral:false,center:false` donnent le47, `center:false` seul donne le53.
+Ces options définissent des variantes d'algorithme, jamais des entrées de monde.
