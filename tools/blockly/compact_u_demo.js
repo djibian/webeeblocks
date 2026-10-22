@@ -9,7 +9,7 @@ S.installConditionalLoopBounds(Blockly);
 const C=require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract');
 const A=require('../../plugins/robot_windows/blockly/webeeblocks/activities');
 const Profiles=require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
-function build({lateral=true,center=true}={}){
+function build({lateral=true,center=true,gateCorrection=true}={}){
  const workspace=new Blockly.Workspace();
  const variables=Object.fromEntries(['distance commandée','nombre H'].map((name,i)=>[name,workspace.getVariableMap().createVariable(name,'','compact-u-'+i)]));
  function b(type,fields={}){const q=workspace.newBlock(type);for(const [k,v]of Object.entries(fields))q.setFieldValue(String(v),k);return q;}
@@ -21,11 +21,14 @@ function build({lateral=true,center=true}={}){
  const change=(name,x)=>input(b('math_change',{VAR:variables[name].getId()}),'DELTA',num(x));
  const compare=(op,a,x)=>input(input(b('logic_compare',{OP:op}),'A',a),'B',num(x));
  function until(x,body){return input(input(b('webeeblocks_v2_until'),'BOOL',compare('GTE',get('distance commandée'),x)),'DO',seq(body));}
- function iff(condition,body){return input(input(b('controls_if'),'IF0',condition),'DO0',seq(body));}
+ function iff(condition,body,otherwise=[]){const q=b('controls_if');if(otherwise.length)q.loadExtraState({hasElse:true});input(input(q,'IF0',condition),'DO0',seq(body));if(otherwise.length)input(q,'ELSE',seq(otherwise));return q;}
  const move=(x,d='forward')=>b('webeeblocks_v2_move',{DISTANCE:x,DIRECTION:d});
  const vertical=d=>b('webeeblocks_v2_vertical',{DIRECTION:d,DISTANCE:.4});
  const guarded=(distance,threshold)=>b('webeeblocks_v2_guarded_move',{DISTANCE:distance,THRESHOLD:threshold,VAR:variables['distance commandée'].getId()});
- const crossing=[vertical('down'),move(.4),change('distance commandée',.4),move(.3),change('distance commandée',.3),vertical('up'),change('nombre H',1)];
+ const nearest=input(input(b('logic_compare',{OP:'LT'}),'A',b('webeeblocks_v2_range',{DIRECTION:'left'})),'B',b('webeeblocks_v2_range',{DIRECTION:'right'}));
+ const correction=iff(nearest,[move(.1,'right')],[move(.1,'left')]);
+ if(!gateCorrection)correction.dispose(false);
+ const crossing=[...(gateCorrection?[correction]:[]),vertical('down'),move(.4),change('distance commandée',.4),move(.3),change('distance commandée',.3),vertical('up'),change('nombre H',1)];
  const search=guarded(.1,.35);input(search,'ON_SENSOR',seq(crossing));
  const corner=iff(compare('GT',b('webeeblocks_v2_range',{DIRECTION:'front'}),.9),[
   until(2,[guarded(.1,.35)]),b('webeeblocks_v2_turn',{DIRECTION:'left',ANGLE:90})]);

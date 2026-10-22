@@ -1,11 +1,11 @@
-# Expérience : trois côtés avec 63 blocs et deux variables
+# Expérience : trois côtés avec 69 blocs et deux variables
 
 Ce candidat d'ingénierie est un vrai programme Blockly, **pas encore un Grand
 Prix qualifié**. Il n'est ni le projet initial élève ni une nouvelle activité.
 Les règles, monde, oracle, autorité à 210 secondes, RESET, LAND et contrôleur
 restent inchangés. Aucune acceptation pédagogique ou physique n'en découle.
 
-**Révision courante : 63 blocs, 2 variables, 0 procédure, profondeur 3, budget 3139.**
+**Révision courante : 69 blocs, 2 variables, 0 procédure, profondeur 4, budget 3514.**
 Le programme initial à 47 blocs est conservé dans `compact_u_47_initial.wbb`.
 Les sections initiales ci-dessous décrivent cette première expérience ; la
 réfutation native et la révision sont détaillées à la fin.
@@ -238,3 +238,49 @@ AST compact, puis tous les témoins/négatifs historiques. Le coût doit toujour
 respecter les enveloppes existantes. Cette révision reste limitée au monde
 actuel doté des parois terminales ; elle ne qualifie pas le futur parcours sans
 murs. Le recalage observable sans ces parois demeure une question produit ouverte.
+
+
+## Réfutation du 63 et correction latérale avant le H (69 blocs)
+
+Le run Draft **39749516989**, HEAD `29dcabd0aaea64d3e930010a4fe0765f3b613880`,
+établit le même AST63 : seed0 achieved150,272s ; seed1 achieved156,448s ;
+seed3 refuse `envelope-contact` à80,952s avant le premier franchissement.
+Les quatre seeds suivants ne sont pas exécutés : aucune qualification de leur
+trajectoire n'est extrapolée.
+
+ZIP **12412837429**, SHA256
+`4f02ca909bb2f663f77817cea44b67830c3b52a55f8a3074a0834b10400ff8ba`, CRC vérifié ;
+les manifestes des trois cas vérifient leurs 9/9/8 fichiers. Diagnostic du refus :
+position `(1,7959941675 ; 0,6626745842 ; 0,4157484933)`, premier H à `(2 ; 0,95)`
+sur le deuxième côté. Le décalage latéral d'environ0,204m dépasse le domaine
+central de passage de0,19m (demi-ouverture0,28 moins rayon0,09). Les erreurs de
+progression commandée affectent donc aussi le passage, pas seulement la pose.
+Le programme continue après ce refus de mission irréversible : ses observations
+ultérieures ne constituent jamais une restauration du résultat.
+
+Révision : dans le corps du seuil, avant toute descente, comparer RANGE gauche
+et droite. Commander0,10m vers la droite si la gauche est plus proche, sinon
+vers la gauche. C'est une **correction bornée d'alignement**, pas un centrage
+prouvé pour un état arbitraire ; à égalité, la branche gauche est choisie.
+L'élève écrit le SI/SINON et ses deux mouvements. Aucun appel au plan caché,
+aucune modification des portiques ou des marges. Le compteur de distance reste
+celui des mouvements avant, les translations latérales ne l'incrémentent pas.
+La correction utilise les parois actuellement observables à l'approche : sa
+validité ne se transfère pas au futur monde sans murs.
+
+L'ancien63 est conservé dans `compact_u_63_arrival.wbb`, constructeur
+`build({gateCorrection:false})`. Pour reconstruire les47/53, ajouter également
+`gateCorrection:false` aux options décrites précédemment.
+Le69 compte deux variables, zéro procédure, **quatre** niveaux de corps :
+repeat → UNTIL → guarded → IF d'alignement. Budget3514/20000. Ce coût est explicite ;
+le niveau supplémentaire ne doit pas être caché derrière une notion de bloc
+magique. Gain196 blocs, environ74 % face au265 courant.
+
+Le modèle69 repasse99/99 dans chacun des cinq domaines idéaux séparés retenus,
+preuve conservée dans `evidence/compact-u/ideal-model-69.json`. La page réelle
+Zelos repasse la sauvegarde/réouverture et les IDs sans erreur JS
+(`ui-69.json`) ; pile2320 unités de haut, largeur853, à zoom minimal0,55 :
+le défilement reste nécessaire. L'utilité d'une procédure pour **décomposer et
+mettre en page** reste donc à comparer, même si elle augmenterait le nombre de
+blocs. Le69 ne reçoit aucun PASS natif anticipé : même sept seeds requis,
+toutes les obligations historiques, aucun nouveau délai ni tolérance.
