@@ -63,6 +63,9 @@ jobs:
           # #637: preserve original delivery timing; capture only original RESET locals.
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
           WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
+        env:
+          # Native proofs are mandatory in every progression matrix leg below.
+          WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE: sharded
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
         if: always()
@@ -71,6 +74,42 @@ jobs:
           name: runtime-v2-core-progression
           path: ci-artifacts/progression-*/
           if-no-files-found: warn
+
+
+  # Exactly three independent runners preserve all nine complete real R2025a
+  # missions, including negative configurations and the #637 RESET collision.
+  # The reusable Runtime suite cannot succeed if any matrix leg fails.
+  runtime-v2-progression:
+    name: runtime-v2-progression (shard ${{ matrix.shard }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare identical Blockly 13.2.1 product assets
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Prove real R2025a freshness and complete progression missions
+        env:
+          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+          WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
+        run: python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"
+      - name: Retain native evidence even when a mission fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-v2-progression-shard-${{ matrix.shard }}
+          path: |
+            ci-artifacts/runtime-v2-outcome-provider/
+            ci-artifacts/progression-*/
+          if-no-files-found: error
 
   runtime-v2-windows-assets:
     runs-on: windows-2022
