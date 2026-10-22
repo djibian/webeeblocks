@@ -2283,7 +2283,10 @@ jobs:
   webots-smoke:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 7
+    # Cold pinned-project/Docker preparation and prior historical native probes
+    # exhausted 7min during the final restart test. Preserve each original
+    # 30s native deadline and all mandatory restart marker/error assertions.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
