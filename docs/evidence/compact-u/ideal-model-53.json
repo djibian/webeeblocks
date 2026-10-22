@@ -1,0 +1,22 @@
+{
+  "claim": "ideal-kinematic falsification only; no native or timing qualification",
+  "distinct_layouts": 99,
+  "results": {
+    "scale=1,yaw=0": {
+      "achieved": 99
+    },
+    "scale=0.98,yaw=0": {
+      "achieved": 99
+    },
+    "scale=1.02,yaw=0": {
+      "achieved": 99
+    },
+    "scale=1,yaw=-1": {
+      "achieved": 99
+    },
+    "scale=1,yaw=1": {
+      "achieved": 99
+    }
+  },
+  "first_counterexamples": {}
+}

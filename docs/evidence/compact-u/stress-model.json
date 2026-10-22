@@ -1,0 +1,194 @@
+[
+  {
+    "seed": 0,
+    "scale": 0.9,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 1,
+      "distance commandée": 1.3
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 64.0,
+      "reason": "wrong-landing",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 0,
+    "scale": 1.1,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 1,
+      "distance commandée": 1.4000000000000001
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 14.816,
+      "reason": "low-outside-zone",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 0,
+    "scale": 1,
+    "yawError": 5,
+    "error": null,
+    "variables": {
+      "nombre H": 1,
+      "distance commandée": 1.2
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s0",
+      "attempt": 1,
+      "seconds": 63.328,
+      "reason": "wrong-landing",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 0,
+    "scale": 1,
+    "yawError": -5,
+    "error": {
+      "message": "runtime v2: conditional loop iteration limit exceeded"
+    },
+    "variables": null,
+    "oracle": null
+  },
+  {
+    "seed": 1,
+    "scale": 0.9,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 2,
+      "distance commandée": 1.3
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s1",
+      "attempt": 1,
+      "seconds": 36.416,
+      "reason": "envelope-contact",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 1,
+    "scale": 1.1,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 2,
+      "distance commandée": 1.4000000000000001
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s1",
+      "attempt": 1,
+      "seconds": 14.816,
+      "reason": "low-outside-zone",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 1,
+    "scale": 1,
+    "yawError": 5,
+    "error": null,
+    "variables": {
+      "nombre H": 2,
+      "distance commandée": 1.2
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s1",
+      "attempt": 1,
+      "seconds": 67.84,
+      "reason": "wrong-landing",
+      "crossings": 2
+    }
+  },
+  {
+    "seed": 1,
+    "scale": 1,
+    "yawError": -5,
+    "error": {
+      "message": "runtime v2: conditional loop iteration limit exceeded"
+    },
+    "variables": null,
+    "oracle": null
+  },
+  {
+    "seed": 4,
+    "scale": 0.9,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 3,
+      "distance commandée": 1.3000000000000003
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 35.52,
+      "reason": "envelope-contact",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 4,
+    "scale": 1.1,
+    "yawError": 0,
+    "error": null,
+    "variables": {
+      "nombre H": 2,
+      "distance commandée": 2.400000000000001
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 17.408,
+      "reason": "low-outside-zone",
+      "crossings": 1
+    }
+  },
+  {
+    "seed": 4,
+    "scale": 1,
+    "yawError": 5,
+    "error": null,
+    "variables": {
+      "nombre H": 3,
+      "distance commandée": 1.2000000000000004
+    },
+    "oracle": {
+      "status": "not-achieved",
+      "configuration": "gp-u-v1-L2000-s4",
+      "attempt": 1,
+      "seconds": 69.888,
+      "reason": "wrong-landing",
+      "crossings": 3
+    }
+  },
+  {
+    "seed": 4,
+    "scale": 1,
+    "yawError": -5,
+    "error": {
+      "message": "runtime v2: conditional loop iteration limit exceeded"
+    },
+    "variables": null,
+    "oracle": null
+  }
+]

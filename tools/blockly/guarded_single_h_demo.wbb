@@ -1,0 +1,184 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "Waivrc$fW/9C5.aaX[E!",
+          "x": 0,
+          "y": 0,
+          "fields": {
+            "HEIGHT": 0.4
+          },
+          "next": {
+            "block": {
+              "type": "webeeblocks_v2_vertical",
+              "id": "8/o?p/YO{DcMl~^!q%(M",
+              "fields": {
+                "DIRECTION": "up",
+                "DISTANCE": 0.4
+              },
+              "next": {
+                "block": {
+                  "type": "variables_set",
+                  "id": "ZPO(+fp#yYhC%_Z^=IwW",
+                  "fields": {
+                    "VAR": {
+                      "id": "commanded-position"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "math_number",
+                        "id": "dF$7X=5A!;(DpA0p-8N1",
+                        "fields": {
+                          "NUM": 0
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "webeeblocks_v2_guarded_move",
+                      "id": "8Md]J]$P_B8SC.=#%%y#",
+                      "fields": {
+                        "DISTANCE": 0.4,
+                        "THRESHOLD": 0.35,
+                        "VAR": {
+                          "id": "commanded-position"
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "webeeblocks_v2_guarded_move",
+                          "id": "n!rVju:Vsv=w`?#d3+U^",
+                          "fields": {
+                            "DISTANCE": 0.4,
+                            "THRESHOLD": 0.35,
+                            "VAR": {
+                              "id": "commanded-position"
+                            }
+                          },
+                          "inputs": {
+                            "ON_SENSOR": {
+                              "block": {
+                                "type": "webeeblocks_v2_vertical",
+                                "id": "2xM0/jaQ#W3cM$6Mq3vr",
+                                "fields": {
+                                  "DIRECTION": "down",
+                                  "DISTANCE": 0.4
+                                },
+                                "next": {
+                                  "block": {
+                                    "type": "webeeblocks_v2_move",
+                                    "id": "(yF]VO~0X?$/8b_#_m(d",
+                                    "fields": {
+                                      "DIRECTION": "forward",
+                                      "DISTANCE": 0.4
+                                    },
+                                    "next": {
+                                      "block": {
+                                        "type": "math_change",
+                                        "id": "lpCC!@Xo:~2mI+tU@J@W",
+                                        "fields": {
+                                          "VAR": {
+                                            "id": "commanded-position"
+                                          }
+                                        },
+                                        "inputs": {
+                                          "DELTA": {
+                                            "block": {
+                                              "type": "math_number",
+                                              "id": "e0,4MJdNdixb+Vo2Y13/",
+                                              "fields": {
+                                                "NUM": 0.4
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "next": {
+                                          "block": {
+                                            "type": "webeeblocks_v2_move",
+                                            "id": "Fw]Fb=-kK(JKTk}6CFvy",
+                                            "fields": {
+                                              "DIRECTION": "forward",
+                                              "DISTANCE": 0.3
+                                            },
+                                            "next": {
+                                              "block": {
+                                                "type": "math_change",
+                                                "id": "h+]9[SJE]n3Q,OfU?$Ot",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "commanded-position"
+                                                  }
+                                                },
+                                                "inputs": {
+                                                  "DELTA": {
+                                                    "block": {
+                                                      "type": "math_number",
+                                                      "id": "rm(acx2lG=`GmU2,aXqi",
+                                                      "fields": {
+                                                        "NUM": 0.3
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "next": {
+                                                  "block": {
+                                                    "type": "webeeblocks_v2_vertical",
+                                                    "id": "b]E#uW?OcP7|;B$kXk8Q",
+                                                    "fields": {
+                                                      "DIRECTION": "up",
+                                                      "DISTANCE": 0.4
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "webeeblocks_v2_land",
+                              "id": ".qLz1ueMij.)KkX~V)B^"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "position",
+        "id": "commanded-position"
+      },
+      {
+        "name": "item",
+        "id": "@XRZja2Ez]o4JT4-Ip3."
+      }
+    ]
+  }
+}

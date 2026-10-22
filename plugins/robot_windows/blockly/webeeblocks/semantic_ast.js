@@ -50,6 +50,11 @@
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
       case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)fail('turn angle must be non-zero');return{kind:'turn',angle_deg:legacyAngle};}
       case 'webeeblocks_land':return{kind:'land'};
+      case 'webeeblocks_v2_guarded_move':{
+        var maximum=bounded(field(block,'DISTANCE'),'guarded maximum',{min:0.1,max:2});
+        if(Math.abs(maximum*10-Math.round(maximum*10))>1e-9)fail('guarded maximum must be a multiple of 0.1 m');
+        return{kind:'guarded_move',max_distance_m:maximum,threshold_m:bounded(field(block,'THRESHOLD'),'guarded threshold',{min:0.25,max:1.5}),progress:variableReference(block),on_sensor:statementChildren(block,'ON_SENSOR')};
+      }
       case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
       case 'webeeblocks_v2_move':{var direction=String(field(block,'DIRECTION'));if(['forward','back','left','right'].indexOf(direction)<0)fail('unsupported move direction: '+direction);return{kind:'move',direction:direction,distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};}
@@ -60,6 +65,8 @@
       case 'webeeblocks_v2_light':{var color=String(field(block,'COLOR'));if(LIGHT_COLORS.indexOf(color)<0)fail('unsupported light color: '+color);return{kind:'set_light',color:color};}
       case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'math_change':{var changedVariable=variableReference(block);return{kind:'set_variable',variable:changedVariable,value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:changedVariable},right:valueChild(block,'DELTA')}};}
+      // Classroom UNTIL reuses bounded AST, preserving legacy loop serialization.
+      case 'webeeblocks_v2_until':return{kind:'while',mode:'UNTIL',condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:25};
       case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');var rawLimit=field(block,'MAX_ITERATIONS');var max=rawLimit==null||rawLimit===''?100:finite(rawLimit,'max_iterations');if(Math.floor(max)!==max||max<1||max>100)studentFail('invalid conditional loop limit','La limite de boucle doit être un entier de 1 à 100.');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:max};}
       case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
       case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
@@ -69,13 +76,14 @@
 
   function compileSequence(first){var result=[],block=first,guard=0;while(block){guard+=1;if(guard>200)fail('program too large');result.push(compileStatement(block));block=typeof block.getNextBlock==='function'?block.getNextBlock():null;}return result;}
 
-  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
+  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='guarded_move')rejectNestedFlightBoundaries(statement.on_sensor);if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
   function validateFlightBoundaries(program){
     if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
       if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
       if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
+      if(statement.kind==='guarded_move')rejectNestedFlightBoundaries(statement.on_sensor);
       if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}
     }

@@ -1,0 +1,98 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "qrvlO?%KlmIYkK%7pgvf",
+          "x": 0,
+          "y": 0,
+          "fields": {
+            "HEIGHT": 0.4
+          },
+          "next": {
+            "block": {
+              "type": "webeeblocks_v2_vertical",
+              "id": "U$^C`vbhuzae}1:MXMlN",
+              "fields": {
+                "DIRECTION": "up",
+                "DISTANCE": 0.4
+              },
+              "next": {
+                "block": {
+                  "type": "variables_set",
+                  "id": "l2}tFTtU}7CRZwRK~/6X",
+                  "fields": {
+                    "VAR": {
+                      "id": "commanded-position"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "math_number",
+                        "id": "*RSpH!P@S~CGDCOk=cc-",
+                        "fields": {
+                          "NUM": 0
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "webeeblocks_v2_guarded_move",
+                      "id": "[xBwNEw{z|Cj^J1,{U)d",
+                      "fields": {
+                        "DISTANCE": 0.4,
+                        "THRESHOLD": 0.35,
+                        "VAR": {
+                          "id": "commanded-position"
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "webeeblocks_v2_guarded_move",
+                          "id": "9Rcwx;Lsq0B$5V+*^C[N",
+                          "fields": {
+                            "DISTANCE": 0.4,
+                            "THRESHOLD": 0.35,
+                            "VAR": {
+                              "id": "commanded-position"
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "webeeblocks_v2_land",
+                              "id": "(Zjm$?qVh$X+_j-kshh*"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "position",
+        "id": "commanded-position"
+      },
+      {
+        "name": "item",
+        "id": "5C7U{)EPF)urEZ=UaM=O"
+      }
+    ]
+  }
+}

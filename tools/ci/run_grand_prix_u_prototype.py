@@ -155,8 +155,19 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         fatal=[e for e in rows if e['event'] in ('wall-timeout','transport-error')]
         errors=[e for e in rows if e['event']=='error']
         if fatal:raise RuntimeError('transport/preparation failed: '+str(out))
-        if mode in ('witness','reset') and require_success and (errors or result['status']!='achieved'):
+        if mode in ('witness','reset','compact') and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
+        if mode in ('guarded-approach','guarded-single-h'):
+            wanted=1 if mode=='guarded-single-h' else 0
+            if errors or result['status']!='not-achieved' or result['reason']!='wrong-landing' or result['crossings']!=wanted:
+                raise RuntimeError('guarded partial experiment refuted: '+str(result)+' '+str(errors))
+            if not any(e['event']=='commanded-progress' for e in rows):raise RuntimeError('missing commanded progression')
+            if not any(e['event']=='guarded-project' for e in rows):raise RuntimeError('missing real Blockly experiment')
+            # Independent native obstacle/crossing/low-band oracle remains intact.
+            # A wrong landing is intentional: neither experiment traverses the U.
+        if mode=='compact':
+            if not any(e['event']=='compact-project' for e in rows):raise RuntimeError('missing compact Blockly project')
+            if len([e for e in rows if e['event']=='count'])<1:raise RuntimeError('missing student count')
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
         if mode=='collision' and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact')):
             raise RuntimeError('collision accepted: '+str(result))
@@ -195,7 +206,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes','guarded-approach','guarded-single-h','compact'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -239,11 +250,15 @@ def main():
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(0,args.side,'guarded-approach'),(0,args.side,'guarded-single-h'),(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(s,args.side,'compact') for s in (0,1,3,4,14,15,17)]+cases
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
-    summaries=[];digest=None
+    summaries=[];digest=None;compact_digest=None
     for seed,side,mode in cases:
         result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes')
+        if mode=='compact':
+            if compact_digest is not None and compact_digest!=result['ast_sha256']:raise RuntimeError('compact AST changed between seeds')
+            compact_digest=result['ast_sha256']
         if mode=='witness':
             if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations/sizes')
             digest=result['ast_sha256']

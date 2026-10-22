@@ -131,6 +131,8 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
     'division by zero must fail with a correctable student outcome'
   );
   arithmeticWorkspace.dispose();
+  require('./test_compact_u_project.js');
+  await require('./test_runtime_v2_guarded_move.js')();
   await require('./test_runtime_v2_while.js')();
   await require('./test_runtime_v2_elapsed_time.js')();
   require('child_process').execFileSync('python3',[require('path').join(__dirname,'test_simulation_clock.py')],{stdio:'inherit'});
