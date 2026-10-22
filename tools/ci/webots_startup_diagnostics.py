@@ -144,6 +144,26 @@ class StartupEvidence:
             result["backtrace"] = type(error).__name__
         return result
 
+    def ready(self, child, stage):
+        """Tiny comparison witness, including healthy isolated and later launches."""
+        try:
+            self.observe(child, force=True)
+            code = child.poll()
+            data = {
+                "schema": 1, "status": stage,
+                "sequence_index": self.sequence_index,
+                "prior_trials_validated": self.sequence_index - 1,
+                "elapsed_s": round(time.monotonic() - self.started, 3),
+                "wrapper_pid": child.pid, "wrapper_returncode": code,
+                "resources_before": self.before,
+                "resources_at_readiness": resources(self.out),
+                "process_samples": self.samples[:3] + self.samples[-1:],
+            }
+            (self.out / "startup-ready.json").write_text(
+                json.dumps(data, sort_keys=True, indent=2) + "\n")
+        except Exception:
+            pass  # Observability may not change the native acceptance oracle.
+
     def failure(self, child, home, log_path):
         self.failed = True
         try:

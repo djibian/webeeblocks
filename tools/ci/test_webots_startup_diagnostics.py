@@ -51,6 +51,13 @@ class StartupEvidenceTests(unittest.TestCase):
             out = Path(directory)
             diagnostic = StartupEvidence(out, 1, ["fake"], dict(os.environ))
             self.assertFalse(diagnostic.failed)
+            from types import SimpleNamespace
+            diagnostic.ready(SimpleNamespace(pid=os.getpid(), poll=lambda: None),
+                             "RUNTIME_READY")
+            summary = json.loads((out / "startup-ready.json").read_text())
+            self.assertEqual(summary["status"], "RUNTIME_READY")
+            self.assertEqual(summary["sequence_index"], 1)
+            self.assertIn("resources_at_readiness", summary)
             diagnostic.after_cleanup(os.getpid())
             self.assertFalse((out / "startup-failure.json").exists())
             self.assertFalse((out / "startup-backtrace.txt").exists())

@@ -121,6 +121,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
             else:
                 startup.failure(webots,home,out/'webots.log')
                 raise RuntimeError('native readiness not established: '+str(out))
+            startup.ready(webots,'TCP_PORTS_WAITING' if tcp else 'RUNTIME_READY')
             if tcp:
                 for name,path,args in (
                   ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
