@@ -40,7 +40,9 @@
         if (guard > 200) fail('program too large');
         var path = prefix.concat(index);
         remember(block, path);
-        if (block.type === 'controls_whileUntil') {
+        if (block.type === 'webeeblocks_v2_guarded_move') {
+          sequence(block.getInputTargetBlock('ON_SENSOR'), path.concat('on_sensor'));
+        } else if (block.type === 'controls_whileUntil') {
           expression(block.getInputTargetBlock('BOOL'), path.concat('condition'));
           sequence(block.getInputTargetBlock('DO'), path.concat('body'));
         } else if (block.type === 'controls_repeat_ext') {

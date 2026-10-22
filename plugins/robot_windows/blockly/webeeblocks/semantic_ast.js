@@ -50,6 +50,11 @@
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
       case 'webeeblocks_turn':{var legacyAngle=bounded(field(block,'ANGLE'),'angle_deg',{min:-179,max:179});if(legacyAngle===0)fail('turn angle must be non-zero');return{kind:'turn',angle_deg:legacyAngle};}
       case 'webeeblocks_land':return{kind:'land'};
+      case 'webeeblocks_v2_guarded_move':{
+        var maximum=bounded(field(block,'DISTANCE'),'guarded maximum',{min:0.1,max:2});
+        if(Math.abs(maximum*10-Math.round(maximum*10))>1e-9)fail('guarded maximum must be a multiple of 0.1 m');
+        return{kind:'guarded_move',max_distance_m:maximum,threshold_m:bounded(field(block,'THRESHOLD'),'guarded threshold',{min:0.25,max:1.5}),progress:variableReference(block),on_sensor:statementChildren(block,'ON_SENSOR')};
+      }
       case 'webeeblocks_v2_takeoff':return{kind:'takeoff',height_m:bounded(field(block,'HEIGHT'),'height_m',LIMITS.height_m)};
       case 'webeeblocks_v2_land':return{kind:'land'};
       case 'webeeblocks_v2_move':{var direction=String(field(block,'DIRECTION'));if(['forward','back','left','right'].indexOf(direction)<0)fail('unsupported move direction: '+direction);return{kind:'move',direction:direction,distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};}
@@ -69,13 +74,14 @@
 
   function compileSequence(first){var result=[],block=first,guard=0;while(block){guard+=1;if(guard>200)fail('program too large');result.push(compileStatement(block));block=typeof block.getNextBlock==='function'?block.getNextBlock():null;}return result;}
 
-  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
+  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='guarded_move')rejectNestedFlightBoundaries(statement.on_sensor);if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
   function validateFlightBoundaries(program){
     if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
       if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
       if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
+      if(statement.kind==='guarded_move')rejectNestedFlightBoundaries(statement.on_sensor);
       if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}
     }

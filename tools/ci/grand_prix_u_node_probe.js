@@ -25,6 +25,10 @@ socket.onopen=async()=>{
   socket.send('robot:Crazyflie WebeeBlocks:init robot window');
   await backend.waitUntilReady();
   let program=Witness.build();
+  if(mode==='guarded-approach'||mode==='guarded-single-h'){
+   const demo=require('../blockly/guarded_move_demo').build(mode==='guarded-single-h');
+   program=demo.ast;report('guarded-project',demo.project);demo.workspace.dispose();
+  }
   if(mode==='timeout'||mode==='timeout-gate')program={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.4},{kind:'vertical',direction:'up',distance_m:.4},
    ...(mode==='timeout-gate'?[{kind:'move',direction:'forward',distance_m:.4},{kind:'move',direction:'forward',distance_m:.2},{kind:'vertical',direction:'down',distance_m:.4},{kind:'move',direction:'forward',distance_m:.3}]:[]),
    {kind:'repeat',count:10,body:[{kind:'repeat',count:10,body:[{kind:'wait',seconds:3}]}]},{kind:'land'}]};
@@ -53,7 +57,7 @@ socket.onopen=async()=>{
    }};alter(program);
   }
   report('program',program);
-  await Interpreter.run(program,backend,{maxSteps:20000,hooks:{onSensor:c=>report('sensor',{direction:c.direction,value:c.value}),onVariables:c=>{if(c.variable.name==='portes')report('count',c.values);}}});
+  await Interpreter.run(program,backend,{maxSteps:20000,hooks:{onSensor:c=>report('sensor',{direction:c.direction,value:c.value}),onVariables:c=>{if(c.variable.name==='position')report('commanded-progress',c.values);if(c.variable.name==='portes')report('count',c.values);}}});
   const evaluation={type:'mission-state-v1',oracle:'grand-prix-u-v1'};
   await backend.completeActivityMission(evaluation);
   report('outcome',await backend.readActivityOutcome(evaluation));

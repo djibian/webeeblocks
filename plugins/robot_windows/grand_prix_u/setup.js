@@ -11,6 +11,12 @@ const profile={id:'progression-grand-prix-u-v1',world:'worlds/grand_prix_u_seed4
  hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:true},evaluation:{type:'mission-state-v1',oracle:'grand-prix-u-v1'},
  runtime:{mode:'ast-v1',maxSteps:20000,allowedStatementKinds:['takeoff','move','vertical','turn','set_speed','if','repeat','set_variable','land'],rangeDirections:['front','back','left','right'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down'],astBounds:{'takeoff.height_m':{min:.3,max:1.0},'move.distance_m':{min:.1,max:.4},'vertical.distance_m':{min:.1,max:.5},'set_speed.speed_m_s':{min:.1,max:.35},'repeat.count':{min:1,max:20}}}
 };
+if(A.BLOCK_CATALOG.webeeblocks_v2_guarded_move){
+ profile.toolbox.push('webeeblocks_v2_guarded_move');profile.runtime.allowedStatementKinds.push('guarded_move');
+ profile.parameterBounds.webeeblocks_v2_guarded_move={DISTANCE:{min:.1,max:.4,step:.1},THRESHOLD:{min:.25,max:1.5,step:.01}};
+ profile.runtime.astBounds['guarded_move.max_distance_m']={min:.1,max:.4};
+ profile.runtime.astBounds['guarded_move.threshold_m']={min:.25,max:1.5};
+}
 if(A.BLOCK_CATALOG.controls_whileUntil){profile.toolbox.push('controls_whileUntil');profile.runtime.allowedStatementKinds.push('while');profile.runtime.astBounds['while.max_iterations']={min:1,max:100};}
 if(A.BLOCK_CATALOG.webeeblocks_v2_elapsed){profile.toolbox.push('webeeblocks_v2_elapsed');profile.runtime.elapsedSimulationTime=true;}
 window.WebeeBlocksActivities={BLOCK_CATALOG:A.BLOCK_CATALOG,DOCUMENT:{version:1,activities:[profile]},getProfile:id=>{if(id!==profile.id)throw new Error('unknown Grand Prix activity');return JSON.parse(JSON.stringify(profile));}};
