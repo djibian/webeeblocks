@@ -1,11 +1,11 @@
-# Expérience : trois côtés avec 53 blocs et deux variables
+# Expérience : trois côtés avec 63 blocs et deux variables
 
 Ce candidat d'ingénierie est un vrai programme Blockly, **pas encore un Grand
 Prix qualifié**. Il n'est ni le projet initial élève ni une nouvelle activité.
 Les règles, monde, oracle, autorité à 210 secondes, RESET, LAND et contrôleur
 restent inchangés. Aucune acceptation pédagogique ou physique n'en découle.
 
-**Révision courante : 53 blocs, 2 variables, 0 procédure, profondeur 3, budget 2881.**
+**Révision courante : 63 blocs, 2 variables, 0 procédure, profondeur 3, budget 3139.**
 Le programme initial à 47 blocs est conservé dans `compact_u_47_initial.wbb`.
 Les sections initiales ci-dessous décrivent cette première expérience ; la
 réfutation native et la révision sont détaillées à la fin.
@@ -201,3 +201,40 @@ ne suffit donc pas à établir la lisibilité en classe. Une procédure pourra
 être réévaluée pour sa mise en page et sa décomposition, même sans gain de
 nombre de blocs. Le probe reproductible est `tools/ci/probe_compact_u_ui.mjs` ;
 variables d'environnement identiques à la probe guarded d'origine.
+
+
+## Réfutation du 53 et recentrage commun (63 blocs)
+
+Run Draft **39748644554**, HEAD `de4ddbad5410def4205b37a82fcb9573e251c74e` :
+le seed0/1H échoue à `wrong-landing` en 139,944 s, avec un H franchi et aucune
+exception du programme. La pose stable vaut `(0,6660587249 ; 1,7849187039)` pour
+cible `(0,7 ; 2)`. Cette branche n'exécute aucune des deux nouvelles boucles
+latérales. Les consignes acquittées identiques ne garantissent donc pas une
+position terminale identique ; ni le succès précédent s0 ni le modèle ±2 %
+ne permettent d'ignorer cette réfutation. Aucune cause de timing/PID particulière
+n'est attribuée sans preuve.
+
+Archive **12412428083**, SHA256
+`bfcfb9cdb460122aa1191d139dc8ef1aa09bbe91a56dd51ea9a6619fcbc214f2`, CRC
+vérifié ; les huit fichiers du manifeste du cas vérifient leurs empreintes.
+Le 53 est conservé dans `compact_u_53_lateral.wbb` (constructeur avec
+`center:false`). Pour reproduire le 47 : `build({lateral:false,center:false})`.
+
+La révision ajoute avant le choix de pose **deux UNTIL ordinaires** : s'éloigner
+du côté gauche tant que sa distance est inférieure à 0,80 m, puis du côté droit
+selon le même principe, par pas de 0,10 m. L'élève écrit le recentrage à partir
+des deux distances ; aucun bloc de centrage ni procédure cachée. Ces deux
+boucles s'appliquent à tous les nombres de H. Les deux translations finales
+mesurées du 53 restent ensuite inchangées. La zone centrale idéale permet ce
+recentrage ; seuls les essais natifs peuvent valider ses observations et sa
+stabilité. Aucune nouvelle borne de capteur, de cible ou de temps.
+
+Mesures : **63 blocs, 2 variables, aucune procédure, imbrication 3, budget
+3139/20000**. Le gain de nombre de blocs est de 202, soit environ 76 % face
+aux 265 du témoin courant. C'est un coût pédagogique supplémentaire justifié
+par un échec natif, pas un objectif de chiffre arbitraire.
+La suite native prépare maintenant les sept seeds0/1/3/4/14/15/17 pour ce même
+AST compact, puis tous les témoins/négatifs historiques. Le coût doit toujours
+respecter les enveloppes existantes. Cette révision reste limitée au monde
+actuel doté des parois terminales ; elle ne qualifie pas le futur parcours sans
+murs. Le recalage observable sans ces parois demeure une question produit ouverte.

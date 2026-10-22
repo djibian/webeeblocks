@@ -27,14 +27,14 @@ await page.route('**/blockly_v2/webots/RobotWindow.js',route=>route.fulfill({con
 try{
  await page.goto('http://127.0.0.1:'+server.address().port+'/plugins/robot_windows/grand_prix_u/grand_prix_u.html');
  await page.waitForFunction(()=>window.WebeeBlocksProjectManager&&document.body.dataset.runtimeState==='PRÊT');
- await page.getByRole('button',{name:'Ouvrir',exact:true}).click();await page.waitForFunction(()=>workspace.getAllBlocks(false).length===53);
+ await page.getByRole('button',{name:'Ouvrir',exact:true}).click();await page.waitForFunction(()=>workspace.getAllBlocks(false).length===63);
  await page.evaluate(()=>{Blockly.svgResize(workspace);workspace.zoomToFit();});
  if(process.env.WEBEEBLOCKS_UI_SCREENSHOT)await page.screenshot({path:process.env.WEBEEBLOCKS_UI_SCREENSHOT,fullPage:true});
  const before=await page.evaluate(()=>({ast:WebeeBlocksSemanticAst.compileWorkspace(workspace),map:WebeeBlocksExecutionObserver.buildSourceMap(workspace)}));
  await page.getByRole('button',{name:'Enregistrer sous',exact:true}).click();await page.waitForFunction(()=>testWrites.length===1);
- await page.evaluate(()=>workspace.clear());await page.getByRole('button',{name:'Ouvrir',exact:true}).click();await page.waitForFunction(()=>workspace.getAllBlocks(false).length===53);
+ await page.evaluate(()=>workspace.clear());await page.getByRole('button',{name:'Ouvrir',exact:true}).click();await page.waitForFunction(()=>workspace.getAllBlocks(false).length===63);
  assert.deepEqual(await page.evaluate(()=>({ast:WebeeBlocksSemanticAst.compileWorkspace(workspace),map:WebeeBlocksExecutionObserver.buildSourceMap(workspace)})),before);
  const info=await page.evaluate(()=>({blocks:workspace.getAllBlocks(false).length,scale:workspace.scale,bounds:workspace.getBlocksBoundingBox(),variables:workspace.getVariableMap().getAllVariables().map(v=>v.name),writes:testWrites.length}));
- assert.equal(info.blocks,53);assert.equal(info.variables.length,2);assert.equal(info.writes,1);assert.equal(errors.length,0,errors.join('\n'));
+ assert.equal(info.blocks,63);assert.equal(info.variables.length,2);assert.equal(info.writes,1);assert.equal(errors.length,0,errors.join('\n'));
  console.log(JSON.stringify({browser:browser.version(),...info,errors,execution:false,nativeWebots:false,transport:'injected'},null,2));
 }finally{await browser.close();server.close();}

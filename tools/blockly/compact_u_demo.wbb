@@ -11,7 +11,7 @@
       "blocks": [
         {
           "type": "webeeblocks_v2_takeoff",
-          "id": "[`#%rvA+%k,guQ-BF:[A",
+          "id": ",g0VPZlY7HMJL:0MYh80",
           "x": 0,
           "y": 0,
           "fields": {
@@ -20,7 +20,7 @@
           "next": {
             "block": {
               "type": "webeeblocks_v2_vertical",
-              "id": "eFcpCL=nP/2RY2ymRPVd",
+              "id": "Jg=@c#pS1?1/T8(=`wG?",
               "fields": {
                 "DIRECTION": "up",
                 "DISTANCE": 0.4
@@ -28,7 +28,7 @@
               "next": {
                 "block": {
                   "type": "variables_set",
-                  "id": "+NhK:DD|7I.lQF4)8186",
+                  "id": "2PB`|#o^5w_C+YWzE+p[",
                   "fields": {
                     "VAR": {
                       "id": "compact-u-1"
@@ -38,7 +38,7 @@
                     "VALUE": {
                       "block": {
                         "type": "math_number",
-                        "id": "LcequrtQn,J4m_/k*yHH",
+                        "id": "#i=$foSvr^Jchu6p:X%y",
                         "fields": {
                           "NUM": 0
                         }
@@ -48,12 +48,12 @@
                   "next": {
                     "block": {
                       "type": "controls_repeat_ext",
-                      "id": "dqbo4m$3iPo.TF(@84}r",
+                      "id": "tl0{tYt;b7#CtyO%S[SN",
                       "inputs": {
                         "TIMES": {
                           "block": {
                             "type": "math_number",
-                            "id": "()f[bio{];jk`@GA_?2F",
+                            "id": "TdF:pprNM#mEE5cCZGXg",
                             "fields": {
                               "NUM": 3
                             }
@@ -62,7 +62,7 @@
                         "DO": {
                           "block": {
                             "type": "variables_set",
-                            "id": "IEO|p;U*6OC#Wz;[=[:_",
+                            "id": "N4J83Xo|962mR/6p+,4G",
                             "fields": {
                               "VAR": {
                                 "id": "compact-u-0"
@@ -72,7 +72,7 @@
                               "VALUE": {
                                 "block": {
                                   "type": "math_number",
-                                  "id": "Tp4:FbRKG/()QRl~h[G)",
+                                  "id": "jy^x8o7+ulceyX}l`)W]",
                                   "fields": {
                                     "NUM": 0
                                   }
@@ -82,12 +82,12 @@
                             "next": {
                               "block": {
                                 "type": "webeeblocks_v2_until",
-                                "id": "I+shIpo%yR6!=qGA[Pk|",
+                                "id": "ePW[aCep^]=zGZr_]KIV",
                                 "inputs": {
                                   "BOOL": {
                                     "block": {
                                       "type": "logic_compare",
-                                      "id": "rPk4=}}k`?,Ttt73%TFE",
+                                      "id": "{F(spZ0cerq#/FKc!`dh",
                                       "fields": {
                                         "OP": "GTE"
                                       },
@@ -95,7 +95,7 @@
                                         "A": {
                                           "block": {
                                             "type": "variables_get",
-                                            "id": "I.~X|vl0nqPX^%,{{5WF",
+                                            "id": "LU_kIbn?Wk{]66QwI/c!",
                                             "fields": {
                                               "VAR": {
                                                 "id": "compact-u-0"
@@ -106,7 +106,7 @@
                                         "B": {
                                           "block": {
                                             "type": "math_number",
-                                            "id": "={w=Yll|#,utXN7?7?vQ",
+                                            "id": "{yXu`/ON*vd};}22wb)L",
                                             "fields": {
                                               "NUM": 1.2
                                             }
@@ -118,7 +118,7 @@
                                   "DO": {
                                     "block": {
                                       "type": "webeeblocks_v2_guarded_move",
-                                      "id": "WRqGQ96^=:cC7IS:j3PQ",
+                                      "id": "V@W]_1oFT|rCf5F^]P(}",
                                       "fields": {
                                         "DISTANCE": 0.1,
                                         "THRESHOLD": 0.35,
@@ -130,7 +130,7 @@
                                         "ON_SENSOR": {
                                           "block": {
                                             "type": "webeeblocks_v2_vertical",
-                                            "id": "-:PV_w#a|^N|3#-%X5`N",
+                                            "id": ",d5uT*N^bx@JISVF/=Ks",
                                             "fields": {
                                               "DIRECTION": "down",
                                               "DISTANCE": 0.4
@@ -138,7 +138,7 @@
                                             "next": {
                                               "block": {
                                                 "type": "webeeblocks_v2_move",
-                                                "id": "/4^gjeCi|+Or^CGfe={7",
+                                                "id": ",ON~[mWf.)7VoFkdb,y`",
                                                 "fields": {
                                                   "DIRECTION": "forward",
                                                   "DISTANCE": 0.4
@@ -146,7 +146,7 @@
                                                 "next": {
                                                   "block": {
                                                     "type": "math_change",
-                                                    "id": "JS7gV2T@r(+v7SPPs(.Y",
+                                                    "id": "4R`*62//cgI$t(PE]-It",
                                                     "fields": {
                                                       "VAR": {
                                                         "id": "compact-u-0"
@@ -156,7 +156,7 @@
                                                       "DELTA": {
                                                         "block": {
                                                           "type": "math_number",
-                                                          "id": "b_k0HNic,7!@J9?csW,t",
+                                                          "id": "Z9qk]?m5TjZ(MoIWkqF[",
                                                           "fields": {
                                                             "NUM": 0.4
                                                           }
@@ -166,7 +166,7 @@
                                                     "next": {
                                                       "block": {
                                                         "type": "webeeblocks_v2_move",
-                                                        "id": "AsbL(QNIZISi[;pmlj$b",
+                                                        "id": "6u41!?KtDT(Vqp{n@d5X",
                                                         "fields": {
                                                           "DIRECTION": "forward",
                                                           "DISTANCE": 0.3
@@ -174,7 +174,7 @@
                                                         "next": {
                                                           "block": {
                                                             "type": "math_change",
-                                                            "id": "nKkTHLk~dseQJzsdiVKa",
+                                                            "id": "IAZoJc;yw?r}_Dqc?(O1",
                                                             "fields": {
                                                               "VAR": {
                                                                 "id": "compact-u-0"
@@ -184,7 +184,7 @@
                                                               "DELTA": {
                                                                 "block": {
                                                                   "type": "math_number",
-                                                                  "id": "KM/$~Id%B#b7tlQBhBX/",
+                                                                  "id": "`@,6c82Mt-m5mSroBH)=",
                                                                   "fields": {
                                                                     "NUM": 0.3
                                                                   }
@@ -194,7 +194,7 @@
                                                             "next": {
                                                               "block": {
                                                                 "type": "webeeblocks_v2_vertical",
-                                                                "id": "m:9Ow2,/o:tK4}X_4u[6",
+                                                                "id": ":_2mPS4{]+@`s-4Xx|`y",
                                                                 "fields": {
                                                                   "DIRECTION": "up",
                                                                   "DISTANCE": 0.4
@@ -202,7 +202,7 @@
                                                                 "next": {
                                                                   "block": {
                                                                     "type": "math_change",
-                                                                    "id": ":h8z_-4.!8)VbiOOzJq$",
+                                                                    "id": "[BaOd1$su96$)sDf#DU(",
                                                                     "fields": {
                                                                       "VAR": {
                                                                         "id": "compact-u-1"
@@ -212,7 +212,7 @@
                                                                       "DELTA": {
                                                                         "block": {
                                                                           "type": "math_number",
-                                                                          "id": "~!#ZI?FQl}d37W]*~Mts",
+                                                                          "id": "BbG[0miPK*$P(PtYI|D7",
                                                                           "fields": {
                                                                             "NUM": 1
                                                                           }
@@ -240,12 +240,12 @@
                                 "next": {
                                   "block": {
                                     "type": "controls_if",
-                                    "id": "x?0Yyv7}}j]*TU^(^FYx",
+                                    "id": "vm~DgC5t_ZvP:7-PR3Mb",
                                     "inputs": {
                                       "IF0": {
                                         "block": {
                                           "type": "logic_compare",
-                                          "id": "oi,nYKSGvYH`=iEe:b1E",
+                                          "id": "|rDRz4rpYR~{!6.9x%8S",
                                           "fields": {
                                             "OP": "GT"
                                           },
@@ -253,7 +253,7 @@
                                             "A": {
                                               "block": {
                                                 "type": "webeeblocks_v2_range",
-                                                "id": "ka%p3O$nQX8{8Pbl:lHv",
+                                                "id": "^wmlO71RxLQ^l!L3F*?!",
                                                 "fields": {
                                                   "DIRECTION": "front"
                                                 }
@@ -262,7 +262,7 @@
                                             "B": {
                                               "block": {
                                                 "type": "math_number",
-                                                "id": "MXR^)/WLdkSHEI5It?q5",
+                                                "id": "qUIM2wSdAPKJiY.Q)E(G",
                                                 "fields": {
                                                   "NUM": 0.9
                                                 }
@@ -274,12 +274,12 @@
                                       "DO0": {
                                         "block": {
                                           "type": "webeeblocks_v2_until",
-                                          "id": "JB]Fc%-NX8f?=y]Rvu)-",
+                                          "id": "[8;C7xH|mQ{mGyK2DK$]",
                                           "inputs": {
                                             "BOOL": {
                                               "block": {
                                                 "type": "logic_compare",
-                                                "id": "7KGuGm;/JKsVoo/Fo/!1",
+                                                "id": "8XV2}SQ6`(B,IT/#Q,P2",
                                                 "fields": {
                                                   "OP": "GTE"
                                                 },
@@ -287,7 +287,7 @@
                                                   "A": {
                                                     "block": {
                                                       "type": "variables_get",
-                                                      "id": "C3a6QYv=!|cb?N1u:wJl",
+                                                      "id": "aj{X,q]=zan@/xC5)GDH",
                                                       "fields": {
                                                         "VAR": {
                                                           "id": "compact-u-0"
@@ -298,7 +298,7 @@
                                                   "B": {
                                                     "block": {
                                                       "type": "math_number",
-                                                      "id": "GMzNV7R)m/[07~eYzhjY",
+                                                      "id": "[$=B26__AsB}eZa-1n!0",
                                                       "fields": {
                                                         "NUM": 2
                                                       }
@@ -310,7 +310,7 @@
                                             "DO": {
                                               "block": {
                                                 "type": "webeeblocks_v2_guarded_move",
-                                                "id": ")+I,V]hL~E}8b_:y{%Xg",
+                                                "id": "VoILg3Gfh6nW0W+[lP2N",
                                                 "fields": {
                                                   "DISTANCE": 0.1,
                                                   "THRESHOLD": 0.35,
@@ -324,7 +324,7 @@
                                           "next": {
                                             "block": {
                                               "type": "webeeblocks_v2_turn",
-                                              "id": "t9pX49U!6@~;=~V1vR6V",
+                                              "id": "o+RC_Z;ayj+ZMZrI_(Wu",
                                               "fields": {
                                                 "DIRECTION": "left",
                                                 "ANGLE": 90
@@ -344,7 +344,7 @@
                       "next": {
                         "block": {
                           "type": "webeeblocks_v2_guarded_move",
-                          "id": "N,(7rk^sVQ`?mQ2{:9b|",
+                          "id": ".Zbbh%9:pLW:Z|E:}AbW",
                           "fields": {
                             "DISTANCE": 0.4,
                             "THRESHOLD": 0.7,
@@ -354,176 +354,270 @@
                           },
                           "next": {
                             "block": {
-                              "type": "controls_if",
-                              "id": "%,=h%(wohs~N}d;n=,:y",
+                              "type": "webeeblocks_v2_until",
+                              "id": "84R-evuT?C.tfYsB2Yl2",
                               "inputs": {
-                                "IF0": {
+                                "BOOL": {
                                   "block": {
                                     "type": "logic_compare",
-                                    "id": "(0|^kJ!={V?9`=_LRiRk",
+                                    "id": "EgLg$3P!wC:sFunoNCr9",
                                     "fields": {
-                                      "OP": "EQ"
+                                      "OP": "GTE"
                                     },
                                     "inputs": {
                                       "A": {
                                         "block": {
-                                          "type": "variables_get",
-                                          "id": "~;fVo+%5PO8AQ|9P)07T",
+                                          "type": "webeeblocks_v2_range",
+                                          "id": "ZDV%SMHXa!~=X|.A)g3L",
                                           "fields": {
-                                            "VAR": {
-                                              "id": "compact-u-1"
-                                            }
+                                            "DIRECTION": "left"
                                           }
                                         }
                                       },
                                       "B": {
                                         "block": {
                                           "type": "math_number",
-                                          "id": "RI0|mL/^5U(M)5q1$.z4",
+                                          "id": "ud3O.2-St1deI4k$*OJD",
                                           "fields": {
-                                            "NUM": 2
+                                            "NUM": 0.8
                                           }
                                         }
                                       }
                                     }
                                   }
                                 },
-                                "DO0": {
+                                "DO": {
                                   "block": {
-                                    "type": "webeeblocks_v2_until",
-                                    "id": "Xu^n+GM/ROl?XrG27M_?",
-                                    "inputs": {
-                                      "BOOL": {
-                                        "block": {
-                                          "type": "logic_compare",
-                                          "id": "!c4qU`D%QUhc36_*wHC$",
-                                          "fields": {
-                                            "OP": "LTE"
-                                          },
-                                          "inputs": {
-                                            "A": {
-                                              "block": {
-                                                "type": "webeeblocks_v2_range",
-                                                "id": "o5,:QzkQ(Yz^eD1Mv8MC",
-                                                "fields": {
-                                                  "DIRECTION": "left"
-                                                }
-                                              }
-                                            },
-                                            "B": {
-                                              "block": {
-                                                "type": "math_number",
-                                                "id": "(opH058NB[D*r#Gb[{Q[",
-                                                "fields": {
-                                                  "NUM": 0.4
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      },
-                                      "DO": {
-                                        "block": {
-                                          "type": "webeeblocks_v2_move",
-                                          "id": "HPg7KhbSN[#@.(y)^aoM",
-                                          "fields": {
-                                            "DIRECTION": "left",
-                                            "DISTANCE": 0.1
-                                          }
-                                        }
-                                      }
+                                    "type": "webeeblocks_v2_move",
+                                    "id": "s?vp{b^S!/kN4rO%tn_Y",
+                                    "fields": {
+                                      "DIRECTION": "right",
+                                      "DISTANCE": 0.1
                                     }
                                   }
                                 }
                               },
                               "next": {
                                 "block": {
-                                  "type": "controls_if",
-                                  "id": "HK@pa%xLpKfDr^2N9P~D",
+                                  "type": "webeeblocks_v2_until",
+                                  "id": "82iK!ZzS4/xu3U;mYv/R",
                                   "inputs": {
-                                    "IF0": {
+                                    "BOOL": {
                                       "block": {
                                         "type": "logic_compare",
-                                        "id": "by`9,=HGMEqkrUBBc$!(",
+                                        "id": "4.(y@Af8Wb*5,*1=k/tB",
                                         "fields": {
-                                          "OP": "EQ"
+                                          "OP": "GTE"
                                         },
                                         "inputs": {
                                           "A": {
                                             "block": {
-                                              "type": "variables_get",
-                                              "id": ":3zb+7Tj=[SZk^IF@PI_",
+                                              "type": "webeeblocks_v2_range",
+                                              "id": "Pog2r$wTFC=,tr#^s[`;",
                                               "fields": {
-                                                "VAR": {
-                                                  "id": "compact-u-1"
-                                                }
+                                                "DIRECTION": "right"
                                               }
                                             }
                                           },
                                           "B": {
                                             "block": {
                                               "type": "math_number",
-                                              "id": "8j,h}/*sd7yRdVQDDRXe",
+                                              "id": "QQC8+%r)Q_wgGa}b[Z!5",
                                               "fields": {
-                                                "NUM": 3
+                                                "NUM": 0.8
                                               }
                                             }
                                           }
                                         }
                                       }
                                     },
-                                    "DO0": {
+                                    "DO": {
                                       "block": {
-                                        "type": "webeeblocks_v2_until",
-                                        "id": "AFV-?d3=$BtTacK,0Bq~",
-                                        "inputs": {
-                                          "BOOL": {
-                                            "block": {
-                                              "type": "logic_compare",
-                                              "id": "rLk}l~a[Di]Hb%C/n{4U",
-                                              "fields": {
-                                                "OP": "LTE"
-                                              },
-                                              "inputs": {
-                                                "A": {
-                                                  "block": {
-                                                    "type": "webeeblocks_v2_range",
-                                                    "id": "DgV)Vl_FhANhFY[zVY7D",
-                                                    "fields": {
-                                                      "DIRECTION": "right"
-                                                    }
-                                                  }
-                                                },
-                                                "B": {
-                                                  "block": {
-                                                    "type": "math_number",
-                                                    "id": "UHGFs5CX*[1oq%VWx~|Y",
-                                                    "fields": {
-                                                      "NUM": 0.4
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          },
-                                          "DO": {
-                                            "block": {
-                                              "type": "webeeblocks_v2_move",
-                                              "id": "{zKT$n{t9H,~=DRemEel",
-                                              "fields": {
-                                                "DIRECTION": "right",
-                                                "DISTANCE": 0.1
-                                              }
-                                            }
-                                          }
+                                        "type": "webeeblocks_v2_move",
+                                        "id": ",yYqEG|o-.X8V1ot=?mR",
+                                        "fields": {
+                                          "DIRECTION": "left",
+                                          "DISTANCE": 0.1
                                         }
                                       }
                                     }
                                   },
                                   "next": {
                                     "block": {
-                                      "type": "webeeblocks_v2_land",
-                                      "id": "A@Kk$w8CiMl~Q^zXgzTS"
+                                      "type": "controls_if",
+                                      "id": ".aZs~Y`=jQ|Rm[i*Ha(+",
+                                      "inputs": {
+                                        "IF0": {
+                                          "block": {
+                                            "type": "logic_compare",
+                                            "id": "CGFjz0kzezmK2[-E=jcw",
+                                            "fields": {
+                                              "OP": "EQ"
+                                            },
+                                            "inputs": {
+                                              "A": {
+                                                "block": {
+                                                  "type": "variables_get",
+                                                  "id": "#?Aqe72r67~~742Q~2HP",
+                                                  "fields": {
+                                                    "VAR": {
+                                                      "id": "compact-u-1"
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "B": {
+                                                "block": {
+                                                  "type": "math_number",
+                                                  "id": "|@}pTUQz(imreDvd1%8V",
+                                                  "fields": {
+                                                    "NUM": 2
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "DO0": {
+                                          "block": {
+                                            "type": "webeeblocks_v2_until",
+                                            "id": "#kiQL~!eDc:mnd$m^W$#",
+                                            "inputs": {
+                                              "BOOL": {
+                                                "block": {
+                                                  "type": "logic_compare",
+                                                  "id": "3Xy+2l.):1V|uoL2u960",
+                                                  "fields": {
+                                                    "OP": "LTE"
+                                                  },
+                                                  "inputs": {
+                                                    "A": {
+                                                      "block": {
+                                                        "type": "webeeblocks_v2_range",
+                                                        "id": "5?n)I.DcAgq@bqW2^0p`",
+                                                        "fields": {
+                                                          "DIRECTION": "left"
+                                                        }
+                                                      }
+                                                    },
+                                                    "B": {
+                                                      "block": {
+                                                        "type": "math_number",
+                                                        "id": "SKYrr!8JtOr0kxa.xsyU",
+                                                        "fields": {
+                                                          "NUM": 0.4
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "DO": {
+                                                "block": {
+                                                  "type": "webeeblocks_v2_move",
+                                                  "id": "p6qZgI..L%nX0be$lwYl",
+                                                  "fields": {
+                                                    "DIRECTION": "left",
+                                                    "DISTANCE": 0.1
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "next": {
+                                        "block": {
+                                          "type": "controls_if",
+                                          "id": "x.JcNdml1O-W%Gn[5Esx",
+                                          "inputs": {
+                                            "IF0": {
+                                              "block": {
+                                                "type": "logic_compare",
+                                                "id": "G3j_+.Ns9cNbQmA/^yjU",
+                                                "fields": {
+                                                  "OP": "EQ"
+                                                },
+                                                "inputs": {
+                                                  "A": {
+                                                    "block": {
+                                                      "type": "variables_get",
+                                                      "id": ",XH@y?c:)ywB)?P(]|1C",
+                                                      "fields": {
+                                                        "VAR": {
+                                                          "id": "compact-u-1"
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "B": {
+                                                    "block": {
+                                                      "type": "math_number",
+                                                      "id": "ro66D][Y!]6g!T1#$N`_",
+                                                      "fields": {
+                                                        "NUM": 3
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "DO0": {
+                                              "block": {
+                                                "type": "webeeblocks_v2_until",
+                                                "id": "zfa8,vQRCw*V]nUvj|XP",
+                                                "inputs": {
+                                                  "BOOL": {
+                                                    "block": {
+                                                      "type": "logic_compare",
+                                                      "id": "ZT*tT1@*Q,@h`A0OPHhk",
+                                                      "fields": {
+                                                        "OP": "LTE"
+                                                      },
+                                                      "inputs": {
+                                                        "A": {
+                                                          "block": {
+                                                            "type": "webeeblocks_v2_range",
+                                                            "id": "5DRd;ZsS$x}PnJY~C;6p",
+                                                            "fields": {
+                                                              "DIRECTION": "right"
+                                                            }
+                                                          }
+                                                        },
+                                                        "B": {
+                                                          "block": {
+                                                            "type": "math_number",
+                                                            "id": "_xd5Ihqieu]jvRlE#i0$",
+                                                            "fields": {
+                                                              "NUM": 0.4
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "DO": {
+                                                    "block": {
+                                                      "type": "webeeblocks_v2_move",
+                                                      "id": "|nQeY*XI^ZMrMLi`o1Y.",
+                                                      "fields": {
+                                                        "DIRECTION": "right",
+                                                        "DISTANCE": 0.1
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "next": {
+                                            "block": {
+                                              "type": "webeeblocks_v2_land",
+                                              "id": "fCT^QeV6f-/A*(.*a}*8"
+                                            }
+                                          }
+                                        }
+                                      }
                                     }
                                   }
                                 }

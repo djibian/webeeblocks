@@ -251,7 +251,7 @@ def main():
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
     if args.suite=='all':cases=[(0,args.side,'guarded-approach'),(0,args.side,'guarded-single-h'),(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
-    if args.suite=='all':cases=[(s,args.side,'compact') for s in (0,1,4)]+cases
+    if args.suite=='all':cases=[(s,args.side,'compact') for s in (0,1,3,4,14,15,17)]+cases
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None;compact_digest=None
     for seed,side,mode in cases:

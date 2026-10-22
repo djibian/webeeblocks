@@ -16,7 +16,7 @@ assert.deepStrictEqual(loaded.ast,r.ast);
 Blockly.serialization.workspaces.load(loaded.project.workspace,reopened);
 assert.deepStrictEqual(S.compileWorkspace(reopened),r.ast);
 C.preflightWorkspace(r.profile,reopened);C.preflightAst(r.profile,r.ast);
-assert.deepStrictEqual(r.metrics,{blocks:53,variables:2,procedures:0,statementNesting:3});
+assert.deepStrictEqual(r.metrics,{blocks:63,variables:2,procedures:0,statementNesting:3});
 // Every condition, action and increment must retain a real block identity,
 // including statements inside UNTIL -> guarded_move -> on_sensor.
 const map=O.buildSourceMap(reopened);
@@ -30,5 +30,5 @@ const forbidden=['seed','gateCount','configuration','score','elapsed_time'];
 for(const key of forbidden)assert(!JSON.stringify(r.ast).includes('"'+key+'"'));
 assert.strictEqual(r.ast.program.filter(q=>q.kind==='repeat').length,1);
 assert.strictEqual(r.ast.program.find(q=>q.kind==='repeat').count,3);
-console.log('PASS compact U: real 53-block .wbb round-trip, two used variables, UNTIL/guarded source IDs, profile and conservative budget='+budget+'; no native success claim');
+console.log('PASS compact U: real 63-block .wbb round-trip, two used variables, UNTIL/guarded source IDs, profile and conservative budget='+budget+'; no native success claim');
 r.workspace.dispose();reopened.dispose();
