@@ -119,7 +119,9 @@ jobs:
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Runner preparation can consume >12min before the unchanged native 35s
+    # clean-checkout evidence completes. Retain the independent native deadline.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -230,7 +232,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-observability:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # The unchanged fail-safe native probes exceeded the former 15min runner
+    # limit under the documented cold-container load, not a test assertion.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -445,7 +449,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-project-files:
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Native Save/Open validation starts after browser and Docker preparation.
+    # Do not relax the unchanged 90s Webots budget or fail-closed assertions.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -704,7 +710,10 @@ jobs:
   runtime-v2-webots:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # The unchanged native 300s probe can begin >16min after cold semantic
+    # preflights and environment preparation; 20min then kills it mid-flight.
+    # Preserve its own 300s deadline and all post-run evidence assertions.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
