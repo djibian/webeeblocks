@@ -335,7 +335,10 @@ function proveRealWebotsOutcomeFreshness() {
   await provePendingMissionOutcomeKeepsActionsGated({}, 1000);
   await proveMissionFailure();
   proveRealWebotsOutcomeFreshness();
-  console.log('PASS backend-neutral activity mission outcome contract, exact Reset classification, overlapping Reset freshness, attempt-scoped live-world transport, real-Webots freshness, Runtime-v2 completion wiring, and pending-outcome action gating');
+  const nativeScope = process.env.WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE === 'sharded'
+    ? 'native Webots proofs delegated to required progression jobs'
+    : 'real-Webots freshness';
+  console.log('PASS backend-neutral activity mission outcome contract, exact Reset classification, overlapping Reset freshness, attempt-scoped live-world transport, ' + nativeScope + ', Runtime-v2 completion wiring, and pending-outcome action gating');
 })().catch(error => {
   console.error(error);
   process.exit(1);
