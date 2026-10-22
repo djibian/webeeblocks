@@ -68,6 +68,26 @@ inattendu n'est pas implémentée dans le corps : cette stratégie n'est pas un
 contrôleur d'évitement pour des mondes arbitraires. Le terminal normal n'est
 pas rencontré dans la boucle de recherche.
 
+## Mesures de lisibilité du candidat actuel (67 blocs)
+
+Lecture indépendante du **vrai** `tools/blockly/compact_u_demo.wbb` de cette
+branche : une seule pile principale et trois variables nommées (`distance
+commandée`, `nombre H`, `côté`), **6 boucles jusqu'à**, **3 approches surveillées**,
+**3 conditions**, **9 comparaisons**, **5 capteurs de distance** et **17 nombres
+littéraux** parmi les 67 blocs. Ce relevé compte les expressions internes,
+contrairement à une simple lecture du fil principal ; il est reproductible
+par parcours récursif des blocs `inputs`/`next` de la sérialisation `.wbb`.
+
+La réduction 265 → 67 blocs n'enlève donc pas toutes les décisions à apprendre :
+l'élève doit distinguer les fins de boucle (H, coin et pose), maintenir trois
+informations, comprendre les comparaisons et ajuster les constantes selon les
+observations. Les 6 boucles n'ont pas toutes la même finalité. La pile mesurée
+reste haute de 2 200 unités Blockly au zoom 0,55 ; le défilement nécessaire,
+la lecture du programme et les possibilités de décomposition méritent une
+observation en situation pédagogique. Aucun plafond arbitraire ni procédure
+obligatoire n'en découle. Les suites natives sur ce `.wbb` et l'acceptation
+personnelle restent distinctes de cette analyse statique.
+
 ## Mesures reproductibles
 
 `node tools/ci/test_compact_u_project.js` utilise les vrais blocs Blockly 13.2.1,
