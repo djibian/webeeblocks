@@ -33,6 +33,7 @@ async function prove() {
   studentCompare.getInput('B').connection.connect(studentB.outputConnection);
   studentUntil.getInput('BOOL').connection.connect(studentCompare.outputConnection);
   assert.strictEqual(studentUntil.getField('MAX_ITERATIONS'),null);
+  assert.strictEqual(studentUntil.getStyleName(),'loop_blocks','UNTIL belongs to the existing loop style');
   const expected=loop('UNTIL',{kind:'compare',op:'LT',left:number(1),right:number(2)},[],25);
   assert.deepStrictEqual(Compiler.compileStatement(studentUntil),expected);
   assert(Interpreter.validateExecutionBudget(program(expected),5000)>0);

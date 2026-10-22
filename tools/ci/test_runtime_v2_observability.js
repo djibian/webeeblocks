@@ -46,6 +46,17 @@ function backend(values){var r=values.slice(),trace=[];return{trace,async takeof
 function workspace(){var range=block('range-front','webeeblocks_v2_range'),num=block('threshold','math_number'),cmp=block('compare','logic_compare',{A:range,B:num}),left=block('left-action','webeeblocks_v2_move'),forward=block('forward-action','webeeblocks_v2_move'),iff=block('if','controls_if',{IF0:cmp,DO0:left,ELSE:forward}),repeat=block('repeat','controls_repeat_ext',{DO:iff}),takeoff=block('takeoff','webeeblocks_v2_takeoff'),land=block('land','webeeblocks_v2_land');link(takeoff,repeat,land);var all={takeoff,repeat,if:iff,compare:cmp,'range-front':range,threshold:num,'left-action':left,'forward-action':forward,land};return{getTopBlocks(){return[takeoff];},getBlockById(id){return all[id]||null;},highlightBlock(){}};}
 async function until(p,label){var start=Date.now();while(Date.now()-start<1000){if(p())return;await new Promise(r=>setTimeout(r,0));}throw Error('timeout '+label);}
 
+// A host watchdog must not truncate the existing Continue observation window.
+const nativeWorkflow = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows/ci-runtime.yml'), 'utf8');
+const stepHarness = fs.readFileSync(path.resolve(__dirname, 'prepare_runtime_v2_observability.py'), 'utf8');
+const stepJob = nativeWorkflow.split('- name: Run real Robot Window semantic step scenario')[1].split('- name: Validate causal semantic steps')[0];
+const hostSeconds = Number(stepJob.match(/timeout -k 5s (\d+)s xvfb-run/)[1]);
+const continueMs = Number(stepHarness.match(/'continued completion', (\d+)\)/)[1]);
+function coversContinue(seconds) { return seconds >= 65 + continueMs / 1000; }
+assert.strictEqual(coversContinue(65),false,'historical host cut must remain a counterexample');
+assert(coversContinue(hostSeconds),'host envelope truncates an authorized Continue phase');
+assert.match(stepHarness, /'STEP_CONTINUE_DONE'/); // Completion is still browser-owned after TERMINÉ.
+
 async function proveProgramInvalidRetryWithoutReset() {
   const elements = {};
   function element(id) {

@@ -10,5 +10,5 @@
 {type:'webeeblocks_v2_light',message0:'lumière %1',args0:[{type:'field_dropdown',name:'COLOR',options:[['éteinte','off'],['rouge','red'],['verte','green'],['bleue','blue'],['jaune','yellow'],['blanche','white']]}],previousStatement:null,nextStatement:null,style:'flight_blocks'},
 {type:'webeeblocks_v2_elapsed',message0:'temps simulé depuis le départ (s)',output:'Number',style:'sensor_blocks'},
 {type:'webeeblocks_v2_range',message0:'distance %1',args0:[{type:'field_dropdown',name:'DIRECTION',options:[['devant','front'],['derrière','back'],['à gauche','left'],['à droite','right'],['au-dessus','up']]}],output:'Number',style:'sensor_blocks'},
-{type:'webeeblocks_v2_until',message0:'répéter jusqu’à %1 %2',args0:[{type:'input_value',name:'BOOL',check:'Boolean'},{type:'input_statement',name:'DO'}],previousStatement:null,nextStatement:null,style:'control_blocks'}
+{type:'webeeblocks_v2_until',message0:'répéter jusqu’à %1 %2',args0:[{type:'input_value',name:'BOOL',check:'Boolean'},{type:'input_statement',name:'DO'}],previousStatement:null,nextStatement:null,style:'loop_blocks'}
 ]);})();
