@@ -4,17 +4,30 @@
 le programme final eux-mêmes. Le témoin expérimental de la PR #655
 (389 blocs, onze variables métier) n'est pas la solution à distribuer.
 
-## Programme cible
+## Hypothèses de programme élève à comparer — non prescriptives
 
-- **Deux variables** : `nombre_H` (passages confirmés) et `position`
-  (progression sur le côté courant, remise à zéro à chaque côté).
-  Une somme de distances commandées/acquittées n'est **pas** une
-  mesure de position XY et ne doit pas être présentée ainsi.
-- **Une boucle `répéter 3 fois`** pour les côtés. L'élève choisit les
-  mouvements et calcule `position`, aucun bloc « parcourir un côté ».
-- **Une procédure Blockly élève réutilisable comme cible**,
-  définie et modifiée avec des blocs ordinaires dans le .wbb.
-  L'élève construit le traitement d'obstacle et le franchissement.
+La décision plus récente du propriétaire du **22 octobre 2026** sur #587,
+désormais intégrée à `docs/PRODUCT_VISION.md` et `docs/ROADMAP.md` par #661,
+remplace toute lecture normative des formes envisagées le 21 octobre.
+Le programme final **n'a ni quota imposé de blocs, variables ou procédures,
+ni forme de boucle/AST prescrite**. Comparer les stratégies sur un vrai
+`.wbb` modifiable : charge cognitive, décisions réellement laissées à
+l'élève, lisibilité du fil principal, imbrication, réglages, observation,
+débogage et Save/Open, puis capacité des activités précédentes à enseigner
+progressivement les concepts nécessaires. Le compte de blocs seul ne suffit pas.
+
+- **Hypothèse : deux variables**, `nombre_H` (passages confirmés) et
+  `position` (progression nominale remise à zéro par côté). Une somme de
+  distances commandées/acquittées n'est **pas** une mesure de position XY ;
+  une stratégie mieux observable, avec plus ou moins de variables, reste
+  admissible si elle respecte le contrat du Grand Prix.
+- **Hypothèse : une boucle `répéter 3 fois`** pour factoriser les côtés.
+  D'autres boucles et décompositions sont acceptables ; le bloc générique
+  « parcourir un côté » n'est pas requis et ne doit pas masquer la stratégie.
+- **Hypothèse : une procédure Blockly réutilisable**, que l'élève définit
+  et modifie avec des blocs ordinaires. Une solution sans procédure, ou
+  avec plusieurs procédures, peut être pédagogiquement meilleure.
+  Dans tous les cas, l'élève reste auteur du franchissement.
 - **Pas de bloc magique** qui fournit ouvert/fermé, numéro de porte,
   nombre de H franchis, fin du circuit ou bonne pose. Le capteur
   et des comparaisons numériques fondent les décisions de l'élève.
@@ -61,7 +74,12 @@ Définition/appel Blockly, renommage, préflight anti-récursion, budget, restri
 de profil/backend, source map et Save/Open : voir [le contrat et le démonstrateur](BLOCKLY_PROCEDURES.md).
 La sortie terminale et la progression mesurée restent séparées et non implémentées.
 
-## Incréments suivants — non implémentés
+## Pistes techniques historiques — non prescrites
+
+Cette liste décrit des options ou qualifications encore absentes de cette
+tranche ; elle n'impose ni algorithme cible ni ordre d'intégration.
+La décision pédagogique du 22 octobre et les preuves d'ergonomie du .wbb
+élève guident leur sélection conformément au contrat V5.
 
 1. **Qualification des procédures** : CI canonique Ready exacte, revue indépendante
    et composition native du futur franchissement, sans confondre le démonstrateur
