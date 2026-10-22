@@ -46,6 +46,22 @@ class StartupEvidenceTests(unittest.TestCase):
                     os.killpg(child.pid, signal.SIGKILL)
                     child.wait(timeout=5)
 
+    def test_wrapper_exit_139_is_not_mistaken_for_a_python_signal(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            diagnostic = StartupEvidence(out, 16, ["xvfb-run", "webots"], dict(os.environ))
+            (out / "webots.log").write_text(
+                "webots: line 105: 812 Segmentation fault (core dumped)\n")
+            diagnostic.failure(
+                SimpleNamespace(pid=99999999, poll=lambda: 139),
+                out / "fake-home", out / "webots.log")
+            evidence = json.loads((out / "startup-failure.json").read_text())
+            self.assertEqual(evidence["wrapper_returncode"], 139)
+            self.assertIsNone(evidence["wrapper_signal"])
+            self.assertEqual(evidence["sequence_index"], 16)
+            self.assertEqual(evidence["core"]["native_sigsegv_pids_in_log"], [812])
+
     def test_nonfailure_has_no_diagnostic_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)
