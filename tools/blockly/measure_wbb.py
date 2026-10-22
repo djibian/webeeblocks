@@ -86,9 +86,16 @@ def analyze(project):
                     raise InvalidWorkspace('malformed Blockly input')
                 # An explicit but malformed connected block must never be
                 # hidden by a valid fallback shadow.
-                child = entry['block'] if 'block' in entry else entry.get('shadow')
-                if child is not None and not isinstance(child, dict):
-                    raise InvalidWorkspace('malformed Blockly connected block or shadow')
+                if 'block' in entry:
+                    child = entry['block']
+                    if not isinstance(child, dict):
+                        raise InvalidWorkspace('malformed Blockly connected block')
+                elif 'shadow' in entry:
+                    child = entry['shadow']
+                    if not isinstance(child, dict):
+                        raise InvalidWorkspace('malformed Blockly shadow')
+                else:
+                    child = None
                 if child is not None:
                     visit(child, nesting + 1, statement_nesting + bool(STATEMENT_INPUT.fullmatch(name)), depth + 1)
             successor = block.get('next')
