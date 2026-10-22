@@ -158,7 +158,9 @@ jobs:
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Runner preparation can consume >12min before the unchanged native 35s
+    # clean-checkout evidence completes. Retain the independent native deadline.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -487,7 +489,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-project-files:
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Native Save/Open validation starts after browser and Docker preparation.
+    # Do not relax the unchanged 90s Webots budget or fail-closed assertions.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:

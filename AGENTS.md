@@ -99,9 +99,10 @@ Draft and Ready are the collaboration states for a PR.
 
 ## 4 — Healthy Trunk
 
-main is the single long-lived trunk. It is the current integrated state,
-conformant with the automated contract and without a known defect that should
-make it unsuitable as the base for subsequent development.
+main is the single long-lived trunk. Its health is evaluated against
+applicable evidence for each integration. An unresolved trunk defect remains
+a refutation of the affected behavior; neither its open issue alone nor an
+unrelated successful CI run proves a global integration veto or restoration.
 
 - New changes reach main through small PRs.
 - CI Gate is the required automated integration decision check.
@@ -131,10 +132,28 @@ make it unsuitable as the base for subsequent development.
 - A late NO_GO on an already merged candidate becomes durable trunk-health
   evidence. Determine whether it still affects current main, then fix-forward
   or revert narrowly if needed.
-- If main is known unsuitable as a healthy base, ordinary integrations are
-  suspended until restoration. Machine work, diagnosis, review and independent
-  preparation may continue; once a credible repair path is durably engaged,
-  unrelated work need not idle.
+- When a main-health defect is unresolved, reconstruct its exact observed
+  failure, applicability and affected obligations before each merge. Assess
+  direct and indirect interference from the candidate's code, data, world,
+  dependencies, shared runtime, CI, test selection, observability and oracles.
+  Disjoint changed filenames or a green CI alone do not establish independence.
+- The independent review of the exact Ready HEAD must explicitly document in
+  the PR why each relevant unresolved defect is repaired, inapplicable to the
+  candidate, or safely non-interfering, with evidence appropriate to that claim.
+  A Controller that changed the candidate cannot provide its own clearance.
+  This is part of the existing independent GO, not a new approval role.
+- An applicable unresolved defect, insufficient non-interference evidence, or
+  unknown safety-critical interaction blocks the candidate's merge until
+  repaired and qualified or conclusively shown inapplicable. A defect that
+  compromises a shared execution or validation foundation may block every
+  candidate relying on it. In contrast, a demonstrably independent candidate
+  may integrate with all ordinary exact-HEAD CI, GO, base and refutation gates;
+  the unrelated main-health issue stays open.
+- Never bypass this gate by weakening, skipping, reclassifying or hiding failed
+  safety checks, negative tests, reset freshness, oracle verdicts or CI
+  obligations. A successful candidate merge does not restore main health by
+  itself. Preserve unresolved evidence and continue useful diagnosis, repair
+  and independent preparation without treating an issue label as a global lock.
 - Do not blindly retry failures. Rerun only after causal diagnosis or relevant
   external-state change.
 - A future merge queue may optimize contention but V5 does not depend on one.
@@ -234,8 +253,9 @@ At launch and after every durable transition:
 1. resolve exact main, load or revalidate this contract/product vision/roadmap
    under the rule above and rebuild relevant PRs, exact HEADs, CI, reviews,
    issues and evidence;
-2. if main is known unhealthy, contribute to restoration first unless a credible
-   repair path is durably engaged and another independent action is more useful;
+2. assess unresolved main-health risks; prioritize bounded restoration when
+   it materially dominates other strong useful work, while applying the
+   candidate-specific §4 merge gate rather than a global issue-status lock;
 3. enumerate bounded useful eligible results, including validating/integrating a
    Ready PR this execution did not mutate, repairing/completing existing useful
    work, closing/abandoning dominated or obsolete work, and starting independent
