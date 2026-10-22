@@ -42,7 +42,7 @@
         remember(block, path);
         if (block.type === 'webeeblocks_v2_guarded_move') {
           sequence(block.getInputTargetBlock('ON_SENSOR'), path.concat('on_sensor'));
-        } else if (block.type === 'controls_whileUntil') {
+        } else if (block.type === 'controls_whileUntil' || block.type === 'webeeblocks_v2_until') {
           expression(block.getInputTargetBlock('BOOL'), path.concat('condition'));
           sequence(block.getInputTargetBlock('DO'), path.concat('body'));
         } else if (block.type === 'controls_repeat_ext') {

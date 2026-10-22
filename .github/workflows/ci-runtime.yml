@@ -304,7 +304,10 @@ jobs:
               server=$!
               trap "kill $server 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 65s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              # Preserve the existing 65 s startup/stepping prefix and allow the
+              # existing browser-authorized 60 s Continue phase to finish.
+              # This host envelope does not change any native/action deadline.
+              timeout -k 5s 125s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-observability/step-webots.log
           code=${PIPESTATUS[0]}
