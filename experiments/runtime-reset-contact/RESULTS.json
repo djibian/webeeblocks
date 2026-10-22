@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-19",
+  "production_base": "681bf3846ea7a2b67ee7683d1b5c920c954be81b",
+  "claim": "diagnostic-only; RESET_TIMEOUT not reproduced; no repair or main-health restoration",
+  "experiments": {
+    "baseline": {
+      "mode": "baseline",
+      "reset_acknowledgements": 7,
+      "collision_attempt7_observed": true,
+      "scope": "diagnostic-only; no historical failure reproduction or main-health claim",
+      "archive": "evidence/baseline.tar.gz",
+      "archive_sha256": "956e72ab9a9efe20626f9e3454e7d209ff272bfd70366deb77a9463c9f8b157c",
+      "archive_bytes": 5651857,
+      "native_samples": 31297,
+      "first_time": 0.032,
+      "last_time": 1001.504,
+      "runtime_binary_sha256": "c8af5a32636a9c7f405748d09e4974cc0b7fef222857b2f206ae49b8f6d96c2e"
+    },
+    "sweep": {
+      "mode": "sweep",
+      "reset_acknowledgements": 16,
+      "collision_attempt7_observed": false,
+      "scope": "diagnostic-only; no historical failure reproduction or main-health claim",
+      "archive": "evidence/sweep.tar.gz",
+      "archive_sha256": "46ab709e039d32389a9268b3dd23bf5e01c311b1f166f9c51c8b0750f98ca91d",
+      "archive_bytes": 157627,
+      "native_samples": 654,
+      "first_time": 0.032,
+      "last_time": 20.928,
+      "runtime_binary_sha256": "c8af5a32636a9c7f405748d09e4974cc0b7fef222857b2f206ae49b8f6d96c2e"
+    }
+  }
+}

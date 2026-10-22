@@ -13,7 +13,27 @@ here.
 
 ## Product priority
 
-1. **#157 — qualify one reliable, safe real-device Blockly run before extending reference capabilities**
+1. **#587 — pupil-usable simulation progression and Grand Prix (pedagogical delivery).**
+   The immediate classroom product objective is a coherent, usable eight-activity
+   path whose final Grand Prix can be **conceived, edited, understood and debugged
+   by collège pupils**, not merely completed by an expert witness. Preserve
+   the previously accepted Activity 1 and the Phase 1 endpoint/Phase 2
+   intermediate dependencies below. For the Grand Prix, demonstrate one real
+   editable `.wbb` with the unchanged hidden 1–3-H worlds and all safety
+   oracles, and separately record pupil-program complexity: total Blockly
+   blocks (including procedures), variables, procedures, nesting, main-flow
+   readability, tuning and full editor/debug/Save/Open workflow. Explain which
+   decisions remain the pupil's, how the previous activities teach them, and
+   whether alternative generic vocabulary or algorithms improve usability.
+   No arbitrary two-variable/one-procedure/block-count/AST-shape requirement,
+   nor gate/goal/oracle-derived magic blocks; actual teacher acceptance remains
+   necessary. Use the owner's 2026-10-22 decision on #587 and the product vision.
+   Prioritize completing and qualifying this simulation classroom experience
+   over speculative new product/hardware breadth. This product priority is a
+   **selection signal, not a work queue**, and does not override trunk health,
+   V5 review, or safety dependencies.
+
+2. **#157 — qualify one reliable, safe real-device Blockly run before extending reference capabilities**
 
 **Owner decision, 2026-10-14:** the next physical outcome is a **bounded,
 externally evidenced first run of the exact same ordinary Blockly/.wbb program
@@ -73,6 +93,13 @@ for exact `39b0841c52f9db91ddbc3f80ba3bc1588fab9489`; #621 is closed.
 That later result does not change #619's original scope. **Grand Prix personal
 acceptance is still required before Phase 2**; neither PASS accepts Activities
 2–7 or flight.
+The Grand Prix pupil-program feasibility evidence now additionally requires
+a real editable `.wbb`, reproducible structural/cognitive-complexity measures,
+reasoning that its essential concepts are teachable in the preceding activities,
+and an observed student-style edit/execute/debug/Save/Open workflow. Its
+technical/native success is necessary but **not sufficient** for the owner's
+pedagogical PASS; no particular block count or syntax shape is mandatory.
+
 
 **Grand Prix checkpoint #635 — owner-authoritative pedagogical FAIL** on exact
 `8b12e52b6a0fe1fa9f929b157a07f081a0964d5b`
