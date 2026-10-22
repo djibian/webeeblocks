@@ -75,12 +75,22 @@ class Complexity(unittest.TestCase):
             analyze(dict(project([]), version=3))
         with self.assertRaisesRegex(InvalidWorkspace, 'next-block'):
             analyze(project([b('x', 'a', next={'shadow': b('y', 'b')})]))
+        with self.assertRaisesRegex(InvalidWorkspace, 'activity'):
+            analyze(dict(project([]), activity='not-an-object'))
+        with self.assertRaisesRegex(InvalidWorkspace, 'activity'):
+            analyze(dict(project([]), activity={'id': []}))
+        with self.assertRaisesRegex(InvalidWorkspace, 'Blockly block'):
+            analyze(project([b('x', 'a', inputs={'VALUE': {
+                'block': {}, 'shadow': b('math_number', 'fallback')
+            }})]))
 
     def test_command_line_output_and_failure(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'student.wbb'
             path.write_text(json.dumps(project([b('webeeblocks_v2_takeoff', 't')])), encoding='utf8')
             self.assertEqual(main([str(path)]), 0)
+            path.write_text(json.dumps(dict(project([]), activity='bad')), encoding='utf8')
+            self.assertEqual(main([str(path)]), 2)
             path.write_text('{', encoding='utf8')
             self.assertEqual(main([str(path)]), 2)
 
