@@ -63,14 +63,53 @@ jobs:
           # #637: preserve original delivery timing; capture only original RESET locals.
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
           WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
+          # Native proofs are mandatory in every progression matrix leg below.
+          WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE: sharded
         run: python3 tools/ci/run_runtime_v2_core_harness.py
-      - name: Retain native progression evidence, including failed attempts
+      # Native progression artifacts are now uploaded independently and
+      # fail-closed by each required runtime-v2-progression matrix leg.
+
+
+  # Seven bounded native runners preserve all nine complete R2025a missions.
+  # The former three 30-min runners were all cancelled at deadline (run
+  # 39768379510), leaving their final scripts unproven. 60 min is an outer
+  # CI budget, NOT a change to any native physical probe's timeouts or oracles.
+  # The reusable Runtime suite cannot succeed if any matrix leg fails.
+  runtime-v2-progression:
+    name: runtime-v2-progression (shard ${{ matrix.shard }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare identical Blockly 13.2.1 product assets
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Prove real R2025a freshness and complete progression missions
+        env:
+          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+          WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
+          WEBEEBLOCKS_CI_TARGET_SHA: ${{ inputs.target_sha || github.sha }}
+        run: python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"
+      - name: Require full native shard attestation
+        run: test -s ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/manifest.json
+      - name: Retain native evidence even when a mission fails
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: runtime-v2-core-progression
-          path: ci-artifacts/progression-*/
-          if-no-files-found: warn
+          name: runtime-v2-progression-shard-${{ matrix.shard }}
+          path: |
+            ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/
+            ci-artifacts/runtime-v2-outcome-provider/
+            ci-artifacts/progression-*/
+          if-no-files-found: error
 
   runtime-v2-windows-assets:
     runs-on: windows-2022
@@ -119,7 +158,9 @@ jobs:
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Runner preparation can consume >12min before the unchanged native 35s
+    # clean-checkout evidence completes. Retain the independent native deadline.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -230,7 +271,10 @@ jobs:
           if-no-files-found: error
   runtime-v2-observability:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # Run 39782202176: wall-blocked fail-safe negative cancelled at the
+    # former 15-min job envelope. Keep 65s/190s native test bounds,
+    # physical oracles and fail-closed assertions unchanged.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -448,7 +492,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-project-files:
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Native Save/Open validation starts after browser and Docker preparation.
+    # Do not relax the unchanged 90s Webots budget or fail-closed assertions.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -707,7 +753,12 @@ jobs:
   runtime-v2-webots:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # CI 39798558609: initial semantic core (6m20), Color LED proof, and
+    # Docker/Chrome setup consumed the former 12-min outer runner envelope.
+    # The dynamic Webots/WWI evidence was then cancelled before assertions.
+    # Only the job wall-clock budget changes: retain all native timeouts,
+    # real-R2025a simulations, negative oracles and fail-closed gate.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1111,7 +1162,12 @@ jobs:
   student-ui:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # 2026-10-22 CI 39777648835: all seven complete native shards PASS,
+    # but student-ui hit its 15-min outer job limit during the unchanged
+    # real-R2025a visual probe after a ~10-min container startup. Give the
+    # full UI oracle sufficient wall-clock headroom; no inner deadline,
+    # physical condition, assertion, or step is changed.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
