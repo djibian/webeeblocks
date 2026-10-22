@@ -19,7 +19,7 @@ EXPECTED = {
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
-        "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
+        "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry",
@@ -84,6 +84,234 @@ class WorkflowTests(unittest.TestCase):
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
             self.assertEqual(job_ids((WORKFLOWS / name).read_text(encoding="utf-8")), expected, name)
+
+    def test_native_progression_sharding_preserves_required_gate(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        core = runtime.split("\n  runtime-v2-core:\n", 1)[1].split(
+            "\n  runtime-v2-progression:\n", 1
+        )[0]
+        shards = runtime.split("\n  runtime-v2-progression:\n", 1)[1].split(
+            "\n  runtime-v2-windows-assets:\n", 1
+        )[0]
+        self.assertIn("WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE: sharded", core)
+        self.assertIn("WEBEEBLOCKS_RESET_PHASE_TRACE: '1'", core)
+        self.assertIn("WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'", core)
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 60",
+            "fail-fast: false",
+            "shard: [0, 1, 2, 3, 4, 5, 6]",
+            "ref: ${{ inputs.target_sha || github.sha }}",
+            "node-version: '22'",
+            "bash ./tools/prepare_runtime_v2.sh",
+            "WEBEEBLOCKS_RESET_PHASE_TRACE: '1'",
+            "WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'",
+            "WEBEEBLOCKS_CI_TARGET_SHA: ${{ inputs.target_sha || github.sha }}",
+            'python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"',
+            "Require full native shard attestation",
+            "test -s ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/manifest.json",
+            "if: always()",
+            "name: runtime-v2-progression-shard-${{ matrix.shard }}",
+            "ci-artifacts/runtime-v2-progression-shard-${{ matrix.shard }}/",
+            "ci-artifacts/runtime-v2-outcome-provider/",
+            "ci-artifacts/progression-*/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, shards)
+        self.assertNotIn("continue-on-error:", shards)
+        self.assertNotIn("if: false", shards)
+        self.assertNotIn("needs:", shards)
+        outcome = (ROOT / "tools/ci/test_runtime_activity_outcome.js").read_text(encoding="utf-8")
+        for required in (
+            "if (mode !== undefined)",
+            "assert.strictEqual(mode, 'sharded'",
+            "assert.strictEqual(process.env.GITHUB_ACTIONS, 'true'",
+            "assert.strictEqual(process.env.GITHUB_JOB, 'runtime-v2-core'",
+            "proveRealWebotsOutcomeFreshness();",
+        ):
+            self.assertIn(required, outcome)
+        gate = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", gate)
+        self.assertIn("needs: [select, runtime, webots]", gate)
+        self.assertIn("python3 tools/ci/check_ci_gate.py", gate)
+
+    def test_student_ui_real_webots_oracle_retained_with_outer_budget(self):
+        # Canonical Ready CI 39777648835 proved all seven progression shards,
+        # but student-ui was canceled at its old 15-minute outer budget.
+        # Keep the full physical/visual assertion chain rather than skipping it.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        student = runtime.split("\n  student-ui:\n", 1)[1].split(
+            "\n  runtime-v2-windows-release:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "python3 tools/ci/run_runtime_v2_core_harness.py",
+            "docker pull cyberbotics/webots:R2025a-ubuntu22.04",
+            "bash /workspace/experiments/runtime-v2-student-ui/run.sh",
+            "Validate visual shell, strict AST and keyboard path",
+            "test -s ci-artifacts/runtime-v2-student-ui/metrics.json",
+            "test -s ci-artifacts/runtime-v2-student-ui/workspace-1366x768.png",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, student)
+        self.assertNotIn("continue-on-error:", student)
+        self.assertNotIn("if: false", student)
+
+    def test_bounded_native_jobs_retain_complete_oracles_after_outer_budget_adjustment(self):
+        # CI 39782202176: two jobs reached their original 12/15-min outer
+        # budgets. All native constraints, assertions and event chains remain.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        obs = runtime.split("\n  runtime-v2-observability:\n", 1)[1].split(
+            "\n  runtime-v2-project-files:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "node tools/ci/test_runtime_v2_observability.js",
+            "Run real wall-blocked action to controller fail-safe",
+            "timeout -k 5s 190s xvfb-run",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, obs)
+        self.assertNotIn("continue-on-error:", obs)
+        self.assertNotIn("if: false", obs)
+
+        webots = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        challenge = webots.split("\n  timed-challenge-ux:\n", 1)[1].split(
+            "\n  first-collision-obstacle:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Run three student attempts in one Robot Window session",
+            "for i in $(seq 1 1500)",
+            "Prove causal states timer results and same-session resubmission",
+            "test -s ci-artifacts/crazyflie-challenge-ux/complete.sentinel",
+            "WEBEEBLOCKS_MISSION_V1 VALIDATED",
+            "CHALLENGE_TEST_COMPLETE",
+            "if: always()",
+            "if-no-files-found: warn",
+        ):
+            self.assertIn(required, challenge)
+        self.assertNotIn("continue-on-error:", challenge)
+        self.assertNotIn("if: false", challenge)
+
+    def test_runtime_v2_webots_dynamic_evidence_retained_after_outer_budget_adjustment(self):
+        # Run 39798558609: the original 12-minute runner envelope cancelled
+        # the dynamic Blockly/Webots proof, despite intact native timeouts.
+        # A raised outer budget must never omit downstream assertions.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        webots = runtime.split("\n  runtime-v2-webots:\n", 1)[1].split(
+            "\n  student-ui:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Re-prove Runtime v2 semantic core",
+            "Render fixed Color LED evidence in official Webots R2025a",
+            "Prove Color LED is perceptible from fixed normal views",
+            "Run real Blockly to dynamic Webots Runtime v2",
+            "timeout -k 5s 300s xvfb-run",
+            "Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions",
+            "test -s ci-artifacts/runtime-v2-webots/browser-launch.log",
+            "grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \"$LOG\"",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, webots)
+        self.assertNotIn("continue-on-error:", webots)
+        self.assertNotIn("if: false", webots)
+
+    def test_historical_webots_jobs_keep_all_oracles_with_runner_headroom(self):
+        # CI 39809565629: apt index/network stalls consumed the entire
+        # external envelopes (smoke 7 min; strategy 12 min). No native oracle,
+        # offline-world condition or test-level timeout may be altered.
+        suite = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        smoke = suite.split("\n  webots-smoke:\n", 1)[1]
+        strategy = suite.split("\n  strategy-timing:\n", 1)[1].split(
+            "\n  historical-blockly-ui:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Checkout pinned Webots R2025a projects",
+            "Execute historical Blockly browser oracle",
+            "Rebuild and exercise Blockly sidecar protocol",
+            "Rebuild supervisor for Webots R2025a",
+            "Run historical empty world in Webots R2025a",
+            "Validate Webots runtime diagnostics",
+            "Execute generated historical controller in box challenge",
+            "Exercise simulation reset and controller restart",
+            "Validate controller restart diagnostics",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, smoke)
+        self.assertEqual(smoke.count("--network none"), 3)
+        for required in (
+            "timeout-minutes: 30",
+            "Run both Blockly strategies in fresh Webots processes",
+            "run_strategy S0 controllers/Blockly_Programs/CrazyflieL.xml",
+            "run_strategy S1 controllers/Blockly_Programs/CrazyflieShortcut85.xml",
+            "source /workspace/tools/ci/stop_webots_group.sh",
+            "Compare physical success and Webots times",
+            "assert delta > 0.0",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, strategy)
+        for text in (smoke, strategy):
+            self.assertNotIn("continue-on-error:", text)
+            self.assertNotIn("if: false", text)
+
+    def test_native_progression_partition_is_complete_and_fail_closed(self):
+        # Unit-check the actual dispatch code; never run or stub a physical
+        # acceptance oracle. The required native scripts run in CI unchanged.
+        import importlib.util
+        from types import SimpleNamespace
+
+        path = ROOT / "tools/ci/run_runtime_v2_outcome_probe.py"
+        spec = importlib.util.spec_from_file_location("progression_shard_test_target", path)
+        probe = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(probe)
+        exact_scripts = (
+            "tools/ci/run_progression_sequence_mission.py",
+            "tools/ci/run_classroom_neutral_start.py",
+            "tools/ci/run_progression_repeat_mission.py",
+            "tools/ci/run_progression_simple_decision_mission.py",
+            "tools/ci/run_progression_reactive_mission.py",
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/run_progression_memory_mission.py",
+            "tools/ci/run_progression_memory_overwrite.py",
+            "tools/ci/run_progression_autonomous_mission.py",
+        )
+        self.assertEqual(probe.PROGRESSION, exact_scripts)
+        self.assertEqual(probe.proofs_for_job("runtime-v2-core"),
+                         (probe.FRESHNESS, *exact_scripts))
+        self.assertEqual(probe.proofs_for_job("runtime-v2-webots"), (probe.FRESHNESS,))
+        self.assertEqual(probe.proofs_for_job("student-ui"), (probe.FRESHNESS,))
+        expected_groups = ((0, 3), (1,), (2,), (4, 7), (5,), (6,), (8,))
+        self.assertEqual(probe.SHARD_INDICES, expected_groups)
+        visited = []
+        for shard in range(len(expected_groups)):
+            actual = probe.proofs_for_shard(shard)
+            self.assertEqual(actual[0], probe.FRESHNESS)
+            self.assertEqual(actual[1:], tuple(exact_scripts[i] for i in expected_groups[shard]))
+            visited.extend(actual[1:])
+        self.assertEqual(len(visited), 9)
+        self.assertEqual(set(visited), set(exact_scripts))
+        for invalid in (-1, len(expected_groups), 99):
+            with self.assertRaises(ValueError):
+                probe.proofs_for_shard(invalid)
+
+        # An exit code from any native mission is never converted to PASS and
+        # subsequent missions are not executed after a failed dependency.
+        with patch.object(probe.sys, "argv", [str(path), "--shard", "1"]):
+            with patch.object(probe.subprocess, "run",
+                              side_effect=[SimpleNamespace(returncode=0),
+                                           SimpleNamespace(returncode=17)]) as runner:
+                self.assertEqual(probe.main(), 17)
+        self.assertEqual(runner.call_count, 2)
+        self.assertEqual(runner.call_args_list[0].args[0][1], probe.FRESHNESS)
+        self.assertEqual(runner.call_args_list[1].args[0][1], exact_scripts[1])
 
     def test_ci_targets_main_only(self):
         text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
