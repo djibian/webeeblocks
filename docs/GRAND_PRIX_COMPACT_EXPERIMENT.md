@@ -1,9 +1,14 @@
-# Expérience : trois côtés avec 47 blocs et deux variables
+# Expérience : trois côtés avec 53 blocs et deux variables
 
 Ce candidat d'ingénierie est un vrai programme Blockly, **pas encore un Grand
 Prix qualifié**. Il n'est ni le projet initial élève ni une nouvelle activité.
 Les règles, monde, oracle, autorité à 210 secondes, RESET, LAND et contrôleur
 restent inchangés. Aucune acceptation pédagogique ou physique n'en découle.
+
+**Révision courante : 53 blocs, 2 variables, 0 procédure, profondeur 3, budget 2881.**
+Le programme initial à 47 blocs est conservé dans `compact_u_47_initial.wbb`.
+Les sections initiales ci-dessous décrivent cette première expérience ; la
+réfutation native et la révision sont détaillées à la fin.
 
 ## Composition et état de qualification
 
@@ -133,3 +138,66 @@ par défaut. Le premier résultat utile est la trajectoire réelle de ce program
 particulièrement les erreurs cumulées aux virages et le dégagement du H avant
 remontée. Ensuite seulement : décider si quelques corrections de stratégie
 suffisent ou si une primitive de progression relative est nécessaire.
+
+
+## Réfutation native du 47 et révision à 53 blocs
+
+La première CI Draft du candidat `32d43f6aa02a8b29e781b327faa2878f06cf146c`,
+run **39747548232**, échoue correctement : même AST compact de digest canonique
+`bbf02491224d37ae124a5386139ebfcffd42aa136e74dde1678f7dabb1cf3d3c` :
+
+| Seed / nombre H | Résultat | Temps Webots |
+|---|---|---:|
+| 0 / 1 | achieved | 161,472 s |
+| 1 / 2 | achieved | 161,888 s |
+| 4 / 3 | wrong-landing, trois passages | 157,096 s |
+
+ZIP **12412760249**, 8 722 707 octets, SHA256
+`453ba042d3b23113e215f4d031b22fa3bcdefd70cb8c0a18b4544b14cc061a30`,
+CRC vérifié. Les manifestes s0 et s4 vérifient tous leurs fichiers (9/8).
+Le manifeste s1 a un écart sur `webots.log` après clôture ; les huit autres
+fichiers vérifient, y compris traces, événements et résultats. Ce défaut de
+capture ne doit pas être masqué ; le nouveau résultat doit être vérifié de
+nouveau. La clôture/provenance des écrivains fait déjà l'objet de #656 : aucun
+nouveau support parallèle n'est créé ici.
+
+Le s4 est déjà décalé avant la pose : dans la trajectoire haute, y est environ
+1,872 m avant le déplacement droit de 0,50 m, puis environ 2,340 m au début de
+la descente. La pose stable vaut `(0,6558814953 ; 2,3421117189)` pour cible
+`(0,7 ; 2,5)`, tolérance inchangée de 0,14 m. Le déplacement pendant LAND est
+millimétrique, pas la source de l'écart de près de 0,16 m. Les traces ne donnent
+pas l'horodatage interne exact de requête LAND ; on ne l'invente pas.
+Le verdict n'est pas converti en PASS et aucune compensation de glissement,
+retouche de cible ou modification de LAND n'est effectuée.
+
+La correction est algorithmique et observable : remplacer chacun des deux
+translations latérales fixes par « jusqu'à distance du côté choisi ≤ 0,40 m,
+avancer de 0,10 m vers ce côté ». L'élève mesure à nouveau au lieu de supposer
+la position de départ. Les boîtes de la zone terminale sont publiques ; cette
+révision **dépend des parois latérales présentes dans le monde courant**.
+Elle ne qualifie pas le monde sans murs demandé dans #635 : si ce repère est
+retiré, il faut revoir cette stratégie et sa preuve. Cette dépendance rend
+indispensable de comparer ensuite un recalage générique réellement disponible
+sur le futur monde, plutôt que de figer cette solution comme finale.
+
+Le nouveau `.wbb` compte **53 blocs**, deux variables utilisées, aucune
+procédure, trois niveaux de corps, budget **2881/20000**. Les deux boucles
+latérales restent bornées à 25 par le même UNTIL générique. Aucun nouveau bloc
+ou accès caché. Le gain reste de 212 blocs, soit **80 %** face aux 265 du témoin
+courant. Le 47 est plus court mais **réfuté**, le 53 n'est pas anticipé qualifié.
+
+L'examen de #658 a aussi fourni une réparation étroite et réutilisée de la
+source map : reconnaître les opérandes d'arithmétique et les DELTA de
+`math_change`, y compris à l'intérieur du guarded. Le test compact vérifie
+maintenant ces IDs, au-delà des seuls IDs des instructions ; aucun changement
+de sémantique d'exécution ni ajout de procédure n'est nécessaire.
+
+Probe réelle Grand Prix/Blockly/Zelos, Chromium 153.0.8010.0 : Save As/Open,
+AST et IDs de source map préservés, 53 blocs, deux variables, zéro erreur JS.
+Transport et sélecteurs sont injectés ; **aucune exécution de vol** n'est faite.
+La pile initiale de 47 mesurait 1752 unités Blockly de haut et nécessitait encore
+un défilement à l'échelle minimale de 0,55 dans 1600×1000. Le nombre de blocs
+ne suffit donc pas à établir la lisibilité en classe. Une procédure pourra
+être réévaluée pour sa mise en page et sa décomposition, même sans gain de
+nombre de blocs. Le probe reproductible est `tools/ci/probe_compact_u_ui.mjs` ;
+variables d'environnement identiques à la probe guarded d'origine.

@@ -16,12 +16,13 @@ assert.deepStrictEqual(loaded.ast,r.ast);
 Blockly.serialization.workspaces.load(loaded.project.workspace,reopened);
 assert.deepStrictEqual(S.compileWorkspace(reopened),r.ast);
 C.preflightWorkspace(r.profile,reopened);C.preflightAst(r.profile,r.ast);
-assert.deepStrictEqual(r.metrics,{blocks:47,variables:2,procedures:0,statementNesting:3});
+assert.deepStrictEqual(r.metrics,{blocks:53,variables:2,procedures:0,statementNesting:3});
 // Every condition, action and increment must retain a real block identity,
 // including statements inside UNTIL -> guarded_move -> on_sensor.
 const map=O.buildSourceMap(reopened);
 function walk(nodes,prefix=['program']){nodes.forEach((q,i)=>{
  const path=prefix.concat(i);assert(map[path.join('/')],path.join('/'));
+ if(q.kind==='set_variable'&&q.value.kind==='arithmetic'){for(const suffix of ['value','value/left','value/right'])assert(map[path.join('/')+'/'+suffix],suffix);}
  for(const key of ['body','on_sensor','then','else'])if(q[key])walk(q[key],path.concat(key));
 });}walk(r.ast.program);
 const budget=I.validateExecutionBudget(r.ast,20000);
@@ -29,5 +30,5 @@ const forbidden=['seed','gateCount','configuration','score','elapsed_time'];
 for(const key of forbidden)assert(!JSON.stringify(r.ast).includes('"'+key+'"'));
 assert.strictEqual(r.ast.program.filter(q=>q.kind==='repeat').length,1);
 assert.strictEqual(r.ast.program.find(q=>q.kind==='repeat').count,3);
-console.log('PASS compact U: real 47-block .wbb round-trip, two used variables, UNTIL/guarded source IDs, profile and conservative budget='+budget+'; no native success claim');
+console.log('PASS compact U: real 53-block .wbb round-trip, two used variables, UNTIL/guarded source IDs, profile and conservative budget='+budget+'; no native success claim');
 r.workspace.dispose();reopened.dispose();

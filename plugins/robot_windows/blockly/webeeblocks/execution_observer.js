@@ -25,7 +25,7 @@
     function expression(block, path) {
       if (!block) return;
       remember(block, path);
-      if (block.type === 'logic_compare' || block.type === 'logic_operation') {
+      if (block.type === 'logic_compare' || block.type === 'logic_operation' || block.type === 'math_arithmetic') {
         expression(block.getInputTargetBlock('A'), path.concat('left'));
         expression(block.getInputTargetBlock('B'), path.concat('right'));
       }
@@ -54,6 +54,10 @@
             sequence(block.getInputTargetBlock('ELSE'), path.concat('else'));
         } else if (block.type === 'variables_set') {
           expression(block.getInputTargetBlock('VALUE'), path.concat('value'));
+        } else if (block.type === 'math_change') {
+          remember(block, path.concat('value'));
+          remember(block, path.concat('value', 'left'));
+          expression(block.getInputTargetBlock('DELTA'), path.concat('value', 'right'));
         }
         block = typeof block.getNextBlock === 'function' ? block.getNextBlock() : null;
         index += 1;

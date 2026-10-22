@@ -13,13 +13,13 @@ async function run(layout,{scale=1,yawError=0}={}){
   for(let i=1;i<=steps;i++){p=target.map((x,j)=>start[j]+(x-start[j])*i/steps);sample(velocity);}
   for(let i=0;i<16;i++)sample();commands++;
  }
- const backend={capabilities:{conditionalLoops:true,guardedMove:true,actions:['takeoff','vertical','move','turn','land'],rangeDirections:['front'],moveDirections:['forward','back','left','right']},getMotionEpoch:()=> 'ideal-1',
+ const backend={capabilities:{conditionalLoops:true,guardedMove:true,actions:['takeoff','vertical','move','turn','land'],rangeDirections:['front','left','right'],moveDirections:['forward','back','left','right']},getMotionEpoch:()=> 'ideal-1',
   async takeoff(height){await motion([0,0,.015+height],.2);},
   async vertical(direction,distance){await motion([p[0],p[1],p[2]+(direction==='up'?distance:-distance)],.2);},
   async move(direction,distance){const angle=yaw+({forward:0,back:Math.PI,left:Math.PI/2,right:-Math.PI/2})[direction];await motion([p[0]+distance*scale*Math.cos(angle),p[1]+distance*scale*Math.sin(angle),p[2]]);return null;},
   async turn(degrees){yaw+=(degrees+yawError)*Math.PI/180;for(let i=0;i<80;i++)sample();commands++;},
-  async readRange(){
-   const origin=[p[0],p[1],p[2]+.01],ray=[Math.cos(yaw),Math.sin(yaw),0];let result=2;
+  async readRange(direction){
+   const origin=[p[0],p[1],p[2]+.01],angle=yaw+({front:0,left:Math.PI/2,right:-Math.PI/2})[direction],ray=[Math.cos(angle),Math.sin(angle),0];let result=2;
    for(const box of [...layout.walls,...layout.gate_boxes]){
     let lo=0,hi=Infinity;
     for(let i=0;i<3;i++){const c=box[['x','y','z'][i]],half=box[['sx','sy','sz'][i]]/2;

@@ -9,7 +9,7 @@ S.installConditionalLoopBounds(Blockly);
 const C=require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract');
 const A=require('../../plugins/robot_windows/blockly/webeeblocks/activities');
 const Profiles=require('../../plugins/robot_windows/blockly/webeeblocks/activity_profiles');
-function build(){
+function build({lateral=true}={}){
  const workspace=new Blockly.Workspace();
  const variables=Object.fromEntries(['distance commandée','nombre H'].map((name,i)=>[name,workspace.getVariableMap().createVariable(name,'','compact-u-'+i)]));
  function b(type,fields={}){const q=workspace.newBlock(type);for(const [k,v]of Object.entries(fields))q.setFieldValue(String(v),k);return q;}
@@ -29,11 +29,12 @@ function build(){
  const search=guarded(.1,.35);input(search,'ON_SENSOR',seq(crossing));
  const corner=iff(compare('GT',b('webeeblocks_v2_range',{DIRECTION:'front'}),.9),[
   until(2,[guarded(.1,.35)]),b('webeeblocks_v2_turn',{DIRECTION:'left',ANGLE:90})]);
+ const align=direction=>input(input(b('webeeblocks_v2_until'),'BOOL',compare('LTE',b('webeeblocks_v2_range',{DIRECTION:direction}),.4)),'DO',move(.1,direction));
  const loop=input(input(b('controls_repeat_ext'),'TIMES',num(3)),'DO',seq([
   set('distance commandée',0),until(1.2,[search]),corner]));
  seq([b('webeeblocks_v2_takeoff',{HEIGHT:.4}),vertical('up'),set('nombre H',0),loop,
-  guarded(.4,.7),iff(compare('EQ',get('nombre H'),2),[move(.4,'left'),move(.1,'left')]),
-  iff(compare('EQ',get('nombre H'),3),[move(.4,'right'),move(.1,'right')]),b('webeeblocks_v2_land')]);
+  guarded(.4,.7),iff(compare('EQ',get('nombre H'),2),lateral?[align('left')]:[move(.4,'left'),move(.1,'left')]),
+  iff(compare('EQ',get('nombre H'),3),lateral?[align('right')]:[move(.4,'right'),move(.1,'right')]),b('webeeblocks_v2_land')]);
  for(const v of workspace.getVariableMap().getAllVariables())if(!workspace.getAllBlocks(false).some(q=>q.getVarModels().some(m=>m.getId()===v.getId())))workspace.getVariableMap().deleteVariable(v);
  const context={Blockly,WebeeBlocksActivities:A,WebeeBlocksRuntimeOutcome:{classify:()=>({})},WebeeBlocksWwiBackend:function(){}};context.window=context;
  vm.runInNewContext(fs.readFileSync('plugins/robot_windows/grand_prix_u/setup.js','utf8'),context);
