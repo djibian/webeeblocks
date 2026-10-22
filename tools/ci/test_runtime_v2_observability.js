@@ -55,6 +55,11 @@ const continueMs = Number(stepHarness.match(/'continued completion', (\d+)\)/)[1
 function coversContinue(seconds) { return seconds >= 65 + continueMs / 1000; }
 assert.strictEqual(coversContinue(65),false,'historical host cut must remain a counterexample');
 assert(coversContinue(hostSeconds),'host envelope truncates an authorized Continue phase');
+if(process.platform !== 'win32') {
+  const shellScript=stepJob.split('run: |')[1].split('\n').map(line=>line.replace(/^ {10}/,'')).join('\n');
+  const syntax=require('child_process').spawnSync('bash',['-n'],{input:shellScript,encoding:'utf8'});
+  assert.strictEqual(syntax.status,0,syntax.stderr);
+}
 assert.match(stepHarness, /'STEP_CONTINUE_DONE'/); // Completion is still browser-owned after TERMINÉ.
 
 async function proveProgramInvalidRetryWithoutReset() {
