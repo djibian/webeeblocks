@@ -89,3 +89,28 @@ La sortie terminale et la progression mesurée restent séparées et non implém
 **Statut : architecture pédagogique, non programme final qualifié.**
 `main` demeure concerné par l'issue santé #637 :
 pas de fusion ordinaire pendant ce blocage.
+
+## Réparation CI du 22 octobre 2026
+
+`student-ui` échouait avant Webots sur son contrôle de style : le nouvel UNTIL
+ajoutait un second `control_blocks`. Il utilise maintenant `loop_blocks`, déjà
+défini dans le thème ; le test construit un vrai bloc et vérifie son style.
+L'assertion du workflow reste inchangée.
+
+L'archive native du run 39691800807, artefact 12388398411 (ZIP 5 244 octets,
+SHA256 `296c75759dd84974ebbb4710760c5aac82fd64dfee8b8ed952b3f505aa8df1c3`,
+CRC des cinq membres vérifiés), montre une interruption hôte : exit 124,
+aucune erreur navigateur, séquence de sept pauses correcte, MOVE 10 acquitté,
+LAND 11 envoyé à 23:15:37.183 UTC sans réponse avant la coupure à 23:15:42.
+Continue avait commencé à 23:15:13.903 : moins de 29 s de son attente de 60 s
+avaient été disponibles. Aucun nouvel UNTIL n'est utilisé dans ce scénario.
+Le harnais, le workflow natif, l'interpréteur et le contrôleur C concernés sont
+identiques à main b478f9d. Cela démontre la troncature, pas la réussite future
+de LAND ni l'absence de toute lenteur native.
+
+L'enveloppe hôte devient 125 s = les 65 s déjà accordées au démarrage/pas +
+les 60 s déjà autorisées à Continue. Aucun délai de requête produit, de contrôleur,
+de RESET ou d'oracle ne change. Un test conserve 65 s comme contre-exemple et
+contrôle cette relation. Le succès exige toujours les événements émis après le
+véritable état TERMINÉ et la trace native LAND ; aucune complétion synthétique.
+La nouvelle CI Ready exacte doit encore vérifier la complétion native.
