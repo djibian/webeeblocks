@@ -123,8 +123,15 @@ unifiée devra éviter ce travail sans présenter une consigne comme une mesure.
   ACK ambigu, erreurs, annulation, RESET réel WWI et ACK tardif, source map/debug,
   .wbb et comptage sans doublon ; refus physique.
 - Le runner natif existant propose `--suite guarded-approach --seed 0`, puis
-  `--suite guarded-single-h --seed 0`. Ces deux cas ouvrent la suite canonique
-  complète, avant les témoins/négatifs historiques. Même monde U seed 0 (un H
+  `--suite guarded-single-h --seed 0`. Ces deux cas terminent la suite canonique
+  complète, après les seize témoins/négatifs historiques conservés dans leur
+  ordre exact (wrong-landing au 4e lancement, s17-witness au 16e). Le test
+  `test_grand_prix_guarded_schedule.py` conserve les 18 obligations et cet ordre.
+  Ce déplacement restaure un témoin de comparaison : il ne résout pas #665,
+  ne prouve pas l'extinction des processus ni l'indépendance des ressources
+  des deux derniers lancements. Leur qualification reste à établir avec les
+  diagnostics de première défaillance et une revue indépendante applicable.
+  Même monde U seed 0 pour les deux ajouts (un H
   ouvert sur la première ligne droite), même contrôleur et même oracle.
   Aucune modification du monde/oracle pour rendre les programmes acceptables.
   L'arrêt partiel se termine délibérément par **wrong-landing** : le résultat
