@@ -305,7 +305,7 @@ jobs:
               trap "kill $server 2>/dev/null || true" EXIT
               sleep 0.5
               # Preserve the existing 65 s startup/stepping prefix and allow the
-              # browser's already-authorized 60 s Continue phase to finish.
+              # existing browser-authorized 60 s Continue phase to finish.
               # This host envelope does not change any native/action deadline.
               timeout -k 5s 125s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
