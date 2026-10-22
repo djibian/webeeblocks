@@ -1,0 +1,10 @@
+{
+  "scope": "Synthetic initial states inspired by #637/#638; not exact historical post-contact or ODE solver state",
+  "observation_steps": [0, 1, 4, 16],
+  "states": [
+    {"name": "postcollision-inspired-falling", "position": [0.752090859, -2.372311691, 0.218240242], "rotation": [1, 0, 0, 0.4507642879], "velocity": [0.000087, -0.518315, -1.325177, 0.817548, 0.00051, -0.000626]},
+    {"name": "ground-impact-small-roll", "position": [0.75, -2.37, 0.02964], "rotation": [1, 0, 0, 0.00052], "velocity": [0, -0.00144, -0.464, 0, 0, 0]},
+    {"name": "ground-impact-4deg-roll", "position": [0.75, -2.37, 0.02964], "rotation": [1, 0, 0, 0.0784], "velocity": [0, -0.148, -0.464, 1.5, 0, 0]},
+    {"name": "tipped-floor", "position": [0.75, -2.37, 0.01], "rotation": [0, 1, 0, -0.843], "velocity": [0, 0, 0, 0, 0, 0]}
+  ]
+}

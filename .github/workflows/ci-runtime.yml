@@ -59,6 +59,10 @@ jobs:
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
       - name: Exercise reactive semantics through product Blockly and Runtime v2 core
+        env:
+          # #637: preserve original delivery timing; capture only original RESET locals.
+          WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
+          WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
         run: python3 tools/ci/run_runtime_v2_core_harness.py
       - name: Retain native progression evidence, including failed attempts
         if: always()
@@ -115,7 +119,9 @@ jobs:
   clean-checkout-runtime-v2:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Runner preparation can consume >12min before the unchanged native 35s
+    # clean-checkout evidence completes. Retain the independent native deadline.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -226,7 +232,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-observability:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # The unchanged fail-safe native probes exceeded the former 15min runner
+    # limit under the documented cold-container load, not a test assertion.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -441,7 +449,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-project-files:
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Native Save/Open validation starts after browser and Docker preparation.
+    # Do not relax the unchanged 90s Webots budget or fail-closed assertions.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -639,7 +649,9 @@ jobs:
               server=$!
               trap "kill $server 2>/dev/null || true" EXIT
               sleep 0.5
-              timeout -k 5s 150s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
+              # READY (20s), four programs (45s each) and three resets (12s each)
+              # already allow 236s, before browser startup. Native RESET stays 5s.
+              timeout -k 5s 300s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/crazyflie_runtime_v2.wbt
             ' \
             2>&1 | tee ci-artifacts/runtime-v2-reset/webots.log
           code=${PIPESTATUS[0]}
@@ -698,7 +710,10 @@ jobs:
   runtime-v2-webots:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # The unchanged native 300s probe can begin >16min after cold semantic
+    # preflights and environment preparation; 20min then kills it mid-flight.
+    # Preserve its own 300s deadline and all post-run evidence assertions.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
