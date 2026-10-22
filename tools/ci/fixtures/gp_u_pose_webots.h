@@ -1,4 +1,6 @@
-#pragma once
+/* Copied under several different Webots stub header filenames by pose tests. */
+#ifndef WEBEEBLOCKS_GP_U_POSE_WEBOTS_STUB_H
+#define WEBEEBLOCKS_GP_U_POSE_WEBOTS_STUB_H
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,3 +33,4 @@ void wb_supervisor_field_import_mf_node_from_string(WbFieldRef,int,const char*);
 }
 #endif
 
+#endif /* WEBEEBLOCKS_GP_U_POSE_WEBOTS_STUB_H */
