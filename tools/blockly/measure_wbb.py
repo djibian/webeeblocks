@@ -47,45 +47,50 @@ def analyze(project):
     max_chain = 0
     instances = 0
 
-    def visit(block, nesting, statement_nesting, depth):
+    def visit(first, nesting, statement_nesting, depth):
+        """Walk next connections iteratively: a long sequence is not nesting."""
         nonlocal max_input, max_statement, max_chain, instances
         if depth > MAX_DEPTH:
-            raise InvalidWorkspace('nesting exceeds safety limit')
-        if not isinstance(block, dict) or not isinstance(block.get('type'), str) or not block['type']:
-            raise InvalidWorkspace('malformed Blockly block')
-        bid = block.get('id')
-        if not isinstance(bid, str) or not bid or bid in block_ids:
-            raise InvalidWorkspace('missing/duplicate Blockly block ID')
-        block_ids.add(bid)
-        instances += 1
-        if instances > MAX_BLOCKS:
-            raise InvalidWorkspace('block count exceeds safety limit')
-        typ = block['type']
-        counts[typ] += 1
-        fields = block.get('fields', {})
-        if not isinstance(fields, dict):
-            raise InvalidWorkspace('malformed block fields')
-        var = fields.get('VAR')
-        if isinstance(var, dict) and isinstance(var.get('id'), str):
-            referenced.add(var['id'])
-        max_input = max(max_input, nesting)
-        max_statement = max(max_statement, statement_nesting)
-        inputs = block.get('inputs', {})
-        if not isinstance(inputs, dict):
-            raise InvalidWorkspace('malformed block inputs')
-        for name, entry in inputs.items():
-            if not isinstance(entry, dict):
-                raise InvalidWorkspace('malformed Blockly input')
-            # A retained shadow is only a fallback when a real child is connected.
-            child = entry.get('block') or entry.get('shadow')
-            if child is not None:
-                visit(child, nesting + 1, statement_nesting + bool(STATEMENT_INPUT.fullmatch(name)), depth + 1)
-        successor = block.get('next')
-        chain = 1
-        if successor is not None:
-            if not isinstance(successor, dict) or not isinstance(successor.get('block'), dict):
-                raise InvalidWorkspace('malformed next-block connection')
-            chain += visit(successor['block'], nesting, statement_nesting, depth + 1)
+            raise InvalidWorkspace('input nesting exceeds safety limit')
+        block = first
+        chain = 0
+        while block is not None:
+            if not isinstance(block, dict) or not isinstance(block.get('type'), str) or not block['type']:
+                raise InvalidWorkspace('malformed Blockly block')
+            bid = block.get('id')
+            if not isinstance(bid, str) or not bid or bid in block_ids:
+                raise InvalidWorkspace('missing/duplicate Blockly block ID')
+            block_ids.add(bid)
+            instances += 1
+            chain += 1
+            if instances > MAX_BLOCKS:
+                raise InvalidWorkspace('block count exceeds safety limit')
+            typ = block['type']
+            counts[typ] += 1
+            fields = block.get('fields', {})
+            if not isinstance(fields, dict):
+                raise InvalidWorkspace('malformed block fields')
+            var = fields.get('VAR')
+            if isinstance(var, dict) and isinstance(var.get('id'), str):
+                referenced.add(var['id'])
+            max_input = max(max_input, nesting)
+            max_statement = max(max_statement, statement_nesting)
+            inputs = block.get('inputs', {})
+            if not isinstance(inputs, dict):
+                raise InvalidWorkspace('malformed block inputs')
+            for name, entry in inputs.items():
+                if not isinstance(entry, dict):
+                    raise InvalidWorkspace('malformed Blockly input')
+                child = entry.get('block') or entry.get('shadow')
+                if child is not None:
+                    visit(child, nesting + 1, statement_nesting + bool(STATEMENT_INPUT.fullmatch(name)), depth + 1)
+            successor = block.get('next')
+            if successor is not None:
+                if not isinstance(successor, dict) or not isinstance(successor.get('block'), dict):
+                    raise InvalidWorkspace('malformed next-block connection')
+                block = successor['block']
+            else:
+                block = None
         max_chain = max(max_chain, chain)
         return chain
 
