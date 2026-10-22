@@ -679,7 +679,9 @@ jobs:
   parametric-blockly-obstacle:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 16
+    # Direct native collision proof can consume >13min of cold preparation.
+    # Preserve the independent 45s/60s Webots budgets and L-detour oracles.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:

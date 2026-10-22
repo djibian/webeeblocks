@@ -449,7 +449,9 @@ jobs:
           if-no-files-found: error
   runtime-v2-project-files:
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # Native Save/Open validation starts after browser and Docker preparation.
+    # Do not relax the unchanged 90s Webots budget or fail-closed assertions.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
