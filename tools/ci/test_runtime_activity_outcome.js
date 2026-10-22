@@ -270,6 +270,17 @@ async function provePendingMissionOutcomeKeepsActionsGated(runtime, expectedMaxS
 }
 
 function proveRealWebotsOutcomeFreshness() {
+  // The full native proof moves to three mandatory isolated R2025a jobs.
+  // Fail closed for unknown modes and never permit an ordinary standalone call
+  // or another CI job to silently omit its expected native proof.
+  const mode = process.env.WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE;
+  if (mode !== undefined) {
+    assert.strictEqual(mode, 'sharded', 'unknown native progression qualification mode');
+    assert.strictEqual(process.env.GITHUB_ACTIONS, 'true', 'native sharding requires GitHub Actions');
+    assert.strictEqual(process.env.GITHUB_JOB, 'runtime-v2-core', 'only the core job may delegate native progression');
+    console.log('PASS unit outcome checks; real R2025a evidence is required from all three independent progression jobs');
+    return;
+  }
   const runner = path.resolve(__dirname, 'run_runtime_v2_outcome_probe.py');
   const result = childProcess.spawnSync('python3', [runner], {stdio:'inherit'});
   if (result.error)
