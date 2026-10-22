@@ -8,6 +8,46 @@ WebeeBlocks is primarily a **training environment for algorithmic reasoning thro
 
 Students should progressively learn to decompose a problem, build algorithms, use sequences/parameters/loops/conditions/variables, exploit sensors, reason as **measure → compare → decide → act**, and iterate through **modify → run → observe → understand → correct → rerun**.
 
+## Pupil-program feasibility and classroom delivery (owner decision, 2026-10-22)
+
+**Deliverable first:** WebeeBlocks must be genuinely teachable and usable by
+collège pupils from the first activity through the simulation Grand Prix. A
+technically executable reference program and green automated CI establish only
+technical properties; they do not establish that pupils can construct,
+understand, debug and improve the solution after the preceding lessons.
+
+For each significant activity, and especially the autonomous Grand Prix, use
+real student-editable `.wbb` workspaces and record **reproducible evidence of
+pupil-program complexity**: total Blockly blocks including procedure bodies,
+visible variables and procedures, nesting, length/readability of the main flow,
+parameter-tuning burden and editor navigation, step-by-step observation,
+correction and Save/Open. Explain which decisions are actually made by the
+pupil and which generic blocks legitimately automate only low-level control.
+Assess whether the concepts needed by the final program can realistically be
+learned cumulatively in Activities 1–7. A screen-height or block count alone
+is neither a proof nor a failure criterion.
+
+**Design freedom:** two variables, one procedure, a three-side repeat and
+previously proposed block inventories are useful hypotheses, **not syntax,
+variable-count or algorithm-shape requirements**. Prefer fewer cognitive
+operations and genuine `observe → compare → decide → act` decisions; generic
+primitives may hide routine motor control but must not reveal gate identity,
+the correct destination, hidden world state or the solution strategy. Do not
+optimize only for the smallest number of blocks or impose arbitrary block,
+variable, procedure or nesting caps. Explain trade-offs and test alternative
+pupil strategies where helpful.
+
+**Acceptance boundary:** the same ordinary pupil-authored program must meet
+the unchanged native Webots Grand Prix rules and negative oracles across the
+required hidden configurations. Classroom-style usability and the owner's
+**explicit personal pedagogical acceptance** remain separate from CI and
+independent technical GO. Deliver the accepted simulation progression before
+speculatively broadening hardware or features. Independent, safety-qualified
+#157/#72 physical work may continue when useful, but no simulation success
+authorizes flight. The Phase 2 rule remains: do not redesign Activities 2–7
+officially before both endpoint acceptances. V5 and all mission/safety
+invariants are unchanged. See #587 and its owner decision of 2026-10-22.
+
 ## Student experience
 
 The normal learning loop should remain simple:
