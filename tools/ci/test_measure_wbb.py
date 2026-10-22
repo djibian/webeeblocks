@@ -83,6 +83,12 @@ class Complexity(unittest.TestCase):
             analyze(project([b('x', 'a', inputs={'VALUE': {
                 'block': {}, 'shadow': b('math_number', 'fallback')
             }})]))
+        with self.assertRaisesRegex(InvalidWorkspace, 'connected block'):
+            analyze(project([b('x', 'a', inputs={'VALUE': {
+                'block': None, 'shadow': b('math_number', 'fallback')
+            }})]))
+        with self.assertRaisesRegex(InvalidWorkspace, 'Blockly shadow'):
+            analyze(project([b('x', 'a', inputs={'VALUE': {'shadow': None}})]))
 
     def test_command_line_output_and_failure(self):
         with tempfile.TemporaryDirectory() as folder:
