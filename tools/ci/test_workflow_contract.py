@@ -131,6 +131,57 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("needs: [select, runtime, webots]", gate)
         self.assertIn("python3 tools/ci/check_ci_gate.py", gate)
 
+    def test_native_progression_partition_is_complete_and_fail_closed(self):
+        # Unit-check the actual dispatch code; never run or stub a physical
+        # acceptance oracle. The required native scripts run in CI unchanged.
+        import importlib.util
+        from types import SimpleNamespace
+
+        path = ROOT / "tools/ci/run_runtime_v2_outcome_probe.py"
+        spec = importlib.util.spec_from_file_location("progression_shard_test_target", path)
+        probe = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(probe)
+        exact_scripts = (
+            "tools/ci/run_progression_sequence_mission.py",
+            "tools/ci/run_classroom_neutral_start.py",
+            "tools/ci/run_progression_repeat_mission.py",
+            "tools/ci/run_progression_simple_decision_mission.py",
+            "tools/ci/run_progression_reactive_mission.py",
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/run_progression_memory_mission.py",
+            "tools/ci/run_progression_memory_overwrite.py",
+            "tools/ci/run_progression_autonomous_mission.py",
+        )
+        self.assertEqual(probe.PROGRESSION, exact_scripts)
+        self.assertEqual(probe.proofs_for_job("runtime-v2-core"),
+                         (probe.FRESHNESS, *exact_scripts))
+        self.assertEqual(probe.proofs_for_job("runtime-v2-webots"), (probe.FRESHNESS,))
+        self.assertEqual(probe.proofs_for_job("student-ui"), (probe.FRESHNESS,))
+        expected_groups = ((0, 4, 7), (1, 5, 8), (2, 3, 6))
+        self.assertEqual(probe.SHARD_INDICES, expected_groups)
+        visited = []
+        for shard in range(3):
+            actual = probe.proofs_for_shard(shard)
+            self.assertEqual(actual[0], probe.FRESHNESS)
+            self.assertEqual(actual[1:], tuple(exact_scripts[i] for i in expected_groups[shard]))
+            visited.extend(actual[1:])
+        self.assertEqual(len(visited), 9)
+        self.assertEqual(set(visited), set(exact_scripts))
+        for invalid in (-1, 3, 99):
+            with self.assertRaises(ValueError):
+                probe.proofs_for_shard(invalid)
+
+        # An exit code from any native mission is never converted to PASS and
+        # subsequent missions are not executed after a failed dependency.
+        with patch.object(probe.sys, "argv", [str(path), "--shard", "1"]):
+            with patch.object(probe.subprocess, "run",
+                              side_effect=[SimpleNamespace(returncode=0),
+                                           SimpleNamespace(returncode=17)]) as runner:
+                self.assertEqual(probe.main(), 17)
+        self.assertEqual(runner.call_count, 2)
+        self.assertEqual(runner.call_args_list[0].args[0][1], probe.FRESHNESS)
+        self.assertEqual(runner.call_args_list[1].args[0][1], exact_scripts[1])
+
     def test_ci_targets_main_only(self):
         text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("branches: [main]", text)
