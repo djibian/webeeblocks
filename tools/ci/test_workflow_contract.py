@@ -196,6 +196,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("continue-on-error:", challenge)
         self.assertNotIn("if: false", challenge)
 
+    def test_runtime_v2_webots_dynamic_evidence_retained_after_outer_budget_adjustment(self):
+        # Run 39798558609: the original 12-minute runner envelope cancelled
+        # the dynamic Blockly/Webots proof, despite intact native timeouts.
+        # A raised outer budget must never omit downstream assertions.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        webots = runtime.split("\n  runtime-v2-webots:\n", 1)[1].split(
+            "\n  student-ui:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Re-prove Runtime v2 semantic core",
+            "Render fixed Color LED evidence in official Webots R2025a",
+            "Prove Color LED is perceptible from fixed normal views",
+            "Run real Blockly to dynamic Webots Runtime v2",
+            "timeout -k 5s 300s xvfb-run",
+            "Prove pre-READY gate, pinned Blockly runtime and dynamic STOP actions",
+            "test -s ci-artifacts/runtime-v2-webots/browser-launch.log",
+            "grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' \"$LOG\"",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, webots)
+        self.assertNotIn("continue-on-error:", webots)
+        self.assertNotIn("if: false", webots)
+
     def test_native_progression_partition_is_complete_and_fail_closed(self):
         # Unit-check the actual dispatch code; never run or stub a physical
         # acceptance oracle. The required native scripts run in CI unchanged.

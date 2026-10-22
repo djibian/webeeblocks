@@ -746,7 +746,12 @@ jobs:
   runtime-v2-webots:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # CI 39798558609: initial semantic core (6m20), Color LED proof, and
+    # Docker/Chrome setup consumed the former 12-min outer runner envelope.
+    # The dynamic Webots/WWI evidence was then cancelled before assertions.
+    # Only the job wall-clock budget changes: retain all native timeouts,
+    # real-R2025a simulations, negative oracles and fail-closed gate.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
