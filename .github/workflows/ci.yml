@@ -234,6 +234,8 @@ jobs:
           python3 tools/ci/test_repository_hygiene.py
           python3 tools/ci/test_windows_release_contract.py
           python3 tools/ci/test_controller_contract.py
+          # Metrics on real saved Blockly workspaces must have exact-HEAD CI evidence.
+          python3 tools/ci/test_measure_wbb.py
           python3 tools/ci/test_evidence_publication.py
           python3 tools/ci/test_historical_boost_support.py
           python3 tools/ci/test_physical_qualification_runtime_lock.py
