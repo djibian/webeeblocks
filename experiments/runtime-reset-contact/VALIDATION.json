@@ -1,0 +1,25 @@
+{
+  "scope": "offline revalidation of unchanged native archives; no new native campaign",
+  "validator_sha256": "9e7b7c626b97407d3c22b45a67e4f5e3c0301bf1f021aa81a573b73aca2346c0",
+  "tests_sha256": "1aa4a9654150fcfabd3c49dd0af61ef31858a3a04b7cc992bce4b52d3a557072",
+  "results": {
+    "baseline": {
+      "archive_sha256": "956e72ab9a9efe20626f9e3454e7d209ff272bfd70366deb77a9463c9f8b157c",
+      "summary": {
+        "mode": "baseline",
+        "reset_acknowledgements": 7,
+        "collision_attempt7_observed": true,
+        "scope": "diagnostic-only; no historical failure reproduction or main-health claim"
+      }
+    },
+    "sweep": {
+      "archive_sha256": "46ab709e039d32389a9268b3dd23bf5e01c311b1f166f9c51c8b0750f98ca91d",
+      "summary": {
+        "mode": "sweep",
+        "reset_acknowledgements": 16,
+        "collision_attempt7_observed": false,
+        "scope": "diagnostic-only; no historical failure reproduction or main-health claim"
+      }
+    }
+  }
+}

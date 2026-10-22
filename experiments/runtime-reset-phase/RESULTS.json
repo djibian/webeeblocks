@@ -1,0 +1,250 @@
+{
+  "scope": "RESET_TIMEOUT not reproduced; cause and main health unproven",
+  "main": "088218c53af2c2a1b6b12d4b86ec3a24d502af0a",
+  "experiments": {
+    "baseline": {
+      "archive": "evidence/baseline.tar.gz",
+      "archive_sha256": "f2fa93dfb2054dd628c97979a4860d12a8640001d59727570c4ae0d89e3f16fa",
+      "archive_bytes": 8740738,
+      "native_samples": 48481,
+      "resets": 7,
+      "attempt7_reset": {
+        "id": 593,
+        "begin_time": 1514.336,
+        "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 593 OK",
+        "samples": 11,
+        "last_sample_elapsed": 0.32,
+        "pose_bad": 1,
+        "motion_bad": 1,
+        "last_bad_elapsed": 0.032,
+        "first_three_samples": [
+          {
+            "id": 593.0,
+            "time": 1514.336,
+            "elapsed": 0.0,
+            "dt": 0.032,
+            "position": [
+              0.752579341,
+              -2.270483126,
+              0.507127637
+            ],
+            "previous": [
+              0.752579344,
+              -2.270122062,
+              0.50944765
+            ],
+            "rpy": [
+              -0.010573744,
+              9.618e-06,
+              7.7173e-05
+            ],
+            "gyro": [
+              1.446472415,
+              -5.7659e-05,
+              1.2323e-05
+            ],
+            "velocity": [
+              -8.8e-08,
+              -0.011283232,
+              -0.072500408
+            ],
+            "pose_ready": 0.0,
+            "motion_ready": 1.0,
+            "stable_since": -1.0
+          },
+          {
+            "id": 593.0,
+            "time": 1514.368,
+            "elapsed": 0.032,
+            "dt": 0.032,
+            "position": [
+              0.0,
+              0.0,
+              0.015
+            ],
+            "previous": [
+              0.752579341,
+              -2.270483126,
+              0.507127637
+            ],
+            "rpy": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "gyro": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "velocity": [
+              -23.518104407,
+              70.952597678,
+              -15.378988652
+            ],
+            "pose_ready": 1.0,
+            "motion_ready": 0.0,
+            "stable_since": -1.0
+          },
+          {
+            "id": 593.0,
+            "time": 1514.4,
+            "elapsed": 0.064,
+            "dt": 0.032,
+            "position": [
+              0.0,
+              0.0,
+              0.013199343
+            ],
+            "previous": [
+              0.0,
+              0.0,
+              0.015
+            ],
+            "rpy": [
+              -0.001815348,
+              1.283e-06,
+              -2.137e-06
+            ],
+            "gyro": [
+              -0.056729643,
+              4.0158e-05,
+              -6.6746e-05
+            ],
+            "velocity": [
+              0.0,
+              0.0,
+              -0.056270547
+            ],
+            "pose_ready": 1.0,
+            "motion_ready": 1.0,
+            "stable_since": -1.0
+          }
+        ],
+        "final_stable_span": 0.2559999999998581
+      }
+    },
+    "after-impact": {
+      "archive": "evidence/after-impact.tar.gz",
+      "archive_sha256": "c3a9e5fb0fee14339b821f3bfca18917bab99cb60cea70f8f217525e48b37759",
+      "archive_bytes": 7747577,
+      "native_samples": 42857,
+      "resets": 7,
+      "attempt7_reset": {
+        "id": 548,
+        "begin_time": 1331.776,
+        "terminal": "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 548 OK",
+        "samples": 15,
+        "last_sample_elapsed": 0.448,
+        "pose_bad": 1,
+        "motion_bad": 3,
+        "last_bad_elapsed": 0.16,
+        "first_three_samples": [
+          {
+            "id": 548.0,
+            "time": 1331.776,
+            "elapsed": 0.0,
+            "dt": 0.032,
+            "position": [
+              0.752608299,
+              -2.44811633,
+              -0.033091256
+            ],
+            "previous": [
+              0.752608297,
+              -2.448114788,
+              -0.033095973
+            ],
+            "rpy": [
+              -0.022603796,
+              -3.9779e-05,
+              -0.000302271
+            ],
+            "gyro": [
+              0.005701691,
+              1.0035e-05,
+              -0.0
+            ],
+            "velocity": [
+              7e-08,
+              -4.8191e-05,
+              0.000147392
+            ],
+            "pose_ready": 0.0,
+            "motion_ready": 1.0,
+            "stable_since": -1.0
+          },
+          {
+            "id": 548.0,
+            "time": 1331.808,
+            "elapsed": 0.032,
+            "dt": 0.032,
+            "position": [
+              0.0,
+              0.0,
+              0.015
+            ],
+            "previous": [
+              0.752608299,
+              -2.44811633,
+              -0.033091256
+            ],
+            "rpy": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "gyro": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "velocity": [
+              -23.519009347,
+              76.50363531,
+              1.502851758
+            ],
+            "pose_ready": 1.0,
+            "motion_ready": 0.0,
+            "stable_since": -1.0
+          },
+          {
+            "id": 548.0,
+            "time": 1331.84,
+            "elapsed": 0.064,
+            "dt": 0.032,
+            "position": [
+              -2.451e-06,
+              -3.394e-06,
+              0.01511893
+            ],
+            "previous": [
+              0.0,
+              0.0,
+              0.015
+            ],
+            "rpy": [
+              5.823e-05,
+              -3.7508e-05,
+              1.34e-07
+            ],
+            "gyro": [
+              0.0018197,
+              -0.001172131,
+              4.216e-06
+            ],
+            "velocity": [
+              -7.6601e-05,
+              -0.000106069,
+              0.003716569
+            ],
+            "pose_ready": 1.0,
+            "motion_ready": 1.0,
+            "stable_since": -1.0
+          }
+        ],
+        "final_stable_span": 0.2559999999998581
+      }
+    }
+  }
+}
