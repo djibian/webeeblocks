@@ -45,6 +45,7 @@
     this.scenePreparationPending = false;
     var capabilities = {
       conditionalLoops: true,
+      guardedMove: true,
       elapsedSimulationTime: true,
       actions: ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'],
       rangeDirections: ['front', 'back', 'left', 'right', 'up'],
@@ -232,6 +233,10 @@
       self.sceneIdentity = scene;
       return value;
     }).finally(function() { self.scenePreparationPending = false; });
+  };
+  RuntimeV2WwiBackend.prototype.getMotionEpoch = function() {
+    if(this.simulationStopped)throw new RuntimeV2BackendError('USER_STOPPED');
+    return 'wwi-motion-' + this.timeObservationEpoch;
   };
   RuntimeV2WwiBackend.prototype.move = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['MOVE', String(direction), Number(distanceM).toPrecision(17)]); };
   RuntimeV2WwiBackend.prototype.vertical = function(direction, distanceM) { return this._guardSimulationStopped() || this._request(['VERTICAL', String(direction), Number(distanceM).toPrecision(17)]); };

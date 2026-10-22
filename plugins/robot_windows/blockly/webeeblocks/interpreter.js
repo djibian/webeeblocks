@@ -47,6 +47,15 @@
       if(!statement||typeof statement.kind!=='string')fail('invalid statement');
       if(nested&&(statement.kind==='takeoff'||statement.kind==='land'))fail('takeoff and land are only allowed at top-level boundaries');
       switch(statement.kind){
+        case 'guarded_move':{
+          var max=statement.max_distance_m,threshold=statement.threshold_m;
+          if(typeof max!=='number'||!Number.isFinite(max)||max<0.1||max>2||Math.abs(max*10-Math.round(max*10))>1e-9)fail('guarded maximum must be 0.1 to 2 m in 0.1 m increments');
+          if(typeof threshold!=='number'||!Number.isFinite(threshold)||threshold<0.25||threshold>1.5)fail('guarded threshold out of bounds');
+          var progress=rememberVariable(variables,statement.progress);
+          if(!assigned.has(progress.id))fail('variable read before assignment: '+progress.name);
+          validateSequence(statement.on_sensor,depth+1,true,cloneSet(assigned),variables);
+          break; // The sensor body can execute zero times; it grants no assignments.
+        }
         case 'takeoff':finite(statement.height_m,'height_m');break;
         case 'land':break;
         case 'move':if(MOVE_DIRECTIONS.indexOf(String(statement.direction))<0)fail('unsupported move direction '+statement.direction);finite(statement.distance_m,'distance_m');break;
@@ -100,6 +109,7 @@
       var cost=0;
       sequence.forEach(function(node){
         cost+=1;
+        if(node.kind==='guarded_move')cost+=3*Math.round(node.max_distance_m*10)+1+sequenceCost(node.on_sensor);
         if(node.kind==='set_variable')cost+=expressionCost(node.value);
         if(node.kind==='if')cost+=expressionCost(node.condition)+Math.max(sequenceCost(node.then),sequenceCost(node.else||[]));
         if(node.kind==='while')cost+=(node.max_iterations+1)*expressionCost(node.condition)+node.max_iterations*(1+sequenceCost(node.body));
@@ -158,12 +168,67 @@
     }
   }
 
+  function abortGuarded(options){
+    if(options&&options.signal&&options.signal.aborted){var error=new Error('guarded movement cancelled');error.code='USER_STOPPED';throw error;}
+  }
+  function guardedNodes(sequence){
+    var found=[];
+    (sequence||[]).forEach(function(node){
+      if(node.kind==='guarded_move')found.push(node);
+      ['body','then','else','on_sensor'].forEach(function(key){if(node[key])found=found.concat(guardedNodes(node[key]));});
+    });return found;
+  }
+  function preflightGuarded(ast,backend){
+    var nodes=guardedNodes(ast.program);
+    if(!nodes.length)return false;
+    var cap=backend&&backend.capabilities;
+    if(!cap||cap.guardedMove!==true||!Array.isArray(cap.actions)||cap.actions.indexOf('move')<0||
+       !Array.isArray(cap.rangeDirections)||cap.rangeDirections.indexOf('front')<0||
+       !Array.isArray(cap.moveDirections)||cap.moveDirections.indexOf('forward')<0)fail('guarded movement unavailable on this backend');
+    ['move','readRange','getMotionEpoch'].forEach(function(name){requireMethod(backend,name);});
+    var epoch=backend.getMotionEpoch();if(typeof epoch!=='string'||!epoch)fail('guarded motion epoch unavailable');
+    return true;
+  }
+  async function executeGuarded(statement,backend,budget,depth,options,path,env){
+    var epoch=backend.getMotionEpoch(),ref=variableRef(statement.progress),steps=Math.round(statement.max_distance_m*10);
+    if(typeof epoch!=='string'||!epoch)fail('guarded motion epoch unavailable');
+    function check(){abortGuarded(options);if(backend.getMotionEpoch()!==epoch)fail('guarded motion epoch changed');}
+    function spend(){budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');}
+    for(var completed=0;completed<=steps;completed++){
+      check();spend();
+      var sample=context(statement,path,'statement',env,{phase:'range',iteration:completed});
+      await hook(options,'onNode',sample);await hook(options,'beforeStep',sample);check();
+      var distance=await backend.readRange('front');check();
+      // 2 m is the WWI sensor's saturated lower-bound return, NOT an exact range.
+      if(typeof distance!=='number'||!Number.isFinite(distance)||distance<0||distance>2.001)fail('guarded range must be finite and within sensor bounds');
+      await hook(options,'onSensor',Object.assign({},sample,{direction:'front',value:distance}));check();
+      if(distance<=statement.threshold_m){
+        await executeSequence(statement.on_sensor,backend,budget,depth+1,options,path.concat('on_sensor'),env);
+        return;
+      }
+      if(completed===steps)return;
+      var prior=numeric(env.values[ref.id],'commanded progression'),next=prior+0.1;
+      if(!Number.isFinite(next)||next===prior)fail('commanded progression cannot advance');
+      spend();var motion=context(statement,path,'statement',env,{phase:'move',iteration:completed});
+      await hook(options,'onNode',motion);await hook(options,'beforeStep',motion);check();
+      var ack=await backend.move('forward',0.1);
+      // No retry and no accounting on unknown/malformed/stale completion.
+      if(backend.getMotionEpoch()!==epoch)fail('guarded motion epoch changed');
+      if(ack!==null)fail('guarded move requires an unambiguous OK acknowledgement');
+      spend();env.values[ref.id]=next;env.names[ref.id]=ref.name;
+      await hook(options,'onVariables',context(statement,path,'statement',env,{variable:ref,values:snapshot(env)}));
+      check();
+    }
+  }
+
   async function executeSequence(sequence,backend,budget,depth,options,prefix,env){
     for(var i=0;i<sequence.length;i++){
+      abortGuarded(options);
       budget.remaining-=1;if(budget.remaining<0)fail('execution budget exceeded');
       var statement=sequence[i],path=(prefix||[]).concat(i),current=context(statement,path,'statement',env);
       await hook(options,'onNode',current);
       switch(statement.kind){
+        case 'guarded_move':await executeGuarded(statement,backend,budget,depth,options,path,env);break;
         case 'takeoff':await hook(options,'beforeStep',current);await requireMethod(backend,'takeoff')(Number(statement.height_m));break;
         case 'land':await hook(options,'beforeStep',current);await requireMethod(backend,'land')();break;
         case 'move':await hook(options,'beforeStep',current);await requireMethod(backend,'move')(String(statement.direction),Number(statement.distance_m));break;
@@ -196,11 +261,11 @@
     }
   }
 
-  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||(node.kind==='repeat'&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
+  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||(node.kind==='repeat'&&containsConditionalLoop(node.body))||(node.kind==='guarded_move'&&containsConditionalLoop(node.on_sensor))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
   function containsElapsedTime(sequence){
     function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
-    return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
+    return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.on_sensor&&containsElapsedTime(node.on_sensor))||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
   }
-  async function run(ast,backend,options){validateProgram(ast);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
+  async function run(ast,backend,options){validateProgram(ast);var guarded=preflightGuarded(ast,backend);if(guarded)abortGuarded(options);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(guarded||containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
   return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });

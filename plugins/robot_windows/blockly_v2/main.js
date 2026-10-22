@@ -25,6 +25,7 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
     operator_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' },
     variable_blocks: { colourPrimary: '#B45309', colourSecondary: '#92400E', colourTertiary: '#78350F' },
     logic_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
+    guarded_motion_blocks: { colourPrimary: '#2563EB', colourSecondary: '#1D4ED8', colourTertiary: '#1E40AF' },
     loop_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
     math_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' }
   },

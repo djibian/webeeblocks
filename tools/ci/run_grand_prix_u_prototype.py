@@ -157,6 +157,14 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
         if fatal:raise RuntimeError('transport/preparation failed: '+str(out))
         if mode in ('witness','reset') and require_success and (errors or result['status']!='achieved'):
             raise RuntimeError('witness refuted: '+str(result)+' '+str(errors)+' '+str(out))
+        if mode in ('guarded-approach','guarded-single-h'):
+            wanted=1 if mode=='guarded-single-h' else 0
+            if errors or result['status']!='not-achieved' or result['reason']!='wrong-landing' or result['crossings']!=wanted:
+                raise RuntimeError('guarded partial experiment refuted: '+str(result)+' '+str(errors))
+            if not any(e['event']=='commanded-progress' for e in rows):raise RuntimeError('missing commanded progression')
+            if not any(e['event']=='guarded-project' for e in rows):raise RuntimeError('missing real Blockly experiment')
+            # Independent native obstacle/crossing/low-band oracle remains intact.
+            # A wrong landing is intentional: neither experiment traverses the U.
         expected={'short':'wrong-landing','wrong-landing':'wrong-landing','low-outside':'low-outside-zone'}
         if mode=='collision' and (result['status']!='not-achieved' or result['reason'] not in ('envelope-contact','device-contact')):
             raise RuntimeError('collision accepted: '+str(result))
@@ -195,7 +203,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes','guarded-approach','guarded-single-h'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -239,7 +247,7 @@ def main():
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(0,args.side,'guarded-approach'),(0,args.side,'guarded-single-h'),(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for seed,side,mode in cases:

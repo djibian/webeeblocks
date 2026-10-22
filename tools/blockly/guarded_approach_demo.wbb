@@ -1,0 +1,88 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "Fxd0l3^8l!`E*ai1D.xW",
+          "x": 0,
+          "y": 0,
+          "fields": {
+            "HEIGHT": 0.8
+          },
+          "next": {
+            "block": {
+              "type": "variables_set",
+              "id": "!-1L[},wZP`]yLnlEPmg",
+              "fields": {
+                "VAR": {
+                  "id": "commanded-position"
+                }
+              },
+              "inputs": {
+                "VALUE": {
+                  "block": {
+                    "type": "math_number",
+                    "id": "z`.xu{gdZ5L}%@V822Il",
+                    "fields": {
+                      "NUM": 0
+                    }
+                  }
+                }
+              },
+              "next": {
+                "block": {
+                  "type": "webeeblocks_v2_guarded_move",
+                  "id": "|UpTF{2.2tk/U,eaD[_.",
+                  "fields": {
+                    "DISTANCE": 0.4,
+                    "THRESHOLD": 0.35,
+                    "VAR": {
+                      "id": "commanded-position"
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "webeeblocks_v2_guarded_move",
+                      "id": ")1gboUn|sP(BL|ja.zvK",
+                      "fields": {
+                        "DISTANCE": 0.4,
+                        "THRESHOLD": 0.35,
+                        "VAR": {
+                          "id": "commanded-position"
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "webeeblocks_v2_land",
+                          "id": "ANWr(VNbdHCY5qp+w^PY"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "position",
+        "id": "commanded-position"
+      },
+      {
+        "name": "item",
+        "id": "i?X:+NIQG#xo~dEB51n}"
+      }
+    ]
+  }
+}
