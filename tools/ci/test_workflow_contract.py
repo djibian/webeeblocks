@@ -19,7 +19,7 @@ EXPECTED = {
     "ci.yml": {"select", "runtime", "webots", "gate"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
-        "runtime-v2-core", "runtime-v2-windows-assets", "runtime-v2-windows-release",
+        "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
         "clean-checkout-runtime-v2", "runtime-v2-observability",
         "runtime-v2-project-files", "reset-contract-fast", "reset-replay-webots",
         "runtime-v2-webots", "student-ui", "grand-prix-u-geometry",
@@ -84,6 +84,52 @@ class WorkflowTests(unittest.TestCase):
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
             self.assertEqual(job_ids((WORKFLOWS / name).read_text(encoding="utf-8")), expected, name)
+
+    def test_native_progression_sharding_preserves_required_gate(self):
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        core = runtime.split("\n  runtime-v2-core:\n", 1)[1].split(
+            "\n  runtime-v2-progression:\n", 1
+        )[0]
+        shards = runtime.split("\n  runtime-v2-progression:\n", 1)[1].split(
+            "\n  runtime-v2-windows-assets:\n", 1
+        )[0]
+        self.assertIn("WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE: sharded", core)
+        self.assertIn("WEBEEBLOCKS_RESET_PHASE_TRACE: '1'", core)
+        self.assertIn("WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'", core)
+        for required in (
+            "runs-on: ubuntu-22.04",
+            "timeout-minutes: 30",
+            "fail-fast: false",
+            "shard: [0, 1, 2]",
+            "ref: ${{ inputs.target_sha || github.sha }}",
+            "node-version: '22'",
+            "bash ./tools/prepare_runtime_v2.sh",
+            "WEBEEBLOCKS_RESET_PHASE_TRACE: '1'",
+            "WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'",
+            'python3 tools/ci/run_runtime_v2_outcome_probe.py --shard "${{ matrix.shard }}"',
+            "if: always()",
+            "name: runtime-v2-progression-shard-${{ matrix.shard }}",
+            "ci-artifacts/runtime-v2-outcome-provider/",
+            "ci-artifacts/progression-*/",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, shards)
+        self.assertNotIn("continue-on-error:", shards)
+        self.assertNotIn("if: false", shards)
+        self.assertNotIn("needs:", shards)
+        outcome = (ROOT / "tools/ci/test_runtime_activity_outcome.js").read_text(encoding="utf-8")
+        for required in (
+            "if (mode !== undefined)",
+            "assert.strictEqual(mode, 'sharded'",
+            "assert.strictEqual(process.env.GITHUB_ACTIONS, 'true'",
+            "assert.strictEqual(process.env.GITHUB_JOB, 'runtime-v2-core'",
+            "proveRealWebotsOutcomeFreshness();",
+        ):
+            self.assertIn(required, outcome)
+        gate = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("uses: ./.github/workflows/ci-runtime.yml", gate)
+        self.assertIn("needs: [select, runtime, webots]", gate)
+        self.assertIn("python3 tools/ci/check_ci_gate.py", gate)
 
     def test_ci_targets_main_only(self):
         text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
