@@ -60,12 +60,13 @@ def main() -> int:
               else proofs_for_job(os.environ.get("GITHUB_JOB", "")))
     # Do not conflate an Actions pull-request merge ref with the exact tested
     # candidate. Every native runner checks the checkout against its target SHA.
-    if args.shard is not None:
+    checkout_sha = None
+    expected_sha = os.environ.get("WEBEEBLOCKS_CI_TARGET_SHA")
+    if args.shard is not None and expected_sha:
         checkout_sha = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip()
-        expected_sha = os.environ.get("WEBEEBLOCKS_CI_TARGET_SHA")
-        if expected_sha and checkout_sha != expected_sha:
+        if checkout_sha != expected_sha:
             print(f"FAIL native shard checkout {checkout_sha} != {expected_sha}", file=sys.stderr)
             return 2
 
@@ -82,6 +83,10 @@ def main() -> int:
     if args.shard is not None:
         # A full-shard manifest only exists when *every* native subprocess
         # succeeded. On abort/timeout only diagnostic artifacts are retained.
+        if checkout_sha is None:
+            checkout_sha = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+            ).strip()
         manifest = ROOT / f"ci-artifacts/runtime-v2-progression-shard-{args.shard}/manifest.json"
         manifest.parent.mkdir(parents=True, exist_ok=True)
         manifest.write_text(json.dumps({
