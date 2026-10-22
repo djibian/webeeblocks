@@ -11,47 +11,44 @@
       "blocks": [
         {
           "type": "webeeblocks_v2_takeoff",
-          "id": "Fxd0l3^8l!`E*ai1D.xW",
+          "id": "qrvlO?%KlmIYkK%7pgvf",
           "x": 0,
           "y": 0,
           "fields": {
-            "HEIGHT": 0.8
+            "HEIGHT": 0.4
           },
           "next": {
             "block": {
-              "type": "variables_set",
-              "id": "!-1L[},wZP`]yLnlEPmg",
+              "type": "webeeblocks_v2_vertical",
+              "id": "U$^C`vbhuzae}1:MXMlN",
               "fields": {
-                "VAR": {
-                  "id": "commanded-position"
-                }
-              },
-              "inputs": {
-                "VALUE": {
-                  "block": {
-                    "type": "math_number",
-                    "id": "z`.xu{gdZ5L}%@V822Il",
-                    "fields": {
-                      "NUM": 0
-                    }
-                  }
-                }
+                "DIRECTION": "up",
+                "DISTANCE": 0.4
               },
               "next": {
                 "block": {
-                  "type": "webeeblocks_v2_guarded_move",
-                  "id": "|UpTF{2.2tk/U,eaD[_.",
+                  "type": "variables_set",
+                  "id": "l2}tFTtU}7CRZwRK~/6X",
                   "fields": {
-                    "DISTANCE": 0.4,
-                    "THRESHOLD": 0.35,
                     "VAR": {
                       "id": "commanded-position"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "math_number",
+                        "id": "*RSpH!P@S~CGDCOk=cc-",
+                        "fields": {
+                          "NUM": 0
+                        }
+                      }
                     }
                   },
                   "next": {
                     "block": {
                       "type": "webeeblocks_v2_guarded_move",
-                      "id": ")1gboUn|sP(BL|ja.zvK",
+                      "id": "[xBwNEw{z|Cj^J1,{U)d",
                       "fields": {
                         "DISTANCE": 0.4,
                         "THRESHOLD": 0.35,
@@ -61,8 +58,21 @@
                       },
                       "next": {
                         "block": {
-                          "type": "webeeblocks_v2_land",
-                          "id": "ANWr(VNbdHCY5qp+w^PY"
+                          "type": "webeeblocks_v2_guarded_move",
+                          "id": "9Rcwx;Lsq0B$5V+*^C[N",
+                          "fields": {
+                            "DISTANCE": 0.4,
+                            "THRESHOLD": 0.35,
+                            "VAR": {
+                              "id": "commanded-position"
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "webeeblocks_v2_land",
+                              "id": "(Zjm$?qVh$X+_j-kshh*"
+                            }
+                          }
                         }
                       }
                     }
@@ -81,7 +91,7 @@
       },
       {
         "name": "item",
-        "id": "i?X:+NIQG#xo~dEB51n}"
+        "id": "5C7U{)EPF)urEZ=UaM=O"
       }
     ]
   }

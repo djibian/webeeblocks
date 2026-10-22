@@ -14,7 +14,7 @@ const Wwi=require('../../plugins/robot_windows/blockly/webeeblocks/wwi_backend')
 const position={id:'p',name:'position'},number=value=>({kind:'number',value});
 function node(extra={}){return Object.assign({kind:'guarded_move',max_distance_m:.4,threshold_m:.35,progress:position,on_sensor:[]},extra);}
 function program(g=node(),initial=0){return{version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.8},{kind:'set_variable',variable:position,value:number(initial)},g,{kind:'land'}]};}
-function fake(samples){let epoch=1;const effects=[];return{effects,capabilities:{guardedMove:true,actions:['takeoff','move','vertical','land'],rangeDirections:['front'],moveDirections:['forward']},getMotionEpoch:()=>String(epoch),rotate:()=>epoch++,takeoff:async()=>effects.push('takeoff'),land:async()=>effects.push('land'),move:async(d,n)=>{effects.push(['move',d,n]);return null;},readRange:async()=>{effects.push('range');return samples.length?samples.shift():2;}};}
+function fake(samples){let epoch=1;const effects=[];return{effects,capabilities:{guardedMove:true,actions:['takeoff','move','vertical','land'],rangeDirections:['front'],moveDirections:['forward']},getMotionEpoch:()=>String(epoch),rotate:()=>epoch++,takeoff:async()=>effects.push('takeoff'),vertical:async()=>effects.push('vertical'),land:async()=>effects.push('land'),move:async(d,n)=>{effects.push(['move',d,n]);return null;},readRange:async()=>{effects.push('range');return samples.length?samples.shift():2;}};}
 async function prove(){
  // Real Blockly, project validation, source map and exact serialised identities.
  for(const crossing of [false,true]){
@@ -23,7 +23,7 @@ async function prove(){
   const loaded=P.validateProjectText(JSON.stringify(d.project),d.profile,options);assert.deepStrictEqual(loaded.ast,d.ast);
   const fixture=require('fs').readFileSync('tools/blockly/guarded_'+(crossing?'single_h':'approach')+'_demo.wbb','utf8');assert.deepStrictEqual(P.validateProjectText(fixture,d.profile,options).ast,d.ast);
   Blockly.serialization.workspaces.load(loaded.project.workspace,reopen);assert.deepStrictEqual(S.compileWorkspace(reopen),d.ast);assert.deepStrictEqual(O.buildSourceMap(reopen),map);
-  assert.strictEqual(d.blocks,crossing?14:6);
+  assert.strictEqual(d.blocks,crossing?15:7);
   assert.throws(()=>C.preflightWorkspace(Activities.getProfile('reactive-obstacle-v2'),d.workspace),/block forbidden/);
   const b=d.workspace.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_guarded_move'),read=b.getFieldValue.bind(b);
   b.getFieldValue=k=>k==='DISTANCE'?.15:read(k);assert.throws(()=>S.compileStatement(b),/multiple of 0.1/);b.getFieldValue=read;

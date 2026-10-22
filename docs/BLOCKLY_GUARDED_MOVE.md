@@ -109,9 +109,9 @@ unifiée devra éviter ce travail sans présenter une consigne comme une mesure.
 
 ## Expériences réutilisables et preuves
 
-- `tools/blockly/guarded_approach_demo.wbb` : **6 vrais blocs**, deux approches
+- `tools/blockly/guarded_approach_demo.wbb` : **7 vrais blocs**, deux approches
   maximales de .4 m, sans stratégie de franchissement.
-- `tools/blockly/guarded_single_h_demo.wbb` : **14 vrais blocs**, même approche,
+- `tools/blockly/guarded_single_h_demo.wbb` : **15 vrais blocs**, même approche,
   puis blocs explicites de descente, deux MOVE, leurs deux incréments et remontée
   dans la branche du seuil. Une seule variable. Ni reconnaissance ouvert/fermé,
   ni comptage de H, ni procédure, ni parcours final n'est fourni.
@@ -151,3 +151,35 @@ remontée, nombre_H, parcours/virages et choix de pose. Le prochain besoin déci
 est de qualifier une progression relative et ses erreurs sur une ligne, y compris
 sans H, puis lors d'un franchissement. La sortie de recherche et les trois côtés
 restent des incréments distincts. #637 continue de bloquer les intégrations.
+
+## Première réfutation native conservée
+
+Run 39744104124, artefact 12411100374 : ZIP 691018 octets, SHA256
+`a3dfc0e6c7193c3090496dc6df7e7811d093404a17560b114086e6892298bd0e` ;
+CRC et manifeste interne vérifiés. L'approche initiale est refusée **altitude**
+à +3,376 s, pendant TAKEOFF 0,80 m : z=1,168029 m, origine 0,015 m,
+vz=0,502242 m/s, puis pic archivé à 1,265605 m. Aucun RANGE/MOVE du bloc
+n'avait encore eu lieu au refus. L'ACK TAKEOFF arrive ensuite ; la macro demande
+six pas de 0,10 m et s'arrête à RANGE=0,274550 m. Le défaut de décollage a donc
+précédé une approche terminée, mais le verdict irréversible interdit tout PASS.
+
+Le démonstrateur corrigé reprend TAKEOFF 0,40 puis VERTICAL up 0,40 du témoin
+natif existant. Aucun PID ni plafond/oracle n'est modifié. Pour le H isolé,
+les deux MOVE élève sont de 0,40 puis 0,30 m, avec incréments correspondants,
+afin de remonter dans la bande publique après le H (centre ≤ 1,31 m pour seed 0).
+Il ne s'agit pas d'une preuve préalable de marge : la nouvelle expérience doit
+encore confirmer descente, franchissement et remontée. Les compteurs de blocs
+ci-dessus incluent cette montée explicite. Aucun correctif du bloc surveillé
+ne résulte de cette réfutation du TAKEOFF expérimental.
+
+Probe Chromium/Zelos exécuté sur le démonstrateur corrigé : Chromium
+153.0.8010.0, 15 blocs restaurés après Save As/Open, AST et source map identiques,
+29 pas dont lectures/MOVE surveillés et vrais blocs internes, `position = 1.2`,
+zéro erreur JavaScript. Transport et dialogues de fichiers injectés, résultat
+mission volontairement négatif : ce n'est pas une preuve native/OS/Windows.
+Commande reproductible (Playwright, Chromium et assets préparés requis) :
+
+```sh
+CHROME_BIN=/chemin/chromium WEBEEBLOCKS_PLAYWRIGHT_MODULE=/chemin/playwright/index.mjs \
+node tools/ci/probe_blockly_guarded_move_ui.mjs
+```

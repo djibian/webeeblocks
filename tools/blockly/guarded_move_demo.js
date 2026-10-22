@@ -13,13 +13,13 @@ function build(crossH=false){
  function b(type,fields={}){const block=workspace.newBlock(type);for(const [k,v]of Object.entries(fields))block.setFieldValue(String(v),k);return block;}
  function chain(blocks){blocks.slice(1).forEach((block,i)=>blocks[i].nextConnection.connect(block.previousConnection));return blocks[0];}
  function change(distance){const block=b('math_change',{VAR:position.getId()}),n=b('math_number',{NUM:distance});block.getInput('DELTA').connection.connect(n.outputConnection);return block;}
- const takeoff=b('webeeblocks_v2_takeoff',{HEIGHT:.8}),set=b('variables_set',{VAR:position.getId()}),zero=b('math_number',{NUM:0});set.getInput('VALUE').connection.connect(zero.outputConnection);
+ const takeoff=b('webeeblocks_v2_takeoff',{HEIGHT:.4}),rise=b('webeeblocks_v2_vertical',{DIRECTION:'up',DISTANCE:.4}),set=b('variables_set',{VAR:position.getId()}),zero=b('math_number',{NUM:0});set.getInput('VALUE').connection.connect(zero.outputConnection);
  const first=b('webeeblocks_v2_guarded_move',{VAR:position.getId()}),second=b('webeeblocks_v2_guarded_move',{VAR:position.getId()}),land=b('webeeblocks_v2_land');
  if(crossH){
-  const body=chain([b('webeeblocks_v2_vertical',{DIRECTION:'down',DISTANCE:.4}),b('webeeblocks_v2_move',{DIRECTION:'forward',DISTANCE:.4}),change(.4),b('webeeblocks_v2_move',{DIRECTION:'forward',DISTANCE:.4}),change(.4),b('webeeblocks_v2_vertical',{DIRECTION:'up',DISTANCE:.4})]);
+  const body=chain([b('webeeblocks_v2_vertical',{DIRECTION:'down',DISTANCE:.4}),b('webeeblocks_v2_move',{DIRECTION:'forward',DISTANCE:.4}),change(.4),b('webeeblocks_v2_move',{DIRECTION:'forward',DISTANCE:.3}),change(.3),b('webeeblocks_v2_vertical',{DIRECTION:'up',DISTANCE:.4})]);
   second.getInput('ON_SENSOR').connection.connect(body.previousConnection);
  }
- chain([takeoff,set,first,second,land]);
+ chain([takeoff,rise,set,first,second,land]);
  const context={Blockly,WebeeBlocksActivities:Activities,WebeeBlocksRuntimeOutcome:{classify:()=>({})},WebeeBlocksWwiBackend:function(){}};context.window=context;
  vm.runInNewContext(fs.readFileSync('plugins/robot_windows/grand_prix_u/setup.js','utf8'),context);
  const document=context.WebeeBlocksActivities.DOCUMENT,profile=Profiles.resolveById(document,'progression-grand-prix-u-v1',Activities.BLOCK_CATALOG);
