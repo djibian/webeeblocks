@@ -704,7 +704,10 @@ jobs:
   runtime-v2-webots:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 12
+    # The unchanged native 300s probe follows a ~6.5min semantic preflight and
+    # environment preparation. Prevent the 12min runner limit from cancelling
+    # otherwise valid in-flight native evidence; do not change probe budgets.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
