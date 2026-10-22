@@ -1147,7 +1147,12 @@ jobs:
   student-ui:
     if: github.event_name != 'pull_request' || github.event.action == 'ready_for_review' || github.event.pull_request.draft == false
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # 2026-10-22 CI 39777648835: all seven complete native shards PASS,
+    # but student-ui hit its 15-min outer job limit during the unchanged
+    # real-R2025a visual probe after a ~10-min container startup. Give the
+    # full UI oracle sufficient wall-clock headroom; no inner deadline,
+    # physical condition, assertion, or step is changed.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:

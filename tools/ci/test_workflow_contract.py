@@ -135,6 +135,29 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("needs: [select, runtime, webots]", gate)
         self.assertIn("python3 tools/ci/check_ci_gate.py", gate)
 
+    def test_student_ui_real_webots_oracle_retained_with_outer_budget(self):
+        # Canonical Ready CI 39777648835 proved all seven progression shards,
+        # but student-ui was canceled at its old 15-minute outer budget.
+        # Keep the full physical/visual assertion chain rather than skipping it.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        student = runtime.split("\n  student-ui:\n", 1)[1].split(
+            "\n  runtime-v2-windows-release:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "python3 tools/ci/run_runtime_v2_core_harness.py",
+            "docker pull cyberbotics/webots:R2025a-ubuntu22.04",
+            "bash /workspace/experiments/runtime-v2-student-ui/run.sh",
+            "Validate visual shell, strict AST and keyboard path",
+            "test -s ci-artifacts/runtime-v2-student-ui/metrics.json",
+            "test -s ci-artifacts/runtime-v2-student-ui/workspace-1366x768.png",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, student)
+        self.assertNotIn("continue-on-error:", student)
+        self.assertNotIn("if: false", student)
+
     def test_native_progression_partition_is_complete_and_fail_closed(self):
         # Unit-check the actual dispatch code; never run or stub a physical
         # acceptance oracle. The required native scripts run in CI unchanged.
