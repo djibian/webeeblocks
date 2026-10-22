@@ -63,7 +63,6 @@ jobs:
           # #637: preserve original delivery timing; capture only original RESET locals.
           WEBEEBLOCKS_RESET_PHASE_TRACE: '1'
           WEBEEBLOCKS_RESET_PHASE_DEFER_STEPS: '0'
-        env:
           # Native proofs are mandatory in every progression matrix leg below.
           WEBEEBLOCKS_CI_NATIVE_PROGRESSION_MODE: sharded
         run: python3 tools/ci/run_runtime_v2_core_harness.py
