@@ -269,7 +269,10 @@ jobs:
           if-no-files-found: error
   runtime-v2-observability:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # Run 39782202176: wall-blocked fail-safe negative cancelled at the
+    # former 15-min job envelope. Keep 65s/190s native test bounds,
+    # physical oracles and fail-closed assertions unchanged.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:

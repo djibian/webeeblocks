@@ -158,6 +158,44 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("continue-on-error:", student)
         self.assertNotIn("if: false", student)
 
+    def test_bounded_native_jobs_retain_complete_oracles_after_outer_budget_adjustment(self):
+        # CI 39782202176: two jobs reached their original 12/15-min outer
+        # budgets. All native constraints, assertions and event chains remain.
+        runtime = (WORKFLOWS / "ci-runtime.yml").read_text(encoding="utf-8")
+        obs = runtime.split("\n  runtime-v2-observability:\n", 1)[1].split(
+            "\n  runtime-v2-project-files:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "node tools/ci/test_runtime_v2_observability.js",
+            "Run real wall-blocked action to controller fail-safe",
+            "timeout -k 5s 190s xvfb-run",
+            "if: always()",
+            "if-no-files-found: error",
+        ):
+            self.assertIn(required, obs)
+        self.assertNotIn("continue-on-error:", obs)
+        self.assertNotIn("if: false", obs)
+
+        webots = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        challenge = webots.split("\n  timed-challenge-ux:\n", 1)[1].split(
+            "\n  first-collision-obstacle:\n", 1
+        )[0]
+        for required in (
+            "timeout-minutes: 30",
+            "Run three student attempts in one Robot Window session",
+            "for i in $(seq 1 1500)",
+            "Prove causal states timer results and same-session resubmission",
+            "test -s ci-artifacts/crazyflie-challenge-ux/complete.sentinel",
+            "WEBEEBLOCKS_MISSION_V1 VALIDATED",
+            "CHALLENGE_TEST_COMPLETE",
+            "if: always()",
+            "if-no-files-found: warn",
+        ):
+            self.assertIn(required, challenge)
+        self.assertNotIn("continue-on-error:", challenge)
+        self.assertNotIn("if: false", challenge)
+
     def test_native_progression_partition_is_complete_and_fail_closed(self):
         # Unit-check the actual dispatch code; never run or stub a physical
         # acceptance oracle. The required native scripts run in CI unchanged.
