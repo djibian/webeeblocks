@@ -192,7 +192,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         return result
     finally:
         stop_groups(children)
-        if startup is not None and startup.failed:
+        if startup is not None and children:
             startup.after_cleanup(webots.pid)
         for stream in streams:stream.close()
         runtime_state.cleanup()

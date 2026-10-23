@@ -41,6 +41,15 @@ class StartupEvidenceTests(unittest.TestCase):
                 self.assertIn("cgroup_v2", evidence["resources_on_failure"])
                 self.assertIn("meminfo", evidence["resources_before"])
                 self.assertEqual(evidence["process_group_after_cleanup"], [])
+                for key in ("cgroup_processes_before", "cgroup_processes_on_failure",
+                            "cgroup_processes_after_cleanup"):
+                    snapshot = evidence[key]
+                    self.assertLessEqual(len(snapshot["rows"]), 256)
+                    self.assertIn(snapshot["status"], ("available", "unavailable"))
+                    for row in snapshot["rows"]:
+                        self.assertIsInstance(row["start_ticks"], int)
+                        self.assertIsInstance(row["pid_namespace"], str)
+                        self.assertGreaterEqual(row["threads"], 1)
             finally:
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
@@ -75,6 +84,11 @@ class StartupEvidenceTests(unittest.TestCase):
             self.assertEqual(summary["sequence_index"], 1)
             self.assertIn("resources_at_readiness", summary)
             diagnostic.after_cleanup(os.getpid())
+            summary = json.loads((out / "startup-ready.json").read_text())
+            self.assertIn("cgroup_processes_before", summary)
+            self.assertIn("cgroup_processes_at_readiness", summary)
+            self.assertIn("cgroup_processes_after_cleanup", summary)
+            self.assertIn("resources_after_cleanup", summary)
             self.assertFalse((out / "startup-failure.json").exists())
             self.assertFalse((out / "startup-backtrace.txt").exists())
 

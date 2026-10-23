@@ -53,6 +53,71 @@ def process_group(pgid):
     return sorted(rows, key=lambda p: p["pid"])
 
 
+
+def unified_cgroup(pid):
+    """Return the process unified cgroup-v2 path, if observable."""
+    for line in read(f"/proc/{pid}/cgroup", 4096).splitlines():
+        if line.startswith("0::"):
+            return line[3:]
+    return None
+
+
+def cgroup_inventory(max_rows=256, max_scan=4096):
+    """Bounded identity snapshot of this runner's unified cgroup only.
+
+    pids.current counts threads, not process leaders; row Threads values are
+    retained for comparison. Missing/truncated visibility never proves cleanup.
+    No command-line arguments, environments or process memory are recorded.
+    """
+    anchor = unified_cgroup("self")
+    try:
+        cgroup_ns = os.readlink("/proc/self/ns/cgroup")
+    except OSError:
+        cgroup_ns = None
+    result = {
+        "scope": "same-unified-cgroup-v2-and-cgroup-namespace-as-runner",
+        "observer_cgroup": anchor, "observer_cgroup_namespace": cgroup_ns,
+        "rows": [], "scanned": 0, "truncated": False,
+        "status": "available" if anchor is not None and cgroup_ns else "unavailable",
+    }
+    if result["status"] != "available":
+        return result
+    try:
+        pids = sorted(int(name) for name in os.listdir("/proc") if name.isdecimal())
+    except OSError as error:
+        result["status"] = type(error).__name__
+        return result
+    result["truncated"] = len(pids) > max_scan
+    for pid in pids[:max_scan]:
+        result["scanned"] += 1
+        if unified_cgroup(pid) != anchor:
+            continue
+        try:
+            if os.readlink(f"/proc/{pid}/ns/cgroup") != cgroup_ns:
+                continue
+            stat = read(f"/proc/{pid}/stat", 4096)
+            if ") " not in stat:
+                continue
+            tail = stat.rsplit(") ", 1)[1].split()
+            status = read(f"/proc/{pid}/status")
+            threads = next((int(line.split(":", 1)[1]) for line in
+                            status.splitlines() if line.startswith("Threads:")), None)
+            result["rows"].append({
+                "pid": pid, "ppid": int(tail[1]), "pgid": int(tail[2]),
+                "sid": int(tail[3]), "state": tail[0],
+                "start_ticks": int(tail[19]), "threads": threads,
+                "pid_namespace": os.readlink(f"/proc/{pid}/ns/pid"),
+                "comm": stat.split("(", 1)[1].rsplit(")", 1)[0][:100],
+            })
+        except (OSError, ValueError, IndexError):
+            continue  # Process may disappear during /proc enumeration.
+        if len(result["rows"]) >= max_rows:
+            result["truncated"] = True
+            break
+    result["observed_processes"] = len(result["rows"])
+    result["observed_threads"] = sum(row["threads"] or 0 for row in result["rows"])
+    return result
+
 def resources(directory):
     mem = read("/proc/meminfo")
     mem = {s.split(":", 1)[0]: s.split(":", 1)[1].strip()
@@ -89,6 +154,7 @@ class StartupEvidence:
         self.started = time.monotonic()
         self.wall_start = time.time()
         self.before = resources(self.out)
+        self.before_processes = cgroup_inventory()
         self.samples = []
         self.last_sample = -1.0
         self.failed = False
@@ -157,6 +223,8 @@ class StartupEvidence:
                 "wrapper_pid": child.pid, "wrapper_returncode": code,
                 "resources_before": self.before,
                 "resources_at_readiness": resources(self.out),
+                "cgroup_processes_before": self.before_processes,
+                "cgroup_processes_at_readiness": cgroup_inventory(),
                 "process_samples": self.samples[:3] + self.samples[-1:],
             }
             (self.out / "startup-ready.json").write_text(
@@ -179,6 +247,8 @@ class StartupEvidence:
                 "launch": self.launch, "environment": self.env,
                 "resources_before": self.before,
                 "resources_on_failure": resources(self.out),
+                "cgroup_processes_before": self.before_processes,
+                "cgroup_processes_on_failure": cgroup_inventory(),
                 "process_samples": self.samples,
                 "core": self.core_details(home, Path(log_path).read_text(errors="replace")),
                 "webots_version": read(Path(home) / "resources/version.txt").strip(),
@@ -193,14 +263,14 @@ class StartupEvidence:
                 pass
 
     def after_cleanup(self, wrapper_pid):
-        if not self.failed:
-            return
         try:
-            path = self.out / "startup-failure.json"
+            path = self.out / ("startup-failure.json" if self.failed else "startup-ready.json")
             if path.is_file():
                 data = json.loads(path.read_text())
-                data["process_group_after_cleanup"] = process_group(wrapper_pid)
+                if self.failed:
+                    data["process_group_after_cleanup"] = process_group(wrapper_pid)
                 data["resources_after_cleanup"] = resources(self.out)
+                data["cgroup_processes_after_cleanup"] = cgroup_inventory()
                 path.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n")
         except Exception:
             pass  # Preserve the original startup failure.
