@@ -220,6 +220,12 @@ class StartupEvidenceTests(unittest.TestCase):
             self.assertIn(f'{root / "assets" / "projects"}:/usr/local/webots/projects:ro', argv)
             self.assertIn("-e", argv)
             self.assertIn("WEBOTS_HOME=/usr/local/webots", argv)
+            core_options = ["--ulimit", "core=1024", "-v", "/tmp/gp-u-core-test:/tmp/gp-u-core-test"]
+            with_core = native_container_command(root / "cid", root / "assets", root / "node",
+                                                 "echo native evidence", core_options)
+            self.assertEqual(with_core[4:8], core_options)
+            self.assertEqual(with_core.count("--init"), 1)
+            self.assertEqual(with_core[-2:], argv[-2:])
 
 
 if __name__ == "__main__":

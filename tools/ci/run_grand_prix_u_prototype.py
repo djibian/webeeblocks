@@ -76,6 +76,16 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
+def native_webots_launch(home, port, target):
+    """Use minimized R2025a GUI for CI's observed pre-READY Qt crash (#665).
+
+    The R2025a world-loading progress-dialog constructor skips minimized windows.
+    Preserve Fast/no-rendering, the real world, port, runtime and mission oracles.
+    This is a bounded mitigation hypothesis, not root-cause proof.
+    """
+    return [str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
+            '--no-rendering','--minimize','--port='+str(port),str(target)]
+
 def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
@@ -103,8 +113,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     children=[];streams=[];startup=None
     try:
         with (out/'webots.log').open('w') as log:
-            launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
-                '--no-rendering','--port='+str(port),str(target)]
+            launch=native_webots_launch(home,port,target)
             if not tcp:
                 xvfb=shutil.which('xvfb-run')
                 if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
@@ -200,13 +209,13 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
            for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
         target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
 
-def native_container_command(cid, assets, node, command):
+def native_container_command(cid, assets, node, command, core_options=()):
     """Enable Docker's PID 1 reaper for adopted Webots/Xvfb children.
 
     The previous PID 1 (timeout) retained zombies between native trials;
     this is process hygiene, not a claim to repair the Webots SIGSEGV.
     """
-    return ['docker','run','--rm','--init','--cidfile',str(cid),'--entrypoint','/bin/bash',
+    return ['docker','run','--rm','--init',*core_options,'--cidfile',str(cid),'--entrypoint','/bin/bash',
             '-e','WEBOTS_HOME=/usr/local/webots',
             '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
             '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command]
@@ -221,6 +230,8 @@ def main():
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
         if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
+        from tools.ci.run_grand_prix_u_core_capture import core_mount
+        core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
         subprocess.run(['bash',str(ROOT/'tools/prepare_runtime_v2.sh')],check=True)
         assets=ROOT/'.ci-grand-prix-u-webots'
         if not assets.exists():
@@ -231,13 +242,13 @@ def main():
         node=shutil.which('node')
         if not node:raise RuntimeError('Node 22+ required for shared WWI backend')
         with tempfile.TemporaryDirectory(prefix='gp-u-native-') as tmp:
-            cid=Path(tmp)/'container.cid'
+            cid=Path(os.environ['WEBEEBLOCKS_GP_CONTAINER_CIDFILE']) if core_options else Path(tmp)/'container.cid'
             command="set -eu\npython3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\ntimeout -k 2s 10s /usr/local/bin/node --version\ntimeout -k 5s 1400s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "+args.suite+' --seed '+str(args.seed)+' --side '+str(args.side)
             try:
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
                     try:
-                        subprocess.run(native_container_command(cid, assets, node, command),
+                        subprocess.run(native_container_command(cid,assets,node,command,core_options),
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
                     except (subprocess.CalledProcessError,subprocess.TimeoutExpired):
                         log.flush()
