@@ -52,6 +52,31 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)  # existing Webots evidence retained
                 self.assertFalse(selection.full)
 
+    def test_grand_prix_native_ci_owners_are_selected_for_runner_and_oracle_changes(self) -> None:
+        # These native R2025a jobs belong to ci-runtime.yml. Webots-only
+        # selection would silently skip their evidence, as happened in #668.
+        for path in (
+            "tools/ci/run_grand_prix_u_prototype.py",
+            "tools/ci/run_grand_prix_u_geometry.py",
+            "tools/ci/test_grand_prix_u_oracle.py",
+            "tools/ci/test_grand_prix_u_geometry.py",
+            "tools/ci/webots_startup_diagnostics.py",
+            "tools/ci/test_webots_startup_diagnostics.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
+        incident = select([
+            "tools/ci/run_grand_prix_u_prototype.py",
+            "tools/ci/webots_startup_diagnostics.py",
+            "tools/ci/test_webots_startup_diagnostics.py",
+        ])
+        self.assertTrue(incident.runtime)
+        self.assertTrue(incident.webots)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)

@@ -54,6 +54,11 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # Grand Prix R2025a native jobs live in ci-runtime.yml, not ci-webots.yml.
+    # Changes to their runners, assertions, or startup diagnostics must run
+    # the owning Runtime suite while preserving the existing Webots selection.
+    "tools/ci/*grand_prix_u*",
+    "tools/ci/*webots_startup_diagnostics.py",
     # Each of these runs or checks the autonomous R2025a RESET probe.
     # Their earlier generic tools/ci match selected Webots only, silently
     # skipping the real runtime-v2-core job that owns their native evidence.
