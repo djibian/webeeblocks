@@ -54,6 +54,9 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # The pre-controller observer is exercised by Runtime's outcome preflight.
+    "tools/ci/observe_outcome_startup.py",
+    "tools/ci/test_outcome_startup_observer.py",
     # The sequence LAND diagnostic is compiled and exercised by Runtime's
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
