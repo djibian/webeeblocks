@@ -23,6 +23,8 @@ from tools.ci.run_grand_prix_u_geometry import IMAGE
 
 CORE_LIMIT = 1024 * 1024 * 1024
 TEXT_LIMIT = 65536
+LIBRARY_ROOTS = (Path('/lib/x86_64-linux-gnu'), Path('/usr/lib/x86_64-linux-gnu'),
+                 Path('/usr/local/webots/lib/webots'))
 PATTERN_FILE = Path('/proc/sys/kernel/core_pattern')
 OUT = ROOT / 'ci-artifacts/grand-prix-u'
 
@@ -102,57 +104,103 @@ def digest(path):
     return result.hexdigest()
 
 
+def snapshot_inputs(binary, root):
+    """Copy original ELF libraries before apt; never retain escaping symlinks."""
+    files = {binary}
+    loader = Path('/lib64/ld-linux-x86-64.so.2')
+    if loader.is_file():
+        files.add(loader)
+    for directory in LIBRARY_ROOTS:
+        # rglob does not recurse into directory symlinks. File symlinks are
+        # dereferenced while copying, so an absolute target cannot escape the
+        # debugger's sysroot later and silently select an upgraded library.
+        for path in directory.rglob('*'):
+            if '.so' in path.name and path.is_file():
+                with path.open('rb') as stream:
+                    if stream.read(4) == b'\x7fELF':
+                        files.add(path)
+    manifest = {}
+    for source in sorted(files):
+        relative = source.relative_to('/')
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        checksum = hashlib.sha256()
+        with source.open('rb') as original, target.open('xb') as copy:
+            for block in iter(lambda: original.read(1024 * 1024), b''):
+                copy.write(block)
+                checksum.update(block)
+        manifest[str(relative)] = checksum.hexdigest()
+    return manifest
+
+
+def verify_snapshot(root, manifest):
+    for relative, checksum in manifest.items():
+        path = root / relative
+        if path.is_symlink() or not path.is_file() or digest(path) != checksum:
+            raise RuntimeError('original debugger sysroot changed: ' + relative)
+
+
 def container_backtrace(core, binary, output):
     """Runs in a NEW disposable copy of IMAGE, only after the subject exited.
 
-    Installing GDB must not upgrade any package already in the pinned image.
-    Otherwise refuse the stack rather than symbolize against changed libraries.
+    GDB dependencies may differ from the subject, but every subject ELF input
+    is copied and hashed BEFORE apt, then verified and selected by --sysroot.
     The subject container, native binary and its original launch are untouched.
     """
     versions = package_versions()
     binary_hash = digest(binary)
     result = dict(image=IMAGE, binary_sha256=binary_hash, raw_core_uploaded=False,
                   status='UNPROVEN', core_bytes=core.stat().st_size)
-    try:
-        with tempfile.TemporaryFile() as preparation:
-            for command in (['apt-get', 'update'],
-                            ['apt-get', 'install', '-y', '--no-install-recommends',
-                             '--no-remove', 'gdb']):
-                subprocess.run(command, stdout=preparation, stderr=subprocess.STDOUT,
-                               check=True, timeout=90,
-                               env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
-        after = package_versions()
-        changed = sorted(name for name, version in versions.items()
-                         if after.get(name) != version)
-        if changed or digest(binary) != binary_hash:
-            raise RuntimeError('debugger preparation changed original image inputs: ' +
-                               ','.join(changed[:10]))
-        result['original_package_versions_preserved'] = True
-        # Only frame names/addresses and loaded-library provenance: never locals,
-        # arguments, environment, arbitrary memory, raw cores or auto-loaded code.
-        command = ['gdb', '-q', '-nx', '-batch',
-                   '-iex', 'set auto-load off',
-                   '-iex', 'set debuginfod enabled off',
-                   '-ex', 'set print frame-arguments none',
-                   '-ex', 'set print entry-values no',
-                   '-ex', 'thread apply all bt 24',
-                   '-ex', 'info sharedlibrary', str(binary), str(core)]
-        with tempfile.TemporaryFile() as text:
-            proc = subprocess.run(command, stdout=text, stderr=subprocess.STDOUT,
-                                  timeout=15, check=False)
-            text.seek(0)
-            payload = text.read(TEXT_LIMIT + 1)
-        output.with_suffix('.txt').write_bytes(payload[:TEXT_LIMIT])
-        incomplete = any(marker in payload for marker in (
-            b'core file may not match', b'is truncated',
-            b'Could not load shared library symbols', b'Cannot access memory'))
-        result.update(gdb_returncode=proc.returncode,
-                      text_truncated=len(payload) > TEXT_LIMIT,
-                      stack_incomplete=incomplete,
-                      status='CAPTURED' if proc.returncode == 0 and
-                      b'#0 ' in payload and not incomplete else 'UNPROVEN')
-    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-        result['reason'] = type(error).__name__ + ': ' + str(error)[:500]
+    with tempfile.TemporaryDirectory(prefix='gp-u-sysroot-') as temporary:
+        try:
+            sysroot = Path(temporary)
+            manifest = snapshot_inputs(binary, sysroot)
+            result['sysroot_manifest_sha256'] = hashlib.sha256(
+                json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+            result['sysroot_files'] = len(manifest)
+            write_json(output.with_suffix('.sysroot.json'),
+                       dict(image=IMAGE, sha256=manifest,
+                            claim='original ELF inputs before debugger preparation'))
+            with tempfile.TemporaryFile() as preparation:
+                for command in (['apt-get', 'update'],
+                                ['apt-get', 'install', '-y', '--no-install-recommends',
+                                 '--no-remove', 'gdb']):
+                    subprocess.run(command, stdout=preparation, stderr=subprocess.STDOUT,
+                                   check=True, timeout=90,
+                                   env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive'})
+            after = package_versions()
+            changed = sorted(name for name, version in versions.items()
+                             if after.get(name) != version)
+            result['debugger_changed_packages'] = changed
+            verify_snapshot(sysroot, manifest)
+            result['original_sysroot_verified'] = True
+            # Only frame names/addresses and loaded-library provenance: never locals,
+            # arguments, environment, arbitrary memory, raw cores or auto-loaded code.
+            command = ['gdb', '-q', '-nx', '-batch',
+                       '-iex', 'set auto-load off',
+                       '-iex', 'set debuginfod enabled off',
+                       '-iex', 'set sysroot ' + str(sysroot),
+                       '-iex', 'set debug-file-directory ' + str(sysroot / 'usr/lib/debug'),
+                       '-ex', 'set print frame-arguments none',
+                       '-ex', 'set print entry-values no',
+                       '-ex', 'thread apply all bt 24',
+                       '-ex', 'info sharedlibrary', str(sysroot / binary.relative_to('/')), str(core)]
+            with tempfile.TemporaryFile() as text:
+                proc = subprocess.run(command, stdout=text, stderr=subprocess.STDOUT,
+                                      timeout=15, check=False)
+                text.seek(0)
+                payload = text.read(TEXT_LIMIT + 1)
+            output.with_suffix('.txt').write_bytes(payload[:TEXT_LIMIT])
+            incomplete = any(marker in payload for marker in (
+                b'core file may not match', b'is truncated',
+                b'Could not load shared library symbols', b'Cannot access memory'))
+            result.update(gdb_returncode=proc.returncode,
+                          text_truncated=len(payload) > TEXT_LIMIT,
+                          stack_incomplete=incomplete,
+                          status='CAPTURED' if proc.returncode == 0 and
+                          b'#0 ' in payload and not incomplete else 'UNPROVEN')
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            result['reason'] = type(error).__name__ + ': ' + str(error)[:500]
     write_json(output.with_suffix('.json'), result)
     return 0 if result['status'] == 'CAPTURED' else 1
 

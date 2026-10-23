@@ -95,15 +95,26 @@ class CoreCaptureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'empty'):
                 capture.cores(path, 'webots-bin')
 
-    def test_debugger_refuses_changed_original_packages(self):
+    def test_debugger_refuses_mutated_original_sysroot(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
             binary, core, output = path/'binary', path/'core', path/'out'
             binary.write_bytes(b'exact binary'); core.write_bytes(b'fake core')
-            with (patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
-                  patch.object(capture.subprocess, 'run') as run):
+            roots = []
+            original_snapshot = capture.snapshot_inputs
+            def snapshot(binary, root):
+                roots.append(root)
+                return original_snapshot(binary, root)
+            def run(command, **kwargs):
+                saved = roots[0] / binary.relative_to('/')
+                saved.write_bytes(b'corrupted')
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'LIBRARY_ROOTS', ()),
+                  patch.object(capture, 'snapshot_inputs', side_effect=snapshot),
+                  patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
+                  patch.object(capture.subprocess, 'run', side_effect=run) as called):
                 self.assertEqual(capture.container_backtrace(core, binary, output), 1)
-            self.assertEqual(run.call_count, 2)  # preparation only; never GDB
+            self.assertEqual(called.call_count, 2)  # preparation only; never GDB
             self.assertFalse(output.with_suffix('.txt').exists())
             self.assertEqual(json.loads(output.with_suffix('.json').read_text())['status'], 'UNPROVEN')
 
@@ -118,13 +129,41 @@ class CoreCaptureTests(unittest.TestCase):
                     self.assertIn('set auto-load off', command)
                     self.assertIn('set debuginfod enabled off', command)
                     self.assertNotIn('full', command)
+                    self.assertIn('set sysroot ', ' '.join(command))
+                    self.assertIn('set debug-file-directory ', ' '.join(command))
+                    self.assertNotEqual(Path(command[-2]), binary)
+                    self.assertEqual(Path(command[-2]).read_bytes(), b'exact binary')
                     kwargs['stdout'].write(b'#0 wbb_expected_crash ()\n' + b'x'*70000)
+                else:
+                    binary.write_bytes(b'changed by debugger dependencies')
                 return subprocess.CompletedProcess(command, 0)
-            with (patch.object(capture, 'package_versions', return_value={'libc6':'1'}),
+            with (patch.object(capture, 'LIBRARY_ROOTS', ()),
+                  patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
                   patch.object(capture.subprocess, 'run', side_effect=run)):
                 self.assertEqual(capture.container_backtrace(core, binary, output), 0)
             self.assertEqual(output.with_suffix('.txt').stat().st_size, capture.TEXT_LIMIT)
             self.assertTrue(json.loads(output.with_suffix('.json').read_text())['text_truncated'])
+
+    def test_absolute_library_symlink_becomes_verified_original_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            libs, saved = directory/'libraries', directory/'saved'
+            libs.mkdir(); saved.mkdir()
+            original, link = libs/'libfixture.so.1', libs/'libfixture.so'
+            original.write_bytes(b'\x7fELF original library')
+            link.symlink_to(original)
+            binary = directory/'binary'
+            binary.write_bytes(b'original binary')
+            with patch.object(capture, 'LIBRARY_ROOTS', (libs,)):
+                manifest = capture.snapshot_inputs(binary, saved)
+            copied = saved/link.relative_to('/')
+            self.assertFalse(copied.is_symlink())
+            original.write_bytes(b'changed library')
+            capture.verify_snapshot(saved, manifest)
+            self.assertEqual(copied.read_bytes(), b'\x7fELF original library')
+            copied.write_bytes(b'changed snapshot')
+            with self.assertRaisesRegex(RuntimeError, 'sysroot changed'):
+                capture.verify_snapshot(saved, manifest)
 
     def test_native_failure_is_preserved_without_retry_even_with_a_stack(self):
         with tempfile.TemporaryDirectory() as tmp:
