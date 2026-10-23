@@ -128,12 +128,16 @@ class CoreCaptureTests(unittest.TestCase):
                     self.assertIn('set print frame-arguments none', command)
                     self.assertIn('set auto-load off', command)
                     self.assertIn('set debuginfod enabled off', command)
+                    self.assertEqual(command[command.index('set print frame-arguments none')-1], '-iex')
+                    self.assertEqual(command[command.index('set print entry-values no')-1], '-iex')
+                    self.assertTrue(any(x.startswith('set libthread-db-search-path /tmp/gp-u-sysroot-') for x in command))
+                    self.assertLess(command.index('bt 24'), command.index('thread apply all bt 24'))
                     self.assertNotIn('full', command)
                     self.assertIn('set sysroot ', ' '.join(command))
                     self.assertIn('set debug-file-directory ', ' '.join(command))
                     self.assertNotEqual(Path(command[-2]), binary)
                     self.assertEqual(Path(command[-2]).read_bytes(), b'exact binary')
-                    kwargs['stdout'].write(b'#0 wbb_expected_crash ()\n' + b'x'*70000)
+                    kwargs['stdout'].write(b'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash ()\nWBB_PRIMARY_END\n' + b'x'*70000)
                 else:
                     binary.write_bytes(b'changed by debugger dependencies')
                 return subprocess.CompletedProcess(command, 0)
@@ -143,6 +147,24 @@ class CoreCaptureTests(unittest.TestCase):
                 self.assertEqual(capture.container_backtrace(core, binary, output), 0)
             self.assertEqual(output.with_suffix('.txt').stat().st_size, capture.TEXT_LIMIT)
             self.assertTrue(json.loads(output.with_suffix('.json').read_text())['text_truncated'])
+
+    def test_worker_frame_cannot_qualify_missing_primary_stack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            binary, core, output = path/'binary', path/'core', path/'out'
+            binary.write_bytes(b'fixture'); core.write_bytes(b'fixture')
+            def run(command, **kwargs):
+                if command[0] == 'gdb':
+                    kwargs['stdout'].write(b'#0 worker ()\n' + b'x'*70000 +
+                        b'WBB_PRIMARY_BEGIN\n#0 actual_fault ()\nWBB_PRIMARY_END\n')
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'LIBRARY_ROOTS', ()),
+                  patch.object(capture, 'package_versions', return_value={}),
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
+            result = json.loads(output.with_suffix('.json').read_text())
+            self.assertEqual(result['status'], 'UNPROVEN')
+            self.assertFalse(result['primary_stack_complete'])
 
     def test_absolute_library_symlink_becomes_verified_original_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:

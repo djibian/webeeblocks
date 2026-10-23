@@ -129,6 +129,8 @@ def snapshot_inputs(binary, root):
             for block in iter(lambda: original.read(1024 * 1024), b''):
                 copy.write(block)
                 checksum.update(block)
+        original_stat = source.stat()
+        os.utime(target, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
         manifest[str(relative)] = checksum.hexdigest()
     return manifest
 
@@ -181,8 +183,14 @@ def container_backtrace(core, binary, output):
                        '-iex', 'set debuginfod enabled off',
                        '-iex', 'set sysroot ' + str(sysroot),
                        '-iex', 'set debug-file-directory ' + str(sysroot / 'usr/lib/debug'),
-                       '-ex', 'set print frame-arguments none',
-                       '-ex', 'set print entry-values no',
+                       '-iex', 'set libthread-db-search-path ' +
+                       str(sysroot / 'lib/x86_64-linux-gnu') + ':' +
+                       str(sysroot / 'usr/lib/x86_64-linux-gnu'),
+                       '-iex', 'set print frame-arguments none',
+                       '-iex', 'set print entry-values no',
+                       '-ex', 'echo WBB_PRIMARY_BEGIN\\n',
+                       '-ex', 'bt 24',
+                       '-ex', 'echo WBB_PRIMARY_END\\n',
                        '-ex', 'thread apply all bt 24',
                        '-ex', 'info sharedlibrary', str(sysroot / binary.relative_to('/')), str(core)]
             with tempfile.TemporaryFile() as text:
@@ -194,11 +202,17 @@ def container_backtrace(core, binary, output):
             incomplete = any(marker in payload for marker in (
                 b'core file may not match', b'is truncated',
                 b'Could not load shared library symbols', b'Cannot access memory'))
+            retained = payload[:TEXT_LIMIT]
+            begin = b'WBB_PRIMARY_BEGIN\n'
+            start = retained.find(begin)
+            end = retained.find(b'WBB_PRIMARY_END\n', start + len(begin)) if start >= 0 else -1
+            primary = retained[start + len(begin):end] if end >= 0 else b''
             result.update(gdb_returncode=proc.returncode,
                           text_truncated=len(payload) > TEXT_LIMIT,
                           stack_incomplete=incomplete,
+                          primary_stack_complete=end >= 0 and b'#0 ' in primary,
                           status='CAPTURED' if proc.returncode == 0 and
-                          b'#0 ' in payload and not incomplete else 'UNPROVEN')
+                          b'#0 ' in primary and not incomplete else 'UNPROVEN')
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
             result['reason'] = type(error).__name__ + ': ' + str(error)[:500]
     write_json(output.with_suffix('.json'), result)
