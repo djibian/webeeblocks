@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processes
@@ -99,6 +100,52 @@ class StartupEvidenceTests(unittest.TestCase):
             cleanup = json.loads((out / "startup-cleanup.json").read_text())
             self.assertEqual(cleanup["sequence_index"], 1)
             self.assertIn("cgroup_after_cleanup", cleanup)
+
+
+    def test_cgroup_task_census_includes_threads_without_new_process(self):
+        before = cgroup_processes()
+        if before["status"] == "unavailable":
+            self.skipTest("unified cgroup /proc unavailable")
+        pid = os.getpid()
+        known = {r["tid"] for r in before["tasks"] if r["pid"] == pid}
+        barrier = threading.Barrier(4)
+        done = threading.Event()
+
+        def worker():
+            barrier.wait(timeout=5)
+            done.wait(timeout=5)
+
+        workers = [threading.Thread(target=worker) for _ in range(3)]
+        for thread in workers:
+            thread.start()
+        try:
+            barrier.wait(timeout=5)
+            during = cgroup_processes()
+            if during["status"] == "unavailable":
+                self.skipTest("cgroup became unavailable")
+            new = {r["tid"] for r in during["tasks"] if r["pid"] == pid}
+            self.assertGreaterEqual(len(new - known), 3)
+            self.assertEqual(
+                {r["pid"] for r in during["processes"] if r["pid"] == pid},
+                {pid})
+            self.assertIn("descendant cgroups", during["scope_limitation"])
+        finally:
+            done.set()
+            for thread in workers:
+                thread.join(timeout=5)
+                self.assertFalse(thread.is_alive())
+
+    def test_truncated_cgroup_census_must_be_partial(self):
+        snap = cgroup_processes(limit=0, task_limit=0)
+        if snap["status"] == "unavailable":
+            self.skipTest("cgroup unavailable")
+        self.assertEqual(snap["status"], "partial")
+        self.assertTrue(snap["truncated"])
+        self.assertTrue(snap["task_truncated"])
+        self.assertEqual(snap["processes"], [])
+        self.assertEqual(snap["tasks"], [])
+        self.assertGreater(snap["matching_visible_tasks"], 0)
+
 
 
 if __name__ == "__main__":

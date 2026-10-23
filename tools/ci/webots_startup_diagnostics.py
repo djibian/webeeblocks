@@ -74,30 +74,35 @@ def resources(directory):
         "core_uses_pid": read("/proc/sys/kernel/core_uses_pid").strip(),
     }
 
-def cgroup_processes(limit=256):
-    """Bounded /proc identities in this process's exact cgroup membership.
+def cgroup_processes(limit=256, task_limit=1024):
+    """Bounded exact-cgroup process and Linux task identities, not a leak verdict.
 
-    This is evidence about *visible* tasks, not proof that every task in the
-    mounted cgroup is visible or attributable to the previous Webots run.
-    Deliberately omit command lines, environment and raw memory.
+    cgroup pids.current counts threads and can include descendant cgroups;
+    exact membership here cannot be equated with that counter. Never include
+    argv, environments or raw process memory in public CI artifacts.
     """
     membership = read("/proc/self/cgroup", 4096)
     if not membership.strip() or membership.startswith("UNAVAILABLE:"):
-        return {"status": "unavailable", "reason": membership[:128], "processes": []}
+        return {"status": "unavailable", "reason": membership[:128],
+                "processes": [], "tasks": []}
     try:
         candidates = sorted((int(name) for name in os.listdir("/proc")
                              if name.isdecimal()))
     except OSError as error:
         return {"status": "unavailable", "reason": type(error).__name__,
-                "processes": []}
+                "processes": [], "tasks": []}
     try:
         namespace = os.readlink("/proc/self/ns/pid")
     except OSError:
         namespace = "UNAVAILABLE"
-    result = {"status": "ok", "membership": membership.strip(),
-              "pid_namespace": namespace, "scanned_visible": len(candidates),
-              "matching_visible": 0, "truncated": False,
-              "scan_errors": 0, "processes": []}
+    result = {
+        "status": "ok", "membership": membership.strip(),
+        "pid_namespace": namespace, "scanned_visible": len(candidates),
+        "matching_visible": 0, "matching_visible_tasks": 0,
+        "truncated": False, "task_truncated": False,
+        "scan_errors": 0, "processes": [], "tasks": [],
+        "scope_limitation": "exact cgroup members only; pids.current may include descendant cgroups",
+    }
     for pid in candidates:
         other = read("/proc/%d/cgroup" % pid, 4096)
         if other != membership:
@@ -120,6 +125,7 @@ def cgroup_processes(limit=256):
                 identity["pid_namespace"] = os.readlink("/proc/%d/ns/pid" % pid)
             except OSError:
                 identity["pid_namespace"] = "UNAVAILABLE"
+                result["scan_errors"] += 1
         except (ValueError, IndexError):
             result["scan_errors"] += 1
             continue
@@ -128,7 +134,37 @@ def cgroup_processes(limit=256):
             result["processes"].append(identity)
         else:
             result["truncated"] = True
-    if result["scan_errors"]:
+        try:
+            tids = sorted(int(tid) for tid in os.listdir("/proc/%d/task" % pid)
+                          if tid.isdecimal())
+        except OSError:
+            result["scan_errors"] += 1
+            continue
+        for tid in tids:
+            task_cgroup = read("/proc/%d/task/%d/cgroup" % (pid, tid), 4096)
+            if task_cgroup != membership:
+                if task_cgroup.startswith("UNAVAILABLE:"):
+                    result["scan_errors"] += 1
+                continue
+            result["matching_visible_tasks"] += 1
+            if len(result["tasks"]) >= task_limit:
+                result["task_truncated"] = True
+                continue
+            task_stat = read("/proc/%d/task/%d/stat" % (pid, tid), 4096)
+            if ") " not in task_stat:
+                result["scan_errors"] += 1
+                continue
+            try:
+                task_tail = task_stat.rsplit(") ", 1)[1].split()
+                result["tasks"].append({
+                    "pid": pid, "tid": tid,
+                    "pid_start_ticks": identity["start_ticks"],
+                    "tid_start_ticks": int(task_tail[19]),
+                    "pid_namespace": identity["pid_namespace"],
+                })
+            except (ValueError, IndexError):
+                result["scan_errors"] += 1
+    if result["scan_errors"] or result["truncated"] or result["task_truncated"]:
         result["status"] = "partial"
     return result
 
