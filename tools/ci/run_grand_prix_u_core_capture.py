@@ -375,9 +375,7 @@ def host_main():
             if analyse(core, binary, 'core-capture-preflight') != 0:
                 raise RuntimeError('core-capture preflight stack unavailable')
             control_stack = (OUT / 'core-capture-preflight.txt').read_text()
-            if ('wbb_expected_crash' not in control_stack or
-                    'wbb_worker_wait' not in control_stack or
-                    '[Thread debugging using libthread_db enabled]' not in control_stack):
+            if not control_threads_verified(control_stack):
                 raise RuntimeError('multi-thread core preflight stack/helper unavailable')
             core.unlink()
             cid = directory / 'subject.cid'
