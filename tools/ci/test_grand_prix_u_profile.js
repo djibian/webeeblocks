@@ -14,7 +14,9 @@ function compose(loops){
  assert.strictEqual(profile.id,'progression-grand-prix-u-v1');
  assert.strictEqual(profile.runtime.maxSteps,20000);
  assert.strictEqual(profile.toolbox.includes('controls_whileUntil'),loops);
- assert.strictEqual(profile.runtime.allowedStatementKinds.includes('while'),loops);
+ assert.strictEqual(profile.toolbox.includes('webeeblocks_v2_until'),true);
+ assert.strictEqual(profile.runtime.astBounds['while.max_iterations'].max,100);
+ assert.strictEqual(profile.runtime.allowedStatementKinds.includes('while'),true);
  assert.throws(()=>Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,'reactive-obstacle-v2',catalog),/exactly once/);
  for(const key of ['seed','gateCount','lap','position'])assert(!Object.hasOwn(profile,key));
  assert.strictEqual(new context.WebeeBlocksWwiBackend({},{}).capabilities.simulationScenes,false);

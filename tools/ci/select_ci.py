@@ -68,6 +68,27 @@ SHARED_RUNTIME_WEBOTS = (
     "plugins/robot_windows/blockly/webeeblocks/wwi_backend.js",
 )
 
+# Grand Prix's native probes and their host diagnostics live in ci-runtime.yml
+# (grand-prix-prototype), not in ci-webots.yml. Keep existing Webots coverage
+# and additionally select the Runtime suite for changes to those exact inputs.
+GRAND_PRIX_RUNTIME_EVIDENCE = (
+    "tools/ci/*grand_prix*",
+    # These gp_u_* native pose fixtures are compiled by the Windows composition
+    # test in ci-runtime.yml; the original grand_prix* name glob misses them.
+    "tools/ci/fixtures/gp_u_*",
+    "tools/ci/*webots_startup_diagnostics*",
+)
+
+
+# These native visual and Windows release checks are executed by ci-runtime.yml,
+# not by ci-webots.yml. A generic tools/ci or controllers path selects only
+# Webots; select Runtime as well without dropping existing Webots evidence.
+RUNTIME_VISUAL_RELEASE_EVIDENCE = (
+    "controllers/color_led_visual_probe/**",
+    "tools/ci/*color_led*",
+    "tools/ci/test_windows_classroom_release.ps1",
+)
+
 def matches(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
 
@@ -103,7 +124,7 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
             runtime = True
         if matches(path, DOC_ONLY):
             continue
-        if matches(path, SHARED_RUNTIME_WEBOTS):
+        if matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE) or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE):
             runtime = True
             webots = True
         elif matches(path, RUNTIME):

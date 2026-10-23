@@ -26,14 +26,16 @@ var WebeeBlocksStudentTheme = Blockly.Theme.defineTheme('webeeblocksStudent', {
     variable_blocks: { colourPrimary: '#B45309', colourSecondary: '#92400E', colourTertiary: '#78350F' },
     logic_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
     loop_blocks: { colourPrimary: '#7C3AED', colourSecondary: '#6D28D9', colourTertiary: '#5B21B6' },
-    math_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' }
+    math_blocks: { colourPrimary: '#047857', colourSecondary: '#046C4E', colourTertiary: '#065F46' },
+    procedure_blocks: { colourPrimary: '#A21CAF', colourSecondary: '#86198F', colourTertiary: '#701A75' }
   },
   categoryStyles: {
     flight_category: {colour: '#2563EB'},
     control_category: {colour: '#7C3AED'},
     sensor_category: {colour: '#0E7490'},
     operator_category: {colour: '#047857'},
-    variable_category: {colour: '#B45309'}
+    variable_category: {colour: '#B45309'},
+    procedure_category: {colour: '#A21CAF'}
   },
   componentStyles: {
     workspaceBackgroundColour: '#f7f9fc', toolboxBackgroundColour: '#ffffff', toolboxForegroundColour: '#263342',
@@ -98,6 +100,7 @@ function categoryLabel(category) {
   if (category === 'sensor') return 'Capteurs';
   if (category === 'operator') return 'Opérateurs';
   if (category === 'variable') return 'Variables';
+  if (category === 'procedure') return 'Procédures';
   throw new Error('unknown toolbox category: ' + category);
 }
 function categoryStyle(category) {
@@ -106,6 +109,7 @@ function categoryStyle(category) {
   if (category === 'sensor') return 'sensor_category';
   if (category === 'operator') return 'operator_category';
   if (category === 'variable') return 'variable_category';
+  if (category === 'procedure') return 'procedure_category';
   throw new Error('unknown toolbox category: ' + category);
 }
 function overrideBuiltinBlockStyle(type, style) {
@@ -126,18 +130,23 @@ function applySemanticBuiltinStyles() {
 
 function buildToolbox(profile) {
   var toolbox = document.createElement('xml');
-  var groups = {flight: [], control: [], sensor: [], operator: [], variable: []};
+  var groups = {flight: [], control: [], sensor: [], operator: [], variable: [], procedure: []};
   profile.toolbox.forEach(function(type) {
     var definition = WebeeBlocksActivities.BLOCK_CATALOG[type];
     var category = (definition && definition.category) || 'control';
     if (!Object.prototype.hasOwnProperty.call(groups, category)) throw new Error('unsupported toolbox category for ' + type + ': ' + category);
     groups[category].push(type);
   });
-  ['flight', 'control', 'sensor', 'operator', 'variable'].forEach(function(category) {
+  ['flight', 'control', 'sensor', 'operator', 'variable', 'procedure'].forEach(function(category) {
     if (!groups[category].length) return;
     var categoryNode = document.createElement('category');
     categoryNode.setAttribute('name', categoryLabel(category));
     categoryNode.setAttribute('categorystyle', categoryStyle(category));
+    if (category === 'procedure') {
+      categoryNode.setAttribute('custom', 'WEBEEBLOCKS_PROCEDURES');
+      toolbox.appendChild(categoryNode);
+      return;
+    }
     if (category === 'variable') {
       var createButton = document.createElement('button');
       createButton.setAttribute('text', 'Créer une variable…');
@@ -386,6 +395,12 @@ window.onload = async function() {
     throw new Error('Blockly variable creation callback unavailable');
   workspace.registerButtonCallback(WEBEEBLOCKS_CREATE_VARIABLE_CALLBACK, function() {
     Blockly.Variables.createVariableButtonHandler(workspace);
+  });
+  if (typeof workspace.registerToolboxCategoryCallback === 'function') workspace.registerToolboxCategoryCallback('WEBEEBLOCKS_PROCEDURES', function(target) {
+    // Retain Blockly's automatic naming/call updates, expose only this profile.
+    return Blockly.Procedures.flyoutCategory(target).filter(function(item) {
+      return runtimeProfile.toolbox.indexOf(item.type) >= 0;
+    });
   });
   profileFieldOptions.applyWorkspace(workspace);
   wireWorkspaceControls(); wireDebugControls(); workspace.addChangeListener(onWorkspaceChange);
