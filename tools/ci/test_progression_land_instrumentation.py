@@ -44,6 +44,11 @@ class LandInstrumentationTests(unittest.TestCase):
             p,
         )
         self.assertIn("wb_supervisor_node_get_velocity(self)", p)
+        self.assertIn("double velocity[6] = {NAN, NAN, NAN, NAN, NAN, NAN};", p)
+        self.assertLess(
+            p.index("velocity[i] = observed_velocity[i];"),
+            p.index("WbContactPoint *points = wb_supervisor_node_get_contact_points(self"),
+        )
         self.assertIn("isfinite(points[i].point[axis])", p)
         self.assertIn("contact_count < 6 ? contact_count : 6", p)
         self.assertIn("status=%s contacts=%d shown=%d", p)

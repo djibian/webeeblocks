@@ -41,11 +41,16 @@ static void sequence_ci_position(const char *phase, int request_id,
 static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) {
   // Read-only Supervisor observations: contact locations are not contact forces.
   // Keep the on-line volume bounded; a partial array is explicitly labelled.
-  const double *velocity = wb_supervisor_node_get_velocity(self);
+  const double *observed_velocity = wb_supervisor_node_get_velocity(self);
+  double velocity[6] = {NAN, NAN, NAN, NAN, NAN, NAN};
+  // Webots may reuse API-owned memory; snapshot velocity before reading contacts.
+  if (observed_velocity != NULL)
+    for (int i = 0; i < 6; ++i)
+      velocity[i] = observed_velocity[i];
   int contact_count = -1;
   WbContactPoint *points = wb_supervisor_node_get_contact_points(self, true, &contact_count);
   const int shown = contact_count < 6 ? contact_count : 6;
-  int valid = velocity != NULL && contact_count >= 0 &&
+  int valid = observed_velocity != NULL && contact_count >= 0 &&
               (contact_count == 0 || points != NULL);
   if (valid) {
     for (int i = 0; i < 6; ++i)
