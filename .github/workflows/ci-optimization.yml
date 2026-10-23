@@ -1,0 +1,43 @@
+name: CI Optimization (advisory)
+
+on:
+  schedule:
+    - cron: '37 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ci-optimization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Weekly CI optimization report (non-decision)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test advisory analyzer without API access
+        run: python3 -m unittest discover -s tools/ci -p test_ci_optimization_report.py
+      - name: Inspect canonical CI and publish advisory suggestions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/ci/ci_optimization_report.py
+          --repository "${{ github.repository }}"
+          --days 21
+          --max-runs 60
+          --out-dir ci-artifacts/ci-optimization
+      - name: Keep report evidence even on analyzer failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-optimization-advisory-${{ github.run_id }}
+          path: ci-artifacts/ci-optimization/
+          if-no-files-found: warn
+          retention-days: 90
