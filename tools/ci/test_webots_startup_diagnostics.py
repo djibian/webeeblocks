@@ -206,5 +206,21 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertEqual(snapshot["matching_visible_tasks"], 258)
 
 
+    def test_native_container_uses_pid1_reaper_without_changing_evidence_command(self):
+        from tools.ci.run_grand_prix_u_prototype import native_container_command
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            argv = native_container_command(root / "cid", root / "assets", root / "node",
+                                            "echo native evidence")
+            self.assertEqual(argv[:4], ["docker", "run", "--rm", "--init"])
+            self.assertEqual(argv.count("--init"), 1)
+            self.assertEqual(argv[argv.index("--cidfile") + 1], str(root / "cid"))
+            self.assertEqual(argv[argv.index("--entrypoint") + 1], "/bin/bash")
+            self.assertEqual(argv[-2:], ["-c", "echo native evidence"])
+            self.assertIn(f'{root / "assets" / "projects"}:/usr/local/webots/projects:ro', argv)
+            self.assertIn("-e", argv)
+            self.assertIn("WEBOTS_HOME=/usr/local/webots", argv)
+
+
 if __name__ == "__main__":
     unittest.main()
