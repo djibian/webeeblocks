@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processes
 
@@ -146,6 +147,63 @@ class StartupEvidenceTests(unittest.TestCase):
         self.assertEqual(snap["tasks"], [])
         self.assertGreater(snap["matching_visible_tasks"], 0)
 
+
+
+    def test_threaded_cgroup_can_include_tid_with_external_leader(self):
+        # /A owns PID 100; /B owns TID 101. This must not be silently
+        # discarded by filtering the process leader before the task scan.
+        import tools.ci.webots_startup_diagnostics as diagnostics
+        def stat(pid, comm, start):
+            return "%d (%s) " % (pid, comm) + " ".join(
+                ["S", "1", "100", "100"] + ["0"] * 15 + [str(start)])
+        def fake_read(path, maximum=8192):
+            evidence = {
+                "/proc/self/cgroup": "0::/B\\n",
+                "/proc/100/cgroup": "0::/A\\n",
+                "/proc/100/stat": stat(100, "leader", 1000),
+                "/proc/100/task/101/cgroup": "0::/B\\n",
+                "/proc/100/task/101/stat": stat(101, "thread", 1001),
+            }
+            return evidence.get(path, "UNAVAILABLE: test")
+        def fake_listdir(path):
+            return {"/proc": ["100"], "/proc/100/task": ["101"]}[path]
+        with (patch.object(diagnostics, "read", side_effect=fake_read),
+              patch.object(diagnostics.os, "listdir", side_effect=fake_listdir),
+              patch.object(diagnostics.os, "readlink", return_value="pid:[100]")):
+            snapshot = cgroup_processes()
+        self.assertEqual(snapshot["status"], "ok")
+        self.assertEqual(snapshot["matching_visible"], 0)
+        self.assertEqual(snapshot["matching_visible_tasks"], 1)
+        self.assertEqual(snapshot["processes"], [])
+        self.assertEqual([(row["pid"], row["tid"]) for row in snapshot["tasks"]],
+                         [(100, 101)])
+
+    def test_more_than_256_process_leaders_are_partial_not_ok(self):
+        import tools.ci.webots_startup_diagnostics as diagnostics
+        pids = range(100, 358)
+        def fake_read(path, maximum=8192):
+            if path.endswith("/cgroup"):
+                return "0::/B\\n"
+            if path.endswith("/stat"):
+                pid = int(path.split("/")[2])
+                return "%d (worker) " % pid + " ".join(
+                    ["S", "1", str(pid), str(pid)] + ["0"] * 15 + [str(1000 + pid)])
+            return "UNAVAILABLE: test"
+        def fake_listdir(path):
+            if path == "/proc":
+                return [str(pid) for pid in pids]
+            if path.startswith("/proc/") and path.endswith("/task"):
+                return [path.split("/")[2]]
+            raise OSError("unexpected")
+        with (patch.object(diagnostics, "read", side_effect=fake_read),
+              patch.object(diagnostics.os, "listdir", side_effect=fake_listdir),
+              patch.object(diagnostics.os, "readlink", return_value="pid:[100]")):
+            snapshot = cgroup_processes()
+        self.assertEqual(snapshot["status"], "partial")
+        self.assertEqual(snapshot["matching_visible"], 258)
+        self.assertEqual(len(snapshot["processes"]), 256)
+        self.assertTrue(snapshot["truncated"])
+        self.assertEqual(snapshot["matching_visible_tasks"], 258)
 
 
 if __name__ == "__main__":

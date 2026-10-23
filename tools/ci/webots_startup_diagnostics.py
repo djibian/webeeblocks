@@ -105,10 +105,11 @@ def cgroup_processes(limit=256, task_limit=1024):
     }
     for pid in candidates:
         other = read("/proc/%d/cgroup" % pid, 4096)
-        if other != membership:
-            if other.startswith("UNAVAILABLE:"):
-                result["scan_errors"] += 1
-            continue
+        # In cgroup v2 threaded subtrees a TID can belong to this
+        # cgroup even if its process leader belongs to a different one.
+        # Do not exclude the leader's task directory on that basis.
+        if other.startswith("UNAVAILABLE:"):
+            result["scan_errors"] += 1
         stat = read("/proc/%d/stat" % pid, 4096)
         if ") " not in stat:
             result["scan_errors"] += 1
@@ -129,11 +130,12 @@ def cgroup_processes(limit=256, task_limit=1024):
         except (ValueError, IndexError):
             result["scan_errors"] += 1
             continue
-        result["matching_visible"] += 1
-        if len(result["processes"]) < limit:
-            result["processes"].append(identity)
-        else:
-            result["truncated"] = True
+        if other == membership:
+            result["matching_visible"] += 1
+            if len(result["processes"]) < limit:
+                result["processes"].append(identity)
+            else:
+                result["truncated"] = True
         try:
             tids = sorted(int(tid) for tid in os.listdir("/proc/%d/task" % pid)
                           if tid.isdecimal())
