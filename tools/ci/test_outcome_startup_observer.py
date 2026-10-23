@@ -18,6 +18,11 @@ class OutcomeStartupMonitorTests(unittest.TestCase):
         self.assertEqual(obs.parse_stat(stat)["start_ticks"], 44)
         self.assertIsNone(obs.parse_stat("incomplete"))
 
+    def test_truncated_linux_comm_does_not_hide_native_controllers(self):
+        # Linux /proc/PID/comm is truncated to TASK_COMM_LEN - 1 (15 bytes).
+        self.assertIn("crazyflie_runtime_v2"[:15], obs.VISIBLE)
+        self.assertIn("runtime_v2_outcome_probe"[:15], obs.VISIBLE)
+
     def test_exact_cgroup_and_no_commandline(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

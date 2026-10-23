@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 
 VISIBLE = frozenset({
-    "Xvfb", "xvfb-run", "webots", "webots-bin", "crazyflie_runtime",
+    "Xvfb", "xvfb-run", "webots", "webots-bin", "crazyflie_runtime", "crazyflie_runti",
     "runtime_v2_outc", "runtime_v2_outcome_probe", "chrome", "chrome-wrapper",
     "google-chrome", "chromium", "chromium-browser",
 })
