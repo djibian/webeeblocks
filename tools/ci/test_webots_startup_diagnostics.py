@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.webots_startup_diagnostics import StartupEvidence
+from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processes
 
 
 class StartupEvidenceTests(unittest.TestCase):
@@ -41,10 +41,29 @@ class StartupEvidenceTests(unittest.TestCase):
                 self.assertIn("cgroup_v2", evidence["resources_on_failure"])
                 self.assertIn("meminfo", evidence["resources_before"])
                 self.assertEqual(evidence["process_group_after_cleanup"], [])
+                self.assertIn("cgroup_before", evidence)
+                self.assertIn("cgroup_on_failure", evidence)
+                self.assertIn("cgroup_after_cleanup", evidence)
             finally:
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
                     child.wait(timeout=5)
+
+    def test_same_cgroup_identity_is_bounded_and_has_pid_birth_ticks(self):
+        snapshot = cgroup_processes()
+        self.assertIn(snapshot["status"], ("ok", "partial", "unavailable"))
+        self.assertLessEqual(len(snapshot["processes"]), 256)
+        if snapshot["status"] == "unavailable":
+            self.skipTest("current /proc cgroup membership unavailable")
+        self.assertFalse(snapshot["truncated"] and
+                         snapshot["matching_visible"] <= 256)
+        for entry in snapshot["processes"]:
+            self.assertGreater(entry["pid"], 0)
+            self.assertGreater(entry["start_ticks"], 0)
+            self.assertIn(entry["state"], "RSDZTWIX")
+            self.assertNotIn("cmdline", entry)
+        if not snapshot["truncated"]:
+            self.assertIn(os.getpid(), {entry["pid"] for entry in snapshot["processes"]})
 
     def test_wrapper_exit_139_is_not_mistaken_for_a_python_signal(self):
         from types import SimpleNamespace
@@ -77,6 +96,9 @@ class StartupEvidenceTests(unittest.TestCase):
             diagnostic.after_cleanup(os.getpid())
             self.assertFalse((out / "startup-failure.json").exists())
             self.assertFalse((out / "startup-backtrace.txt").exists())
+            cleanup = json.loads((out / "startup-cleanup.json").read_text())
+            self.assertEqual(cleanup["sequence_index"], 1)
+            self.assertIn("cgroup_after_cleanup", cleanup)
 
 
 if __name__ == "__main__":

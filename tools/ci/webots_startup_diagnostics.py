@@ -74,6 +74,64 @@ def resources(directory):
         "core_uses_pid": read("/proc/sys/kernel/core_uses_pid").strip(),
     }
 
+def cgroup_processes(limit=256):
+    """Bounded /proc identities in this process's exact cgroup membership.
+
+    This is evidence about *visible* tasks, not proof that every task in the
+    mounted cgroup is visible or attributable to the previous Webots run.
+    Deliberately omit command lines, environment and raw memory.
+    """
+    membership = read("/proc/self/cgroup", 4096)
+    if not membership.strip() or membership.startswith("UNAVAILABLE:"):
+        return {"status": "unavailable", "reason": membership[:128], "processes": []}
+    try:
+        candidates = sorted((int(name) for name in os.listdir("/proc")
+                             if name.isdecimal()))
+    except OSError as error:
+        return {"status": "unavailable", "reason": type(error).__name__,
+                "processes": []}
+    try:
+        namespace = os.readlink("/proc/self/ns/pid")
+    except OSError:
+        namespace = "UNAVAILABLE"
+    result = {"status": "ok", "membership": membership.strip(),
+              "pid_namespace": namespace, "scanned_visible": len(candidates),
+              "matching_visible": 0, "truncated": False,
+              "scan_errors": 0, "processes": []}
+    for pid in candidates:
+        other = read("/proc/%d/cgroup" % pid, 4096)
+        if other != membership:
+            if other.startswith("UNAVAILABLE:"):
+                result["scan_errors"] += 1
+            continue
+        stat = read("/proc/%d/stat" % pid, 4096)
+        if ") " not in stat:
+            result["scan_errors"] += 1
+            continue
+        try:
+            tail = stat.rsplit(") ", 1)[1].split()
+            identity = {
+                "pid": pid, "ppid": int(tail[1]), "pgid": int(tail[2]),
+                "sid": int(tail[3]), "state": tail[0],
+                "start_ticks": int(tail[19]),
+                "comm": stat.split("(", 1)[1].rsplit(")", 1)[0][:100],
+            }
+            try:
+                identity["pid_namespace"] = os.readlink("/proc/%d/ns/pid" % pid)
+            except OSError:
+                identity["pid_namespace"] = "UNAVAILABLE"
+        except (ValueError, IndexError):
+            result["scan_errors"] += 1
+            continue
+        result["matching_visible"] += 1
+        if len(result["processes"]) < limit:
+            result["processes"].append(identity)
+        else:
+            result["truncated"] = True
+    if result["scan_errors"]:
+        result["status"] = "partial"
+    return result
+
 
 class StartupEvidence:
     """Hold cheap samples in memory; persist detailed evidence on missing READY."""
@@ -89,6 +147,7 @@ class StartupEvidence:
         self.started = time.monotonic()
         self.wall_start = time.time()
         self.before = resources(self.out)
+        self.cgroup_before = cgroup_processes()
         self.samples = []
         self.last_sample = -1.0
         self.failed = False
@@ -157,6 +216,8 @@ class StartupEvidence:
                 "wrapper_pid": child.pid, "wrapper_returncode": code,
                 "resources_before": self.before,
                 "resources_at_readiness": resources(self.out),
+                "cgroup_before": self.cgroup_before,
+                "cgroup_at_readiness": cgroup_processes(),
                 "process_samples": self.samples[:3] + self.samples[-1:],
             }
             (self.out / "startup-ready.json").write_text(
@@ -179,6 +240,8 @@ class StartupEvidence:
                 "launch": self.launch, "environment": self.env,
                 "resources_before": self.before,
                 "resources_on_failure": resources(self.out),
+                "cgroup_before": self.cgroup_before,
+                "cgroup_on_failure": cgroup_processes(),
                 "process_samples": self.samples,
                 "core": self.core_details(home, Path(log_path).read_text(errors="replace")),
                 "webots_version": read(Path(home) / "resources/version.txt").strip(),
@@ -193,14 +256,29 @@ class StartupEvidence:
                 pass
 
     def after_cleanup(self, wrapper_pid):
-        if not self.failed:
-            return
+        """Capture task identity *after* the existing owned-group cleanup.
+
+        A changed cgroup counter alone never assigns a survivor to Webots.
+        """
         try:
-            path = self.out / "startup-failure.json"
-            if path.is_file():
-                data = json.loads(path.read_text())
-                data["process_group_after_cleanup"] = process_group(wrapper_pid)
-                data["resources_after_cleanup"] = resources(self.out)
-                path.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n")
+            group = process_group(wrapper_pid)
+            task_snapshot = cgroup_processes()
+            post = resources(self.out)
+            if self.failed:
+                path = self.out / "startup-failure.json"
+                if path.is_file():
+                    data = json.loads(path.read_text())
+                    data["process_group_after_cleanup"] = group
+                    data["resources_after_cleanup"] = post
+                    data["cgroup_after_cleanup"] = task_snapshot
+                    path.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n")
+            else:
+                (self.out / "startup-cleanup.json").write_text(
+                    json.dumps({"schema": 1, "sequence_index": self.sequence_index,
+                                "wrapper_pid": wrapper_pid,
+                                "process_group_after_cleanup": group,
+                                "resources_after_cleanup": post,
+                                "cgroup_after_cleanup": task_snapshot},
+                               sort_keys=True, indent=2) + "\n")
         except Exception:
-            pass  # Preserve the original startup failure.
+            pass  # Diagnostics may not change the native oracle.
