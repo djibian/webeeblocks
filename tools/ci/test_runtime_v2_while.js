@@ -2,6 +2,9 @@
 const assert = require('assert');
 const Blockly = require('../../plugins/robot_windows/blockly_v2/node_modules/blockly');
 require('../../plugins/robot_windows/blockly_v2/node_modules/blockly/blocks');
+global.Blockly=Blockly;
+require('../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js');
+delete global.Blockly;
 const Compiler = require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');
 const Contract = require('../../plugins/robot_windows/blockly/webeeblocks/activity_contract');
@@ -19,6 +22,44 @@ function backend(values) {
 }
 
 async function prove() {
+  // Pupil-facing UNTIL has no editable limit, but its AST remains guarded.
+  const studentWs=new Blockly.Workspace();
+  const studentUntil=studentWs.newBlock('webeeblocks_v2_until');
+  const studentCompare=studentWs.newBlock('logic_compare');
+  const studentA=studentWs.newBlock('math_number'), studentB=studentWs.newBlock('math_number');
+  studentA.setFieldValue('1','NUM');studentB.setFieldValue('2','NUM');
+  studentCompare.setFieldValue('LT','OP');
+  studentCompare.getInput('A').connection.connect(studentA.outputConnection);
+  studentCompare.getInput('B').connection.connect(studentB.outputConnection);
+  studentUntil.getInput('BOOL').connection.connect(studentCompare.outputConnection);
+  assert.strictEqual(studentUntil.getField('MAX_ITERATIONS'),null);
+  assert.strictEqual(studentUntil.getStyleName(),'loop_blocks','UNTIL belongs to the existing loop style');
+  const expected=loop('UNTIL',{kind:'compare',op:'LT',left:number(1),right:number(2)},[],25);
+  assert.deepStrictEqual(Compiler.compileStatement(studentUntil),expected);
+  assert(Interpreter.validateExecutionBudget(program(expected),5000)>0);
+  const savedStudent=Blockly.serialization.workspaces.save(studentWs);
+  const loadedStudent=new Blockly.Workspace();
+  Blockly.serialization.workspaces.load(savedStudent,loadedStudent);
+  assert.deepStrictEqual(Compiler.compileStatement(loadedStudent.getTopBlocks(true)[0]),expected);
+  // A full pupil sequence must map both the new loop condition and its body.
+  const takeoff=loadedStudent.newBlock('webeeblocks_v2_takeoff');
+  const land=loadedStudent.newBlock('webeeblocks_v2_land');
+  const loadedUntil=loadedStudent.getAllBlocks(false).find(b=>b.type==='webeeblocks_v2_until');
+  const move=loadedStudent.newBlock('webeeblocks_v2_move');
+  takeoff.nextConnection.connect(loadedUntil.previousConnection);
+  loadedUntil.nextConnection.connect(land.previousConnection);
+  loadedUntil.getInput('DO').connection.connect(move.previousConnection);
+  const sourceMap=Observer.buildSourceMap(loadedStudent);
+  assert.strictEqual(sourceMap['program/1'],loadedUntil.id);
+  assert.strictEqual(sourceMap['program/1/condition'],loadedUntil.getInputTargetBlock('BOOL').id);
+  assert.strictEqual(sourceMap['program/1/condition/left'],loadedUntil.getInputTargetBlock('BOOL').getInputTargetBlock('A').id);
+  assert.strictEqual(sourceMap['program/1/body/0'],move.id);
+  const fullAst=Compiler.compileWorkspace(loadedStudent);
+  const reopened=new Blockly.Workspace();
+  Blockly.serialization.workspaces.load(Blockly.serialization.workspaces.save(loadedStudent),reopened);
+  assert.deepStrictEqual(Compiler.compileWorkspace(reopened),fullAst);
+  assert.deepStrictEqual(Observer.buildSourceMap(reopened),sourceMap);
+  reopened.dispose();loadedStudent.dispose();studentWs.dispose();
   Compiler.installConditionalLoopBounds(Blockly);
   Compiler.installConditionalLoopBounds(Blockly); // repeated loads must not duplicate the field
   const ws = new Blockly.Workspace();
@@ -90,7 +131,7 @@ async function prove() {
   assert(facts.ranges.has('front')); assert(facts.moveDirections.has('forward')); assert(facts.statements.has('while'));
   assert.throws(()=>Interpreter.validateExecutionBudget(program(loop()),10),/exceeds runtime budget before takeoff/);
   assert(Interpreter.validateExecutionBudget(program(loop()),100)>10);
-  console.log('PASS conditional loops: Blockly WHILE/UNTIL, fresh conditions, zero-iteration assignment, source mapping, bounds, empty-loop budget, invalid samples, no false completion and physical refusal');
+  console.log('PASS conditional loops: student UNTIL, Blockly WHILE/UNTIL, fresh conditions, zero-iteration assignment, source mapping, bounds, empty-loop budget, invalid samples, no false completion and physical refusal');
 }
 module.exports=prove;
 if(require.main===module)prove().catch(e=>{console.error(e);process.exitCode=1;});
