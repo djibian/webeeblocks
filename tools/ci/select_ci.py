@@ -54,6 +54,10 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # The sequence LAND diagnostic is compiled and exercised by Runtime's
+    # progression shards; generic tools/ci selection would skip its own oracle.
+    "tools/ci/run_progression_sequence_mission.py",
+    "tools/ci/test_progression_land_instrumentation.py",
     # Each of these runs or checks the autonomous R2025a RESET probe.
     # Their earlier generic tools/ci match selected Webots only, silently
     # skipping the real runtime-v2-core job that owns their native evidence.
