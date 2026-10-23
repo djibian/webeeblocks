@@ -47,6 +47,7 @@ class OutcomeStartupMonitorTests(unittest.TestCase):
             self.assertEqual([p["pid"] for p in data["processes"]], [5])
             self.assertNotIn("private-token", json.dumps(data))
             self.assertEqual(data["resources"]["pids.current"], "8\n")
+            self.assertEqual(data["status"], "partial")  # other cgroup metrics absent
 
     def test_missing_proc_membership_is_partial_not_healthy(self):
         with tempfile.TemporaryDirectory() as tmp:

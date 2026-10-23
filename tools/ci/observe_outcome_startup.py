@@ -46,7 +46,11 @@ def snapshot(proc: Path = Path("/proc"),
              cgroup: Path = Path("/sys/fs/cgroup")) -> dict:
     membership = read_limited(proc / "self/cgroup")
     resources = {name: read_limited(cgroup / name) for name in RESOURCE_FILES}
-    result = {"status": "ok", "membership_observed": bool(membership),
+    # A complete process table is not complete startup evidence when kernel
+    # resource counters are unavailable; missing inputs remain explicit.
+    metrics_complete = all(value is not None for value in resources.values())
+    result = {"status": "ok" if membership and metrics_complete else "partial",
+              "membership_observed": bool(membership),
               "processes": [], "resources": resources, "scan_errors": 0}
     if not membership:
         result["status"] = "partial"
