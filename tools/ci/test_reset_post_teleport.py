@@ -53,6 +53,7 @@ class Tests(unittest.TestCase):
             ([phase(1, .224), phase(2, .096)], base),
             ([dict(phase(1, .096), begin_time=.097)], base),
             ([dict(phase(1, .096), terminal="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR BOGUS")], base),
+            ([dict(phase(1, .096), terminal="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR BOGUS OK")], base),
             ([phase(1, .096)], base[:3] + [base[2]] + base[4:]),
             ([phase(1, .096)], base[:3] + [native(.128, angular=float('nan'))] + base[4:]),
             ([phase(1, .096)], base[:3] + [dict(base[3], contacts=[{"node_id": True, "point": [0,0,0]}])] + base[4:]),

@@ -70,7 +70,8 @@ def analyze(native_path: Path, phase_summary: dict) -> dict:
         if identifier in ids or not isinstance(terminal, str) or not terminal.startswith(
                 f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {identifier} "):
             raise ValueError("duplicate RESET or mismatched terminal")
-        if not (terminal.endswith(" OK") or terminal.endswith(" ERR RESET_TIMEOUT")):
+        if terminal not in (f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {identifier} OK",
+                            f"WEBEEBLOCKS_RUNTIME_V2 RESPONSE {identifier} ERR RESET_TIMEOUT"):
             raise ValueError("unrecognized RESET terminal")
         frame = round(begin / .032)
         if abs(frame * .032 - begin) > 2e-7:
