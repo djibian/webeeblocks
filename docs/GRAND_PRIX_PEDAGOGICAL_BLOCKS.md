@@ -56,7 +56,7 @@ contrat : une pile principale et des définitions Blockly séparées, sans
 paramètres, appels acycliques bornés et observables, simulation seulement.
 Il ne gère encore ni les choix par cas, ni le déplacement surveillé.
 
-## Première réalisation (cette branche)
+## Bloc « répéter jusqu'à » intégré
 
 Bloc `webeeblocks_v2_until` :
 « répéter jusqu'à [condition] » sans compteur éditable, abaissé
@@ -65,14 +65,18 @@ Pas de boucle illimitée, pas de changement de Runtime ni d'oracle.
 Le bloc historique `controls_whileUntil` et ses bornes
 personnalisées sérialisées restent disponibles et inchangés.
 25 est une valeur conservatrice à qualifier : elle ne prouve
-pas la faisabilité du futur programme élève. Les tests ajoutés
+pas la faisabilité du futur programme élève. Les tests intégrés
 couvrent compilation/Save-Open et exposition du profil.
 
-## Procédures — premier incrément implémenté, qualification bornée
+## Procédures — premier incrément intégré et qualification logicielle bornée
 
 Définition/appel Blockly, renommage, préflight anti-récursion, budget, restrictions
 de profil/backend, source map et Save/Open : voir [le contrat et le démonstrateur](BLOCKLY_PROCEDURES.md).
-La sortie terminale et la progression mesurée restent séparées et non implémentées.
+La sortie terminale et une estimation de progression physiquement mesurée restent
+séparées et non implémentées. L'intégration de #658 (CI canonique
+39941857392, 43 jobs et vrai CI Gate réussis, revue indépendante sur le HEAD
+95a344ace42e93a86054e64c43e286957716b5bc) ne qualifie ni un programme
+élève Grand Prix complet ni son acceptabilité pédagogique personnelle.
 
 ## Pistes techniques historiques — non prescrites
 
@@ -81,9 +85,11 @@ tranche ; elle n'impose ni algorithme cible ni ordre d'intégration.
 La décision pédagogique du 22 octobre et les preuves d'ergonomie du .wbb
 élève guident leur sélection conformément au contrat V5.
 
-1. **Qualification des procédures** : CI canonique Ready exacte, revue indépendante
-   et composition native du futur franchissement, sans confondre le démonstrateur
-   générique avec le programme Grand Prix.
+1. **Composition et qualification du programme élève** : les procédures
+   génériques ont été intégrées avec #658, mais restent à éprouver dans un
+   unique `.wbb` élève franchissant les H cachés en natif, avec les négatifs
+   inchangés et l'acceptation pédagogique distincte. Le démonstrateur
+   générique n'est pas une solution du Grand Prix.
 2. **Déplacement surveillé** : avancer au plus de D mètres
    tant que capteur et seuil choisis le permettent; pas bornés,
    tests NaN/saturation, échec fermé sur mesure non fiable,
@@ -105,8 +111,10 @@ La décision pédagogique du 22 octobre et les preuves d'ergonomie du .wbb
    et acceptation pédagogique humaine.
 
 **Statut : architecture pédagogique, non programme final qualifié.**
-`main` demeure concerné par l'issue santé #637 :
-pas de fusion ordinaire pendant ce blocage.
+Les défauts natifs #637 (RESET_TIMEOUT) et #665 (SIGSEGV avant READY) restent
+ouverts. Le contrat V5 §4 impose une preuve de non-interférence propre à chaque
+candidat ; le statut ouvert d'une issue ne crée pas à lui seul de veto global,
+mais toute interaction critique non levée interdit la fusion concernée.
 
 ## Réparation CI du 22 octobre 2026
 
@@ -131,4 +139,7 @@ les 60 s déjà autorisées à Continue. Aucun délai de requête produit, de co
 de RESET ou d'oracle ne change. Un test conserve 65 s comme contre-exemple et
 contrôle cette relation. Le succès exige toujours les événements émis après le
 véritable état TERMINÉ et la trace native LAND ; aucune complétion synthétique.
-La nouvelle CI Ready exacte doit encore vérifier la complétion native.
+L'enveloppe est désormais intégrée par #658 avec CI canonique Ready exacte
+réussie sur le HEAD source précité ; cette qualification ponctuelle ne prouve
+ni la disparition des défaillances natives intermittentes #637/#665 ni le PASS
+pédagogique du Grand Prix.
