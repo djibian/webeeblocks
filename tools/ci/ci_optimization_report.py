@@ -117,7 +117,8 @@ def summarize_run(run: dict, jobs: list[dict]) -> dict:
         "conclusion": run.get("conclusion"), "url": run.get("html_url"),
         "wall_minutes": minutes(run.get("run_started_at"), run.get("updated_at")),
         "runner_minutes_estimate": round(sum(job_minutes), 3),
-        "job_count": len(jobs), "all_jobs_success": all_success,
+        "job_count": len(jobs), "job_set": sorted(str(j.get("name")) for j in jobs),
+        "all_jobs_success": all_success,
         "full_success": full_success, "seven_shards_proven": has_shards,
         "gate": gate.get("conclusion") if gate else None,
         "jobs": active,
@@ -140,8 +141,10 @@ def inventory(root: Path) -> dict:
     return result
 
 
-def discover(runs: list[dict], counts: dict) -> list[dict]:
-    successes = [r for r in runs if r["full_success"] and r["seven_shards_proven"]]
+def discover(runs: list[dict], counts: dict, *, comparable_successes: list[dict] | None = None) -> list[dict]:
+    # Only compare job durations within the same selected workload and trigger.
+    successes = (comparable_successes if comparable_successes is not None else
+                 [r for r in runs if r["full_success"] and r["seven_shards_proven"]])
     proposals = []
     if successes:
         grouped: dict[str, list[float]] = {}
@@ -175,8 +178,14 @@ def discover(runs: list[dict], counts: dict) -> list[dict]:
 
 
 def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: datetime) -> tuple[dict, str]:
-    complete = [r for r in runs if r["full_success"] and r["seven_shards_proven"]]
-    complete = complete[:12]
+    eligible = [r for r in runs if r["full_success"] and r["seven_shards_proven"]]
+    # The most recent eligible run defines the comparison cohort. Mixing selected
+    # job sets (or event types) confounds runner-minute and duration medians.
+    anchor = eligible[0] if eligible else None
+    complete = ([r for r in eligible
+                 if r["event"] == anchor["event"] and r["job_set"] == anchor["job_set"]][:12]
+                if anchor else [])
+    comparable_ids = {r["id"] for r in complete}
     def median(key: str) -> float | None:
         values = [r[key] for r in complete if r[key] is not None]
         return round(statistics.median(values), 2) if values else None
@@ -184,15 +193,24 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
         "schema": "webeeblocks-ci-optimization-v1", "generated_at": now.isoformat(),
         "repository": repo, "window_days": days, "inspected_runs": len(runs),
         "full_successful_sharded_runs": len(complete),
+        "eligible_before_cohort_filter": len(eligible),
+        "cohort_reference_run_id": anchor["id"] if anchor else None,
+        "cohort_event": anchor["event"] if anchor else None,
+        "cohort_job_count": len(anchor["job_set"]) if anchor else None,
         "coverage_disclaimer": "Gate/job metadata is NOT proof of test coverage or product correctness.",
         "wall_median_minutes": median("wall_minutes"),
         "runner_median_minutes_estimate": median("runner_minutes_estimate"),
-        "counts": counts, "candidates": discover(runs, counts),
-        "runs": [{k: v for k, v in r.items() if k != "jobs"} for r in runs],
+        "counts": counts,
+        "candidates": discover(runs, counts, comparable_successes=complete),
+        "runs": [{**{k: v for k, v in r.items() if k not in ("jobs", "job_set")},
+                  "cohort_comparable": r["id"] in comparable_ids} for r in runs],
     }
     lines = [f"# CI optimization — {repo}", "", f"Generated UTC: {now.isoformat()}",
              f"Window: {days} days; completed canonical CI runs inspected: {len(runs)}.",
-             f"Comparable successful full sharded runs: {len(complete)} (at most 12, newest first).", "",
+             f"Comparable successful same-workload sharded runs: {len(complete)} "
+             f"(of {len(eligible)} eligible; same event and exact job set; at most 12).",
+             f"Reference run: {anchor['id'] if anchor else 'none'}; "
+             f"job count: {len(anchor['job_set']) if anchor else 'n/a'}.", "",
              "**Advisory only.** This report does not change CI Gate, selection, safety oracles or repository contents.",
              "A green Gate and job list cannot alone prove that the selector ran every affected oracle.", "",
              f"Median elapsed (min): **{data['wall_median_minutes']}**; "
@@ -208,9 +226,11 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
               "| Run | Event | Result | Full evidence | Wall min | Runner min* |", "|---|---|---|---|---:|---:|"]
     for r in runs[:25]:
         lines.append(f"| [{r['id']}]({r['url']}) | {r['event']} | {r['conclusion']} | "
-                     f"{'yes' if r['full_success'] and r['seven_shards_proven'] else 'no'} | "
+                     f"{'yes' if r['id'] in comparable_ids else 'no'} | "
                      f"{r['wall_minutes']} | {r['runner_minutes_estimate']} |")
-    lines += ["", "*Sum of job occupied minutes, **not** invoiced GitHub usage.",
+    lines += ["", "*Full evidence in this table means same-workload comparability; "
+              "it does not prove selection of every scientifically applicable oracle.",
+              "*Sum of job occupied minutes, **not** invoiced GitHub usage.",
               "This is a bounded sample, not an exhaustive history or a causal before/after experiment.", "",
               "## CI setup inventory", "", "~~~json", json.dumps(counts, indent=2, sort_keys=True), "~~~", ""]
     return data, "\n".join(lines)
