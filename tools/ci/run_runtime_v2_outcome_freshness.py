@@ -39,6 +39,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        [sys.executable, "tools/ci/test_outcome_startup_observer.py"],
         ["node", "--check", "plugins/robot_windows/outcome_probe/outcome_probe.js"],
         [sys.executable, "-m", "py_compile", "controllers/runtime_v2_outcome_probe/runtime_v2_outcome_probe.py"],
     ]
@@ -102,6 +103,14 @@ server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
 phase=webots_execution
+# Observation only: original timeout, world, oracle and stdout remain unchanged.
+# The process monitor is killed on every script exit, including timeout=124.
+python3 -u /workspace/tools/ci/observe_outcome_startup.py \
+  --output /workspace/ci-artifacts/runtime-v2-outcome-provider/native-startup-processes.jsonl \
+  --interval 0.5 --max-samples 84 \
+  2>/workspace/ci-artifacts/runtime-v2-outcome-provider/native-startup-observer.err &
+startup_observer=$!
+trap "kill $startup_observer $server 2>/dev/null || true" EXIT
 timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/runtime_v2_outcome_probe.wbt
 '''.strip()
 
