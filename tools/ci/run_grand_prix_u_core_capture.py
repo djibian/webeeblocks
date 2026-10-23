@@ -176,16 +176,20 @@ def container_backtrace(core, binary, output):
             result['debugger_changed_packages'] = changed
             verify_snapshot(sysroot, manifest)
             result['original_sysroot_verified'] = True
-            # Only frame names/addresses and loaded-library provenance: never locals,
-            # arguments, environment, arbitrary memory, raw cores or auto-loaded code.
+            # All auto-loaded scripts stay disabled. Only the matching original
+            # libthread_db from the SHA-verified private sysroot may be loaded;
+            # GDB's global "set auto-load off" would otherwise disable it too.
+            # Never print locals, arguments, environment or arbitrary memory.
+            thread_dirs = (str(sysroot / 'lib/x86_64-linux-gnu') + ':' +
+                           str(sysroot / 'usr/lib/x86_64-linux-gnu'))
             command = ['gdb', '-q', '-nx', '-batch',
                        '-iex', 'set auto-load off',
+                       '-iex', 'set auto-load safe-path ' + thread_dirs,
+                       '-iex', 'set auto-load libthread-db on',
                        '-iex', 'set debuginfod enabled off',
                        '-iex', 'set sysroot ' + str(sysroot),
                        '-iex', 'set debug-file-directory ' + str(sysroot / 'usr/lib/debug'),
-                       '-iex', 'set libthread-db-search-path ' +
-                       str(sysroot / 'lib/x86_64-linux-gnu') + ':' +
-                       str(sysroot / 'usr/lib/x86_64-linux-gnu'),
+                       '-iex', 'set libthread-db-search-path ' + thread_dirs,
                        '-iex', 'set print frame-arguments none',
                        '-iex', 'set print entry-values no',
                        '-ex', 'echo WBB_PRIMARY_BEGIN\\n',
@@ -201,7 +205,9 @@ def container_backtrace(core, binary, output):
             output.with_suffix('.txt').write_bytes(payload[:TEXT_LIMIT])
             incomplete = any(marker in payload for marker in (
                 b'core file may not match', b'is truncated',
-                b'Could not load shared library symbols', b'Cannot access memory'))
+                b'Could not load shared library symbols', b'Cannot access memory',
+                b'Unable to find libthread_db matching inferior',
+                b'thread debugging will not be available'))
             retained = payload[:TEXT_LIMIT]
             begin = b'WBB_PRIMARY_BEGIN\n'
             start = retained.find(begin)

@@ -127,6 +127,14 @@ class CoreCaptureTests(unittest.TestCase):
                 if command[0] == 'gdb':
                     self.assertIn('set print frame-arguments none', command)
                     self.assertIn('set auto-load off', command)
+                    self.assertIn('set auto-load libthread-db on', command)
+                    self.assertLess(command.index('set auto-load off'),
+                                    command.index('set auto-load libthread-db on'))
+                    path_setting = next(x for x in command if x.startswith('set auto-load safe-path '))
+                    self.assertTrue(path_setting.startswith('set auto-load safe-path /tmp/gp-u-sysroot-'))
+                    self.assertEqual(path_setting.count(':'), 1)
+                    self.assertNotIn('*', path_setting)
+                    self.assertEqual(command[command.index('set auto-load libthread-db on')-1], '-iex')
                     self.assertIn('set debuginfod enabled off', command)
                     self.assertEqual(command[command.index('set print frame-arguments none')-1], '-iex')
                     self.assertEqual(command[command.index('set print entry-values no')-1], '-iex')
@@ -147,6 +155,27 @@ class CoreCaptureTests(unittest.TestCase):
                 self.assertEqual(capture.container_backtrace(core, binary, output), 0)
             self.assertEqual(output.with_suffix('.txt').stat().st_size, capture.TEXT_LIMIT)
             self.assertTrue(json.loads(output.with_suffix('.json').read_text())['text_truncated'])
+
+    def test_thread_helper_warning_refuses_a_seemingly_complete_primary_stack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            binary, core, output = path/'binary', path/'core', path/'out'
+            binary.write_bytes(b'fixture'); core.write_bytes(b'fixture')
+            def run(command, **kwargs):
+                if command[0] == 'gdb':
+                    kwargs['stdout'].write(
+                        b'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash ()\nWBB_PRIMARY_END\n'
+                        b'warning: Unable to find libthread_db matching inferior'
+                        b"'s thread library, thread debugging will not be available\n")
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'LIBRARY_ROOTS', ()),
+                  patch.object(capture, 'package_versions', return_value={}),
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
+            result = json.loads(output.with_suffix('.json').read_text())
+            self.assertTrue(result['primary_stack_complete'])
+            self.assertTrue(result['stack_incomplete'])
+            self.assertEqual(result['status'], 'UNPROVEN')
 
     def test_worker_frame_cannot_qualify_missing_primary_stack(self):
         with tempfile.TemporaryDirectory() as tmp:
