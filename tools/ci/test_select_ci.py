@@ -38,6 +38,28 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(result.runtime)
                 self.assertTrue(result.webots)  # retain the previous selection too
 
+    def test_sequence_land_diagnostic_selects_its_runtime_shards(self) -> None:
+        for path in (
+            "tools/ci/run_progression_sequence_mission.py",
+            "tools/ci/test_progression_land_instrumentation.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)  # preserve prior coverage
+                self.assertFalse(selection.full)
+
+    def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
+        for path in (
+            "tools/ci/observe_outcome_startup.py",
+            "tools/ci/test_outcome_startup_observer.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
     def test_autonomous_reset_probe_changes_select_the_real_runtime_oracle(self) -> None:
         for path in (
             "tools/ci/run_progression_autonomous_mission.py",

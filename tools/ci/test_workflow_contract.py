@@ -17,6 +17,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 EXPECTED = {
     "human-checkpoint.yml": {"validate", "historical-boost-support", "runtime", "webots", "physical", "publish"},
     "ci.yml": {"select", "runtime", "webots", "gate"},
+    "ci-optimization.yml": {"analyze"},
     "ci-runtime.yml": {
         "grand-prix-prototype",
         "runtime-v2-core", "runtime-v2-progression", "runtime-v2-windows-assets", "runtime-v2-windows-release",
@@ -47,7 +48,7 @@ def workflow_files() -> list[Path]:
     )
 
 class WorkflowTests(unittest.TestCase):
-    def test_only_v4_workflows_exist(self):
+    def test_only_approved_workflows_exist(self):
         names = {path.name for path in workflow_files()}
         self.assertEqual(names, set(EXPECTED))
 
@@ -57,17 +58,17 @@ class WorkflowTests(unittest.TestCase):
             for name in EXPECTED:
                 (directory / name).touch()
             with patch(f"{__name__}.WORKFLOWS", directory):
-                self.test_only_v4_workflows_exist()
+                self.test_only_approved_workflows_exist()
                 for suffix in (".yml", ".yaml"):
                     with self.subTest(suffix=suffix):
                         extra = directory / f"unexpected{suffix}"
                         extra.touch()
                         with self.assertRaises(AssertionError):
-                            self.test_only_v4_workflows_exist()
+                            self.test_only_approved_workflows_exist()
                         extra.unlink()
                 (directory / "ci.yml").unlink()
                 with self.assertRaises(AssertionError):
-                    self.test_only_v4_workflows_exist()
+                    self.test_only_approved_workflows_exist()
 
     def test_push_trigger_check_covers_both_yaml_extensions(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -80,6 +81,22 @@ class WorkflowTests(unittest.TestCase):
                         with self.assertRaises(AssertionError):
                             self.test_no_post_merge_push_trigger()
                         workflow.unlink()
+
+    def test_advisory_optimization_has_no_merge_authority(self):
+        workflow = (WORKFLOWS / "ci-optimization.yml").read_text(encoding="utf-8")
+        self.assertTrue(workflow.startswith("name: CI Optimization (advisory)\n"))
+        self.assertIn("  schedule:\n", workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertIn("  actions: read\n", workflow)
+        self.assertIn("  contents: read\n", workflow)
+        self.assertIn("run: python3 -m unittest discover -s tools/ci -p test_ci_optimization_report.py", workflow)
+        self.assertIn("python3 tools/ci/ci_optimization_report.py", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertNotIn("\n  pull_request:", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("pull-requests: write", workflow)
+        self.assertNotIn("issues: write", workflow)
+        self.assertNotIn("name: CI Gate\n", workflow)
 
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
