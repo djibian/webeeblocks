@@ -44,8 +44,10 @@ dans le bloc définit ce qu'il cumule, même si l'élève le nomme `position`.
    épuisé interrompt l'exécution. Ni corps conditionnel, ni continuation, ni LAND
    normal ne sont fabriqués en cas d'échec. Les codes TIME_LIMIT, USER_STOPPED,
    UNSAFE_OR_TIMEOUT et RESET_CANCELLED se propagent vers les mécanismes existants.
-   L'ACK confirmé juste avant une annulation reste comptabilisé ; un ACK tardif
-   après RESET ne l'est pas. Cela ne pilote aucune récupération physique nouvelle.
+   Une annulation déjà observée au retour de MOVE interdit tout nouveau
+   crédit, même si le backend renvoie OK. Un MOVE déjà comptabilisé avant une
+   annulation ultérieure conserve son crédit. Un ACK tardif après RESET
+   n'est jamais comptabilisé. Cela ne pilote aucune récupération physique nouvelle.
 
 La surveillance est **discrète**, entre mouvements arrêtés. Le seuil peut être
 franchi pendant un pas : sous un modèle idéal de paroi fixe, sans erreur ni

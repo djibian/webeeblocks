@@ -88,12 +88,19 @@ async function prove(){
  const resetting=resetBackend.resetSimulation();await resetRejection;
  resetBackend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+moveId+' OK');await replyReset('OK');await resetting;
  assert.deepStrictEqual(afterReset,[0]);assert.strictEqual(resetSent.filter(x=>x.includes(' MOVE ')).length,1);assert(!resetSent.some(x=>x.endsWith(' LAND')));
- // Cancellation during an acknowledged action preserves its commanded amount,
- // then fails without executing another read/move or the normal LAND.
+ // Cancellation before an acknowledged MOVE return cannot credit progression.
  const abort=new AbortController(),pending=fake([2]),amounts=[];
  pending.move=async()=>{pending.effects.push('sent');abort.abort();return null;};
  await assert.rejects(()=>I.run(program(),pending,{signal:abort.signal,hooks:{onVariables:x=>amounts.push(x.values.position)}}),e=>e.code==='USER_STOPPED');
- assert.deepStrictEqual(amounts,[0,.1]);assert.deepStrictEqual(pending.effects,['takeoff','range','sent']);
+ assert.deepStrictEqual(amounts,[0]);assert.deepStrictEqual(pending.effects,['takeoff','range','sent']);
+ // After a MOVE has been accounted for, later cancellation must not erase it.
+ const postCredit=new AbortController(),creditedBackend=fake([2]),credits=[];
+ await assert.rejects(()=>I.run(program(),creditedBackend,{signal:postCredit.signal,hooks:{onVariables:x=>{
+   credits.push(x.values.position);if(x.values.position>0)postCredit.abort();
+ }}}),e=>e.code==='USER_STOPPED');
+ assert.deepStrictEqual(credits,[0,.1]);
+ assert.strictEqual(creditedBackend.effects.filter(Array.isArray).length,1);
+ assert(!creditedBackend.effects.includes('land'));
  // A capability hidden in the conditional sensor body is still preflighted.
  const unreachable=program(node({on_sensor:[{kind:'set_variable',variable:position,value:{kind:'elapsed_time',unit:'s'}}]})),noClock=fake([2]);
  await assert.rejects(()=>I.run(unreachable,noClock),/elapsed simulation time/);assert.deepStrictEqual(noClock.effects,[]);
