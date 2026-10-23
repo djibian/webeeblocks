@@ -192,8 +192,8 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         return result
     finally:
         stop_groups(children)
-        if startup is not None and startup.failed:
-            startup.after_cleanup(webots.pid)
+        if startup is not None and children:
+            startup.after_cleanup(children[0].pid)
         for stream in streams:stream.close()
         runtime_state.cleanup()
         (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
