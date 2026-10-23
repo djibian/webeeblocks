@@ -225,7 +225,9 @@ def main():
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
                     try:
-                        subprocess.run(['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
+                        # PID 1 must reap orphaned Webots/Xvfb descendants of each trial.
+                        # Supervision only: keep trials, oracles and timeouts intact.
+                        subprocess.run(['docker','run','--rm','--init','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
                            '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
                            '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)

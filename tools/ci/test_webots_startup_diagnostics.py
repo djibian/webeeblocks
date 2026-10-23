@@ -15,6 +15,15 @@ from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processe
 
 
 class StartupEvidenceTests(unittest.TestCase):
+    def test_native_docker_has_reaping_init_without_changing_oracles(self):
+        # Host-side guard on the actual Docker invocation, not a replacement
+        # for native cleanup evidence after each successful trial.
+        source = (Path(__file__).parent / "run_grand_prix_u_prototype.py").read_text()
+        self.assertIn("['docker','run','--rm','--init','--cidfile'", source)
+        self.assertIn("timeout -k 5s 1400s python3 -u tools/ci/run_grand_prix_u_prototype.py --native", source)
+        self.assertIn("if args.suite=='all':cases=", source)
+        self.assertIn("if cid.exists():", source)
+
     def test_group_exit_status_sequence_and_resources(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)
