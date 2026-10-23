@@ -11,11 +11,16 @@ a required `CI Gate` check.
 The analyzer uses a bounded 21-day sample (max 60 completed canonical `ci.yml`
 runs, paginated GitHub job reads), only comparing runs with both suite job sets,
 every job successful, the actual `CI Gate` successful, and all seven native
-progression shard jobs successful. Results report **elapsed minutes** and the
+progression shard jobs successful. For **quantitative comparisons only**,
+the newest eligible run anchors a cohort with the **same event type and exact
+set of selected job names**: runs with extra or missing jobs cannot be pooled
+into runner-minute or duration medians, even if all their own jobs passed. The
+report records this cohort's reference run, event, job count, and how many runs
+were eligible before filtering. Results report **elapsed minutes** and the
 **sum of occupied job minutes**; they are *not* GitHub billing and do not show
-that all affected oracles were selected correctly. Older unsharded runs and
-partial/skipped runs are listed separately but **not pooled** into optimized
-medians. Each observation includes its run id / SHA and reports its exact
+that all affected oracles were selected correctly. Older unsharded runs,
+partial/skipped runs and differing job-set runs are listed separately but **not
+pooled** into optimized medians. Each observation includes its run id / SHA and reports its exact
 conclusion. Failed or canceled runs never become PASS, nor trigger blind reruns.
 
 The report identifies (1) recurring >12-minute jobs along the candidate
