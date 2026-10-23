@@ -76,6 +76,16 @@ def stop_groups(children):
             except ProcessLookupError:pass
             child.wait()
 
+def native_webots_launch(home, port, target):
+    """Use minimized R2025a GUI for CI's observed pre-READY Qt crash (#665).
+
+    The R2025a world-loading progress-dialog constructor skips minimized windows.
+    Preserve Fast/no-rendering, the real world, port, runtime and mission oracles.
+    This is a bounded mitigation hypothesis, not root-cause proof.
+    """
+    return [str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
+            '--no-rendering','--minimize','--port='+str(port),str(target)]
+
 def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
@@ -103,8 +113,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     children=[];streams=[];startup=None
     try:
         with (out/'webots.log').open('w') as log:
-            launch=[str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
-                '--no-rendering','--port='+str(port),str(target)]
+            launch=native_webots_launch(home,port,target)
             if not tcp:
                 xvfb=shutil.which('xvfb-run')
                 if not xvfb:raise RuntimeError('fresh Xvfb display required for each native trial')
