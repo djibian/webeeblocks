@@ -37,6 +37,39 @@ static void sequence_ci_position(const char *phase, int request_id,
   fflush(stdout);
 }
 
+
+static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) {
+  // Read-only Supervisor observations: contact locations are not contact forces.
+  // Keep the on-line volume bounded; a partial array is explicitly labelled.
+  const double *velocity = wb_supervisor_node_get_velocity(self);
+  int contact_count = -1;
+  WbContactPoint *points = wb_supervisor_node_get_contact_points(self, true, &contact_count);
+  const int shown = contact_count < 6 ? contact_count : 6;
+  int valid = velocity != NULL && contact_count >= 0 &&
+              (contact_count == 0 || points != NULL);
+  if (valid) {
+    for (int i = 0; i < 6; ++i)
+      if (!isfinite(velocity[i]))
+        valid = 0;
+    for (int i = 0; i < shown; ++i)
+      for (int axis = 0; axis < 3; ++axis)
+        if (!isfinite(points[i].point[axis]))
+          valid = 0;
+  }
+  printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_NATIVE id=%d t=%.9f status=%s contacts=%d shown=%d",
+         request_id, now, valid ? "OBSERVED" : "UNPROVEN", contact_count, shown);
+  if (valid) {
+    printf(" velocity=%.9f,%.9f,%.9f,%.9f,%.9f,%.9f",
+           velocity[0], velocity[1], velocity[2],
+           velocity[3], velocity[4], velocity[5]);
+    for (int i = 0; i < shown; ++i)
+      printf(" cp%d=%d:%.9f,%.9f,%.9f", i, points[i].node_id,
+             points[i].point[0], points[i].point[1], points[i].point[2]);
+  }
+  printf("\n");
+  fflush(stdout);
+}
+
 '''
     edits = (
         ('int main(void) {', helper + 'int main(void) {'),
@@ -76,6 +109,7 @@ static void sequence_ci_position(const char *phase, int request_id,
          '               motor_power(power.m2), -motor_power(power.m3),\n'
          '               motor_power(power.m4));\n'
          '        fflush(stdout);\n'
+         '        sequence_ci_native_land(active_id, now, self_node);\n'
          '      }\n'
          '      if (command == CMD_LAND)\n'
          '        ++sequence_ci_land_samples;'),
