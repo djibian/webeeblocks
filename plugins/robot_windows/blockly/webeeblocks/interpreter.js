@@ -215,6 +215,7 @@
       // No retry and no accounting on unknown/malformed/stale completion.
       if(backend.getMotionEpoch()!==epoch)fail('guarded motion epoch changed');
       if(ack!==null)fail('guarded move requires an unambiguous OK acknowledgement');
+      check(); // Cancellation may arrive while MOVE is in flight, before its OK ACK.
       spend();env.values[ref.id]=next;env.names[ref.id]=ref.name;
       await hook(options,'onVariables',context(statement,path,'statement',env,{variable:ref,values:snapshot(env)}));
       check();

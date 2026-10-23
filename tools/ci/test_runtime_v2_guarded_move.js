@@ -62,6 +62,11 @@ async function prove(){
  for(const code of ['UNSAFE_OR_TIMEOUT','USER_STOPPED','TIME_LIMIT','RESET_CANCELLED']){const b=fake([2]);b.move=async()=>{b.effects.push('sent');throw Object.assign(Error(code),{code});};await assert.rejects(()=>I.run(program(),b),e=>e.code===code);assert.deepStrictEqual(b.effects,['takeoff','range','sent']);}
  for(const after of ['range','move']){const b=fake([2]);const original=b[after==='range'?'readRange':'move'];b[after==='range'?'readRange':'move']=async(...a)=>{const r=await original(...a);b.rotate();return r;};await assert.rejects(()=>I.run(program(),b),/epoch changed/);assert(!b.effects.includes('land'));assert(b.effects.filter(Array.isArray).length<2);}
  for(const phase of ['range','move']){const signal=new AbortController(),b=fake([2]);await assert.rejects(()=>I.run(program(),b,{signal:signal.signal,hooks:{beforeStep:x=>{if(x.phase===phase)signal.abort();}}}),e=>e.code==='USER_STOPPED');assert(!b.effects.some(Array.isArray));assert(!b.effects.includes('land'));}
+ // Cancellation after MOVE was sent, but before its OK, must not credit progression.
+ const ackAbort=new AbortController(),ackAbortBack=fake([2]),ackAbortVariables=[];
+ ackAbortBack.move=async(d,n)=>{ackAbortBack.effects.push(['move',d,n]);await Promise.resolve();ackAbort.abort();return null;};
+ await assert.rejects(()=>I.run(program(),ackAbortBack,{signal:ackAbort.signal,hooks:{onVariables:x=>ackAbortVariables.push(x.values.position)}}),e=>e.code==='USER_STOPPED');
+ assert.deepStrictEqual(ackAbortVariables,[0]);assert.strictEqual(ackAbortBack.effects.filter(Array.isArray).length,1);assert(!ackAbortBack.effects.includes('land'));
  const cancelled=new AbortController();cancelled.abort();const never=fake([]);await assert.rejects(()=>I.run(program(),never,{signal:cancelled.signal}),e=>e.code==='USER_STOPPED');assert.deepStrictEqual(never.effects,[]);
  const cost=I.validateExecutionBudget(program(),1000),budgetBack=fake([]);await assert.rejects(()=>I.run(program(),budgetBack,{maxSteps:cost-1}),/before takeoff/);assert.deepStrictEqual(budgetBack.effects,[]);assert.strictEqual((await I.run(program(),fake([]),{maxSteps:cost})).remainingBudget,0);
  const overflow=fake([2]);await assert.rejects(()=>I.run(program(node(),1e308),overflow),/cannot advance/);assert(!overflow.effects.some(Array.isArray));
