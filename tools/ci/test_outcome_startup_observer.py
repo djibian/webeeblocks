@@ -44,10 +44,47 @@ class OutcomeStartupMonitorTests(unittest.TestCase):
                 (directory / "stat").write_text(fake_stat)
                 (directory / "cmdline").write_text("private-token")
             data = obs.snapshot(proc, cg)
-            self.assertEqual([p["pid"] for p in data["processes"]], [5])
+            self.assertEqual([p["pid"] for p in data["processes"]], [5, 7])
+            self.assertEqual(data["processes"][1]["classification"], "python-unattributed")
             self.assertNotIn("private-token", json.dumps(data))
             self.assertEqual(data["resources"]["pids.current"], "8\n")
             self.assertEqual(data["status"], "partial")  # other cgroup metrics absent
+
+    def test_python_census_is_complete_but_script_attribution_is_not_claimed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            proc, cg = root / "proc", root / "cg"
+            (proc / "self").mkdir(parents=True)
+            cg.mkdir()
+            (proc / "self/cgroup").write_text("0::/witness\n")
+            for name in obs.RESOURCE_FILES:
+                (cg / name).write_text("0\n")
+            for pid, comm in enumerate(sorted(obs.PYTHON_COMMS), 10):
+                directory = proc / str(pid)
+                directory.mkdir()
+                (directory / "comm").write_text(comm + "\n")
+                (directory / "cgroup").write_text("0::/witness\n")
+                (directory / "stat").write_text(
+                    f"{pid} ({comm}) S 1 " + " ".join(["0"] * 17) + " 77 0")
+                (directory / "cmdline").write_text("private-script-and-token")
+                (directory / "environ").write_text("PRIVATE=secret")
+            with patch.object(obs, "read_limited", wraps=obs.read_limited) as read:
+                data = obs.snapshot(proc, cg)
+            self.assertEqual(data["status"], "ok")
+            self.assertEqual(len(data["processes"]), len(obs.PYTHON_COMMS))
+            self.assertTrue(all(p["classification"] == "python-unattributed"
+                                for p in data["processes"]))
+            self.assertEqual(data["observer_pid"], obs.os.getpid())
+            self.assertFalse({"cmdline", "environ"} &
+                             {call.args[0].name for call in read.call_args_list})
+            self.assertNotIn("private-script", json.dumps(data))
+            self.assertNotIn("secret", json.dumps(data))
+
+    def test_executing_interpreter_comm_is_visible(self):
+        comm = obs.read_limited(Path("/proc/self/comm"), 128)
+        if comm is None:
+            self.skipTest("current interpreter comm unavailable")
+        self.assertIn(comm.strip(), obs.PYTHON_COMMS)
 
     def test_missing_proc_membership_is_partial_not_healthy(self):
         with tempfile.TemporaryDirectory() as tmp:

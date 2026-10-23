@@ -10,12 +10,20 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 import time
 
 VISIBLE = frozenset({
     "Xvfb", "xvfb-run", "webots", "webots-bin", "crazyflie_runtime", "crazyflie_runti",
     "runtime_v2_outc", "runtime_v2_outcome_probe", "chrome", "chrome-wrapper",
     "google-chrome", "chromium", "chromium-browser",
+})
+# Webots executes Python controllers through the image's interpreter. Its comm
+# need not contain the script name. These entries also include our observer and
+# WWI server: retain identities without claiming which script a Python runs.
+PYTHON_COMMS = frozenset({
+    "python", "python3", Path(sys.executable).name[:15],
+    Path(sys.executable).resolve().name[:15],
 })
 RESOURCE_FILES = ("pids.current", "pids.events", "memory.current", "memory.events")
 
@@ -51,6 +59,7 @@ def snapshot(proc: Path = Path("/proc"),
     metrics_complete = all(value is not None for value in resources.values())
     result = {"status": "ok" if membership and metrics_complete else "partial",
               "membership_observed": bool(membership),
+              "observer_pid": os.getpid(),
               "processes": [], "resources": resources, "scan_errors": 0}
     if not membership:
         result["status"] = "partial"
@@ -66,7 +75,8 @@ def snapshot(proc: Path = Path("/proc"),
         if name is None:
             result["scan_errors"] += 1
             continue
-        if name.strip() not in VISIBLE:
+        comm = name.strip()
+        if comm not in VISIBLE and comm not in PYTHON_COMMS:
             continue
         other = read_limited(path / "cgroup")
         stat = read_limited(path / "stat", 4096)
@@ -77,7 +87,8 @@ def snapshot(proc: Path = Path("/proc"),
         if other != membership:
             continue
         result["processes"].append({
-            "pid": int(path.name), "comm": name.strip(), **parsed,
+            "pid": int(path.name), "comm": comm, **parsed,
+            "classification": "python-unattributed" if comm in PYTHON_COMMS else "named-process",
         })
     if result["scan_errors"]:
         result["status"] = "partial"
