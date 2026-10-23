@@ -342,69 +342,7 @@ def control_threads_verified(stack):
         return False
     # 'thread apply all bt' follows the primary stack's end marker.
     all_threads = stack[end + len(end_marker):]
-    headings = list(re.finditer(r'(?m)^Thread\s+(\d+)\s+\([^\n]*\):[ \t]*
-    OUT.mkdir(parents=True, exist_ok=True)
-    record = dict(schema=1, status='UNPROVEN', raw_core_uploaded=False,
-                  subject_returncode=None)
-    old_handlers = {}
-    def interrupted(signum, frame):
-        raise InterruptedError('capture interrupted by signal %d' % signum)
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        old_handlers[sig] = signal.signal(sig, interrupted)
-    try:
-        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
-            directory = Path(tmp)
-            subprocess.run(['docker', 'pull', IMAGE], check=True, timeout=180)
-            # The preflight uses the same private core route but a separate
-            # container; restore the host before apt/GDB post-mortem work.
-            with kernel_capture(directory, record):
-                core, binary = preflight(directory)
-            if analyse(core, binary, 'core-capture-preflight') != 0:
-                raise RuntimeError('core-capture preflight stack unavailable')
-            control_stack = (OUT / 'core-capture-preflight.txt').read_text()
-            if not control_threads_verified(control_stack):
-                raise RuntimeError('multi-thread core preflight stack/helper unavailable')
-            core.unlink()
-            cid = directory / 'subject.cid'
-            with kernel_capture(directory, record):
-                try:
-                    run = subprocess.run([sys.executable,
-                                          str(ROOT / 'tools/ci/run_grand_prix_u_prototype.py')],
-                                         env={**os.environ,
-                                              'WEBEEBLOCKS_GP_CORE_DIR': str(directory),
-                                              'WEBEEBLOCKS_GP_CONTAINER_CIDFILE': str(cid)},
-                                         check=False)
-                    record['subject_returncode'] = run.returncode
-                finally:
-                    retire_container(cid)
-            # All kernel routing is restored before installing debugger packages.
-            found = cores(directory, 'webots-bin')
-            if len(found) > 1:
-                raise RuntimeError('multiple native cores; exact attribution unproven')
-            if found:
-                record['core_attribution'] = attribute(found[0])
-                record['backtrace_returncode'] = analyse(
-                    found[0], Path('/usr/local/webots/bin/webots-bin'),
-                    'startup-host-backtrace')
-            record.update(status='COMPLETE', native_core_count=len(found))
-            # The unchanged campaign's failure is preserved even if GDB succeeds.
-            return run.returncode
-    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-        record['reason'] = type(error).__name__ + ': ' + str(error)[:500]
-        return record['subject_returncode'] or 1
-    finally:
-        write_json(OUT / 'core-capture-host.json', record)
-        for sig, handler in old_handlers.items():
-            signal.signal(sig, handler)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--container-backtrace', nargs=3, type=Path)
-    args = parser.parse_args()
-    raise SystemExit(container_backtrace(*args.container_backtrace)
-                     if args.container_backtrace else host_main())
-, all_threads))
+    headings = list(re.finditer(r'(?m)^Thread\s+(\d+)\s+\([^\n]*\):[ \t]*$', all_threads))
     crashed = set()
     waiting = set()
     for index, heading in enumerate(headings):
