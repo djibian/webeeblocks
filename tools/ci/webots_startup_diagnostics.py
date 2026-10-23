@@ -53,6 +53,76 @@ def process_group(pgid):
     return sorted(rows, key=lambda p: p["pid"])
 
 
+def cgroup_census(max_rows=256):
+    """Visible members of *this* cgroup v2, not assumed Webots descendants.
+
+    Exclude command lines and environment (public artifact). A partial /proc
+    census must never be interpreted as proof that cleanup is complete.
+    """
+    lines = read("/proc/self/cgroup", 2048).splitlines()
+    paths = [line[3:] for line in lines if line.startswith("0::")]
+    if len(paths) != 1:
+        return {"status": "unavailable", "reason": "cgroup_v2_scope_unknown"}
+    scope = paths[0]
+    try:
+        names = sorted((name for name in os.listdir("/proc") if name.isdecimal()), key=int)
+    except OSError as error:
+        return {"status": "unavailable", "reason": type(error).__name__}
+    rows = []
+    members = 0
+    unreadable = 0
+    for name in names:
+        membership = read("/proc/" + name + "/cgroup", 2048)
+        if membership.startswith("UNAVAILABLE:"):
+            unreadable += 1
+            continue
+        if "0::" + scope not in membership.splitlines():
+            continue
+        members += 1
+        if len(rows) >= max_rows:
+            continue
+        stat = read("/proc/" + name + "/stat", 4096)
+        try:
+            tail = stat.rsplit(") ", 1)[1].split()
+            # /proc/<pid>/stat field 22 is tail[19]; PID alone is reusable.
+            pid_ns = os.readlink("/proc/" + name + "/ns/pid")
+            rows.append({
+                "pid": int(name), "ppid": int(tail[1]),
+                "pgid": int(tail[2]), "sid": int(tail[3]),
+                "state": tail[0], "start_ticks": int(tail[19]),
+                "pid_ns": pid_ns,
+                "comm": stat.split("(", 1)[1].rsplit(")", 1)[0][:64],
+            })
+        except (OSError, IndexError, ValueError):
+            unreadable += 1
+    return {
+        "status": "partial" if unreadable or members > len(rows) else "complete",
+        "scope": scope, "visible_members": members,
+        "unreadable_or_vanished": unreadable,
+        "truncated": members > len(rows),
+        "processes": rows,
+    }
+
+
+def census_difference(before, after):
+    """An observation only: unrelated same-cgroup processes are possible."""
+    if (before.get("status") != "complete" or
+            after.get("status") != "complete" or
+            before.get("scope") != after.get("scope")):
+        return {"status": "unproven", "reason": "partial_or_changed_cgroup_scope"}
+    def identity(row):
+        return (row["pid"], row["start_ticks"], row["pid_ns"])
+    old = {identity(row) for row in before["processes"]}
+    new = {identity(row) for row in after["processes"]}
+    return {
+        "status": "comparable_not_causal",
+        "new_since_prelaunch": [row for row in after["processes"]
+                                if identity(row) not in old],
+        "gone_since_prelaunch": [row for row in before["processes"]
+                                 if identity(row) not in new],
+    }
+
+
 def resources(directory):
     mem = read("/proc/meminfo")
     mem = {s.split(":", 1)[0]: s.split(":", 1)[1].strip()
@@ -89,6 +159,7 @@ class StartupEvidence:
         self.started = time.monotonic()
         self.wall_start = time.time()
         self.before = resources(self.out)
+        self.cgroup_before = cgroup_census()
         self.samples = []
         self.last_sample = -1.0
         self.failed = False
@@ -156,6 +227,7 @@ class StartupEvidence:
                 "elapsed_s": round(time.monotonic() - self.started, 3),
                 "wrapper_pid": child.pid, "wrapper_returncode": code,
                 "resources_before": self.before,
+                "cgroup_before": self.cgroup_before,
                 "resources_at_readiness": resources(self.out),
                 "process_samples": self.samples[:3] + self.samples[-1:],
             }
@@ -178,6 +250,7 @@ class StartupEvidence:
                 "wrapper_signal": -code if code is not None and code < 0 else None,
                 "launch": self.launch, "environment": self.env,
                 "resources_before": self.before,
+                "cgroup_before": self.cgroup_before,
                 "resources_on_failure": resources(self.out),
                 "process_samples": self.samples,
                 "core": self.core_details(home, Path(log_path).read_text(errors="replace")),
@@ -193,14 +266,18 @@ class StartupEvidence:
                 pass
 
     def after_cleanup(self, wrapper_pid):
-        if not self.failed:
-            return
+        """Observe successes too: failed-only samples cannot test accumulation."""
         try:
-            path = self.out / "startup-failure.json"
+            path = self.out / ("startup-failure.json" if self.failed
+                               else "startup-ready.json")
             if path.is_file():
                 data = json.loads(path.read_text())
-                data["process_group_after_cleanup"] = process_group(wrapper_pid)
+                if self.failed:
+                    data["process_group_after_cleanup"] = process_group(wrapper_pid)
                 data["resources_after_cleanup"] = resources(self.out)
+                after = cgroup_census()
+                data["cgroup_after_cleanup"] = after
+                data["cgroup_delta"] = census_difference(self.cgroup_before, after)
                 path.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n")
         except Exception:
-            pass  # Preserve the original startup failure.
+            pass  # Diagnostics never change native acceptance or erase the first failure.

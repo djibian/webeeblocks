@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.webots_startup_diagnostics import StartupEvidence
+from tools.ci.webots_startup_diagnostics import StartupEvidence, census_difference, cgroup_census
 
 
 class StartupEvidenceTests(unittest.TestCase):
@@ -41,6 +41,9 @@ class StartupEvidenceTests(unittest.TestCase):
                 self.assertIn("cgroup_v2", evidence["resources_on_failure"])
                 self.assertIn("meminfo", evidence["resources_before"])
                 self.assertEqual(evidence["process_group_after_cleanup"], [])
+                self.assertIn("cgroup_before", evidence)
+                self.assertIn("cgroup_after_cleanup", evidence)
+                self.assertIn("cgroup_delta", evidence)
             finally:
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
@@ -75,8 +78,42 @@ class StartupEvidenceTests(unittest.TestCase):
             self.assertEqual(summary["sequence_index"], 1)
             self.assertIn("resources_at_readiness", summary)
             diagnostic.after_cleanup(os.getpid())
+            summary = json.loads((out / "startup-ready.json").read_text())
+            self.assertIn("cgroup_before", summary)
+            self.assertIn("cgroup_after_cleanup", summary)
+            self.assertIn("cgroup_delta", summary)
             self.assertFalse((out / "startup-failure.json").exists())
             self.assertFalse((out / "startup-backtrace.txt").exists())
+
+    def test_cgroup_comparison_refuses_partial_and_pid_reuse(self):
+        def row(ticks):
+            return {"pid": 101, "start_ticks": ticks, "pid_ns": "pid:[123]",
+                    "ppid": 1, "pgid": 101, "sid": 101, "state": "S", "comm": "webots"}
+        before = {"status": "complete", "scope": "/", "processes": [row(10)]}
+        after = {"status": "complete", "scope": "/", "processes": [row(11)]}
+        change = census_difference(before, after)
+        self.assertEqual(change["status"], "comparable_not_causal")
+        self.assertEqual(change["new_since_prelaunch"], [row(11)])
+        self.assertEqual(change["gone_since_prelaunch"], [row(10)])
+        after["status"] = "partial"
+        self.assertEqual(census_difference(before, after)["status"], "unproven")
+        after["status"] = "complete"
+        after["scope"] = "/other"
+        self.assertEqual(census_difference(before, after)["status"], "unproven")
+
+    def test_live_cgroup_snapshot_has_bounded_non_secret_process_identity(self):
+        census = cgroup_census(max_rows=256)
+        self.assertIn(census["status"], ("complete", "partial", "unavailable"))
+        if census["status"] == "unavailable":
+            self.assertIn("reason", census)
+            return
+        self.assertGreaterEqual(census["visible_members"], len(census["processes"]))
+        self.assertLessEqual(len(census["processes"]), 256)
+        for task in census["processes"]:
+            self.assertIn("start_ticks", task)
+            self.assertIn("pid_ns", task)
+            self.assertNotIn("cmdline", task)
+            self.assertNotIn("environ", task)
 
 
 if __name__ == "__main__":
