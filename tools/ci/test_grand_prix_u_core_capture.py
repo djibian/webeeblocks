@@ -216,6 +216,28 @@ class CoreCaptureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'sysroot changed'):
                 capture.verify_snapshot(saved, manifest)
 
+    def test_thread_stack_proof_requires_distinct_real_thread_frames(self):
+        diagnostic = ('[Thread debugging using libthread_db enabled]\n'
+                      'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash\n'
+                      'WBB_PRIMARY_END\n'
+                      'Thread 2 (LWP 2):\n#0 wbb_worker_wait\n'
+                      'Thread 1 (LWP 1):\n#0 wbb_expected_crash\n')
+        self.assertTrue(capture.control_threads_verified(diagnostic))
+        negatives = (
+            diagnostic.replace('#0 wbb_worker_wait',
+                               'warning: wbb_worker_wait symbol unavailable'),
+            diagnostic.replace('Thread 2 (LWP 2):\n#0 wbb_worker_wait',
+                               'Thread 2 (LWP 2):\n#0 something_else\n'
+                               'Thread 1 (LWP 1):\n#1 wbb_worker_wait'),
+            diagnostic.replace('Thread 1 (LWP 1):\n#0 wbb_expected_crash',
+                               'Thread 1 (LWP 1):\n#0 something_else'),
+            diagnostic.replace('[Thread debugging using libthread_db enabled]', ''),
+            diagnostic.replace('WBB_PRIMARY_BEGIN', 'WBB_UNKNOWN_BEGIN'),
+        )
+        for broken in negatives:
+            with self.subTest(broken=broken):
+                self.assertFalse(capture.control_threads_verified(broken))
+
     def test_threaded_control_preflight_builds_one_synchronized_pthread_probe(self):
         with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
             directory = Path(tmp)
@@ -303,7 +325,8 @@ class CoreCaptureTests(unittest.TestCase):
                     (out/(label+'.txt')).write_text(
                         '[Thread debugging using libthread_db enabled]\n'
                         'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash\nWBB_PRIMARY_END\n'
-                        'Thread 2 (LWP 2):\n#0 wbb_worker_wait\n')
+                        'Thread 2 (LWP 2):\n#0 wbb_worker_wait\n'
+                        'Thread 1 (LWP 1):\n#0 wbb_expected_crash\n')
                 return 0
             with (patch.object(capture, 'OUT', out),
                   patch.object(capture, 'kernel_capture', side_effect=route),
