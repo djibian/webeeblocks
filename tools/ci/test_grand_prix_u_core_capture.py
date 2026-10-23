@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Falsify private-core routing, restoration and post-mortem boundaries."""
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import tools.ci.run_grand_prix_u_core_capture as capture
+
+
+class CoreCaptureTests(unittest.TestCase):
+    def test_no_capture_preserves_original_docker_arguments(self):
+        self.assertEqual(capture.core_mount(None), [])
+        self.assertEqual(capture.core_mount(''), [])
+
+    def test_private_mount_and_symlink_rejection(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            options = capture.core_mount(tmp)
+            self.assertEqual(options, ['--ulimit', 'core=1073741824', '-v', tmp+':'+tmp])
+            Path(tmp, 'alias').symlink_to(tmp, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                capture.core_mount(str(Path(tmp, 'alias')))
+            os.chmod(tmp, 0o755)
+            with self.assertRaises(ValueError):
+                capture.core_mount(tmp)
+
+    @contextmanager
+    def fake_kernel(self, directory):
+        pattern = Path(directory) / 'pattern'
+        pattern.write_text('|original-handler')
+        with (patch.object(capture, 'PATTERN_FILE', pattern),
+              patch.object(capture, 'set_pattern', side_effect=pattern.write_text),
+              patch.dict(os.environ, GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted')):
+            yield pattern
+
+    def test_restore_on_exception_and_interruption(self):
+        for error in (RuntimeError('subject failed'), InterruptedError('TERM')):
+            with self.subTest(error=error), tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+                record = {}
+                with self.fake_kernel(tmp) as pattern:
+                    with self.assertRaises(type(error)):
+                        with capture.kernel_capture(Path(tmp), record):
+                            self.assertIn('core.%e.%p.%t', pattern.read_text())
+                            raise error
+                    self.assertEqual(pattern.read_text(), '|original-handler')
+                    self.assertTrue(record['restored'])
+
+    def test_unknown_pattern_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            record = {}
+            with self.fake_kernel(tmp) as pattern:
+                with self.assertRaisesRegex(RuntimeError, 'changed externally'):
+                    with capture.kernel_capture(Path(tmp), record):
+                        pattern.write_text('|external-handler')
+                self.assertEqual(pattern.read_text(), '|external-handler')
+                self.assertFalse(record['restored'])
+
+    def test_ambiguous_setting_failure_still_restores_observed_write(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            record = {}
+            with self.fake_kernel(tmp) as pattern:
+                def ambiguous(value):
+                    pattern.write_text(value)
+                    if value != '|original-handler':
+                        raise subprocess.TimeoutExpired('sysctl', 10)
+                with patch.object(capture, 'set_pattern', side_effect=ambiguous):
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        with capture.kernel_capture(Path(tmp), record):
+                            self.fail('unestablished route was used')
+                self.assertEqual(pattern.read_text(), '|original-handler')
+
+    def test_refuses_self_hosted_runner_before_sysctl(self):
+        with patch.dict(os.environ, GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='self-hosted'), \
+                patch.object(capture, 'set_pattern') as setter:
+            with self.assertRaisesRegex(RuntimeError, 'disposable'):
+                with capture.kernel_capture(Path('/tmp/unused'), {}):
+                    self.fail('self-hosted route was used')
+            setter.assert_not_called()
+
+    def test_core_inventory_refuses_symlinks_and_foreign_executables(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            path = Path(tmp)
+            good = path / 'core.webots-bin.123.456'
+            good.write_bytes(b'ELF fixture')
+            (path/'core.other.123.456').write_bytes(b'other')
+            (path/'core.webots-bin.124.456').symlink_to(good)
+            self.assertEqual(capture.cores(path, 'webots-bin'), [good])
+            good.write_bytes(b'')
+            with self.assertRaisesRegex(RuntimeError, 'empty'):
+                capture.cores(path, 'webots-bin')
+
+    def test_debugger_refuses_changed_original_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            binary, core, output = path/'binary', path/'core', path/'out'
+            binary.write_bytes(b'exact binary'); core.write_bytes(b'fake core')
+            with (patch.object(capture, 'package_versions', side_effect=[{'libc6':'1'}, {'libc6':'2'}]),
+                  patch.object(capture.subprocess, 'run') as run):
+                self.assertEqual(capture.container_backtrace(core, binary, output), 1)
+            self.assertEqual(run.call_count, 2)  # preparation only; never GDB
+            self.assertFalse(output.with_suffix('.txt').exists())
+            self.assertEqual(json.loads(output.with_suffix('.json').read_text())['status'], 'UNPROVEN')
+
+    def test_stack_has_no_frame_arguments_or_auto_loaded_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            binary, core, output = path/'binary', path/'core', path/'out'
+            binary.write_bytes(b'exact binary'); core.write_bytes(b'fake core')
+            def run(command, **kwargs):
+                if command[0] == 'gdb':
+                    self.assertIn('set print frame-arguments none', command)
+                    self.assertIn('set auto-load off', command)
+                    self.assertIn('set debuginfod enabled off', command)
+                    self.assertNotIn('full', command)
+                    kwargs['stdout'].write(b'#0 wbb_expected_crash ()\n' + b'x'*70000)
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture, 'package_versions', return_value={'libc6':'1'}),
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(capture.container_backtrace(core, binary, output), 0)
+            self.assertEqual(output.with_suffix('.txt').stat().st_size, capture.TEXT_LIMIT)
+            self.assertTrue(json.loads(output.with_suffix('.json').read_text())['text_truncated'])
+
+    def test_native_failure_is_preserved_without_retry_even_with_a_stack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'evidence'
+            @contextmanager
+            def route(directory, record):
+                record['restored'] = False
+                try:
+                    yield
+                finally:
+                    record['restored'] = True
+            def preflight(directory):
+                core, binary = directory/'core.gp-core-probe.1.1', directory/'gp-core-probe'
+                core.write_bytes(b'core'); binary.write_bytes(b'binary')
+                return core, binary
+            subjects = []
+            def run(command, **kwargs):
+                if command[0] == sys.executable:
+                    subjects.append(command)
+                    directory = Path(kwargs['env']['WEBEEBLOCKS_GP_CORE_DIR'])
+                    (directory/'core.webots-bin.2.2').write_bytes(b'native core')
+                    return subprocess.CompletedProcess(command, 17)
+                return subprocess.CompletedProcess(command, 0)
+            def analyse(core, binary, label):
+                if label == 'core-capture-preflight':
+                    (out/(label+'.txt')).write_text('#0 wbb_expected_crash ()')
+                return 0
+            with (patch.object(capture, 'OUT', out),
+                  patch.object(capture, 'kernel_capture', side_effect=route),
+                  patch.object(capture, 'preflight', side_effect=preflight),
+                  patch.object(capture, 'analyse', side_effect=analyse),
+                  patch.object(capture.subprocess, 'run', side_effect=run)):
+                self.assertEqual(capture.host_main(), 17)
+            self.assertEqual(subjects, [[sys.executable, str(capture.ROOT/
+                'tools/ci/run_grand_prix_u_prototype.py')]])
+            record = json.loads((out/'core-capture-host.json').read_text())
+            self.assertEqual(record['subject_returncode'], 17)
+            self.assertEqual(record['native_core_count'], 1)
+            self.assertTrue(record['restored'])
+            self.assertFalse(record['raw_core_uploaded'])
+
+    def test_unknown_container_retirement_is_not_blindly_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cid = Path(tmp)/'container.cid'
+            cid.write_text('a'*64)
+            observed = subprocess.CompletedProcess([], 1, '', 'Cannot connect to Docker')
+            with patch.object(capture.subprocess, 'run', return_value=observed) as run:
+                with self.assertRaisesRegex(RuntimeError, 'unproven'):
+                    capture.retire_container(cid)
+            self.assertEqual(run.call_count, 1)
+
+    def test_post_ready_core_is_not_attributed_to_startup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            trial = out/'witness'
+            trial.mkdir()
+            capture.write_json(trial/'startup-ready.json', dict(sequence_index=14,
+                process_samples=[dict(processes=[dict(pid=811, comm='webots-bin')])]))
+            core = Path('/tmp/core.webots-bin.811.12345')
+            with patch.object(capture, 'OUT', out):
+                self.assertEqual(capture.attribute(core)['phase'], 'AFTER_READY')
+                capture.write_json(trial/'startup-failure.json', dict(sequence_index=14,
+                    core=dict(native_sigsegv_pids_in_log=[811])))
+                self.assertEqual(capture.attribute(core)['phase'], 'BEFORE_READY')
+
+
+if __name__ == '__main__':
+    unittest.main()
