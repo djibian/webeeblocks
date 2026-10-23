@@ -265,9 +265,35 @@ def preflight(directory):
     # it is not a Webots retry, a student attempt, or a mission success oracle.
     source = directory / 'probe.c'
     binary = directory / 'gp-core-probe'
-    source.write_text('void wbb_expected_crash(void) { *(volatile int *)0 = 1; }\n'
-                      'int main(void) { wbb_expected_crash(); return 0; }\n')
-    subprocess.run(['cc', '-g', '-O0', str(source), '-o', str(binary)],
+    # The main thread faults only after a worker is alive and blocked in a
+    # pthread condition wait. Qualify a genuine multi-thread post-mortem
+    # without a second Webots launch or a debugger attached to the subject.
+    source.write_text(
+        '#include <pthread.h>\n'
+        'static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;\n'
+        'static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;\n'
+        'static int worker_ready = 0;\n'
+        '__attribute__((noinline)) static void *wbb_worker_wait(void *unused) {\n'
+        '  (void)unused;\n'
+        '  pthread_mutex_lock(&mu);\n'
+        '  worker_ready = 1;\n'
+        '  pthread_cond_signal(&cv);\n'
+        '  for (;;) pthread_cond_wait(&cv, &mu);\n'
+        '  return NULL;\n'
+        '}\n'
+        '__attribute__((noinline)) void wbb_expected_crash(void) {\n'
+        '  *(volatile int *)0 = 1;\n'
+        '}\n'
+        'int main(void) {\n'
+        '  pthread_t worker;\n'
+        '  if (pthread_create(&worker, NULL, wbb_worker_wait, NULL)) return 2;\n'
+        '  pthread_mutex_lock(&mu);\n'
+        '  while (!worker_ready) pthread_cond_wait(&cv, &mu);\n'
+        '  pthread_mutex_unlock(&mu);\n'
+        '  wbb_expected_crash();\n'
+        '  return 0;\n'
+        '}\n')
+    subprocess.run(['cc', '-g', '-O0', '-pthread', str(source), '-o', str(binary)],
                    check=True, timeout=15)
     cid = directory / 'preflight.cid'
     try:
@@ -322,8 +348,11 @@ def host_main():
                 core, binary = preflight(directory)
             if analyse(core, binary, 'core-capture-preflight') != 0:
                 raise RuntimeError('core-capture preflight stack unavailable')
-            if 'wbb_expected_crash' not in (OUT / 'core-capture-preflight.txt').read_text():
-                raise RuntimeError('preflight stack did not identify known crash site')
+            control_stack = (OUT / 'core-capture-preflight.txt').read_text()
+            if ('wbb_expected_crash' not in control_stack or
+                    'wbb_worker_wait' not in control_stack or
+                    '[Thread debugging using libthread_db enabled]' not in control_stack):
+                raise RuntimeError('multi-thread core preflight stack/helper unavailable')
             core.unlink()
             cid = directory / 'subject.cid'
             with kernel_capture(directory, record):

@@ -216,6 +216,66 @@ class CoreCaptureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'sysroot changed'):
                 capture.verify_snapshot(saved, manifest)
 
+    def test_threaded_control_preflight_builds_one_synchronized_pthread_probe(self):
+        with tempfile.TemporaryDirectory(prefix='gp-u-core-', dir='/tmp') as tmp:
+            directory = Path(tmp)
+            commands = []
+            def run(command, **kwargs):
+                commands.append(command)
+                if command[0] == 'docker':
+                    (directory/'core.gp-core-probe.123.456').write_bytes(b'core fixture')
+                    return subprocess.CompletedProcess(command, 139)
+                return subprocess.CompletedProcess(command, 0)
+            with (patch.object(capture.subprocess, 'run', side_effect=run),
+                  patch.object(capture, 'retire_container')):
+                core, binary = capture.preflight(directory)
+            self.assertEqual(core.name, 'core.gp-core-probe.123.456')
+            self.assertEqual(binary, directory/'gp-core-probe')
+            self.assertEqual(len(commands), 2)
+            self.assertIn('-pthread', commands[0])
+            self.assertEqual(commands[1][0:3], ['docker', 'run', '--rm'])
+            self.assertEqual(commands[1].count('--cidfile'), 1)
+            code = (directory/'probe.c').read_text()
+            self.assertIn('pthread_create', code)
+            self.assertIn('while (!worker_ready) pthread_cond_wait', code)
+            self.assertIn('for (;;) pthread_cond_wait', code)
+            self.assertIn('wbb_expected_crash();', code)
+
+    def test_missing_secondary_stack_or_thread_helper_blocks_subject(self):
+        positive = ('[Thread debugging using libthread_db enabled]\n'
+                    '#0 wbb_expected_crash\nThread 2 (LWP 2):\n'
+                    '#0 wbb_worker_wait\n')
+        cases = (positive.replace('wbb_worker_wait', 'worker_unavailable'),
+                 positive.replace('[Thread debugging using libthread_db enabled]', ''))
+        for diagnostic in cases:
+            with self.subTest(diagnostic=diagnostic), tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp)/'evidence'
+                @contextmanager
+                def route(directory, record):
+                    yield
+                def fake_probe(directory):
+                    core = directory/'core.gp-core-probe.1.1'
+                    core.write_bytes(b'core')
+                    return core, directory/'gp-core-probe'
+                def analyse(core, binary, label):
+                    (out/(label+'.txt')).write_text(diagnostic)
+                    return 0
+                subject_invocations = []
+                def run(command, **kwargs):
+                    if command[0] == sys.executable:
+                        subject_invocations.append(command)
+                    return subprocess.CompletedProcess(command, 0)
+                with (patch.object(capture, 'OUT', out),
+                      patch.object(capture, 'kernel_capture', side_effect=route),
+                      patch.object(capture, 'preflight', side_effect=fake_probe),
+                      patch.object(capture, 'analyse', side_effect=analyse),
+                      patch.object(capture.subprocess, 'run', side_effect=run)):
+                    self.assertEqual(capture.host_main(), 1)
+                self.assertEqual(subject_invocations, [])
+                result = json.loads((out/'core-capture-host.json').read_text())
+                self.assertEqual(result['status'], 'UNPROVEN')
+                self.assertIn('multi-thread core', result['reason'])
+
     def test_native_failure_is_preserved_without_retry_even_with_a_stack(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / 'evidence'
@@ -240,7 +300,10 @@ class CoreCaptureTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0)
             def analyse(core, binary, label):
                 if label == 'core-capture-preflight':
-                    (out/(label+'.txt')).write_text('#0 wbb_expected_crash ()')
+                    (out/(label+'.txt')).write_text(
+                        '[Thread debugging using libthread_db enabled]\n'
+                        'WBB_PRIMARY_BEGIN\n#0 wbb_expected_crash\nWBB_PRIMARY_END\n'
+                        'Thread 2 (LWP 2):\n#0 wbb_worker_wait\n')
                 return 0
             with (patch.object(capture, 'OUT', out),
                   patch.object(capture, 'kernel_capture', side_effect=route),
