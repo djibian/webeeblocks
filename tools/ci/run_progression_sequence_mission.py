@@ -53,6 +53,29 @@ static void sequence_ci_position(const char *phase, int request_id,
         ('          if (request.scene_nonce[0]) {',
          '          sequence_ci_position("scene-selected", request.id, self_node, gps, translation_field);\n'
          '          if (request.scene_nonce[0]) {'),
+        # CI-only observations of the unchanged LAND controller, sampled at
+        # 128 ms in free descent and every 8 ms near the ground. These are
+        # *commanded* motor values, not measured thrust or contact forces.
+        ('  double reset_max_stable = 0.0;',
+         '  double reset_max_stable = 0.0;\n'
+         '  unsigned long sequence_ci_land_samples = 0;'),
+        ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
+         '      wb_motor_set_velocity(m4, motor_power(power.m4));\n'
+         '      if (command == CMD_LAND &&\n'
+         '          (z <= origin_z + 0.15 || sequence_ci_land_samples % 16 == 0)) {\n'
+         '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND id=%d t=%.9f x=%.9f y=%.9f z=%.9f vx=%.9f vy=%.9f vz=%.9f roll=%.9f pitch=%.9f des_vx=%.9f des_vy=%.9f des_z=%.9f motor1=%.9f motor2=%.9f motor3=%.9f motor4=%.9f\\n",\n'
+         '               active_id, now, x, y, z, vx_global, vy_global, vz,\n'
+         '               actual.roll, actual.pitch, desired.vx, desired.vy,\n'
+         '               desired.altitude, -motor_power(power.m1),\n'
+         '               motor_power(power.m2), -motor_power(power.m3),\n'
+         '               motor_power(power.m4));\n'
+         '        fflush(stdout);\n'
+         '      }\n'
+         '      if (command == CMD_LAND)\n'
+         '        ++sequence_ci_land_samples;'),
+        ('          trace_land();',
+         '          sequence_ci_position("land-stop", active_id, self_node, gps, translation_field);\n'
+         '          trace_land();'),
     )
     for before, after in edits:
         if source.count(before) != 1:
