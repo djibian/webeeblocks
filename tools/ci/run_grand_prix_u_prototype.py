@@ -209,6 +209,8 @@ def main():
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
         if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
+        from tools.ci.run_grand_prix_u_core_capture import core_mount
+        core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
         subprocess.run(['bash',str(ROOT/'tools/prepare_runtime_v2.sh')],check=True)
         assets=ROOT/'.ci-grand-prix-u-webots'
         if not assets.exists():
@@ -219,13 +221,13 @@ def main():
         node=shutil.which('node')
         if not node:raise RuntimeError('Node 22+ required for shared WWI backend')
         with tempfile.TemporaryDirectory(prefix='gp-u-native-') as tmp:
-            cid=Path(tmp)/'container.cid'
+            cid=Path(os.environ['WEBEEBLOCKS_GP_CONTAINER_CIDFILE']) if core_options else Path(tmp)/'container.cid'
             command="set -eu\npython3 -u -c 'import sys; print(\"GP_U_CONTAINER_PYTHON\",sys.version,flush=True)'\ntimeout -k 2s 10s /usr/local/bin/node --version\ntimeout -k 5s 1400s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "+args.suite+' --seed '+str(args.seed)+' --side '+str(args.side)
             try:
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
                     try:
-                        subprocess.run(['docker','run','--rm','--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
+                        subprocess.run(['docker','run','--rm',*core_options,'--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
                            '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
                            '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
