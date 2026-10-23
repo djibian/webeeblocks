@@ -73,6 +73,9 @@ SHARED_RUNTIME_WEBOTS = (
 # and additionally select the Runtime suite for changes to those exact inputs.
 GRAND_PRIX_RUNTIME_EVIDENCE = (
     "tools/ci/*grand_prix*",
+    # These gp_u_* native pose fixtures are compiled by the Windows composition
+    # test in ci-runtime.yml; the original grand_prix* name glob misses them.
+    "tools/ci/fixtures/gp_u_*",
     "tools/ci/*webots_startup_diagnostics*",
 )
 

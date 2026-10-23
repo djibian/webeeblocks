@@ -61,6 +61,9 @@ class SelectCiTests(unittest.TestCase):
             "tools/ci/test_webots_startup_diagnostics.py",
             "tools/ci/test_grand_prix_u_timeout_probe.py",
             "tools/ci/test_grand_prix_evaluator_bootstrap.py",
+            "tools/ci/fixtures/gp_u_pose_driver.cpp",
+            "tools/ci/fixtures/gp_u_pose_webots.h",
+            "tools/ci/fixtures/gp_u_file_provider.hpp",
         ):
             with self.subTest(path=path):
                 selection = select([path])
