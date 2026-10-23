@@ -62,6 +62,10 @@ SHARED_RUNTIME_WEBOTS = (
     "tools/ci/fixtures/autonomous_reset_observer.py",
     "tools/ci/reset_native_summary.py",
     "tools/ci/test_reset_native_summary.py",
+    # Grand Prix native oracles and startup diagnostics run in ci-runtime.yml.
+    # Generic tools/ci/** selects legacy Webots only; retain it as well.
+    "tools/ci/*grand_prix*",
+    "tools/ci/*webots_startup_diagnostics*",
     "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",

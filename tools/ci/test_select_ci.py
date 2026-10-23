@@ -52,6 +52,27 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)  # existing Webots evidence retained
                 self.assertFalse(selection.full)
 
+    def test_grand_prix_native_evidence_routes_to_runtime_and_webots(self) -> None:
+        # These belong to ci-runtime.yml's grand-prix-prototype job, not
+        # just the legacy ci-webots.yml suite (as in merged #668).
+        for path in (
+            "tools/ci/run_grand_prix_u_prototype.py",
+            "tools/ci/test_grand_prix_u_geometry.py",
+            "tools/ci/test_grand_prix_u_oracle.py",
+            "tools/ci/test_grand_prix_evaluator_bootstrap.py",
+            "tools/ci/webots_startup_diagnostics.py",
+            "tools/ci/test_webots_startup_diagnostics.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+        # A generic legacy Webots-only CI path does not become Runtime.
+        unrelated = select(["tools/ci/test_legacy_webots_only.py"])
+        self.assertFalse(unrelated.runtime)
+        self.assertTrue(unrelated.webots)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)
