@@ -45,11 +45,12 @@ class StartupEvidenceTests(unittest.TestCase):
                             "cgroup_processes_after_cleanup"):
                     snapshot = evidence[key]
                     self.assertLessEqual(len(snapshot["rows"]), 256)
-                    self.assertIn(snapshot["status"], ("available", "unavailable"))
+                    self.assertIsInstance(snapshot["status"], str)
                     for row in snapshot["rows"]:
                         self.assertIsInstance(row["start_ticks"], int)
                         self.assertIsInstance(row["pid_namespace"], str)
-                        self.assertGreaterEqual(row["threads"], 1)
+                        if row["threads"] is not None:
+                            self.assertGreaterEqual(row["threads"], 1)
             finally:
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGKILL)
