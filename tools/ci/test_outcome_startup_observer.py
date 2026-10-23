@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Adversarial scope tests for non-authoritative native startup snapshots."""
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -93,6 +94,63 @@ class OutcomeStartupMonitorTests(unittest.TestCase):
             data = obs.snapshot(root, root)
             self.assertEqual(data["status"], "partial")
             self.assertFalse(data["membership_observed"])
+
+    def test_capture_validator_accepts_real_flushed_samples_including_partial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "capture.jsonl"
+            record = {
+                "status": "partial", "membership_observed": True,
+                "observer_pid": 77, "processes": [], "scan_errors": 0,
+                "resources": {name: None for name in obs.RESOURCE_FILES},
+            }
+            with patch.object(obs, "snapshot", return_value=record), \
+                 patch.object(obs.os, "getpid", return_value=77), \
+                 patch.object(obs.time, "sleep"):
+                obs.observe(path, 0.5, 2)
+            self.assertEqual(obs.validate_capture(path), 2)
+
+    def test_missing_empty_malformed_and_forged_observer_samples_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "capture.jsonl"
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                obs.validate_capture(path)
+            path.write_text("")
+            with self.assertRaisesRegex(ValueError, "missing or unbounded"):
+                obs.validate_capture(path)
+            path.write_text("{broken\n")
+            with self.assertRaisesRegex(ValueError, "malformed"):
+                obs.validate_capture(path)
+            valid = {
+                "sample": 0, "elapsed_s": 0.001, "observer_pid": 77,
+                "status": "partial", "membership_observed": True,
+                "scan_errors": 0, "processes": [],
+                "resources": {name: None for name in obs.RESOURCE_FILES},
+            }
+            for patch_fields in (
+                {"sample": 1}, {"observer_pid": None}, {"elapsed_s": -1},
+                {"resources": {}}, {"status": "healthy"},
+            ):
+                with self.subTest(patch_fields=patch_fields):
+                    path.write_text(json.dumps({**valid, **patch_fields}) + "\n")
+                    with self.assertRaises(ValueError):
+                        obs.validate_capture(path)
+            path.write_text(json.dumps(valid) + "\n" + "{truncated\n")
+            with self.assertRaisesRegex(ValueError, "malformed"):
+                obs.validate_capture(path)
+
+    def test_observer_immediate_startup_failure_is_not_a_valid_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # A nonexistent parent directory forces the actual CLI to fail
+            # before its first sample, as a detached background process might.
+            target = Path(tmp) / "missing-directory" / "capture.jsonl"
+            proc = subprocess.run(
+                [sys.executable, str(Path(obs.__file__).resolve()),
+                 "--output", str(target), "--max-samples", "1"],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                obs.validate_capture(target)
 
     def test_bounded_observer_flushes_snapshots(self):
         with tempfile.TemporaryDirectory() as tmp:

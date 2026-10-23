@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -93,6 +94,61 @@ def snapshot(proc: Path = Path("/proc"),
     if result["scan_errors"]:
         result["status"] = "partial"
     return result
+
+
+def validate_capture(path: Path) -> int:
+    """Verify that the original Webots execution produced parseable census evidence.
+
+    An empty, missing, truncated or malformed capture is UNPROVEN, not an
+    observation that controllers were absent. A partial snapshot may be
+    retained; it must never be promoted to complete process provenance.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise ValueError("startup observer capture unavailable") from exc
+    if not 1 <= len(lines) <= 84:
+        raise ValueError("startup observer capture missing or unbounded samples")
+    first_pid = None
+    last_elapsed = -1.0
+    for index, line in enumerate(lines):
+        try:
+            item = json.loads(line)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"malformed startup observer sample {index}") from exc
+        if not isinstance(item, dict) or type(item.get("sample")) is not int or item["sample"] != index:
+            raise ValueError(f"invalid startup observer sample index {index}")
+        pid = item.get("observer_pid")
+        elapsed = item.get("elapsed_s")
+        if (type(pid) is not int or pid <= 0 or
+                type(elapsed) not in (int, float) or
+                not math.isfinite(elapsed) or elapsed < 0 or elapsed < last_elapsed):
+            raise ValueError(f"invalid startup observer identity/time {index}")
+        if first_pid is None:
+            first_pid = pid
+        elif first_pid != pid:
+            raise ValueError("startup observer process identity changed")
+        last_elapsed = elapsed
+        resources = item.get("resources")
+        if (item.get("status") not in ("ok", "partial") or
+                type(item.get("membership_observed")) is not bool or
+                type(item.get("scan_errors")) is not int or item["scan_errors"] < 0 or
+                not isinstance(item.get("processes"), list) or
+                not isinstance(resources, dict) or
+                set(resources) != set(RESOURCE_FILES) or
+                any(value is not None and not isinstance(value, str)
+                    for value in resources.values())):
+            raise ValueError(f"invalid startup observer snapshot {index}")
+        for process in item["processes"]:
+            if (not isinstance(process, dict) or
+                    type(process.get("pid")) is not int or process["pid"] <= 0 or
+                    type(process.get("ppid")) is not int or
+                    type(process.get("start_ticks")) is not int or
+                    not isinstance(process.get("comm"), str) or
+                    not isinstance(process.get("state"), str) or
+                    process.get("classification") not in ("named-process", "python-unattributed")):
+                raise ValueError(f"invalid startup observer process at sample {index}")
+    return len(lines)
 
 
 def observe(output: Path, interval: float, max_samples: int) -> None:
