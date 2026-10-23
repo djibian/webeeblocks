@@ -15,7 +15,7 @@
   function finite(value,name){var n=Number(value);if(!Number.isFinite(n))fail(name+' must be finite');return n;}
   function bounded(value,name,limits){var n=finite(value,name);if(n<limits.min||n>limits.max)fail(name+' out of bounds: '+n);return n;}
   function field(block,name){if(!block||typeof block.getFieldValue!=='function')fail('invalid Blockly block');return block.getFieldValue(name);}
-  function statementChildren(block,inputName){if(!block||typeof block.getInputTargetBlock!=='function')fail('block does not expose statement input '+inputName);return compileSequence(block.getInputTargetBlock(inputName));}
+  function statementChildren(block,inputName,procedures){if(!block||typeof block.getInputTargetBlock!=='function')fail('block does not expose statement input '+inputName);return compileSequence(block.getInputTargetBlock(inputName),procedures);}
   function valueChild(block,inputName){if(!block||typeof block.getInputTargetBlock!=='function')fail('block does not expose value input '+inputName);var child=block.getInputTargetBlock(inputName);if(!child)fail('missing value input '+inputName);return compileExpression(child);}
   function variableReference(block){
     if(!block||typeof block.getField!=='function')fail('variable block does not expose VAR field');
@@ -44,7 +44,26 @@
 
   function repeatCount(block){if(typeof block.getInputTargetBlock==='function'&&block.getInputTargetBlock('TIMES')){var expression=valueChild(block,'TIMES');if(expression.kind!=='number'||Math.floor(expression.value)!==expression.value)fail('repeat count must be an integer literal');return bounded(expression.value,'repeat',LIMITS.repeat);}return bounded(field(block,'TIMES'),'repeat',LIMITS.repeat);}
 
-  function compileStatement(block){
+  function procedureName(name){
+    if(typeof name!=='string'||!name.trim()||name.trim().length>80)
+      studentFail('invalid procedure name','Donnez à chaque procédure un nom de 1 à 80 caractères.');
+    return name.trim();
+  }
+  function procedureKey(name){return procedureName(name).toLowerCase();}
+  function procedureBody(block,procedures){
+    if(!procedures)fail('procedure call requires a workspace');
+    var name=procedureName(block.getProcedureCall()),key=procedureKey(name);
+    if(block.arguments_&&block.arguments_.length)
+      studentFail('procedure parameters unsupported','Utilisez une procédure sans paramètre.');
+    if(!procedures.definitions.has(key))
+      studentFail('undefined procedure: '+name,'Définissez la procédure appelée avant de lancer.');
+    if(procedures.stack.indexOf(key)>=0)
+      studentFail('recursive procedure cycle: '+name,'Une procédure ne peut pas se rappeler, même par une autre procédure.');
+    procedures.stack.push(key);
+    try{return statementChildren(procedures.definitions.get(key),'STACK',procedures);}
+    finally{procedures.stack.pop();}
+  }
+  function compileStatement(block,procedures){
     switch(block.type){
       case 'webeeblocks_takeoff':return{kind:'takeoff',height_m:1.0};
       case 'webeeblocks_forward':return{kind:'move',direction:'forward',distance_m:bounded(field(block,'DISTANCE'),'distance_m',LIMITS.distance_m)};
@@ -60,33 +79,60 @@
       case 'webeeblocks_v2_light':{var color=String(field(block,'COLOR'));if(LIGHT_COLORS.indexOf(color)<0)fail('unsupported light color: '+color);return{kind:'set_light',color:color};}
       case 'variables_set':return{kind:'set_variable',variable:variableReference(block),value:valueChild(block,'VALUE')};
       case 'math_change':{var changedVariable=variableReference(block);return{kind:'set_variable',variable:changedVariable,value:{kind:'arithmetic',op:'ADD',left:{kind:'variable_get',variable:changedVariable},right:valueChild(block,'DELTA')}};}
-      case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');var rawLimit=field(block,'MAX_ITERATIONS');var max=rawLimit==null||rawLimit===''?100:finite(rawLimit,'max_iterations');if(Math.floor(max)!==max||max<1||max>100)studentFail('invalid conditional loop limit','La limite de boucle doit être un entier de 1 à 100.');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO'),max_iterations:max};}
-      case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO')};
-      case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0')};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE');return result;}
+      case 'webeeblocks_v2_until':return{kind:'while',mode:'UNTIL',condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO',procedures),max_iterations:25};
+      case 'procedures_callnoreturn':return{kind:'call',name:procedureName(block.getProcedureCall()),body:procedureBody(block,procedures)};
+      case 'controls_whileUntil':{var mode=String(field(block,'MODE'));if(mode!=='WHILE'&&mode!=='UNTIL')fail('unsupported loop mode');var rawLimit=field(block,'MAX_ITERATIONS');var max=rawLimit==null||rawLimit===''?100:finite(rawLimit,'max_iterations');if(Math.floor(max)!==max||max<1||max>100)studentFail('invalid conditional loop limit','La limite de boucle doit être un entier de 1 à 100.');return{kind:'while',mode:mode,condition:valueChild(block,'BOOL'),body:statementChildren(block,'DO',procedures),max_iterations:max};}
+      case 'controls_repeat_ext':return{kind:'repeat',count:repeatCount(block),body:statementChildren(block,'DO',procedures)};
+      case 'controls_if':{if(block.elseifCount_&&block.elseifCount_!==0)fail('else-if branches are not part of AST v1');var result={kind:'if',condition:valueChild(block,'IF0'),then:statementChildren(block,'DO0',procedures)};if(block.getInputTargetBlock('ELSE'))result.else=statementChildren(block,'ELSE',procedures);return result;}
       default:fail('unsupported statement block: '+block.type);
     }
   }
 
-  function compileSequence(first){var result=[],block=first,guard=0;while(block){guard+=1;if(guard>200)fail('program too large');result.push(compileStatement(block));block=typeof block.getNextBlock==='function'?block.getNextBlock():null;}return result;}
+  function compileSequence(first,procedures){
+    if(procedures&&++procedures.depth>20)fail('procedure expansion nesting too deep');
+    try{
+      var result=[],block=first,guard=0;
+      while(block){
+        guard+=1;if(guard>200)fail('program too large');
+        if(procedures&&++procedures.nodes>2000)fail('procedure expansion too large');
+        result.push(compileStatement(block,procedures));
+        block=typeof block.getNextBlock==='function'?block.getNextBlock():null;
+      }
+      return result;
+    }finally{if(procedures)procedures.depth-=1;}
+  }
 
-  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
+  function rejectNestedFlightBoundaries(sequence){(sequence||[]).forEach(function(statement){if(statement.kind==='takeoff'||statement.kind==='land')fail('takeoff and land are only allowed at top-level boundaries');if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')rejectNestedFlightBoundaries(statement.body);if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}});}
   function validateFlightBoundaries(program){
     if(program.length<2||program[0].kind!=='takeoff'||program[program.length-1].kind!=='land')studentFail('program must start with takeoff and end with land','Le programme doit commencer par « décoller » et se terminer par « atterrir ».');
     for(var i=0;i<program.length;i++){
       var statement=program[i];
       if(statement.kind==='takeoff'&&i!==0)fail('takeoff is only allowed as the first top-level statement');
       if(statement.kind==='land'&&i!==program.length-1)fail('land is only allowed as the final top-level statement');
-      if(statement.kind==='repeat'||statement.kind==='while')rejectNestedFlightBoundaries(statement.body);
+      if(statement.kind==='repeat'||statement.kind==='while'||statement.kind==='call')rejectNestedFlightBoundaries(statement.body);
       if(statement.kind==='if'){rejectNestedFlightBoundaries(statement.then);rejectNestedFlightBoundaries(statement.else);}
     }
   }
 
   function compileWorkspace(workspace){
     if(!workspace||typeof workspace.getTopBlocks!=='function')fail('invalid Blockly workspace');
-    var tops=workspace.getTopBlocks(true);
+    var allTops=workspace.getTopBlocks(true),procedures={definitions:new Map(),stack:[],nodes:0,depth:0};
+    var tops=allTops.filter(function(block){
+      if(block.type!=='procedures_defnoreturn')return true;
+      var signature=block.getProcedureDef(),key=procedureKey(signature[0]);
+      if(signature[1].length||signature[2])studentFail('procedure parameters unsupported','Utilisez une procédure sans paramètre ni résultat.');
+      if(procedures.definitions.has(key))studentFail('duplicate procedure: '+signature[0],'Donnez des noms différents aux procédures.');
+      procedures.definitions.set(key,block);return false;
+    });
     if(tops.length===0)studentFail('Crazyflie program must have exactly one top-level sequence','Construisez un programme relié avant de lancer.');
     if(tops.length!==1)studentFail('Crazyflie program must have exactly one top-level sequence','Des blocs sont détachés du programme principal. Reliez-les ou supprimez-les avant de lancer.');
-    var program=compileSequence(tops[0]);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
+    // Check even unused definitions: invalid calls/cycles must not hide outside main.
+    procedures.definitions.forEach(function(block,key){
+      procedures.stack.push(key);
+      try{rejectNestedFlightBoundaries(statementChildren(block,'STACK',procedures));}
+      finally{procedures.stack.pop();}
+    });
+    var program=compileSequence(tops[0],procedures);validateFlightBoundaries(program);return{version:1,semantics:'webeeblocks-ast-v1',program:program};
   }
 
 
