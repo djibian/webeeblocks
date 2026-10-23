@@ -71,6 +71,21 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)
                 self.assertFalse(selection.full)
 
+    def test_visual_and_windows_release_inputs_select_runtime(self) -> None:
+        # Their native or release validators live in ci-runtime.yml.
+        for path in (
+            "controllers/color_led_visual_probe/color_led_visual_probe.py",
+            "tools/ci/prepare_color_led_visual_render.py",
+            "tools/ci/check_color_led_visual_render.py",
+            "tools/ci/test_color_led_deck_visual.py",
+            "tools/ci/test_windows_classroom_release.ps1",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
     def test_shared_runtime_backend(self) -> None:
         result = select(["controllers/crazyflie_runtime_v2/controller.c"])
         self.assertTrue(result.runtime)
