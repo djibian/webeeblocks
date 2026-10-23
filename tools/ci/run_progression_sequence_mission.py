@@ -59,6 +59,12 @@ static void sequence_ci_position(const char *phase, int request_id,
         ('  double reset_max_stable = 0.0;',
          '  double reset_max_stable = 0.0;\n'
          '  unsigned long sequence_ci_land_samples = 0;'),
+        # The first sample belongs to this LAND request, including after RESET.
+        # Without a reset, later LAND attempts can miss their initial 128 ms window.
+        ('        command = CMD_LAND;\n        stable_since = -1.0;',
+         '        command = CMD_LAND;\n'
+         '        sequence_ci_land_samples = 0;\n'
+         '        stable_since = -1.0;'),
         ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
          '      wb_motor_set_velocity(m4, motor_power(power.m4));\n'
          '      if (command == CMD_LAND &&\n'
@@ -118,6 +124,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
