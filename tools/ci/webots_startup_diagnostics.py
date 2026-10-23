@@ -1,4 +1,4 @@
-"""Fail-only bounded Webots startup evidence. No retry or scientific oracle changes.
+"""Bounded Webots startup and cleanup evidence. No retry or oracle changes.
 
 Never upload raw cores: process memory may contain confidential material.
 """

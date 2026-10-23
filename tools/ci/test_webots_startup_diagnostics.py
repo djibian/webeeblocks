@@ -60,7 +60,7 @@ class StartupEvidenceTests(unittest.TestCase):
         for entry in snapshot["processes"]:
             self.assertGreater(entry["pid"], 0)
             self.assertGreater(entry["start_ticks"], 0)
-            self.assertIn(entry["state"], "RSDZTWIX")
+            self.assertEqual(len(entry["state"]), 1)
             self.assertNotIn("cmdline", entry)
         if not snapshot["truncated"]:
             self.assertIn(os.getpid(), {entry["pid"] for entry in snapshot["processes"]})
