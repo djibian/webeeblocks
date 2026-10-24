@@ -67,6 +67,8 @@ class SelectCiTests(unittest.TestCase):
             "tools/ci/fixtures/autonomous_reset_observer.py",
             "tools/ci/reset_native_summary.py",
             "tools/ci/test_reset_native_summary.py",
+            "tools/ci/reset_post_teleport.py",
+            "tools/ci/test_reset_post_teleport.py",
         ):
             with self.subTest(path=path):
                 selection = select([path])
