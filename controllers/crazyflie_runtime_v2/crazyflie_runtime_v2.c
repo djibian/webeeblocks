@@ -390,6 +390,11 @@ int main(void) {
   char active_direction[32] = {0};
   double stable_since = -1.0;
   double action_start = 0.0;
+  // Diagnostic only: count completed RESET samples before a timeout.
+  unsigned long reset_pose_bad_samples = 0;
+  unsigned long reset_motion_bad_samples = 0;
+  unsigned long reset_both_ready_samples = 0;
+  double reset_max_stable = 0.0;
 
   gains_pid_t gains;
   memset(&gains, 0, sizeof(gains));
@@ -505,6 +510,10 @@ int main(void) {
         move_speed_limit = VX_MAX;
         command = CMD_RESET;
         stable_since = -1.0;
+        reset_pose_bad_samples = 0;
+        reset_motion_bad_samples = 0;
+        reset_both_ready_samples = 0;
+        reset_max_stable = 0.0;
         action_start = now;
         continue;
       }
@@ -733,12 +742,15 @@ int main(void) {
                       "position=%.9f,%.9f,%.9f origin=%.9f,%.9f,%.9f "
                       "rpy=%.9f,%.9f,%.9f origin_rpy=%.9f,%.9f,%.9f "
                       "velocity_world=%.9f,%.9f,%.9f yaw_rate=%.9f "
-                      "stable_duration=%.6f dt=%.6f\n",
+                      "stable_duration=%.6f dt=%.6f pose_bad=%lu motion_bad=%lu "
+                      "both_ready=%lu max_stable=%.6f\n",
               active_id, now - action_start,
               x, y, z, origin_x, origin_y, origin_z,
               rpy[0], rpy[1], yaw, origin_roll, origin_pitch, origin_yaw,
               vx_global, vy_global, vz, actual.yaw_rate,
-              stable_since < 0.0 ? -1.0 : now - stable_since, dt);
+              stable_since < 0.0 ? -1.0 : now - stable_since, dt,
+              reset_pose_bad_samples, reset_motion_bad_samples,
+              reset_both_ready_samples, reset_max_stable);
       fflush(stderr);
       response_error(active_id, "RESET_TIMEOUT");
       stop_motors(m1, m2, m3, m4);
@@ -762,9 +774,16 @@ int main(void) {
                              fabs(rpy[1] - origin_pitch) < YAW_TOL && fabs(wrap_angle(yaw - origin_yaw)) < YAW_TOL;
       const int motion_ready = hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(vz) < VZ_TOL &&
                                fabs(actual.yaw_rate) < YAW_RATE_TOL;
+      if (!pose_ready)
+        ++reset_pose_bad_samples;
+      if (!motion_ready)
+        ++reset_motion_bad_samples;
       if (pose_ready && motion_ready) {
+        ++reset_both_ready_samples;
         if (stable_since < 0.0)
           stable_since = now;
+        if (now - stable_since > reset_max_stable)
+          reset_max_stable = now - stable_since;
         if (now - stable_since >= RESET_WINDOW) {
           trace_reset(x, y, z, origin_x, origin_y, origin_z);
           response_ok(active_id);

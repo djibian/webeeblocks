@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 
+from observe_outcome_startup import validate_capture
+
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = ROOT / "ci-artifacts" / "runtime-v2-outcome-provider"
 WEBOTS_IMAGE = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
@@ -39,6 +41,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        [sys.executable, "tools/ci/test_outcome_startup_observer.py"],
         ["node", "--check", "plugins/robot_windows/outcome_probe/outcome_probe.js"],
         [sys.executable, "-m", "py_compile", "controllers/runtime_v2_outcome_probe/runtime_v2_outcome_probe.py"],
     ]
@@ -77,10 +80,18 @@ def main() -> int:
 
     inner = r'''
 set -e
+# Fail closed with the failing phase named. wget -q otherwise hides HTTP errors
+# and a pre-Webots exit can be mistaken for an outcome freshness failure.
+phase=apt_index
+trap 'rc=$?; printf "WEBEEBLOCKS_OUTCOME_PROBE_STEP_FAILED phase=%s exit=%d\n" "$phase" "$rc" >&2; exit "$rc"' ERR
 apt-get update >/dev/null
+phase=apt_packages
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
+phase=chrome_download
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+phase=chrome_install
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+phase=webots_setup
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/runtime-v2-outcome-provider /root/.config/Cyberbotics
 printf "%s\n" \
@@ -93,6 +104,15 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
+phase=webots_execution
+# Observation only: original timeout, world, oracle and stdout remain unchanged.
+# The process monitor is killed on every script exit, including timeout=124.
+python3 -u /workspace/tools/ci/observe_outcome_startup.py \
+  --output /workspace/ci-artifacts/runtime-v2-outcome-provider/native-startup-processes.jsonl \
+  --interval 0.5 --max-samples 84 \
+  2>/workspace/ci-artifacts/runtime-v2-outcome-provider/native-startup-observer.err &
+startup_observer=$!
+trap "kill $startup_observer $server 2>/dev/null || true" EXIT
 timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/runtime_v2_outcome_probe.wbt
 '''.strip()
 
@@ -160,6 +180,15 @@ timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
         return fail("attempt B publication is absent from Webots evidence")
     if "ERROR:" in webots_log:
         return fail("Webots emitted an ERROR line", webots_log[-6000:])
+
+    # The native outcome oracle must remain unchanged, but a successful outcome
+    # is not a successful *diagnostic* if the background monitor silently died.
+    try:
+        validate_capture(ARTIFACT_ROOT / "native-startup-processes.jsonl")
+    except ValueError as exc:
+        error_path = ARTIFACT_ROOT / "native-startup-observer.err"
+        detail = error_path.read_text(encoding="utf-8", errors="replace")[-3000:] if error_path.exists() else None
+        return fail(f"startup observer evidence UNPROVEN: {exc}", detail)
 
     print("PASS real R2025a outcome provider: attempt A terminal -> reset -> no stale terminal -> attempt B terminal")
     return 0

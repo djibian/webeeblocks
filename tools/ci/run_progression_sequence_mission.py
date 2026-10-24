@@ -22,6 +22,15 @@ def instrument_position(source: str) -> str:
     if 'sequence_ci_position' in source:
         raise ValueError('sequence position instrumentation already present')
     helper = r'''
+#include <sys/time.h>
+
+static long long sequence_ci_wall_ms(void) {
+  struct timeval tv;
+  if (gettimeofday(&tv, NULL) != 0)
+    return -1;
+  return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
 static void sequence_ci_position(const char *phase, int request_id,
                                  WbNodeRef self, WbDeviceTag gps,
                                  WbFieldRef translation) {
@@ -34,6 +43,44 @@ static void sequence_ci_position(const char *phase, int request_id,
          phase, request_id, wb_robot_get_time(), wb_supervisor_node_get_id(self),
          gps_copy[0], gps_copy[1], gps_copy[2],
          world_copy[0], world_copy[1], world_copy[2], value[0], value[1], value[2]);
+  fflush(stdout);
+}
+
+
+static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) {
+  // Read-only Supervisor observations: contact locations are not contact forces.
+  // Keep the on-line volume bounded; a partial array is explicitly labelled.
+  const double *observed_velocity = wb_supervisor_node_get_velocity(self);
+  double velocity[6] = {NAN, NAN, NAN, NAN, NAN, NAN};
+  // Webots may reuse API-owned memory; snapshot velocity before reading contacts.
+  if (observed_velocity != NULL)
+    for (int i = 0; i < 6; ++i)
+      velocity[i] = observed_velocity[i];
+  int contact_count = -1;
+  WbContactPoint *points = wb_supervisor_node_get_contact_points(self, true, &contact_count);
+  const int shown = contact_count < 6 ? contact_count : 6;
+  int valid = observed_velocity != NULL && contact_count >= 0 &&
+              (contact_count == 0 || points != NULL);
+  if (valid) {
+    for (int i = 0; i < 6; ++i)
+      if (!isfinite(velocity[i]))
+        valid = 0;
+    for (int i = 0; i < shown; ++i)
+      for (int axis = 0; axis < 3; ++axis)
+        if (!isfinite(points[i].point[axis]))
+          valid = 0;
+  }
+  printf("WEBEEBLOCKS_SEQUENCE_CI_LAND_NATIVE id=%d t=%.9f status=%s contacts=%d shown=%d",
+         request_id, now, valid ? "OBSERVED" : "UNPROVEN", contact_count, shown);
+  if (valid) {
+    printf(" velocity=%.9f,%.9f,%.9f,%.9f,%.9f,%.9f",
+           velocity[0], velocity[1], velocity[2],
+           velocity[3], velocity[4], velocity[5]);
+    for (int i = 0; i < shown; ++i)
+      printf(" cp%d=%d:%.9f,%.9f,%.9f", i, points[i].node_id,
+             points[i].point[0], points[i].point[1], points[i].point[2]);
+  }
+  printf("\n");
   fflush(stdout);
 }
 
@@ -53,6 +100,51 @@ static void sequence_ci_position(const char *phase, int request_id,
         ('          if (request.scene_nonce[0]) {',
          '          sequence_ci_position("scene-selected", request.id, self_node, gps, translation_field);\n'
          '          if (request.scene_nonce[0]) {'),
+        # CI-only observations of the unchanged LAND controller, sampled at
+        # 128 ms in free descent and every 8 ms near the ground. These are
+        # *commanded* motor values, not measured thrust or contact forces.
+        ('  double reset_max_stable = 0.0;',
+         '  double reset_max_stable = 0.0;\n'
+         '  unsigned long sequence_ci_land_samples = 0;\n'
+         '  unsigned long sequence_ci_move_samples = 0;'),
+        # CI-only paired clocks for the already-active MOVE: never change
+        # simulated deadlines, student behavior, response codes or oracles.
+        ('        command = CMD_MOVE;\n        stable_since = -1.0;',
+         '        command = CMD_MOVE;\n'
+         '        sequence_ci_move_samples = 0;\n'
+         '        stable_since = -1.0;'),
+        ('    if (command != CMD_IDLE && command != CMD_RESET &&',
+         '    if (command == CMD_MOVE && sequence_ci_move_samples++ % 128 == 0) {\n'
+         '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
+         '             active_id, now, now - action_start, sequence_ci_wall_ms(), x, y, z,\n'
+         '             actual.roll, actual.pitch);\n'
+         '      fflush(stdout);\n'
+         '    }\n'
+         '    if (command != CMD_IDLE && command != CMD_RESET &&'),
+        # The first sample belongs to this LAND request, including after RESET.
+        # Without a reset, later LAND attempts can miss their initial 128 ms window.
+        ('        command = CMD_LAND;\n        stable_since = -1.0;',
+         '        command = CMD_LAND;\n'
+         '        sequence_ci_land_samples = 0;\n'
+         '        stable_since = -1.0;'),
+        ('      wb_motor_set_velocity(m4, motor_power(power.m4));',
+         '      wb_motor_set_velocity(m4, motor_power(power.m4));\n'
+         '      if (command == CMD_LAND &&\n'
+         '          (z <= origin_z + 0.15 || sequence_ci_land_samples % 16 == 0)) {\n'
+         '        printf("WEBEEBLOCKS_SEQUENCE_CI_LAND id=%d t=%.9f x=%.9f y=%.9f z=%.9f vx=%.9f vy=%.9f vz=%.9f roll=%.9f pitch=%.9f des_vx=%.9f des_vy=%.9f des_z=%.9f motor1=%.9f motor2=%.9f motor3=%.9f motor4=%.9f\\n",\n'
+         '               active_id, now, x, y, z, vx_global, vy_global, vz,\n'
+         '               actual.roll, actual.pitch, desired.vx, desired.vy,\n'
+         '               desired.altitude, -motor_power(power.m1),\n'
+         '               motor_power(power.m2), -motor_power(power.m3),\n'
+         '               motor_power(power.m4));\n'
+         '        fflush(stdout);\n'
+         '        sequence_ci_native_land(active_id, now, self_node);\n'
+         '      }\n'
+         '      if (command == CMD_LAND)\n'
+         '        ++sequence_ci_land_samples;'),
+        ('          trace_land();',
+         '          sequence_ci_position("land-stop", active_id, self_node, gps, translation_field);\n'
+         '          trace_land();'),
     )
     for before, after in edits:
         if source.count(before) != 1:
@@ -95,6 +187,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]

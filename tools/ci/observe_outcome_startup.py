@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Bounded pre-controller Webots process census for one original CI execution.
+
+Observation only. Do not inspect command lines, environments, memory or process
+arguments; a missing census is not evidence of healthy native startup.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+from pathlib import Path
+import sys
+import time
+
+VISIBLE = frozenset({
+    "Xvfb", "xvfb-run", "webots", "webots-bin", "crazyflie_runtime", "crazyflie_runti",
+    "runtime_v2_outc", "runtime_v2_outcome_probe", "chrome", "chrome-wrapper",
+    "google-chrome", "chromium", "chromium-browser",
+})
+# Webots executes Python controllers through the image's interpreter. Its comm
+# need not contain the script name. These entries also include our observer and
+# WWI server: retain identities without claiming which script a Python runs.
+PYTHON_COMMS = frozenset({
+    "python", "python3", Path(sys.executable).name[:15],
+    Path(sys.executable).resolve().name[:15],
+})
+RESOURCE_FILES = ("pids.current", "pids.events", "memory.current", "memory.events")
+
+
+def read_limited(path: Path, maximum: int = 4096) -> str | None:
+    try:
+        with path.open("rb") as stream:
+            return stream.read(maximum + 1)[:maximum].decode("utf-8", "replace")
+    except OSError:
+        return None
+
+
+def parse_stat(value: str) -> dict | None:
+    # /proc/PID/stat can contain spaces and ')' in the comm field.
+    if ") " not in value or "(" not in value:
+        return None
+    try:
+        fields = value.rsplit(") ", 1)[1].split()
+        return {
+            "state": fields[0], "ppid": int(fields[1]),
+            "start_ticks": int(fields[19]),
+        }
+    except (ValueError, IndexError):
+        return None
+
+
+def snapshot(proc: Path = Path("/proc"),
+             cgroup: Path = Path("/sys/fs/cgroup")) -> dict:
+    membership = read_limited(proc / "self/cgroup")
+    resources = {name: read_limited(cgroup / name) for name in RESOURCE_FILES}
+    # A complete process table is not complete startup evidence when kernel
+    # resource counters are unavailable; missing inputs remain explicit.
+    metrics_complete = all(value is not None for value in resources.values())
+    result = {"status": "ok" if membership and metrics_complete else "partial",
+              "membership_observed": bool(membership),
+              "observer_pid": os.getpid(),
+              "processes": [], "resources": resources, "scan_errors": 0}
+    if not membership:
+        result["status"] = "partial"
+        return result
+    try:
+        entries = sorted((p for p in proc.iterdir() if p.name.isdecimal()),
+                         key=lambda p: int(p.name))
+    except OSError:
+        result["status"] = "partial"
+        return result
+    for path in entries:
+        name = read_limited(path / "comm", 128)
+        if name is None:
+            result["scan_errors"] += 1
+            continue
+        comm = name.strip()
+        if comm not in VISIBLE and comm not in PYTHON_COMMS:
+            continue
+        other = read_limited(path / "cgroup")
+        stat = read_limited(path / "stat", 4096)
+        parsed = parse_stat(stat or "")
+        if other is None or parsed is None:
+            result["scan_errors"] += 1
+            continue
+        if other != membership:
+            continue
+        result["processes"].append({
+            "pid": int(path.name), "comm": comm, **parsed,
+            "classification": "python-unattributed" if comm in PYTHON_COMMS else "named-process",
+        })
+    if result["scan_errors"]:
+        result["status"] = "partial"
+    return result
+
+
+def validate_capture(path: Path) -> int:
+    """Verify that the original Webots execution produced parseable census evidence.
+
+    An empty, missing, truncated or malformed capture is UNPROVEN, not an
+    observation that controllers were absent. A partial snapshot may be
+    retained; it must never be promoted to complete process provenance.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise ValueError("startup observer capture unavailable") from exc
+    if not 1 <= len(lines) <= 84:
+        raise ValueError("startup observer capture missing or unbounded samples")
+    first_pid = None
+    last_elapsed = -1.0
+    for index, line in enumerate(lines):
+        try:
+            item = json.loads(line)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"malformed startup observer sample {index}") from exc
+        if not isinstance(item, dict) or type(item.get("sample")) is not int or item["sample"] != index:
+            raise ValueError(f"invalid startup observer sample index {index}")
+        pid = item.get("observer_pid")
+        elapsed = item.get("elapsed_s")
+        if (type(pid) is not int or pid <= 0 or
+                type(elapsed) not in (int, float) or
+                not math.isfinite(elapsed) or elapsed < 0 or elapsed < last_elapsed):
+            raise ValueError(f"invalid startup observer identity/time {index}")
+        if first_pid is None:
+            first_pid = pid
+        elif first_pid != pid:
+            raise ValueError("startup observer process identity changed")
+        last_elapsed = elapsed
+        resources = item.get("resources")
+        if (item.get("status") not in ("ok", "partial") or
+                type(item.get("membership_observed")) is not bool or
+                type(item.get("scan_errors")) is not int or item["scan_errors"] < 0 or
+                not isinstance(item.get("processes"), list) or
+                not isinstance(resources, dict) or
+                set(resources) != set(RESOURCE_FILES) or
+                any(value is not None and not isinstance(value, str)
+                    for value in resources.values())):
+            raise ValueError(f"invalid startup observer snapshot {index}")
+        for process in item["processes"]:
+            if (not isinstance(process, dict) or
+                    type(process.get("pid")) is not int or process["pid"] <= 0 or
+                    type(process.get("ppid")) is not int or
+                    type(process.get("start_ticks")) is not int or
+                    not isinstance(process.get("comm"), str) or
+                    not isinstance(process.get("state"), str) or
+                    process.get("classification") not in ("named-process", "python-unattributed")):
+                raise ValueError(f"invalid startup observer process at sample {index}")
+    return len(lines)
+
+
+def observe(output: Path, interval: float, max_samples: int) -> None:
+    started = time.monotonic()
+    with output.open("x", encoding="utf-8") as stream:
+        for index in range(max_samples):
+            state = snapshot()
+            state["sample"] = index
+            state["elapsed_s"] = round(time.monotonic() - started, 3)
+            stream.write(json.dumps(state, sort_keys=True) + "\n")
+            stream.flush()
+            if index + 1 < max_samples:
+                time.sleep(interval)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--interval", type=float, default=0.5)
+    parser.add_argument("--max-samples", type=int, default=84)
+    args = parser.parse_args()
+    if (args.interval < 0.25 or args.interval > 2.0
+            or args.max_samples < 1 or args.max_samples > 100):
+        parser.error("unbounded startup observation")
+    observe(args.output, args.interval, args.max_samples)
