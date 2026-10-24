@@ -21,6 +21,9 @@ FORCE_FULL = (
     "tools/ci/test_workflow_contract.py",
     "tools/ci/test_repository_hygiene.py",
     "tools/ci/test_windows_release_contract.py",
+    # These native Windows composition fixtures are exercised only by the
+    # full-gated runtime-v2-windows-release job, not the partial Runtime suite.
+    "tools/ci/fixtures/gp_u_*",
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
