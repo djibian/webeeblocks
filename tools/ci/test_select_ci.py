@@ -83,6 +83,17 @@ class SelectCiTests(unittest.TestCase):
             "tools/ci/test_webots_startup_diagnostics.py",
             "tools/ci/test_grand_prix_u_timeout_probe.py",
             "tools/ci/test_grand_prix_evaluator_bootstrap.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
+    def test_native_windows_gp_u_fixtures_require_full_release_validation(self) -> None:
+        # The Windows-only composed C/C++ test lives behind inputs.full.
+        # Running just the partial Runtime suite silently skips that job.
+        for path in (
             "tools/ci/fixtures/gp_u_pose_driver.cpp",
             "tools/ci/fixtures/gp_u_pose_webots.h",
             "tools/ci/fixtures/gp_u_file_provider.hpp",
@@ -91,7 +102,7 @@ class SelectCiTests(unittest.TestCase):
                 selection = select([path])
                 self.assertTrue(selection.runtime)
                 self.assertTrue(selection.webots)
-                self.assertFalse(selection.full)
+                self.assertTrue(selection.full)
 
     def test_visual_and_windows_release_inputs_select_runtime(self) -> None:
         # Their native or release validators live in ci-runtime.yml.
