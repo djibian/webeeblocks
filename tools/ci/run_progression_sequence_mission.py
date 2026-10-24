@@ -22,6 +22,15 @@ def instrument_position(source: str) -> str:
     if 'sequence_ci_position' in source:
         raise ValueError('sequence position instrumentation already present')
     helper = r'''
+#include <sys/time.h>
+
+static long long sequence_ci_wall_ms(void) {
+  struct timeval tv;
+  if (gettimeofday(&tv, NULL) != 0)
+    return -1;
+  return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
 static void sequence_ci_position(const char *phase, int request_id,
                                  WbNodeRef self, WbDeviceTag gps,
                                  WbFieldRef translation) {
@@ -96,7 +105,22 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
         # *commanded* motor values, not measured thrust or contact forces.
         ('  double reset_max_stable = 0.0;',
          '  double reset_max_stable = 0.0;\n'
-         '  unsigned long sequence_ci_land_samples = 0;'),
+         '  unsigned long sequence_ci_land_samples = 0;\n'
+         '  unsigned long sequence_ci_move_samples = 0;'),
+        # CI-only paired clocks for the already-active MOVE: never change
+        # simulated deadlines, student behavior, response codes or oracles.
+        ('        command = CMD_MOVE;\n        stable_since = -1.0;',
+         '        command = CMD_MOVE;\n'
+         '        sequence_ci_move_samples = 0;\n'
+         '        stable_since = -1.0;'),
+        ('    if (command != CMD_IDLE && command != CMD_RESET &&',
+         '    if (command == CMD_MOVE && sequence_ci_move_samples++ % 128 == 0) {\n'
+         '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
+         '             active_id, now, now - action_start, sequence_ci_wall_ms(), x, y, z,\n'
+         '             actual.roll, actual.pitch);\n'
+         '      fflush(stdout);\n'
+         '    }\n'
+         '    if (command != CMD_IDLE && command != CMD_RESET &&'),
         # The first sample belongs to this LAND request, including after RESET.
         # Without a reset, later LAND attempts can miss their initial 128 ms window.
         ('        command = CMD_LAND;\n        stable_since = -1.0;',
