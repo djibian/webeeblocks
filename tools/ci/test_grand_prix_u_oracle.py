@@ -6,7 +6,7 @@ import sys
 from types import SimpleNamespace as N
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed
+from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed, inside, swept_inside
 
 FIXTURE=Path(__file__).with_name('fixtures')/'grand_prix_u_geometry.json'
 
@@ -164,6 +164,36 @@ class Tests(unittest.TestCase):
             if failed:
                 self.assertEqual(result.reason,'time-limit')
                 self.assertIs(trace.oracle.sample((ms+1000)/1000,trace.p,(0.,0.,0.),completed=True),result)
+
+    def test_swept_track_boundary_rejects_a_short_corner_cut_without_walls(self):
+        # Both samples are strictly inside the concave U polygon, and the
+        # observed 32 ms hop is physically plausible, but the chord leaves it.
+        course = layout(0)
+        a, b = (1.49, .49, .8), (1.51, .53, .8)
+        self.assertTrue(inside(a, course.polygon))
+        self.assertTrue(inside(b, course.polygon))
+        self.assertLess(math.dist(a,b), .064)
+        self.assertFalse(swept_inside(a,b,course.polygon))
+        self.assertFalse(swept_inside(b,a,course.polygon))
+        # Red floor markings are non-colliding. The independent off-track
+        # oracle must still reject this path if the old Solid walls are gone.
+        course.boxes = []
+        attempt = Attempt(course, 1, .023)
+        self.assertTrue(attempt.start(1, 0.))
+        attempt.previous = a
+        self.assertEqual(attempt.sample(.032,b,(0.,0.,0.)).reason,'off-track')
+
+    def test_swept_track_boundary_preserves_legal_corner_arcs_and_tangency(self):
+        course = layout(0)
+        for a,b in (((1.49,.49),(1.53,.49)),
+                    ((1.53,.49),(1.53,.53)),
+                    ((1.49,.49),(1.51,.51)),
+                    ((0.,0.),(2.,0.)),
+                    ((2.,0.),(2.,2.)),
+                    ((2.,2.),(.7,2.))):
+            self.assertTrue(swept_inside(a,b,course.polygon),(a,b))
+            self.assertTrue(swept_inside(b,a,course.polygon),(b,a))
+        self.assertFalse(swept_inside((1.49,.49),(1.48,.51),course.polygon))
 
     def test_swept_contact_detects_collision_between_clear_endpoints(self):
         box=N(x=0.,y=0.,z=.5,sx=.04,sy=.04,sz=1.)

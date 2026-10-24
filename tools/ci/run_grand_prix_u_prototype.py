@@ -209,6 +209,18 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
            for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
         target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
 
+def native_container_command(cid, assets, node, command, core_options=()):
+    """Enable Docker's PID 1 reaper for adopted Webots/Xvfb children.
+
+    The previous PID 1 (timeout) retained zombies between native trials;
+    this is process hygiene, not a claim to repair the Webots SIGSEGV.
+    """
+    return ['docker','run','--rm','--init',*core_options,'--cidfile',str(cid),'--entrypoint','/bin/bash',
+            '-e','WEBOTS_HOME=/usr/local/webots',
+            '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
+            '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command]
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
@@ -236,9 +248,7 @@ def main():
                 with (OUT/'docker.log').open('w') as log:
                     log.write('GP_U_CONTAINER_START '+IMAGE+'\n');log.flush()
                     try:
-                        subprocess.run(['docker','run','--rm',*core_options,'--cidfile',str(cid),'--entrypoint','/bin/bash','-e','WEBOTS_HOME=/usr/local/webots',
-                           '-v',f'{ROOT}:/workspace','-v',f'{assets/"projects"}:/usr/local/webots/projects:ro',
-                           '-v',f'{Path(node).resolve()}:/usr/local/bin/node:ro','-w','/workspace',IMAGE,'-c',command],
+                        subprocess.run(native_container_command(cid,assets,node,command,core_options),
                            stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1500)
                     except (subprocess.CalledProcessError,subprocess.TimeoutExpired):
                         log.flush()
