@@ -52,6 +52,45 @@ def inside(p, polygon):
     return value
 
 
+def swept_inside(a, b, polygon):
+    """Require every observed XY segment to stay inside the mission boundary.
+
+    Point-only sampling lets a short chord cut across a concave U corner
+    while both endpoints remain inside. Split at every polygon-edge crossing
+    and test each open interval; tangency without departure remains legal.
+    Keep the original inside() convention for the endpoints themselves.
+    """
+    if not inside(a, polygon) or not inside(b, polygon):
+        return False
+    dx, dy = b[0]-a[0], b[1]-a[1]
+    if not (dx or dy):
+        return True
+    cuts = [0., 1.]
+    for c, d in zip(polygon, polygon[1:]+polygon[:1]):
+        ex, ey = d[0]-c[0], d[1]-c[1]
+        cx, cy = c[0]-a[0], c[1]-a[1]
+        den = dx*ey-dy*ex
+        if den:
+            t = (cx*ey-cy*ex)/den
+            u = (cx*dy-cy*dx)/den
+            if 0. <= t <= 1. and 0. <= u <= 1.:
+                cuts.append(t)
+        elif cx*dy-cy*dx == 0.:
+            # Collinear edge: its endpoints partition any overlap.
+            axis = 0 if abs(dx) >= abs(dy) else 1
+            delta = dx if axis == 0 else dy
+            for point in (c, d):
+                t = (point[axis]-a[axis])/delta
+                if 0. <= t <= 1.:
+                    cuts.append(t)
+    cuts = sorted(set(cuts))
+    for lo, hi in zip(cuts, cuts[1:]):
+        t = (lo+hi)/2
+        if not inside((a[0]+dx*t, a[1]+dy*t), polygon):
+            return False
+    return True
+
+
 def collides(a,b,box):
     # Distance to a closed set is 1-Lipschitz. A remote box cannot meet a
     # segment shorter than its initial clearance minus the preserved radius.
@@ -169,7 +208,7 @@ class Attempt:
         x,y,z=p
         if z<self.origin_z-.02 or z>self.origin_z+1.15:
             return self.fail(now,'altitude')
-        if not inside(p,self.layout.polygon): return self.fail(now,'off-track')
+        if not swept_inside(self.previous,p,self.layout.polygon): return self.fail(now,'off-track')
         if any(collides(self.previous,p,b) for b in self.layout.boxes):
             return self.fail(now,'envelope-contact')
         if any(len(c)!=3 or not all(math.isfinite(v) for v in c) or c[2]>.012 for c in contacts):
