@@ -37,6 +37,38 @@ class LandInstrumentationTests(unittest.TestCase):
         self.assertIn("if (command == CMD_LAND &&", p)
         self.assertIn('sequence_ci_position("land-stop"', p)
 
+    def test_native_supervisor_contact_observations_are_request_bound(self):
+        p = self.instrumented
+        self.assertIn(
+            "WbContactPoint *points = wb_supervisor_node_get_contact_points(self, true, &contact_count);",
+            p,
+        )
+        self.assertIn("wb_supervisor_node_get_velocity(self)", p)
+        self.assertIn("double velocity[6] = {NAN, NAN, NAN, NAN, NAN, NAN};", p)
+        self.assertLess(
+            p.index("velocity[i] = observed_velocity[i];"),
+            p.index("WbContactPoint *points = wb_supervisor_node_get_contact_points(self"),
+        )
+        self.assertIn("isfinite(points[i].point[axis])", p)
+        self.assertIn("contact_count < 6 ? contact_count : 6", p)
+        self.assertIn("status=%s contacts=%d shown=%d", p)
+        self.assertEqual(p.count("sequence_ci_native_land(active_id, now, self_node);"), 1)
+        self.assertIn(
+            "sequence_ci_native_land(active_id, now, self_node);\n"
+            "      }\n"
+            "      if (command == CMD_LAND)",
+            p,
+        )
+        self.assertLess(
+            p.index("wb_motor_set_velocity(m4, motor_power(power.m4));"),
+            p.index("sequence_ci_native_land(active_id, now, self_node);"),
+        )
+        helper = p.split("static void sequence_ci_native_land(", 1)[1].split(
+            "int main(void) {", 1
+        )[0]
+        for forbidden in ("wb_robot_step(", "wb_motor_set_velocity(", "wb_supervisor_node_set_"):
+            self.assertNotIn(forbidden, helper)
+
     def test_guard_fails_closed_if_land_entry_changes(self):
         changed = self.original.replace(
             "        command = CMD_LAND;\n        stable_since = -1.0;",
