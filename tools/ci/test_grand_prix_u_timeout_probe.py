@@ -1,7 +1,8 @@
 """Falsify the expired-attempt versus recovered-attempt evidence boundary."""
 import copy
 import unittest
-from run_grand_prix_u_prototype import validate_timeout_probe
+from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch
+from pathlib import Path
 
 
 def observations(accepted):
@@ -23,6 +24,13 @@ NATIVE=('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n'
 
 
 class TimeoutEvidenceTests(unittest.TestCase):
+    def test_minimize_world_progress_gui_keeps_native_launch_contract(self):
+        actual=native_webots_launch(Path('/opt/webots'),12345,Path('/workspace/worlds/ci_gp_u.wbt'))
+        self.assertEqual(actual,['/opt/webots/webots','--stdout','--stderr','--batch',
+            '--mode=fast','--no-rendering','--minimize','--port=12345',
+            '/workspace/worlds/ci_gp_u.wbt'])
+        self.assertEqual(actual.count('--minimize'),1)
+
     def test_native_descent_and_confirmed_recovery_are_distinct(self):
         validate_timeout_probe(observations(False),'')
         validate_timeout_probe(observations(True),NATIVE)

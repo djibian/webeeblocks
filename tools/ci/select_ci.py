@@ -21,6 +21,9 @@ FORCE_FULL = (
     "tools/ci/test_workflow_contract.py",
     "tools/ci/test_repository_hygiene.py",
     "tools/ci/test_windows_release_contract.py",
+    # These native Windows composition fixtures are exercised only by the
+    # full-gated runtime-v2-windows-release job, not the partial Runtime suite.
+    "tools/ci/fixtures/gp_u_*",
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
@@ -54,6 +57,13 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # The pre-controller observer is exercised by Runtime's outcome preflight.
+    "tools/ci/observe_outcome_startup.py",
+    "tools/ci/test_outcome_startup_observer.py",
+    # The sequence LAND diagnostic is compiled and exercised by Runtime's
+    # progression shards; generic tools/ci selection would skip its own oracle.
+    "tools/ci/run_progression_sequence_mission.py",
+    "tools/ci/test_progression_land_instrumentation.py",
     # Each of these runs or checks the autonomous R2025a RESET probe.
     # Their earlier generic tools/ci match selected Webots only, silently
     # skipping the real runtime-v2-core job that owns their native evidence.

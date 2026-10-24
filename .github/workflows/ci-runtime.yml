@@ -1517,6 +1517,7 @@ jobs:
       - name: Falsify U behavioral boundaries and generic witness
         run: |
           python3 tools/ci/test_webots_startup_diagnostics.py
+          python3 tools/ci/test_grand_prix_u_core_capture.py
           python3 tools/ci/test_grand_prix_evaluator_bootstrap.py
           python3 tools/ci/test_grand_prix_u_timeout_probe.py
           node tools/ci/test_grand_prix_u_timeout_probe.js
@@ -1524,7 +1525,7 @@ jobs:
           node tools/ci/test_grand_prix_u_profile.js
           node tools/ci/test_grand_prix_u_witness.js
       - name: Prove current U candidate in real Webots R2025a
-        run: python3 tools/ci/run_grand_prix_u_prototype.py
+        run: python3 tools/ci/run_grand_prix_u_core_capture.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
