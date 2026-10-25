@@ -64,6 +64,10 @@ SHARED_RUNTIME_WEBOTS = (
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
     "tools/ci/test_progression_land_instrumentation.py",
+    # The LAND/contact forensic reader and its tests run in the native Runtime
+    # progression preflight; a Webots-only selection skips their owning oracle.
+    "tools/ci/land_contact_summary.py",
+    "tools/ci/test_land_contact_summary.py",
     "plugins/robot_windows/sequence_probe/sequence_probe.js",
     "tools/ci/test_progression_sequence_contract.js",
     # Activity 6's positive/negative native proof is in Runtime progression shard 4.

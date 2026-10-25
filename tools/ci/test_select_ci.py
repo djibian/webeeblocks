@@ -51,6 +51,22 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)  # preserve prior coverage
                 self.assertFalse(selection.full)
 
+    def test_land_contact_forensics_selects_own_runtime_preflight(self) -> None:
+        paths = (
+            "tools/ci/land_contact_summary.py",
+            "tools/ci/test_land_contact_summary.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)  # preserve prior coverage
+                self.assertFalse(selection.full)
+
+        combined = select(list(paths))
+        self.assertEqual(combined.outputs()["runtime"], "true")
+        self.assertEqual(combined.outputs()["webots"], "true")
+
     def test_activity6_native_inputs_run_own_runtime_progression_shard(self) -> None:
         # Shard 4 runs the native combined-decisions Activity 6 mission.
         # Each changed source or regression test must select that real oracle.
