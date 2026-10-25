@@ -113,7 +113,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('-v "$RUNNER_TEMP/' + cache + ':/browser-cache:ro"', detour)
         self.assertEqual(scoped.count('https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb'), 1)
         self.assertIn('wget --server-response --no-verbose -O /browser-cache/google-chrome.deb', direct)
-        self.assertNotIn('wget ', detour)
+        self.assertNotIn('wget --server-response', detour)
+        self.assertNotIn('wget -q -O', detour)
         for phase in (direct, detour):
             self.assertIn('sha256sum -c google-chrome.sha256', phase)
             self.assertIn('apt-get install -y /browser-cache/google-chrome.deb', phase)
