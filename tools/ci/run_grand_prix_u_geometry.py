@@ -56,8 +56,10 @@ def run_native(home, tcp=False):
         proc = None
         try:
             with logpath.open('w') as log:
+                # R2025a omits the modal world-loading progress dialog while
+                # minimized. Keep rendering enabled for native perception.
                 proc = subprocess.Popen([str(home/'webots'), '--stdout', '--stderr', '--batch',
-                                         '--mode=fast', '--port=1257', str(target)],
+                                         '--mode=fast', '--minimize', '--port=1257', str(target)],
                                         cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
                 if tcp:
                     limit = time.monotonic()+30
