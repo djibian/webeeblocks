@@ -22,6 +22,7 @@ from urllib.request import Request, urlopen
 WORKFLOW = "ci.yml"
 SHARDS = tuple(f"Runtime suite / runtime-v2-progression (shard {n})" for n in range(7))
 HISTORICAL_NAMES = ("historical", "webots-smoke")
+SETUP_KINDS = ("webots_pull", "blockly_assets")
 
 
 def timestamp(value: str) -> datetime:
@@ -32,6 +33,38 @@ def minutes(start: str | None, end: str | None) -> float | None:
     if not start or not end:
         return None
     return max(0.0, (timestamp(end) - timestamp(start)).total_seconds() / 60)
+
+
+def observed_setup(jobs: list[dict]) -> dict:
+    """Measure named setup steps, not total setup cost or billing.
+
+    Missing timing is unknown rather than zero; skipped steps consume no
+    observed setup time. Only completed successful CI runs enter the cohort.
+    """
+    result = {kind: {"steps": 0, "missing_timing": 0, "minutes": 0.0}
+              for kind in SETUP_KINDS}
+    for job in jobs:
+        for step in job.get("steps") or ():
+            name = step.get("name") or ""
+            if name == "Pull official Webots R2025a image":
+                kind = "webots_pull"
+            elif name.startswith("Prepare ") and "Blockly 13.2.1" in name:
+                kind = "blockly_assets"
+            else:
+                continue
+            if step.get("conclusion") == "skipped":
+                continue
+            observed = result[kind]
+            observed["steps"] += 1
+            duration = minutes(step.get("started_at"), step.get("completed_at"))
+            if duration is None:
+                observed["missing_timing"] += 1
+            else:
+                observed["minutes"] += duration
+    for observed in result.values():
+        observed["minutes"] = (None if observed["missing_timing"] else
+                               round(observed["minutes"], 3))
+    return result
 
 
 def get_json(url: str, token: str) -> dict:
@@ -121,7 +154,7 @@ def summarize_run(run: dict, jobs: list[dict]) -> dict:
         "all_jobs_success": all_success,
         "full_success": full_success, "seven_shards_proven": has_shards,
         "gate": gate.get("conclusion") if gate else None,
-        "jobs": active,
+        "jobs": active, "setup": observed_setup(jobs),
         "non_success": [{"name": j.get("name"), "result": j.get("conclusion")}
                         for j in jobs if j.get("conclusion") != "success"],
     }
@@ -189,6 +222,15 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
     def median(key: str) -> float | None:
         values = [r[key] for r in complete if r[key] is not None]
         return round(statistics.median(values), 2) if values else None
+    # Avoid an apparently precise zero when an expected step has no timing.
+    # A category not observed in every cohort run has no comparable median.
+    setup_medians = {
+        kind: (round(statistics.median(r["setup"][kind]["minutes"] for r in complete), 2)
+               if complete and all(r["setup"][kind]["steps"] > 0 and
+                                   r["setup"][kind]["minutes"] is not None for r in complete)
+               else None)
+        for kind in SETUP_KINDS
+    }
     data = {
         "schema": "webeeblocks-ci-optimization-v1", "generated_at": now.isoformat(),
         "repository": repo, "window_days": days, "inspected_runs": len(runs),
@@ -200,6 +242,7 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
         "coverage_disclaimer": "Gate/job metadata is NOT proof of test coverage or product correctness.",
         "wall_median_minutes": median("wall_minutes"),
         "runner_median_minutes_estimate": median("runner_minutes_estimate"),
+        "observed_setup_median_runner_minutes": setup_medians,
         "counts": counts,
         "candidates": discover(runs, counts, comparable_successes=complete),
         "runs": [{**{k: v for k, v in r.items() if k not in ("jobs", "job_set")},
@@ -215,6 +258,15 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
              "A green Gate and job list cannot alone prove that the selector ran every affected oracle.", "",
              f"Median elapsed (min): **{data['wall_median_minutes']}**; "
              f"median summed runner minutes (not billing): **{data['runner_median_minutes_estimate']}**.", "",
+             "## Measured repeated preparation (same-workload cohort)", "",
+             f"Median observed Webots image pull steps (runner min): "
+             f"**{setup_medians['webots_pull']}**.",
+             f"Median observed Blockly asset preparation steps (runner min): "
+             f"**{setup_medians['blockly_assets']}**.",
+             "Only explicitly named steps are measured: this is NOT all setup time, "
+             "billing, or proof that caching would reduce elapsed time.",
+             "None means insufficient comparable step timing or no matching step; "
+             "it never means a free operation.", "",
              "## Proposals requiring dedicated CI and independent V5 review", ""]
     if not complete:
         lines.append("Not enough fully successful sharded evidence; no performance claim.")
@@ -223,15 +275,18 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
     for item in data["candidates"]:
         lines.append(f"- **{item['kind']}** — {item.get('candidate', 'relevant CI area')}: {item['proposal']}")
     lines += ["", "## Provenance (latest inspected runs)", "",
-              "| Run | Event | Result | Full evidence | Wall min | Runner min* |", "|---|---|---|---|---:|---:|"]
+              "| Run | Event | Result | Full evidence | Wall min | Runner min* | Pull steps | Pull runner min* |", "|---|---|---|---|---:|---:|---:|---:|"]
     for r in runs[:25]:
         lines.append(f"| [{r['id']}]({r['url']}) | {r['event']} | {r['conclusion']} | "
                      f"{'yes' if r['id'] in comparable_ids else 'no'} | "
-                     f"{r['wall_minutes']} | {r['runner_minutes_estimate']} |")
+                     f"{r['wall_minutes']} | {r['runner_minutes_estimate']} | "
+                     f"{r['setup']['webots_pull']['steps']} | "
+                     f"{r['setup']['webots_pull']['minutes']} |")
     lines += ["", "*Full evidence in this table means same-workload comparability; "
               "it does not prove selection of every scientifically applicable oracle.",
               "*Sum of job occupied minutes, **not** invoiced GitHub usage.",
-              "This is a bounded sample, not an exhaustive history or a causal before/after experiment.", "",
+              "This is a bounded sample, not an exhaustive history or a causal before/after experiment.",
+              "Same event and job names do not prove identical workloads, changed source, cache state or runner conditions.", "",
               "## CI setup inventory", "", "~~~json", json.dumps(counts, indent=2, sort_keys=True), "~~~", ""]
     return data, "\n".join(lines)
 
