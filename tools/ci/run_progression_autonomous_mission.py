@@ -160,6 +160,7 @@ def main() -> int:
     checks = (
         [sys.executable, "tools/ci/test_runtime_v2_autonomous_observer.py"],
         [sys.executable, "tools/ci/test_reset_native_summary.py"],
+        [sys.executable, "tools/ci/test_reset_post_teleport.py"],
         ["node", "tools/ci/test_progression_autonomous_contract.js"],
         ["node", "--check", "plugins/robot_windows/autonomous_probe/autonomous_probe.js"],
     )
@@ -467,6 +468,21 @@ exit "$runner_rc"
                                "status": "UNPROVEN", "error": str(exc)}
         (ARTIFACT_ROOT / "native-reset-summary.json").write_text(
             json.dumps(forensic_report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+        # Supplemental phase-correlated evidence, never a replacement for RESET
+        # or mission oracles. Preserve explicit UNPROVEN on incomplete captures.
+        phase_path = ARTIFACT_ROOT / "reset-phase-summary.json"
+        if phase_path.exists():
+            try:
+                from reset_post_teleport import analyze as analyze_post_teleport
+                correlated = analyze_post_teleport(
+                    ARTIFACT_ROOT / "native-reset-state.jsonl",
+                    json.loads(phase_path.read_text(encoding="utf-8")))
+            except Exception as exc:
+                correlated = {"schema": "webeeblocks-reset-post-teleport-forensics-v1",
+                              "status": "UNPROVEN", "error": str(exc)}
+            (ARTIFACT_ROOT / "reset-post-teleport.json").write_text(
+                json.dumps(correlated, indent=2, allow_nan=False) + "\n",
+                encoding="utf-8")
         # Preserve byte identity even for a failing/partial native campaign.
         digests = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
                    for path in ARTIFACT_ROOT.iterdir() if path.is_file()}
