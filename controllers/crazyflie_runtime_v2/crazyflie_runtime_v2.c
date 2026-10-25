@@ -33,6 +33,8 @@
 #define RESET_WINDOW 0.25
 #define RESET_TIMEOUT 5.0
 #define ACTION_TIMEOUT 25.0
+// Bound the LAND reference slope rather than stepping the height PID to ground.
+#define LAND_DESCENT_SPEED 0.15
 
 typedef enum {
   CMD_IDLE,
@@ -390,6 +392,7 @@ int main(void) {
   char active_direction[32] = {0};
   double stable_since = -1.0;
   double action_start = 0.0;
+  double land_start_z = origin_z;
   // Diagnostic only: count completed RESET samples before a timeout.
   unsigned long reset_pose_bad_samples = 0;
   unsigned long reset_motion_bad_samples = 0;
@@ -710,7 +713,11 @@ int main(void) {
         active_id = request.id;
         active_value = 0.0;
         active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
         target_z = origin_z;
+        land_start_z = z;
         command = CMD_LAND;
         stable_since = -1.0;
         action_start = now;
@@ -909,7 +916,17 @@ int main(void) {
         stable_since = -1.0;
       }
     } else if (command == CMD_LAND) {
-      desired.altitude = origin_z;
+      // Preserve the requested landing point during the descent. A velocity
+      // brake alone can stop horizontal motion at a different position.
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = fmax(origin_z, land_start_z - LAND_DESCENT_SPEED * (now - action_start));
       if (z <= origin_z + ALT_TOL && fabs(vz) < VZ_TOL) {
         if (stable_since < 0.0)
           stable_since = now;
