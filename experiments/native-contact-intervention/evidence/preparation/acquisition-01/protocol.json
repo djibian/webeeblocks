@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "scope": "reduced native R2025a mechanical sufficiency experiment; not historical flight replay",
+  "source_main": "f5435a8d28b7a2dfae2f50f896aa40a246a4858b",
+  "prior_audit": "eccfe5701c2459bc1ae737bcea70bf5004061f27",
+  "historical_fail_artifact": 12594851352,
+  "historical_fail_zip_sha256": "c86dc896ffa8c605568b5dfac7ad86f070d4a49f44f08eef64160f93024b5178",
+  "historical_sample_time_s": 12.448,
+  "webots_bin_sha256": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a",
+  "step_ms": 32,
+  "position_m": [0.175375637, 0, 0.015019625],
+  "pitch_rad": -0.000503311,
+  "velocity_6d": [0.002012302, 0, -0.620328214, 0, -0.000143897, 0],
+  "mass_kg": 0.05,
+  "radius_m": 0.05,
+  "height_m": 0.03,
+  "inertia_diagonal_kg_m2": [0.000035, 0.000035, 0.0000625],
+  "gravity_m_s2": 9.81,
+  "ERP": 0.2,
+  "CFM": 0.00001,
+  "random_seed": 1,
+  "optimal_thread_count": 1,
+  "actuation": "none: no PID, motor, propeller, applied force or torque; gravity only",
+  "cases": [
+    {"id": "one-contact", "dz_m": 0, "floor": true, "predicted_contacts": 1},
+    {"id": "no-contact", "dz_m": 0.000186368, "floor": true, "predicted_contacts": 0},
+    {"id": "four-contacts", "dz_m": -0.000046, "floor": true, "predicted_contacts": 4},
+    {"id": "no-floor-control", "dz_m": 0, "floor": false, "predicted_contacts": 0}
+  ],
+  "interpretation_predeclared": [
+    "Compare first-step angular velocity and orientation across fixed cases; do not tune inputs after seeing results.",
+    "A floor-induced angular impulse with no feedback establishes mechanical sufficiency only within this reduced fixture.",
+    "Failure to discriminate retains missing historical actuator, solver and force state as unresolved alternatives.",
+    "Contact counts must agree with the independently predicted input manifold; retain and report any mismatch.",
+    "No individual contact impulse is claimed from Supervisor data; velocity increments are observed, net impulses may only be inferred with stated assumptions.",
+    "No product fix, changed timestep, oracle, timeout, safety rule or health restoration follows automatically."
+  ]
+}

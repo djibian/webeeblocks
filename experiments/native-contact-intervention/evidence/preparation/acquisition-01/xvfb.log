@@ -1,0 +1,9 @@
+Warning: getifaddrs returns Operation not permitted
+Warning: getifaddrs returns Operation not permitted
+sh: 1: /usr/bin/xkbcomp: not found
+sh: 1: /usr/bin/xkbcomp: not found
+XKB: Failed to compile keymap
+Keyboard initialization failed. This could be a missing or incorrect setup of xkeyboard-config.
+(EE) 
+Fatal server error:
+(EE) Failed to activate virtual core keyboard: 2(EE) 

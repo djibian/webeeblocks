@@ -1,0 +1,74 @@
+{
+  "protocol_sha256": "4a626ae5acb99d3a4b81c2ce83c75f38b195849580ec1894b09f103a78cf76c0",
+  "cases": [
+    {
+      "id": "one-contact",
+      "dz_m": 0,
+      "contacts_before": 1,
+      "contacts_after": 2,
+      "vx_after_m_s": 0.27292890724857927,
+      "vz_after_m_s": -0.5984731590517803,
+      "omega_y_after_rad_s": 18.16506939265761,
+      "pitch_after_rad": 0.5651940812093675,
+      "inferred_net_contact_impulse_N_s": [
+        0.013545830262428962,
+        0.0,
+        0.016788752747410988
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0006357824651380163,
+      "inference_scope": "momentum balance with specified mass/inertia, gravity and no actuation"
+    },
+    {
+      "id": "no-contact",
+      "dz_m": 0.000186368,
+      "contacts_before": 0,
+      "contacts_after": 4,
+      "vx_after_m_s": 0.002012302,
+      "vz_after_m_s": -0.9342482140000001,
+      "omega_y_after_rad_s": -0.000143897,
+      "pitch_after_rad": -0.0005079157039999919,
+      "inferred_net_contact_impulse_N_s": [
+        0.0,
+        0.0,
+        -2.7755575615628915e-18
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0,
+      "inference_scope": "momentum balance with specified mass/inertia, gravity and no actuation"
+    },
+    {
+      "id": "four-contacts",
+      "dz_m": -4.6e-05,
+      "contacts_before": 4,
+      "contacts_after": 0,
+      "vx_after_m_s": 1.1837094983382056e-06,
+      "vz_after_m_s": 0.3096781982938309,
+      "omega_y_after_rad_s": 7.83902477673578e-05,
+      "pitch_after_rad": -0.0005008025120714459,
+      "inferred_net_contact_impulse_N_s": [
+        -0.0001005559145250831,
+        -1.1881471561834073e-18,
+        0.06219632061469155
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 7.780053671857522e-09,
+      "inference_scope": "momentum balance with specified mass/inertia, gravity and no actuation"
+    },
+    {
+      "id": "no-floor-control",
+      "dz_m": 0,
+      "contacts_before": 0,
+      "contacts_after": 0,
+      "vx_after_m_s": 0.002012302,
+      "vz_after_m_s": -0.9342482140000001,
+      "omega_y_after_rad_s": -0.000143897,
+      "pitch_after_rad": -0.0005079157039999919,
+      "inferred_net_contact_impulse_N_s": [
+        0.0,
+        0.0,
+        -2.7755575615628915e-18
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0,
+      "inference_scope": "momentum balance with specified mass/inertia, gravity and no actuation"
+    }
+  ],
+  "scope": "native reduced-fixture observations only; not a historical replay or product verdict"
+}

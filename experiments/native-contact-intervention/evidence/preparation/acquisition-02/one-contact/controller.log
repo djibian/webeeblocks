@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/b69e910503d8/webeeblocks/experiments/native-contact-intervention/./controller.py", line 8, in <module>
+    from controller import Supervisor
+  File "/workspace/scratch/b69e910503d8/webeeblocks/experiments/native-contact-intervention/controller.py", line 8, in <module>
+    from controller import Supervisor
+ImportError: cannot import name 'Supervisor' from partially initialized module 'controller' (most likely due to a circular import) (/workspace/scratch/b69e910503d8/webeeblocks/experiments/native-contact-intervention/controller.py)

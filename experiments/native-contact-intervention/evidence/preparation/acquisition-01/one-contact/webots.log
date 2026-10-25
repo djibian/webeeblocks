@@ -1,0 +1,8 @@
+Warning: could not connect to display 127.0.0.1:40035
+Warning: From 6.5.0, xcb-cursor0 or libxcb-cursor0 is needed to load the Qt xcb platform plugin.
+Info: Could not load the Qt platform plugin "xcb" in "" even though it was found.
+Fatal: This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
+Available platform plugins are: wayland, wayland-egl, xcb.
+
+/workspace/scratch/b69e910503d8/native-support/webots/webots: line 105:    11 Aborted                 "$webots_home/bin/webots-bin" "$@"

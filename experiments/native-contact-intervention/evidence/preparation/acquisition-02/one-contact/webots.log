@@ -1,0 +1,35 @@
+ERROR: USER or USERNAME environment variable not set, falling back to 'default' username.
+WARNING: It is not recommended to run Webots as root.
+WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+WARNING: WARNING: System below the minimal requirements.
+
+Webots has detected that your GPU vendor is 'Mesa'. A recent NVIDIA or AMD graphics adapter is highly recommended to run Webots smoothly. Webots has detected that your computer uses a slow 3D software rendering system. It is strongly recommended to install the latest graphics drivers provided by your GPU manufacturer. Webots will run much faster after the installation of the correct driver.
+
+ - Shadows have been deactivated.
+ - Anti-aliasing has been deactivated.
+ - Main 3D view global ambient occlusion has been de-activated.
+ - Texture quality has been reduced.
+
+You can try to re-activate some OpenGL features from the Webots preferences.
+INFO: 'contact-body' extern controller: Waiting for local or remote connection on port 36469 targeting robot named 'contact-body'.
+ERROR: Cannot listen to the local server (server name = '/tmp/webots/default/36469/ipc/contact-body/extern'): QLocalServer::listen: Unknown error 1
+INFO: 'contact-body' extern controller: disconnected.
