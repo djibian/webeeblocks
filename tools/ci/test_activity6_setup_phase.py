@@ -33,8 +33,8 @@ class Activity6SetupPhaseTests(unittest.TestCase):
         self.assertIn('echo "WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-download status=fail rc=$setup_rc"', source)
         self.assertIn('exit "$setup_rc"', source)
         self.assertLess(source.index("stage=chrome-download status=begin"),
-                        source.index(ACTIVITY6_WEBOTS_LAUNCH))
-        self.assertLess(source.index(ACTIVITY6_WEBOTS_LAUNCH),
+                        source.index("echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=webots status=launch"))
+        self.assertLess(source.index("echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=webots status=launch"),
                         source.index("timeout -k 5s 540s xvfb-run"))
         self.assertLess(source.index("setup_failure = setup_failure_message("),
                         source.index("if result.returncode == 124:"))
