@@ -34,9 +34,31 @@ class Tests(unittest.TestCase):
                 self.assertAlmostEqual(b.z+b.sz/2, 1.3)
             self.assertAlmostEqual(layout.gate_boxes[-2].z+layout.gate_boxes[-2].sz/2, .81)
             text = world_text(layout)
-            self.assertEqual(text.count('DEF GP_U_BAND_'), 2*len(layout.gates))
+            self.assertEqual(text.count('DEF GP_U_BAND_'), 16*len(layout.gates))
             self.assertNotIn('candidate_points', text)
         self.assertEqual(seen, {1,2,3})
+
+    def test_u_guide_and_dashed_low_flight_bands_are_noncolliding(self):
+        for seed in (0, 1, 2, 5, 65535):
+            layout = generate(seed)
+            text = world_text(layout)
+            lines = text.splitlines()
+            guides = [line for line in lines if line.startswith('DEF GP_U_GUIDE_')]
+            self.assertEqual(len(guides), 3)
+            self.assertEqual({line.split()[1] for line in guides},
+                             {'GP_U_GUIDE_0', 'GP_U_GUIDE_1', 'GP_U_GUIDE_2'})
+            self.assertTrue(all('boundingObject' not in line for line in guides))
+            self.assertTrue(all('baseColor .96 .96 .96' in line for line in guides))
+            for i, gate in enumerate(layout.gates):
+                for kind in ('BEFORE', 'AFTER'):
+                    dashes = [line for line in lines
+                              if line.startswith(f'DEF GP_U_BAND_{i}_{kind}_')]
+                    self.assertEqual(len(dashes), 8)
+                    self.assertEqual({line.split()[1] for line in dashes},
+                                     {f'GP_U_BAND_{i}_{kind}_{n}' for n in range(8)})
+                    self.assertTrue(all('boundingObject' not in line for line in dashes))
+                    self.assertTrue(all('baseColor .98 .85 .1' in line for line in dashes))
+            self.assertEqual(len(layout.boxes), len(generate(seed).boxes))
 
     def test_low_gate_envelope_and_high_collision_are_discriminated(self):
         for seed in range(32):
