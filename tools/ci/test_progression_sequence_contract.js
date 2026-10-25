@@ -134,6 +134,57 @@ assert.match(sequenceProbeSource,
   /move\('left', 0\.4\)[\s\S]*move\('forward', 0\.5\)[\s\S]*PRECISE_OVERSHOOT_NOT_ACHIEVED/,
   'overshoot proof must avoid the red obstacle first and then land beyond the precise target');
 
+// The product remains at 35s. Only the two CI probe backends carry a
+// bounded 60s wall budget. Silence must still timeout, and only the actual
+// native UNSAFE_OR_TIMEOUT terminal is accepted for negative collision.
+async function exerciseProgressionNativeWallBudget() {
+  const declaration = sequenceProbeSource.match(/const PROGRESSION_CI_TIMEOUT_MS = (\d+);/);
+  assert.ok(declaration, 'missing explicit CI-only response budget');
+  assert.strictEqual(Number(declaration[1]), 60000);
+  assert.strictEqual((sequenceProbeSource.match(/timeoutMs: PROGRESSION_CI_TIMEOUT_MS/g) || []).length, 2,
+    'initial and reattached test windows must have the same bounded budget');
+  assert.doesNotMatch(sequenceProbeSource, /waitForNativeCollisionFailSafe/,
+    'collision must still use the normal unmodified backend operation');
+  const Backend = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
+  const transport = {messages:[], send(message) { this.messages.push(message); }};
+  const normal = new Backend(transport, {simulationReset:true, simulationScenes:true});
+  assert.strictEqual(normal.timeoutMs, 35000, 'student/client default must not change');
+
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  let pendingTimer = null;
+  let milliseconds = null;
+  try {
+    global.setTimeout = function(callback, delay) {
+      pendingTimer = callback;
+      milliseconds = delay;
+      return 1;
+    };
+    global.clearTimeout = function() {};
+    const backend = new Backend(transport, {
+      simulationReset:true, simulationScenes:true, timeoutMs:Number(declaration[1])
+    });
+    const missing = backend.move('forward', 0.4);
+    assert.strictEqual(milliseconds, 60000, 'silence must have a bounded real timeout');
+    pendingTimer();
+    await assert.rejects(missing, /Runtime v2 request timeout id=/,
+      'a silent native request must fail, never produce a synthetic native error');
+    assert.strictEqual(Object.keys(backend.pending).length, 0);
+    const native = backend.move('forward', 0.4);
+    const request = transport.messages[transport.messages.length - 1].match(/REQUEST (\d+) MOVE/);
+    assert.ok(request);
+    backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE ' + request[1] + ' ERR UNSAFE_OR_TIMEOUT');
+    await assert.rejects(native, error => {
+      assert.strictEqual(error.code, 'UNSAFE_OR_TIMEOUT');
+      return true;
+    }, 'only actual native terminal carries the code');
+    assert.strictEqual(Object.keys(backend.pending).length, 0);
+  } finally {
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+  }
+}
+
 const runtimeEntrySource = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
 const runtimeMakefileSource = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
 assert.match(runtimeEntrySource, /precise-evaluator-v1/);
@@ -177,6 +228,7 @@ async function exerciseEmbeddedStartActivityPath(profile) {
 }
 
 (async function() {
+  await exerciseProgressionNativeWallBudget();
   await exerciseEmbeddedStartActivityPath(p1);
   await exerciseEmbeddedStartActivityPath(p2);
   console.log('PASS progression Activities 1 and 2 preserve embedded start, mission/pedagogy separation, whole-craft visible precision, disjoint targets, solution-shape independence and complete Activity-2 evidence contract');
