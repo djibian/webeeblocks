@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Keep CI-only LAND diagnostics valid on every independently repeated request."""
 from pathlib import Path
+import hashlib
 import unittest
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_progression_sequence_mission import ROOT, instrument_position
+from tools.ci.run_progression_sequence_mission import ROOT, instrument_position, native_context, WEBOTS_IMAGE
 
 SOURCE = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
 
@@ -111,6 +112,50 @@ class LandInstrumentationTests(unittest.TestCase):
     def test_diagnostic_is_not_a_source_mutation(self):
         self.assertEqual(self.original, SOURCE.read_text(encoding="utf-8"))
         self.assertEqual(self.original.count("WEBEEBLOCKS_SEQUENCE_CI_LAND"), 0)
+
+
+class NativeContextTests(unittest.TestCase):
+    """Inputs are reproducible; identical contact dynamics are not asserted."""
+
+    def setUp(self):
+        self.source = 'WorldInfo { basicTimeStep 8 }\\nRobot { window "blockly_v2" }\\n'
+
+    def test_neutral_world_source_and_prepared_digests_are_distinct(self):
+        prepared = self.source.replace('window "blockly_v2"', 'window "sequence_neutral_probe"')
+        context = native_context('crazyflie_classroom_start.wbt', self.source, prepared, neutral=True)
+        sha = lambda s: hashlib.sha256(s.encode('utf-8')).hexdigest()
+        self.assertEqual(context['world_source_sha256'], sha(self.source))
+        self.assertEqual(context['prepared_world_sha256'], sha(prepared))
+        self.assertNotEqual(context['world_source_sha256'], context['prepared_world_sha256'])
+        self.assertEqual(context['world_source_path'], 'worlds/crazyflie_classroom_start.wbt')
+        self.assertEqual(context['webots_container_image'], WEBOTS_IMAGE)
+        self.assertIn('not-reproducible-contact-physics', context['claim'])
+        self.assertIn('ODE-contact-solver-initial-state', context['unattested'])
+
+    def test_legacy_and_neutral_modes_cannot_be_mislabelled(self):
+        legacy = self.source.replace('window "blockly_v2"', 'window "sequence_probe"')
+        context = native_context('crazyflie_runtime_v2.wbt', self.source, legacy, neutral=False)
+        self.assertFalse(context['neutral_start'])
+        with self.assertRaises(ValueError):
+            native_context('crazyflie_runtime_v2.wbt', self.source, legacy, neutral=True)
+        with self.assertRaises(ValueError):
+            native_context('missing.wbt', self.source, legacy, neutral=False)
+
+    def test_source_mutation_or_unrelated_prepared_world_fails_closed(self):
+        neutral = self.source.replace('window "blockly_v2"', 'window "sequence_neutral_probe"')
+        with self.assertRaises(ValueError):
+            native_context('crazyflie_classroom_start.wbt', self.source, neutral+'changed', neutral=True)
+        with self.assertRaises(ValueError):
+            native_context('crazyflie_classroom_start.wbt', self.source.replace(
+                'window "blockly_v2"', 'window "sequence_probe"'), neutral, neutral=True)
+        with self.assertRaises(ValueError):
+            native_context('crazyflie_classroom_start.wbt', self.source, self.source, neutral=True)
+
+    def test_runner_writes_manifest_before_docker_launch(self):
+        source = (ROOT / 'tools/ci/run_progression_sequence_mission.py').read_text(encoding='utf-8')
+        self.assertIn("json.dumps(native_context(world_name, source_world, prepared_world, neutral=NEUTRAL_START)", source)
+        self.assertLess(source.index("(ARTIFACT_ROOT / 'native-context.json').write_text("),
+                        source.index('pull = run(["docker", "pull", WEBOTS_IMAGE]'))
 
 
 if __name__ == "__main__":
