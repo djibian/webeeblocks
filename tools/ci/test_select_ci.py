@@ -115,6 +115,14 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(select(["docs/DEVELOPMENT.md"]).runtime)
         self.assertFalse(select(["controllers/crazyflie_square/pid_controller.c"]).runtime)
 
+    def test_shared_wwi_event_server_edits_run_own_runtime_jobs(self) -> None:
+        # Directly invoked by ci-runtime.yml's native browser/observability
+        # jobs, not just by ci-webots.yml. Editing it alone must run Runtime.
+        selection = select(["tools/ci/runtime_wwi_event_server.py"])
+        self.assertTrue(selection.runtime)
+        self.assertTrue(selection.webots)
+        self.assertFalse(selection.full)
+
     def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
         for path in (
             "tools/ci/observe_outcome_startup.py",
