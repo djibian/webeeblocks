@@ -76,6 +76,13 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
   await report(eventName, fresh);
 }
 
+// CI-only: both neutral and ordinary progression probes can advance fewer
+// than 25 simulated seconds during 35 wall seconds under software Webots.
+// Keep the actual native fail-safe (25 simulated seconds) and every mission
+// oracle unchanged. Only these test windows have a bounded 60s response budget;
+// the product WWI backend retains its 35s default and silence still fails.
+const PROGRESSION_CI_TIMEOUT_MS = 60000;
+
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message: event.message, filename: event.filename, lineno: event.lineno});
 });
@@ -89,7 +96,7 @@ window.addEventListener('unhandledrejection', function(event) {
     const robotWindow = new module.default();
     const sent = [];
     const transport = {send(message) { sent.push(message); robotWindow.send(message); }};
-    let backend = new WebeeBlocksWwiBackend(transport, {simulationReset: true, simulationScenes: true});
+    let backend = new WebeeBlocksWwiBackend(transport, {simulationReset: true, simulationScenes: true, timeoutMs: PROGRESSION_CI_TIMEOUT_MS});
     robotWindow.receive = function(message) {
       backend.handleMessage(String(message));
     };
@@ -97,7 +104,7 @@ window.addEventListener('unhandledrejection', function(event) {
     async function reattachScene(profile, event) {
       // Keep the native controller and RobotWindow connection alive; replace
       // only the page-side backend, as when attaching a fresh Robot Window.
-      backend = new WebeeBlocksWwiBackend(transport, {simulationReset:true,simulationScenes:true});
+      backend = new WebeeBlocksWwiBackend(transport, {simulationReset:true,simulationScenes:true, timeoutMs: PROGRESSION_CI_TIMEOUT_MS});
       await backend.waitUntilReady();
       if (backend.sceneIdentity !== null) throw new Error('reattached backend presumed scene');
       const start = sent.length;
