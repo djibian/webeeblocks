@@ -98,6 +98,32 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("issues: write", workflow)
         self.assertNotIn("name: CI Gate\n", workflow)
 
+    def test_parametric_obstacle_browser_archive_is_reused_with_integrity(self):
+        # A second HTTP GET between direct and detour silently failed with wget
+        # exit 8 on PR #643; native oracles must remain unchanged.
+        source = (WORKFLOWS / "ci-webots.yml").read_text(encoding="utf-8")
+        scoped = source.split("\n  parametric-blockly-obstacle:\n", 1)[1].split(
+            "\n  crazyflie-primitive-matrix:\n", 1)[0]
+        direct = scoped.split("      - name: Run direct Blockly mission into physical obstacle", 1)[1].split(
+            "      - name: Run Blockly L detour around the same obstacle", 1)[0]
+        detour = scoped.split("      - name: Run Blockly L detour around the same obstacle", 1)[1]
+        cache = 'webeeblocks-parametric-browser'
+        self.assertIn('mkdir -p "$RUNNER_TEMP/' + cache + '"', scoped)
+        self.assertIn('-v "$RUNNER_TEMP/' + cache + ':/browser-cache"', direct)
+        self.assertIn('-v "$RUNNER_TEMP/' + cache + ':/browser-cache:ro"', detour)
+        self.assertEqual(scoped.count('https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb'), 1)
+        self.assertIn('wget --server-response --no-verbose -O /browser-cache/google-chrome.deb', direct)
+        self.assertNotIn('wget --server-response', detour)
+        self.assertNotIn('wget -q -O', detour)
+        for phase in (direct, detour):
+            self.assertIn('sha256sum -c google-chrome.sha256', phase)
+            self.assertIn('apt-get install -y /browser-cache/google-chrome.deb', phase)
+            self.assertIn('set -e', phase)
+        self.assertIn('timeout -k 5s 45s xvfb-run', direct)
+        self.assertIn('timeout -k 5s 60s xvfb-run', detour)
+        self.assertIn('WEBEEBLOCKS_OBSTACLE_RESULT status=COLLISION', direct)
+        self.assertIn('WEBEEBLOCKS_CF_L_RESULT status=success gates=2', detour)
+
     def test_job_sets(self):
         for name, expected in EXPECTED.items():
             self.assertEqual(job_ids((WORKFLOWS / name).read_text(encoding="utf-8")), expected, name)
