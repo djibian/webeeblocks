@@ -73,9 +73,14 @@ def summarize(log: str, request_id: int) -> dict:
                 raise ValueError("LAND/contact sample identity mismatch")
             if part["status"] not in ("OBSERVED", "UNPROVEN"):
                 raise ValueError("unknown native observation status")
-            count, shown = integer(part["contacts"]), integer(part["shown"])
-            if shown != min(count, 6):
-                raise ValueError("inconsistent contact count")
+            # Webots may return -1 for an unavailable contact list.
+            # This is missing evidence, never a proof of zero contacts.
+            if (part["contacts"], part["shown"], part["status"]) == ("-1", "-1", "UNPROVEN"):
+                count, shown = None, -1
+            else:
+                count, shown = integer(part["contacts"]), integer(part["shown"])
+                if shown != min(count, 6):
+                    raise ValueError("inconsistent contact count")
             if part["status"] == "OBSERVED":
                 if "velocity" not in part:
                     raise ValueError("missing native velocity")
@@ -138,7 +143,7 @@ def main():
     parser.add_argument("webots_log", type=Path)
     parser.add_argument("--request-id", type=int, required=True)
     args = parser.parse_args()
-    print(json.dumps(summarize(args.webots_log.read_text(encoding="utf-8"),
+    print(json.dumps(summarize(args.webots_log.read_bytes().decode("utf-8"),
                                args.request_id), indent=2, allow_nan=False))
 
 

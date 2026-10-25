@@ -34,6 +34,15 @@ class LandingContactSummaryTests(unittest.TestCase):
         self.assertEqual(result["unproven_samples"], 1)
         self.assertEqual(result["first_observed_contact"]["t"], 12.448)
 
+    def test_unavailable_native_contact_list_remains_unproven(self):
+        result = summarize(sample(12.416, -1, "UNPROVEN") + sample(12.448, 1), 12)
+        self.assertTrue(result["unknown_before_first_observed_contact"])
+        self.assertEqual(result["unproven_samples"], 1)
+        self.assertEqual(result["first_observed_contact"]["t"], 12.448)
+        invalid = sample(12.416, -1, "OBSERVED")
+        with self.assertRaises(ValueError):
+            summarize(invalid, 12)
+
     def test_zero_contacts_does_not_invent_first_contact(self):
         result = summarize(sample(12.416) + sample(12.448), 12)
         self.assertIsNone(result["first_observed_contact"])
