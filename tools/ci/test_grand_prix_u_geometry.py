@@ -60,6 +60,37 @@ class Tests(unittest.TestCase):
                     self.assertTrue(all('baseColor .98 .85 .1' in line for line in dashes))
             self.assertEqual(len(layout.boxes), len(generate(seed).boxes))
 
+    def test_checkered_landing_targets_are_distinct_noncolliding_visuals(self):
+        # Three 25 cm 4x4 checkerboards remain within the existing 28 cm
+        # green landing targets, leaving a 15 mm border on every side.
+        for seed in (0, 1, 2, 5, 65535):
+            layout = generate(seed)
+            text = world_text(layout)
+            lines = text.splitlines()
+            all_cells = [line for line in lines if '_CELL_' in line]
+            self.assertEqual(len(all_cells), 48)
+            self.assertEqual(len({line.split()[1] for line in all_cells}), 48)
+            for count in (1, 2, 3):
+                x, y = layout.landing_target(count)
+                self.assertIn(
+                    f'DEF GP_U_TARGET_{count} Pose {{ translation {x:.6f} {y:.6f} .002',
+                    text)
+                cells = [line for line in lines
+                         if line.startswith(f'DEF GP_U_TARGET_{count}_CELL_')]
+                self.assertEqual(len(cells), 16)
+                self.assertEqual(sum('baseColor .06 .06 .06' in line for line in cells), 8)
+                self.assertEqual(sum('baseColor .96 .96 .96' in line for line in cells), 8)
+                self.assertTrue(all('boundingObject' not in line for line in cells))
+                self.assertTrue(all('size .0625 .0625 .0002' in line for line in cells))
+                for col in range(4):
+                    for row in range(4):
+                        tile = next(line for line in cells
+                                    if line.startswith(f'DEF GP_U_TARGET_{count}_CELL_{col}_{row} '))
+                        tx = x - .125 + (col + .5) * .0625
+                        ty = y - .125 + (row + .5) * .0625
+                        self.assertIn(f'translation {tx:.6f} {ty:.6f} .0042', tile)
+            self.assertEqual(layout.boxes, generate(seed).boxes)
+
     def test_viewpoint_tracks_the_crazyflie_without_authority(self):
         # Native Viewpoint fields exist in the pinned Webots R2025a contract;
         # the tracked name is the one already required by the native evaluator.
