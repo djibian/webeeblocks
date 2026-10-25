@@ -28,6 +28,10 @@ def native_context(world_name: str, source_world: str, prepared_world: str, *, n
         raise ValueError('unknown progression world')
     if neutral != (world_name == 'crazyflie_classroom_start.wbt'):
         raise ValueError('progression context mode/world mismatch')
+    window = 'sequence_neutral_probe' if neutral else 'sequence_probe'
+    if source_world.count('window "blockly_v2"') != 1 or prepared_world != source_world.replace(
+            'window "blockly_v2"', f'window "{window}"', 1):
+        raise ValueError('prepared progression world does not match the source')
     digest = lambda text: hashlib.sha256(text.encode('utf-8')).hexdigest()
     return {
         'schema': 'progression-native-source-context-v1',
