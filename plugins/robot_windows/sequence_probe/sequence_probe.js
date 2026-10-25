@@ -76,6 +76,22 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
   await report(eventName, fresh);
 }
 
+// CI-only: the negative contact MOVE may require 25 simulated seconds to
+// produce its native error; software-rendered R2025a can take >35 wall seconds.
+// Keep the default 35s for every other request. This remains a bounded wait
+// for the actual native UNSAFE_OR_TIMEOUT terminal, never a fabricated PASS.
+async function waitForNativeCollisionFailSafe(backend) {
+  const originalTimeoutMs = backend.timeoutMs;
+  if (originalTimeoutMs !== 35000)
+    throw new Error('unexpected default Runtime request deadline');
+  backend.timeoutMs = 60000;
+  try {
+    return await backend.move('forward', 0.4);
+  } finally {
+    backend.timeoutMs = originalTimeoutMs;
+  }
+}
+
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message: event.message, filename: event.filename, lineno: event.lineno});
 });
@@ -204,7 +220,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.takeoff(0.5);
     let collisionError = null;
     try {
-      await backend.move('forward', 0.4);
+      await waitForNativeCollisionFailSafe(backend);
     } catch (error) {
       collisionError = error;
     }

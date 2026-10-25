@@ -2,6 +2,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
 const Activities = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activities.js'));
@@ -134,6 +135,40 @@ assert.match(sequenceProbeSource,
   /move\('left', 0\.4\)[\s\S]*move\('forward', 0\.5\)[\s\S]*PRECISE_OVERSHOOT_NOT_ACHIEVED/,
   'overshoot proof must avoid the red obstacle first and then land beyond the precise target');
 
+// Test the actual bounded wrapper. It never fabricates a native response:
+// success, native fail-safe and missing-response timeout are distinct.
+async function exerciseCollisionWallBudget() {
+  const match = sequenceProbeSource.match(/async function waitForNativeCollisionFailSafe\(backend\) \{[\s\S]*?\n\}/);
+  assert.ok(match, 'missing scoped collision timeout wrapper');
+  const helper = vm.runInNewContext('(' + match[0] + ')');
+  async function verify(completion, expected) {
+    let calls = 0;
+    const backend = {timeoutMs:35000, move(direction, distance) {
+      calls++;
+      assert.strictEqual(direction, 'forward');
+      assert.strictEqual(distance, 0.4);
+      assert.strictEqual(this.timeoutMs, 60000);
+      return completion();
+    }};
+    if (expected === null) {
+      await helper(backend);
+    } else {
+      await assert.rejects(() => helper(backend), error => {
+        assert.strictEqual(error.code || error.message, expected);
+        return true;
+      });
+    }
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(backend.timeoutMs, 35000, 'default wall budget must be restored');
+  }
+  await verify(() => Promise.reject(Object.assign(new Error('native'), {code:'UNSAFE_OR_TIMEOUT'})), 'UNSAFE_OR_TIMEOUT');
+  await verify(() => Promise.reject(new Error('Runtime v2 request timeout id=53')), 'Runtime v2 request timeout id=53');
+  await verify(() => Promise.resolve(), null);
+  await assert.rejects(
+    () => helper({timeoutMs:35001, move() { throw new Error('unexpected move'); }}),
+    /unexpected default Runtime request deadline/);
+}
+
 const runtimeEntrySource = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/runtime_entry.c'), 'utf8');
 const runtimeMakefileSource = fs.readFileSync(path.join(ROOT, 'controllers/crazyflie_runtime_v2/Makefile'), 'utf8');
 assert.match(runtimeEntrySource, /precise-evaluator-v1/);
@@ -177,6 +212,7 @@ async function exerciseEmbeddedStartActivityPath(profile) {
 }
 
 (async function() {
+  await exerciseCollisionWallBudget();
   await exerciseEmbeddedStartActivityPath(p1);
   await exerciseEmbeddedStartActivityPath(p2);
   console.log('PASS progression Activities 1 and 2 preserve embedded start, mission/pedagogy separation, whole-craft visible precision, disjoint targets, solution-shape independence and complete Activity-2 evidence contract');

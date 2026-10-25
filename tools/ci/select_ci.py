@@ -64,6 +64,8 @@ SHARED_RUNTIME_WEBOTS = (
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
     "tools/ci/test_progression_land_instrumentation.py",
+    "plugins/robot_windows/sequence_probe/sequence_probe.js",
+    "tools/ci/test_progression_sequence_contract.js",
     # Each of these runs or checks the autonomous R2025a RESET probe.
     # Their earlier generic tools/ci match selected Webots only, silently
     # skipping the real runtime-v2-core job that owns their native evidence.
