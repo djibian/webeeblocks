@@ -25,10 +25,14 @@ class Tests(unittest.TestCase):
             self.assertTrue(1 <= len(layout.gates) <= 3)
             self.assertEqual(len({g.side for g in layout.gates}), len(layout.gates))
             seen.add(len(layout.gates))
-            for b in layout.boxes:
-                # Every collider either reaches the full wall height or is
-                # a suspended H crossbar. There is no knee-height collider.
+            # All pre-terminal colliders retain their full upper envelope;
+            # only the deliberately visible terminal H crossbar ends lower.
+            for b in layout.boxes[:-4]:
                 self.assertAlmostEqual(b.z+b.sz/2, 1.3)
+            for b in (layout.gate_boxes[-4], layout.gate_boxes[-3],
+                      layout.gate_boxes[-1]):
+                self.assertAlmostEqual(b.z+b.sz/2, 1.3)
+            self.assertAlmostEqual(layout.gate_boxes[-2].z+layout.gate_boxes[-2].sz/2, .81)
             text = world_text(layout)
             self.assertEqual(text.count('DEF GP_U_BAND_'), 2*len(layout.gates))
             self.assertNotIn('candidate_points', text)
@@ -63,9 +67,23 @@ class Tests(unittest.TestCase):
         for count in (1,2,3):
             x,y = layout.landing_target(count)
             self.assertGreater(min(gap((x,y,.4),b) for b in layout.boxes), RADIUS)
-        for y_mm in range(1100,2901,10):
-            # Even the full widened terminal cross-section is blocked.
-            self.assertLess(gap((0.,y_mm/1000,.4),layout.gate_boxes[-1]),RADIUS)
+        terminal = layout.gate_boxes[-4:]
+        self.assertEqual(len(terminal), 4)
+        self.assertEqual([round(b.y-layout.side,2) for b in terminal],
+                         [-.87,.87,0.,0.])
+        # Whole-width closure remains physical at low, normal and high flight
+        # altitudes: making an H silhouette must never open a bypass.
+        for z in (.10, .40, .75, 1.20):
+            for y_mm in range(1100,2901,10):
+                self.assertLess(min(gap((0.,y_mm/1000,z),b) for b in terminal),
+                                RADIUS)
+        world = world_text(layout)
+        boxes = [line for line in world.splitlines()
+                 if line.startswith('DEF GP_U_BOX_')]
+        self.assertEqual(len(boxes), len(layout.boxes))
+        self.assertTrue(all('boundingObject Box' in line for line in boxes))
+        self.assertEqual(sum('transparency .65' in line for line in boxes), 1)
+        self.assertIn('transparency .65', boxes[-1])
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
