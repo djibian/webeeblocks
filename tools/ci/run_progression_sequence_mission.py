@@ -188,6 +188,7 @@ def main() -> int:
 
     checks = [
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
+        ["python3", "tools/ci/test_land_contact_summary.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
         ["node", "--check", "plugins/robot_windows/sequence_probe/sequence_probe.js"],
     ]
