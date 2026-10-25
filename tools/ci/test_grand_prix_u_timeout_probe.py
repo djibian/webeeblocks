@@ -1,7 +1,10 @@
 """Falsify the expired-attempt versus recovered-attempt evidence boundary."""
 import copy
 import unittest
+import tempfile
+from unittest.mock import patch
 from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch
+import run_grand_prix_u_geometry as geometry
 from pathlib import Path
 
 
@@ -24,6 +27,32 @@ NATIVE=('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n'
 
 
 class TimeoutEvidenceTests(unittest.TestCase):
+    def test_geometry_real_launch_is_minimized_with_rendering_preserved(self):
+        # Reach the actual Popen boundary of both supported native transports;
+        # stop before launching Webots rather than faking perception evidence.
+        for tcp in (False, True):
+            with self.subTest(tcp=tcp), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                home = root / 'webots'
+                (home / 'resources').mkdir(parents=True)
+                (home / 'resources/version.txt').write_text('R2025a\n')
+                (root / 'worlds').mkdir()
+                with (patch.object(geometry, 'ROOT', root),
+                      patch.object(geometry, 'OUT', root / 'evidence'),
+                      patch.object(geometry, 'cases', return_value=[0]),
+                      patch.object(geometry.subprocess, 'Popen',
+                                   side_effect=RuntimeError('launch boundary')) as launch):
+                    with self.assertRaisesRegex(RuntimeError, '^launch boundary$'):
+                        geometry.run_native(home, tcp=tcp)
+                argv = launch.call_args.args[0]
+                self.assertEqual(argv, [str(home / 'webots'), '--stdout', '--stderr',
+                    '--batch', '--mode=fast', '--minimize', '--port=1257',
+                    str(root / 'worlds/ci_gp_u_geometry.wbt')])
+                self.assertEqual(argv.count('--minimize'), 1)
+                self.assertNotIn('--no-rendering', argv)
+                self.assertFalse((root / 'evidence/summary.json').exists())
+                self.assertFalse((root / 'worlds/ci_gp_u_geometry.wbt').exists())
+
     def test_minimize_world_progress_gui_keeps_native_launch_contract(self):
         actual=native_webots_launch(Path('/opt/webots'),12345,Path('/workspace/worlds/ci_gp_u.wbt'))
         self.assertEqual(actual,['/opt/webots/webots','--stdout','--stderr','--batch',
