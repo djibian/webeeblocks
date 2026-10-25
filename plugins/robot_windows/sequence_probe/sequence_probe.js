@@ -76,21 +76,12 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
   await report(eventName, fresh);
 }
 
-// CI-only: the negative contact MOVE may require 25 simulated seconds to
-// produce its native error; software-rendered R2025a can take >35 wall seconds.
-// Keep the default 35s for every other request. This remains a bounded wait
-// for the actual native UNSAFE_OR_TIMEOUT terminal, never a fabricated PASS.
-async function waitForNativeCollisionFailSafe(backend) {
-  const originalTimeoutMs = backend.timeoutMs;
-  if (originalTimeoutMs !== 35000)
-    throw new Error('unexpected default Runtime request deadline');
-  backend.timeoutMs = 60000;
-  try {
-    return await backend.move('forward', 0.4);
-  } finally {
-    backend.timeoutMs = originalTimeoutMs;
-  }
-}
+// CI-only: both neutral and ordinary progression probes can advance fewer
+// than 25 simulated seconds during 35 wall seconds under software Webots.
+// Keep the actual native fail-safe (25 simulated seconds) and every mission
+// oracle unchanged. Only these test windows have a bounded 60s response budget;
+// the product WWI backend retains its 35s default and silence still fails.
+const PROGRESSION_CI_TIMEOUT_MS = 60000;
 
 window.addEventListener('error', function(event) {
   report('WINDOW_ERROR', {message: event.message, filename: event.filename, lineno: event.lineno});
@@ -105,7 +96,7 @@ window.addEventListener('unhandledrejection', function(event) {
     const robotWindow = new module.default();
     const sent = [];
     const transport = {send(message) { sent.push(message); robotWindow.send(message); }};
-    let backend = new WebeeBlocksWwiBackend(transport, {simulationReset: true, simulationScenes: true});
+    let backend = new WebeeBlocksWwiBackend(transport, {simulationReset: true, simulationScenes: true, timeoutMs: PROGRESSION_CI_TIMEOUT_MS});
     robotWindow.receive = function(message) {
       backend.handleMessage(String(message));
     };
@@ -113,7 +104,7 @@ window.addEventListener('unhandledrejection', function(event) {
     async function reattachScene(profile, event) {
       // Keep the native controller and RobotWindow connection alive; replace
       // only the page-side backend, as when attaching a fresh Robot Window.
-      backend = new WebeeBlocksWwiBackend(transport, {simulationReset:true,simulationScenes:true});
+      backend = new WebeeBlocksWwiBackend(transport, {simulationReset:true,simulationScenes:true, timeoutMs: PROGRESSION_CI_TIMEOUT_MS});
       await backend.waitUntilReady();
       if (backend.sceneIdentity !== null) throw new Error('reattached backend presumed scene');
       const start = sent.length;
@@ -220,7 +211,7 @@ window.addEventListener('unhandledrejection', function(event) {
     await backend.takeoff(0.5);
     let collisionError = null;
     try {
-      await waitForNativeCollisionFailSafe(backend);
+      await backend.move('forward', 0.4);
     } catch (error) {
       collisionError = error;
     }
