@@ -66,6 +66,11 @@ SHARED_RUNTIME_WEBOTS = (
     "tools/ci/test_progression_land_instrumentation.py",
     "plugins/robot_windows/sequence_probe/sequence_probe.js",
     "tools/ci/test_progression_sequence_contract.js",
+    # Activity 6's positive/negative native proof is in Runtime progression shard 4.
+    # A Webots-only selection incorrectly reports green while skipping that proof.
+    "tools/ci/run_progression_combined_decisions_mission.py",
+    "tools/ci/test_progression_combined_decisions_contract.js",
+    "tools/ci/test_activity6_setup_phase.py",
     # Each of these runs or checks the autonomous R2025a RESET probe.
     # Their earlier generic tools/ci match selected Webots only, silently
     # skipping the real runtime-v2-core job that owns their native evidence.

@@ -149,7 +149,11 @@ def world_text(layout, *, controller='<none>', window='<none>',
     size = layout.side + 2.5
     lines = ['#VRML_SIM R2025a utf8', externs,
              f'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" }}',
-             'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }',
+             # Native R2025a follow tracks translation smoothly without ever
+             # entering the drone's control or the outcome evaluator.
+             'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 '
+             'follow "Crazyflie WebeeBlocks" followType "Tracking Shot" '
+             'followSmoothness 0.20 }',
              'TexturedBackground { }', 'TexturedBackgroundLight { }',
              f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']
     for i, b in enumerate(layout.boxes):
@@ -162,6 +166,13 @@ def world_text(layout, *, controller='<none>', window='<none>',
         lines.append(f'DEF GP_U_BOX_{i} Solid {{ translation {b.x:.6f} {b.y:.6f} {b.z:.6f} name "Paroi {i}" children [ Shape {{ appearance {appearance} geometry Box {{ size {dims} }} }} ] boundingObject Box {{ size {dims} }} }}')
     def mark(name, x, y, sx, sy, color):
         lines.append(f'DEF {name} Pose {{ translation {x:.6f} {y:.6f} .002 children [ Shape {{ appearance PBRAppearance {{ baseColor {color} roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .004 }} }} ] }}')
+    # White U reference is a visual aid, not an observed flight or oracle path.
+    # It remains beneath the start/landing tiles and has no collision body.
+    for idx, (x, y, sx, sy) in enumerate((
+            (layout.side/2, 0., layout.side, .025),
+            (layout.side, layout.side/2, .025, layout.side),
+            ((layout.side+.70)/2, layout.side, layout.side-.70, .025))):
+        lines.append(f'DEF GP_U_GUIDE_{idx} Pose {{ translation {x:.6f} {y:.6f} .0010 children [ Shape {{ appearance PBRAppearance {{ baseColor .96 .96 .96 roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .0010 }} }} ] }}')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
     for count in (1, 2, 3):
         x, y = layout.landing_target(count)
@@ -169,8 +180,16 @@ def world_text(layout, *, controller='<none>', window='<none>',
     for i, g in enumerate(layout.gates):
         for kind, distance in (('BEFORE', -LOW_BEFORE), ('AFTER', LOW_AFTER)):
             x, y = g.x + distance*math.cos(g.heading), g.y + distance*math.sin(g.heading)
-            mark(f'GP_U_BAND_{i}_{kind}', x, y, .012 if g.side != 1 else WIDTH,
-                 WIDTH if g.side != 1 else .012, '.98 .85 .1')
+            # Eight yellow half-pitch dashes across each observed low-flight
+            # boundary; positions/distances and legality remain unchanged.
+            pitch = WIDTH / 8
+            for dash in range(8):
+                lateral = -WIDTH/2 + (dash + .5) * pitch
+                mx = x - math.sin(g.heading) * lateral
+                my = y + math.cos(g.heading) * lateral
+                mark(f'GP_U_BAND_{i}_{kind}_{dash}', mx, my,
+                     .012 if g.side != 1 else pitch/2,
+                     pitch/2 if g.side != 1 else .012, '.98 .85 .1')
     args = f'controllerArgs [ "{layout.seed}" "{layout.side:.3f}" ]'
     robot = robot.replace(f'controller "{controller}"', f'controller "{controller}" {args}')
     lines.append(robot)
