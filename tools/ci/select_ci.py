@@ -64,6 +64,10 @@ SHARED_RUNTIME_WEBOTS = (
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
     "tools/ci/test_progression_land_instrumentation.py",
+    # Activity 6 bootstrap + its new host tests run in Runtime progression shard 4.
+    # Generic tools/ci only picks Webots and silently misses that oracle.
+    "tools/ci/run_progression_combined_decisions_mission.py",
+    "tools/ci/test_activity6_setup_phase.py",
     "plugins/robot_windows/sequence_probe/sequence_probe.js",
     "tools/ci/test_progression_sequence_contract.js",
     # Each of these runs or checks the autonomous R2025a RESET probe.

@@ -51,6 +51,25 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)  # preserve prior coverage
                 self.assertFalse(selection.full)
 
+    def test_activity6_setup_routes_to_owning_runtime_shard(self) -> None:
+        # PR #693 initial Gate was green with Runtime skipped, so its native
+        # setup diagnostic and test were never executed in the owning shard.
+        for path in (
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/test_activity6_setup_phase.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)  # preserve previous Webots suite
+                self.assertFalse(selection.full)
+        combined = select([
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/test_activity6_setup_phase.py",
+        ])
+        self.assertEqual(combined.outputs()["runtime"], "true")
+        self.assertEqual(combined.outputs()["webots"], "true")
+
     def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
         for path in (
             "tools/ci/observe_outcome_startup.py",
