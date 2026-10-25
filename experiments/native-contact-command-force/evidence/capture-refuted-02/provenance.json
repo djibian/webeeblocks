@@ -1,0 +1,10 @@
+{
+  "protocol_sha256": "f93a18c9144713597f8d431745d6a9c46663c89abeb62ed1b5603c13f2195ebe",
+  "git_head": "4078589bdb096b058ad054c484c9811dfdee3698",
+  "kernel": "Linux 04a7bd7ab8a0 6.18.55 #1 SMP Wed Oct 14 19:45:18 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "input_sha256": {
+    "run.py": "1d943022142feadc9122d11422df334ebc4976aad3bdb785c5a7e1a9333f17fb",
+    "contact_probe.py": "5423eac258c6ab34df00e885cff2b82826122b56e9e092dadfdfb8fe23dc47f0"
+  },
+  "webots_bin_sha256": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a"
+}

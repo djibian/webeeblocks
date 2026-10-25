@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "scope": "native first-contact step with fixed force hypothesis derived from recorded precontact commands; no PID feedback",
+  "source_main": "f5435a8d28b7a2dfae2f50f896aa40a246a4858b",
+  "prior_audit": "eccfe5701c2459bc1ae737bcea70bf5004061f27",
+  "historical_fail_artifact": 12594851352,
+  "historical_fail_zip_sha256": "c86dc896ffa8c605568b5dfac7ad86f070d4a49f44f08eef64160f93024b5178",
+  "historical_sample_time_s": 12.448,
+  "webots_bin_sha256": "c12c65e8680b579d0f33c34be452f100a302bdecc6d9344becf356db4a675a1a",
+  "step_ms": 32,
+  "position_m": [
+    0.175375637,
+    0,
+    0.015019625
+  ],
+  "pitch_rad": -0.000503311,
+  "velocity_6d": [
+    0.002012302,
+    0,
+    -0.620328214,
+    0,
+    -0.000143897,
+    0
+  ],
+  "mass_kg": 0.05,
+  "radius_m": 0.05,
+  "height_m": 0.03,
+  "inertia_diagonal_kg_m2": [
+    3.5e-05,
+    3.5e-05,
+    6.25e-05
+  ],
+  "gravity_m_s2": 9.81,
+  "ERP": 0.2,
+  "CFM": 1e-05,
+  "random_seed": 1,
+  "optimal_thread_count": 1,
+  "actuation": "fixed body-frame force and torque, computed from archived motor targets under explicit tracking hypothesis",
+  "cases": [
+    {
+      "id": "one-contact",
+      "dz_m": 0,
+      "floor": true,
+      "predicted_contacts": 1
+    },
+    {
+      "id": "no-contact",
+      "dz_m": 0.000186368,
+      "floor": true,
+      "predicted_contacts": 0
+    },
+    {
+      "id": "four-contacts",
+      "dz_m": -4.6e-05,
+      "floor": true,
+      "predicted_contacts": 4
+    },
+    {
+      "id": "no-floor-control",
+      "dz_m": 0,
+      "floor": false,
+      "predicted_contacts": 0
+    }
+  ],
+  "interpretation_predeclared": [
+    "Retain the same four Z/floor interventions; add only the same fixed body force and torque in each case.",
+    "Forces are predicted from command targets, NOT claimed direct measurements of internal motor speed or thrust.",
+    "First compare thrust prediction with observed contact-free acceleration at 12.384 -> 12.416 and 12.416 -> 12.448.",
+    "Then compare one-contact native output to the original historical sample 12.480 without parameter fitting; report all residuals, including disagreements.",
+    "This tests the explicit hypothesis that motor actual speeds track targets during this specific first-contact step.",
+    "No continuation, historical RESET, all-trajectory causality, main health, product fix or safety/oracle change is implied."
+  ],
+  "prior_native_evidence": "4078589bdb096b058ad054c484c9811dfdee3698",
+  "motor_targets_rad_s": [
+    -56.723107773,
+    56.724864833,
+    -56.724864833,
+    56.723107773
+  ],
+  "force_body_N": [
+    0,
+    0,
+    0.5148176996599595
+  ],
+  "torque_body_N_m": [
+    0.0,
+    4.943505389735092e-07,
+    -0.0
+  ]
+}

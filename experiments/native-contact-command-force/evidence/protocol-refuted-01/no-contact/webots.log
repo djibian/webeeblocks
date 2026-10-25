@@ -1,0 +1,7 @@
+ERROR: USER or USERNAME environment variable not set, falling back to 'default' username.
+WARNING: It is not recommended to run Webots as root.
+INFO: 'contact-body' extern controller: Waiting for local or remote connection on port 40915 targeting robot named 'contact-body'.
+ERROR: Cannot listen to the local server (server name = '/tmp/webots/default/40915/ipc/contact-body/extern'): QLocalServer::listen: Unknown error 1
+INFO: 'contact-body' extern controller: connected.
+INFO: <extern>: Terminating.
+INFO: 'contact-body' extern controller: disconnected.

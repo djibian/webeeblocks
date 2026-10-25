@@ -1,0 +1,123 @@
+{
+  "protocol_sha256": "f93a18c9144713597f8d431745d6a9c46663c89abeb62ed1b5603c13f2195ebe",
+  "cases": [
+    {
+      "id": "one-contact",
+      "dz_m": 0,
+      "contacts_before": 1,
+      "contacts_after": 2,
+      "vx_after_m_s": 0.200691170617697,
+      "vz_after_m_s": -0.3579775124101062,
+      "omega_y_after_rad_s": 13.357210760177352,
+      "pitch_after_rad": 0.42059262267565106,
+      "inferred_net_contact_impulse_N_s": [
+        0.00994223505969425,
+        0.0,
+        0.012339370777010021
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0004674915937839601,
+      "inference_scope": "momentum balance after subtracting gravity and specified applied body force/torque"
+    },
+    {
+      "id": "no-contact",
+      "dz_m": 0.000186368,
+      "contacts_before": 0,
+      "contacts_after": 4,
+      "vx_after_m_s": 0.0018464694238120314,
+      "vz_after_m_s": -0.6047649279503068,
+      "omega_y_after_rad_s": 0.00030808063563292267,
+      "pitch_after_rad": -0.0004934524196598263,
+      "inferred_net_contact_impulse_N_s": [
+        -3.3881317890172014e-21,
+        0.0,
+        -3.469446951953614e-18
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0,
+      "inference_scope": "momentum balance after subtracting gravity and specified applied body force/torque"
+    },
+    {
+      "id": "four-contacts",
+      "dz_m": -4.6e-05,
+      "contacts_before": 4,
+      "contacts_after": 0,
+      "vx_after_m_s": 1.1845397911575128e-06,
+      "vz_after_m_s": 0.30980685244765926,
+      "omega_y_after_rad_s": 7.848878641170034e-05,
+      "pitch_after_rad": -0.000500799358834827,
+      "inferred_net_contact_impulse_N_s": [
+        -9.22642442010437e-05,
+        -3.9623206880290846e-19,
+        0.0457285890198983
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": -8.035714722742782e-09,
+      "inference_scope": "momentum balance after subtracting gravity and specified applied body force/torque"
+    },
+    {
+      "id": "no-floor-control",
+      "dz_m": 0,
+      "contacts_before": 0,
+      "contacts_after": 0,
+      "vx_after_m_s": 0.0018464694238120314,
+      "vz_after_m_s": -0.6047649279503068,
+      "omega_y_after_rad_s": 0.00030808063563292267,
+      "pitch_after_rad": -0.0004934524196598263,
+      "inferred_net_contact_impulse_N_s": [
+        -3.3881317890172014e-21,
+        0.0,
+        -3.469446951953614e-18
+      ],
+      "inferred_net_angular_impulse_y_N_m_s": 0.0,
+      "inference_scope": "momentum balance after subtracting gravity and specified applied body force/torque"
+    }
+  ],
+  "scope": "native first-contact command-force hypothesis; no PID feedback, continuation or product qualification",
+  "no_floor_mechanics": {
+    "observed_velocity_6d": [
+      0.0018464694238120314,
+      0.0,
+      -0.6047649279503068,
+      0.0,
+      0.00030808063563292267,
+      0.0
+    ],
+    "expected_velocity_6d": [
+      0.0018464694238120314,
+      0.0,
+      -0.6047649279503067,
+      0,
+      0.00030808063563292267,
+      0
+    ]
+  },
+  "contact_free_historical_force_checks": [
+    {
+      "time_s": 12.384,
+      "predicted_force_z_N": 0.5100094281107919,
+      "force_z_inferred_from_next_contact_free_velocity_N": 0.510009428125,
+      "residual_N": -1.4208190179942903e-11
+    },
+    {
+      "time_s": 12.416,
+      "predicted_force_z_N": 0.512494753449797,
+      "force_z_inferred_from_next_contact_free_velocity_N": 0.5124947531249999,
+      "residual_N": 3.247970781217191e-10
+    }
+  ],
+  "historical_next_step_residuals": {
+    "position_m": [
+      -5.402336911153327e-10,
+      0.0,
+      6.028765997707908e-10
+    ],
+    "velocity_6d": [
+      -3.8230299481689656e-10,
+      0.0,
+      -4.101062267558575e-10,
+      0.0,
+      1.1177352376989802e-08,
+      0.0
+    ],
+    "pitch_rad": 6.756510351202394e-10
+  },
+  "historical_archive_sha256": "c86dc896ffa8c605568b5dfac7ad86f070d4a49f44f08eef64160f93024b5178"
+}
