@@ -17,6 +17,35 @@ TEMP_WORLD = ROOT / "worlds" / "ci_progression_sequence.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_sequence.wbproj"
 
 
+def native_context(world_name: str, source_world: str, prepared_world: str, *, neutral: bool) -> dict:
+    """Archive input identities, not a claim of identical ODE contact dynamics.
+
+    The scenario source and the actual Robot Window-substituted world are
+    different bytes. Both need explicit identities for future PASS/FAIL A/B
+    comparisons; the Docker digest alone cannot attest host or contact state.
+    """
+    if world_name not in ('crazyflie_classroom_start.wbt', 'crazyflie_runtime_v2.wbt'):
+        raise ValueError('unknown progression world')
+    if neutral != (world_name == 'crazyflie_classroom_start.wbt'):
+        raise ValueError('progression context mode/world mismatch')
+    digest = lambda text: hashlib.sha256(text.encode('utf-8')).hexdigest()
+    return {
+        'schema': 'progression-native-source-context-v1',
+        'claim': 'source-identities-only-not-reproducible-contact-physics',
+        'neutral_start': neutral,
+        'world_source_path': 'worlds/' + world_name,
+        'world_source_sha256': digest(source_world),
+        'prepared_world_path': 'worlds/ci_progression_sequence.wbt',
+        'prepared_world_sha256': digest(prepared_world),
+        'webots_container_image': WEBOTS_IMAGE,
+        'browser_package': 'downloaded-at-runtime-unpinned',
+        'unattested': [
+            'host-kernel-and-runner', 'ODE-contact-solver-initial-state',
+            'runtime-resolved-PROTO-assets-and-browser-version',
+        ],
+    }
+
+
 def instrument_position(source: str) -> str:
     """Observe GPS versus Supervisor coordinates without changing flight rules."""
     if 'sequence_ci_position' in source:
@@ -217,11 +246,16 @@ def main() -> int:
         if marker not in source_world:
             return fail(f"missing progression world marker: {marker}")
     probe = 'sequence_neutral_probe' if NEUTRAL_START else 'sequence_probe'
-    TEMP_WORLD.write_text(source_world.replace('window "blockly_v2"', f'window "{probe}"', 1), encoding="utf-8")
+    prepared_world = source_world.replace('window "blockly_v2"', f'window "{probe}"', 1)
+    TEMP_WORLD.write_text(prepared_world, encoding="utf-8")
     TEMP_PROJECT.write_text(
         "Webots Project File version R2025a\nrobotWindow: Crazyflie WebeeBlocks\n",
         encoding="utf-8",
     )
+
+    (ARTIFACT_ROOT / 'native-context.json').write_text(
+        json.dumps(native_context(world_name, source_world, prepared_world, neutral=NEUTRAL_START),
+                   sort_keys=True, indent=2) + '\n', encoding='utf-8')
 
     try:
         pull = run(["docker", "pull", WEBOTS_IMAGE], capture=True)
