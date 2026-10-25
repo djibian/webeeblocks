@@ -263,8 +263,8 @@ def build_report(repo: str, runs: list[dict], counts: dict, *, days: int, now: d
              f"**{setup_medians['webots_pull']}**.",
              f"Median observed Blockly asset preparation steps (runner min): "
              f"**{setup_medians['blockly_assets']}**.",
-             "Only explicitly named steps are measured: this is NOT all setup time, "
-             "billing, or proof that caching would reduce elapsed time.",
+             "Only explicitly named steps are measured: not total setup time or billing, "
+             "and not proof that caching would reduce elapsed time.",
              "None means insufficient comparable step timing or no matching step; "
              "it never means a free operation.", "",
              "## Proposals requiring dedicated CI and independent V5 review", ""]
