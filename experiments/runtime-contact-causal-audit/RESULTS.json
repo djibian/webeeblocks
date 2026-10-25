@@ -1,0 +1,405 @@
+{
+  "PASS": {
+    "archive_sha256": "fda4b50ef668c9295b15e7cb3c916dcf29a55c2e52c8d405edb813e9097dcc47",
+    "source_sha256": {
+      "original": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443",
+      "instrumented": "e6c3ce9f555705ebc5294b31c5acfdd7485047107f8c90e6bcf9458003a3540b"
+    },
+    "max_pid_pitch_residual": 5.484846352338084e-08,
+    "samples": [
+      {
+        "t": 12.384,
+        "x": 0.175241499,
+        "z": 0.055471147,
+        "vx": 0.002333047,
+        "pitch": -0.000480505,
+        "des_pitch_replayed": -0.0023681879525482663,
+        "pitch_mix_replayed": -0.0005817614117905401,
+        "pitch_mix_observed": -0.0005817124999971668,
+        "residual": 4.8911793373331014e-08,
+        "contacts": 0,
+        "collider_points": [],
+        "collider_max_coordinate_error_m": 0
+      },
+      {
+        "t": 12.416,
+        "x": 0.175311138,
+        "z": 0.035113021,
+        "vx": 0.0021762,
+        "pitch": -0.00049858,
+        "des_pitch_replayed": -0.001901665704369547,
+        "pitch_mix_replayed": -0.000812822940294441,
+        "pitch_mix_observed": -0.0008128195000018934,
+        "residual": 3.4402925475855023e-09,
+        "contacts": 0,
+        "collider_points": [],
+        "collider_max_coordinate_error_m": 0
+      },
+      {
+        "t": 12.448,
+        "x": 0.175375543,
+        "z": 0.015205993,
+        "vx": 0.002012658,
+        "pitch": -0.000503304,
+        "des_pitch_replayed": -0.0014699721158742901,
+        "pitch_mix_replayed": -0.0008804706515342074,
+        "pitch_mix_observed": -0.0008805254999977308,
+        "residual": 5.484846352338084e-08,
+        "contacts": 0,
+        "collider_points": [],
+        "collider_max_coordinate_error_m": 0
+      },
+      {
+        "t": 12.48,
+        "x": 0.175434641,
+        "z": -0.004202203,
+        "vx": 0.001846815,
+        "pitch": -0.000493531,
+        "des_pitch_replayed": -0.0011023331125378584,
+        "pitch_mix_replayed": -0.0008139306131821195,
+        "pitch_mix_observed": -0.0008138950000002865,
+        "residual": 3.561318183300903e-08,
+        "contacts": 4,
+        "collider_points": [
+          [
+            0.12544205005402054,
+            0.0,
+            -0.01922687772220192
+          ],
+          [
+            0.17544204396469948,
+            -0.05,
+            -0.019202201173203676
+          ],
+          [
+            0.17544204396469948,
+            0.05,
+            -0.019202201173203676
+          ],
+          [
+            0.22544203787537842,
+            0.0,
+            -0.019177524624205432
+          ]
+        ],
+        "collider_max_coordinate_error_m": 3.75794569074106e-10
+      },
+      {
+        "t": 12.512,
+        "x": 0.175434571,
+        "z": 0.005490739,
+        "vx": -2.193e-06,
+        "pitch": -0.000498224,
+        "des_pitch_replayed": 0.02889513600000052,
+        "pitch_mix_replayed": -0.1084534366499917,
+        "pitch_mix_observed": -0.10845346199999994,
+        "residual": 2.5350008245328404e-08,
+        "contacts": 4,
+        "collider_points": [
+          [
+            0.12544205056536956,
+            0.0,
+            -0.009534170337265776
+          ],
+          [
+            0.17544204435969082,
+            -0.05,
+            -0.009509259138296382
+          ],
+          [
+            0.17544204435969082,
+            0.05,
+            -0.009509259138296382
+          ],
+          [
+            0.2254420381540121,
+            0.0,
+            -0.009484347939326988
+          ]
+        ],
+        "collider_max_coordinate_error_m": 5.653695567264805e-10
+      }
+    ],
+    "collider_counterfactuals": []
+  },
+  "FAIL": {
+    "archive_sha256": "c86dc896ffa8c605568b5dfac7ad86f070d4a49f44f08eef64160f93024b5178",
+    "source_sha256": {
+      "original": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443",
+      "instrumented": "e6c3ce9f555705ebc5294b31c5acfdd7485047107f8c90e6bcf9458003a3540b"
+    },
+    "max_pid_pitch_residual": 9.199091799416692e-08,
+    "samples": [
+      {
+        "t": 12.384,
+        "x": 0.175241616,
+        "z": 0.055171083,
+        "vx": 0.002332804,
+        "pitch": -0.000480775,
+        "des_pitch_replayed": -0.002365623677164313,
+        "pitch_mix_replayed": -0.0005811395523280119,
+        "pitch_mix_observed": -0.000581141000001395,
+        "residual": 1.4476733830801058e-09,
+        "contacts": 0,
+        "collider_points": [],
+        "collider_max_coordinate_error_m": 0
+      },
+      {
+        "t": 12.416,
+        "x": 0.175311244,
+        "z": 0.034870128,
+        "vx": 0.002175876,
+        "pitch": -0.000498707,
+        "des_pitch_replayed": -0.0018997518788576163,
+        "pitch_mix_replayed": -0.0008113642596900251,
+        "pitch_mix_observed": -0.0008113485000009746,
+        "residual": 1.5759689050509965e-08,
+        "contacts": 0,
+        "collider_points": [],
+        "collider_max_coordinate_error_m": 0
+      },
+      {
+        "t": 12.448,
+        "x": 0.175375637,
+        "z": 0.015019625,
+        "vx": 0.002012302,
+        "pitch": -0.000503311,
+        "des_pitch_replayed": -0.0014687601197659952,
+        "pitch_mix_replayed": -0.0008785125536650597,
+        "pitch_mix_observed": -0.0008785299999978236,
+        "residual": 1.7446332763876304e-08,
+        "contacts": 1,
+        "collider_points": [
+          [
+            0.12538319299773018,
+            0.0,
+            -5.538649022821272e-06
+          ]
+        ],
+        "collider_max_coordinate_error_m": 3.50977178727734e-10
+      },
+      {
+        "t": 12.48,
+        "x": 0.181797755,
+        "z": 0.003564344,
+        "vx": 0.200691171,
+        "pitch": 0.420592622,
+        "des_pitch_replayed": -3.505739685007095,
+        "pitch_mix_replayed": 12.766771430490921,
+        "pitch_mix_observed": 12.766771338500003,
+        "residual": 9.199091799416692e-08,
+        "contacts": 2
+      },
+      {
+        "t": 12.512,
+        "x": 0.179435932,
+        "z": 0.009351419,
+        "vx": -0.073806961,
+        "pitch": 0.209271648,
+        "des_pitch_replayed": 4.436647240221977,
+        "pitch_mix_replayed": -25.980337138584307,
+        "pitch_mix_observed": -25.9803370625,
+        "residual": 7.608430863115245e-08,
+        "contacts": 3
+      }
+    ],
+    "collider_counterfactuals": [
+      {
+        "dz_m": 0,
+        "contacts": 1,
+        "points": [
+          [
+            0.12538319299773018,
+            0.0,
+            -5.538649022821272e-06
+          ]
+        ]
+      },
+      {
+        "dz_m": 0.000186368,
+        "contacts": 0,
+        "points": []
+      },
+      {
+        "dz_m": -4.6e-05,
+        "contacts": 4,
+        "points": [
+          [
+            0.12538319299773018,
+            0.0,
+            -5.153864902282044e-05
+          ],
+          [
+            0.17538318666468125,
+            -0.05,
+            -2.637310008531818e-05
+          ],
+          [
+            0.17538318666468125,
+            0.05,
+            -2.637310008531818e-05
+          ],
+          [
+            0.22538318033163232,
+            0.0,
+            -1.2075511478159206e-06
+          ]
+        ]
+      }
+    ]
+  },
+  "scope": "offline geometry + compiled production PID replay; no native counterfactual trajectory",
+  "environment_pair": [
+    {
+      "archive_sha256": "3b9ea3bc867a1c226f80e02f4403674f391cb22ea51408c02398d4a7fd91c250",
+      "outcome": "achieved",
+      "file_sha256": {
+        "effective-runtime-environment.json": "cd7888999cf9be74237a41e81aa53deaa7c60e0d1842cecd756ec02d57954c22",
+        "native-context.json": "b65459079a576e695945f4400eaec075c6e853c320df96f90e77473fbf73579a",
+        "runtime-original.c": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443",
+        "runtime-instrumented.c": "e6c3ce9f555705ebc5294b31c5acfdd7485047107f8c90e6bcf9458003a3540b",
+        "build.log": "9b079217a4c619fca61610a8e0b1782d8b1e32a426f6731da09795dda668dccd"
+      },
+      "environment": {
+        "claim": "package-and-host-observation-only-not-contact-or-solver-equivalence",
+        "dpkg_versions": {
+          "google-chrome-stable": {
+            "status": "observed",
+            "version": "156.0.8078.47-1"
+          },
+          "libc6": {
+            "status": "observed",
+            "version": "2.35-0ubuntu3.8"
+          },
+          "libode8": {
+            "status": "unproven"
+          },
+          "libqt6core6": {
+            "status": "unproven"
+          }
+        },
+        "kernel_release": "6.8.0-1064-azure",
+        "os_release_sha256": "4bde2c39f541afb5ac413a03c8e5f57aa99b8fab304a62386dc0b16044cc0e2d",
+        "schema": "progression-native-runtime-environment-v1",
+        "unattested": [
+          "Webots-effective-ODE-contact-solver-state",
+          "Webots-runtime-resolved-PROTO-assets",
+          "initial-contact-manifold-and-impulses",
+          "installed-packages-do-not-prove-contact-equivalence"
+        ],
+        "webots_container_image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+      },
+      "first_contact": {
+        "id": 12.0,
+        "t": 12.416,
+        "x": 0.175434553,
+        "y": 0.0,
+        "z": -0.004387503,
+        "vx": 0.001847108,
+        "vy": 0.0,
+        "vz": -0.606827967,
+        "roll": -0.0,
+        "pitch": -0.000493551,
+        "des_vx": 0.0,
+        "des_vy": 0.0,
+        "des_z": 0.01497934,
+        "motor1": -56.846538087,
+        "motor2": 56.848166634,
+        "motor3": -56.848166634,
+        "motor4": 56.846538087
+      },
+      "predicted_contact_points": [
+        [
+          0.12544196235451405,
+          0.0,
+          -0.01941217872205374
+        ],
+        [
+          0.17544195626469944,
+          -0.05,
+          -0.019387501173055616
+        ],
+        [
+          0.17544195626469944,
+          0.05,
+          -0.019387501173055616
+        ],
+        [
+          0.22544195017488483,
+          0.0,
+          -0.019362823624057494
+        ]
+      ],
+      "first_contact_count": 4,
+      "collider_max_coordinate_error_m": 7.220537397156779e-10
+    },
+    {
+      "archive_sha256": "6e71e2b711c03a1f6f2851a5683c4d8ca9f8303f618869bd00b05c76d4889eb0",
+      "outcome": "not-achieved",
+      "file_sha256": {
+        "effective-runtime-environment.json": "cd7888999cf9be74237a41e81aa53deaa7c60e0d1842cecd756ec02d57954c22",
+        "native-context.json": "b65459079a576e695945f4400eaec075c6e853c320df96f90e77473fbf73579a",
+        "runtime-original.c": "a3c35b3623786e8998d04d08bb1f9645eaeca90f5fa42f85f6b30fae0b1c4443",
+        "runtime-instrumented.c": "e6c3ce9f555705ebc5294b31c5acfdd7485047107f8c90e6bcf9458003a3540b",
+        "build.log": "9b079217a4c619fca61610a8e0b1782d8b1e32a426f6731da09795dda668dccd"
+      },
+      "environment": {
+        "claim": "package-and-host-observation-only-not-contact-or-solver-equivalence",
+        "dpkg_versions": {
+          "google-chrome-stable": {
+            "status": "observed",
+            "version": "156.0.8078.47-1"
+          },
+          "libc6": {
+            "status": "observed",
+            "version": "2.35-0ubuntu3.8"
+          },
+          "libode8": {
+            "status": "unproven"
+          },
+          "libqt6core6": {
+            "status": "unproven"
+          }
+        },
+        "kernel_release": "6.8.0-1064-azure",
+        "os_release_sha256": "4bde2c39f541afb5ac413a03c8e5f57aa99b8fab304a62386dc0b16044cc0e2d",
+        "schema": "progression-native-runtime-environment-v1",
+        "unattested": [
+          "Webots-effective-ODE-contact-solver-state",
+          "Webots-runtime-resolved-PROTO-assets",
+          "initial-contact-manifold-and-impulses",
+          "installed-packages-do-not-prove-contact-equivalence"
+        ],
+        "webots_container_image": "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+      },
+      "first_contact": {
+        "id": 12.0,
+        "t": 12.352,
+        "x": 0.175883324,
+        "y": 0.0,
+        "z": 0.015020228,
+        "vx": 0.002020435,
+        "vy": 0.0,
+        "vz": -0.620321887,
+        "roll": -0.0,
+        "pitch": -0.000505373,
+        "des_vx": 0.0,
+        "des_vy": 0.0,
+        "des_z": 0.01497934,
+        "motor1": -56.7230764,
+        "motor2": 56.724840884,
+        "motor3": -56.724840884,
+        "motor4": 56.7230764
+      },
+      "predicted_contact_points": [
+        [
+          0.1258909109797239,
+          0.0,
+          -5.038733410412735e-06
+        ]
+      ],
+      "first_contact_count": 1,
+      "collider_max_coordinate_error_m": 7.334104127351362e-10
+    }
+  ]
+}
