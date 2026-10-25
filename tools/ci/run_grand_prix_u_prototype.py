@@ -86,7 +86,7 @@ def native_webots_launch(home, port, target):
     return [str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
             '--no-rendering','--minimize','--port='+str(port),str(target)]
 
-def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1):
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1,*,camera_probe=None):
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
     with socket.socket() as probe:
@@ -94,6 +94,14 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     events=out/'events.jsonl'
     source=world_text(layout,controller='<extern>' if tcp else 'grand_prix_u_flight',window='<none>',evaluator=True)
     if tcp:source=source.replace('controller "grand_prix_u_evaluator"','controller "<extern>"')
+    if camera_probe is not None:
+        if tcp or camera_probe not in ('static','tracking'):
+            raise ValueError('camera contrast requires a native in-process static/tracking world')
+        fields='follow "Crazyflie WebeeBlocks" followType "Tracking Shot" followSmoothness 0.20 '
+        if source.count(fields)!=1:
+            raise RuntimeError('camera contrast requires the exact production Viewpoint')
+        if camera_probe=='static':
+            source=source.replace(fields,'')
     target=ROOT/f'worlds/ci_gp_u_flight_{token}.wbt'
     target.write_text(source.replace('https://raw.githubusercontent.com/cyberbotics/webots/R2025a/','webots://'))
     (out/'layout.json').write_text(json.dumps(dataclasses.asdict(layout),indent=2)+'\n')
@@ -131,6 +139,24 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
                 startup.failure(webots,home,out/'webots.log')
                 raise RuntimeError('native readiness not established: '+str(out))
             startup.ready(webots,'TCP_PORTS_WAITING' if tcp else 'RUNTIME_READY')
+            if camera_probe is not None:
+                # READY is necessary, but a Webots process dying just after it
+                # must not be counted as a valid native camera startup.
+                until=time.monotonic()+0.6
+                while time.monotonic()<until:
+                    if webots.poll() is not None:
+                        raise RuntimeError('camera native process exited after READY: '+str(out))
+                    time.sleep(.1)
+                startup_log=(out/'webots.log').read_text()
+                if startup_log.count('WEBEEBLOCKS_RUNTIME_V2 READY')!=1 or 'Segmentation fault' in startup_log:
+                    raise RuntimeError('camera READY/liveness contradiction: '+str(out))
+                record={'camera':camera_probe,'seed':seed,'side':side,
+                        'configuration':layout.identifier,'ready':True,
+                        'post_ready_alive':True,
+                        'claim':'R2025a-native-startup-and-liveness-only'}
+                (out/'camera-startup.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
+                print('GP_U_CAMERA_STARTUP '+json.dumps(record,sort_keys=True),flush=True)
+                return record
             if tcp:
                 for name,path,args in (
                   ('Crazyflie WebeeBlocks',ROOT/'controllers/grand_prix_u_flight/grand_prix_u_flight',[]),
@@ -224,7 +250,7 @@ def native_container_command(cid, assets, node, command, core_options=()):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',action='store_true');parser.add_argument('--tcp',action='store_true')
-    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes'),default='all')
+    parser.add_argument('--suite',choices=('short','timeout','timeout-gate','wrong-landing','low-outside','collision','reverse','unavailable','reset','witness','all','sizes','camera-contrast'),default='all')
     parser.add_argument('--seed',type=int,default=4);parser.add_argument('--side',type=float,default=2.)
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
@@ -267,6 +293,24 @@ def main():
     if (home/'resources/version.txt').read_text().strip()!='R2025a':raise RuntimeError('wrong Webots version')
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
+    # Native controlled contrast for #646: same seed/world/controller and pinned
+    # software renderer, with only the Viewpoint follow fields differing.
+    # This is diagnostic startup evidence, never an activity/mission PASS.
+    if args.suite=='camera-contrast' and args.tcp:
+        raise ValueError('camera contrast requires an in-process Webots controller')
+    if args.suite in ('all','camera-contrast') and not args.tcp:
+        contrast=[]
+        # Bounded order crossover: seed 1, same controller and renderer.
+        # A crash fails closed immediately with per-attempt native artifacts.
+        for sequence,camera in enumerate(('static','tracking','tracking','static'),1):
+            record=trial(home,1,args.side,
+                         'camera-'+camera+'-crossover-'+str(sequence),
+                         args.tcp,sequence_index=sequence,camera_probe=camera)
+            record['sequence']=sequence
+            contrast.append(record)
+            (OUT/'camera-comparison.json').write_text(json.dumps(contrast,indent=2)+'\n')
+        if args.suite=='camera-contrast':
+            return
     cases=[(args.seed,args.side,args.suite)]
     if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]

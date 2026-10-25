@@ -149,7 +149,11 @@ def world_text(layout, *, controller='<none>', window='<none>',
     size = layout.side + 2.5
     lines = ['#VRML_SIM R2025a utf8', externs,
              f'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" }}',
-             'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 }',
+             # Native R2025a follow tracks translation smoothly without ever
+             # entering the drone's control or the outcome evaluator.
+             'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 '
+             'follow "Crazyflie WebeeBlocks" followType "Tracking Shot" '
+             'followSmoothness 0.20 }',
              'TexturedBackground { }', 'TexturedBackgroundLight { }',
              f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']
     for i, b in enumerate(layout.boxes):
