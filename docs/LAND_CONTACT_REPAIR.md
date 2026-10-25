@@ -117,3 +117,19 @@ This repair does not establish RESET restoration, fix the pre-READY #665
 family or #699's separate asset preparation, clear #638's Grand Prix evidence,
 accept #635's pedagogy, restore main globally, authorize TEST_REQUIRED or
 authorize hardware flight. The author execution supplies no independent GO.
+
+## Exact generated-input preparation
+
+Changing the shared C controller also invalidates the source-keyed prepared
+qualification-package cache and its pinned generated-controller digest.
+The first Ready run 40244258414 of b97d58e failed before suite selection:
+package-input cache miss, then missing vendor/VERSION. Neither native LAND nor
+RESET ran; this is no native verdict and is not repaired by retrying Ready CI.
+
+Use the existing same-repository Draft maintenance path to build the exact
+controller in the pinned container, observe its size/SHA256, update only the
+controller entry of qualification_generated_lock.json from that real build,
+and verify/prime the exact generated-input cache. Preserve the vendor closure,
+image digest, runtime lock, verifier and Ready-only cache consumption rules.
+Only then mark the exact completed candidate Ready for fresh canonical CI.
+A Draft run and its prototype observations never replace CI Gate.
