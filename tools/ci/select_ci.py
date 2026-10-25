@@ -72,6 +72,8 @@ SHARED_RUNTIME_WEBOTS = (
     "tools/ci/fixtures/autonomous_reset_observer.py",
     "tools/ci/reset_native_summary.py",
     "tools/ci/test_reset_native_summary.py",
+    "tools/ci/reset_post_teleport.py",
+    "tools/ci/test_reset_post_teleport.py",
     "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
