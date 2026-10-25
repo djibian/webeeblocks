@@ -112,6 +112,19 @@ RUNTIME_VISUAL_RELEASE_EVIDENCE = (
     "tools/ci/test_windows_classroom_release.ps1",
 )
 
+# These real R2025a progression/oracle inputs belong to ci-runtime.yml.
+# Generic tools/ci/** otherwise selects Webots only, skipping their owner.
+# Match future progression scripts/tests conservatively; never drop Webots.
+RUNTIME_ORACLE_EVIDENCE = (
+    "tools/ci/run_progression_*",
+    "tools/ci/test_progression_*",
+    "tools/ci/run_classroom_neutral_start.py",
+    "tools/ci/test_runtime_activity_outcome.js",
+    # Shared WWI event ingestion is also directly invoked from Runtime jobs.
+    "tools/ci/runtime_wwi_event_server.py",
+)
+
+
 def matches(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
 
@@ -147,7 +160,9 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
             runtime = True
         if matches(path, DOC_ONLY):
             continue
-        if matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE) or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE):
+        if (matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE)
+                or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE)
+                or matches(path, RUNTIME_ORACLE_EVIDENCE)):
             runtime = True
             webots = True
         elif matches(path, RUNTIME):
