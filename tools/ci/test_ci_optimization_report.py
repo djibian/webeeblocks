@@ -113,6 +113,46 @@ class MetricsTests(TestCase):
         self.assertTrue(any(x["kind"] == "repeated_setup" for x in p))
         self.assertIn("no automatic deletion", str(p).lower())
 
+    def test_measured_named_setup_is_independently_visible(self):
+        jobs = full_jobs()
+        jobs[3]["steps"] = [
+            {"name": "Pull official Webots R2025a image", "conclusion": "success",
+             "started_at": "2026-10-23T10:00:00Z", "completed_at": "2026-10-23T10:00:30Z"},
+            {"name": "Prepare pinned Blockly 13.2.1 browser assets", "conclusion": "success",
+             "started_at": "2026-10-23T10:00:30Z", "completed_at": "2026-10-23T10:00:36Z"},
+            {"name": "Pull official Webots R2025a image", "conclusion": "skipped"},
+            {"name": "Run tests", "conclusion": "success",
+             "started_at": "2026-10-23T10:00:36Z", "completed_at": "2026-10-23T10:05:00Z"},
+        ]
+        records = [audit.summarize_run(run(ident=100 + n), jobs) for n in range(3)]
+        pull = records[0]["setup"]["webots_pull"]
+        self.assertEqual(pull, {"steps": 1, "missing_timing": 0, "minutes": 0.5})
+        self.assertEqual(records[0]["setup"]["blockly_assets"]["minutes"], 0.1)
+        data, report = audit.build_report(
+            "example/repo", records, {}, days=21,
+            now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertEqual(data["observed_setup_median_runner_minutes"],
+                         {"webots_pull": 0.5, "blockly_assets": 0.1})
+        self.assertIn("Pull steps", report)
+        self.assertIn("not proof that caching", report)
+
+    def test_missing_step_timing_fails_closed_instead_of_zero(self):
+        jobs = full_jobs()
+        jobs[3]["steps"] = [
+            {"name": "Pull official Webots R2025a image", "conclusion": "success",
+             "started_at": None, "completed_at": "2026-10-23T10:00:30Z"},
+        ]
+        records = [audit.summarize_run(run(ident=200 + n), jobs) for n in range(3)]
+        item = records[0]["setup"]["webots_pull"]
+        self.assertEqual(item["steps"], 1)
+        self.assertEqual(item["missing_timing"], 1)
+        self.assertIsNone(item["minutes"])
+        data, _ = audit.build_report(
+            "example/repo", records, {}, days=21,
+            now=datetime(2026, 10, 23, tzinfo=timezone.utc))
+        self.assertIsNone(data["observed_setup_median_runner_minutes"]["webots_pull"])
+        self.assertIsNone(data["observed_setup_median_runner_minutes"]["blockly_assets"])
+
     def test_missing_time_never_yields_negative_or_forged_duration(self):
         self.assertIsNone(audit.minutes(None, "2026-10-23T10:01:00Z"))
         self.assertEqual(audit.minutes("2026-10-23T10:05:00Z", "2026-10-23T10:01:00Z"), 0)
