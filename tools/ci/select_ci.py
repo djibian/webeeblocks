@@ -108,6 +108,18 @@ RUNTIME_VISUAL_RELEASE_EVIDENCE = (
     "tools/ci/test_windows_classroom_release.ps1",
 )
 
+# These real R2025a progression scripts are invoked only from Runtime's
+# sharded outcome probe; a generic tools/ci/** change otherwise selects only
+# Webots, skipping the very missions or regression oracle being edited.
+# Match future progression scripts/tests conservatively; never drop Webots.
+NATIVE_RUNTIME_PROGRESSION_EVIDENCE = (
+    "tools/ci/run_progression_*",
+    "tools/ci/test_progression_*",
+    "tools/ci/run_classroom_neutral_start.py",
+    "tools/ci/test_runtime_activity_outcome.js",
+)
+
+
 def matches(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
 
@@ -143,7 +155,9 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
             runtime = True
         if matches(path, DOC_ONLY):
             continue
-        if matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE) or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE):
+        if (matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE)
+                or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE)
+                or matches(path, NATIVE_RUNTIME_PROGRESSION_EVIDENCE)):
             runtime = True
             webots = True
         elif matches(path, RUNTIME):
