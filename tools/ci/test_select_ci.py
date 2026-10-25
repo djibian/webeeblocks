@@ -74,6 +74,47 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(combined.runtime)
         self.assertTrue(combined.webots)
 
+    def test_native_progression_edits_run_the_real_runtime_oracles(self) -> None:
+        # The Webots-only legacy match must not silently skip shard 1/2/3/4
+        # or the activity-outcome oracle executed by Runtime's core harness.
+        paths = (
+            "tools/ci/run_classroom_neutral_start.py",
+            "tools/ci/run_progression_repeat_mission.py",
+            "tools/ci/run_progression_simple_decision_mission.py",
+            "tools/ci/run_progression_reactive_mission.py",
+            "tools/ci/run_progression_memory_mission.py",
+            "tools/ci/run_progression_memory_overwrite.py",
+            "tools/ci/test_runtime_activity_outcome.js",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
+        # A newly added progression runner/contract must retain its native
+        # coverage without manually adding a selector exception.
+        for path in (
+            "tools/ci/run_progression_new_mission.py",
+            "tools/ci/test_progression_new_contract.js",
+        ):
+            with self.subTest(future_path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
+        combined = select(["docs/DEVELOPMENT.md", *paths])
+        self.assertTrue(combined.runtime)
+        self.assertTrue(combined.webots)
+        self.assertFalse(combined.full)
+
+        # Increasing native coverage must not turn documentation-only or
+        # unrelated legacy Webots-only changes into mandatory Runtime.
+        self.assertFalse(select(["docs/DEVELOPMENT.md"]).runtime)
+        self.assertFalse(select(["controllers/crazyflie_square/pid_controller.c"]).runtime)
+
     def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
         for path in (
             "tools/ci/observe_outcome_startup.py",
