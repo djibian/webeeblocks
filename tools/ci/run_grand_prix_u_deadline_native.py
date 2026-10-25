@@ -5,13 +5,30 @@ import os
 from pathlib import Path
 import subprocess
 import re
+import sys
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'ci-artifacts/grand-prix-u-geometry'
 
+
+def launch_native_case(home, target, env, log):
+    """Preserve real R2025a case/oracles; avoid its modal Qt loading dialog.
+
+    The same --minimize launch used by Grand Prix geometry/prototype keeps
+    native rendering active and does not change simulated time or controllers.
+    """
+    return subprocess.run(
+        [str(home/'webots'), '--batch', '--mode=fast', '--stdout', '--stderr',
+         '--minimize', str(target)],
+        cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
+        timeout=45, check=True)
+
 def run_native(home):
     if (home/'resources/version.txt').read_text().strip()!='R2025a':
         raise RuntimeError('R2025a required')
+    # Host-only command invariant before the native five-case campaign.
+    subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_deadline_launch.py')],
+                   check=True, timeout=15)
     env=os.environ.copy()
     env.update(WEBOTS_HOME=str(home),LIBGL_ALWAYS_SOFTWARE='true',
                WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE='true')
@@ -33,8 +50,7 @@ def run_native(home):
             record.unlink(missing_ok=True)
             env['GP_U_DEADLINE_OUT']=str(record)
             with logpath.open('w') as log:
-                subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
-                               cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
+                launch_native_case(home, target, env, log)
             text=logpath.read_text()
             expected=f'GP_U_NATIVE_DEADLINE case={case} triggers={0 if case==0 else 1} trigger_ms={-1 if case==0 else 210000} claim=time-fields-only'
             observed=record.read_text().strip() if record.exists() else None
@@ -78,8 +94,7 @@ def run_pose_native(home,env):
                        GP_U_FILE_OUT=str(file_record) if files else '')
             logpath=OUT/f'{identifier}.log'
             with logpath.open('w') as log:
-                subprocess.run([str(home/'webots'),'--batch','--mode=fast','--stdout','--stderr',str(target)],
-                               cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=45,check=True)
+                launch_native_case(home, target, env, log)
             text=logpath.read_text()
             expected=('GP_U_FILE_STARTUP_PASS' if files=='startup-reset' else
                       f'GP_U_POSE_PASS case={case} teleports={int(expected_teleports(case))} reset_ok={int(expected_reset(case))} claim=controlled-pose-composition')
