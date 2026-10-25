@@ -15,6 +15,16 @@ TEMP_WORLD = ROOT / "worlds" / "ci_progression_combined_decisions.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_combined_decisions.wbproj"
 
 
+ACTIVITY6_WEBOTS_LAUNCH = "WEBEEBLOCKS_ACTIVITY6_SETUP stage=webots status=launch"
+
+
+def setup_failure_message(returncode: int, webots_log: str) -> str | None:
+    """Do not describe a failed container bootstrap as a Webots mission result."""
+    if ACTIVITY6_WEBOTS_LAUNCH in webots_log:
+        return None
+    return f"Activity 6 CI setup never reached an observed Webots launch (exit={returncode})"
+
+
 def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command, cwd=cwd, text=True, check=False,
@@ -46,6 +56,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        ["python3", "tools/ci/test_activity6_setup_phase.py"],
         ["node", "tools/ci/test_progression_combined_decisions_contract.js"],
         ["node", "--check", "plugins/robot_windows/combined_decisions_probe/combined_decisions_probe.js"],
     ]
@@ -91,10 +102,23 @@ def main() -> int:
 
         inner = r'''
 set -e
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=apt-index status=begin
 apt-get update >/dev/null
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=apt-index status=ok
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=tools-install status=begin
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
-wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=tools-install status=ok
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-download status=begin
+if wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb; then
+  echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-download status=ok
+else
+  setup_rc=$?
+  echo "WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-download status=fail rc=$setup_rc" >&2
+  exit "$setup_rc"
+fi
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-install status=begin
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=chrome-install status=ok
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 artifact_dir=/workspace/ci-artifacts/progression-combined-decisions-mission
 events="$artifact_dir/browser-events.jsonl"
@@ -109,6 +133,7 @@ python3 /workspace/tools/ci/runtime_wwi_event_server.py \
 server=$!
 trap "kill $server 2>/dev/null || true" EXIT
 sleep 0.5
+echo WEBEEBLOCKS_ACTIVITY6_SETUP stage=webots status=launch
 timeout -k 5s 540s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /workspace/worlds/ci_progression_combined_decisions.wbt &
 webots_runner=$!
 while kill -0 "$webots_runner" 2>/dev/null; do
@@ -138,6 +163,9 @@ exit "$runner_rc"
         webots_log = result.stdout or ""
         (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
         (ARTIFACT_ROOT / "exit-code.txt").write_text(str(result.returncode) + "\n", encoding="utf-8")
+        setup_failure = setup_failure_message(result.returncode, webots_log)
+        if setup_failure:
+            return fail(setup_failure, webots_log[-16000:])
         if result.returncode == 124:
             return fail("Webots Activity 6 mission exceeded the 540s proof budget before mission-complete evidence", webots_log[-16000:])
         if result.returncode != 0:
