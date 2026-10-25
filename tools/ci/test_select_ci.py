@@ -42,6 +42,8 @@ class SelectCiTests(unittest.TestCase):
         for path in (
             "tools/ci/run_progression_sequence_mission.py",
             "tools/ci/test_progression_land_instrumentation.py",
+            "plugins/robot_windows/sequence_probe/sequence_probe.js",
+            "tools/ci/test_progression_sequence_contract.js",
         ):
             with self.subTest(path=path):
                 selection = select([path])
