@@ -51,6 +51,29 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)  # preserve prior coverage
                 self.assertFalse(selection.full)
 
+    def test_activity6_native_inputs_run_own_runtime_progression_shard(self) -> None:
+        # Shard 4 runs the native combined-decisions Activity 6 mission.
+        # Each changed source or regression test must select that real oracle.
+        paths = (
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/test_progression_combined_decisions_contract.js",
+            "tools/ci/test_activity6_setup_phase.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+
+        # Exact proposed #693 diff must not produce a Webots-only green Gate.
+        combined = select([
+            "tools/ci/run_progression_combined_decisions_mission.py",
+            "tools/ci/test_activity6_setup_phase.py",
+        ])
+        self.assertTrue(combined.runtime)
+        self.assertTrue(combined.webots)
+
     def test_outcome_startup_observer_selects_its_runtime_preflight(self) -> None:
         for path in (
             "tools/ci/observe_outcome_startup.py",
