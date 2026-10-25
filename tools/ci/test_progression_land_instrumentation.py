@@ -21,7 +21,7 @@ class RuntimeEnvironmentTests(unittest.TestCase):
 
         def probe(argv, **kwargs):
             calls.append((argv, kwargs))
-            return subprocess.CompletedProcess(argv, 0, stdout="123.4\\n", stderr="")
+            return subprocess.CompletedProcess(argv, 0, stdout="123.4\n", stderr="")
 
         result = observed_runtime_environment(
             probe=probe, os_release_path=Path("/nonexistent-webeblocks-os-release"))
