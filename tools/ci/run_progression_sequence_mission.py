@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -46,6 +47,46 @@ def native_context(world_name: str, source_world: str, prepared_world: str, *, n
         'unattested': [
             'host-kernel-and-runner', 'ODE-contact-solver-initial-state',
             'runtime-resolved-PROTO-assets-and-browser-version',
+        ],
+    }
+
+
+def observed_runtime_environment(*, probe=subprocess.run, os_release_path: Path = Path("/etc/os-release")) -> dict:
+    """Capture actual native-container package versions; not a physics oracle.
+
+    This read-only snapshot runs after browser installation and before Webots.
+    A missing package/timeout remains UNPROVEN, never an inferred match.
+    """
+    try:
+        os_release_sha256 = hashlib.sha256(os_release_path.read_bytes()).hexdigest()
+    except OSError:
+        os_release_sha256 = None
+
+    versions = {}
+    for package in ("google-chrome-stable", "libc6", "libode8", "libqt6core6"):
+        argv = ["dpkg-query", "-W", "-f=${Version}", package]
+        try:
+            result = probe(argv, capture_output=True, text=True, check=False, timeout=3)
+            version = (result.stdout or "").strip()
+            if result.returncode == 0 and version and len(version) <= 128:
+                versions[package] = {"status": "observed", "version": version}
+            else:
+                versions[package] = {"status": "unproven"}
+        except (OSError, subprocess.TimeoutExpired):
+            versions[package] = {"status": "unproven"}
+
+    return {
+        "schema": "progression-native-runtime-environment-v1",
+        "claim": "package-and-host-observation-only-not-contact-or-solver-equivalence",
+        "webots_container_image": WEBOTS_IMAGE,
+        "kernel_release": platform.release(),
+        "os_release_sha256": os_release_sha256,
+        "dpkg_versions": versions,
+        "unattested": [
+            "Webots-effective-ODE-contact-solver-state",
+            "Webots-runtime-resolved-PROTO-assets",
+            "initial-contact-manifold-and-impulses",
+            "installed-packages-do-not-prove-contact-equivalence",
         ],
     }
 
@@ -299,6 +340,12 @@ wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chro
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
+# Read-only effective package provenance; never run an additional Webots process.
+python3 - <<'PY_NATIVE_CONTEXT' > /workspace/ci-artifacts/progression-sequence-mission/effective-runtime-environment.json
+import json
+from tools.ci.run_progression_sequence_mission import observed_runtime_environment
+print(json.dumps(observed_runtime_environment(), sort_keys=True, indent=2))
+PY_NATIVE_CONTEXT
 printf "%s\n" \
   "[RobotWindow]" \
   "browser=/workspace/tools/ci/webots_runtime_v2_browser.sh" \
