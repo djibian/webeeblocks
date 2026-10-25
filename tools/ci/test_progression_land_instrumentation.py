@@ -2,13 +2,73 @@
 """Keep CI-only LAND diagnostics valid on every independently repeated request."""
 from pathlib import Path
 import hashlib
+import subprocess
 import unittest
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from tools.ci.run_progression_sequence_mission import ROOT, instrument_position, native_context, WEBOTS_IMAGE
+from tools.ci.run_progression_sequence_mission import ROOT, instrument_position, native_context, WEBOTS_IMAGE, observed_runtime_environment
 
 SOURCE = ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c"
+
+
+
+class RuntimeEnvironmentTests(unittest.TestCase):
+    """Only record effective package evidence; no false claim of equal physics."""
+
+    def test_successful_package_queries_are_observations_not_contact_proof(self):
+        calls = []
+
+        def probe(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return subprocess.CompletedProcess(argv, 0, stdout="123.4\\n", stderr="")
+
+        result = observed_runtime_environment(
+            probe=probe, os_release_path=Path("/nonexistent-webeblocks-os-release"))
+        self.assertEqual(result["schema"], "progression-native-runtime-environment-v1")
+        self.assertEqual(result["webots_container_image"], WEBOTS_IMAGE)
+        self.assertIn("not-contact-or-solver-equivalence", result["claim"])
+        self.assertIsNone(result["os_release_sha256"])
+        self.assertEqual(len(calls), 4)
+        for argv, kwargs in calls:
+            self.assertEqual(argv[:2], ["dpkg-query", "-W"])
+            self.assertEqual(argv[2], "-f=${Version}")
+            self.assertEqual(kwargs["timeout"], 3)
+        self.assertTrue(all(value == {"status": "observed", "version": "123.4"}
+                            for value in result["dpkg_versions"].values()))
+        self.assertIn("initial-contact-manifold-and-impulses", result["unattested"])
+
+    def test_missing_failed_invalid_or_timed_out_versions_are_unproven(self):
+        def probe(argv, **kwargs):
+            package = argv[3]
+            if package == "google-chrome-stable":
+                return subprocess.CompletedProcess(argv, 1, stdout="false-positive", stderr="")
+            if package == "libc6":
+                return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+            if package == "libode8":
+                raise subprocess.TimeoutExpired(argv, 3)
+            return subprocess.CompletedProcess(argv, 0, stdout="x" * 129, stderr="")
+
+        result = observed_runtime_environment(
+            probe=probe, os_release_path=Path("/nonexistent-webeblocks-os-release"))
+        for value in result["dpkg_versions"].values():
+            self.assertEqual(value, {"status": "unproven"})
+
+    def test_effective_environment_is_captured_before_webots_without_new_run(self):
+        script = (ROOT / "tools/ci/run_progression_sequence_mission.py").read_text(
+            encoding="utf-8")
+        shell = script.split("inner = r'''", 1)[1].split("'''.strip()", 1)[0]
+        self.assertLess(shell.index("apt-get install -y /tmp/google-chrome.deb"),
+                        shell.index("PY_NATIVE_CONTEXT"))
+        self.assertLess(shell.index("PY_NATIVE_CONTEXT"),
+                        shell.index("timeout -k 5s 260s xvfb-run"))
+        self.assertEqual(shell.count("timeout -k 5s 260s xvfb-run"), 1)
+        self.assertIn("effective-runtime-environment.json", shell)
+        self.assertIn(
+            "inner = inner.replace('progression-sequence-mission', ARTIFACT_ROOT.name)",
+            script)
+        self.assertIn('WEBEEBLOCKS_SEQUENCE_RESULT attempt=1 status=achieved', script)
+        self.assertIn('WEBEEBLOCKS_SEQUENCE_RESULT attempt=3 status=not-achieved', script)
 
 
 class LandInstrumentationTests(unittest.TestCase):
