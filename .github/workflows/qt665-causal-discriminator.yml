@@ -41,8 +41,9 @@ jobs:
               set -Eeuo pipefail
               qt=/usr/local/webots
               export QT_QPA_PLATFORM=xcb
-              export QT_QPA_PLATFORM_PLUGIN_PATH="$qt/lib/webots/qt/plugins/platforms"
-              export LD_LIBRARY_PATH="$qt/lib/webots:$LD_LIBRARY_PATH"
+              export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqxcb.so -print -quit)")"
+              test -s "$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so"
+              export LD_LIBRARY_PATH="$qt/lib/webots"
               export QT665_TRACE_PATH=/workspace/qt665-results/trace.json
               sha256sum "$qt/lib/webots/libQt6Widgets.so.6.5.3" \
                         "$qt/lib/webots/libQt6Core.so.6.5.3" \
@@ -65,8 +66,10 @@ jobs:
                 -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
                 --args /workspace/qt665-guarded-methods
             ' 2>&1 | tee qt665-results/gdb-console.log
-          rc=$(cat /dev/null; echo $? )
-          test -s qt665-results/gdb-console.log
+          rc=$?
+          set -e
+          echo "$rc" | tee qt665-results/exit-code.txt
+          exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
