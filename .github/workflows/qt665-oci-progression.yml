@@ -1,0 +1,41 @@
+# Isolated NON-GATE progression; all assertions, negatives and 210-s logic untouched.
+name: Qt665 immutable OCI native progression (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-oci-progression-20261026]
+permissions:
+  contents: read
+jobs:
+  progression-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify immutable OCI and exact Webots/Qt ELF closure
+        run: |
+          set -euo pipefail
+          image='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker pull "$image"
+          docker run --rm --entrypoint /bin/bash "$image" -lc '
+            echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -
+            echo "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024  /usr/local/webots/lib/webots/libQt6Widgets.so.6" | sha256sum -c -
+            echo "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8  /usr/local/webots/lib/webots/libQt6Core.so.6" | sha256sum -c -
+          '
+      - name: Run unchanged real sequence, precise movement, collision and RESET oracles
+        run: |
+          set -euo pipefail
+          ./tools/prepare_runtime_v2.sh
+          python3 tools/ci/run_progression_sequence_mission.py
+          echo QT665_CORRECTED_OCI_NATIVE_PROGRESSION=PASS
+      - name: Retain full native progression and negative evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-oci-progression-${{ github.sha }}
+          path: ci-artifacts/progression-sequence-mission/
+          if-no-files-found: warn
