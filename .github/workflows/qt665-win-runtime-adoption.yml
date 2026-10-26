@@ -176,6 +176,91 @@ jobs:
           if ($unresolved.Count) {throw ('Unresolved transitive PE imports: '+($unresolved | ConvertTo-Json -Compress))}
           Write-Host "QT665_WINDOWS_TRANSITIVE_IMPORT_CLOSURE=PASS inspected=$($visited.Count) copied=$($needed.Count)"
           Write-Host 'QT665_WINDOWS_DISPOSABLE_PATCHED_INSTALL=PASS'
+      - name: Diagnose exact imported PE symbols against exported Qt and MinGW symbols
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          # Diagnostic on an ephemeral Windows runner only, not a release.
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          @'
+          import collections
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          import pefile
+          
+          runtime = Path(os.environ["QT665_WEBOTS_BIN"])
+          plugins = Path(os.environ["QT665_WEBOTS_HOME"]) / "msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll"
+          system = Path(os.environ["SystemRoot"]) / "System32"
+          out = Path(os.environ["GITHUB_WORKSPACE"]) / "ci-artifacts/qt665-windows-running/symbol-import-closure.json"
+          pending = collections.deque([runtime / "webots-bin.exe", runtime / "webots.exe", plugins])
+          seen = set()
+          missing = []
+          unresolved = []
+          modules = []
+          while pending:
+              path = pending.popleft()
+              key = str(path.resolve()).casefold()
+              if key in seen:
+                  continue
+              seen.add(key)
+              if len(seen) > 190:
+                  raise SystemExit("PE export verification exceeded bounded closure")
+              if not path.is_file():
+                  unresolved.append({"module": str(path), "kind": "root-absent"})
+                  continue
+              imported = []
+              try:
+                  obj = pefile.PE(str(path), fast_load=True)
+                  obj.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+                  imported = list(getattr(obj, "DIRECTORY_ENTRY_IMPORT", []))
+              except pefile.PEFormatError as exc:
+                  unresolved.append({"module": str(path), "kind": "invalid-pe", "detail": str(exc)})
+                  continue
+              for entry in imported:
+                  dll = entry.dll.decode("ascii", "replace")
+                  if dll.lower().startswith(("api-ms-win-", "ext-ms-win-")):
+                      continue
+                  local = runtime / dll
+                  if not local.is_file():
+                      if (system / dll).is_file():
+                          continue  # Windows system exports are not this candidate's Qt/MinGW ABI.
+                      unresolved.append({"module": path.name, "dependency": dll, "kind": "unresolved-dll"})
+                      continue
+                  pending.append(local)
+                  try:
+                      dep = pefile.PE(str(local), fast_load=True)
+                      dep.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+                      export_table = getattr(dep, "DIRECTORY_ENTRY_EXPORT", None)
+                      exports = [] if export_table is None else export_table.symbols
+                      names = {s.name for s in exports if s.name is not None}
+                      ordinals = {s.ordinal for s in exports}
+                      for symbol in entry.imports:
+                          if symbol.name is not None and symbol.name not in names:
+                              missing.append({"importer": path.name, "dependency": dll, "symbol": symbol.name.decode("ascii", "replace")})
+                          elif symbol.name is None and symbol.ordinal not in ordinals:
+                              missing.append({"importer": path.name, "dependency": dll, "ordinal": symbol.ordinal})
+                  except pefile.PEFormatError as exc:
+                      unresolved.append({"module": path.name, "dependency": dll, "kind": "invalid-export-pe", "detail": str(exc)})
+              modules.append({"name": path.name, "imports": len(imported)})
+              obj.close()
+          summary = {
+              "claim": "static-direct-export-resolution-not-actual-Windows-load-or-delivery",
+              "roots": ["webots-bin.exe", "webots.exe", "qwindows.dll"],
+              "examined": modules,
+              "missing_exports": missing,
+              "unresolved_modules": unresolved,
+          }
+          out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print("QT665_WINDOWS_SYMBOL_EXPORT_AUDIT modules=%d missing_symbols=%d unresolved_modules=%d" % (len(modules), len(missing), len(unresolved)))
+          for failure in (missing + unresolved)[:30]:
+              print("QT665_WINDOWS_ABI_MISMATCH " + json.dumps(failure, sort_keys=True))
+          if missing or unresolved:
+              raise SystemExit(1)
+          print("QT665_WINDOWS_STATIC_SYMBOL_CLOSURE=PASS_NOT_NATIVE_RUNTIME")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Windows PE symbol imports incompatible or unproven (inspect archived JSON)' }
       - name: Require genuine patched Windows Webots CLI and live mapped Qt Core/Widgets
         shell: pwsh
         run: |
