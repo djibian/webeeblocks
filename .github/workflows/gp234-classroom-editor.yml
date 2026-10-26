@@ -1,0 +1,43 @@
+name: GP234 real Chromium five procedure layout and debugging
+on:
+  push:
+    branches: [experiment/gp234-classroom-editor-20261026]
+permissions:
+  contents: read
+jobs:
+  editor:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate unchanged exact algorithm and only UI proof files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=032edffeff44881615e379a4ab86cc5bfd10ad79
+          test "$(git rev-parse HEAD^)" = "$base"
+          git diff --name-only "$base" HEAD
+      - name: Prepare genuine Blockly 13.2.1 and Chrome
+        run: |
+          bash tools/prepare_runtime_v2.sh
+          npm install --prefix .ci-gp-ui --no-save --no-package-lock --no-audit --no-fund playwright@1.55.0
+          command -v google-chrome || command -v chromium
+      - name: Detect WBB overlap, pack, edit threshold by mouse, Save/Open and debug
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp234-classroom-ui
+          WEBEEBLOCKS_PLAYWRIGHT_MODULE="$GITHUB_WORKSPACE/.ci-gp-ui/node_modules/playwright/index.mjs" \
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" \
+          WEBEEBLOCKS_UI_OUTPUT="$GITHUB_WORKSPACE/ci-artifacts/gp234-classroom-ui" \
+          node experiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs 2>&1 | tee ci-artifacts/gp234-classroom-ui/ui.log
+      - name: Archive evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp234-real-browser-overlap-and-edit
+          path: ci-artifacts/gp234-classroom-ui/
+          if-no-files-found: warn
