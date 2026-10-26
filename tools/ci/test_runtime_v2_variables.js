@@ -134,6 +134,8 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   await require('./test_runtime_v2_while.js')();
   await require('./test_runtime_v2_procedures.js')();
   await require('./test_runtime_v2_elapsed_time.js')();
+  // Experimental Grand Prix pupil project: real Blockly serialization/AST/preflight, never a native PASS.
+  require('child_process').execFileSync(process.execPath,[path.join(ROOT,'experiments/grand-prix-pupil-algorithm/verify.js')],{stdio:'inherit'});
   require('child_process').execFileSync('python3',[require('path').join(__dirname,'test_simulation_clock.py')],{stdio:'inherit'});
   console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
 })().catch(error=>{console.error(error);process.exit(1);});
