@@ -1,0 +1,10 @@
+QT_VERSION 6.5.3 mode=modal-deferred
+STATE modal=1 visible=1 minimumDuration=0
+EVENT CREATED pointer=0x55e2fcbf10d0
+EVENT BAR pointer=0x55e2fcbf8da0
+EVENT SET_VALUE_ENTER pointer=0x55e2fcbf10d0
+EVENT DELETE_EVENT pointer=0x55e2fcbf10d0
+EVENT SET_VALUE_RETURN pointer=0x55e2fcbf10d0
+EVENT DIALOG_DESTROYED pointer=0x55e2fcbf10d0
+EVENT BAR_DESTROYED pointer=0x55e2fcbf8da0
+EVENT END pointer=(nil)

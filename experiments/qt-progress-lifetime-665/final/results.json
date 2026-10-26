@@ -1,0 +1,14 @@
+[
+  {
+    "mode": "modal-direct",
+    "returncode": 0
+  },
+  {
+    "mode": "modal-deferred",
+    "returncode": 0
+  },
+  {
+    "mode": "nonmodal-direct",
+    "returncode": 0
+  }
+]

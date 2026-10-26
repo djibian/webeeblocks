@@ -1,0 +1,42 @@
+{
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "compile": [
+    "g++",
+    "-std=c++17",
+    "-g",
+    "-O0",
+    "-fPIC",
+    "-rdynamic",
+    "/workspace/scratch/6349140636ef/webeeblocks/experiments/qt-progress-lifetime-665/lifetime.cpp",
+    "-o",
+    "/workspace/scratch/6349140636ef/webeeblocks/experiments/qt-progress-lifetime-665/final/lifetime",
+    "-I/workspace/scratch/c55274f5934a/native-runtime/webots/include/qt/QtCore",
+    "-I/workspace/scratch/c55274f5934a/native-runtime/webots/include/qt/QtGui",
+    "-I/workspace/scratch/c55274f5934a/native-runtime/webots/include/qt/QtWidgets",
+    "-L/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots",
+    "-Wl,-rpath,/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots",
+    "-lQt6Widgets",
+    "-lQt6Core"
+  ],
+  "qpa": "offscreen",
+  "plugin_path": "/workspace/scratch/c55274f5934a/qt-python/PySide6/Qt/plugins/platforms",
+  "libraries": {
+    "/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/libQt6Widgets.so.6.5.3": {
+      "bytes": 7562552,
+      "sha256": "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024"
+    },
+    "/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/libQt6Core.so.6.5.3": {
+      "bytes": 6864976,
+      "sha256": "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8"
+    },
+    "/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/libQt6Gui.so.6.5.3": {
+      "bytes": 10253592,
+      "sha256": "f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9"
+    },
+    "/workspace/scratch/c55274f5934a/qt-python/PySide6/Qt/plugins/platforms/libqoffscreen.so": {
+      "bytes": 118824,
+      "sha256": "a8b1d86480e804055d7da39e5b7a7b971a2c77e89f656d75719e6027693ec04a"
+    }
+  },
+  "source_sha256": "84316d883a1b135f60f98d535d304bffef4600b654b706b0bc2ee18c14440f0f"
+}

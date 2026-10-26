@@ -1,0 +1,9 @@
+{
+  "artifact_id": 12533122680,
+  "original_manifest_sha256": "2aba43038f558153594e637a7d98d0bc3f66fcd9b351d7c8757a1ac49063cafc",
+  "entries": {
+    "usr/local/webots/lib/webots/libQt6Core.so.6.5.3": "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8",
+    "usr/local/webots/lib/webots/libQt6Gui.so.6.5.3": "f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9",
+    "usr/local/webots/lib/webots/libQt6Widgets.so.6.5.3": "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024"
+  }
+}

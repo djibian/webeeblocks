@@ -1,0 +1,24 @@
+#0  0x00007fa1a5a40bb0 in QProgressBar::maximum() const () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Widgets.so.6
+#1  0x00007fa1a5ae8c5b in QProgressDialog::setValue(int) () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Widgets.so.6
+#2  0x000055a3a0ac0b49 in WbMainWindow::setWorldLoadingProgress(int) ()
+#3  0x00007fa1a6c286e2 in ?? () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Core.so.6
+#4  0x000055a3a0d9e145 in WbApplication::worldLoadingHasProgressed(int) ()
+#5  0x00007fa1a6c286e2 in ?? () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Core.so.6
+#6  0x000055a3a0daa495 in WbGroup::childFinalizationHasProgressed(int) ()
+#7  0x000055a3a0a7f118 in WbGroup::createWrenObjects() ()
+#8  0x000055a3a09decbd in WbBaseNode::finalize() ()
+#9  0x000055a3a0bed3ad in WbSimulationWorld::WbSimulationWorld(WbTokenizer*) ()
+#10 0x000055a3a0a218a6 in WbControlledWorld::WbControlledWorld(WbTokenizer*) ()
+#11 0x000055a3a09aeb67 in WbApplication::loadWorld(QString, bool, bool) ()
+#12 0x000055a3a09af2fd in QtPrivate::QSlotObject<void (WbApplication::*)(QString, bool, bool), QtPrivate::List<QString const&, bool, bool>, void>::impl(int, QtPrivate::QSlotObjectBase*, QObject*, void**, bool*) ()
+#13 0x00007fa1a6c286e2 in ?? () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Core.so.6
+#14 0x000055a3a0dba605 in WbProtoManager::worldLoadCompleted(QString const&, bool, bool) ()
+#15 0x000055a3a0b7ffb0 in WbProtoManager::loadWorld() ()
+#16 0x00007fa1a6c286e2 in ?? () from /tmp/gp-u-sysroot-c62x46ct/usr/local/webots/lib/webots/libQt6Core.so.6
+#17 0x000055a3a0b96973 in WbProtoTreeItem::parseItem() ()
+#18 0x000055a3a0b970a0 in WbProtoTreeItem::parseItem() ()
+#19 0x000055a3a0b970a0 in WbProtoTreeItem::parseItem() ()
+#20 0x000055a3a0b8299f in WbProtoManager::retrieveExternProto(QString const&, bool) ()
+#21 0x000055a3a09ae606 in WbApplication::loadWorld(QString, bool, bool) ()
+#22 0x000055a3a0ad8079 in WbMainWindow::loadWorld(QString const&, bool) ()
+#23 0x000055a3a0a84a67 in WbGuiApplication::exec() ()

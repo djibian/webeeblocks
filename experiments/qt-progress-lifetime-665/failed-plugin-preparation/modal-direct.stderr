@@ -1,0 +1,3 @@
+qt.qpa.plugin: Could not find the Qt platform plugin "offscreen" in "/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/qt/plugins"
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+

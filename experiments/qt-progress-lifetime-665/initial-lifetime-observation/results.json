@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "modal-direct",
+    "returncode": 0,
+    "stdout": "QT_VERSION 6.5.3 mode=modal-direct\nSTATE modal=1 visible=1 minimumDuration=0\nEVENT CREATED pointer=0x55c5c64b10d0\nEVENT BAR pointer=0x55c5c64b8da0\nEVENT SET_VALUE_ENTER pointer=0x55c5c64b10d0\nEVENT DELETE_EVENT pointer=0x55c5c64b10d0\nEVENT DIALOG_DESTROYED pointer=0x55c5c64b10d0\nEVENT BAR_DESTROYED pointer=0x55c5c64b8da0\nEVENT SET_VALUE_RETURN pointer=(nil)\nEVENT END pointer=(nil)\n",
+    "stderr": ""
+  },
+  {
+    "mode": "modal-deferred",
+    "returncode": 0,
+    "stdout": "QT_VERSION 6.5.3 mode=modal-deferred\nSTATE modal=1 visible=1 minimumDuration=0\nEVENT CREATED pointer=0x55e2fcbf10d0\nEVENT BAR pointer=0x55e2fcbf8da0\nEVENT SET_VALUE_ENTER pointer=0x55e2fcbf10d0\nEVENT DELETE_EVENT pointer=0x55e2fcbf10d0\nEVENT SET_VALUE_RETURN pointer=0x55e2fcbf10d0\nEVENT DIALOG_DESTROYED pointer=0x55e2fcbf10d0\nEVENT BAR_DESTROYED pointer=0x55e2fcbf8da0\nEVENT END pointer=(nil)\n",
+    "stderr": ""
+  },
+  {
+    "mode": "nonmodal-direct",
+    "returncode": 0,
+    "stdout": "QT_VERSION 6.5.3 mode=nonmodal-direct\nSTATE modal=0 visible=1 minimumDuration=0\nEVENT CREATED pointer=0x55ae9e0640d0\nEVENT BAR pointer=0x55ae9e06bda0\nEVENT SET_VALUE_ENTER pointer=0x55ae9e0640d0\nEVENT SET_VALUE_RETURN pointer=0x55ae9e0640d0\nEVENT DELETE_EVENT pointer=0x55ae9e0640d0\nEVENT DIALOG_DESTROYED pointer=0x55ae9e0640d0\nEVENT BAR_DESTROYED pointer=0x55ae9e06bda0\nEVENT END pointer=(nil)\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,10 @@
+QT_VERSION 6.5.3 mode=nonmodal-direct
+STATE modal=0 visible=1 minimumDuration=0
+EVENT CREATED pointer=0x55ae9e0640d0
+EVENT BAR pointer=0x55ae9e06bda0
+EVENT SET_VALUE_ENTER pointer=0x55ae9e0640d0
+EVENT SET_VALUE_RETURN pointer=0x55ae9e0640d0
+EVENT DELETE_EVENT pointer=0x55ae9e0640d0
+EVENT DIALOG_DESTROYED pointer=0x55ae9e0640d0
+EVENT BAR_DESTROYED pointer=0x55ae9e06bda0
+EVENT END pointer=(nil)

@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "modal-direct",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "qt.qpa.plugin: Could not find the Qt platform plugin \"offscreen\" in \"/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/qt/plugins\"\nThis application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.\n\n"
+  },
+  {
+    "mode": "modal-deferred",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "qt.qpa.plugin: Could not find the Qt platform plugin \"offscreen\" in \"/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/qt/plugins\"\nThis application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.\n\n"
+  },
+  {
+    "mode": "nonmodal-direct",
+    "returncode": -6,
+    "stdout": "",
+    "stderr": "qt.qpa.plugin: Could not find the Qt platform plugin \"offscreen\" in \"/workspace/scratch/c55274f5934a/native-runtime/webots/lib/webots/qt/plugins\"\nThis application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.\n\n"
+  }
+]
