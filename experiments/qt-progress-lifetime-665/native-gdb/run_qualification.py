@@ -94,7 +94,7 @@ def main():
             'gdb -q -nx -batch -iex "set auto-load off" '
             '-iex "set debuginfod enabled off" '
             '-ex "set print frame-arguments none" -ex "set print entry-values no" '
-            '-ex "source /workspace/experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_gdb.py" '
+            '-ex "source /workspace/experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_native_intervention.gdb.py" '
             '-ex "info breakpoints" -ex run -ex "info breakpoints" '
             '--args "$webots_home/bin/webots-bin" "$@" &'
         )
@@ -103,7 +103,7 @@ def main():
         record['wrapper'] = {'original_sha256':sha(HOME/'webots'),
                              'proxy_sha256':sha(proxy),'substitutions':1,
                              'target':'original /usr/local/webots/bin/webots-bin'}
-        record['tracer_sha256'] = sha(ROOT/'experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_gdb.py')
+        record['tracer_sha256'] = sha(ROOT/'experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_native_intervention.gdb.py')
         layout = generate(4,2.)
         world.write_text(world_text(layout,controller='grand_prix_u_flight',
                          window='<none>',evaluator=True).replace(

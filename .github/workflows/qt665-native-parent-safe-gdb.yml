@@ -1,5 +1,5 @@
 # This isolated evidence-branch workflow is NOT a canonical CI Gate.
-name: Qt665 full ELF parent-safe causal GDB (NON-GATE)
+name: Qt665 controlled full-binary GDB intervention (NON-GATE)
 on:
   push:
     branches: [evidence/665-native-gdb-parent-safe-20261026]
@@ -63,13 +63,22 @@ jobs:
                 --manifest /workspace/ci-artifacts/qt665-native-gdb/attested-disposable-installation.json \
                 --replace-disposable-installation
               test "$(sha256sum /usr/local/webots/bin/webots-bin | cut -d" " -f1)" = "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545"
+              # Separate natural-callback UNPROVEN from intervention PASS.
+              set +e
               python3 -u experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py
+              natural_probe_rc=$?
+              set -e
+              test "$natural_probe_rc" -eq 2
+              python3 experiments/qt-progress-lifetime-665/native-gdb/evaluate_native_intervention.py \
+                --gdb-log ci-artifacts/qt665-native-gdb/gdb.log \
+                --summary ci-artifacts/qt665-native-gdb/summary.json \
+                --out ci-artifacts/qt665-native-gdb/intervention-evaluation.json
             '
       - name: Upload diagnostic logs and provenance, never core dumps
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qt665-parent-safe-full-elf-causal-${{ github.sha }}
+          name: qt665-full-elf-intervention-${{ github.sha }}
           path: ci-artifacts/qt665-native-gdb/
           if-no-files-found: error
           retention-days: 14
