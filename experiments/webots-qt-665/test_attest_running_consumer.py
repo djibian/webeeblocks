@@ -39,7 +39,7 @@ class RunningConsumerTests(unittest.TestCase):
                 probe.mapped_qt_files(
                     alias_line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
             with self.assertRaisesRegex(ValueError, 'deleted'):
-                probe.mapped_qt_files(alias_line.strip()+' (deleted)\\n', lib.name, lib)
+                probe.mapped_qt_files(alias_line.strip()+' (deleted)\n', lib.name, lib)
             with self.assertRaisesRegex(ValueError, 'inode differs'):
                 probe.mapped_qt_files(line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
             with self.assertRaisesRegex(ValueError, 'deleted'):
