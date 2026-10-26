@@ -77,6 +77,7 @@ static double wrap_angle(double angle) {
       if (active_id >= 1) response_error(active_id, "TIME_LIMIT");
       target_x = x; target_y = y; target_yaw = yaw; target_z = origin_z;
       land_start_z = z; /* Immediate LAND reference starts at the expiry pose. */
+      land_touchdown = 0;
       airborne = 1; /* Native LAND also completes if already grounded. */
       command = CMD_LAND; active_id = 2147483646;
       active_value = 0.0; active_direction[0] = '\\0';
