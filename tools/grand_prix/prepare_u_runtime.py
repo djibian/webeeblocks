@@ -44,6 +44,13 @@ static double wrap_angle(double angle) {
     wb_robot_cleanup(); return 1;
   }
   const double origin_x = position[0];'''),
+      ('  double land_start_z = origin_z;',
+       '''  /* Native LAND contact diagnostics: observational, never decision authority. */
+  double gp_land_diag_at = -1.0;
+  int gp_land_diag_id = -1;
+  unsigned long gp_land_diag_count = 0;
+  unsigned long gp_land_diag_fails[9] = {0};
+  double land_start_z = origin_z;'''),
       ('  double stable_since = -1.0;',
        '  double stable_since = -1.0;\n  double gp_ground_since = -1.0;'),
       ('  const int step = (int)wb_robot_get_basic_time_step();',
@@ -101,6 +108,63 @@ static double wrap_angle(double angle) {
        An admitted TAKEOFF/RESET in this same tick must close file access. */
     while ((gp_u_file_idle(command == CMD_IDLE && !airborne && gp_ground_sample),
             (message = wb_robot_wwi_receive_text())) != NULL) {'''),
+      ('    const int gp_pose_confirmed = !airborne',
+       '''    /* After genuine touchdown, compare exact raw sensor inputs with each
+       * unchanged GP ground predicate. Counts include intermediate failures
+       * (which a half-second snapshot alone could miss). Not used by control. */
+    if (command == CMD_LAND && land_touchdown) {
+      if (gp_land_diag_id != active_id) {
+        gp_land_diag_id = active_id;
+        gp_land_diag_at = -1.0;
+        gp_land_diag_count = 0;
+        for (int k = 0; k < 9; ++k) gp_land_diag_fails[k] = 0;
+      }
+      const int gp_land_bad[9] = {
+        !gp_control_sample,
+        !(fabs(z - origin_z) < ALT_TOL),
+        !(hypot(vx_global, vy_global) < SPEED_TOL),
+        !(fabs(vz) < VZ_TOL),
+        !(fabs(rpy[0] - origin_roll) < YAW_TOL),
+        !(fabs(rpy[1] - origin_pitch) < YAW_TOL),
+        !(fabs(gyro_values[0]) < YAW_RATE_TOL),
+        !(fabs(gyro_values[1]) < YAW_RATE_TOL),
+        !(fabs(gyro_values[2]) < YAW_RATE_TOL)
+      };
+      ++gp_land_diag_count;
+      for (int k = 0; k < 9; ++k)
+        if (gp_land_bad[k]) ++gp_land_diag_fails[k];
+      if (gp_land_diag_at < 0.0 || now - gp_land_diag_at >= 0.5) {
+        int gp_contact_count = 0;
+        const WbContactPoint *gp_contacts =
+          wb_supervisor_node_get_contact_points(self_node, true, &gp_contact_count);
+        double gp_lowest_contact = NAN;
+        for (int k = 0; gp_contacts && k < gp_contact_count; ++k)
+          if (isfinite(gp_contacts[k].point[2]) &&
+              (!isfinite(gp_lowest_contact) || gp_contacts[k].point[2] < gp_lowest_contact))
+            gp_lowest_contact = gp_contacts[k].point[2];
+        printf("GP_U_LAND_DIAG t=%.6f id=%d ground=%d window=%.6f "
+               "dt=%.6f z=%.8f origin_z=%.8f vx=%.6f vy=%.6f vz=%.6f "
+               "roll=%.6f pitch=%.6f origin_roll=%.6f origin_pitch=%.6f "
+               "gyro=%.6f,%.6f,%.6f contacts=%d lowest_contact=%.8f "
+               "samples=%lu reject=control:%lu,z:%lu,xy:%lu,vz:%lu,"
+               "roll:%lu,pitch:%lu,gx:%lu,gy:%lu,gz:%lu\\n",
+               now, active_id, gp_ground_sample,
+               gp_ground_since < 0.0 ? -1.0 : now - gp_ground_since,
+               dt, z, origin_z, vx_global, vy_global, vz,
+               rpy[0], rpy[1], origin_roll, origin_pitch,
+               gyro_values[0], gyro_values[1], gyro_values[2],
+               gp_contact_count, gp_lowest_contact, gp_land_diag_count,
+               gp_land_diag_fails[0], gp_land_diag_fails[1],
+               gp_land_diag_fails[2], gp_land_diag_fails[3],
+               gp_land_diag_fails[4], gp_land_diag_fails[5],
+               gp_land_diag_fails[6], gp_land_diag_fails[7], gp_land_diag_fails[8]);
+        fflush(stdout);
+        gp_land_diag_at = now;
+        gp_land_diag_count = 0;
+        for (int k = 0; k < 9; ++k) gp_land_diag_fails[k] = 0;
+      }
+    }
+    const int gp_pose_confirmed = !airborne'''),
       ('        simulation_clock_begin(&program_clock, now);\n        command = CMD_TAKEOFF;', '''        simulation_clock_begin(&program_clock, now);
         if (!gp_u_start(now)) {
           simulation_clock_revoke(&program_clock);
