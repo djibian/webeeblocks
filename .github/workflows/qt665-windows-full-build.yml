@@ -1,8 +1,8 @@
 # NON-GATE genuine Windows source build from exact R2025a, no oracle relaxation.
-name: Qt665 real Windows Webots build (NON-GATE)
+name: Qt665 Windows ABI-pinned link proof (NON-GATE)
 on:
   push:
-    branches: [evidence/665-windows-full-r2025a-20261026]
+    branches: [evidence/665-windows-qt-abi-link-20261026]
 permissions:
   contents: read
 jobs:
@@ -69,7 +69,25 @@ jobs:
           export WEBOTS_HOME="$PWD"
           export PATH="$PWD/msys64/mingw64/bin:$PWD/bin/node:/mingw64/bin:/usr/bin:$PATH"
           set -o pipefail
-          make webots_target -j4 2>&1 | tee ../ci-artifacts/qt665-windows-source/build.log
+          # ABI discriminator: R2025a searches its staged Windows Qt import libraries
+          # *before* the SDK import libraries. That may bind old symbols absent
+          # from the newly installed Qt6 DLLs. Change only the isolated checkout.
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path("src/webots/Makefile")
+          text=source.read_text()
+          old="-L$(TARGET_PATH) -L/mingw64/bin -L/mingw64/lib -lQt6Core"
+          new="-L/mingw64/lib -L$(TARGET_PATH) -L/mingw64/bin -lQt6Core"
+          if text.count(old)!=1 or text.count(new)!=0:
+              raise SystemExit("QT665_WINDOWS_LINK_ORDER_PRECONDITION=FAIL")
+          source.write_text(text.replace(old,new))
+          print("QT665_WINDOWS_LINK_ORDER=SDK_IMPORT_LIBRARIES_FIRST")
+          PY
+          git diff -- src/webots/Makefile > ../ci-artifacts/qt665-windows-source/qt-link-order.diff
+          test -s ../ci-artifacts/qt665-windows-source/qt-link-order.diff
+          find msys64/mingw64/bin /mingw64/lib -maxdepth 1 -iname '*Qt6Gui*' -o -iname '*Qt6Widgets*' \
+            > ../ci-artifacts/qt665-windows-source/qt-library-search-candidates.txt
+                    make webots_target -j4 2>&1 | tee ../ci-artifacts/qt665-windows-source/build.log
           # Capture the true native PE BEFORE any later qualifier may fail.
           # Do not require a redundant DLL copy inside the Webots checkout:
           # upstream MSYS2 links against the installed /mingw64/bin Qt SDK.
@@ -81,7 +99,7 @@ jobs:
           objdump -p "$pe" > ../ci-artifacts/qt665-windows-source/pe-imports.txt
           cp "$pe" ../ci-artifacts/qt665-windows-source/webots-bin.exe
           echo QT665_WINDOWS_REAL_PE_LINK=PASS
-          for module in Qt6Core.dll Qt6Widgets.dll; do
+          for module in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll; do
             test -s "/mingw64/bin/$module"
             cp "/mingw64/bin/$module" "../ci-artifacts/qt665-windows-source/$module"
           done
@@ -90,6 +108,39 @@ jobs:
           grep -qi 'DLL Name: Qt6Widgets.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
           grep -qi 'DLL Name: Qt6Core.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
           echo QT665_WINDOWS_REAL_PE_IMPORTS=PASS
+          # Verifies the *actual* linked PE's Qt import names against the
+          # SDK DLL export tables, not just matching file versions or ABI guess.
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pefile
+          pe=pefile.PE("../ci-artifacts/qt665-windows-source/webots-bin.exe",fast_load=True)
+          pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+          report={}
+          for entry in getattr(pe,"DIRECTORY_ENTRY_IMPORT",[]):
+              name=entry.dll.decode("ascii","replace")
+              if not (name.startswith("Qt6") and name.endswith(".dll")):
+                  continue
+              lib=Path("/mingw64/bin")/name
+              if not lib.is_file():
+                  raise SystemExit("SDK DLL unavailable: "+name)
+              obj=pefile.PE(str(lib),fast_load=True)
+              obj.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+              exports=getattr(obj,"DIRECTORY_ENTRY_EXPORT",None)
+              symbols=[] if exports is None else exports.symbols
+              names={s.name for s in symbols if s.name is not None}
+              ordinals={s.ordinal for s in symbols}
+              missing=[{"name":s.name.decode("ascii","replace") if s.name else None,"ordinal":s.ordinal}
+                  for s in entry.imports if (s.name not in names if s.name is not None else s.ordinal not in ordinals)]
+              report[name]={"imports":len(entry.imports),"missing":missing}
+              print(f"QT665_WINDOWS_LINKED_SDK_EXPORTS {name} imports={len(entry.imports)} missing={len(missing)}")
+              obj.close()
+          Path("../ci-artifacts/qt665-windows-source/linked-sdk-qt-symbols.json").write_text(json.dumps(report,indent=2)+"\\n")
+          if any(x["missing"] for x in report.values()):
+              raise SystemExit("QT665_WINDOWS_LINKED_SDK_EXPORTS=FAIL")
+          print("QT665_WINDOWS_LINKED_SDK_EXPORTS=PASS_NOT_NATIVE_RUNTIME")
+          PY
           # The Webots R2025a official distribution's own DLLs must be
           # inventoried separately; this SDK 6.12 build is not a drop-in PE
           # for its possibly different Qt ABI and must not be published.
