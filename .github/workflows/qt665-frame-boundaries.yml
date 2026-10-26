@@ -1,0 +1,52 @@
+name: QT665 independent Qt frame and parent boundaries (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-frame-boundaries-20261026]
+permissions:
+  contents: read
+jobs:
+  frame-boundaries:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream-webots
+          persist-credentials: false
+          sparse-checkout: src/webots
+      - name: Compile only the new frame/parent falsification harness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qt665-frame-boundaries
+          python3 experiments/webots-qt-665/qualify_source_patch.py --webots-tree upstream-webots > qt665-frame-boundaries/source.json
+          git -C upstream-webots apply "$PWD/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          python3 experiments/webots-qt-665/qt_frame_boundary_harness.py --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp --output qt665-frame-boundaries/frame.cpp
+          docker build --pull=false -t qt665-frames - <<'EOF'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libxcb-cursor0 xvfb xauth gdb && rm -rf /var/lib/apt/lists/*
+          EOF
+          docker run --rm -v "$PWD:/workspace" -w /workspace qt665-frames bash -c '
+            set -Eeuo pipefail
+            qt=/usr/local/webots
+            export LD_LIBRARY_PATH="$qt/lib/webots"
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$qt/lib/webots/qt/plugins/platforms"
+            export QT_QPA_PLATFORM=xcb
+            sha256sum "$qt/lib/webots/libQt6Widgets.so.6.5.3" "$qt/lib/webots/libQt6Core.so.6.5.3" > qt665-frame-boundaries/qt.sha256
+            g++ -std=c++17 -O0 -g -fPIC -DQT_NO_DEBUG -I"$qt/include/qt" -I"$qt/include/qt/QtCore" -I"$qt/include/qt/QtGui" -I"$qt/include/qt/QtWidgets" qt665-frame-boundaries/frame.cpp -L"$qt/lib/webots" -Wl,-rpath,"$qt/lib/webots" -lQt6Widgets -lQt6Gui -lQt6Core -o qt665-frame-boundaries/frame
+            for mode in retire external parent; do
+              timeout -k 5s 25s xvfb-run -a gdb -q -nx -batch -iex "set auto-load off" -iex "set debuginfod enabled off" -ex "source experiments/webots-qt-665/native_lifetime_gdb.py" -ex run --args qt665-frame-boundaries/frame "$mode" > "qt665-frame-boundaries/$mode.log" 2>&1
+            done
+          '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-frame-boundaries-${{ github.sha }}
+          path: qt665-frame-boundaries/
+          if-no-files-found: error
+          retention-days: 14
