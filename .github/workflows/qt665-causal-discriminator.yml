@@ -66,7 +66,7 @@ jobs:
                 -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
                 --args /workspace/qt665-guarded-methods
               test -s "$QT665_TRACE_PATH"
-              grep -q '"verdict": "PASS"' "$QT665_TRACE_PATH"
+              python3 -c "import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get(\"verdict\") == \"PASS\" else 42)" "$QT665_TRACE_PATH"
             ' 2>&1 | tee qt665-results/gdb-console.log
           rc=$?
           set -e
