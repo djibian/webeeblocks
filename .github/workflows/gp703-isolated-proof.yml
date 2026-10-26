@@ -1,0 +1,47 @@
+# Disposable isolated experiment: never part of PR #703, main or CI Gate.
+name: GP703 independent Node qualification
+on:
+  push:
+    branches:
+      - experiment/gp703-node-qualification-20261026
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bind evidence to exact unmodified PR 703 source
+        run: |
+          test "$(git rev-parse HEAD^)" = '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81'
+          test "$(git diff --name-only HEAD^ HEAD)" = '.github/workflows/gp703-isolated-proof.yml'
+      - name: Prepare actual production Blockly 13.2.1
+        run: ./tools/prepare_runtime_v2.sh
+      - name: Execute production verifier and archive evidence
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/gp703-independent
+          set -o pipefail
+          {
+            git rev-parse HEAD^
+            git rev-parse HEAD
+            node --version
+            node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
+            sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+            sha256sum experiments/grand-prix-pupil-algorithm/verify.js
+            node --check experiments/grand-prix-pupil-algorithm/verify.js
+            node experiments/grand-prix-pupil-algorithm/verify.js
+          } 2>&1 | tee ci-artifacts/gp703-independent/verify.log
+      - name: Archive exact Node evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-production-blockly-node-evidence
+          path: ci-artifacts/gp703-independent/
+          if-no-files-found: warn
