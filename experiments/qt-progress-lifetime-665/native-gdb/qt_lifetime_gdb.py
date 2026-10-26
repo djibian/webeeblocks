@@ -6,6 +6,7 @@ No product oracles, mission scenarios, or Qt binaries are modified.
 import gdb
 import itertools
 import json
+import re
 
 serial = itertools.count(1)
 active = {}
@@ -17,7 +18,7 @@ def out(kind, **kw):
     gdb.write('WBB_QT665 ' + json.dumps(data, sort_keys=True) + '\n')
 
 def report_live_coverage():
-    """Pending symbols do not count as a resolved native probe."""
+    """Qualify enabled, non-pending numeric breakpoints in GDB 12.1."""
     global coverage_reported
     if coverage_reported:
         return
@@ -25,10 +26,20 @@ def report_live_coverage():
     resolved = {}
     for name, bp in probes.items():
         try:
-            resolved[name] = bool(bp.enabled and not bp.pending and bp.locations)
+            rows = gdb.execute('info breakpoints ' + str(bp.number),
+                               to_string=True)
+            # The installed GDB 12.1 Breakpoint has no .locations attribute.
+            # Require an actual numeric address rather than a pending symbol.
+            resolved[name] = bool(bp.enabled and not bp.pending and
+                                  re.search(r'0x[0-9a-fA-F]{10,}', rows))
+            if not resolved[name]:
+                out('gap', where='coverage_unresolved', symbol=name,
+                    breakpoint_number=bp.number,
+                    info=rows[:900])
         except Exception as exc:
             resolved[name] = False
-            out('gap', where='coverage_resolution', symbol=name, error=str(exc))
+            out('gap', where='coverage_resolution', symbol=name,
+                error=str(exc))
     out('coverage_live', resolved=resolved,
         all_resolved=len(resolved) == 5 and all(resolved.values()))
 
@@ -99,7 +110,7 @@ class BarEntry(gdb.Breakpoint):
 class Destruction(gdb.Breakpoint):
     def __init__(self, symbol, target):
         self.target = target
-        super().__init__(symbol, internal=True)
+        super().__init__(symbol, internal=False)
         self.silent = True
 
     def stop(self):
@@ -142,11 +153,11 @@ gdb.execute('set pagination off')
 gdb.execute('set multiple-symbols all')
 gdb.execute('set breakpoint pending on')
 specs = (
-    ('dialog_setvalue', lambda: Entry('QProgressDialog::setValue(int)', internal=True)),
-    ('bar_setvalue', lambda: BarEntry('QProgressBar::setValue(int)', internal=True)),
+    ('dialog_setvalue', lambda: Entry('QProgressDialog::setValue(int)', internal=False)),
+    ('bar_setvalue', lambda: BarEntry('QProgressBar::setValue(int)', internal=False)),
     ('dialog_dtor', lambda: Destruction('QProgressDialog::~QProgressDialog()', 'dialog')),
     ('bar_dtor', lambda: Destruction('QProgressBar::~QProgressBar()', 'bar')),
-    ('bar_maximum', lambda: Maximum('QProgressBar::maximum() const', internal=True)),
+    ('bar_maximum', lambda: Maximum('QProgressBar::maximum() const', internal=False)),
 )
 coverage = {}
 for name, create in specs:
