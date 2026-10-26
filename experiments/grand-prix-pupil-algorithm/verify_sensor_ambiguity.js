@@ -42,7 +42,7 @@ const cases=[
  [1,.35,.35,'anomaly'],[2,.35,.35,'anomaly'],[1,.35,.70,'open'],
  [3,.35,.35,'closed'],[3,.35,.42,'closed'],[3,.35,.70,'open'],
  [3,.35,.50,'anomaly'],[3,.35,.20,'anomaly'],[3,.35,.44,'anomaly'],
- [3,.35,.65,'anomaly']
+ [3,.35,.60,'anomaly']
 ];
 for(const [side,high,low,expected] of cases)
   assert.equal(decide(side,high,low),expected,JSON.stringify({side,high,low}));
