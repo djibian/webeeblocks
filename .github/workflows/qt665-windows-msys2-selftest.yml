@@ -42,6 +42,7 @@ jobs:
           #include <QTimer>
           #include <QTextStream>
           #include <QLibraryInfo>
+          #include <windows.h>
           int main(int argc, char **argv) {
             QApplication app(argc, argv);
             QProgressDialog dialog;
@@ -49,6 +50,12 @@ jobs:
             dialog.setValue(2);
             QTextStream(stdout) << "QT665_SDK_NATIVE_QT_VERSION=" << QT_VERSION_STR << Qt::endl;
             QTextStream(stdout) << "QT665_SDK_QT_RUNTIME_VERSION=" << qVersion() << Qt::endl;
+            for (const char *name : {"Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "qwindows.dll"}) {
+              HMODULE module=GetModuleHandleA(name);
+              char path[MAX_PATH * 4] = {};
+              DWORD n=module ? GetModuleFileNameA(module, path, sizeof(path)) : 0;
+              QTextStream(stdout) << "QT665_SDK_LOADED_MODULE " << name << " path=" << (n ? path : "NOT_LOADED") << Qt::endl;
+            }
             QTimer::singleShot(0, &app, &QCoreApplication::quit);
             return app.exec();
           }
@@ -57,6 +64,8 @@ jobs:
             ci-artifacts/qt665-windows-sdk/qt-smoke.cpp -o ci-artifacts/qt665-windows-sdk/qt-smoke.exe \
             $(pkg-config --libs Qt6Widgets)
           objdump -p ci-artifacts/qt665-windows-sdk/qt-smoke.exe > ci-artifacts/qt665-windows-sdk/probe-imports.txt
+          objdump -p /mingw64/bin/Qt6Gui.dll > ci-artifacts/qt665-windows-sdk/qt6gui-independent-exports.txt
+          objdump -p /mingw64/share/qt6/plugins/platforms/qwindows.dll > ci-artifacts/qt665-windows-sdk/qwindows-independent-imports.txt
           set +e
           QT_QPA_PLATFORM=offscreen QT_PLUGIN_PATH=/mingw64/share/qt6/plugins \
             ci-artifacts/qt665-windows-sdk/qt-smoke.exe > ci-artifacts/qt665-windows-sdk/probe.log 2>&1
@@ -84,6 +93,7 @@ jobs:
           fi
           grep -Fq 'QT665_SDK_QT_RUNTIME_VERSION=' ci-artifacts/qt665-windows-sdk/probe-windows.log
           echo "QT665_SDK_REAL_QWINDOWS=PASS_NATIVE_PROCESS"
+          grep -Fq "QT665_SDK_LOADED_MODULE qwindows.dll path=" ci-artifacts/qt665-windows-sdk/probe-windows.log
       - name: Falsify Qt SDK qwindows plugin imports against SDK Qt DLL exports
         shell: pwsh
         run: |
