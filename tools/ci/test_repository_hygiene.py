@@ -106,6 +106,13 @@ class RepositoryHygieneTests(unittest.TestCase):
                     self.assertIn("not the qualified parent-safe build", result.stderr)
 
 
+    def test_qt665_running_consumer_fail_closed(self) -> None:
+        """No standalone installation hash can claim a running Webots consumer."""
+        subprocess.run(
+            [sys.executable, "experiments/webots-qt-665/test_attest_running_consumer.py"],
+            cwd=ROOT, check=True, timeout=30,
+        )
+
     def test_x3_characterization_package_contract(self) -> None:
         """Keep the new machine-only firmware bundle on an always-run CI path."""
         subprocess.run(
