@@ -79,3 +79,75 @@ jobs:
           path: qt665-results/
           if-no-files-found: warn
           retention-days: 30
+
+  parent-counterexample:
+    name: Falsify parent deletion during modal Qt frame (NON-GATE)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact methods with adversarial parent-delete scenario
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qt665-results
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git upstream-webots
+          git -C upstream-webots sparse-checkout set src/webots/gui src/webots/app
+          test "$(git -C upstream-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          python3 experiments/webots-qt-665/qt665_parent_counterprobe.py \
+            --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
+            --output qt665-parent-methods.cpp
+          sha256sum qt665-parent-methods.cpp > qt665-results/parent-source.sha256
+      - name: Observe parent-destructor ordering on genuine Qt and Webots methods
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build -t qt665-parent-qt - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 xvfb xauth gdb && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          set +e
+          docker run --rm --init --shm-size=1g \
+            -v "$PWD:/workspace" -w /workspace qt665-parent-qt bash -lc '
+              set -Eeuo pipefail
+              qt=/usr/local/webots
+              export QT_QPA_PLATFORM=xcb
+              export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqxcb.so -print -quit)")"
+              export LD_LIBRARY_PATH="$qt/lib/webots"
+              export QT665_TRACE_PATH=/workspace/qt665-results/parent-trace.json
+              export QT665_PARENT_PROBE=1
+              sha256sum "$qt/lib/webots/libQt6Widgets.so.6.5.3" "$qt/lib/webots/libQt6Core.so.6.5.3" > /workspace/qt665-results/parent-qt-sha256.txt
+              grep -q "^868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024 " /workspace/qt665-results/parent-qt-sha256.txt
+              grep -q "^ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8 " /workspace/qt665-results/parent-qt-sha256.txt
+              g++ -std=c++17 -g -O0 -fno-omit-frame-pointer -fPIC -DQT_NO_DEBUG -rdynamic \
+                -I"$qt/include/qt" -I"$qt/include/qt/QtCore" \
+                -I"$qt/include/qt/QtGui" -I"$qt/include/qt/QtWidgets" \
+                /workspace/qt665-parent-methods.cpp -L"$qt/lib/webots" \
+                -Wl,-rpath,"$qt/lib/webots" \
+                -lQt6Widgets -lQt6Gui -lQt6Core \
+                -o /workspace/qt665-parent-methods
+              sha256sum /workspace/qt665-parent-methods > /workspace/qt665-results/parent-executable.sha256
+              set +e
+              timeout -k 5s 90s xvfb-run -a gdb -q -batch \
+                -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
+                --args /workspace/qt665-parent-methods
+              rc=$?
+              set -e
+              echo "$rc" > /workspace/qt665-results/parent-gdb-exit.txt
+              test -s "$QT665_TRACE_PATH"
+              python3 /workspace/experiments/webots-qt-665/qt665_parent_trace_evaluator.py "$QT665_TRACE_PATH"
+            ' 2>&1 | tee qt665-results/parent-gdb-console.log
+          rc=$?
+          set -e
+          echo "$rc" > qt665-results/parent-job-exit.txt
+          exit "$rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-parent-counterexample
+          path: qt665-results/
+          retention-days: 30
+          if-no-files-found: warn
