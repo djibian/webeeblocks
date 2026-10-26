@@ -41,25 +41,31 @@ def starttime(proc):
     return tail[19]
 
 
-def mapped_qt_files(maps, name, lib):
-    """Bind /proc/PID/maps Qt entries to an on-disk inode, not merely a pathname."""
+def mapped_qt_files(maps, name, lib, expected_sha256):
+    """Attest the actual mapped SONAME file, including its bytes and kernel inode.
+
+    R2025a may package .so.6 and .so.6.5.3 as DIFFERENT regular inodes,
+    not symlinks. Never compare /proc/maps only against versioned-file inode.
+    """
+    family = name.split('.so.', 1)[0]
+    alias_name = family + '.so.6'
+    qualified_dir = lib.parent.resolve(strict=True)
     mapped = set()
-    lib_stat = lib.stat()
-    expected_file_id = (os.major(lib_stat.st_dev), os.minor(lib_stat.st_dev), lib_stat.st_ino)
-    # Linux maps Qt under its SONAME symlink (e.g. libQt6Core.so.6);
-    # the attested file itself is libQt6Core.so.6.5.3. Match the family,
-    # then bind both its *resolved* path and device:inode to exact bytes.
-    family = name.split('.so.', 1)[0] + '.so.'
     for line in maps.splitlines():
         fields = line.split(maxsplit=5)
         if len(fields) != 6 or not fields[5].startswith('/'):
             continue
         mapped_name = Path(fields[5].removesuffix(' (deleted)')).name
-        if not mapped_name.startswith(family):
+        if not mapped_name.startswith(family + '.so.'):
             continue
         if fields[5].endswith(' (deleted)'):
             raise ValueError('Qt mapping has been deleted: ' + name)
+        if mapped_name not in (name, alias_name):
+            raise ValueError('unqualified Qt SONAME mapped: ' + mapped_name)
         path = Path(fields[5])
+        if path.parent.resolve(strict=True) != qualified_dir:
+            raise ValueError('Qt mapped from outside pinned runtime: ' + name)
+        st = path.stat()
         device = fields[3].split(':')
         if len(device) != 2:
             raise ValueError('malformed Qt mapped device: ' + name)
@@ -67,9 +73,15 @@ def mapped_qt_files(maps, name, lib):
             observed_file_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
         except ValueError as exc:
             raise ValueError('malformed Qt mapped file identity: ' + name) from exc
-        if observed_file_id != expected_file_id:
-            raise ValueError('Qt mapping inode differs from installed file: ' + name)
-        mapped.add(path.resolve(strict=True))
+        actual_file_id = (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino)
+        if observed_file_id != actual_file_id:
+            raise ValueError('Qt mapped inode differs from actual SONAME file: ' + name)
+        mapped.add(path)
+    if len(mapped) != 1:
+        raise ValueError('Qt module missing or ambiguous in process maps: ' + name)
+    for path in mapped:
+        if sha256(path) != expected_sha256:
+            raise ValueError('mapped Qt SONAME bytes differ from pinned Qt: ' + name)
     return mapped
 
 
@@ -102,10 +114,8 @@ def attest(runtime_home, pid):
             raise ValueError('Qt library escaped runtime root: ' + name)
         if sha256(lib) != expected:
             raise ValueError('Qt library checksum mismatch: ' + name)
-        mapped = mapped_qt_files(maps, name, lib)
-        if mapped != {lib}:
-            raise ValueError('Qt library not uniquely mapped from runtime: ' + name)
-        loaded[name] = expected
+        mapped = mapped_qt_files(maps, name, lib, expected)
+        loaded[name] = {'sha256': expected, 'mapped_filename': str(next(iter(mapped)))}
     if starttime(proc) != started or (proc / 'exe').resolve(strict=True) != target:
         raise ValueError('process identity changed during observation')
     return {'verdict': 'PASS', 'scope': 'running-linux-process-elf-and-mapped-qt-only',
