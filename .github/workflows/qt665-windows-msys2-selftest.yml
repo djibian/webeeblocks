@@ -68,6 +68,22 @@ jobs:
           if test "$rc" -ne 0; then exit "$rc"; fi
           grep -q 'QT665_SDK_NATIVE_QT_VERSION=' ci-artifacts/qt665-windows-sdk/probe.log
           echo "QT665_WINDOWS_SDK_STANDALONE_APP=PASS"
+          # Distinguish genuine native Windows plugin loading from false
+          # static import/export refusal. Record this independently of offscreen.
+          set +e
+          QT_QPA_PLATFORM=windows QT_DEBUG_PLUGINS=1 QT_PLUGIN_PATH=/mingw64/share/qt6/plugins \
+            ci-artifacts/qt665-windows-sdk/qt-smoke.exe > ci-artifacts/qt665-windows-sdk/probe-windows.log 2>&1
+          qwindows_rc=$?
+          set -e
+          tail -n 70 ci-artifacts/qt665-windows-sdk/probe-windows.log
+          echo "$qwindows_rc" > ci-artifacts/qt665-windows-sdk/probe-windows-exit.txt
+          echo "QT665_SDK_REAL_QWINDOWS_EXIT=$qwindows_rc"
+          if test "$qwindows_rc" -ne 0; then
+            echo "QT665_SDK_REAL_QWINDOWS=UNPROVEN_FAIL"
+            exit "$qwindows_rc"
+          fi
+          grep -Fq 'QT665_SDK_QT_RUNTIME_VERSION=' ci-artifacts/qt665-windows-sdk/probe-windows.log
+          echo "QT665_SDK_REAL_QWINDOWS=PASS_NATIVE_PROCESS"
       - name: Falsify Qt SDK qwindows plugin imports against SDK Qt DLL exports
         shell: pwsh
         run: |
