@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           base=cf1d2bfb437735a1554e41e1af1717154e01a520
-          test "$(git rev-parse HEAD^)" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
           actual="$(git diff --name-only "$base" HEAD)"
           expected="$(printf '.github/workflows/gp218-visible-stages-ui-20261026.yml\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
           test "$actual" = "$expected"
@@ -34,7 +34,7 @@ jobs:
           node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
           npm install --prefix .ci-gp-ui --no-save --no-package-lock --no-audit --no-fund playwright@1.55.0
           command -v google-chrome || command -v chromium
-      - name: Real editor, student block edit, reopen, debugger, geometry
+      - name: Real editor, actual mouse/keyboard threshold edit, reopen, debugger, geometry
         shell: bash
         run: |
           set -o pipefail

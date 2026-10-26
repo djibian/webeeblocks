@@ -90,15 +90,26 @@ try{
  await page.evaluate(()=>{Blockly.svgResize(workspace);workspace.zoomToFit();});
  const fitted=await inspect('after-fit');
  await page.screenshot({path:path.join(output,'gp222-staged-1600x1000-fit.png'),fullPage:true});
- // Edit a real ordinary Blockly number field in the loaded student workspace.
- // This is an API-driven editor edit, NOT evidence of an unaided pupil mouse gesture.
- const edited=await page.evaluate(()=>{
-   const block=workspace.getBlockById('gp-pupil-v2-b-106');
+ // Real browser gesture, not a scripted field.setValue shortcut:
+ // center the ordinary numeric Blockly field; click, type, commit the editor.
+ const target=await page.evaluate(()=>{
+   const id='gp-pupil-v2-b-106';
+   workspace.centerOnBlock(id);
+   const block=workspace.getBlockById(id);
    if(!block||block.type!=='math_number')throw Error('pupil open-H threshold block missing');
-   const before=block.getFieldValue('NUM');
-   block.setFieldValue('0.31','NUM');
-   return {before,after:block.getFieldValue('NUM')};
+   const field=block.getField('NUM');
+   const box=field.getSvgRoot().getBoundingClientRect();
+   return {before:field.getValue(),x:box.left+box.width/2,y:box.top+box.height/2};
  });
+ assert(target.x>0 && target.x<1600 && target.y>0 && target.y<1000,
+   'number field not in visible editor after centering');
+ await page.mouse.click(target.x,target.y);
+ const fieldEditor=page.locator('input.blocklyHtmlInput').first();
+ await fieldEditor.waitFor({state:'visible',timeout:5000});
+ await fieldEditor.fill('0.31');
+ await fieldEditor.press('Enter');
+ const edited={before:target.before,after:await page.evaluate(
+   ()=>workspace.getBlockById('gp-pupil-v2-b-106')?.getFieldValue('NUM'))};
  assert.equal(Number(edited.before),0.3);
  assert.equal(Number(edited.after),0.31);
  await page.getByRole('button',{name:'Enregistrer sous',exact:true}).click();
@@ -136,7 +147,7 @@ try{
      commands:stepped.commands.length},browserErrors:errors,consoleErrors:warnings,
    notes:['Browser is real headless Chromium and UI is production Robot Window.',
      'Transport and Webots RobotWindow are stubbed; no native physical move or mission result.',
-     'Threshold edit was made via Blockly API, not a student mouse/keyboard task.',
+     'Threshold edit uses Playwright mouse click and keyboard entry in real Blockly field; not proof of independent pupil performance.',
      'File picker is injected; not a verified native OS file dialog.',
      'Static screenshots and dimensions are not human classroom acceptance.']
  },null,2)+'\n');
