@@ -439,3 +439,30 @@ A/B original/previous-patch `timeout-gate` still FAILs the existing
 True full-ELF modal retirement event stack, genuine late network callbacks,
 all V5 suites, exact HEAD Ready canonical CI Gate, and independent GO remain
 separate obligations. Preserve #701 Draft and #665 OPEN.
+
+### Stale cancellation and successive dialog generations — true Qt regression
+
+On the same **composed source** and true Webots Qt6.5.3,
+[NON-GATE run 40358835107](https://github.com/djibian/webeeblocks/actions/runs/40358835107)
+completed/success with both native GDB jobs. The causal generator now
+also executes the controlled `qt665_late_cancel_generations` case:
+
+- The canceled connection of generation 1 is disconnected before its
+  previously live button receives a stale click (`old_alive=1`,
+  `disconnected=1`, `unaffected=1`).
+- Three distinct dialogs are created; generations 1 and 2 are drained
+  only after deferred Qt processing, while generation 3 is live, remains
+  active and later drains (`second_unique=1`, `third_unique=1`,
+  `old_drained=1`, `fresh_alive=1`, `fresh_drained=1`).
+- The modal frame and parent-shutdown genuine-Qt discriminators remain
+  PASS; no method implementation is rewritten by the test generator.
+
+Artifacts: [causal archive #12666343770](https://github.com/djibian/webeeblocks/actions/runs/40358835107/artifacts/12666343770),
+ZIP sha256 `c78d8b240fdb817eb5fd5be0cf315f9dda768f95f452c5b53cf0670df53422de`;
+[parent archive #12667302341](https://github.com/djibian/webeeblocks/actions/runs/40358835107/artifacts/12667302341),
+ZIP sha256 `21539f083f357c7156635f862b813a21e0766eab5d5ee46e34e8d2566954e509`.
+
+**Boundary:** this is a *mocked WbApplication canceled-slot* method-level
+test, not proof of late in-flight `WbDownloadManager` replies or genuine
+download request identity under complete Webots. No new official adoption
+or V5 GO is implied.
