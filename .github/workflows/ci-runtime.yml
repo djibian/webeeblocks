@@ -791,23 +791,8 @@ jobs:
             exit 1
           fi
           grep -Fq 'window "blockly_v2"' worlds/crazyflie_runtime_v2.wbt
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-
-          source = Path('controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c').read_text()
-          used = set(re.findall(r'\b(wb_supervisor_[A-Za-z0-9_]+)\s*\(', source))
-          allowed = {
-              'wb_supervisor_node_get_self',
-              'wb_supervisor_node_get_field',
-              'wb_supervisor_field_get_sf_vec3f',
-              'wb_supervisor_field_get_sf_rotation',
-              'wb_supervisor_field_set_sf_vec3f',
-              'wb_supervisor_field_set_sf_rotation',
-              'wb_supervisor_node_reset_physics',
-          }
-          assert used == allowed, f'unexpected Runtime v2 Supervisor API set: used={sorted(used)} allowed={sorted(allowed)}'
-          PY
+          python3 tools/ci/runtime_v2_supervisor_scope.py
+          python3 tools/ci/test_runtime_v2_supervisor_scope.py
           if grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2; then
             echo '::error::bridge.py dependency is forbidden in Runtime v2'
             exit 1
