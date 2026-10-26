@@ -22,6 +22,10 @@ from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
+def has_native_land_completion(text):
+    # Touchdown/coasting is not the terminal LAND response or its stable window.
+    return 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1' in text.splitlines()
+
 def validate_timeout_probe(rows, text):
     """Expire first; distinguish fenced descent from confirmed RESET recovery.
 
@@ -172,7 +176,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
             while time.monotonic()<limit and webots.poll() is None:
                 text=(out/'webots.log').read_text()
                 if tcp:text+=''.join(Path(s.name).read_text() for s in streams)
-                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or 'TRACE LAND' in text):break
+                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or has_native_land_completion(text)):break
                 time.sleep(.1)
         text=(out/'webots.log').read_text()
         if tcp:text+=(out/'flight.log').read_text()+(out/'evaluator.log').read_text()
@@ -212,7 +216,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
             deadline=[int(line.split('time_ms=',1)[1].split()[0]) for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
             if len(admitted)!=1 or len(deadline)!=1 or deadline[0]-admitted[0]!=210000:
                 raise RuntimeError('deadline not exactly 210 s: '+str(out))
-            if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
+            if 'command=LAND' not in text or not has_native_land_completion(text) or result['status']!='not-achieved' or result['reason']!='time-limit':
                 raise RuntimeError('missing independent forced LAND/failure')
             if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
             if mode.startswith('timeout'):validate_timeout_probe(rows,text)

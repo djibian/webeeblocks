@@ -793,6 +793,7 @@ jobs:
           grep -Fq 'window "blockly_v2"' worlds/crazyflie_runtime_v2.wbt
           python3 tools/ci/runtime_v2_supervisor_scope.py
           python3 tools/ci/test_runtime_v2_supervisor_scope.py
+          python3 tools/ci/test_runtime_v2_trace_land.py
           if grep -Rq 'bridge.py' plugins/robot_windows/blockly_v2 controllers/crazyflie_runtime_v2; then
             echo '::error::bridge.py dependency is forbidden in Runtime v2'
             exit 1
@@ -976,7 +977,7 @@ jobs:
                   assert m and 'stop=1' in line, line
                   trace.append('WAIT')
                   wait_traces.append((float(m.group(1)), float(m.group(2))))
-              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND' in line:
+              elif 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND ' in line:
                   trace.append('LAND')
                   assert 'stop=1' in line
           expected = ['TAKEOFF','RANGE','MOVE_LEFT','RANGE','MOVE_FORWARD','RANGE','MOVE_LEFT','LAND','RANGE_BACK','TAKEOFF','LIGHT_BLUE','LIGHT_OFF','LAND','TAKEOFF','MOVE_BACK','MOVE_RIGHT','TURN','TURN','WAIT','LAND','TAKEOFF','SPEED','MOVE_FORWARD','SPEED','MOVE_BACK','LAND','TAKEOFF','MOVE_FORWARD','LAND']
