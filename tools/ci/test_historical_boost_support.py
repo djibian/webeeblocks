@@ -298,7 +298,7 @@ class HistoricalBoostSupportTests(unittest.TestCase):
 
     def test_builder_is_offline_and_has_no_apt_fallback(self) -> None:
         text = BUILDER_PATH.read_text(encoding="utf-8")
-        self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", text)
+        self.assertIn("ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca", text)
         self.assertIn("--network none", text)
         self.assertIn("/opt/webeeblocks-boost/include:ro", text)
         self.assertIn("CPLUS_INCLUDE_PATH=/opt/webeeblocks-boost/include", text)

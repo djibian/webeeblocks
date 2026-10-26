@@ -23,7 +23,7 @@ grep -Eq '^#define BOOST_VERSION[[:space:]]+107400[[:space:]]*$' \
   "$BOOST_ROOT/usr/include/boost/version.hpp"
 
 # The sidecar uses Boost.Asio/Beast headers and links only pthread on Linux.
-# Keep the official Webots image while making the build itself offline and
+# Keep the immutable qualified Webots image while keeping the build offline and
 # supplying only the verified read-only Boost header closure. Historical jobs
 # that also need the supervisor can request it in the same offline container.
 docker run --rm --network none \
