@@ -365,3 +365,45 @@ Webots R2025a and currently validates the version, not this corrected
 binary. It needs a separately built, independently checked patched
 `webots-bin.exe` and exact Qt DLL closure; Linux sha256 evidence cannot
 be transferred to Windows. No implicit image/tag/Qt fallback permitted.
+
+## NEW full Webots R2025a ELF — parent-safe composed source (26 Oct 2026)
+
+**Native full link and XCB launcher PASS, NOT product readiness.**
+Isolated NON-GATE [run 40354624966](https://github.com/djibian/webeeblocks/actions/runs/40354624966)
+completed/success at evidence HEAD `e5fa2d8c1409a1c97f63d9b14039683ffcfb0b05`;
+[artifact 12666096845](https://github.com/djibian/webeeblocks/actions/runs/40354624966/artifacts/12666096845),
+ZIP SHA-256 `5b831acea004ecbcd3ed301846c745fed5b64edb9a5261738ac43ffb3d0d05d0`.
+The ELF digest was recomputed from the **actual artifact's 202081872 bytes**,
+not copied from a former candidate:
+
+- **Strengthened new Linux ELF SHA-256**:
+  `e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545`.
+- Historical weaker candidate (DO NOT ADOPT for parent protection):
+  `d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9`.
+- Official baseline from original image:
+  `1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb`.
+- Unchanged runtime Qt 6.5.3:
+  Widgets `868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024`;
+  Core `ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8`.
+- Exact composite source: upstream
+  `c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b`,
+  initial patch SHA-256 `7a3603eaef1d6addc59175c6ed3363bc51497827fa39a699c8ee6af073280e94`,
+  shutdown overlay SHA-256 `817f0ae4e9e9ec01da58ce23e228f44eb06f65e2da62b2c9db792d1abb0231db`;
+  resulting WbMainWindow cpp Git blob `8451da9df169cf07439535f71451b3aed8b6f23f`,
+  header blob `ac39c30fbfaf7cf2f0a042ee5a55cb2c9c156eb8`,
+  WbApplication cpp blob `404ac1269f022ff4bde41801cdb79b2015c8ac65`.
+
+The full build produced linked `webots-bin`, complete native dependency
+closure (`ldd`: no unresolved entries), correct genuine Qt DLL/SO resolution
+and **`QT665_LAUNCHER_VERSION=PASS`** with real Linux XCB/Xvfb,
+showing `Webots version: R2025a`. It does not establish
+completed genuine WebeeBlocks consumer tests, packaged Windows source
+build or Windows Qt DLL fingerprint. Regular official consumers are
+**not yet switched**. Never reuse the previous ELF SHA as proof of
+this new variant.
+
+The [isolated native consumer campaign](https://github.com/djibian/webeeblocks/actions/runs/40357331972)
+uses the exact SHA, pinned original runtime, strict
+`attest_and_install_candidate.py` and unchanged main native
+`short`, `reset`, `wrong-landing`, `unavailable` tests; its outcome
+must be checked before claiming those results.
