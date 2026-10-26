@@ -40,7 +40,15 @@ find include/qt -type f -print0 | sort -z | xargs -0 sha256sum > "$evidence/qt-h
 # Release semantics with debug symbols and no strip for causal GDB experiments.
 make -j2 -C src/glad release
 make -j2 -C src/wren release
-make -j2 -C src/webots release CFLAGS='-fPIC -O2 -g -DNDEBUG -Wall' LD_FLAGS='-rdynamic'
+# Webots' R2025a makefile passes per-module Qt include directories, while
+# aqt's Qt6 headers also use <QtWidgets/...> / <QtCore/...> from the SDK root.
+# Preserve original include search and generated-moc include dir; add SDK root
+# for BOTH ordinary C++ and the moc generator via the shared make variable.
+test -f "$source_tree/include/qt/QtWidgets/QDialog"
+test -f "$source_tree/include/qt/QtCore/QObject"
+make -j2 -C src/webots release \\
+  QT_CORE_INCLUDE="-isystem $source_tree/include/qt/QtCore -isystem $source_tree/include/qt -Ibuild/release" \\
+  CFLAGS='-fPIC -O2 -g -DNDEBUG -Wall' LD_FLAGS='-rdynamic'
 test -x bin/webots-bin
 sha256sum bin/webots-bin lib/webots/libQt6*.so.6.5.3 > "$evidence/candidate-runtime.sha256"
 readelf -n bin/webots-bin > "$evidence/candidate-notes.txt"
