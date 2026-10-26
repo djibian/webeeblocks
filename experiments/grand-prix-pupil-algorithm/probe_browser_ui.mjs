@@ -92,17 +92,22 @@ try{
  await page.screenshot({path:path.join(output,'gp232-guarded-1600x1000-fit.png'),fullPage:true});
  // Real browser gesture, not a scripted field.setValue shortcut:
  // center the ordinary numeric Blockly field; click, type, commit the editor.
+ await page.evaluate(()=>workspace.centerOnBlock('gp-pupil-v2-b-109'));
+ // Blockly scroll/transform is asynchronous; measure the field only after render.
+ await page.waitForTimeout(350);
  const target=await page.evaluate(()=>{
-   const id='gp-pupil-v2-b-109';
-   workspace.centerOnBlock(id);
-   const block=workspace.getBlockById(id);
+   const block=workspace.getBlockById('gp-pupil-v2-b-109');
    if(!block||block.type!=='math_number')throw Error('pupil open-H threshold block missing');
    const field=block.getField('NUM');
    const box=field.getSvgRoot().getBoundingClientRect();
-   return {before:field.getValue(),x:box.left+box.width/2,y:box.top+box.height/2};
+   const x=box.left+box.width/2,y=box.top+box.height/2;
+   const hit=document.elementFromPoint(x,y);
+   return {before:field.getValue(),x,y,bounds:{left:box.left,top:box.top,width:box.width,height:box.height},
+     hitTag:hit?.tagName||null,hitClass:hit?.getAttribute('class')||null};
  });
- assert(target.x>0 && target.x<1600 && target.y>0 && target.y<1000,
-   'number field not in visible editor after centering');
+ console.log('PUPIL_THRESHOLD_MOUSE_TARGET '+JSON.stringify(target));
+ assert(target.x>110 && target.x<1550 && target.y>227 && target.y<990,
+   'number field not in visible Blockly workspace after centering');
  await page.mouse.click(target.x,target.y);
  const fieldEditor=page.locator('input.blocklyHtmlInput').first();
  await fieldEditor.waitFor({state:'visible',timeout:5000});
