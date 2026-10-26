@@ -128,6 +128,52 @@ jobs:
             "$($entry.Key) $destHash" | Add-Content ci-artifacts/qt665-windows-running/gcc-runtime-closure-sha256.txt
           }
           Write-Host 'QT665_WINDOWS_GCC_RUNTIME_CLOSURE=PASS'
+          # Diagnose and resolve the FULL real PE import graph. Qt6.12
+          # imports ICU 78 and others not shipped by official R2025a (Qt6.5).
+          # Add only transitively imported DLLs found in the same MSYS2
+          # toolchain, never claim an unqualified/deleted/missing import.
+          $objdump=Join-Path $env:QT665_MINGW_BIN 'objdump.exe'
+          if (-not (Test-Path -LiteralPath $objdump -PathType Leaf)) { throw 'Pinned MSYS2 objdump absent' }
+          $pending=[System.Collections.Generic.Queue[string]]::new()
+          $pending.Enqueue((Join-Path $bin 'webots-bin.exe'))
+          $visited=[System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          $needed=@()
+          $unresolved=@()
+          while ($pending.Count -gt 0) {
+            $subject=$pending.Dequeue()
+            if (-not $visited.Add($subject)) { continue }
+            if ($visited.Count -gt 190) { throw 'Unbounded Qt665 Windows import closure' }
+            $dump=(& $objdump -p $subject 2>&1 | Out-String)
+            if ($LASTEXITCODE -ne 0) { throw "Invalid imported PE module: $subject" }
+            $imports=@([regex]::Matches($dump, '(?im)^\s*DLL Name:\s*([^\s]+)') |
+              ForEach-Object {$_.Groups[1].Value} | Sort-Object -Unique)
+            foreach ($dep in $imports) {
+              # Windows API-set dependencies are exported by the loader,
+              # not separate on-disk files.
+              if ($dep -match '^(api-ms-win-|ext-ms-win-)') { continue }
+              $local=Join-Path $bin $dep
+              $sdk=Join-Path $env:QT665_MINGW_BIN $dep
+              $system=Join-Path (Join-Path $env:SystemRoot 'System32') $dep
+              $isSystem=Test-Path -LiteralPath $system -PathType Leaf
+              if (-not (Test-Path -LiteralPath $local -PathType Leaf)) {
+                if (Test-Path -LiteralPath $sdk -PathType Leaf) {
+                  Copy-Item -LiteralPath $sdk -Destination $local
+                  $sourceHash=(Get-FileHash -LiteralPath $sdk -Algorithm SHA256).Hash.ToLowerInvariant()
+                  $localHash=(Get-FileHash -LiteralPath $local -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($sourceHash -ne $localHash) { throw "Imported module copy mismatch: $dep" }
+                  $needed+=@{name=$dep;reason='transitive-import-missing-from-original';sha256=$localHash;referer=[IO.Path]::GetFileName($subject)}
+                } elseif (-not $isSystem) {
+                  $unresolved+=@{name=$dep;referer=[IO.Path]::GetFileName($subject)}
+                  continue
+                }
+              }
+              if (Test-Path -LiteralPath $local -PathType Leaf) { $pending.Enqueue($local) }
+            }
+          }
+          @{source_commit='61bec4028e55655fbe86be8e58848f95c72c11eb';visited=$visited.Count;added=$needed;unresolved=$unresolved} |
+            ConvertTo-Json -Depth 9 | Set-Content ci-artifacts/qt665-windows-running/recursive-pe-closure.json
+          if ($unresolved.Count) {throw ('Unresolved transitive PE imports: '+($unresolved | ConvertTo-Json -Compress))}
+          Write-Host "QT665_WINDOWS_TRANSITIVE_IMPORT_CLOSURE=PASS inspected=$($visited.Count) copied=$($needed.Count)"
           Write-Host 'QT665_WINDOWS_DISPOSABLE_PATCHED_INSTALL=PASS'
       - name: Require genuine patched Windows Webots CLI and live mapped Qt Core/Widgets
         shell: pwsh
