@@ -50,7 +50,7 @@ for lib in OIS pico assimp; do
     exit 1
   }
   readlink -f "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-library-targets.txt"
-  sha256sum -L "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-libraries.sha256"
+  sha256sum "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-libraries.sha256"
 done
 git apply "$experiment/webots-r2025a-guarded-progress-retirement.patch"
 git diff --binary > "$evidence/applied.patch"
