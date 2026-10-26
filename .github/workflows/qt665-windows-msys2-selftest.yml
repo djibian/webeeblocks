@@ -1,8 +1,8 @@
 # Isolated NON-GATE Windows toolchain contradiction probe, no Webots edits.
-name: Qt665 Windows MSYS2 Qt self-consistency (NON-GATE)
+name: Qt665 Windows fully updated MSYS2 Qt closure (NON-GATE)
 on:
   push:
-    branches: [evidence/665-windows-msys2-qt-selftest-20261026]
+    branches: [evidence/665-windows-msys2-full-update-20261026]
 permissions:
   contents: read
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          update: false
+          update: true
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-qt6-base
@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           mkdir -p ci-artifacts/qt665-windows-sdk
           pacman -Q > ci-artifacts/qt665-windows-sdk/pacman-versions.txt
+          pacman -Q mingw-w64-x86_64-qt6-base mingw-w64-x86_64-gcc
           sha256sum /mingw64/bin/Qt6Core.dll /mingw64/bin/Qt6Gui.dll /mingw64/bin/Qt6Widgets.dll \
             /mingw64/share/qt6/plugins/platforms/qwindows.dll > ci-artifacts/qt665-windows-sdk/native-qt-sha256.txt
           echo "QT665_QT_SDK_BIN=$(cygpath -w /mingw64/bin)" >> "$GITHUB_ENV"
@@ -47,6 +48,7 @@ jobs:
             dialog.setRange(0, 10);
             dialog.setValue(2);
             QTextStream(stdout) << "QT665_SDK_NATIVE_QT_VERSION=" << QT_VERSION_STR << Qt::endl;
+            QTextStream(stdout) << "QT665_SDK_QT_RUNTIME_VERSION=" << qVersion() << Qt::endl;
             QTimer::singleShot(0, &app, &QCoreApplication::quit);
             return app.exec();
           }
