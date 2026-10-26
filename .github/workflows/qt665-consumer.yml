@@ -61,7 +61,7 @@ jobs:
                 echo "QT665_CONSUMER_PASS suite=$suite"
               done
             ' 2>&1 | tee ci-artifacts/qt665-consumer/console.txt
-          rc=\${PIPESTATUS[0]}
+          rc=${PIPESTATUS[0]}
           set -e
           echo "$rc" > ci-artifacts/qt665-consumer/exit.txt
           exit "$rc"
