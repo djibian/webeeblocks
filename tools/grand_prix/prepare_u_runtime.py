@@ -35,7 +35,7 @@ static double wrap_angle(double angle) {
   }
   const double origin_x = position[0];'''),
       ('  double stable_since = -1.0;',
-       '  double stable_since = -1.0;\n  double gp_ground_since = -1.0;'),
+       '  double stable_since = -1.0;\n  double gp_ground_since = -1.0;\n  int gp_trace_post_land = 0;'),
       ('  const int step = (int)wb_robot_get_basic_time_step();',
        '  const int step = 32; /* Preserve the shared PID/sensor update period. */'),
       ('  while (wb_robot_step(step) != -1) {',
@@ -71,6 +71,21 @@ static double wrap_angle(double angle) {
     else if (gp_ground_since < 0.0) gp_ground_since = now;
     const int gp_pose_confirmed = !airborne && command == CMD_IDLE &&
       gp_ground_since >= 0.0 && now - gp_ground_since >= STOP_WINDOW;
+    /* Read-only evidence after LAND: distinguish post-ACK stability latency
+       from a real invalid IMU/gyro/pose. Never influence RESET admission. */
+    if (command == CMD_LAND) gp_trace_post_land = 1;
+    if (gp_trace_post_land && command == CMD_IDLE && !airborne) {
+      printf("GP_U_RESET_POSE t=%.9f control=%d ground=%d confirmed=%d "
+             "since=%.9f window=%.9f command=%d airborne=%d "
+             "dz=%.9f speed_xy=%.9f vz=%.9f "
+             "droll=%.9f dpitch=%.9f gyro=%.9f,%.9f,%.9f\\n",
+             now, gp_control_sample, gp_ground_sample, gp_pose_confirmed,
+             gp_ground_since, gp_ground_since < 0.0 ? -1.0 : now - gp_ground_since,
+             (int)command, airborne, z - origin_z, hypot(vx_global, vy_global),
+             vz, rpy[0] - origin_roll, rpy[1] - origin_pitch,
+             gyro_values[0], gyro_values[1], gyro_values[2]);
+      fflush(stdout);
+    }
     if (gp_u_deadline(now, gp_pose_confirmed)) {
       simulation_clock_revoke(&program_clock);
       const int interrupted_id = active_id;
