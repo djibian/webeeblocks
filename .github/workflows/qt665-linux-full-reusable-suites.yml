@@ -1,0 +1,20 @@
+# Disposable V5 NON-GATE diagnostic branch only; never move into #701.
+# Calls original reusable suites with exact Draft candidate, no oracle changes.
+# Some jobs explicitly require github.workflow == 'CI Gate'; such skips
+# cannot be presented as the complete canonical Ready gate.
+name: Qt665 Linux exact Draft reusable suites (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-linux-full-reusable-suites-20261026]
+permissions:
+  contents: read
+jobs:
+  runtime:
+    uses: ./.github/workflows/ci-runtime.yml
+    with:
+      target_sha: 3eb73f8bd2fbf91e6235476a70c707b41d89a4ee
+      full: false
+  webots:
+    uses: ./.github/workflows/ci-webots.yml
+    with:
+      target_sha: 3eb73f8bd2fbf91e6235476a70c707b41d89a4ee
