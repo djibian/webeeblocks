@@ -22,6 +22,10 @@ from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
+def has_native_land_completion(text):
+    # Touchdown/coasting is not the terminal LAND response or its stable window.
+    return 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1' in text.splitlines()
+
 def validate_timeout_probe(rows, text):
     """Expire first; distinguish fenced descent from confirmed RESET recovery.
 
@@ -172,7 +176,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
             while time.monotonic()<limit and webots.poll() is None:
                 text=(out/'webots.log').read_text()
                 if tcp:text+=''.join(Path(s.name).read_text() for s in streams)
-                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or 'TRACE LAND' in text):break
+                if 'GP_U_RESULT ' in text and ('GP_U_DEADLINE ' not in text or has_native_land_completion(text)):break
                 time.sleep(.1)
         text=(out/'webots.log').read_text()
         if tcp:text+=(out/'flight.log').read_text()+(out/'evaluator.log').read_text()
@@ -212,7 +216,7 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
             deadline=[int(line.split('time_ms=',1)[1].split()[0]) for line in text.splitlines() if line.startswith('GP_U_DEADLINE ')]
             if len(admitted)!=1 or len(deadline)!=1 or deadline[0]-admitted[0]!=210000:
                 raise RuntimeError('deadline not exactly 210 s: '+str(out))
-            if 'command=LAND' not in text or 'TRACE LAND' not in text or result['status']!='not-achieved' or result['reason']!='time-limit':
+            if 'command=LAND' not in text or not has_native_land_completion(text) or result['status']!='not-achieved' or result['reason']!='time-limit':
                 raise RuntimeError('missing independent forced LAND/failure')
             if not any(e['event']=='error' and e['detail']['code']=='TIME_LIMIT' for e in rows):raise RuntimeError('program not interrupted')
             if mode.startswith('timeout'):validate_timeout_probe(rows,text)
@@ -259,6 +263,9 @@ def main():
         from tools.ci.run_grand_prix_u_core_capture import core_mount
         core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
         subprocess.run(['bash',str(ROOT/'tools/prepare_runtime_v2.sh')],check=True)
+        # Fail before Docker if the actual pupil .wbb cannot load, preflight,
+        # compile and round-trip in the pinned production Blockly.
+        subprocess.run(['node',str(ROOT/'tools/grand_prix/pupil_workspace_u.js')],check=True)
         assets=ROOT/'.ci-grand-prix-u-webots'
         if not assets.exists():
             subprocess.run(['git','clone','--depth=1','--filter=blob:none','--sparse','--branch','R2025a','https://github.com/cyberbotics/webots.git',str(assets)],check=True)
@@ -312,13 +319,13 @@ def main():
         if args.suite=='camera-contrast':
             return
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for sequence_index,(seed,side,mode) in enumerate(cases,1):
         result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index)
-        if mode=='witness':
-            if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations/sizes')
+        if mode in ('witness','reset'):
+            if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations or RESET')
             digest=result['ast_sha256']
         summaries.append(result)
         (OUT/('sizes.json' if args.suite=='sizes' else 'campaign.json')).write_text(json.dumps(summaries,indent=2)+'\n')

@@ -11,7 +11,7 @@ from pathlib import Path
 
 VERSION = 'gp-u-v1'
 RADIUS = .09
-WIDTH = 1.
+WIDTH = .60
 GAP = .56
 TOP_BOTTOM = .62
 WALL_HEIGHT = 1.3
@@ -101,18 +101,13 @@ def generate(seed, side=2.):
     closed = Gate(0., side, math.pi, 2, side, True)
     # Interior free-floor polygon. No fourth corridor and no detached finale.
     # Terminal widening is identical for all seeds; the closing edge is the H.
-    polygon = ((-.5, -.5), (side+.5, -.5), (side+.5, side+.5),
-               (.95, side+.5), (.95, side+.9), (0., side+.9),
-               (0., side-.9), (.95, side-.9), (.95, side-.5),
-               (side-.5, side-.5), (side-.5, .5), (-.5, .5))
+    polygon = ((-.30, -.30), (side+.30, -.30), (side+.30, side+.30),
+               (.95, side+.30), (.95, side+.9), (0., side+.9),
+               (0., side-.9), (.95, side-.9), (.95, side-.30),
+               (side-.30, side-.30), (side-.30, .30), (-.30, .30))
+    # No continuous physical walls: independent polygon checks enforce
+    # the mission boundary; red dashed floor tape depicts it without collision.
     walls = []
-    for a, b in zip(polygon, polygon[1:] + polygon[:1]):
-        if a[0] == b[0] == 0.:  # Full-width terminal barrier below.
-            continue
-        if a[1] == b[1]:
-            walls.append(Box((a[0]+b[0])/2, a[1], .65, abs(b[0]-a[0])+.04, .04, 1.3))
-        else:
-            walls.append(Box(a[0], (a[1]+b[1])/2, .65, .04, abs(b[1]-a[1])+.04, 1.3))
     boxes = []
     for g in gates:
         horizontal = g.side != 1
@@ -173,10 +168,35 @@ def world_text(layout, *, controller='<none>', window='<none>',
             (layout.side, layout.side/2, .025, layout.side),
             ((layout.side+.70)/2, layout.side, layout.side-.70, .025))):
         lines.append(f'DEF GP_U_GUIDE_{idx} Pose {{ translation {x:.6f} {y:.6f} .0010 children [ Shape {{ appearance PBRAppearance {{ baseColor .96 .96 .96 roughness 1 }} geometry Box {{ size {sx:.6f} {sy:.6f} .0010 }} }} ] }}')
+    # Red, non-colliding floor limits follow the actual three-side U polygon.
+    # The terminal x=0 edge is physically closed by the final H.
+    for edge, (a, b) in enumerate(zip(layout.polygon, layout.polygon[1:] + layout.polygon[:1])):
+        if a[0] == b[0] == 0.:
+            continue
+        length = math.hypot(b[0] - a[0], b[1] - a[1])
+        for dash in range(math.ceil(length / .30)):
+            offset = dash * .30
+            span = min(.18, length - offset)
+            if span <= .015:
+                continue
+            t = (offset + span / 2) / length
+            x = a[0] + (b[0] - a[0]) * t
+            y = a[1] + (b[1] - a[1]) * t
+            sx = span if a[1] == b[1] else .012
+            sy = span if a[0] == b[0] else .012
+            mark(f'GP_U_BOUNDARY_{edge}_{dash}', x, y, sx, sy, '.95 .06 .06')
     mark('GP_U_START', 0, 0, .28, .28, '.12 .42 .9')
     for count in (1, 2, 3):
         x, y = layout.landing_target(count)
         mark(f'GP_U_TARGET_{count}', x, y, .28, .28, '.10 .72 .28')
+        # Non-colliding Activity 1-style checkerboard on the green target base:
+        # 25 cm of tiles inside 28 cm gives a 15 mm border on each side.
+        for col in range(4):
+            for row in range(4):
+                tx = x - .125 + (col + .5) * .0625
+                ty = y - .125 + (row + .5) * .0625
+                shade = '.06 .06 .06' if (col + row) % 2 == 0 else '.96 .96 .96'
+                lines.append(f'DEF GP_U_TARGET_{count}_CELL_{col}_{row} Pose {{ translation {tx:.6f} {ty:.6f} .0042 children [ Shape {{ appearance PBRAppearance {{ baseColor {shade} roughness 1 }} geometry Box {{ size .0625 .0625 .0002 }} }} ] }}')
     for i, g in enumerate(layout.gates):
         for kind, distance in (('BEFORE', -LOW_BEFORE), ('AFTER', LOW_AFTER)):
             x, y = g.x + distance*math.cos(g.heading), g.y + distance*math.sin(g.heading)

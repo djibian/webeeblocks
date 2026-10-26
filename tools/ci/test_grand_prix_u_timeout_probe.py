@@ -3,7 +3,7 @@ import copy
 import unittest
 import tempfile
 from unittest.mock import patch
-from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch
+from run_grand_prix_u_prototype import validate_timeout_probe, native_webots_launch, has_native_land_completion
 import run_grand_prix_u_geometry as geometry
 from pathlib import Path
 
@@ -27,6 +27,17 @@ NATIVE=('WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=1\n'
 
 
 class TimeoutEvidenceTests(unittest.TestCase):
+    def test_touchdown_does_not_prove_terminal_land(self):
+        diagnostic = 'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN time=212.3\n'
+        self.assertTrue(has_native_land_completion(NATIVE))
+        self.assertTrue(has_native_land_completion(diagnostic + NATIVE))
+        for text in ('', diagnostic, diagnostic + 'command=LAND\n',
+                     'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=0\n',
+                     'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND stop=10\n',
+                     'WEBEEBLOCKS_RUNTIME_V2 TRACE LAND_TOUCHDOWN stop=1\n'):
+            with self.subTest(text=text):
+                self.assertFalse(has_native_land_completion(text))
+
     def test_geometry_real_launch_is_minimized_with_rendering_preserved(self):
         # Reach the actual Popen boundary of both supported native transports;
         # stop before launching Webots rather than faking perception evidence.
@@ -73,6 +84,7 @@ class TimeoutEvidenceTests(unittest.TestCase):
             bad=copy.deepcopy(rows);bad.insert(0,bad.pop(5));failures.append((bad,NATIVE))
             bad=copy.deepcopy(rows);bad.append({'event':'late-stop-accepted','detail':{}});failures.append((bad,NATIVE))
         for text in ('',NATIVE.replace('TRACE LAND stop=1','TRACE LAND stop=0'),
+                     NATIVE.replace('TRACE LAND stop=1','TRACE LAND_TOUCHDOWN stop=1'),
                      NATIVE.replace('RESPONSE 71 OK','RESPONSE 72 OK'),
                      '\n'.join(reversed(NATIVE.splitlines()))):
             failures.append((observations(True),text))

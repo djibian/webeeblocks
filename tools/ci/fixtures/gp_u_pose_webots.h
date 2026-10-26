@@ -1,10 +1,13 @@
 /* Copied under several different Webots stub header filenames by pose tests. */
 #ifndef WEBEEBLOCKS_GP_U_POSE_WEBOTS_STUB_H
 #define WEBEEBLOCKS_GP_U_POSE_WEBOTS_STUB_H
+#include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef int WbDeviceTag; typedef void* WbNodeRef; typedef void* WbFieldRef;
+typedef struct { double point[3]; int node_id; } WbContactPoint;
+WbContactPoint* wb_supervisor_node_get_contact_points(WbNodeRef,bool,int*);
 void wb_robot_init(void);void wb_robot_cleanup(void);int wb_robot_step(int);
 double wb_robot_get_time(void); double wb_robot_get_basic_time_step(void);
 WbDeviceTag wb_robot_get_device(const char*);

@@ -64,10 +64,28 @@ def local_world(seed, window):
     text = replace_once(text, 'TexturedBackground { }', 'Background { skyColor [ 0.75 0.83 0.92 ] }')
     text = replace_once(text, 'TexturedBackgroundLight { }', 'DirectionalLight { direction -0.4 -0.5 -1 intensity 1.5 }')
     size = layout.side + 2.5
-    floor = (f'Solid {{ translation {layout.side/2} {layout.side/2} -0.025 children [ Shape {{ '
-             'appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 } '
-             f'geometry Box {{ size {size} {size} 0.05 }} }} ] '
-             f'boundingObject Box {{ size {size} {size} 0.05 }} }}')
+    # Native R2025a Floor resolves to a locked Solid whose collision is a
+    # Plane at z=0 (not a 5-cm Box). Preserve that exact physics geometry
+    # offline; the visual surface is a separate IndexedFaceSet, as upstream.
+    # The former box substituted by packaging, not by the mission generator,
+    # created a distinct Windows landing/contact experiment.
+    half = size / 2
+    floor = '\n'.join((
+        f'Solid {{ translation {layout.side/2} {layout.side/2} 0',
+        '  name "floor"',
+        '  locked TRUE',
+        '  children [',
+        '    Shape {',
+        '      appearance PBRAppearance { baseColor 0.65 0.68 0.72 roughness 0.8 }',
+        '      geometry IndexedFaceSet {',
+        f'        coord Coordinate {{ point [ {-half} {-half} 0 {half} {-half} 0 {-half} {half} 0 {half} {half} 0 ] }}',
+        '        coordIndex [ 2 0 1 3 -1 ]',
+        '      }',
+        '    }',
+        '  ]',
+        f'  boundingObject Plane {{ size {size} {size} }}',
+        '}',
+    ))
     text = replace_once(text, f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}', floor)
     if re.search(r'"(?:https?|webots)://', text):
         raise ValueError('Nonlocal world resource')
