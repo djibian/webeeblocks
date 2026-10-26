@@ -40,7 +40,7 @@ jobs:
           # Development-only overlay: add missing Ubuntu GL headers, retain original Qt ELF.
           docker build --pull=false -t qt665-devheaders - <<EOF
           FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
-          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev && rm -rf /var/lib/apt/lists/*
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev xvfb xauth && rm -rf /var/lib/apt/lists/*
           EOF
           echo "ORIGINAL_IMAGE=$image;BUILD_IMAGE=qt665-devheaders;NOT_A_RUNTIME_RELEASE" > qt665-compiler.log
           image=qt665-devheaders
@@ -92,13 +92,13 @@ jobs:
             --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
             --output qt665-guarded-methods.cpp
           docker run --rm -v "$PWD:/workspace" -w /workspace \
-            -e QT_QPA_PLATFORM=offscreen qt665-devheaders bash -lc '
+            qt665-devheaders bash -lc '
             set -Eeuo pipefail
             qt=/usr/local/webots
             echo "QTDIR=$qt"
             ls "$qt/lib/webots" | grep "Qt6Widgets" | head -n 3
-            find "$qt" -name libqoffscreen.so -print
-            export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqoffscreen.so -print -quit)")"
+            find "$qt" -name libqxcb.so -print
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqxcb.so -print -quit)")"
             test -n "$QT_QPA_PLATFORM_PLUGIN_PATH"
             g++ -std=c++17 -fPIC -DQT_NO_DEBUG \
               -I"$qt/include/qt" -I"$qt/include/qt/QtCore" \
@@ -107,7 +107,7 @@ jobs:
               -Wl,-rpath,"$qt/lib/webots" \
               -lQt6Widgets -lQt6Gui -lQt6Core \
               -o ./qt665-guarded-methods
-            ./qt665-guarded-methods
+            QT_QPA_PLATFORM=xcb xvfb-run -a ./qt665-guarded-methods
           ' 2>&1 | tee qt665-method-harness.log
 
       - name: Publish bounded compile evidence even on failure
