@@ -79,18 +79,26 @@ def main():
         # Copy wrapper to same directory so its Webots-home resolution is stable.
         # Change only the final native-ELF execution into an exec of GDB.
         original = (HOME/'webots').read_text()
-        marker = '"$webots_home/bin/webots-bin" "$@"'
-        if original.count(marker)!=1:
-            raise RuntimeError('original wrapper native invocation is not unique')
+        launch_block = (
+            'if command -v primusrun >/dev/null 2>&1; then\n'
+            '  primusrun "$webots_home/bin/webots-bin" "$@" &\n'
+            'else\n'
+            '  "$webots_home/bin/webots-bin" "$@" &\n'
+            'fi'
+        )
+        if original.count(launch_block)!=1:
+            raise RuntimeError('pinned R2025a wrapper native launch block mismatch')
+        if shutil.which('primusrun'):
+            raise RuntimeError('unexpected primusrun: cannot preserve launch equivalence')
         injected = (
-            'exec gdb -q -nx -batch -iex "set auto-load off" '
+            'gdb -q -nx -batch -iex "set auto-load off" '
             '-iex "set debuginfod enabled off" '
             '-ex "set print frame-arguments none" -ex "set print entry-values no" '
             '-ex "source /workspace/experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_gdb.py" '
             '-ex "info breakpoints" -ex run -ex "info breakpoints" '
-            '--args "$webots_home/bin/webots-bin" "$@"'
+            '--args "$webots_home/bin/webots-bin" "$@" &'
         )
-        proxy.write_text(original.replace(marker,injected))
+        proxy.write_text(original.replace(launch_block,injected))
         proxy.chmod(0o700)
         record['wrapper'] = {'original_sha256':sha(HOME/'webots'),
                              'proxy_sha256':sha(proxy),'substitutions':1,
