@@ -1,0 +1,76 @@
+name: QT665 actual WebeeBlocks native consumer (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-consumer-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  consumer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 31
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: qt665-full-link-2b6c7a47518f1b3e1f5998447f68337284a88146
+          run-id: 40330799778
+          repository: djibian/webeeblocks
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: qt665-evidence
+      - name: Run unchanged latest-main Grand Prix native consumer with candidate ELF
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p ci-artifacts/qt665-consumer
+          echo "d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9  qt665-evidence/webots-bin" | sha256sum -c -
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -m py_compile tools/ci/run_grand_prix_u_prototype.py
+          ./tools/prepare_runtime_v2.sh
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-qt665-webots-src
+          git -C .ci-qt665-webots-src sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-qt665-webots-src rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          docker build -t qt665-native-consumer - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth libxcb-cursor0 && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          set +e
+          docker run --rm --init --shm-size=1g \
+            --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-qt665-webots-src/projects:/usr/local/webots/projects:ro" \
+            -v "$(command -v node):/usr/local/bin/node:ro" \
+            -w /workspace qt665-native-consumer -c '
+              set -Eeuo pipefail
+              install -m755 /workspace/qt665-evidence/webots-bin /usr/local/webots/bin/webots-bin
+              sha256sum /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-consumer/actual-binary.sha256
+              grep -q "^d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9 " ci-artifacts/qt665-consumer/actual-binary.sha256
+              (cd /usr/local/webots && sha256sum lib/webots/libQt6Widgets.so.6.5.3 lib/webots/libQt6Core.so.6.5.3) > ci-artifacts/qt665-consumer/actual-qt.sha256
+              ldd /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-consumer/actual-ldd.txt
+              ! grep -q "not found" ci-artifacts/qt665-consumer/actual-ldd.txt
+              export LIBGL_ALWAYS_SOFTWARE=true
+              for suite in short reset; do
+                echo "QT665_CONSUMER_START suite=$suite"
+                timeout -k 5s 1250s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "$suite" --seed 4 --side 2
+                echo "QT665_CONSUMER_PASS suite=$suite"
+              done
+            ' 2>&1 | tee ci-artifacts/qt665-consumer/console.txt
+          rc=\${PIPESTATUS[0]}
+          set -e
+          echo "$rc" > ci-artifacts/qt665-consumer/exit.txt
+          exit "$rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-consumer-${{ github.sha }}
+          path: |
+            ci-artifacts/qt665-consumer/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
+          retention-days: 14
