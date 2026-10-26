@@ -1,0 +1,18 @@
+ARCHIVE candidate-s0.tar.xz known mismatches []
+ARCHIVE candidate-s14-late-log-snapshot.tar.xz known mismatches ['events.jsonl', 'node.log', 'flight.log']
+ARCHIVE candidate-s14.tar.xz known mismatches ['node.log']
+ARCHIVE candidate-s15.tar.xz known mismatches []
+ARCHIVE candidate-s2.tar.xz known mismatches []
+ARCHIVE candidate-s3.tar.xz known mismatches []
+ARCHIVE candidate-s4.tar.xz known mismatches []
+ARCHIVE candidate-s5.tar.xz known mismatches ['flight.log']
+ARCHIVE historical-s3.tar.xz known mismatches []
+ARCHIVE negative-deadline.tar.xz known mismatches []
+ARCHIVE preparation-s1.tar.xz known mismatches []
+ARCHIVE preparation-s17.tar.xz known mismatches []
+REPLAY 0 100.544 1
+REPLAY 2 108.864 1
+REPLAY 3 123.776 2
+REPLAY 4 143.744 3
+REPLAY 15 102.56 1
+PASS archived byte integrity and five positive pose replays; known partial/refused cases remain partial/refused

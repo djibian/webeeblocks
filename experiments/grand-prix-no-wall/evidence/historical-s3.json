@@ -1,0 +1,17 @@
+{
+  "source_sha": "64969bfee49d0cc9bd0aba7e015280ac229b6a6e",
+  "historical_program_source": "4e0e6b21e43c68c19049430b46751c41ccf6ce28",
+  "archive": {
+    "size": 1865028,
+    "sha256": "149d836e18f2f518db03e6447c50379c783ade3946fa57955cafbad9b7a12ad5"
+  },
+  "result": {
+    "status": "not-achieved",
+    "configuration": "gp-u-v1-L2000-s3",
+    "attempt": 1,
+    "seconds": 28.632,
+    "reason": "off-track",
+    "crossings": 0
+  },
+  "harness": "witness refuted; no turn; late conditional-loop-limit retained; only documented AF_UNIX errors filtered by --tcp"
+}

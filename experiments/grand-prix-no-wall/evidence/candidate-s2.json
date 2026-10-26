@@ -1,0 +1,41 @@
+{
+  "folder": "gp-u-v1-L2000-s2-witness-5c0344b4f7",
+  "result": {
+    "status": "achieved",
+    "configuration": "gp-u-v1-L2000-s2",
+    "attempt": 1,
+    "seconds": 108.864,
+    "reason": null,
+    "crossings": 1
+  },
+  "ast_sha256": "b27f65fa1961de2a7b162b11feffcd6c1452769056f10d03e4770c5f32dd5d19",
+  "pose_replay_without_contacts": true,
+  "manifest_files": 11,
+  "samples_until_result": 13609,
+  "turn_requests": [
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 34 TURN 90.000000000000000",
+    "WEBEEBLOCKS_RUNTIME_V2 REQUEST 47 TURN 90.000000000000000"
+  ],
+  "crossing_clear_events": [
+    {
+      "time": 53.304,
+      "side": 0,
+      "progress": 0.3305689010713009,
+      "lateral": -7.635437352806445e-17,
+      "z": 0.3798862323370643
+    }
+  ],
+  "swept_boundary_margin_m": 0.1046298071273849,
+  "swept_collider_margin_m": 0.14796281287607652,
+  "final_position": [
+    0.6866418939523034,
+    2.0352989652236984,
+    0.014997481827497165
+  ],
+  "target": [
+    0.7,
+    2.0
+  ],
+  "time_margin_s": 101.136,
+  "errors": []
+}
