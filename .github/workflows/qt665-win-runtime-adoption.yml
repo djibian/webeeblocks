@@ -1,9 +1,9 @@
 # NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
 # A disposable CI runner is modified; this is NOT a classroom release.
-name: Qt665 Windows native loader vs symbol table (NON-GATE)
+name: Qt665 Windows full native import graph falsification (NON-GATE)
 on:
   push:
-    branches: [evidence/665-win-getprocaddress-20261026]
+    branches: [evidence/665-win-native-full-closure-20261026]
 permissions:
   contents: read
   actions: read
@@ -374,6 +374,100 @@ jobs:
           print("QT665_NATIVE_GETPROCADDRESS=PASS_DIRECT_NAMES_ONLY")
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Native GetProcAddress fails, archive disagreement; not a Windows runtime PASS' }
+      - name: Investigate full non-system DLL import graph using real Windows loader GetProcAddress
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          @'
+          import collections
+          import ctypes
+          import json
+          import os
+          from pathlib import Path
+          import pefile
+          
+          runtime=Path(os.environ["QT665_WEBOTS_BIN"])
+          plugins=Path(os.environ["QT665_WEBOTS_HOME"])/"msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll"
+          system=Path(os.environ["SystemRoot"])/"System32"
+          queue=collections.deque([runtime/"webots-bin.exe",runtime/"webots.exe",plugins])
+          seen=set()
+          missing=[]
+          errors=[]
+          modules=[]
+          system_names=set()
+          kernel=ctypes.WinDLL("kernel32",use_last_error=True)
+          gpa=kernel.GetProcAddress
+          gpa.argtypes=[ctypes.c_void_p,ctypes.c_char_p]
+          gpa.restype=ctypes.c_void_p
+          module_path=kernel.GetModuleFileNameW
+          module_path.argtypes=[ctypes.c_void_p,ctypes.c_wchar_p,ctypes.c_uint32]
+          module_path.restype=ctypes.c_uint32
+          total_names=0
+          while queue:
+              src=queue.popleft()
+              key=str(src.resolve()).casefold()
+              if key in seen:
+                  continue
+              seen.add(key)
+              if len(seen)>190:
+                  errors.append({"error":"unbounded-closure","count":len(seen)})
+                  break
+              if not src.is_file():
+                  errors.append({"error":"module-absent","module":str(src)})
+                  continue
+              pe=pefile.PE(str(src),fast_load=True)
+              pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+              descriptors=list(getattr(pe,"DIRECTORY_ENTRY_IMPORT",[]))
+              modules.append({"module":str(src),"imports":len(descriptors)})
+              for descriptor in descriptors:
+                  name=descriptor.dll.decode("ascii","replace")
+                  if name.lower().startswith(("api-ms-win-","ext-ms-win-")):
+                      system_names.add(name)
+                      continue
+                  local=runtime/name
+                  if not local.is_file():
+                      if (system/name).is_file():
+                          system_names.add(name)
+                          continue
+                      errors.append({"importer":src.name,"dependency":name,"error":"not-in-runtime-or-system"})
+                      continue
+                  queue.append(local)
+                  try:
+                      loaded=ctypes.WinDLL(str(local),use_last_error=True)
+                  except OSError as exc:
+                      errors.append({"importer":src.name,"dependency":name,"error":"native-LoadLibrary","detail":str(exc)})
+                      continue
+                  buf=ctypes.create_unicode_buffer(32768)
+                  n=module_path(loaded._handle,buf,len(buf))
+                  actual=Path(buf.value) if n else None
+                  if not n or actual.resolve().as_posix().casefold()!=local.resolve().as_posix().casefold():
+                      errors.append({"importer":src.name,"dependency":name,"error":"loaded-wrong-dll-path","actual":str(actual),"expected":str(local)})
+                      continue
+                  for symbol in descriptor.imports:
+                      if symbol.name is None:
+                          errors.append({"importer":src.name,"dependency":name,"error":"ordinal-not-tested","ordinal":symbol.ordinal})
+                          continue
+                      total_names+=1
+                      if not gpa(loaded._handle,symbol.name):
+                          missing.append({"importer":src.name,"dependency":name,"symbol":symbol.name.decode("ascii","replace")})
+              pe.close()
+          result={"claim":"native-Windows-GetProcAddress-over-recursive-non-system-PE-import-graph",
+                  "imported_names_checked":total_names,"modules":modules,
+                  "system_dependencies_excluded":sorted(system_names),
+                  "missing_named_exports":missing,"errors":errors}
+          path=Path("ci-artifacts/qt665-windows-running/native-transitive-getprocaddress.json")
+          path.write_text(json.dumps(result,indent=2)+"\n")
+          print(f"QT665_NATIVE_RECURSIVE_IMPORTS modules={len(modules)} names={total_names} missing={len(missing)} errors={len(errors)} system_excluded={len(system_names)}")
+          for item in (missing+errors)[:60]:
+              print("QT665_NATIVE_RECURSIVE_FINDING "+json.dumps(item,sort_keys=True))
+          if missing or errors:
+              print("QT665_NATIVE_RECURSIVE_CLOSURE=FAIL")
+              raise SystemExit(93)
+          print("QT665_NATIVE_RECURSIVE_CLOSURE=PASS_NON_SYSTEM_DIRECT_IMPORT_NAMES")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native full Windows dependency closure falsified, see archived causal names' }
       - name: Diagnose exact imported PE symbols against exported Qt and MinGW symbols
         if: always()
         shell: pwsh
