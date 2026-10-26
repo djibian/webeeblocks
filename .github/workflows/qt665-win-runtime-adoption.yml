@@ -45,7 +45,12 @@ jobs:
             test "$compiled" = "$installed" || { echo "QT665_WINDOWS_SDK_ABI_MISMATCH $compiled != $installed" >&2; exit 1; }
           done
           for mod in Qt6Core.dll Qt6Widgets.dll; do
-            cmp "qt665-patched-pe/$mod" "/mingw64/bin/$mod"
+            source_sha="$(sha256sum "qt665-patched-pe/$mod" | cut -d' ' -f1)"
+            installed_sha="$(sha256sum "/mingw64/bin/$mod" | cut -d' ' -f1)"
+            test "$source_sha" = "$installed_sha" || {
+              echo "QT665_WINDOWS_SDK_DLL_SHA_MISMATCH $mod" >&2
+              exit 1
+            }
           done
           source_sha="$(awk 'NR==1{print $1}' qt665-patched-pe/pe.sha256)"
           echo "$source_sha  qt665-patched-pe/webots-bin.exe" | sha256sum -c -
