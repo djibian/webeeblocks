@@ -1,9 +1,9 @@
 # NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
 # A disposable CI runner is modified; this is NOT a classroom release.
-name: Qt665 Windows native-before-static falsification (NON-GATE)
+name: Qt665 Windows native loader vs symbol table (NON-GATE)
 on:
   push:
-    branches: [evidence/665-win-native-before-static-20261026]
+    branches: [evidence/665-win-getprocaddress-20261026]
 permissions:
   contents: read
   actions: read
@@ -308,6 +308,72 @@ jobs:
               if (-not $proc.HasExited) {Stop-Process -Id $proc.Id -Force}
             }
           }
+      - name: Crosscheck flagged static PE symbols using Windows GetProcAddress on actual installed DLLs
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          @'
+          import ctypes
+          import json
+          import os
+          from pathlib import Path
+          import pefile
+          
+          bin = Path(os.environ["QT665_WEBOTS_BIN"])
+          plugins = Path(os.environ["QT665_WEBOTS_HOME"]) / "msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll"
+          roots = [bin / "webots-bin.exe", plugins]
+          kernel = ctypes.WinDLL("kernel32",use_last_error=True)
+          gpa=kernel.GetProcAddress
+          gpa.argtypes=[ctypes.c_void_p,ctypes.c_char_p]
+          gpa.restype=ctypes.c_void_p
+          reports=[]
+          errors=[]
+          for importer in roots:
+              pe=pefile.PE(str(importer),fast_load=True)
+              pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+              for descriptor in getattr(pe,"DIRECTORY_ENTRY_IMPORT",[]):
+                  name=descriptor.dll.decode("ascii","replace")
+                  if name.lower() not in ("qt6core.dll","qt6gui.dll","qt6widgets.dll"):
+                      continue
+                  target=bin/name
+                  try:
+                      lib=ctypes.WinDLL(str(target),use_last_error=True)
+                  except OSError as exc:
+                      errors.append({"importer":importer.name,"dependency":name,"load_error":str(exc)})
+                      continue
+                  missing=[]
+                  name_count=0
+                  ordinal_count=0
+                  for symbol in descriptor.imports:
+                      if symbol.name is None:
+                          ordinal_count+=1
+                          continue
+                      name_count+=1
+                      if not gpa(lib._handle,symbol.name):
+                          missing.append(symbol.name.decode("ascii","replace"))
+                  reports.append({"importer":importer.name,"dependency":name,
+                                  "names":name_count,"ordinals_unchecked":ordinal_count,
+                                  "native_getprocaddress_absent":missing})
+                  print(f"QT665_NATIVE_GETPROCADDRESS {importer.name}->{name} names={name_count} missing={len(missing)} ordinals_unchecked={ordinal_count}")
+                  for name in missing[:8]:
+                      print("QT665_NATIVE_MISSING_EXPORT " + importer.name + " " + name)
+              pe.close()
+          path=Path("ci-artifacts/qt665-windows-running/native-getprocaddress.json")
+          path.write_text(json.dumps({"claim":"native-Windows-GetProcAddress-on-identified-Qt-DLLs-not-Webots-process","reports":reports,"load_errors":errors},indent=2)+"\n")
+          if errors:
+              print("QT665_NATIVE_DLL_LOAD=FAIL",len(errors))
+              raise SystemExit(91)
+          if not reports or any(r["ordinals_unchecked"] for r in reports):
+              print("QT665_NATIVE_NAME_SCAN=UNPROVEN")
+              raise SystemExit(92)
+          if any(r["native_getprocaddress_absent"] for r in reports):
+              print("QT665_NATIVE_GETPROCADDRESS=FAIL")
+              raise SystemExit(93)
+          print("QT665_NATIVE_GETPROCADDRESS=PASS_DIRECT_NAMES_ONLY")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native GetProcAddress fails, archive disagreement; not a Windows runtime PASS' }
       - name: Diagnose exact imported PE symbols against exported Qt and MinGW symbols
         if: always()
         shell: pwsh
