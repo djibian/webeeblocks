@@ -10,7 +10,7 @@ const hash = crypto.createHash('sha256').update(bytes).digest('hex');
 const p = JSON.parse(bytes);
 assert.deepStrictEqual(p, require('./build').build(), 'sensor test must use the exact real generated pupil project');
 const names = p.workspace.variables.map(v => v.name), roots=p.workspace.blocks.blocks;
-assert.equal(names.length, 9);
+assert.equal(names.length, 10);
 const counts = {}, seen = new Set();
 function walk(b) {
   assert(b && !seen.has(b.id), 'duplicate block ID'); seen.add(b.id);
@@ -19,8 +19,8 @@ function walk(b) {
   if (b.next?.block) walk(b.next.block);
 }
 roots.forEach(walk);
-assert.equal(seen.size,222); assert.equal(counts.controls_if,17);
-assert.equal(counts.logic_compare,32);
+assert.equal(seen.size,232); assert.equal(counts.controls_if,17);
+assert.equal(counts.logic_compare,34);
 assert.equal(counts.procedures_callnoreturn,3);
 assert.equal(counts.procedures_defnoreturn,3);
 const proc=roots.find(b=>b.type==='procedures_defnoreturn' && b.fields.NAME==='observer et décider');
@@ -38,8 +38,8 @@ function evalBlock(b,s) {
   if(b.type==='logic_operation') return op==='AND' ? Boolean(a&&c) : Boolean(a||c);
   throw Error('unsupported pupil expression '+b.type);
 }
-function decide(side,avant,bas){
-  const s={'côté':side,avant,bas};
+function decide(side,avant,bas,passed=0){
+  const s={'côté':side,avant,bas,'H passé':passed};
   return evalBlock(gate.inputs.IF0.block,s)?'open':
     evalBlock(closed.inputs.IF0.block,s)?'closed':'anomaly';
 }
@@ -55,7 +55,8 @@ let ambiguous=0;
 for(const a of [.30,.35,.40]) for(const b of [.10,.20,.28,.35,.42,.44,.50,.65,.70])
   if(decide(3,a,b)==='anomaly')ambiguous++;
 assert(ambiguous>=8, 'the 206 simplification would erase these pupil fault decisions');
-console.log('PASS real WBB 222 SHA256 '+hash);
-console.log('PASS 222 blocks / 9 variables / 17 IF / 32 comparisons');
+console.log('PASS real WBB 232 guarded SHA256 '+hash);
+assert.equal(decide(3,.35,.70,1),'anomaly', 'a repeated open echo on final side must not count a new H');
+console.log('PASS 232 guarded blocks / 10 variables / 17 IF / 34 comparisons');
 console.log('PASS '+cases.length+' sensor cases, '+ambiguous+' anomalies among 27 side-3 observations');
 console.log('UNPROVEN: future #647 HEAD, native requalification, real editor, student usability');

@@ -31,5 +31,5 @@ for (const [call, name] of [
 assert.deepStrictEqual(staged[1].inputs.STACK.block.next.block.inputs.VALUE,
   original[1].inputs.STACK.block.next.block.inputs.VALUE,
   'real low front sensor measurement preserved');
-console.log('PASS exact extracted procedure bodies / 17 conditions / full ambiguity and H-count logic preserved');
+console.log('PASS exact extracted procedure bodies / 17 conditions / 34 comparisons / full ambiguity and H-count logic preserved');
 console.log('UNPROVEN native R2025a, editor navigation, OS picker, human pupil comprehension');

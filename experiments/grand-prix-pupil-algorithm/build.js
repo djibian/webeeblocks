@@ -1,13 +1,13 @@
 'use strict';
 // Grand Prix U sans murs — ALGORITHME EXPÉRIMENTAL, NON QUALIFIÉ.
 // Pure Blockly JSON built from ordinary student-editable blocks.
-// Experimental lean variant: omits a per-side H flag relying on <= 1 H per side.
-// Genuine native traces must disprove repeated detections before adoption.
+// Restores pupil-visible per-side H memory after a differential repeated-echo refutation.
+// Count only after rear evidence; keep ambiguous sensor measurements in fault state.
 // No seed, world plan, oracle, GPS, hidden telemetry or mission-specific block.
 function build() {
   let next = 0;
   const names = ['côté', 'portes', 'distance', 'état',
-                 'avant', 'bas', 'gauche', 'droite', 'arrière'];
+                 'avant', 'bas', 'gauche', 'droite', 'arrière', 'H passé'];
   const vid = name => 'gp-pupil-v2-' + names.indexOf(name);
   const B = (type, fields = {}, inputs = {}, extraState) => {
     const b = {type, id: 'gp-pupil-v2-b-' + (++next)};
@@ -52,13 +52,13 @@ function build() {
                  [M(0.1, 'right')],
                  [If(C('LT', V('droite'), A('MINUS', V('gauche'), 0.06)),
                    [M(0.1, 'left')])])];
-  const Passage = [...Adv(0.2), Set('gauche', R('left')), Set('droite', R('right')),
+  const Passage = [M(0.2), Set('gauche', R('left')), Set('droite', R('right')),
     If(And(And(C('GT', A('ADD', V('gauche'), V('droite')), 0.45),
                C('LT', A('ADD', V('gauche'), V('droite')), 0.75)),
            G('GT', 'bas', 0.6)),
-       [...Center, M(0.4), M(0.2), Add('distance', 6), Z('up'), Set('arrière', R('back')),
+       [...Center, M(0.4), M(0.2), Add('distance', 8), Z('up'), Set('arrière', R('back')),
         If(Between(() => V('arrière'), 0.30, 0.65),
-           [Add('portes', 1)], Fault())], Fault())];
+           [Add('portes', 1), Set('H passé', 1)], Fault())], Fault())];
   const ChosenPose = [
     If(G('EQ', 'portes', 2), [M(0.4, 'left'), M(0.1, 'left')]),
     If(G('EQ', 'portes', 3), [M(0.4, 'right'), M(0.1, 'right')]),
@@ -71,12 +71,12 @@ function build() {
            Set('avant', R('front'))], 6),
     If(Between(() => V('portes'), 1, 3), ChosenPose, Fault())];
   const Observe = [Z('down'), Set('bas', R('front')),
-    If(C('GT', V('bas'), A('ADD', V('avant'), 0.3)), Passage,
+    If(And(G('EQ', 'H passé', 0), C('GT', V('bas'), A('ADD', V('avant'), 0.3))), Passage,
        [If(And(G('EQ', 'côté', 3),
              Between(() => V('bas'), A('MINUS', V('avant'), 0.08),
                                      A('ADD', V('avant'), 0.08))),
           Closed, Fault())])];
-  const NearOpen = G('GTE', 'avant', 0.30);
+  const NearOpen = And(G('GTE', 'avant', 0.30), G('EQ', 'H passé', 0));
   const NearFinal = G('EQ', 'côté', 3);
   const Stride = [If(And(G('LT', 'côté', 3), G('GTE', 'distance', 17)),
                      Adv(0.1),
@@ -87,7 +87,7 @@ function build() {
         If(And(G('LTE', 'avant', 0.4), Or(NearOpen, NearFinal)), [B('procedures_callnoreturn', {}, {}, {name: 'observer et décider'})], Stride)
       ])
     ])];
-  const OneSide = [Set('distance', 0), Set('état', 0),
+  const OneSide = [Set('distance', 0), Set('H passé', 0), Set('état', 0),
     Until(C('NEQ', V('état'), 0), Step),
     If(And(G('LT', 'côté', 3), G('EQ', 'état', 1)),
        [B('webeeblocks_v2_turn', {DIRECTION: 'left', ANGLE: 90})]),
@@ -106,7 +106,7 @@ function build() {
                 variables: names.map((name, i) => ({name, id: vid(name)}))}};
 }
 
-// Pupil-visible staging only: preserve every nested statement and decision.
+// Pupil-visible staging with the per-side H memory restored.
 // The two ordinary Blockly procedures make passage and final landing navigable.
 // Neither procedure inspects hidden state or introduces an interpreter primitive.
 function buildModular() {
@@ -122,10 +122,10 @@ function buildModular() {
     type: 'procedures_defnoreturn', id: 'gp-pupil-v2-b-' + id,
     fields: {NAME: name}, inputs: {STACK: {block: body}}, x, y
   });
-  observer.inputs.DO0.block = call('franchir et confirmer le H', 219);
-  finalCase.inputs.DO0.block = call('approcher le H fermé et poser', 220);
-  roots.push(definition('franchir et confirmer le H', 221, opened, 1110, 80));
-  roots.push(definition('approcher le H fermé et poser', 222, closed, 1110, 1110));
+  observer.inputs.DO0.block = call('franchir et confirmer le H', 229);
+  finalCase.inputs.DO0.block = call('approcher le H fermé et poser', 230);
+  roots.push(definition('franchir et confirmer le H', 231, opened, 1110, 80));
+  roots.push(definition('approcher le H fermé et poser', 232, closed, 1110, 1110));
   return project;
 }
 
