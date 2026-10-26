@@ -53,8 +53,13 @@ jobs:
           ./scripts/install/msys64_installer.sh --all
           pacman -Q > ../ci-artifacts/qt665-windows-source/msys2-package-versions.txt
           sha256sum /mingw64/bin/Qt6Core.dll /mingw64/bin/Qt6Widgets.dll > ../ci-artifacts/qt665-windows-source/toolchain-qt.sha256
-          test -f include/qt/QtCore/QObject
-          test -f include/qt/QtWidgets/QProgressDialog
+          # Pinned upstream qt_windows_installer.sh deliberately stages
+          # each module in include/qt/QtCore/QtCore/*, not the Linux SDK path.
+          # A previous preflight falsely required include/qt/QtCore/QObject.
+          test -f include/qt/QtCore/QtCore/QObject
+          test -f include/qt/QtWidgets/QtWidgets/QProgressDialog
+          test -f /mingw64/include/qt6/QtCore/QObject
+          test -f /mingw64/include/qt6/QtWidgets/QProgressDialog
           echo QT665_WINDOWS_NATIVE_QT_SDK=PASS
       - name: Build real corrected Windows Webots PE, unchanged upstream make target
         shell: msys2 {0}
