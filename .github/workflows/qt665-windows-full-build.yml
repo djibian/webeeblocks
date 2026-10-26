@@ -87,7 +87,8 @@ jobs:
           test -s ../ci-artifacts/qt665-windows-source/qt-link-order.diff
           { for d in msys64/mingw64/bin /mingw64/lib; do
               if test -d "$d"; then
-                find "$d" -maxdepth 1 -type f \\( -iname '*Qt6Gui*' -o -iname '*Qt6Widgets*' \\)
+                find "$d" -maxdepth 1 -type f -iname '*Qt6Gui*'
+                find "$d" -maxdepth 1 -type f -iname '*Qt6Widgets*'
               else
                 echo "QT665_WINDOWS_LIBRARY_DIR_ABSENT $d" >&2
               fi
