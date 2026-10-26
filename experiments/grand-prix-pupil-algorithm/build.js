@@ -60,8 +60,8 @@ function build() {
         If(Between(() => V('arrière'), 0.30, 0.65),
            [Add('portes', 1)], Fault())], Fault())];
   const ChosenPose = [
-    If(G('EQ', 'portes', 2), [M(0.5, 'left')]),
-    If(G('EQ', 'portes', 3), [M(0.5, 'right')]),
+    If(G('EQ', 'portes', 2), [M(0.4, 'left'), M(0.1, 'left')]),
+    If(G('EQ', 'portes', 3), [M(0.4, 'right'), M(0.1, 'right')]),
     Set('état', 1)];
   // The interpreter already rejects exhausted bounded loops before exiting.
   // After a confirmed approach, reject an impossible pupil-observed H count.

@@ -1,5 +1,5 @@
 'use strict';
-// Lean 216-block variant: structural proof + production Blockly/compiler/project round-trip.
+// Lean 218-block variant: structural proof + production Blockly/compiler/project round-trip.
 // NOT a native Webots, browser GUI, safety, or pedagogical acceptance test.
 const assert = require('assert'), fs = require('fs'), path = require('path'), vm = require('vm');
 const {build} = require('./build');
@@ -15,7 +15,7 @@ function visit(b) {
   if (b.next?.block) visit(b.next.block);
 }
 project.workspace.blocks.blocks.forEach(visit);
-assert.strictEqual(ids.size, 216);
+assert.strictEqual(ids.size, 218);
 assert.strictEqual(project.workspace.variables.length, 9);
 assert.strictEqual(types.webeeblocks_v2_takeoff, 1);
 assert.strictEqual(types.webeeblocks_v2_land, 1);
@@ -46,7 +46,7 @@ function evaluatePupilCount(b, count) {
 }
 for (const count of [0, 1, 2, 3, 4])
   assert.strictEqual(evaluatePupilCount(guard, count), count >= 1 && count <= 3);
-console.log('PASS pure structural reproduction: 216 Blockly blocks, 10 variables, count 0..4 discriminated');
+console.log('PASS pure structural reproduction: 218 Blockly blocks, 10 variables, count 0..4 discriminated');
 if (process.argv.includes('--structural-only')) process.exit(0);
 const root = path.join(__dirname, '../..');
 const Blockly = require(path.join(root, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
@@ -71,7 +71,7 @@ Blockly.serialization.workspaces.load(project.workspace, workspace);
 Contract.preflightWorkspace(profile, workspace);
 const ast = Semantic.compileWorkspace(workspace);
 Contract.preflightAst(profile, ast);
-assert.strictEqual(workspace.getAllBlocks(false).length, 216);
+assert.strictEqual(workspace.getAllBlocks(false).length, 218);
 const result = ProjectFiles.validateProjectText(JSON.stringify(project), profile,
   {Blockly, profiles: Profiles, activitiesDocument: context.WebeeBlocksActivities.DOCUMENT,
     blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Semantic, activityContract: Contract});
