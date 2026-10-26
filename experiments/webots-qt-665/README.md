@@ -169,3 +169,59 @@ simulator, product binary adoption, or canonical **Ready** CI has occurred.
 The production launchers still execute the original official image; this
 experiment must NEVER be used as a #665 repair PASS or as a reason to
 weaken LAND/#700 tests.
+
+## Executed Qt 6.5.3 adversarial method regression — 26 October 2026
+
+A second, **separate** native C++/Qt experiment now qualifies bounded
+behaviors of the **five original patched method definitions**, as opposed
+to a reimplementation or a static text check.
+
+- Generator in this PR: `qt_guarded_method_harness.py`. It extracts the
+  method implementations verbatim from the **actually patched pinned Webots
+  source**, then supplies minimal Qt-compatible mocks only for the adjacent
+  `WbApplication` cancellation signal target and Windows dark-mode hook.
+- Diagnostic [run 40320524036](https://github.com/djibian/webeeblocks/actions/runs/40320524036),
+  exact evidence SHA `c7e0c2891620e17a0af455f3f5694b6da91672bb`,
+  completed **success**; [archive 12648602612](https://github.com/djibian/webeeblocks/actions/runs/40320524036/artifacts/12648602612),
+  ZIP SHA-256 `506e4fceae4b549ac2451003afd2ea143713ddb2633406af5c79a626429c88d3`.
+  The archived log verifies successful baseline/patched C++ object compilations,
+  the actual Qt xcb plugin loaded under Xvfb, and direct Qt 6.5.3 library
+  identity. It is a NON-GATE experimental `push` workflow **only on its
+  isolated evidence branch**, never an authorized workflow added to the PR.
+- The method executable is linked against the existing exact Qt 6.5.3
+  `libQt6Widgets`, `libQt6Gui`, and `libQt6Core` from the same pinned
+  Webots official image. Building requires a **development-only image** with
+  the native GL headers, Xvfb, xauth and xcb-cursor runtime dependency;
+  `LD_LIBRARY_PATH` mirrors the genuine Webots Linux launcher.
+- Observed executable assertions, without relying on mere non-crash:
+  `retire_mid_setValue: callback=1 guarded=1 old_alive_inside=1
+  old_alive_at_return=1 fresh_distinct=1
+  old_destroyed_after_return=1 fresh_active=1 status_safe=1
+  fresh_drained=1`;
+  `retire_during_creation: callback=1 guarded=1 alive_after=1
+  inactive=1 drained=1`;
+  `retire_during_status: callback=1 guarded=1 alive_after=1 drained=1`;
+  `cancel_preserved: before=0 after=1`.
+  Verdict: **`QT665_GUARDED_METHODS_VERDICT=PASS`**.
+
+**Reproduction:** in the *separate expendable R2025a checkout*, apply the
+candidate patch; run
+`python3 experiments/webots-qt-665/qt_guarded_method_harness.py
+--patched-cpp /path/to/webots/src/webots/gui/WbMainWindow.cpp
+--output qt665-guarded-methods.cpp`; compile this generated file with GCC
+C++17 and the pinned Qt 6.5.3 headers/libraries and run under Webots' Qt
+`xcb` platform and Xvfb. The diagnostic evidence branch holds the exact
+reproducible workflow and command lines, including initial environment
+failures. The initial `offscreen` plugin did not exist, and the native
+`xcb` plugin needed the same `LD_LIBRARY_PATH` as the Webots launcher.
+Those pre-execution failures are not source-patch failures.
+
+**LIMITATION:** this is a **method-identical C++ test harness**, not the
+linked Webots application, a real download callback in the full Webots
+event graph, a production `webots-bin`, a patched image digest, or causal
+modal native A/B inside real Webots. Window-parent destruction and
+asynchronous callbacks across generations remain to falsify. No assertion
+here implies that production/CI uses the corrected binary; the original
+official image is still selected. Do **not** promote Ready, merge, close
+#665, relax the canonical CI Gate or touch #637/#700 without all remaining
+native and adoption proofs.
