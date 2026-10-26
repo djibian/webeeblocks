@@ -329,3 +329,39 @@ The new `build_full_application.sh` recipe must generate an authentic
 new ELF and its native real-consumer matrix must pass before promotion.
 Existing oracles, negative cases, LAND 210 s, RESET and all other
 teams' Grand Prix changes remain untouched. Continue Draft/OPEN.
+
+## Linux candidate consumption — fail-closed prototype, NOT product adoption
+
+`attest_and_install_candidate.py` requires an **explicit full 64-character
+SHA-256** for the newly linked Linux executable. It rejects incorrect
+architecture/version, a binary equal to original R2025a, baseline ELF
+mismatch, wrong exact Qt6 Widgets/Core bytes, missing XCB plugin, unresolved
+native dependencies, and Qt libraries resolved outside this Webots runtime.
+By default it only reports `VERIFIED_NOT_INSTALLED`; replacement requires
+the conspicuous `--replace-disposable-installation` opt-in, intended
+**only for an expendable experimental container**, not a classroom machine.
+An audit JSON is always written. This helper does not certify provenance
+of its container image by itself, make a new binary qualified, or turn a
+Linux ELF into a Windows executable.
+
+Reproducible execution after the NEW full-link artifact is qualified:
+
+```bash
+python3 experiments/webots-qt-665/attest_and_install_candidate.py \
+  --runtime-home /usr/local/webots \
+  --candidate /workspace/qt665-evidence/webots-bin \
+  --expected-candidate-sha256 NEW_BINARY_SHA256_FROM_VERIFIED_ARTIFACT \
+  --manifest /workspace/qt665-evidence/installation.json \
+  --replace-disposable-installation
+```
+
+**Product integration NOT DONE.** Linux regular GP runner reads `IMAGE`
+from `tools/ci/run_grand_prix_u_geometry.py`; other `.github/workflows`
+invoke the original R2025a Docker tag. To consume a fully qualified fix
+officially, pin an immutable corrected Linux image digest and verify
+the ELF and Qt runtime identities **inside each real execution**.
+Windows `packaging/windows/Launch-WebeeBlocks.ps1` searches the installed
+Webots R2025a and currently validates the version, not this corrected
+binary. It needs a separately built, independently checked patched
+`webots-bin.exe` and exact Qt DLL closure; Linux sha256 evidence cannot
+be transferred to Windows. No implicit image/tag/Qt fallback permitted.
