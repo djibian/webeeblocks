@@ -139,11 +139,11 @@ function buildClassroom() {
   p.inputs.DO.block={type:'procedures_callnoreturn',id:'gp-pupil-v2-b-233',
     extraState:{name:'parcourir un côté'}};
   roots.push({type:'procedures_defnoreturn',id:'gp-pupil-v2-b-234',
-    fields:{NAME:'parcourir un côté'},inputs:{STACK:{block:side}},x:520,y:50});
-  roots[0].x=20;roots[0].y=30;
-  roots[1].x=1800;roots[1].y=60;
-  roots[2].x=1800;roots[2].y=800;
-  roots[3].x=1800;roots[3].y=2150;
+    fields:{NAME:'parcourir un côté'},inputs:{STACK:{block:side}},x:970,y:20});
+  roots[0].x=20;roots[0].y=20;
+  roots[1].x=2620;roots[1].y=20;
+  roots[2].x=2620;roots[2].y=740;
+  roots[3].x=20;roots[3].y=550;
   return project;
 }
 
