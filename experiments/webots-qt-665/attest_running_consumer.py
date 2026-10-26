@@ -41,6 +41,33 @@ def starttime(proc):
     return tail[19]
 
 
+def mapped_qt_files(maps, name, lib):
+    """Bind /proc/PID/maps Qt entries to an on-disk inode, not merely a pathname."""
+    mapped = set()
+    lib_stat = lib.stat()
+    expected_file_id = (os.major(lib_stat.st_dev), os.minor(lib_stat.st_dev), lib_stat.st_ino)
+    for line in maps.splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or not fields[5].startswith('/'):
+            continue
+        if fields[5].endswith(' (deleted)') and Path(fields[5][:-10]).name == name:
+            raise ValueError('Qt mapping has been deleted: ' + name)
+        path = Path(fields[5])
+        if path.name != name:
+            continue
+        device = fields[3].split(':')
+        if len(device) != 2:
+            raise ValueError('malformed Qt mapped device: ' + name)
+        try:
+            observed_file_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
+        except ValueError as exc:
+            raise ValueError('malformed Qt mapped file identity: ' + name) from exc
+        if observed_file_id != expected_file_id:
+            raise ValueError('Qt mapping inode differs from installed file: ' + name)
+        mapped.add(path.resolve(strict=True))
+    return mapped
+
+
 def attest(runtime_home, pid):
     if platform.system() != 'Linux' or platform.machine() != 'x86_64':
         raise ValueError('only native Linux x86_64 consumers supported')
@@ -70,25 +97,7 @@ def attest(runtime_home, pid):
             raise ValueError('Qt library escaped runtime root: ' + name)
         if sha256(lib) != expected:
             raise ValueError('Qt library checksum mismatch: ' + name)
-        mapped = set()
-        lib_stat = lib.stat()
-        expected_file_id = (os.major(lib_stat.st_dev), os.minor(lib_stat.st_dev), lib_stat.st_ino)
-        for line in maps.splitlines():
-            # The mapping pathname alone is insufficient: an existing process
-            # could still map old DSO bytes after a path was replaced. Require
-            # the same kernel device + inode as the checksum-qualified file.
-            fields = line.split(maxsplit=5)
-            if len(fields) != 6 or not fields[5].startswith('/') or fields[5].endswith(' (deleted)'):
-                continue
-            path = Path(fields[5])
-            if path.name == name:
-                device = fields[3].split(':')
-                if len(device) != 2:
-                    raise ValueError('malformed Qt mapped device: ' + name)
-                observed_file_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
-                if observed_file_id != expected_file_id:
-                    raise ValueError('Qt mapping inode differs from installed file: ' + name)
-                mapped.add(path.resolve(strict=True))
+        mapped = mapped_qt_files(maps, name, lib)
         if mapped != {lib}:
             raise ValueError('Qt library not uniquely mapped from runtime: ' + name)
         loaded[name] = expected
