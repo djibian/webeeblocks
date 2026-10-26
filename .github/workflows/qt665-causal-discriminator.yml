@@ -132,13 +132,10 @@ jobs:
                 -lQt6Widgets -lQt6Gui -lQt6Core \
                 -o /workspace/qt665-parent-methods
               sha256sum /workspace/qt665-parent-methods > /workspace/qt665-results/parent-executable.sha256
-              set +e
               timeout -k 5s 90s xvfb-run -a gdb -q -batch \
-                -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
+                -x /workspace/experiments/webots-qt-665/qt665_parent_debugger.gdb.py \
                 --args /workspace/qt665-parent-methods
-              rc=$?
-              set -e
-              echo "$rc" > /workspace/qt665-results/parent-gdb-exit.txt
+              echo 0 > /workspace/qt665-results/parent-gdb-exit.txt
               test -s "$QT665_TRACE_PATH"
               python3 /workspace/experiments/webots-qt-665/qt665_parent_trace_evaluator.py "$QT665_TRACE_PATH"
             ' 2>&1 | tee qt665-results/parent-gdb-console.log
