@@ -62,9 +62,9 @@ async function attempt(one){
    finalPortes:output?.variables?.portes??lastVars.portes,firstTurnPortes:turns[0]?.portes??null,error};
 }
 (async()=>{
- const ref=prepare(original,232),current=prepare(candidate,234);
+ const ref=prepare(original,232),current=prepare(candidate,232);
  const a=await attempt(ref),b=await attempt(current);
- console.log('REPEATED_H_ECHO_SYNTHETIC_TRACE '+JSON.stringify({reference232:a,candidate234_classroom:b}));
+ console.log('REPEATED_H_ECHO_SYNTHETIC_TRACE '+JSON.stringify({reference232:a,candidate232_contrast:b}));
  assert(a.turns.length>0 && b.turns.length>0,'no first corner was reached in the synthetic scenario');
  assert.equal(a.firstTurnPortes,1,'historic 232 reference guard changed');
  assert.equal(b.firstTurnPortes,1,'new guarded program must count only one H on first side');
