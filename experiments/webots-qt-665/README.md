@@ -308,6 +308,10 @@ own nested modal `QProgressDialog::setValue` call.
   `QT665_PARENT_LIVE_BAR_MAXIMUM_INSIDE_SET_VALUE=PASS`,
   `QT665_PARENT_DEFERRED_DELETE_AFTER_RETURN=PASS`,
   `QT665_PARENT_SHUTDOWN=PASS`.
+  [Modal GDB archive 12665596162](https://github.com/djibian/webeeblocks/actions/runs/40353966663/artifacts/12665596162)
+  ZIP SHA-256 `2ec4a77ea66e6158e05e7ab9be34214b9d5295c9b16200435cae596a5e4c7f68`;
+  [parent shutdown archive 12664117768](https://github.com/djibian/webeeblocks/actions/runs/40353966663/artifacts/12664117768)
+  ZIP SHA-256 `b585e95cff9445b198baf644f23418a76506b1b1c10384c4f4217986f7c8d5fe`.
 - **Reproduction:** apply the original patch to a CLEAN pinned R2025a
   checkout, then run
   `python3 experiments/webots-qt-665/repair_parent_shutdown.py
