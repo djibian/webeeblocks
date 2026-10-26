@@ -46,15 +46,20 @@ def mapped_qt_files(maps, name, lib):
     mapped = set()
     lib_stat = lib.stat()
     expected_file_id = (os.major(lib_stat.st_dev), os.minor(lib_stat.st_dev), lib_stat.st_ino)
+    # Linux maps Qt under its SONAME symlink (e.g. libQt6Core.so.6);
+    # the attested file itself is libQt6Core.so.6.5.3. Match the family,
+    # then bind both its *resolved* path and device:inode to exact bytes.
+    family = name.split('.so.', 1)[0] + '.so.'
     for line in maps.splitlines():
         fields = line.split(maxsplit=5)
         if len(fields) != 6 or not fields[5].startswith('/'):
             continue
-        if fields[5].endswith(' (deleted)') and Path(fields[5][:-10]).name == name:
+        mapped_name = Path(fields[5].removesuffix(' (deleted)')).name
+        if not mapped_name.startswith(family):
+            continue
+        if fields[5].endswith(' (deleted)'):
             raise ValueError('Qt mapping has been deleted: ' + name)
         path = Path(fields[5])
-        if path.name != name:
-            continue
         device = fields[3].split(':')
         if len(device) != 2:
             raise ValueError('malformed Qt mapped device: ' + name)
