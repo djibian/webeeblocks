@@ -1,4 +1,4 @@
-name: GP contrast: real Chromium WBB edit/Save/Open non-Gate
+name: 'GP contrast: real Chromium WBB edit/Save/Open non-Gate'
 on:
   push:
     branches: [experiment/gp-contrast-pupil-main17671-20261026]
