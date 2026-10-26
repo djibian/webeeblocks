@@ -72,7 +72,7 @@ diff --git a/src/webots/gui/WbMainWindow.cpp b/src/webots/gui/WbMainWindow.cpp
    mMaximizedWidget(NULL),
    mTcpServer(tcpServer) {
  #ifdef __APPLE__
-@@ -2498,55 +2500,99 @@
+@@ -2498,55 +2500,101 @@
      mTextEditor->show();
  }
  
@@ -166,6 +166,8 @@ diff --git a/src/webots/gui/WbMainWindow.cpp b/src/webots/gui/WbMainWindow.cpp
 +    dialog->setWindowTitle(tr("Loading world"));
 +    dialog->setLabelText(tr("Opening world file"));
 +    dialog->setCancelButton(cancelButton);
++    if (mWorldLoadingProgressDialog != dialog)
++      return;
 +    connect(dialog, &QProgressDialog::canceled, WbApplication::instance(), &WbApplication::setWorldLoadingCanceled);
 +
 +    if (mWorldLoadingProgressDialog != dialog)
@@ -191,7 +193,7 @@ diff --git a/src/webots/gui/WbMainWindow.cpp b/src/webots/gui/WbMainWindow.cpp
 +  mWorldLoadingProgressDialog = NULL;
 +  mRetiredWorldLoadingProgressDialogs.append(dialog);
 +  runWorldLoadingProgressOperation([dialog]() {
-+    disconnect(dialog, &QProgressDialog::canceled, WbApplication::instance(),
++    QObject::disconnect(dialog, &QProgressDialog::canceled, WbApplication::instance(),
 +               &WbApplication::setWorldLoadingCanceled);
 +    dialog->hide();  // No close()/cancel() signal and no synchronous delete.
 +  });
@@ -221,3 +223,24 @@ diff --git a/src/webots/gui/WbMainWindow.cpp b/src/webots/gui/WbMainWindow.cpp
  
  void WbMainWindow::startAnimationRecording() {
    const QString fileName = exportHtmlFiles();
+diff --git a/src/webots/app/WbApplication.cpp b/src/webots/app/WbApplication.cpp
+--- a/src/webots/app/WbApplication.cpp
++++ b/src/webots/app/WbApplication.cpp
+@@ -143,6 +143,6 @@
+   if (!mWorldLoadingProgressDialogCreated) {
+     // more than 2 seconds that world is loading
+-    emit createWorldLoadingProgressDialog();
+-    mWorldLoadingProgressDialogCreated = true;
++    mWorldLoadingProgressDialogCreated = true;
++    emit createWorldLoadingProgressDialog();
+   }
+   emit worldLoadingHasProgressed(progress);
+@@ -152,6 +152,6 @@
+   if (!mWorldLoadingProgressDialogCreated) {
+     // more than 2 seconds that world is loading
+-    emit createWorldLoadingProgressDialog();
+-    mWorldLoadingProgressDialogCreated = true;
++    mWorldLoadingProgressDialogCreated = true;
++    emit createWorldLoadingProgressDialog();
+   }
+   emit worldLoadingStatusHasChanged(status);
