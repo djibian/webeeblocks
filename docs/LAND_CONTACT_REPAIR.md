@@ -53,8 +53,16 @@ real physics: final X=0.1551717472 m, within 3 cm of its LAND request point;
 first observed contact VZ=-0.11452814 m/s. This is a different trajectory
 from the constant-slope experiment and inherits none of its other trials.
 Composition pose/deadline and instrumentation tests are rerun on the changed C.
-The real Grand Prix negative and all official positive/negative missions
-still require canonical evidence of the final exact Ready HEAD.
+A local native run of the real Grand Prix world, real evaluator and shared
+interpreter with the exact archived short AST returns the required wrong-landing
+at 13.736 s. It uses the official R2025a binary and source assets with external
+TCP controllers; the fixture substitutes the exact AST for the Blockly witness
+builder, and therefore does not claim editor/Blockly acquisition. An earlier
+support attempt had missing project paths, then one retained the expected native
+result but failed the runner on absent USER metadata; neither is relabelled PASS.
+The successful prepared run retains ordinary assertions and error handling.
+All official positive/negative missions still require canonical evidence of the
+final exact Ready HEAD.
 
 ## Recovered original captures
 
