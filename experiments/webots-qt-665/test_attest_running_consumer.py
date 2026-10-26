@@ -21,6 +21,19 @@ class RunningConsumerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 probe.starttime(proc)
 
+    def test_mapped_qt_inode_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lib = Path(directory)/'libQt6Core.so.6.5.3'
+            lib.write_bytes(b'exact-qt-in-test')
+            st = lib.stat()
+            device = f'{__import__("os").major(st.st_dev):02x}:{__import__("os").minor(st.st_dev):02x}'
+            line = f'7fb-8fb r-xp 00000000 {device} {st.st_ino} {lib}\n'
+            self.assertEqual(probe.mapped_qt_files(line, lib.name, lib), {lib})
+            with self.assertRaisesRegex(ValueError, 'inode differs'):
+                probe.mapped_qt_files(line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
+            with self.assertRaisesRegex(ValueError, 'deleted'):
+                probe.mapped_qt_files(line.strip()+ ' (deleted)\n', lib.name, lib)
+
     def test_self_process_cannot_be_mislabelled_webots(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)/'webots'
