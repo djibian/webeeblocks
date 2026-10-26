@@ -117,10 +117,43 @@ jobs:
           $env:WEBOTS_HOME=$env:QT665_WEBOTS_HOME
           $env:PATH="$bin;$($env:PATH)"
           $env:QT_QPA_PLATFORM_PLUGIN_PATH=Join-Path $env:QT665_WEBOTS_HOME 'msys64\mingw64\share\qt6\plugins\platforms'
+          # The Windows product invokes webots.exe, not webots-bin.exe
+          # directly for --version. Record BOTH CLI paths and their exit codes.
+          # A silent direct GUI executable is not evidence of a broken binary.
+          $sources=Join-Path $env:GITHUB_WORKSPACE 'qt665-patched-pe/pe-imports.txt'
+          $direct=@(Select-String -LiteralPath $sources -Pattern 'DLL Name:\\s*(\\S+)' -AllMatches |
+            ForEach-Object {$_.Matches} | ForEach-Object {$_.Groups[1].Value} | Sort-Object -Unique)
+          $missing=@()
+          foreach ($name in $direct) {
+            $local=Join-Path $bin $name
+            $sdk=Join-Path $env:QT665_MINGW_BIN $name
+            $system=Join-Path $env:SystemRoot ('System32\\'+$name)
+            if (-not (Test-Path -LiteralPath $local) -and -not (Test-Path -LiteralPath $system)) {
+              $missing+=@{name=$name;in_sdk=Test-Path -LiteralPath $sdk}
+            }
+          }
+          $missing | ConvertTo-Json -Depth 5 | Set-Content ci-artifacts/qt665-windows-running/missing-direct-imports.json
+          foreach ($name in @('libstdc++-6.dll','libgcc_s_seh-1.dll','libwinpthread-1.dll')) {
+            $local=Join-Path $bin $name
+            $sdk=Join-Path $env:QT665_MINGW_BIN $name
+            $left=if(Test-Path $local){(Get-FileHash $local -Algorithm SHA256).Hash.ToLowerInvariant()}else{'MISSING'}
+            $right=if(Test-Path $sdk){(Get-FileHash $sdk -Algorithm SHA256).Hash.ToLowerInvariant()}else{'MISSING'}
+            "$name installed=$left sdk=$right" | Add-Content ci-artifacts/qt665-windows-running/native-runtime-comparison.txt
+          }
+          if ($missing.Count) { throw ('Unresolved direct PE imports: '+($missing|ConvertTo-Json -Compress)) }
           $output=(& $exe --version 2>&1 | Out-String)
-          $output | Set-Content ci-artifacts/qt665-windows-running/version.txt
-          if ($LASTEXITCODE -ne 0 -or $output -notmatch 'R2025a') {throw "Real patched PE failed --version: $output"}
-          Write-Host 'QT665_WINDOWS_PATCHED_PE_CLI=PASS'
+          $directExit=$LASTEXITCODE
+          $output | Set-Content ci-artifacts/qt665-windows-running/version-direct-pe.txt
+          Write-Host "QT665_WINDOWS_DIRECT_GUI_VERSION_EXIT=$directExit"
+          $launcher=Join-Path $bin 'webots.exe'
+          $wrapperOutput=(& $launcher --version 2>&1 | Out-String)
+          $wrapperExit=$LASTEXITCODE
+          $wrapperOutput | Set-Content ci-artifacts/qt665-windows-running/version-launcher.txt
+          Write-Host "QT665_WINDOWS_LAUNCHER_VERSION_EXIT=$wrapperExit version=$wrapperOutput"
+          if ($wrapperExit -ne 0 -or $wrapperOutput -notmatch 'R2025a') {
+            throw 'The actual Windows Webots launcher is not qualified'
+          }
+          Write-Host 'QT665_WINDOWS_PATCHED_LAUNCHER_CLI=PASS'
           $world=Join-Path $env:RUNNER_TEMP 'qt665-windows-minimal.wbt'
           @'
           #VRML_SIM R2025a utf8
