@@ -85,5 +85,7 @@ cp "$runtime/bin/webots-bin" "$evidence/official-webots-bin"
 cp bin/webots-bin "$runtime/bin/webots-bin"
 sha256sum "$runtime/bin/webots-bin" > "$evidence/launcher-binary.sha256"
 unset WEBOTS_HOME
-timeout -k 5s 30s "$runtime/webots" --version > "$evidence/launcher-version.txt" 2>&1
+export QT_QPA_PLATFORM=xcb
+export LIBGL_ALWAYS_SOFTWARE=true
+timeout -k 5s 30s xvfb-run -a "$runtime/webots" --version > "$evidence/launcher-version.txt" 2>&1
 echo QT665_LAUNCHER_VERSION=PASS
