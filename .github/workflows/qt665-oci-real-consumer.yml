@@ -1,0 +1,58 @@
+# NON-GATE: no changes to Grand Prix oracles, no canonical Ready CI claim.
+name: Qt665 anonymous-pull immutable OCI Grand Prix (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-oci-real-consumer-20261026]
+permissions:
+  contents: read
+jobs:
+  real-grand-prix-consumer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pull the exact newly published OCI digest without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          docker logout ghcr.io || true
+          docker pull "$image"
+          docker run --rm --entrypoint /bin/bash "$image" -lc '
+            echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -
+            echo "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024  /usr/local/webots/lib/webots/libQt6Widgets.so.6" | sha256sum -c -
+            echo "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8  /usr/local/webots/lib/webots/libQt6Core.so.6" | sha256sum -c -
+          '
+          echo QT665_ANONYMOUS_IMMUTABLE_PULL=PASS
+      - name: Run unchanged native Grand Prix product runner using corrected OCI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/run_grand_prix_u_prototype.py --suite short
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          image='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
+          log=Path('ci-artifacts/grand-prix-u/docker.log').read_text()
+          assert 'GP_U_CONTAINER_START '+image in log
+          assert 'GP_U_NATIVE ' in log
+          data=json.loads(Path('ci-artifacts/grand-prix-u/campaign.json').read_text())
+          assert len(data)==1
+          assert data[0]['claim']=='native-shared-interpreter'
+          assert data[0]['mode']=='short'
+          assert data[0]['status']=='not-achieved' and data[0]['reason']=='wrong-landing'
+          assert data[0]['webots_version']=='R2025a'
+          print('QT665_REAL_GRAND_PRIX_CORRECTED_OCI=PASS')
+          PY
+      - name: Preserve real consumer output and Docker provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-real-grand-prix-${{ github.sha }}
+          path: ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
