@@ -120,7 +120,8 @@ def main():
     cpp = cpp.replace("bool s4 = testCancelPreserved();",
                       "bool s4 = testCancelPreserved();\n"
                       "  bool s5 = qt665_positive();\n"
-                      "  bool s6 = qt665_negative_outer_events();\n"\n                      "  bool s7 = qt665_late_cancel_generations();", 1)
+                      "  bool s6 = qt665_negative_outer_events();\n"
+                      "  bool s7 = qt665_late_cancel_generations();", 1)
     cpp = cpp.replace("(s1 && s2 && s3 && s4)",
                       "(s1 && s2 && s3 && s4 && s5 && s6 && s7)")
     args.output.write_text(cpp)
