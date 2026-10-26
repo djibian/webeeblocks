@@ -31,6 +31,8 @@ static bool takeoff=false,reset_ok=false;
 static int teleports=0,requests_at_tick=0;
 static long long receive_tick=-1;
 static std::vector<std::string> replies;
+static bool contact_seen=false;
+static int powered_settle_ticks=0;
 static bool reset_case(){return mode.find("reset-")==0;}
 static bool flight_case(){return mode.find("flight-")==0;}
 static bool reset_success(){return mode=="land" || mode=="error-ground" || mode=="loss-recover" ||
@@ -251,6 +253,13 @@ static bool saw(const std::string& text){
  return false;
 }
 extern "C" void gp_test_cleanup(){
+#ifndef GP_NATIVE
+ const char* contact_probe=std::getenv("GP_U_CONTACT_PROBE");
+ if(contact_probe){
+  assert(mode=="land" && contact_seen);
+  assert((std::string(contact_probe)=="ground")== (powered_settle_ticks==0));
+ }
+#endif
  const auto self=wb_supervisor_node_get_self();
  const char* result=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(self,"customData"));
  const char* authority=wb_supervisor_field_get_sf_string(wb_supervisor_node_get_field(wb_supervisor_node_get_from_def("GP_U_EVALUATOR"),"customData"));
@@ -323,6 +332,17 @@ extern "C" void wb_distance_sensor_enable(int,int){}
 extern "C" double wb_distance_sensor_get_value(int){return 1000;}
 extern "C" void wb_led_set(int,int){}
 extern "C" void* wb_supervisor_node_get_self(){return (void*)1;}
+extern "C" WbContactPoint* wb_supervisor_node_get_contact_points(WbNodeRef,bool,int* count){
+ const char* probe=std::getenv("GP_U_CONTACT_PROBE");
+ *count=0;
+ // One contact sample, then loss during the settling window. A high obstacle
+ // or unavailable contact height must not switch off the flight controller.
+ if(!probe || tick!=212144)return nullptr;
+ contact_seen=true;*count=1;
+ static WbContactPoint point;
+ point.point[2]=std::string(probe)=="ground"?0:std::string(probe)=="high"?.5:NAN;
+ return &point;
+}
 extern "C" void* wb_supervisor_node_get_from_def(const char* name){
  if(!std::strcmp(name,"GP_U_EVALUATOR"))return (void*)2;
  if(!std::strcmp(name,"WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD"))return (void*)3;
@@ -353,6 +373,7 @@ extern "C" void* wb_supervisor_field_get_mf_node(void*,int){assert(false);return
 extern "C" void wb_supervisor_field_import_mf_node_from_string(void*,int,const char*){assert(false);}
 void init_pid_attitude_fixed_height_controller(){}
 void pid_velocity_fixed_height_controller(actual_state_t a,desired_state_t* d,gains_pid_t,double,motor_power_t* p){
+ if(std::getenv("GP_U_CONTACT_PROBE") && tick>=212144 && tick<212656)++powered_settle_ticks;
  assert(std::isfinite(a.roll) && std::isfinite(a.pitch) && std::isfinite(a.yaw_rate) &&
   std::isfinite(a.altitude) && std::isfinite(a.vx) && std::isfinite(a.vy));
  assert(std::isfinite(d->roll) && std::isfinite(d->pitch) && std::isfinite(d->yaw_rate) &&

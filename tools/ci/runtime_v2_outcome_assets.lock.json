@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "source_commit": "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b",
+  "assets": [
+    {
+      "path": "projects/appearances/protos/Parquetry.proto",
+      "bytes": 1916,
+      "sha256": "0a7d8f9a7e99908bc32c439f40204887d1aecd27a6c897d723df7b1e048c6785",
+      "git_blob": "8f2ccbf67c1e6a03abd197e401386c12280f0504"
+    },
+    {
+      "path": "projects/appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg",
+      "bytes": 2128463,
+      "sha256": "e8743835bcc4919913a8c08269e8966d206ac55436043d307a4c652863d6f9fd",
+      "git_blob": "e14a50cafa209e5e9c38397be490fd4dc548f19c"
+    },
+    {
+      "path": "projects/appearances/protos/textures/parquetry/chequered_parquetry_normal.jpg",
+      "bytes": 1771537,
+      "sha256": "a6b0afa30a90f5e81bf2122ae945e4644b3e48a77f39ea2e50a13293aee06173",
+      "git_blob": "77a054c938850b2a65712a3383dd644bf37b029a"
+    },
+    {
+      "path": "projects/appearances/protos/textures/parquetry/chequered_parquetry_occlusion.jpg",
+      "bytes": 1117326,
+      "sha256": "ed8035831dba336f506ded7a64e6aaf20ed41bfc9c58fb6d5bd63536bc7867e3",
+      "git_blob": "c08e9439895c169b1a9e79c1b366b210fd529e8a"
+    },
+    {
+      "path": "projects/appearances/protos/textures/parquetry/chequered_parquetry_roughness.jpg",
+      "bytes": 501000,
+      "sha256": "a4ff9820d8e1fdfff9d5facb0df650bfd528537d36b52dbd8f0973c5cd5601db",
+      "git_blob": "da6a2b8a6751895509fea385393387a84e47f208"
+    },
+    {
+      "path": "projects/default/protos/textures/fast_helix.png",
+      "bytes": 114564,
+      "sha256": "b6e3f9e32dc165bd71f815e5585844071170391595beb36842faef7563eea49c",
+      "git_blob": "102f49358f1e4455e4adb0e3553f5fd58dd08c75"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_back.hdr",
+      "bytes": 262193,
+      "sha256": "86487374bf4f44ae5406e02ab577c5c65177b4598c9bb1b7471611b7c6235104",
+      "git_blob": "1acbd854891479436febe843308136600083f58e"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_back.jpg",
+      "bytes": 13932,
+      "sha256": "3e7992243a6cdbcea93b9be2c6ff795117f5de1d1ac4a58a817d0493702c5650",
+      "git_blob": "8528f3ffbdc5953133429af02f5388c328042753"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_bottom.hdr",
+      "bytes": 262193,
+      "sha256": "261b4c8941c1ac409c1d24b81b042481b49ab54c72e533fb3e5b58f503e97366",
+      "git_blob": "b4931bfb2409abdafded733daa5b5b30bfc9e801"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_bottom.jpg",
+      "bytes": 4605,
+      "sha256": "dab398a830d90303b6f6564e43c5da8ca969f5686c5af036a0c7566f40f708c9",
+      "git_blob": "7b40c04c68946d7d539fee8ad89a9d04ed3f7493"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_front.hdr",
+      "bytes": 262193,
+      "sha256": "8ddb2bb7db3968d2341ff8684691ab48899c058f728bc8445e66beae10044a2c",
+      "git_blob": "fd1c128d45fde5f9b4f418d6ceec52a9a7acb548"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_front.jpg",
+      "bytes": 14995,
+      "sha256": "a9af978e54b75e696e08a7b42dbe0e4406a7979d09a650f46740ae59593a6d6b",
+      "git_blob": "59059005f47858be76d434b44546d290dd212d37"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_left.hdr",
+      "bytes": 262193,
+      "sha256": "01a576c90f6f73c6373ed8eee42ba9c81542be4f0b65510920f01a0229b1a8b9",
+      "git_blob": "fc68b93249807bd7252a1936f06d714c261622ee"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_left.jpg",
+      "bytes": 15206,
+      "sha256": "74e642490d4327fe3f526baaedfc4c73bde7ca5a94cdc422476b4024e3a026b1",
+      "git_blob": "e24d65ccaf401dc940063f7ace10fe9053045179"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_right.hdr",
+      "bytes": 262193,
+      "sha256": "91cc406d56b3a0773e2ef91d0c8ca4e2412ea74d1cc9442a08a866b6fc65ecfb",
+      "git_blob": "384c50e0351fe900b7893e5a62cb8d23f883fdff"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_right.jpg",
+      "bytes": 13903,
+      "sha256": "1b650b4984c16007a45cd90f83a1c1d3a572451e80413e4abb6a56ec053497ef",
+      "git_blob": "6dcd3e9c75b1c038763f2a3047e04932de3bfb6a"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_top.hdr",
+      "bytes": 262193,
+      "sha256": "ad20354918869f20a5b2bc27d757b3556020bb74be2d6e5f680f75b17fa69cd3",
+      "git_blob": "f7904241109e00d536d52e5ba3993bfb46bc03ac"
+    },
+    {
+      "path": "projects/default/worlds/textures/cubic/mountains_top.jpg",
+      "bytes": 13883,
+      "sha256": "90ae5a9d6ecce742a08afa604988876a33a8a664ac120d33c8f358741e172559",
+      "git_blob": "ebe64a423cd5861e09873f4abbc58ef69ca40045"
+    },
+    {
+      "path": "projects/objects/backgrounds/protos/TexturedBackground.proto",
+      "bytes": 4286,
+      "sha256": "8ea2ec89cbec31d1c62d11d7548271f072273ba89873800d5842d67140e97c64",
+      "git_blob": "707094b0bdfe933efe8a9b1b4ec5fb992e52485f"
+    },
+    {
+      "path": "projects/objects/backgrounds/protos/TexturedBackgroundLight.proto",
+      "bytes": 4935,
+      "sha256": "103b96d670659ecb54974a76c731374e384cef0a4a053b9b090742f1dbb9041e",
+      "git_blob": "be5785fd472a210ff577a9e0398f5adfec4d298f"
+    },
+    {
+      "path": "projects/objects/floors/protos/Floor.proto",
+      "bytes": 2985,
+      "sha256": "bd4cfb4a12ee412ad91326bfd55e9dd5048bec063c02cd2ade9b0df01f471800",
+      "git_blob": "6d587208332a91565dcdd005948f113b9d61c935"
+    },
+    {
+      "path": "projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto",
+      "bytes": 6000,
+      "sha256": "a434208247886102b1f855eb3cbd592741fb83c33b8a842ea85892e610eb6778",
+      "git_blob": "e46d3199315d56977b15f7da11790cc4c88cc977"
+    },
+    {
+      "path": "projects/robots/bitcraze/crazyflie/protos/meshes/ccw_prop.dae",
+      "bytes": 35355,
+      "sha256": "f696b51ff7d5b5b3a02546c60eb12359b5e3c414cb72c0666d8bf1051f58c627",
+      "git_blob": "5b2fa6d30aa416ba84c5fd92254fa3bb5aa73bbe"
+    },
+    {
+      "path": "projects/robots/bitcraze/crazyflie/protos/meshes/cf2_assembly.dae",
+      "bytes": 166601,
+      "sha256": "e399c21d923f1bccf8ca265a6f8387dcb34f84f376595366108fe6c14cba4c4b",
+      "git_blob": "d8afac6033148e8ae663e07303d0c3199fcafcf1"
+    }
+  ]
+}

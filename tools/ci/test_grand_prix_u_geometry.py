@@ -20,8 +20,6 @@ class Tests(unittest.TestCase):
         for seed in range(1024):
             layout = generate(seed)
             self.assertEqual(layout.walls, first.walls)
-            # Corridor limits are tape, not colliding wall solids. The
-            # lateral lines continue the two H side posts at +/- 0.30 m.
             self.assertEqual(layout.walls, ())
             self.assertAlmostEqual(layout.width, .60)
             self.assertAlmostEqual(layout.polygon[0][1], -layout.width/2)
@@ -31,12 +29,16 @@ class Tests(unittest.TestCase):
             self.assertTrue(1 <= len(layout.gates) <= 3)
             self.assertEqual(len({g.side for g in layout.gates}), len(layout.gates))
             seen.add(len(layout.gates))
-            for b in layout.boxes:
-                # Every collider either reaches the full wall height or is
-                # a suspended H crossbar. There is no knee-height collider.
+            # All pre-terminal colliders retain their full upper envelope;
+            # only the deliberately visible terminal H crossbar ends lower.
+            for b in layout.boxes[:-4]:
                 self.assertAlmostEqual(b.z+b.sz/2, 1.3)
+            for b in (layout.gate_boxes[-4], layout.gate_boxes[-3],
+                      layout.gate_boxes[-1]):
+                self.assertAlmostEqual(b.z+b.sz/2, 1.3)
+            self.assertAlmostEqual(layout.gate_boxes[-2].z+layout.gate_boxes[-2].sz/2, .81)
             text = world_text(layout)
-            self.assertEqual(text.count('DEF GP_U_BAND_'), 2*len(layout.gates))
+            self.assertEqual(text.count('DEF GP_U_BAND_'), 16*len(layout.gates))
             red_dashes = [line for line in text.splitlines()
                            if line.startswith('DEF GP_U_BOUNDARY_')]
             self.assertGreater(len(red_dashes), 30)
@@ -44,10 +46,47 @@ class Tests(unittest.TestCase):
                                 'boundingObject' not in line and
                                 'baseColor .95 .06 .06' in line
                                 for line in red_dashes))
-            # The only physical boxes are gates, including the terminal H.
             self.assertEqual(text.count('DEF GP_U_BOX_'), len(layout.gate_boxes))
             self.assertNotIn('candidate_points', text)
         self.assertEqual(seen, {1,2,3})
+
+    def test_u_guide_and_dashed_low_flight_bands_are_noncolliding(self):
+        for seed in (0, 1, 2, 5, 65535):
+            layout = generate(seed)
+            text = world_text(layout)
+            lines = text.splitlines()
+            guides = [line for line in lines if line.startswith('DEF GP_U_GUIDE_')]
+            self.assertEqual(len(guides), 3)
+            self.assertEqual({line.split()[1] for line in guides},
+                             {'GP_U_GUIDE_0', 'GP_U_GUIDE_1', 'GP_U_GUIDE_2'})
+            self.assertTrue(all('boundingObject' not in line for line in guides))
+            self.assertTrue(all('baseColor .96 .96 .96' in line for line in guides))
+            for i, gate in enumerate(layout.gates):
+                for kind in ('BEFORE', 'AFTER'):
+                    dashes = [line for line in lines
+                              if line.startswith(f'DEF GP_U_BAND_{i}_{kind}_')]
+                    self.assertEqual(len(dashes), 8)
+                    self.assertEqual({line.split()[1] for line in dashes},
+                                     {f'GP_U_BAND_{i}_{kind}_{n}' for n in range(8)})
+                    self.assertTrue(all('boundingObject' not in line for line in dashes))
+                    self.assertTrue(all('baseColor .98 .85 .1' in line for line in dashes))
+            self.assertEqual(len(layout.boxes), len(generate(seed).boxes))
+
+    def test_viewpoint_tracks_the_crazyflie_without_authority(self):
+        # Native Viewpoint fields exist in the pinned Webots R2025a contract;
+        # the tracked name is the one already required by the native evaluator.
+        for seed in (0, 1, 5):
+            text = world_text(generate(seed))
+            view = [line for line in text.splitlines()
+                    if line.startswith('Viewpoint {')]
+            self.assertEqual(len(view), 1)
+            self.assertIn('follow "Crazyflie WebeeBlocks"', view[0])
+            self.assertIn('followType "Tracking Shot"', view[0])
+            self.assertIn('followSmoothness 0.20', view[0])
+            self.assertEqual(text.count('Viewpoint {'), 1)
+            self.assertNotIn('supervisor TRUE', view[0])
+        # Nothing in layout generation or the independent mission oracle
+        # derives steering, success or gate counts from this camera setting.
 
     def test_low_gate_envelope_and_high_collision_are_discriminated(self):
         for seed in range(32):
@@ -62,9 +101,23 @@ class Tests(unittest.TestCase):
         for count in (1,2,3):
             x,y = layout.landing_target(count)
             self.assertGreater(min(gap((x,y,.4),b) for b in layout.boxes), RADIUS)
-        for y_mm in range(1100,2901,10):
-            # Even the full widened terminal cross-section is blocked.
-            self.assertLess(gap((0.,y_mm/1000,.4),layout.gate_boxes[-1]),RADIUS)
+        terminal = layout.gate_boxes[-4:]
+        self.assertEqual(len(terminal), 4)
+        self.assertEqual([round(b.y-layout.side,2) for b in terminal],
+                         [-.87,.87,0.,0.])
+        # Whole-width closure remains physical at low, normal and high flight
+        # altitudes: making an H silhouette must never open a bypass.
+        for z in (.10, .40, .75, 1.20):
+            for y_mm in range(1100,2901,10):
+                self.assertLess(min(gap((0.,y_mm/1000,z),b) for b in terminal),
+                                RADIUS)
+        world = world_text(layout)
+        boxes = [line for line in world.splitlines()
+                 if line.startswith('DEF GP_U_BOX_')]
+        self.assertEqual(len(boxes), len(layout.boxes))
+        self.assertTrue(all('boundingObject Box' in line for line in boxes))
+        self.assertEqual(sum('transparency .65' in line for line in boxes), 1)
+        self.assertIn('transparency .65', boxes[-1])
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 

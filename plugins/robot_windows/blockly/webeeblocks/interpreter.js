@@ -73,6 +73,11 @@
           break; // A conditional loop can execute zero times.
         }
         case 'repeat':{var count=Number(statement.count);if(!Number.isInteger(count)||count<1||count>20)fail('repeat count out of bounds');validateSequence(statement.body,depth+1,true,assigned,variables);break;}
+        // Calls contain a bounded compiler expansion, never a runtime name lookup.
+        case 'call':{
+          if(typeof statement.name!=='string'||!statement.name.trim()||statement.name.length>80)fail('invalid procedure name');
+          validateSequence(statement.body,depth+1,true,assigned,variables);break;
+        }
         default:fail('unsupported statement kind '+statement.kind);
       }
     });
@@ -104,6 +109,7 @@
         if(node.kind==='if')cost+=expressionCost(node.condition)+Math.max(sequenceCost(node.then),sequenceCost(node.else||[]));
         if(node.kind==='while')cost+=(node.max_iterations+1)*expressionCost(node.condition)+node.max_iterations*(1+sequenceCost(node.body));
         if(node.kind==='repeat')cost+=node.count*sequenceCost(node.body);
+        if(node.kind==='call')cost+=sequenceCost(node.body);
         if(cost>maxSteps)fail('reachable execution exceeds runtime budget before takeoff');
       });
       return cost;
@@ -192,15 +198,17 @@
           break;
         }
         case 'repeat':for(var repeat=0;repeat<statement.count;repeat++){await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:repeat}));await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);}break;
+        case 'call':await hook(options,'beforeStep',current);await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);break;
       }
     }
   }
 
-  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||(node.kind==='repeat'&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
+  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||((node.kind==='repeat'||node.kind==='call')&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
+  function containsProcedureCall(sequence){return sequence.some(function(node){return node.kind==='call'||(node.body&&containsProcedureCall(node.body))||(node.then&&containsProcedureCall(node.then))||(node.else&&containsProcedureCall(node.else));});}
   function containsElapsedTime(sequence){
     function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
     return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
   }
-  async function run(ast,backend,options){validateProgram(ast);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
+  async function run(ast,backend,options){validateProgram(ast);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var procedures=containsProcedureCall(ast.program);if(procedures&&!(backend&&backend.capabilities&&backend.capabilities.procedures===true))fail('procedures unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(procedures||containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
   return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });

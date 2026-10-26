@@ -33,6 +33,10 @@
 #define RESET_WINDOW 0.25
 #define RESET_TIMEOUT 5.0
 #define ACTION_TIMEOUT 25.0
+// Bound the LAND reference slope rather than stepping the height PID to ground.
+#define LAND_DESCENT_SPEED 0.15
+#define LAND_APPROACH_SPEED 0.40
+#define LAND_APPROACH_HEIGHT 0.30
 
 typedef enum {
   CMD_IDLE,
@@ -87,6 +91,17 @@ static void clip_vector(double *x, double *y, double limit) {
   }
 }
 
+// A faster far approach preserves mission timing, while the last 30 cm use
+// the independently exercised slow reference slope. This is a setpoint profile,
+// not an asserted bound on measured vertical velocity.
+static double land_altitude_reference(double start_z, double ground_z, double elapsed) {
+  const double approach_distance = fmax(0.0, start_z - ground_z - LAND_APPROACH_HEIGHT);
+  const double approach_time = approach_distance / LAND_APPROACH_SPEED;
+  if (elapsed <= approach_time)
+    return start_z - LAND_APPROACH_SPEED * elapsed;
+  return fmax(ground_z, start_z - approach_distance - LAND_DESCENT_SPEED * (elapsed - approach_time));
+}
+
 static double motor_power(double value) {
   if (value < 0.0)
     return 0.0;
@@ -108,6 +123,22 @@ static void stop_motors(WbDeviceTag m1, WbDeviceTag m2, WbDeviceTag m3, WbDevice
   wb_motor_set_velocity(m2, 0.0);
   wb_motor_set_velocity(m3, 0.0);
   wb_motor_set_velocity(m4, 0.0);
+}
+
+// Contact starts the unpowered settling phase; it does not acknowledge LAND.
+// Keep the original height/vertical-speed window and timeout below. Continuing
+// an airborne PID through an impact can turn a small rebound into powered slip.
+static int land_has_ground_contact(double z, double ground_z) {
+  if (!isfinite(z) || !isfinite(ground_z) || fabs(z - ground_z) > ALT_TOL)
+    return 0;
+  int count = 0;
+  const WbContactPoint *points = wb_supervisor_node_get_contact_points(
+    wb_supervisor_node_get_self(), true, &count);
+  for (int i = 0; points && i < count; ++i) {
+    if (isfinite(points[i].point[2]) && points[i].point[2] <= ground_z)
+      return 1;
+  }
+  return 0;
 }
 
 static void send_text(const char *text) {
@@ -390,6 +421,13 @@ int main(void) {
   char active_direction[32] = {0};
   double stable_since = -1.0;
   double action_start = 0.0;
+  double land_start_z = origin_z;
+  int land_touchdown = 0;
+  // Diagnostic only: count completed RESET samples before a timeout.
+  unsigned long reset_pose_bad_samples = 0;
+  unsigned long reset_motion_bad_samples = 0;
+  unsigned long reset_both_ready_samples = 0;
+  double reset_max_stable = 0.0;
 
   gains_pid_t gains;
   memset(&gains, 0, sizeof(gains));
@@ -505,6 +543,10 @@ int main(void) {
         move_speed_limit = VX_MAX;
         command = CMD_RESET;
         stable_since = -1.0;
+        reset_pose_bad_samples = 0;
+        reset_motion_bad_samples = 0;
+        reset_both_ready_samples = 0;
+        reset_max_stable = 0.0;
         action_start = now;
         continue;
       }
@@ -701,7 +743,12 @@ int main(void) {
         active_id = request.id;
         active_value = 0.0;
         active_direction[0] = '\0';
+        target_x = x;
+        target_y = y;
+        target_yaw = yaw;
         target_z = origin_z;
+        land_start_z = z;
+        land_touchdown = 0;
         command = CMD_LAND;
         stable_since = -1.0;
         action_start = now;
@@ -733,12 +780,15 @@ int main(void) {
                       "position=%.9f,%.9f,%.9f origin=%.9f,%.9f,%.9f "
                       "rpy=%.9f,%.9f,%.9f origin_rpy=%.9f,%.9f,%.9f "
                       "velocity_world=%.9f,%.9f,%.9f yaw_rate=%.9f "
-                      "stable_duration=%.6f dt=%.6f\n",
+                      "stable_duration=%.6f dt=%.6f pose_bad=%lu motion_bad=%lu "
+                      "both_ready=%lu max_stable=%.6f\n",
               active_id, now - action_start,
               x, y, z, origin_x, origin_y, origin_z,
               rpy[0], rpy[1], yaw, origin_roll, origin_pitch, origin_yaw,
               vx_global, vy_global, vz, actual.yaw_rate,
-              stable_since < 0.0 ? -1.0 : now - stable_since, dt);
+              stable_since < 0.0 ? -1.0 : now - stable_since, dt,
+              reset_pose_bad_samples, reset_motion_bad_samples,
+              reset_both_ready_samples, reset_max_stable);
       fflush(stderr);
       response_error(active_id, "RESET_TIMEOUT");
       stop_motors(m1, m2, m3, m4);
@@ -762,9 +812,16 @@ int main(void) {
                              fabs(rpy[1] - origin_pitch) < YAW_TOL && fabs(wrap_angle(yaw - origin_yaw)) < YAW_TOL;
       const int motion_ready = hypot(actual.vx, actual.vy) < SPEED_TOL && fabs(vz) < VZ_TOL &&
                                fabs(actual.yaw_rate) < YAW_RATE_TOL;
+      if (!pose_ready)
+        ++reset_pose_bad_samples;
+      if (!motion_ready)
+        ++reset_motion_bad_samples;
       if (pose_ready && motion_ready) {
+        ++reset_both_ready_samples;
         if (stable_since < 0.0)
           stable_since = now;
+        if (now - stable_since > reset_max_stable)
+          reset_max_stable = now - stable_since;
         if (now - stable_since >= RESET_WINDOW) {
           trace_reset(x, y, z, origin_x, origin_y, origin_z);
           response_ok(active_id);
@@ -890,7 +947,22 @@ int main(void) {
         stable_since = -1.0;
       }
     } else if (command == CMD_LAND) {
-      desired.altitude = origin_z;
+      if (!land_touchdown && land_has_ground_contact(z, origin_z)) {
+        land_touchdown = 1;
+        printf(PREFIX " TRACE LAND_TOUCHDOWN time=%.9f\n", now);
+        fflush(stdout);
+      }
+      // Preserve the requested landing point during the descent. A velocity
+      // brake alone can stop horizontal motion at a different position.
+      const double error_x = target_x - x;
+      const double error_y = target_y - y;
+      const double body_x = error_x * cy + error_y * sy;
+      const double body_y = -error_x * sy + error_y * cy;
+      desired.vx = POSITION_KP * body_x;
+      desired.vy = POSITION_KP * body_y;
+      clip_vector(&desired.vx, &desired.vy, VX_MAX);
+      desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
+      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);
       if (z <= origin_z + ALT_TOL && fabs(vz) < VZ_TOL) {
         if (stable_since < 0.0)
           stable_since = now;
@@ -923,7 +995,11 @@ int main(void) {
       desired.altitude = target_z;
     }
 
-    if (airborne || command != CMD_IDLE) {
+    if (command == CMD_LAND && land_touchdown) {
+      // Latch through loss of contact during a rebound. Do not reapply thrust
+      // until a separate, admitted takeoff; LAND still waits for its window.
+      stop_motors(m1, m2, m3, m4);
+    } else if (airborne || command != CMD_IDLE) {
       pid_velocity_fixed_height_controller(actual, &desired, gains, dt, &power);
       wb_motor_set_velocity(m1, -motor_power(power.m1));
       wb_motor_set_velocity(m2, motor_power(power.m2));
