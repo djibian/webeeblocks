@@ -1,0 +1,91 @@
+name: QT665 pinned native object compilation probe (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-compile-probe-20261026]
+permissions:
+  contents: read
+jobs:
+  object-compilation:
+    name: Original versus patched R2025a C++ objects (no link)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          fetch-depth: 1
+          persist-credentials: false
+          path: upstream-webots
+          sparse-checkout: |
+            src/webots
+            include
+            resources/Makefile.os.include
+          sparse-checkout-cone-mode: false
+      - name: Source provenance (not compilation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/webots-qt-665/qualify_source_patch.py --webots-tree upstream-webots > qt665-source.json
+      - name: Probe original and patched object compilation in exact official image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          image='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker pull "$image"
+          echo "IMAGE=$image" > qt665-compiler.log
+          docker run --rm -v "$PWD/upstream-webots:/source" -w /source "$image" bash -lc '
+            set -Eeuo pipefail
+            root=/usr/local/webots
+            echo "compiler=$(command -v g++ || true)"
+            g++ --version | head -n 1
+            echo "qt_library_sha256:"
+            sha256sum "$root/lib/webots/libQt6Widgets.so.6.5.3" "$root/lib/webots/libQt6Core.so.6.5.3"
+            for part in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do
+              test -d "$root/include/qt/$part" || { echo "MISSING_NATIVE_QT_HEADER:$part"; exit 41; }
+            done
+            dir=/source/src/webots
+            include=(-I"$dir" -I/source/include -I"$root/include" -I"$root/include/qt")
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util; do include+=(-I"$dir/$p"); done
+            for part in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$part"); done
+            for p in wren ode controller/c; do include+=(-I"/source/include/$p"); done
+            include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
+            for spec in gui/WbMainWindow.cpp app/WbApplication.cpp; do
+              echo "COMPILING:$spec"
+              g++ -std=c++17 -DQT_NO_DEBUG -fPIC -c "${include[@]}" "$dir/$spec" -o "/source/$(basename "$spec" .cpp).o"
+            done
+            sha256sum /source/WbMainWindow.o /source/WbApplication.o
+          ' >> qt665-compiler.log 2>&1
+          cp qt665-compiler.log qt665-original.log
+          git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          docker run --rm -v "$PWD/upstream-webots:/source" -w /source "$image" bash -lc '
+            set -Eeuo pipefail
+            root=/usr/local/webots
+            dir=/source/src/webots
+            include=(-I"$dir" -I/source/include -I"$root/include" -I"$root/include/qt")
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util; do include+=(-I"$dir/$p"); done
+            for part in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$part"); done
+            for p in wren ode controller/c; do include+=(-I"/source/include/$p"); done
+            include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
+            for spec in gui/WbMainWindow.cpp app/WbApplication.cpp; do
+              echo "COMPILING_PATCHED:$spec"
+              g++ -std=c++17 -DQT_NO_DEBUG -fPIC -c "${include[@]}" "$dir/$spec" -o "/source/$(basename "$spec" .cpp).o"
+            done
+            sha256sum /source/WbMainWindow.o /source/WbApplication.o
+          ' >> qt665-compiler.log 2>&1
+          tail -n 80 qt665-compiler.log
+      - name: Publish bounded compile evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-compile-probe-${{ github.sha }}
+          path: |
+            qt665-source.json
+            qt665-compiler.log
+            qt665-original.log
+          if-no-files-found: warn
+          retention-days: 14
