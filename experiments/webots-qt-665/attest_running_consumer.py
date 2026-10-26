@@ -71,14 +71,23 @@ def attest(runtime_home, pid):
         if sha256(lib) != expected:
             raise ValueError('Qt library checksum mismatch: ' + name)
         mapped = set()
+        lib_stat = lib.stat()
+        expected_file_id = (os.major(lib_stat.st_dev), os.minor(lib_stat.st_dev), lib_stat.st_ino)
         for line in maps.splitlines():
-            # /proc/maps paths are the final field; memory paths without a
-            # leading slash and deleted/replaced DSOs are never accepted.
+            # The mapping pathname alone is insufficient: an existing process
+            # could still map old DSO bytes after a path was replaced. Require
+            # the same kernel device + inode as the checksum-qualified file.
             fields = line.split(maxsplit=5)
             if len(fields) != 6 or not fields[5].startswith('/') or fields[5].endswith(' (deleted)'):
                 continue
             path = Path(fields[5])
             if path.name == name:
+                device = fields[3].split(':')
+                if len(device) != 2:
+                    raise ValueError('malformed Qt mapped device: ' + name)
+                observed_file_id = (int(device[0], 16), int(device[1], 16), int(fields[4]))
+                if observed_file_id != expected_file_id:
+                    raise ValueError('Qt mapping inode differs from installed file: ' + name)
                 mapped.add(path.resolve(strict=True))
         if mapped != {lib}:
             raise ValueError('Qt library not uniquely mapped from runtime: ' + name)
