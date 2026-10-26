@@ -16,7 +16,7 @@ jobs:
           name: qt665-full-link-2b6c7a47518f1b3e1f5998447f68337284a88146
           run-id: 40330799778
           repository: djibian/webeeblocks
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: qt665-evidence
       - name: Verify binary identity and run launcher on Xvfb/XCB
         shell: bash
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: qt665-xcb-smoke-\${{ github.sha }}
+          name: qt665-xcb-smoke-${{ github.sha }}
           path: results/
           retention-days: 14
           if-no-files-found: warn
