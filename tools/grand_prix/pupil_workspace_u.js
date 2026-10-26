@@ -12,7 +12,7 @@ function build() {
   const content = fs.readFileSync(file, 'utf8');
   assert.deepStrictEqual(JSON.parse(content),
     require(path.join(ROOT, 'experiments/grand-prix-pupil-algorithm/build.js')).build(),
-    'exact generated 234-classroom-block WBB identity before admission');
+    'exact generated 232-contrast-block WBB identity before admission');
   const project = JSON.parse(content);
   const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
   require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
@@ -47,7 +47,7 @@ function build() {
     const reopenedAst = Semantic.compileWorkspace(reopened);
     Contract.preflightAst(profile, reopenedAst);
     assert.deepStrictEqual(reopenedAst, ast, 'same AST on reopen');
-    assert.strictEqual(workspace.getAllBlocks(false).length, 234);
+    assert.strictEqual(workspace.getAllBlocks(false).length, 232);
     return {ast, project_sha256: crypto.createHash('sha256').update(content).digest('hex'),
       ast_sha256: crypto.createHash('sha256').update(JSON.stringify(ast)).digest('hex')};
   } finally {workspace.dispose(); reopened.dispose();}
@@ -57,7 +57,7 @@ if (require.main === module) {
   const witness = build();
   console.log('GP_U_PUPIL_PREFLIGHT ' + JSON.stringify({
     source_pr: 703, source_head: '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81',
-    derived_from: '1bc106f99d58ca12d2a05239dbdaaddda9dd396b', project_sha256: witness.project_sha256,
-    ast_sha256: witness.ast_sha256, blocks: 234,
+    derived_from: '7204975ad0d05b0fb2bcfe56e2690e225dfd9266', project_sha256: witness.project_sha256,
+    ast_sha256: witness.ast_sha256, blocks: 232,
     claim: 'real-Blockly-13.2.1-preflight-AST-roundtrip-only'}));
 }
