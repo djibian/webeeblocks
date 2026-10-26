@@ -1,0 +1,41 @@
+# Independent parameter falsification: evidence branch, no PR/CI Gate changes.
+name: GP703 native side lengths R2025a
+on:
+  push:
+    branches:
+      - experiment/gp703-native-lengths-20261026
+permissions:
+  contents: read
+jobs:
+  varying-side:
+    name: Same student WBB, side lengths 2,3,4,5,6 m
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Attest exact 647 parent and immutable student Blockly source
+        run: |
+          test "$(git rev-parse HEAD^)" = '949bec6c9f5560d1eccad6a9532feef6d7673b44'
+          test "$(git diff --name-only HEAD^ HEAD)" = '.github/workflows/gp703-native-lengths.yml'
+          test "$(git rev-parse HEAD^:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '02c0cdef8fc7189aa171b584a8160b52e392ba1c'
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Run existing native sizes observation suite (failures remain visible)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp703-lengths
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite sizes --seed 4 2>&1 | tee ci-artifacts/gp703-lengths/runner.log
+      - name: Archive all successes and failures without changing verdicts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-native-r2025a-lengths-2-to-6-m
+          path: |
+            ci-artifacts/gp703-lengths/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
