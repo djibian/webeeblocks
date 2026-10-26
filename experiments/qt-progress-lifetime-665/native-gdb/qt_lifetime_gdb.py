@@ -9,10 +9,28 @@ import json
 
 serial = itertools.count(1)
 active = {}
+probes = {}
+coverage_reported = False
 
 def out(kind, **kw):
     data = dict(schema=1, n=next(serial), kind=kind, **kw)
     gdb.write('WBB_QT665 ' + json.dumps(data, sort_keys=True) + '\n')
+
+def report_live_coverage():
+    """Pending symbols do not count as a resolved native probe."""
+    global coverage_reported
+    if coverage_reported:
+        return
+    coverage_reported = True
+    resolved = {}
+    for name, bp in probes.items():
+        try:
+            resolved[name] = bool(bp.enabled and not bp.pending and bp.locations)
+        except Exception as exc:
+            resolved[name] = False
+            out('gap', where='coverage_resolution', symbol=name, error=str(exc))
+    out('coverage_live', resolved=resolved,
+        all_resolved=len(resolved) == 5 and all(resolved.values()))
 
 def thread_id():
     t = gdb.selected_thread()
@@ -52,6 +70,7 @@ class Returned(gdb.FinishBreakpoint):
 class Entry(gdb.Breakpoint):
     def stop(self):
         try:
+            report_live_coverage()
             t, p, ident = thread_id(), ptr(), next(serial)
             f = dict(id=ident, dialog=p, bar=None, dead_dialog=False,
                      dead_bar=False)
@@ -134,6 +153,7 @@ for name, create in specs:
     try:
         bp = create()
         bp.silent = True
+        probes[name] = bp
         coverage[name] = {'installed': True, 'pending_initially': bool(bp.pending)}
     except Exception as exc:
         coverage[name] = {'installed': False, 'error': str(exc)}
