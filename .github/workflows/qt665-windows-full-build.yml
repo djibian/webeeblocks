@@ -61,7 +61,7 @@ jobs:
           test -f /mingw64/include/qt6/QtCore/QObject
           test -f /mingw64/include/qt6/QtWidgets/QProgressDialog
           echo QT665_WINDOWS_NATIVE_QT_SDK=PASS
-      - name: Build real corrected Windows Webots PE, unchanged upstream make target
+      - name: Build repaired Windows Webots with explicit experimental Qt linker priority
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -85,8 +85,14 @@ jobs:
           PY
           git diff -- src/webots/Makefile > ../ci-artifacts/qt665-windows-source/qt-link-order.diff
           test -s ../ci-artifacts/qt665-windows-source/qt-link-order.diff
-          find msys64/mingw64/bin /mingw64/lib -maxdepth 1 -iname '*Qt6Gui*' -o -iname '*Qt6Widgets*' \
-            > ../ci-artifacts/qt665-windows-source/qt-library-search-candidates.txt
+          { for d in msys64/mingw64/bin /mingw64/lib; do
+              if test -d "$d"; then
+                find "$d" -maxdepth 1 -type f \\( -iname '*Qt6Gui*' -o -iname '*Qt6Widgets*' \\)
+              else
+                echo "QT665_WINDOWS_LIBRARY_DIR_ABSENT $d" >&2
+              fi
+            done; } > ../ci-artifacts/qt665-windows-source/qt-library-search-candidates.txt
+          test -s ../ci-artifacts/qt665-windows-source/qt-library-search-candidates.txt
                     make webots_target -j4 2>&1 | tee ../ci-artifacts/qt665-windows-source/build.log
           # Capture the true native PE BEFORE any later qualifier may fail.
           # Do not require a redundant DLL copy inside the Webots checkout:
