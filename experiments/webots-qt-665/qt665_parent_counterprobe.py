@@ -37,7 +37,14 @@ static int qt665_parent_probe() {
     });
   window->setWorldLoadingProgress(51);
   qt665_marker(34, dialogId, barId);
-  return 0;
+  const bool aliveAtReturn = !old.isNull() && !bar.isNull();
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  const bool drained = old.isNull() && bar.isNull();
+  qt665_marker(35, dialogId, barId);
+  std::printf("QT665_PARENT_DEFERRED_RETURN alive=%d drained=%d\n", aliveAtReturn, drained);
+  return (aliveAtReturn && drained) ? 0 : 34;
 }
 """
 
