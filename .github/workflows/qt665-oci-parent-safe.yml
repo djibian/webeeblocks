@@ -1,0 +1,74 @@
+# NON-GATE isolated publishing experiment, not a Ready CI.
+name: Qt665 pinned Linux OCI digest (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-oci-parent-safe-20261026]
+permissions:
+  contents: read
+  actions: read
+  packages: write
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40354624966
+          name: qt665-parent-safe-full-link-e5fa2d8c1409a1c97f63d9b14039683ffcfb0b05
+          path: qt665-source
+          github-token: ${{ github.token }}
+      - name: Verify reproducible source and build an image without rebuilding Webots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/qt665-oci-distribution qt665-oci
+          echo 'e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  qt665-source/webots-bin' | sha256sum -c -
+          cp qt665-source/webots-bin qt665-oci/webots-bin
+          cat > qt665-oci/Dockerfile <<'DOCKERFILE'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN echo '1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb  /usr/local/webots/bin/webots-bin' | sha256sum -c -
+          COPY --chmod=0755 webots-bin /usr/local/webots/bin/webots-bin
+          RUN echo 'e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin' | sha256sum -c -
+          DOCKERFILE
+          cp qt665-oci/Dockerfile ci-artifacts/qt665-oci-distribution/Dockerfile
+          printf 'source_elf=e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545\nbase_digest=f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099\nevidence_sha=%s\n' "$GITHUB_SHA" > ci-artifacts/qt665-oci-distribution/provenance.txt
+          docker build --no-cache --pull -t ghcr.io/djibian/webeeblocks-qt665-r2025a:elf-e45a90b580a00f50 qt665-oci 2>&1 | tee ci-artifacts/qt665-oci-distribution/build.log
+      - name: Verify mapped Qt library identities in the new image
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-qt665-r2025a:elf-e45a90b580a00f50
+          docker run --rm --entrypoint /bin/bash "$image" -lc '
+            set -euo pipefail
+            echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -
+            echo "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024  /usr/local/webots/lib/webots/libQt6Widgets.so.6" | sha256sum -c -
+            echo "ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8  /usr/local/webots/lib/webots/libQt6Core.so.6" | sha256sum -c -
+            test "$(cat /usr/local/webots/resources/version.txt)" = R2025a
+            timeout -k 5s 30s xvfb-run -a /usr/local/webots/webots --version
+          ' 2>&1 | tee ci-artifacts/qt665-oci-distribution/launcher.txt
+      - name: Publish and verify immutable GHCR digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/djibian/webeeblocks-qt665-r2025a:elf-e45a90b580a00f50
+          echo "$GH_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker push "$image" 2>&1 | tee ci-artifacts/qt665-oci-distribution/push.log
+          digest="$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')"
+          case "$digest" in ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:*) ;; *) echo 'No verified GHCR digest' >&2; exit 1;; esac
+          echo "$digest" > ci-artifacts/qt665-oci-distribution/immutable-image.txt
+          docker pull "$digest"
+          docker run --rm --entrypoint /bin/bash "$digest" -lc '
+            echo "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  /usr/local/webots/bin/webots-bin" | sha256sum -c -
+          '
+          echo QT665_IMMUTABLE_LINUX_OCI=PASS
+      - name: Upload immutable distribution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-oci-${{ github.sha }}
+          path: ci-artifacts/qt665-oci-distribution/
+          if-no-files-found: error
