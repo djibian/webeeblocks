@@ -1,0 +1,223 @@
+diff --git a/src/webots/gui/WbMainWindow.hpp b/src/webots/gui/WbMainWindow.hpp
+--- a/src/webots/gui/WbMainWindow.hpp
++++ b/src/webots/gui/WbMainWindow.hpp
+@@ -19,8 +19,11 @@
+ // Description: Webots main window
+ //
+ 
+-#include <QtCore/QMap>
+-#include <QtWidgets/QMainWindow>
++#include <QtCore/QList>
++#include <QtCore/QMap>
++#include <QtWidgets/QMainWindow>
++
++#include <functional>
+ 
+ #include "WbLog.hpp"
+ #include "WbShareWindow.hpp"
+@@ -140,10 +143,11 @@
+   void updateRobotNameInOverlaysMenu();
+   void addRobotInOverlaysMenu(WbRobot *robot);
+   void removeRobotInOverlaysMenu(const WbRobot *robot);
+-  void createWorldLoadingProgressDialog();
+-  void deleteWorldLoadingProgressDialog();
+-  void setWorldLoadingProgress(const int progress);
+-  void setWorldLoadingStatus(const QString &status);
++  void createWorldLoadingProgressDialog();
++  void deleteWorldLoadingProgressDialog();
++  void setWorldLoadingProgress(const int progress);
++  void setWorldLoadingStatus(const QString &status);
++  void runWorldLoadingProgressOperation(const std::function<void()> &operation);
+   void stopAnimationRecording();
+   void toggleAnimationIcon();
+   void toggleAnimationAction(bool isRecording);
+@@ -181,8 +185,11 @@
+   QMenu *mRobotDisplayMenu;
+   QAction *mToggleFullScreenAction;
+   QAction *mExitFullScreenAction;
+-  QProgressDialog *mWorldLoadingProgressDialog;
+-  QProgressDialog *mUploadProgressDialog;
++  QProgressDialog *mWorldLoadingProgressDialog;
++  // A retired dialog remains owned by this window until all nested Qt calls to it return.
++  unsigned int mWorldLoadingProgressOperationDepth;
++  QList<QProgressDialog *> mRetiredWorldLoadingProgressDialogs;
++  QProgressDialog *mUploadProgressDialog;
+   QTimer *mAnimationRecordingTimer;
+   bool mIsFullScreenLocked;
+   bool mWorldIsBeingDeleted;
+diff --git a/src/webots/gui/WbMainWindow.cpp b/src/webots/gui/WbMainWindow.cpp
+--- a/src/webots/gui/WbMainWindow.cpp
++++ b/src/webots/gui/WbMainWindow.cpp
+@@ -82,8 +82,9 @@
+ 
+ #include <QtCore/QDir>
+ #include <QtCore/QJsonDocument>
+-#include <QtCore/QJsonObject>
+-#include <QtCore/QThread>
++#include <QtCore/QJsonObject>
++#include <QtCore/QPointer>
++#include <QtCore/QThread>
+ #include <QtCore/QTimer>
+ #include <QtCore/QUrl>
+ 
+@@ -114,8 +115,9 @@
+   mRecentFiles(NULL),
+   mOdeDebugger(NULL),
+   mOverlayMenu(NULL),
+-  mWorldLoadingProgressDialog(NULL),
+-  mIsFullScreenLocked(false),
++  mWorldLoadingProgressDialog(NULL),
++  mWorldLoadingProgressOperationDepth(0),
++  mIsFullScreenLocked(false),
+   mMaximizedWidget(NULL),
+   mTcpServer(tcpServer) {
+ #ifdef __APPLE__
+@@ -2498,55 +2500,99 @@
+     mTextEditor->show();
+ }
+ 
+-void WbMainWindow::createWorldLoadingProgressDialog() {
+-  if (mWorldLoadingProgressDialog)
+-    return;
+-
+-  if (isMinimized())
+-    return;
+-
+-  QPushButton *cancelButton = new QPushButton();
+-  cancelButton->setText(tr("Cancel"));
+-  cancelButton->setAutoDefault(false);
+-  cancelButton->setDefault(false);
+-  cancelButton->setChecked(false);
+-
+-  mWorldLoadingProgressDialog = new QProgressDialog(this);
+-  mWorldLoadingProgressDialog->setModal(true);
+-  mWorldLoadingProgressDialog->setAutoClose(false);
+-  mWorldLoadingProgressDialog->show();
+-  WbGuiApplication::setWindowsDarkMode(mWorldLoadingProgressDialog);
+-  mWorldLoadingProgressDialog->setValue(0);
+-  mWorldLoadingProgressDialog->setWindowTitle(tr("Loading world"));
+-  mWorldLoadingProgressDialog->setLabelText(tr("Opening world file"));
+-  mWorldLoadingProgressDialog->setCancelButton(cancelButton);
+-  connect(mWorldLoadingProgressDialog, &QProgressDialog::canceled, WbApplication::instance(),
+-          &WbApplication::setWorldLoadingCanceled);
+-  QApplication::processEvents();
+-}
+-
+-void WbMainWindow::deleteWorldLoadingProgressDialog() {
+-  if (mWorldLoadingProgressDialog) {
+-    disconnect(mWorldLoadingProgressDialog, &QProgressDialog::canceled, WbApplication::instance(),
+-               &WbApplication::setWorldLoadingCanceled);
+-    delete mWorldLoadingProgressDialog;
+-    mWorldLoadingProgressDialog = NULL;
+-  }
+-}
+-
+-void WbMainWindow::setWorldLoadingProgress(const int progress) {
+-  if (mWorldLoadingProgressDialog) {
+-    mWorldLoadingProgressDialog->setValue(progress);
+-    QApplication::processEvents();
+-  }
+-}
+-
+-void WbMainWindow::setWorldLoadingStatus(const QString &status) {
+-  if (mWorldLoadingProgressDialog) {
+-    mWorldLoadingProgressDialog->setLabelText(status);
+-    QApplication::processEvents();
+-  }
+-}
++// Deletion through a Qt event callback must never destroy the dialog/bar while
++// QProgressDialog::setValue() (or another protected call) is still on the stack.
++// In particular, setValue() itself may call processEvents() before bar->maximum().
++void WbMainWindow::runWorldLoadingProgressOperation(const std::function<void()> &operation) {
++  ++mWorldLoadingProgressOperationDepth;
++  const QPointer<WbMainWindow> window(this);
++  operation();
++  if (!window)
++    return;  // Window shutdown must not access its already destroyed members.
++
++  Q_ASSERT(mWorldLoadingProgressOperationDepth > 0);
++  --mWorldLoadingProgressOperationDepth;
++  if (mWorldLoadingProgressOperationDepth != 0)
++    return;
++
++  // Post deferred deletion ONLY after the outermost call has returned. Posting
++  // deleteLater() inside an inner Qt event loop is not a lifetime barrier.
++  const QList<QProgressDialog *> retired = mRetiredWorldLoadingProgressDialogs;
++  mRetiredWorldLoadingProgressDialogs.clear();
++  for (QProgressDialog *dialog : retired)
++    dialog->deleteLater();
++}
++
++void WbMainWindow::createWorldLoadingProgressDialog() {
++  if (mWorldLoadingProgressDialog || isMinimized())
++    return;
++
++  QProgressDialog *dialog = new QProgressDialog(this);
++  mWorldLoadingProgressDialog = dialog;
++  QPushButton *cancelButton = new QPushButton(dialog);
++
++  runWorldLoadingProgressOperation([this, dialog, cancelButton]() {
++    cancelButton->setText(tr("Cancel"));
++    cancelButton->setAutoDefault(false);
++    cancelButton->setDefault(false);
++    cancelButton->setChecked(false);
++    dialog->setModal(true);
++    dialog->setAutoClose(false);
++    dialog->setWindowTitle(tr("Loading world"));
++    dialog->setLabelText(tr("Opening world file"));
++    dialog->setCancelButton(cancelButton);
++    connect(dialog, &QProgressDialog::canceled, WbApplication::instance(), &WbApplication::setWorldLoadingCanceled);
++
++    if (mWorldLoadingProgressDialog != dialog)
++      return;
++    dialog->show();
++    if (mWorldLoadingProgressDialog != dialog)
++      return;
++    WbGuiApplication::setWindowsDarkMode(dialog);
++    if (mWorldLoadingProgressDialog != dialog)
++      return;
++    dialog->setValue(0);
++    if (mWorldLoadingProgressDialog == dialog)
++      QApplication::processEvents();
++  });
++}
++
++void WbMainWindow::deleteWorldLoadingProgressDialog() {
++  QProgressDialog *dialog = mWorldLoadingProgressDialog;
++  if (!dialog)
++    return;
++
++  // Detach BEFORE any Qt operation which might dispatch more signals.
++  mWorldLoadingProgressDialog = NULL;
++  mRetiredWorldLoadingProgressDialogs.append(dialog);
++  runWorldLoadingProgressOperation([dialog]() {
++    disconnect(dialog, &QProgressDialog::canceled, WbApplication::instance(),
++               &WbApplication::setWorldLoadingCanceled);
++    dialog->hide();  // No close()/cancel() signal and no synchronous delete.
++  });
++}
++
++void WbMainWindow::setWorldLoadingProgress(const int progress) {
++  QProgressDialog *dialog = mWorldLoadingProgressDialog;
++  if (!dialog)
++    return;
++  runWorldLoadingProgressOperation([this, dialog, progress]() {
++    dialog->setValue(progress);
++    if (mWorldLoadingProgressDialog == dialog)
++      QApplication::processEvents();
++  });
++}
++
++void WbMainWindow::setWorldLoadingStatus(const QString &status) {
++  QProgressDialog *dialog = mWorldLoadingProgressDialog;
++  if (!dialog)
++    return;
++  runWorldLoadingProgressOperation([this, dialog, status]() {
++    dialog->setLabelText(status);
++    if (mWorldLoadingProgressDialog == dialog)
++      QApplication::processEvents();
++  });
++}
+ 
+ void WbMainWindow::startAnimationRecording() {
+   const QString fileName = exportHtmlFiles();
