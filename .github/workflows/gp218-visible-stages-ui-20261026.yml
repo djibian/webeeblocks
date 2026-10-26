@@ -1,0 +1,52 @@
+# Experimental browser-only observation of immutable 222-block candidate.
+name: GP222 staged pupil browser UI and debugging
+on:
+  push:
+    branches: [experiment/gp218-visible-stages-ui-20261026]
+permissions:
+  contents: read
+jobs:
+  editor:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact WBB and ancestor, UI proof files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=cf1d2bfb437735a1554e41e1af1717154e01a520
+          test "$(git rev-parse HEAD^)" = "$base"
+          actual="$(git diff --name-only "$base" HEAD)"
+          expected="$(printf '.github/workflows/gp218-visible-stages-ui-20261026.yml\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
+          test "$actual" = "$expected"
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '835dbfce603ebb509058d305802a309c84eabc75'
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Real pinned Blockly 13.2.1 and Chromium
+        shell: bash
+        run: |
+          bash tools/prepare_runtime_v2.sh
+          node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
+          npm install --prefix .ci-gp-ui --no-save --no-package-lock --no-audit --no-fund playwright@1.55.0
+          command -v google-chrome || command -v chromium
+      - name: Real editor, student block edit, reopen, debugger, geometry
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp222-staged-browser-ui
+          WEBEEBLOCKS_PLAYWRIGHT_MODULE="$GITHUB_WORKSPACE/.ci-gp-ui/node_modules/playwright/index.mjs" \
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" \
+          WEBEEBLOCKS_UI_OUTPUT="$GITHUB_WORKSPACE/ci-artifacts/gp222-staged-browser-ui" \
+          node experiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs 2>&1 | tee ci-artifacts/gp222-staged-browser-ui/ui.log
+      - name: Archive screenshot, layout metrics and any error
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp222-staged-browser-editor-evidence
+          path: ci-artifacts/gp222-staged-browser-ui/
+          if-no-files-found: warn
