@@ -1,5 +1,5 @@
 # Disposable experiment only. Never add this workflow to the product PRs.
-name: GP pupil 216-block native/Blockly falsification
+name: GP pupil 218-block native/Blockly falsification
 on:
   push:
     branches:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   blockly:
-    name: Actual Blockly and AST 216
+    name: Actual Blockly and AST 218
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
@@ -25,7 +25,7 @@ jobs:
           base=995b4b47f2b3e525e263450c11737f5d78dc85dd
           test "$(git merge-base HEAD "$base")" = "$base"
           git diff --name-only "$base" HEAD > changed.txt
-          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|LEAN_EXPERIMENT.md)|\.github/workflows/gp703-lean-native.yml)$' changed.txt; then exit 1; fi
+          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|LEAN_EXPERIMENT.md)|tools/grand_prix/pupil_workspace_u.js|\.github/workflows/gp703-lean-native.yml)$' changed.txt; then exit 1; fi
           test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 3bca44a6b758b93ca913f867c17458cf17d18f96
           test "$(git rev-parse "$base":experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 02c0cdef8fc7189aa171b584a8160b52e392ba1c
           sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
@@ -36,7 +36,7 @@ jobs:
           node experiments/grand-prix-pupil-algorithm/verify.js --structural-only
           node experiments/grand-prix-pupil-algorithm/verify.js
   native:
-    name: R2025a witness 216 seed ${{ matrix.seed }}
+    name: R2025a witness 218 seed ${{ matrix.seed }}
     runs-on: ubuntu-22.04
     timeout-minutes: 35
     strategy:
@@ -59,7 +59,7 @@ jobs:
           test "$(git merge-base HEAD "$base")" = "$base"
           test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 3bca44a6b758b93ca913f867c17458cf17d18f96
           git diff --name-only "$base" HEAD > changed.txt
-          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|LEAN_EXPERIMENT.md)|\.github/workflows/gp703-lean-native.yml)$' changed.txt; then exit 1; fi
+          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|LEAN_EXPERIMENT.md)|tools/grand_prix/pupil_workspace_u.js|\.github/workflows/gp703-lean-native.yml)$' changed.txt; then exit 1; fi
           sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
       - name: Run true Webots R2025a unchanged witness, no RESET bypass
         shell: bash
