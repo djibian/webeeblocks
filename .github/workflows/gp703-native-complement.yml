@@ -1,0 +1,46 @@
+# Independent, disposable proof branch; never added to #647, #703 or main.
+name: GP703 native remaining R2025a configurations
+on:
+  push:
+    branches:
+      - experiment/gp703-native-complement-20261026
+permissions:
+  contents: read
+jobs:
+  native:
+    name: GP703 R2025a unchanged student WBB s${{ matrix.seed }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        seed: [1, 14, 17]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Attest exact parent and unchanged pupil project
+        run: |
+          test "$(git rev-parse HEAD^)" = '949bec6c9f5560d1eccad6a9532feef6d7673b44'
+          test "$(git diff --name-only HEAD^ HEAD)" = '.github/workflows/gp703-native-complement.yml'
+          test "$(git rev-parse HEAD^:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '02c0cdef8fc7189aa171b584a8160b52e392ba1c'
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Run real native witness on exact unmodified Webots world, pupil AST and oracles
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp703-native-complement
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite witness --seed "${{ matrix.seed }}" --side 2.0 2>&1 | tee ci-artifacts/gp703-native-complement/runner.log
+      - name: Publish evidence even on a failed native trial
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-native-r2025a-complement-s${{ matrix.seed }}
+          path: |
+            ci-artifacts/gp703-native-complement/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
