@@ -56,7 +56,7 @@ jobs:
             done
             dir=/source/src/webots
             include=(-I"$dir" -I/source/include -I"$root/include" -I"$root/include/qt")
-            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util; do include+=(-I"$dir/$p"); done
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util wren; do include+=(-I"$dir/$p"); done
             for part in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$part"); done
             for p in wren ode controller/c; do include+=(-I"/source/include/$p"); done
             include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
@@ -73,7 +73,7 @@ jobs:
             root=/usr/local/webots
             dir=/source/src/webots
             include=(-I"$dir" -I/source/include -I"$root/include" -I"$root/include/qt")
-            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util; do include+=(-I"$dir/$p"); done
+            for p in app control core widgets editor engine gui maths nodes nodes/utils ode plugins scene_tree sound user_commands vrml util wren; do include+=(-I"$dir/$p"); done
             for part in QtCore QtGui QtWidgets QtNetwork QtWebSockets QtOpenGL QtOpenGLWidgets QtPrintSupport QtQml QtXml; do include+=(-I"$root/include/qt/$part"); done
             for p in wren ode controller/c; do include+=(-I"/source/include/$p"); done
             include+=(-I"$dir/external/siphash" -I/usr/include/freetype2)
