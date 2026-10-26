@@ -6,22 +6,31 @@ const {build} = require('./build');
 const file = path.join(__dirname, 'Grand-Prix-sans-murs-algorithme-candidat.wbb');
 const project = JSON.parse(fs.readFileSync(file, 'utf8'));
 assert.deepStrictEqual(project, build(), 'file must match generated generic-block algorithm');
-const ids = new Set(), types = {};
+const ids = new Set(), types = {}, loops = [];
 function visit(b) {
   assert(b && typeof b.type === 'string' && !ids.has(b.id), 'distinct Blockly block IDs');
   ids.add(b.id); types[b.type] = (types[b.type] || 0) + 1;
+  if (b.type === 'controls_whileUntil') loops.push(b);
   for (const e of Object.values(b.inputs || {})) if (e.block) visit(e.block);
   if (b.next?.block) visit(b.next.block);
 }
 project.workspace.blocks.blocks.forEach(visit);
-assert.strictEqual(ids.size, 222);
+assert.strictEqual(ids.size, 246);
 assert.strictEqual(project.workspace.variables.length, 10);
 assert.strictEqual(types.webeeblocks_v2_takeoff, 1);
 assert.strictEqual(types.webeeblocks_v2_land, 1);
 assert.strictEqual(types.controls_repeat_ext, 1);
 assert.strictEqual(types.webeeblocks_v2_guarded_move || 0, 0);
 assert.strictEqual(types.procedures_callnoreturn, 1);
-console.log('PASS pure structural reproduction: 222 Blockly blocks, 10 variables');
+// Both bounded searches must fail closed without silently claiming progress.
+const fault = b => b?.type === 'variables_set' &&
+  b.fields?.VAR?.id === 'gp-pupil-v2-4' &&
+  b.inputs?.VALUE?.block?.fields?.NUM === 2;
+assert(loops.some(b => fault(b.next?.block?.inputs?.DO0?.block)),
+  'side-search exhaustion must be a pupil-visible anomaly');
+assert(loops.some(b => fault(b.next?.block?.inputs?.ELSE?.block)),
+  'terminal distance/count failure must be a pupil-visible anomaly');
+console.log('PASS pure structural reproduction: 246 Blockly blocks, 10 variables, guarded loop exits');
 if (process.argv.includes('--structural-only')) process.exit(0);
 const root = path.join(__dirname, '../..');
 const Blockly = require(path.join(root, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));

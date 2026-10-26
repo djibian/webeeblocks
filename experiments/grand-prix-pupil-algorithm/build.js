@@ -57,13 +57,18 @@ function build() {
        [...Center, ...Adv(0.4), ...Adv(0.2), Z('up'), Set('arrière', R('back')),
         If(Between(() => V('arrière'), 0.30, 0.65),
            [Add('portes', 1), Set('H passé', 1)], Fault())], Fault())];
+  const ChosenPose = [
+    If(G('EQ', 'portes', 2), [M(0.4, 'left'), M(0.1, 'left')]),
+    If(G('EQ', 'portes', 3), [M(0.4, 'right'), M(0.1, 'right')]),
+    Set('état', 1)];
+  // A bounded approach is not proof of arrival. Keep the pupil's count
+  // decision, but reject an unconfirmed distance or impossible H count.
   const Closed = [Set('avant', R('front')),
     Until(Between(() => V('avant'), 0.63, 0.73),
           [If(G('GT', 'avant', 0.73), [M(0.1)], [M(0.1, 'back')]),
            Set('avant', R('front'))], 6),
-    If(G('EQ', 'portes', 2), [M(0.4, 'left'), M(0.1, 'left')]),
-    If(G('EQ', 'portes', 3), [M(0.4, 'right'), M(0.1, 'right')]),
-    Set('état', 1)];
+    If(And(Between(() => V('avant'), 0.63, 0.73),
+           Between(() => V('portes'), 1, 3)), ChosenPose, Fault())];
   const Observe = [Z('down'), Set('bas', R('front')),
     If(C('GT', V('bas'), A('ADD', V('avant'), 0.3)), Passage,
        [If(And(G('EQ', 'côté', 3),
@@ -84,6 +89,8 @@ function build() {
     ])];
   const OneSide = [Set('distance', 0), Set('H passé', 0), Set('état', 0),
     Until(C('NEQ', V('état'), 0), Step),
+    // Exhausting the pupil's bounded search must not silently advance a side.
+    If(G('EQ', 'état', 0), Fault()),
     If(And(G('LT', 'côté', 3), G('EQ', 'état', 1)),
        [B('webeeblocks_v2_turn', {DIRECTION: 'left', ANGLE: 90})]),
     Add('côté', 1)];
