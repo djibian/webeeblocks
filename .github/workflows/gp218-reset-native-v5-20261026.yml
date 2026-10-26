@@ -1,0 +1,55 @@
+# Evidence-only push workflow on a disposable experiment branch.
+# Never move to main or a product PR: V5 CI Gate remains the sole integration gate.
+name: Experimental GP218 complete native R2025a RESET qualification
+on:
+  push:
+    branches:
+      - experiment/gp218-reset-native-v5-20261026
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Blockly218 plus unweakened R2025a 16-case campaign
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert immutable RESET base and limited experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=3376e6b886b6c4ebf316276bce5b79efa5b35570
+          test "$(git rev-parse HEAD^)" = "$base"
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 3bca44a6b758b93ca913f867c17458cf17d18f96
+          echo "a9d0eeefa3c5d40411726bdbe67a54f0783da266146ae8f3d5e24352e70bc18c  experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb" | sha256sum -c -
+          git diff --name-only "$base" HEAD > changed.txt
+          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|LEAN_EXPERIMENT.md|GP218_RESET_CHECKPOINT.md)|tools/grand_prix/pupil_workspace_u.js|\.github/workflows/gp218-reset-native-v5-20261026.yml)$' changed.txt; then
+            echo 'Forbidden change to shared mission/oracles/CI' >&2
+            exit 1
+          fi
+          git diff "$base" HEAD -- tools/grand_prix/prepare_u_runtime.py tools/grand_prix/layout_u.py tools/grand_prix/oracle_u.py tools/ci/run_grand_prix_u_prototype.py
+          test -z "$(git diff --name-only "$base" HEAD -- tools/grand_prix/prepare_u_runtime.py tools/grand_prix/layout_u.py tools/grand_prix/oracle_u.py tools/ci/run_grand_prix_u_prototype.py)"
+      - name: Real Blockly 13.2.1 preflight, AST, observer and Save/Open
+        run: |
+          npm ci --prefix plugins/robot_windows/blockly_v2
+          node experiments/grand-prix-pupil-algorithm/verify.js
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Full original R2025a negatives, 210s, 7 seeds, fresh RESET
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite all --seed 4 --side 2.0 2>&1 | tee gp218-native-run.log
+      - name: Preserve complete native evidence even when failing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp218-reset3376-r2025a-complete-native
+          path: |
+            gp218-native-run.log
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
