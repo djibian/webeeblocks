@@ -1,0 +1,48 @@
+# Independent no-mutation native completion; experimental only, not a CI Gate.
+name: Grand Prix pupil lean native complementary configurations
+on:
+  push:
+    branches:
+      - experiment/gp703-lean-complement-20261026
+permissions:
+  contents: read
+jobs:
+  witness:
+    name: Native 218-block WBB R2025a seed ${{ matrix.seed }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        seed: [1, 14, 17]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Attest exact parent, project and unchanged oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '0b1dd7cab7eea014aedb1633912c142398dba867'
+          test "$(git diff --name-only HEAD^ HEAD)" = '.github/workflows/gp703-lean-complement.yml'
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '3bca44a6b758b93ca913f867c17458cf17d18f96'
+          echo 'a9d0eeefa3c5d40411726bdbe67a54f0783da266146ae8f3d5e24352e70bc18c  experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb' | sha256sum -c -
+      - name: Run true Webots R2025a with same student AST and unchanged native oracles
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp703-lean-complement
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite witness --seed "${{ matrix.seed }}" --side 2.0 2>&1 | tee "ci-artifacts/gp703-lean-complement/witness-${{ matrix.seed }}.log"
+      - name: Archive any native result and first failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-lean-complement-s${{ matrix.seed }}
+          path: |
+            ci-artifacts/gp703-lean-complement/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
