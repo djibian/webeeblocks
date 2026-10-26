@@ -1,0 +1,109 @@
+name: QT665 native corrected binary causal GDB (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-native-candidate-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  causal-native-candidate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download preserved linked binary, verify provenance, prepare unchanged witness world
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p ci-artifacts/qt665-native-gdb
+          python3 -m py_compile experiments/qt-progress-lifetime-665/native-gdb/qt_lifetime_gdb.py experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py
+          ./tools/prepare_runtime_v2.sh
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-qt665-webots-src
+          git -C .ci-qt665-webots-src sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-qt665-webots-src rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+      - uses: actions/download-artifact@v4
+        with:
+          name: qt665-full-link-2b6c7a47518f1b3e1f5998447f68337284a88146
+          run-id: 40330799778
+          repository: djibian/webeeblocks
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: qt665-evidence
+      - name: Run unchanged historical world with genuine candidate Webots
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9  qt665-evidence/webots-bin" | sha256sum -c -
+          echo "1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb  qt665-evidence/official-webots-bin" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py')
+          t=p.read_text()
+          old="1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb"
+          new="d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9"
+          assert t.count(old)==1, "historical runner differs"
+          p.write_text(t.replace(old,new))
+          PY
+          python3 -m py_compile experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py
+          docker build -t qt665-native-candidate - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gdb xvfb xauth libxcb-cursor0 && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          docker run --rm --init --shm-size=1g \
+            --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -e QT665_EXPECTED_IMAGE=cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099 \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-qt665-webots-src/projects:/usr/local/webots/projects:ro" \
+            -w /workspace qt665-native-candidate -c '
+              set -Eeuo pipefail
+              install -m755 /workspace/qt665-evidence/webots-bin /usr/local/webots/bin/webots-bin
+              sha256sum /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-native-gdb/actual-executed-webots-bin.sha256
+              grep -q "^d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9 " ci-artifacts/qt665-native-gdb/actual-executed-webots-bin.sha256
+              (cd /usr/local/webots && sha256sum lib/webots/libQt6Widgets.so.6.5.3 lib/webots/libQt6Core.so.6.5.3) > ci-artifacts/qt665-native-gdb/qt-runtime.sha256
+              ldd /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-native-gdb/linked-libraries.txt
+              ! grep -q "not found" ci-artifacts/qt665-native-gdb/linked-libraries.txt
+              export LIBGL_ALWAYS_SOFTWARE=true
+              python3 -u experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py
+            '
+      - name: Evaluate actual causal lifetime, not absence of SIGSEGV
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('ci-artifacts/qt665-native-gdb')
+          events=[]
+          for line in (p/'gdb.log').read_text(errors='replace').splitlines():
+            if line.startswith('WBB_QT665 '):
+              events.append(json.loads(line[len('WBB_QT665 '):]))
+          def matches(kind, **criteria):
+            return [x for x in events if x.get('kind')==kind and all(x.get(k)==v for k,v in criteria.items())]
+          retire={e['id'] for e in matches('candidate_retire_inside_setvalue')}
+          maximum={e['id'] for e in matches('candidate_maximum_after_retire', bar_alive=True, dialog_alive=True)}
+          returned={e['id'] for e in matches('candidate_retired_frame_return', maximum_after_retire=True, dialog_alive=True, bar_alive=True)}
+          destroyed={e['id'] for e in matches('candidate_retired_object_destructor', kind_of_object='dialog', after_setvalue_return=True)}
+          destroyed_bar={e['id'] for e in matches('candidate_retired_object_destructor', kind_of_object='bar', after_setvalue_return=True)}
+          bad=[e for e in events if e.get('kind') in ('bar_destroyed_within_setvalue','dialog_destroyed_within_setvalue')]
+          gaps=matches('gap')
+          coverage=matches('coverage_live', all_resolved=True)
+          witnesses=sorted(retire & maximum & returned & destroyed & destroyed_bar)
+          verdict='FAIL' if bad else ('PASS' if witnesses and coverage and not gaps else 'UNPROVEN')
+          result={'verdict':verdict,'complete_witness_ids':witnesses[:12], 'retire_count':len(retire),'max_alive_count':len(maximum),'return_alive_count':len(returned),'dialog_destroyed_after_count':len(destroyed),'bar_destroyed_after_count':len(destroyed_bar),'premature_destructors':bad[:5],'gaps':gaps[:5], 'coverage':bool(coverage)}
+          (p/'candidate-causal-verdict.json').write_text(json.dumps(result,indent=2)+'\n')
+          print('QT665_NATIVE_CANDIDATE_CAUSAL='+verdict)
+          print(json.dumps(result,sort_keys=True))
+          if verdict!='PASS': raise SystemExit(3 if verdict=='FAIL' else 2)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-native-candidate-${{ github.sha }}
+          path: ci-artifacts/qt665-native-gdb/
+          if-no-files-found: warn
+          retention-days: 14
