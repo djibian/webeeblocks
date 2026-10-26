@@ -63,7 +63,7 @@ jobs:
               ldd /workspace/qt665-guarded-methods > /workspace/qt665-results/ldd.txt
               ! grep -q "not found" /workspace/qt665-results/ldd.txt
               timeout -k 5s 90s xvfb-run -a gdb -q -batch \
-                -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
+                -ex "source -s python /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py" \
                 --args /workspace/qt665-guarded-methods
             ' 2>&1 | tee qt665-results/gdb-console.log
           rc=$?
