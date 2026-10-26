@@ -3,12 +3,15 @@
 #include <webots/robot.h>
 #include <webots/supervisor.h>
 #include <webots/inertial_unit.h>
+#include <webots/motor.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 static int ready, index_, pending, failed;
 static double done = -1, stable_since = -1;
+static double touchdown = -1;
+static int coast_samples;
 static double origin_z, origin_roll, origin_pitch, landing_x, landing_y, landing_yaw;
 static const double times[] = {2.464, 6.848, 7.552, 9.536, 11.392};
 static const char *commands[] = {
@@ -59,6 +62,21 @@ int land_step(int ms) {
     memcpy(rpy, wb_inertial_unit_get_roll_pitch_yaw(wb_robot_get_device("inertial_unit")), sizeof(rpy));
     int contacts = -1;
     WbContactPoint *points = wb_supervisor_node_get_contact_points(self, 1, &contacts);
+    if (index_ == 4 && touchdown < 0 && fabs(pos[2] - origin_z) <= 0.05) {
+      for (int i = 0; points && i < contacts; ++i)
+        if (isfinite(points[i].point[2]) && points[i].point[2] <= origin_z)
+          touchdown = now;
+    }
+    if (touchdown >= 0 && now > touchdown) {
+      // These are commanded velocities, not internal measured rotor speeds.
+      // The first observation precedes this tick's control; examine the next
+      // tick and every later sample, including temporary loss of contact.
+      const char *names[] = {"m1_motor", "m2_motor", "m3_motor", "m4_motor"};
+      for (int i = 0; i < 4; ++i)
+        if (fabs(wb_motor_get_velocity(wb_robot_get_device(names[i]))) > 1e-12)
+          failed = 1;
+      ++coast_samples;
+    }
     printf("LAND_REGRESSION_OBS t=%.9f stage=%d position=%.12g,%.12g,%.12g velocity=%.12g,%.12g,%.12g,%.12g,%.12g,%.12g rpy=%.12g,%.12g,%.12g contacts=%d",
       now, index_, pos[0], pos[1], pos[2], velocity[0], velocity[1], velocity[2],
       velocity[3], velocity[4], velocity[5], rpy[0], rpy[1], rpy[2], contacts);
@@ -81,6 +99,10 @@ int land_step(int ms) {
   }
   if ((done >= 0 && now - done >= 3) || now >= 45) {
     failed |= index_ != 5 || stable_since < 0 || now - stable_since < 0.5;
+    // The mandatory 32 ms fixture must actually exercise the powered-contact
+    // boundary. The optional 8 ms diagnosis can complete LAND before contact.
+    failed |= wb_robot_get_basic_time_step() == 32 && coast_samples == 0;
+    printf("LAND_CONTACT_COAST samples=%d touchdown=%.9f\n", coast_samples, touchdown);
     printf("LAND_REGRESSION_END completed=%d failed=%d stable=%.9f\n",
       index_ == 5, failed, stable_since < 0 ? -1 : now - stable_since);
     fflush(stdout);

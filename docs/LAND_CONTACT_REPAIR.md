@@ -17,6 +17,32 @@ authority still starts LAND and applies control on the exact expiry tick;
 its height reference is initialized from that tick's measured pose.
 No delayed action, regained success or weakened negative oracle is introduced.
 
+## s3 refutation and unpowered settling correction
+
+The two-segment Ready `785362be34cb8334cea00505ba5fd0999d9bacd4` was itself
+refuted by canonical run 40282444841: s3 wrong-landing at 155.080 s, final
+Y=1.686652 m for target Y=1.50 m. The new analysis independently verifies its
+original ZIP/manifests and finds 50 contact-free 8 ms intervals after rebound:
+vertical-force balance predicts all lateral acceleration to roundoff. Contact
+initiates the disturbance; maintained thrust amplifies it after separation.
+
+LAND now latches an unpowered settling phase on finite low ground contact
+within the existing height tolerance. It does not reapply thrust after rebound.
+The original height/VZ/0.50 s completion window, action timeout, safety checks,
+RESET and independent exact 210 s authority remain unchanged. Ordinary and
+forced LAND each clear the latch. High/unavailable contacts cannot activate it.
+This changes actuation after contact, not PID gains, physics or success oracles.
+
+The native paired full-C regression now rejects the old Ready despite its ACK
+and acceptable final pose: its powered contact violates the additional coasting
+check. The repair passes both coasting and independent pose/stability checks.
+Reduced native interventions cover all four control phases at 8 ms physics /
+32 ms control; their approximate angular initial state and constant hover force
+are explicitly not an exact archived-controller replay. Local real-Blockly
+Grand Prix tests pass all seven configurations and the full retained negative /
+RESET campaign. Canonical final Ready-HEAD CI and another execution's independent
+review remain mandatory. See [raw evidence, analysis and limits](../experiments/land-touchdown-637/README.md).
+
 ## Independent evidence and retained counterexamples
 
 The original studies eccfe5701c2459bc1ae737bcea70bf5004061f27,
