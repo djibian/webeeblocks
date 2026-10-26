@@ -7,7 +7,6 @@ const moduleRoot=process.argv[5]?path.resolve(process.argv[5]):path.resolve(__di
 const Backend=require(path.join(moduleRoot,'plugins/robot_windows/blockly/webeeblocks/wwi_backend.js'));
 const Interpreter=require(path.join(moduleRoot,'plugins/robot_windows/blockly/webeeblocks/interpreter.js'));
 const WorkspaceWitness=require('../grand_prix/witness_workspace_u.js');
-const PupilWitness=require('../grand_prix/pupil_workspace_u.js');
 const Witness={build:()=>WorkspaceWitness.build().ast};
 const port=Number(process.argv[2]),mode=process.argv[3]||'witness',output=process.argv[4];
 function report(event,detail){const item={event,detail};console.log('GP_U_NODE '+JSON.stringify(item));if(output)fs.appendFileSync(output,JSON.stringify(item)+'\n');}
@@ -27,7 +26,8 @@ socket.onopen=async()=>{
   await backend.waitUntilReady();
   // Exercise the identical real pupil .wbb/AST only in positive and RESET modes.
    // Retain the original negative ASTs and their independent oracles.
-   let program=(mode==='witness'||mode==='reset')?PupilWitness.build().ast:Witness.build();
+   let program=(mode==='witness'||mode==='reset')?
+    require('../grand_prix/pupil_workspace_u.js').build().ast:Witness.build();
   if(mode==='timeout'||mode==='timeout-gate')program={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.4},{kind:'vertical',direction:'up',distance_m:.4},
    ...(mode==='timeout-gate'?[{kind:'move',direction:'forward',distance_m:.4},{kind:'move',direction:'forward',distance_m:.2},{kind:'vertical',direction:'down',distance_m:.4},{kind:'move',direction:'forward',distance_m:.3}]:[]),
    {kind:'repeat',count:10,body:[{kind:'repeat',count:10,body:[{kind:'wait',seconds:3}]}]},{kind:'land'}]};
