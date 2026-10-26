@@ -1,0 +1,48 @@
+name: QT665 parent-safe full application link (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-parent-safe-full-link-20261026]
+permissions:
+  contents: read
+jobs:
+  full-link:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: upstream-webots
+          persist-credentials: false
+          sparse-checkout: |
+            src
+            include
+            lib
+            bin
+            resources
+          submodules: recursive
+      - name: Build full application against unchanged official runtime libraries
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qt665-full-link
+          docker build --pull=false -t qt665-full-dev - <<'EOF'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libopenal-dev git python3-pip curl xauth xvfb libxcb-cursor0 gdb bzip2 && rm -rf /var/lib/apt/lists/*
+          RUN pip3 install aqtinstall==3.1.18 && aqt install-qt --outputdir /opt/Qt linux desktop 6.5.3 gcc_64 -m qtwebsockets
+          EOF
+          docker image inspect qt665-full-dev > qt665-full-link/build-image.json
+          docker run --rm -v "$PWD:/workspace" -w /workspace qt665-full-dev \
+            bash experiments/webots-qt-665/build_full_application.sh \
+            upstream-webots qt665-full-link 2>&1 | tee qt665-full-link/build.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-parent-safe-full-link-${{ github.sha }}
+          path: qt665-full-link/
+          if-no-files-found: error
+          retention-days: 14
