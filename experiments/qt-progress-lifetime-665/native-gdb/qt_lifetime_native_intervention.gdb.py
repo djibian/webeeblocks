@@ -66,19 +66,31 @@ class Maximum(gdb.Breakpoint):
         if not state['dialog'] or bar!=state['bar']:return False
         trace=stack()
         if 'QProgressDialog::setValue' not in trace:return False
-        target=None
-        for f in frames():
-            if 'WbMainWindow::setWorldLoadingProgress' in str(f.name() or ''):
-                target=f
+        # The optimized WbMainWindow::setWorldLoadingProgress inline frame
+        # may not expose 'this'. The non-inline protected-operation frame
+        # carries the same true WbMainWindow instance with DWARF locals.
+        candidates=[f for f in frames()
+                    if 'WbMainWindow::runWorldLoadingProgressOperation' in str(f.name() or '')]
+        candidates += [f for f in frames()
+                       if 'WbMainWindow::setWorldLoadingProgress' in str(f.name() or '')]
+        obj=None
+        errors=[]
+        for f in candidates:
+            try:
+                this=f.read_var('this')
+                if this.is_optimized_out:
+                    errors.append('optimized_out')
+                    continue
+                obj=this.dereference()
+                win=int(this)
+                dialog=int(obj['mWorldLoadingProgressDialog'])
+                depth=int(obj['mWorldLoadingProgressOperationDepth'])
                 break
-        if target is None:return False
-        try:
-            win=int(target.read_var('this'))
-            obj=target.read_var('this').dereference()
-            dialog=int(obj['mWorldLoadingProgressDialog'])
-            depth=int(obj['mWorldLoadingProgressOperationDepth'])
-        except Exception as exc:
-            event('eligibility_gap',reason=str(exc))
+            except Exception as exc:
+                errors.append(str(exc))
+        if obj is None:
+            # Fail-closed: missing native symbols cannot become PASS.
+            event('eligibility_gap',reason='no_native_window_this',details=errors[:4])
             return False
         if dialog!=state['dialog'] or depth<1:return False
         self.enabled=False
