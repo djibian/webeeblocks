@@ -29,7 +29,28 @@ for spec in 'libOIS.1.4.tar.bz2 d1482733dce06f6dcc1c062c5c314185' 'libpico.tar.b
   curl --fail --location --max-time 180 "https://cyberbotics.com/files/repository/dependencies/linux64/release/$package" -o "$evidence/$package"
   echo "$digest  $evidence/$package" | md5sum --check
   sha256sum "$evidence/$package" >> "$evidence/dependency-archives.sha256"
-  tar -xjf "$evidence/$package" --wildcards 'include/*'
+  # Upstream R2025a dependencies/Makefile.linux extracts libraries as well
+  # as headers. Extract ONLY the pinned package's corresponding runtime DSOs:
+  # copying headers alone left the full application with an unresolved -lOIS.
+  tar -tjf "$evidence/$package" > "$evidence/$package.members"
+  case "$package" in
+    libOIS.1.4.tar.bz2) library_glob='lib/webots/libOIS*' ;;
+    libpico.tar.bz2) library_glob='lib/webots/libpico*' ;;
+    libassimp-5.2.3.tar.bz2) library_glob='lib/webots/libassimp*' ;;
+    *) echo "unrecognized pinned dependency: $package" >&2; exit 1 ;;
+  esac
+  grep -q '^lib/webots/' "$evidence/$package.members"
+  tar -xjf "$evidence/$package" --wildcards 'include/*' "$library_glob"
+done
+# The linker consumes unversioned -l names; require authentic, resolvable
+# library files, not just headers or dangling versioned SONAME links.
+for lib in OIS pico assimp; do
+  test -r "$source_tree/lib/webots/lib$lib.so" || {
+    echo "missing real linkable dependency: lib$lib.so" >&2
+    exit 1
+  }
+  readlink -f "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-library-targets.txt"
+  sha256sum -L "$source_tree/lib/webots/lib$lib.so" >> "$evidence/dependency-libraries.sha256"
 done
 git apply "$experiment/webots-r2025a-guarded-progress-retirement.patch"
 git diff --binary > "$evidence/applied.patch"
