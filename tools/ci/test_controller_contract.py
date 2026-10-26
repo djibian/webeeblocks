@@ -138,9 +138,26 @@ class ContractTests(unittest.TestCase):
         self.assertIn("`expected_head_sha`", self.contract)
         self.assertIn("merge must fail/no-op and the Controller reconstructs current GitHub state", self.contract)
 
-    def test_healthy_main_and_late_refutation(self):
+    def test_risk_scoped_main_health_and_late_refutation(self):
         self.assertIn("main is the single long-lived trunk", self.contract)
-        self.assertIn("ordinary integrations are suspended until restoration", self.contract)
+        for required in (
+            "An unresolved trunk defect remains a refutation of the affected behavior",
+            "When a main-health defect is unresolved, reconstruct its exact observed failure",
+            "direct and indirect interference",
+            "shared runtime, CI, test selection, observability and oracles",
+            "Disjoint changed filenames or a green CI alone do not establish independence",
+            "independent review of the exact Ready HEAD must explicitly document",
+            "A Controller that changed the candidate cannot provide its own clearance",
+            "unknown safety-critical interaction blocks the candidate's merge",
+            "defect that compromises a shared execution or validation foundation",
+            "demonstrably independent candidate may integrate",
+            "all ordinary exact-HEAD CI, GO, base and refutation gates",
+            "Never bypass this gate by weakening, skipping, reclassifying or hiding",
+            "A successful candidate merge does not restore main health by itself",
+            "candidate-specific §4 merge gate rather than a global issue-status lock",
+        ):
+            self.assertIn(required, self.contract)
+        self.assertNotIn("ordinary integrations are suspended until restoration", self.contract)
         self.assertIn("late NO_GO on an already merged candidate", self.contract)
         self.assertIn("valid unresolved NO_GO blocks integration", self.contract)
 

@@ -6,8 +6,8 @@ import sys
 from types import SimpleNamespace as N
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed, inside, swept_inside, swept_envelope_inside, RADIUS
 from tools.grand_prix.layout_u import generate
+from tools.grand_prix.oracle_u import Attempt, swept_gap, collides, low_segment_allowed, inside, swept_inside, swept_envelope_inside, RADIUS
 
 FIXTURE=Path(__file__).with_name('fixtures')/'grand_prix_u_geometry.json'
 

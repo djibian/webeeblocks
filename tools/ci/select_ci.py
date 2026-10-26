@@ -21,6 +21,9 @@ FORCE_FULL = (
     "tools/ci/test_workflow_contract.py",
     "tools/ci/test_repository_hygiene.py",
     "tools/ci/test_windows_release_contract.py",
+    # These native Windows composition fixtures are exercised only by the
+    # full-gated runtime-v2-windows-release job, not the partial Runtime suite.
+    "tools/ci/fixtures/gp_u_*",
     "tools/ci/test_controller_contract.py",
     "tools/build_windows_classroom_release.ps1",
     "packaging/windows/**",
@@ -54,11 +57,73 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # The pre-controller observer is exercised by Runtime's outcome preflight.
+    "tools/ci/observe_outcome_startup.py",
+    "tools/ci/test_outcome_startup_observer.py",
+    # The sequence LAND diagnostic is compiled and exercised by Runtime's
+    # progression shards; generic tools/ci selection would skip its own oracle.
+    "tools/ci/run_progression_sequence_mission.py",
+    "tools/ci/test_progression_land_instrumentation.py",
+    # The LAND/contact forensic reader and its tests run in the native Runtime
+    # progression preflight; a Webots-only selection skips their owning oracle.
+    "tools/ci/land_contact_summary.py",
+    "tools/ci/test_land_contact_summary.py",
+    "plugins/robot_windows/sequence_probe/sequence_probe.js",
+    "tools/ci/test_progression_sequence_contract.js",
+    # Activity 6's positive/negative native proof is in Runtime progression shard 4.
+    # A Webots-only selection incorrectly reports green while skipping that proof.
+    "tools/ci/run_progression_combined_decisions_mission.py",
+    "tools/ci/test_progression_combined_decisions_contract.js",
+    "tools/ci/test_activity6_setup_phase.py",
+    # Each of these runs or checks the autonomous R2025a RESET probe.
+    # Their earlier generic tools/ci match selected Webots only, silently
+    # skipping the real runtime-v2-core job that owns their native evidence.
+    "tools/ci/run_progression_autonomous_mission.py",
+    "tools/ci/test_progression_autonomous_contract.js",
+    "tools/ci/fixtures/autonomous_reset_observer.py",
+    "tools/ci/reset_native_summary.py",
+    "tools/ci/test_reset_native_summary.py",
+    "tools/ci/reset_post_teleport.py",
+    "tools/ci/test_reset_post_teleport.py",
     "experiments/runtime-v2-student-ui/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
     "plugins/robot_windows/blockly/webeeblocks/wwi_backend.js",
 )
+
+# Grand Prix's native probes and their host diagnostics live in ci-runtime.yml
+# (grand-prix-prototype), not in ci-webots.yml. Keep existing Webots coverage
+# and additionally select the Runtime suite for changes to those exact inputs.
+GRAND_PRIX_RUNTIME_EVIDENCE = (
+    "tools/ci/*grand_prix*",
+    # These gp_u_* native pose fixtures are compiled by the Windows composition
+    # test in ci-runtime.yml; the original grand_prix* name glob misses them.
+    "tools/ci/fixtures/gp_u_*",
+    "tools/ci/*webots_startup_diagnostics*",
+)
+
+
+# These native visual and Windows release checks are executed by ci-runtime.yml,
+# not by ci-webots.yml. A generic tools/ci or controllers path selects only
+# Webots; select Runtime as well without dropping existing Webots evidence.
+RUNTIME_VISUAL_RELEASE_EVIDENCE = (
+    "controllers/color_led_visual_probe/**",
+    "tools/ci/*color_led*",
+    "tools/ci/test_windows_classroom_release.ps1",
+)
+
+# These real R2025a progression/oracle inputs belong to ci-runtime.yml.
+# Generic tools/ci/** otherwise selects Webots only, skipping their owner.
+# Match future progression scripts/tests conservatively; never drop Webots.
+RUNTIME_ORACLE_EVIDENCE = (
+    "tools/ci/run_progression_*",
+    "tools/ci/test_progression_*",
+    "tools/ci/run_classroom_neutral_start.py",
+    "tools/ci/test_runtime_activity_outcome.js",
+    # Shared WWI event ingestion is also directly invoked from Runtime jobs.
+    "tools/ci/runtime_wwi_event_server.py",
+)
+
 
 def matches(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
@@ -95,7 +160,9 @@ def select(paths: Iterable[str], *, force_full: bool = False) -> Selection:
             runtime = True
         if matches(path, DOC_ONLY):
             continue
-        if matches(path, SHARED_RUNTIME_WEBOTS):
+        if (matches(path, SHARED_RUNTIME_WEBOTS) or matches(path, GRAND_PRIX_RUNTIME_EVIDENCE)
+                or matches(path, RUNTIME_VISUAL_RELEASE_EVIDENCE)
+                or matches(path, RUNTIME_ORACLE_EVIDENCE)):
             runtime = True
             webots = True
         elif matches(path, RUNTIME):

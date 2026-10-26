@@ -12,7 +12,14 @@
   function buildSourceMap(workspace) {
     if (!workspace || typeof workspace.getTopBlocks !== 'function')
       fail('invalid Blockly workspace');
-    var tops = workspace.getTopBlocks(true);
+    var definitions = new Map();
+    var tops = workspace.getTopBlocks(true).filter(function(block) {
+      if (block.type !== 'procedures_defnoreturn') return true;
+      var name = String(block.getProcedureDef()[0]).trim().toLowerCase();
+      if (definitions.has(name)) fail('duplicate procedure');
+      definitions.set(name, block);
+      return false;
+    });
     if (tops.length !== 1)
       fail('Crazyflie program must have exactly one top-level sequence');
     var map = Object.create(null);
@@ -25,40 +32,50 @@
     function expression(block, path) {
       if (!block) return;
       remember(block, path);
-      if (block.type === 'logic_compare' || block.type === 'logic_operation') {
+      if (block.type === 'logic_compare' || block.type === 'logic_operation' || block.type === 'math_arithmetic') {
         expression(block.getInputTargetBlock('A'), path.concat('left'));
         expression(block.getInputTargetBlock('B'), path.concat('right'));
       }
     }
 
-    function sequence(first, prefix) {
+    var expanded = 0;
+    function sequence(first, prefix, calls) {
       var block = first;
       var index = 0;
       var guard = 0;
       while (block) {
         guard += 1;
         if (guard > 200) fail('program too large');
+        if (++expanded > 2000 || prefix.length > 60) fail('procedure source map too large');
         var path = prefix.concat(index);
         remember(block, path);
-        if (block.type === 'controls_whileUntil') {
+        if (block.type === 'procedures_callnoreturn') {
+          var name = String(block.getProcedureCall()).trim().toLowerCase();
+          if (!definitions.has(name) || calls.indexOf(name) >= 0) fail('invalid procedure call');
+          sequence(definitions.get(name).getInputTargetBlock('STACK'), path.concat('body'), calls.concat(name));
+        } else if (block.type === 'controls_whileUntil' || block.type === 'webeeblocks_v2_until') {
           expression(block.getInputTargetBlock('BOOL'), path.concat('condition'));
-          sequence(block.getInputTargetBlock('DO'), path.concat('body'));
+          sequence(block.getInputTargetBlock('DO'), path.concat('body'), calls);
         } else if (block.type === 'controls_repeat_ext') {
-          sequence(block.getInputTargetBlock('DO'), path.concat('body'));
+          sequence(block.getInputTargetBlock('DO'), path.concat('body'), calls);
         } else if (block.type === 'controls_if') {
           expression(block.getInputTargetBlock('IF0'), path.concat('condition'));
-          sequence(block.getInputTargetBlock('DO0'), path.concat('then'));
+          sequence(block.getInputTargetBlock('DO0'), path.concat('then'), calls);
           if (block.getInputTargetBlock('ELSE'))
-            sequence(block.getInputTargetBlock('ELSE'), path.concat('else'));
+            sequence(block.getInputTargetBlock('ELSE'), path.concat('else'), calls);
         } else if (block.type === 'variables_set') {
           expression(block.getInputTargetBlock('VALUE'), path.concat('value'));
+        } else if (block.type === 'math_change') {
+          remember(block, path.concat('value'));
+          remember(block, path.concat('value', 'left'));
+          expression(block.getInputTargetBlock('DELTA'), path.concat('value', 'right'));
         }
         block = typeof block.getNextBlock === 'function' ? block.getNextBlock() : null;
         index += 1;
       }
     }
 
-    sequence(tops[0], ['program']);
+    sequence(tops[0], ['program'], []);
     return map;
   }
 
