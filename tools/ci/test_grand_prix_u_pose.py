@@ -150,5 +150,13 @@ int main(void) {
                     if deadlines:self.assertIn('time_ms=212048 command=LAND',deadlines[0])
                     if (case=='land' and probe!='startup-reset') or case=='land-timeout':
                         self.assertEqual(result.stdout.count('GP_U_CONTROL_APPLIED time_ms=212048 command=LAND'),1)
+            for contact in ('ground','high','nan'):
+                with self.subTest(contact=contact):
+                    result=subprocess.run([str(binary)],env={**os.environ,
+                        'GP_U_POSE_CASE':'land','GP_U_CONTACT_PROBE':contact},
+                        capture_output=True,text=True,timeout=10)
+                    self.assertEqual(result.returncode,0,result.stdout[-5000:]+result.stderr)
+                    self.assertEqual(result.stdout.count('TRACE LAND_TOUCHDOWN '),int(contact=='ground'))
+                    self.assertIn('GP_U_POSE_RESPONSE t=212656 WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 OK',result.stdout)
 
 if __name__=='__main__':unittest.main()

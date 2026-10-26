@@ -7,8 +7,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from observe_outcome_startup import validate_capture
+from runtime_v2_outcome_assets import prepare as prepare_assets
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = ROOT / "ci-artifacts" / "runtime-v2-outcome-provider"
@@ -41,6 +43,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        [sys.executable, "tools/ci/test_runtime_v2_outcome_assets.py"],
         [sys.executable, "tools/ci/test_outcome_startup_observer.py"],
         ["node", "--check", "plugins/robot_windows/outcome_probe/outcome_probe.js"],
         [sys.executable, "-m", "py_compile", "controllers/runtime_v2_outcome_probe/runtime_v2_outcome_probe.py"],
@@ -117,24 +120,34 @@ timeout -k 5s 35s xvfb-run -a webots --stdout --stderr --batch --mode=realtime /
 '''.strip()
 
     env = os.environ.copy()
-    run_result = subprocess.run(
-        [
-            "docker", "run", "--rm",
-            "-e", "LIBGL_ALWAYS_SOFTWARE=true",
-            "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
-            "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-outcome-provider",
-            "-v", f"{ROOT}:/workspace",
-            "-w", "/workspace",
-            WEBOTS_IMAGE,
-            "bash", "-lc", inner,
-        ],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory(prefix="webeeblocks-outcome-assets-") as temporary:
+        try:
+            local_world, projects = prepare_assets(
+                Path(temporary) / "assets", ROOT / "worlds/runtime_v2_outcome_probe.wbt",
+                ARTIFACT_ROOT / "prepared-assets.json",
+            )
+        except Exception as exc:
+            return fail(f"CI environment preparation / Webots assets (no native launch): {exc}")
+        run_result = subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-e", "LIBGL_ALWAYS_SOFTWARE=true",
+                "-e", "WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true",
+                "-e", "WEBEEBLOCKS_CI_ARTIFACT_DIR=/workspace/ci-artifacts/runtime-v2-outcome-provider",
+                "-v", f"{ROOT}:/workspace",
+                "-v", f"{projects}:/usr/local/webots/projects:ro",
+                "-v", f"{local_world}:/workspace/worlds/runtime_v2_outcome_probe.wbt:ro",
+                "-w", "/workspace",
+                WEBOTS_IMAGE,
+                "bash", "-lc", inner,
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
     webots_log = run_result.stdout or ""
     (ARTIFACT_ROOT / "webots.log").write_text(webots_log, encoding="utf-8")
     (ARTIFACT_ROOT / "exit-code.txt").write_text(str(run_result.returncode) + "\n", encoding="utf-8")

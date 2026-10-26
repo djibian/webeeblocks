@@ -220,6 +220,7 @@ def main() -> int:
     ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        ["python3", "-m", "py_compile", "tools/ci/run_land_contact_regression.py"],
         ["python3", "tools/ci/test_progression_land_instrumentation.py"],
         ["python3", "tools/ci/test_land_contact_summary.py"],
         ["node", "tools/ci/test_progression_sequence_contract.js"],
@@ -297,6 +298,10 @@ apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/null
+# Additional #637 regression; the complete browser campaign below is unchanged.
+python3 /workspace/tools/ci/run_land_contact_regression.py \
+  --home /usr/local/webots --xvfb /usr/bin/Xvfb \
+  --out /workspace/ci-artifacts/progression-sequence-mission/land-contact-regression
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \

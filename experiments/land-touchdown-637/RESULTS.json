@@ -1,0 +1,86 @@
+{
+  "original_zip_sha256": "445bd574d1ee8412d8d681e49b35ce60dda3e8302f8d9384befaa3e6f7abaf9a",
+  "crc_members": 184,
+  "verified_manifest_entries": 161,
+  "trace_sha256": "8a64561fe7ec414ef03423cf049b314ff130a5c7d73b90fe002895346ea88a32",
+  "free_flight": {
+    "samples": 50,
+    "start": 174.88,
+    "end": 175.28,
+    "min_plane_gap_m": 0.0007540201731433536,
+    "min_box_distance_m": 0.21290290520390978,
+    "thrust_range_N": [
+      0.46943577908125694,
+      0.49467484627546066
+    ],
+    "max_abs_xy_prediction_residual_m_s2": 4.723554880570191e-12,
+    "max_ay_m_s2": 1.90004158044571
+  },
+  "reduced_native_intervention": {
+    "powered": {
+      "cut_s": null,
+      "final_position_m": [
+        1.4931704126167487,
+        4.133979674528033,
+        0.0196930438560607
+      ],
+      "displacement_xy_m": 2.7113470002373754,
+      "max_vxy_m_s": 2.165015927393418
+    },
+    "cut0": {
+      "cut_s": 0.032,
+      "final_position_m": [
+        0.7177300760849854,
+        1.53560178839195,
+        0.014995094999999993
+      ],
+      "displacement_xy_m": 0.000281950044340043,
+      "max_vxy_m_s": 0.056518880388814835
+    },
+    "cut8": {
+      "cut_s": 0.008,
+      "final_position_m": [
+        0.7177298772058339,
+        1.5356054560115402,
+        0.014995094999999993
+      ],
+      "displacement_xy_m": 0.00027828673754497457,
+      "max_vxy_m_s": 0.07406434441866463
+    },
+    "cut16": {
+      "cut_s": 0.016,
+      "final_position_m": [
+        0.7177299300068765,
+        1.5356087019788922,
+        0.014995094999999993
+      ],
+      "displacement_xy_m": 0.0002750403530631202,
+      "max_vxy_m_s": 0.056518880388814835
+    },
+    "cut24": {
+      "cut_s": 0.024,
+      "final_position_m": [
+        0.717729930931852,
+        1.535608461265932,
+        0.014995094999999993
+      ],
+      "displacement_xy_m": 0.0002752810048757145,
+      "max_vxy_m_s": 0.056518880388814835
+    },
+    "no-floor": {
+      "cut_s": null,
+      "final_position_m": [
+        0.7226312523895789,
+        1.791441338186359,
+        -0.3154572051781298
+      ],
+      "displacement_xy_m": 0.2556045420895885,
+      "max_vxy_m_s": 0.3572989367413689
+    }
+  },
+  "limits": [
+    "force balance is not measured motor telemetry",
+    "reduced probe uses a backward finite-difference angular velocity and constant hover force, not exact archived PID/actuator state",
+    "reduced probe is not a full mission, browser, canonical CI, RESET or real-flight proof"
+  ]
+}
