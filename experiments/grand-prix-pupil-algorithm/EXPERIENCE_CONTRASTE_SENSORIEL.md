@@ -13,6 +13,16 @@
 Le vrai WBB doit passer Blockly 13.2.1, préflight AST, source-map, Save/Open logique, pas-à-pas et budget ; les cas bas 0,35 (fermé) / 0,50 (ambigu) / 0,70 (ouvert) avec avant 0,35, l'écho ouvert répété avec `H passé=1`, compte après arrière et négatif sans H. Exécuter sur vrai Webots R2025a **les 16 cas inchangés** de `tools/ci/run_grand_prix_u_prototype.py --suite all --seed 4 --side 2.0`, comprenant sept positifs, huit négatifs, deux admissions RESET et LAND forcé au pas de 210000 ms. Inspecter archives, journaux et empreintes, y compris caméra. Aucune modification de sécurité, oracle, monde, terrain, runtime ou contrat.
 Le test Chromium du WBB non déplacé doit vérifier cinq racines sans recouvrement, clic de seuil 0,30→0,31, Save/Open et pas à pas. Ses stubs OS/backend ne prouvent pas un vrai sélecteur ni une vraie liaison Webots.
 
+## Contre-épreuve numérique sur vrais Blockly WBB (reprise indépendante)
+
+Le test `verify_sensor_ambiguity.js` confronte le vrai fichier de référence `GP232_reference_main17671.wbb` et le vrai fichier élève courant, sans changer les blocs ni les oracles. Les trois paires suivantes, côté 3, se situent à la frontière des seuils et **n'ont pas le même classement IEEE-754** :
+
+- `avant=0,25; bas=0,55` : ancienne forme `bas > avant+0,30` ⇒ anomalie ; contraste `bas-avant > 0,30` ⇒ **H ouvert** ;
+- `avant=0,35; bas=0,43` : ancienne bande `avant±0,08` ⇒ **H fermé** ; contraste `écart∈[-0,08;0,08]` ⇒ anomalie ;
+- `avant=0,27; bas=0,19` : ancienne bande ⇒ **H fermé** ; contraste ⇒ anomalie.
+
+Trois témoins non-frontière demeurent identiques (ouvert, fermé, ambigu). Une comparaison des graphes exacts des deux `.wbb` est maintenant encodée en test négatif de dérive numérique, et la première observation sur GitHub est [#705/6428809876](https://github.com/djibian/webeeblocks/pull/705#issuecomment-6428809876). **Ces cas synthétiques ne prouvent pas qu'un capteur Webots a émis exactement ces valeurs**, ni que l'un des classements correspond à une meilleure règle pédagogique. Avant tout choix de référence : décrire clairement le comportement aux égalités, étudier les voisins ULP de chaque borne et vérifier les situations ambiguës dans le véritable interpréteur, sans assouplir les garanties de sécurité, l'interdiction de double comptage ni la règle 210 s. Ce test de régression **n'est pas un correctif de l'algorithme**.
+
 ## Comparaison humaine A/B préenregistrée
 Deux groupes d'élèves de prérequis comparables, ordres **234→contraste** et **contraste→234** contrebalancés, activités 1–7 réellement apprises au préalable (condition non actuellement acceptée). Même mission, durée, aides disponibles ; consigner les aides, erreurs et l'effet d'ordre. Ne pas confondre ouvrir un WBB complet avec le construire.
 Épreuves observables : construire/expliquer le classement ouvert-fermé-ambigu à partir de capteurs et du cas `avant=0,35, bas=0,50` ; retrouver le comptage après confirmation arrière et le verrou anti-répétition ; localiser et éditer au clic 0,30→0,31 puis diagnostiquer une anomalie en pas-à-pas ; sauver et rouvrir par **vraie boîte OS** ; refaire sans modèle la section centrale ; diagnostiquer un échec de destination sans toucher à l'oracle.
