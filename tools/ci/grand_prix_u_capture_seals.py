@@ -7,25 +7,48 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import stat
 
 
 class CaptureSealError(RuntimeError):
     pass
 
 
-def verify_new_capture_seals(root, baseline):
-    """Recheck every trial created in this invocation, including camera probes."""
+def _unique_pairs(pairs):
+    """A signed JSON object cannot have two meanings for the same key."""
+    values = {}
+    for name, value in pairs:
+        if name in values:
+            raise CaptureSealError(f'duplicate JSON manifest key: {name}')
+        values[name] = value
+    return values
+
+
+def verify_new_capture_seals(root, baseline, expected):
+    """Recheck EXACT trial inventory registered by trial(), not surviving names."""
     root = Path(root)
-    trial_dirs = sorted(p for p in root.iterdir() if p.is_dir()
-                        and p.name.startswith('gp-u-v1-') and p.name not in baseline)
-    if not trial_dirs:
-        raise CaptureSealError('no new native trial directory to verify')
-    for folder in trial_dirs:
+    if (not isinstance(baseline, set) or not isinstance(expected, set) or
+            not expected or baseline.intersection(expected)):
+        raise CaptureSealError('missing or inconsistent expected native trial inventory')
+    if any(not isinstance(name, str) or not name.startswith('gp-u-v1-') or
+           '/' in name or '\\' in name for name in expected | baseline):
+        raise CaptureSealError('malformed trial directory inventory')
+    # Do not use Path.is_dir() to filter entries: it follows symlinks and omits
+    # substituted regular files and broken symlinks, producing false PASS.
+    all_entries = {p.name: p for p in root.iterdir() if p.name.startswith('gp-u-v1-')}
+    actual = set(all_entries) - baseline
+    if actual != expected:
+        raise CaptureSealError('missing or unexpected native trial directories: ' +
+                               str(sorted(actual ^ expected)))
+    for name in sorted(expected):
+        folder = all_entries[name]
+        if not stat.S_ISDIR(folder.lstat().st_mode):
+            raise CaptureSealError(f'{name}: non-directory or symlink native trial evidence')
         manifest = folder / 'sha256.json'
         if manifest.is_symlink() or not manifest.is_file():
             raise CaptureSealError(f'{folder.name}: no regular sealed manifest')
         try:
-            recorded = json.loads(manifest.read_text())
+            recorded = json.loads(manifest.read_text(), object_pairs_hook=_unique_pairs)
         except (OSError, ValueError) as error:
             raise CaptureSealError(f'{folder.name}: unreadable sha256 manifest') from error
         if not isinstance(recorded, dict) or not recorded:
@@ -48,5 +71,5 @@ def verify_new_capture_seals(root, baseline):
             if (actual != digest or before.st_size != after.st_size or
                 before.st_mtime_ns != after.st_mtime_ns):
                 raise CaptureSealError(f'{folder.name}: post-seal mutation: {filename}')
-    print(f'GP_U_CAPTURE_SEALS_RECHECKED directories={len(trial_dirs)}', flush=True)
-    return len(trial_dirs)
+    print(f'GP_U_CAPTURE_SEALS_RECHECKED directories={len(expected)}', flush=True)
+    return len(expected)
