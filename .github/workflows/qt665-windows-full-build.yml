@@ -70,19 +70,30 @@ jobs:
           export PATH="$PWD/msys64/mingw64/bin:$PWD/bin/node:/mingw64/bin:/usr/bin:$PATH"
           set -o pipefail
           make webots_target -j4 2>&1 | tee ../ci-artifacts/qt665-windows-source/build.log
-          find "$WEBOTS_HOME" -type f -name 'webots-bin.exe' > ../ci-artifacts/qt665-windows-source/pe-paths.txt
-          test "$(wc -l < ../ci-artifacts/qt665-windows-source/pe-paths.txt)" -eq 1
-          pe="$(cat ../ci-artifacts/qt665-windows-source/pe-paths.txt)"
+          # Capture the true native PE BEFORE any later qualifier may fail.
+          # Do not require a redundant DLL copy inside the Webots checkout:
+          # upstream MSYS2 links against the installed /mingw64/bin Qt SDK.
+          pe="$WEBOTS_HOME/msys64/mingw64/bin/webots-bin.exe"
+          test -s "$pe"
+          echo "$pe" > ../ci-artifacts/qt665-windows-source/pe-paths.txt
           sha256sum "$pe" > ../ci-artifacts/qt665-windows-source/pe.sha256
           file "$pe" > ../ci-artifacts/qt665-windows-source/pe-type.txt
           objdump -p "$pe" > ../ci-artifacts/qt665-windows-source/pe-imports.txt
-          grep -q 'DLL Name: Qt6Widgets.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
-          grep -q 'DLL Name: Qt6Core.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
-          test -f msys64/mingw64/bin/Qt6Widgets.dll
-          test -f msys64/mingw64/bin/Qt6Core.dll
-          sha256sum msys64/mingw64/bin/Qt6Widgets.dll msys64/mingw64/bin/Qt6Core.dll > ../ci-artifacts/qt665-windows-source/native-qt.sha256
           cp "$pe" ../ci-artifacts/qt665-windows-source/webots-bin.exe
-          echo QT665_WINDOWS_REAL_PE_BUILD=PASS
+          echo QT665_WINDOWS_REAL_PE_LINK=PASS
+          for module in Qt6Core.dll Qt6Widgets.dll; do
+            test -s "/mingw64/bin/$module"
+            cp "/mingw64/bin/$module" "../ci-artifacts/qt665-windows-source/$module"
+          done
+          sha256sum /mingw64/bin/Qt6Widgets.dll /mingw64/bin/Qt6Core.dll > ../ci-artifacts/qt665-windows-source/native-qt.sha256
+          echo QT665_WINDOWS_QT_DLL_EVIDENCE=PASS
+          grep -qi 'DLL Name: Qt6Widgets.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
+          grep -qi 'DLL Name: Qt6Core.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
+          echo QT665_WINDOWS_REAL_PE_IMPORTS=PASS
+          # The Webots R2025a official distribution's own DLLs must be
+          # inventoried separately; this SDK 6.12 build is not a drop-in PE
+          # for its possibly different Qt ABI and must not be published.
+          echo QT665_WINDOWS_SDK_PE_BUILD=PASS_NOT_DISTRIBUTION
       - name: Preserve bounded Windows native build evidence, never invent an exe
         if: always()
         uses: actions/upload-artifact@v4
