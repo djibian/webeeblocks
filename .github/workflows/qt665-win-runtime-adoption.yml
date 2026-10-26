@@ -1,9 +1,9 @@
 # NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
 # A disposable CI runner is modified; this is NOT a classroom release.
-name: Qt665 Windows full native import graph falsification (NON-GATE)
+name: Qt665 Windows OpenAL GCC ABI causal repair (NON-GATE)
 on:
   push:
-    branches: [evidence/665-win-native-full-closure-20261026]
+    branches: [evidence/665-win-openal-abi-closure-20261026]
 permissions:
   contents: read
   actions: read
@@ -20,6 +20,7 @@ jobs:
             mingw-w64-x86_64-qt6-base
             mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-qt6-websockets
+            mingw-w64-x86_64-openal
             mingw-w64-x86_64-binutils
       - uses: actions/checkout@v4
         with:
@@ -212,6 +213,24 @@ jobs:
             ConvertTo-Json -Depth 9 | Set-Content ci-artifacts/qt665-windows-running/recursive-pe-closure.json
           if ($unresolved.Count) {throw ('Unresolved transitive PE imports: '+($unresolved | ConvertTo-Json -Compress))}
           Write-Host "QT665_WINDOWS_TRANSITIVE_IMPORT_CLOSURE=PASS inspected=$($visited.Count) copied=$($needed.Count)"
+          # Causal counterprobe for run 40420506026. The original R2025a
+          # OpenAL DLL imports two removed TLS symbols from GCC16's libstdc++.
+          # Replace this *single* ABI-incompatible native component on an
+          # ephemeral Windows runner with the coherent MSYS2 OpenAL package.
+          # Record original and replacement SHA; no classroom distribution.
+          $openalName='libopenal-1.dll'
+          $openalOriginal=Join-Path $bin $openalName
+          $openalSdk=Join-Path $env:QT665_MINGW_BIN $openalName
+          if (-not (Test-Path -LiteralPath $openalOriginal -PathType Leaf)) {throw 'Original OpenAL missing; no causal substitution possible'}
+          if (-not (Test-Path -LiteralPath $openalSdk -PathType Leaf)) {throw 'Pinned toolchain OpenAL absent; abort counterprobe'}
+          $originalHash=(Get-FileHash -LiteralPath $openalOriginal -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sdkHash=(Get-FileHash -LiteralPath $openalSdk -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sdkHash -eq $originalHash) {throw 'OpenAL test has no discriminating binary difference'}
+          Copy-Item -LiteralPath $openalSdk -Destination $openalOriginal -Force
+          $observedHash=(Get-FileHash -LiteralPath $openalOriginal -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($observedHash -ne $sdkHash) {throw 'OpenAL copy SHA mismatch'}
+          "original=$originalHash sdk=$sdkHash installed=$observedHash" | Set-Content ci-artifacts/qt665-windows-running/openal-abi-contrast.txt
+          Write-Host 'QT665_WINDOWS_MATCHED_OPENAL_GCC_ABI_OVERLAY=PASS_DISPOSABLE_ONLY'
           Write-Host 'QT665_WINDOWS_DISPOSABLE_PATCHED_INSTALL=PASS'
       - name: Require genuine patched Windows Webots CLI and live mapped Qt Core/Widgets
         shell: pwsh
