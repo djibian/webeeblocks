@@ -407,3 +407,35 @@ uses the exact SHA, pinned original runtime, strict
 `attest_and_install_candidate.py` and unchanged main native
 `short`, `reset`, `wrong-landing`, `unavailable` tests; its outcome
 must be checked before claiming those results.
+
+### New parent-safe ELF exercised in real WebeeBlocks native GP consumers
+
+**NON-GATE, NOT production adoption.** The fixed Linux ELF
+`e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545`
+was verified **inside** a disposable pinned R2025a Docker runtime and used
+by unchanged native runners from main
+`7ba59aca5047b5a1fa3b14ccb9724323130547c6`.
+
+- [Consumer run 40357331972](https://github.com/djibian/webeeblocks/actions/runs/40357331972):
+  exact experiment HEAD `1f44d0e29626c574ca53aad0ffcd56624024bfd1`,
+  `completed/success` with **both matrix jobs success**.
+- [Positive archive #12666691441](https://github.com/djibian/webeeblocks/actions/runs/40357331972/artifacts/12666691441),
+  ZIP SHA-256 `b3066bbf5473e402ce418014a6fd8d6de3684ecd5355af777658de1e0a193977`;
+  [negative archive #12666073656](https://github.com/djibian/webeeblocks/actions/runs/40357331972/artifacts/12666073656),
+  ZIP SHA-256 `3cdf0460f0d03a552e97fe3111844caae27cce79b5ada03d44e89453584abd80`.
+- `QT665_DISPOSABLE_LINUX_ADOPTION=PASS` in each native job, no arbitrary
+  fallback to official baseline after checking the exact ELF and Qt identity.
+- `short` PASS, expected `not-achieved / wrong-landing` at 13.736 sim sec;
+  `reset` PASS, three crossings per attempt and `achieved` at
+  163.936 sec / after genuine RESET 160.064 sec;
+  `wrong-landing` PASS as negative at 159.56 sec;
+  `unavailable` PASS as negative `not-achieved / runtime` at 8.808 sec.
+
+**Explicit blockers:** The official Linux image selectors/CI have NOT
+adopted this ELF; Windows does not have a qualified rebuilt `webots-bin.exe`.
+A/B original/previous-patch `timeout-gate` still FAILs the existing
+`low-outside-zone` outcome before the independent correct LAND deadline
+210000 ms. Do not relax, omit or silently reinterpret this negative oracle.
+True full-ELF modal retirement event stack, genuine late network callbacks,
+all V5 suites, exact HEAD Ready canonical CI Gate, and independent GO remain
+separate obligations. Preserve #701 Draft and #665 OPEN.
