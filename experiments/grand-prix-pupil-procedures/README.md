@@ -1,6 +1,6 @@
 # Grand Prix #587 — décomposition en procédures du témoin sans murs (expérience, NON QUALIFIÉE)
 
-**But :** tester une amélioration de la construction, de la lecture et de la correction par un collégien, **sans prétendre que renommer ou masquer 389 blocs rend l'algorithme accessible**. Cette expérience n'est ni le starter élève ni le témoin officiel. Aucun changement de moteur, de monde, de règles, de matériel, de CI, d'oracle, de RESET, de LAND ou de limite 210 s.
+**But :** tester une amélioration de la construction, de la lecture et de la correction par un collégien, **sans prétendre que renommer ou masquer 389 blocs rend l'algorithme accessible**. Cette expérience n'est ni le starter élève ni le témoin officiel. Aucun changement de moteur, de monde, de règles, de matériel, de workflow CI, d'oracle, de RESET, de LAND ou de limite 210 s. Le seul fichier partagé modifié ajoute l'appel au vérificateur dans les tests core Blockly existants ; aucune sélection/condition de succès n'est affaiblie.
 
 ## Provenance et domaine
 
@@ -28,6 +28,8 @@ La **chaîne principale** est désormais : décoller → monter → **initialise
 ## Test discriminant
 
 `node experiments/grand-prix-pupil-procedures/verify.js --structural-only` vérifie sans dépendances la présence/identité des blocs, variables et définitions ; développe les appels et établit une égalité exacte avec l'arbre des instructions Blockly de #655, après exclusion des seuls IDs et coordonnées d'éditeur. `node experiments/grand-prix-pupil-procedures/verify.js`, dans un checkout préparé avec Blockly 13.2.1, ajoute : chargement et réouverture, préflight Grand Prix, compilation AST et égalité stricte des instructions de l'AST après expansion des appels.
+
+Le test core partagé `tools/ci/test_runtime_v2_variables.js` invoque désormais le vérificateur complet sur le HEAD du candidat. Observer son résultat CI réel avant toute affirmation de chargement/préflight réussi ; ne pas convertir une CI Draft en GO.
 
 Cette équivalence est **statique**, pas un verdict de vol : chaque appel est un pas d'interpréteur et le temps réel/les effets des capteurs/déplacements restent à contrôler. Les procédures ne transforment pas les retours de MOVE en odométrie et ne résolvent pas la non-observabilité latérale hors des montants. Aucun replay natif de cette variante n'est revendiqué.
 
