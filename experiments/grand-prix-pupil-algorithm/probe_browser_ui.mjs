@@ -27,8 +27,7 @@ const errors=[], warnings=[],events=[];
 let browser;
 try{
  browser=await chromium.launch({executablePath:process.env.CHROME_BIN||undefined,headless:true,
-   args:['--no-sandbox','--disable-dev-shm-usage','--single-process','--no-zygote',
-         '--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+   args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
  const page=await browser.newPage({viewport:{width:1600,height:1000}});
  page.on('pageerror',e=>errors.push(String(e)));
  page.on('console',m=>{if(m.type()==='error')warnings.push(m.text());});
