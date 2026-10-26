@@ -107,6 +107,27 @@ jobs:
           Get-ChildItem -LiteralPath $bin -Filter 'Qt6*.dll' -File |
             ForEach-Object {"$($_.Name) $((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"} |
             Set-Content ci-artifacts/qt665-windows-running/all-installed-qt-sha256.txt
+          # Diagnosed direct imports missing from the authentic R2025a install
+          # in run 40410796421; copy only these real compiler-runtime DSOs,
+          # with their independently observed source SHA256, and fail closed.
+          $compilerRuntime=@{
+            'libgcc_s_seh-1.dll'='d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7'
+            'libstdc++-6.dll'='494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff'
+            'libwinpthread-1.dll'='72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0'
+          }
+          foreach ($entry in $compilerRuntime.GetEnumerator()) {
+            $source=Join-Path $env:QT665_MINGW_BIN $entry.Key
+            $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($sourceHash -ne $entry.Value) { throw "Qt665 GCC runtime SHA mismatch: $($entry.Key)" }
+            $destination=Join-Path $bin $entry.Key
+            if (-not (Test-Path -LiteralPath $destination -PathType Leaf)) {
+              Copy-Item -LiteralPath $source -Destination $destination
+            }
+            $destHash=(Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($destHash -ne $entry.Value) {throw "Incompatible compiler dependency: $($entry.Key)"}
+            "$($entry.Key) $destHash" | Add-Content ci-artifacts/qt665-windows-running/gcc-runtime-closure-sha256.txt
+          }
+          Write-Host 'QT665_WINDOWS_GCC_RUNTIME_CLOSURE=PASS'
           Write-Host 'QT665_WINDOWS_DISPOSABLE_PATCHED_INSTALL=PASS'
       - name: Require genuine patched Windows Webots CLI and live mapped Qt Core/Widgets
         shell: pwsh
