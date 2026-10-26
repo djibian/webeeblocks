@@ -1,0 +1,2496 @@
+{
+  "format": "webeeblocks-project",
+  "version": 1,
+  "activity": {
+    "id": "progression-grand-prix-u-v1",
+    "semantics": "webeeblocks-ast-v1"
+  },
+  "workspace": {
+    "blocks": {
+      "languageVersion": 0,
+      "blocks": [
+        {
+          "type": "webeeblocks_v2_takeoff",
+          "id": "gp-pupil-v2-b-217",
+          "fields": {
+            "HEIGHT": 0.4
+          },
+          "next": {
+            "block": {
+              "type": "webeeblocks_v2_vertical",
+              "id": "gp-pupil-v2-b-218",
+              "fields": {
+                "DIRECTION": "up",
+                "DISTANCE": 0.4
+              },
+              "next": {
+                "block": {
+                  "type": "variables_set",
+                  "id": "gp-pupil-v2-b-220",
+                  "fields": {
+                    "VAR": {
+                      "id": "gp-pupil-v2-0"
+                    }
+                  },
+                  "inputs": {
+                    "VALUE": {
+                      "block": {
+                        "type": "math_number",
+                        "id": "gp-pupil-v2-b-219",
+                        "fields": {
+                          "NUM": 1
+                        }
+                      }
+                    }
+                  },
+                  "next": {
+                    "block": {
+                      "type": "variables_set",
+                      "id": "gp-pupil-v2-b-222",
+                      "fields": {
+                        "VAR": {
+                          "id": "gp-pupil-v2-1"
+                        }
+                      },
+                      "inputs": {
+                        "VALUE": {
+                          "block": {
+                            "type": "math_number",
+                            "id": "gp-pupil-v2-b-221",
+                            "fields": {
+                              "NUM": 0
+                            }
+                          }
+                        }
+                      },
+                      "next": {
+                        "block": {
+                          "type": "variables_set",
+                          "id": "gp-pupil-v2-b-224",
+                          "fields": {
+                            "VAR": {
+                              "id": "gp-pupil-v2-4"
+                            }
+                          },
+                          "inputs": {
+                            "VALUE": {
+                              "block": {
+                                "type": "math_number",
+                                "id": "gp-pupil-v2-b-223",
+                                "fields": {
+                                  "NUM": 0
+                                }
+                              }
+                            }
+                          },
+                          "next": {
+                            "block": {
+                              "type": "controls_repeat_ext",
+                              "id": "gp-pupil-v2-b-230",
+                              "inputs": {
+                                "TIMES": {
+                                  "block": {
+                                    "type": "math_number",
+                                    "id": "gp-pupil-v2-b-225",
+                                    "fields": {
+                                      "NUM": 3
+                                    }
+                                  }
+                                },
+                                "DO": {
+                                  "block": {
+                                    "type": "controls_if",
+                                    "id": "gp-pupil-v2-b-229",
+                                    "inputs": {
+                                      "IF0": {
+                                        "block": {
+                                          "type": "logic_compare",
+                                          "id": "gp-pupil-v2-b-228",
+                                          "fields": {
+                                            "OP": "NEQ"
+                                          },
+                                          "inputs": {
+                                            "A": {
+                                              "block": {
+                                                "type": "variables_get",
+                                                "id": "gp-pupil-v2-b-226",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "gp-pupil-v2-4"
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "B": {
+                                              "block": {
+                                                "type": "math_number",
+                                                "id": "gp-pupil-v2-b-227",
+                                                "fields": {
+                                                  "NUM": 2
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "DO0": {
+                                        "block": {
+                                          "type": "variables_set",
+                                          "id": "gp-pupil-v2-b-197",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "gp-pupil-v2-2"
+                                            }
+                                          },
+                                          "inputs": {
+                                            "VALUE": {
+                                              "block": {
+                                                "type": "math_number",
+                                                "id": "gp-pupil-v2-b-196",
+                                                "fields": {
+                                                  "NUM": 0
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "next": {
+                                            "block": {
+                                              "type": "variables_set",
+                                              "id": "gp-pupil-v2-b-199",
+                                              "fields": {
+                                                "VAR": {
+                                                  "id": "gp-pupil-v2-3"
+                                                }
+                                              },
+                                              "inputs": {
+                                                "VALUE": {
+                                                  "block": {
+                                                    "type": "math_number",
+                                                    "id": "gp-pupil-v2-b-198",
+                                                    "fields": {
+                                                      "NUM": 0
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "next": {
+                                                "block": {
+                                                  "type": "variables_set",
+                                                  "id": "gp-pupil-v2-b-201",
+                                                  "fields": {
+                                                    "VAR": {
+                                                      "id": "gp-pupil-v2-4"
+                                                    }
+                                                  },
+                                                  "inputs": {
+                                                    "VALUE": {
+                                                      "block": {
+                                                        "type": "math_number",
+                                                        "id": "gp-pupil-v2-b-200",
+                                                        "fields": {
+                                                          "NUM": 0
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "next": {
+                                                    "block": {
+                                                      "type": "controls_whileUntil",
+                                                      "id": "gp-pupil-v2-b-205",
+                                                      "fields": {
+                                                        "MODE": "UNTIL",
+                                                        "MAX_ITERATIONS": 25
+                                                      },
+                                                      "inputs": {
+                                                        "BOOL": {
+                                                          "block": {
+                                                            "type": "logic_compare",
+                                                            "id": "gp-pupil-v2-b-204",
+                                                            "fields": {
+                                                              "OP": "NEQ"
+                                                            },
+                                                            "inputs": {
+                                                              "A": {
+                                                                "block": {
+                                                                  "type": "variables_get",
+                                                                  "id": "gp-pupil-v2-b-202",
+                                                                  "fields": {
+                                                                    "VAR": {
+                                                                      "id": "gp-pupil-v2-4"
+                                                                    }
+                                                                  }
+                                                                }
+                                                              },
+                                                              "B": {
+                                                                "block": {
+                                                                  "type": "math_number",
+                                                                  "id": "gp-pupil-v2-b-203",
+                                                                  "fields": {
+                                                                    "NUM": 0
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "DO": {
+                                                          "block": {
+                                                            "type": "variables_set",
+                                                            "id": "gp-pupil-v2-b-172",
+                                                            "fields": {
+                                                              "VAR": {
+                                                                "id": "gp-pupil-v2-5"
+                                                              }
+                                                            },
+                                                            "inputs": {
+                                                              "VALUE": {
+                                                                "block": {
+                                                                  "type": "webeeblocks_v2_range",
+                                                                  "id": "gp-pupil-v2-b-171",
+                                                                  "fields": {
+                                                                    "DIRECTION": "front"
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "next": {
+                                                              "block": {
+                                                                "type": "controls_if",
+                                                                "id": "gp-pupil-v2-b-195",
+                                                                "extraState": {
+                                                                  "hasElse": true
+                                                                },
+                                                                "inputs": {
+                                                                  "IF0": {
+                                                                    "block": {
+                                                                      "type": "logic_operation",
+                                                                      "id": "gp-pupil-v2-b-179",
+                                                                      "fields": {
+                                                                        "OP": "AND"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "logic_compare",
+                                                                            "id": "gp-pupil-v2-b-175",
+                                                                            "fields": {
+                                                                              "OP": "LT"
+                                                                            },
+                                                                            "inputs": {
+                                                                              "A": {
+                                                                                "block": {
+                                                                                  "type": "variables_get",
+                                                                                  "id": "gp-pupil-v2-b-173",
+                                                                                  "fields": {
+                                                                                    "VAR": {
+                                                                                      "id": "gp-pupil-v2-0"
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              },
+                                                                              "B": {
+                                                                                "block": {
+                                                                                  "type": "math_number",
+                                                                                  "id": "gp-pupil-v2-b-174",
+                                                                                  "fields": {
+                                                                                    "NUM": 3
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "logic_compare",
+                                                                            "id": "gp-pupil-v2-b-178",
+                                                                            "fields": {
+                                                                              "OP": "GTE"
+                                                                            },
+                                                                            "inputs": {
+                                                                              "A": {
+                                                                                "block": {
+                                                                                  "type": "variables_get",
+                                                                                  "id": "gp-pupil-v2-b-176",
+                                                                                  "fields": {
+                                                                                    "VAR": {
+                                                                                      "id": "gp-pupil-v2-2"
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              },
+                                                                              "B": {
+                                                                                "block": {
+                                                                                  "type": "math_number",
+                                                                                  "id": "gp-pupil-v2-b-177",
+                                                                                  "fields": {
+                                                                                    "NUM": 21
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "DO0": {
+                                                                    "block": {
+                                                                      "type": "variables_set",
+                                                                      "id": "gp-pupil-v2-b-181",
+                                                                      "fields": {
+                                                                        "VAR": {
+                                                                          "id": "gp-pupil-v2-4"
+                                                                        }
+                                                                      },
+                                                                      "inputs": {
+                                                                        "VALUE": {
+                                                                          "block": {
+                                                                            "type": "math_number",
+                                                                            "id": "gp-pupil-v2-b-180",
+                                                                            "fields": {
+                                                                              "NUM": 1
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "ELSE": {
+                                                                    "block": {
+                                                                      "type": "controls_if",
+                                                                      "id": "gp-pupil-v2-b-194",
+                                                                      "extraState": {
+                                                                        "hasElse": true
+                                                                      },
+                                                                      "inputs": {
+                                                                        "IF0": {
+                                                                          "block": {
+                                                                            "type": "logic_operation",
+                                                                            "id": "gp-pupil-v2-b-188",
+                                                                            "fields": {
+                                                                              "OP": "AND"
+                                                                            },
+                                                                            "inputs": {
+                                                                              "A": {
+                                                                                "block": {
+                                                                                  "type": "logic_compare",
+                                                                                  "id": "gp-pupil-v2-b-184",
+                                                                                  "fields": {
+                                                                                    "OP": "EQ"
+                                                                                  },
+                                                                                  "inputs": {
+                                                                                    "A": {
+                                                                                      "block": {
+                                                                                        "type": "variables_get",
+                                                                                        "id": "gp-pupil-v2-b-182",
+                                                                                        "fields": {
+                                                                                          "VAR": {
+                                                                                            "id": "gp-pupil-v2-0"
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "B": {
+                                                                                      "block": {
+                                                                                        "type": "math_number",
+                                                                                        "id": "gp-pupil-v2-b-183",
+                                                                                        "fields": {
+                                                                                          "NUM": 3
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              },
+                                                                              "B": {
+                                                                                "block": {
+                                                                                  "type": "logic_compare",
+                                                                                  "id": "gp-pupil-v2-b-187",
+                                                                                  "fields": {
+                                                                                    "OP": "GTE"
+                                                                                  },
+                                                                                  "inputs": {
+                                                                                    "A": {
+                                                                                      "block": {
+                                                                                        "type": "variables_get",
+                                                                                        "id": "gp-pupil-v2-b-185",
+                                                                                        "fields": {
+                                                                                          "VAR": {
+                                                                                            "id": "gp-pupil-v2-2"
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "B": {
+                                                                                      "block": {
+                                                                                        "type": "math_number",
+                                                                                        "id": "gp-pupil-v2-b-186",
+                                                                                        "fields": {
+                                                                                          "NUM": 24
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "DO0": {
+                                                                          "block": {
+                                                                            "type": "variables_set",
+                                                                            "id": "gp-pupil-v2-b-190",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-4"
+                                                                              }
+                                                                            },
+                                                                            "inputs": {
+                                                                              "VALUE": {
+                                                                                "block": {
+                                                                                  "type": "math_number",
+                                                                                  "id": "gp-pupil-v2-b-189",
+                                                                                  "fields": {
+                                                                                    "NUM": 2
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "ELSE": {
+                                                                          "block": {
+                                                                            "type": "controls_if",
+                                                                            "id": "gp-pupil-v2-b-193",
+                                                                            "extraState": {
+                                                                              "hasElse": true
+                                                                            },
+                                                                            "inputs": {
+                                                                              "IF0": {
+                                                                                "block": {
+                                                                                  "type": "logic_operation",
+                                                                                  "id": "gp-pupil-v2-b-191",
+                                                                                  "fields": {
+                                                                                    "OP": "OR"
+                                                                                  },
+                                                                                  "inputs": {
+                                                                                    "A": {
+                                                                                      "block": {
+                                                                                        "type": "logic_operation",
+                                                                                        "id": "gp-pupil-v2-b-142",
+                                                                                        "fields": {
+                                                                                          "OP": "AND"
+                                                                                        },
+                                                                                        "inputs": {
+                                                                                          "A": {
+                                                                                            "block": {
+                                                                                              "type": "logic_operation",
+                                                                                              "id": "gp-pupil-v2-b-138",
+                                                                                              "fields": {
+                                                                                                "OP": "AND"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "logic_compare",
+                                                                                                    "id": "gp-pupil-v2-b-134",
+                                                                                                    "fields": {
+                                                                                                      "OP": "LTE"
+                                                                                                    },
+                                                                                                    "inputs": {
+                                                                                                      "A": {
+                                                                                                        "block": {
+                                                                                                          "type": "variables_get",
+                                                                                                          "id": "gp-pupil-v2-b-132",
+                                                                                                          "fields": {
+                                                                                                            "VAR": {
+                                                                                                              "id": "gp-pupil-v2-5"
+                                                                                                            }
+                                                                                                          }
+                                                                                                        }
+                                                                                                      },
+                                                                                                      "B": {
+                                                                                                        "block": {
+                                                                                                          "type": "math_number",
+                                                                                                          "id": "gp-pupil-v2-b-133",
+                                                                                                          "fields": {
+                                                                                                            "NUM": 0.4
+                                                                                                          }
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "logic_compare",
+                                                                                                    "id": "gp-pupil-v2-b-137",
+                                                                                                    "fields": {
+                                                                                                      "OP": "GTE"
+                                                                                                    },
+                                                                                                    "inputs": {
+                                                                                                      "A": {
+                                                                                                        "block": {
+                                                                                                          "type": "variables_get",
+                                                                                                          "id": "gp-pupil-v2-b-135",
+                                                                                                          "fields": {
+                                                                                                            "VAR": {
+                                                                                                              "id": "gp-pupil-v2-5"
+                                                                                                            }
+                                                                                                          }
+                                                                                                        }
+                                                                                                      },
+                                                                                                      "B": {
+                                                                                                        "block": {
+                                                                                                          "type": "math_number",
+                                                                                                          "id": "gp-pupil-v2-b-136",
+                                                                                                          "fields": {
+                                                                                                            "NUM": 0.3
+                                                                                                          }
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                          "B": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-141",
+                                                                                              "fields": {
+                                                                                                "OP": "EQ"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-139",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-3"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-140",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 0
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "B": {
+                                                                                      "block": {
+                                                                                        "type": "logic_operation",
+                                                                                        "id": "gp-pupil-v2-b-149",
+                                                                                        "fields": {
+                                                                                          "OP": "AND"
+                                                                                        },
+                                                                                        "inputs": {
+                                                                                          "A": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-145",
+                                                                                              "fields": {
+                                                                                                "OP": "EQ"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-143",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-0"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-144",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 3
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                          "B": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-148",
+                                                                                              "fields": {
+                                                                                                "OP": "LTE"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-146",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-5"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-147",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 0.4
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              },
+                                                                              "DO0": {
+                                                                                "block": {
+                                                                                  "type": "procedures_callnoreturn",
+                                                                                  "id": "gp-pupil-v2-b-192",
+                                                                                  "extraState": {
+                                                                                    "name": "observer et décider"
+                                                                                  }
+                                                                                }
+                                                                              },
+                                                                              "ELSE": {
+                                                                                "block": {
+                                                                                  "type": "controls_if",
+                                                                                  "id": "gp-pupil-v2-b-170",
+                                                                                  "extraState": {
+                                                                                    "hasElse": true
+                                                                                  },
+                                                                                  "inputs": {
+                                                                                    "IF0": {
+                                                                                      "block": {
+                                                                                        "type": "logic_operation",
+                                                                                        "id": "gp-pupil-v2-b-156",
+                                                                                        "fields": {
+                                                                                          "OP": "AND"
+                                                                                        },
+                                                                                        "inputs": {
+                                                                                          "A": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-152",
+                                                                                              "fields": {
+                                                                                                "OP": "LT"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-150",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-0"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-151",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 3
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                          "B": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-155",
+                                                                                              "fields": {
+                                                                                                "OP": "GTE"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-153",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-2"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-154",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 17
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "DO0": {
+                                                                                      "block": {
+                                                                                        "type": "webeeblocks_v2_move",
+                                                                                        "id": "gp-pupil-v2-b-157",
+                                                                                        "fields": {
+                                                                                          "DIRECTION": "forward",
+                                                                                          "DISTANCE": 0.1
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "block": {
+                                                                                            "type": "math_change",
+                                                                                            "id": "gp-pupil-v2-b-159",
+                                                                                            "fields": {
+                                                                                              "VAR": {
+                                                                                                "id": "gp-pupil-v2-2"
+                                                                                              }
+                                                                                            },
+                                                                                            "inputs": {
+                                                                                              "DELTA": {
+                                                                                                "block": {
+                                                                                                  "type": "math_number",
+                                                                                                  "id": "gp-pupil-v2-b-158",
+                                                                                                  "fields": {
+                                                                                                    "NUM": 1
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "ELSE": {
+                                                                                      "block": {
+                                                                                        "type": "controls_if",
+                                                                                        "id": "gp-pupil-v2-b-169",
+                                                                                        "extraState": {
+                                                                                          "hasElse": true
+                                                                                        },
+                                                                                        "inputs": {
+                                                                                          "IF0": {
+                                                                                            "block": {
+                                                                                              "type": "logic_compare",
+                                                                                              "id": "gp-pupil-v2-b-162",
+                                                                                              "fields": {
+                                                                                                "OP": "GT"
+                                                                                              },
+                                                                                              "inputs": {
+                                                                                                "A": {
+                                                                                                  "block": {
+                                                                                                    "type": "variables_get",
+                                                                                                    "id": "gp-pupil-v2-b-160",
+                                                                                                    "fields": {
+                                                                                                      "VAR": {
+                                                                                                        "id": "gp-pupil-v2-5"
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                },
+                                                                                                "B": {
+                                                                                                  "block": {
+                                                                                                    "type": "math_number",
+                                                                                                    "id": "gp-pupil-v2-b-161",
+                                                                                                    "fields": {
+                                                                                                      "NUM": 0.75
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                          "DO0": {
+                                                                                            "block": {
+                                                                                              "type": "webeeblocks_v2_move",
+                                                                                              "id": "gp-pupil-v2-b-163",
+                                                                                              "fields": {
+                                                                                                "DIRECTION": "forward",
+                                                                                                "DISTANCE": 0.4
+                                                                                              },
+                                                                                              "next": {
+                                                                                                "block": {
+                                                                                                  "type": "math_change",
+                                                                                                  "id": "gp-pupil-v2-b-165",
+                                                                                                  "fields": {
+                                                                                                    "VAR": {
+                                                                                                      "id": "gp-pupil-v2-2"
+                                                                                                    }
+                                                                                                  },
+                                                                                                  "inputs": {
+                                                                                                    "DELTA": {
+                                                                                                      "block": {
+                                                                                                        "type": "math_number",
+                                                                                                        "id": "gp-pupil-v2-b-164",
+                                                                                                        "fields": {
+                                                                                                          "NUM": 4
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                          "ELSE": {
+                                                                                            "block": {
+                                                                                              "type": "webeeblocks_v2_move",
+                                                                                              "id": "gp-pupil-v2-b-166",
+                                                                                              "fields": {
+                                                                                                "DIRECTION": "forward",
+                                                                                                "DISTANCE": 0.1
+                                                                                              },
+                                                                                              "next": {
+                                                                                                "block": {
+                                                                                                  "type": "math_change",
+                                                                                                  "id": "gp-pupil-v2-b-168",
+                                                                                                  "fields": {
+                                                                                                    "VAR": {
+                                                                                                      "id": "gp-pupil-v2-2"
+                                                                                                    }
+                                                                                                  },
+                                                                                                  "inputs": {
+                                                                                                    "DELTA": {
+                                                                                                      "block": {
+                                                                                                        "type": "math_number",
+                                                                                                        "id": "gp-pupil-v2-b-167",
+                                                                                                        "fields": {
+                                                                                                          "NUM": 1
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "next": {
+                                                        "block": {
+                                                          "type": "controls_if",
+                                                          "id": "gp-pupil-v2-b-214",
+                                                          "inputs": {
+                                                            "IF0": {
+                                                              "block": {
+                                                                "type": "logic_operation",
+                                                                "id": "gp-pupil-v2-b-212",
+                                                                "fields": {
+                                                                  "OP": "AND"
+                                                                },
+                                                                "inputs": {
+                                                                  "A": {
+                                                                    "block": {
+                                                                      "type": "logic_compare",
+                                                                      "id": "gp-pupil-v2-b-208",
+                                                                      "fields": {
+                                                                        "OP": "LT"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-206",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-0"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "math_number",
+                                                                            "id": "gp-pupil-v2-b-207",
+                                                                            "fields": {
+                                                                              "NUM": 3
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "B": {
+                                                                    "block": {
+                                                                      "type": "logic_compare",
+                                                                      "id": "gp-pupil-v2-b-211",
+                                                                      "fields": {
+                                                                        "OP": "EQ"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-209",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-4"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "math_number",
+                                                                            "id": "gp-pupil-v2-b-210",
+                                                                            "fields": {
+                                                                              "NUM": 1
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "DO0": {
+                                                              "block": {
+                                                                "type": "webeeblocks_v2_turn",
+                                                                "id": "gp-pupil-v2-b-213",
+                                                                "fields": {
+                                                                  "DIRECTION": "left",
+                                                                  "ANGLE": 90
+                                                                }
+                                                              }
+                                                            }
+                                                          },
+                                                          "next": {
+                                                            "block": {
+                                                              "type": "math_change",
+                                                              "id": "gp-pupil-v2-b-216",
+                                                              "fields": {
+                                                                "VAR": {
+                                                                  "id": "gp-pupil-v2-0"
+                                                                }
+                                                              },
+                                                              "inputs": {
+                                                                "DELTA": {
+                                                                  "block": {
+                                                                    "type": "math_number",
+                                                                    "id": "gp-pupil-v2-b-215",
+                                                                    "fields": {
+                                                                      "NUM": 1
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "next": {
+                                "block": {
+                                  "type": "webeeblocks_v2_land",
+                                  "id": "gp-pupil-v2-b-231"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "x": 10,
+          "y": 10
+        },
+        {
+          "type": "procedures_defnoreturn",
+          "id": "gp-pupil-v2-b-232",
+          "fields": {
+            "NAME": "observer et décider"
+          },
+          "inputs": {
+            "STACK": {
+              "block": {
+                "type": "webeeblocks_v2_vertical",
+                "id": "gp-pupil-v2-b-105",
+                "fields": {
+                  "DIRECTION": "down",
+                  "DISTANCE": 0.4
+                },
+                "next": {
+                  "block": {
+                    "type": "variables_set",
+                    "id": "gp-pupil-v2-b-107",
+                    "fields": {
+                      "VAR": {
+                        "id": "gp-pupil-v2-6"
+                      }
+                    },
+                    "inputs": {
+                      "VALUE": {
+                        "block": {
+                          "type": "webeeblocks_v2_range",
+                          "id": "gp-pupil-v2-b-106",
+                          "fields": {
+                            "DIRECTION": "front"
+                          }
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "type": "controls_if",
+                        "id": "gp-pupil-v2-b-131",
+                        "extraState": {
+                          "hasElse": true
+                        },
+                        "inputs": {
+                          "IF0": {
+                            "block": {
+                              "type": "logic_compare",
+                              "id": "gp-pupil-v2-b-112",
+                              "fields": {
+                                "OP": "GT"
+                              },
+                              "inputs": {
+                                "A": {
+                                  "block": {
+                                    "type": "variables_get",
+                                    "id": "gp-pupil-v2-b-108",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "gp-pupil-v2-6"
+                                      }
+                                    }
+                                  }
+                                },
+                                "B": {
+                                  "block": {
+                                    "type": "math_arithmetic",
+                                    "id": "gp-pupil-v2-b-111",
+                                    "fields": {
+                                      "OP": "ADD"
+                                    },
+                                    "inputs": {
+                                      "A": {
+                                        "block": {
+                                          "type": "variables_get",
+                                          "id": "gp-pupil-v2-b-109",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "gp-pupil-v2-5"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "B": {
+                                        "block": {
+                                          "type": "math_number",
+                                          "id": "gp-pupil-v2-b-110",
+                                          "fields": {
+                                            "NUM": 0.3
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "DO0": {
+                            "block": {
+                              "type": "webeeblocks_v2_move",
+                              "id": "gp-pupil-v2-b-15",
+                              "fields": {
+                                "DIRECTION": "forward",
+                                "DISTANCE": 0.2
+                              },
+                              "next": {
+                                "block": {
+                                  "type": "math_change",
+                                  "id": "gp-pupil-v2-b-17",
+                                  "fields": {
+                                    "VAR": {
+                                      "id": "gp-pupil-v2-2"
+                                    }
+                                  },
+                                  "inputs": {
+                                    "DELTA": {
+                                      "block": {
+                                        "type": "math_number",
+                                        "id": "gp-pupil-v2-b-16",
+                                        "fields": {
+                                          "NUM": 2
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "next": {
+                                    "block": {
+                                      "type": "variables_set",
+                                      "id": "gp-pupil-v2-b-19",
+                                      "fields": {
+                                        "VAR": {
+                                          "id": "gp-pupil-v2-7"
+                                        }
+                                      },
+                                      "inputs": {
+                                        "VALUE": {
+                                          "block": {
+                                            "type": "webeeblocks_v2_range",
+                                            "id": "gp-pupil-v2-b-18",
+                                            "fields": {
+                                              "DIRECTION": "left"
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "next": {
+                                        "block": {
+                                          "type": "variables_set",
+                                          "id": "gp-pupil-v2-b-21",
+                                          "fields": {
+                                            "VAR": {
+                                              "id": "gp-pupil-v2-8"
+                                            }
+                                          },
+                                          "inputs": {
+                                            "VALUE": {
+                                              "block": {
+                                                "type": "webeeblocks_v2_range",
+                                                "id": "gp-pupil-v2-b-20",
+                                                "fields": {
+                                                  "DIRECTION": "right"
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "next": {
+                                            "block": {
+                                              "type": "controls_if",
+                                              "id": "gp-pupil-v2-b-62",
+                                              "extraState": {
+                                                "hasElse": true
+                                              },
+                                              "inputs": {
+                                                "IF0": {
+                                                  "block": {
+                                                    "type": "logic_operation",
+                                                    "id": "gp-pupil-v2-b-36",
+                                                    "fields": {
+                                                      "OP": "AND"
+                                                    },
+                                                    "inputs": {
+                                                      "A": {
+                                                        "block": {
+                                                          "type": "logic_operation",
+                                                          "id": "gp-pupil-v2-b-32",
+                                                          "fields": {
+                                                            "OP": "AND"
+                                                          },
+                                                          "inputs": {
+                                                            "A": {
+                                                              "block": {
+                                                                "type": "logic_compare",
+                                                                "id": "gp-pupil-v2-b-26",
+                                                                "fields": {
+                                                                  "OP": "GT"
+                                                                },
+                                                                "inputs": {
+                                                                  "A": {
+                                                                    "block": {
+                                                                      "type": "math_arithmetic",
+                                                                      "id": "gp-pupil-v2-b-24",
+                                                                      "fields": {
+                                                                        "OP": "ADD"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-22",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-7"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-23",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-8"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "B": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-25",
+                                                                      "fields": {
+                                                                        "NUM": 0.45
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "B": {
+                                                              "block": {
+                                                                "type": "logic_compare",
+                                                                "id": "gp-pupil-v2-b-31",
+                                                                "fields": {
+                                                                  "OP": "LT"
+                                                                },
+                                                                "inputs": {
+                                                                  "A": {
+                                                                    "block": {
+                                                                      "type": "math_arithmetic",
+                                                                      "id": "gp-pupil-v2-b-29",
+                                                                      "fields": {
+                                                                        "OP": "ADD"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-27",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-7"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-28",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-8"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "B": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-30",
+                                                                      "fields": {
+                                                                        "NUM": 0.75
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "B": {
+                                                        "block": {
+                                                          "type": "logic_compare",
+                                                          "id": "gp-pupil-v2-b-35",
+                                                          "fields": {
+                                                            "OP": "GT"
+                                                          },
+                                                          "inputs": {
+                                                            "A": {
+                                                              "block": {
+                                                                "type": "variables_get",
+                                                                "id": "gp-pupil-v2-b-33",
+                                                                "fields": {
+                                                                  "VAR": {
+                                                                    "id": "gp-pupil-v2-6"
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "B": {
+                                                              "block": {
+                                                                "type": "math_number",
+                                                                "id": "gp-pupil-v2-b-34",
+                                                                "fields": {
+                                                                  "NUM": 0.6
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "DO0": {
+                                                  "block": {
+                                                    "type": "controls_if",
+                                                    "id": "gp-pupil-v2-b-14",
+                                                    "extraState": {
+                                                      "hasElse": true
+                                                    },
+                                                    "inputs": {
+                                                      "IF0": {
+                                                        "block": {
+                                                          "type": "logic_compare",
+                                                          "id": "gp-pupil-v2-b-5",
+                                                          "fields": {
+                                                            "OP": "LT"
+                                                          },
+                                                          "inputs": {
+                                                            "A": {
+                                                              "block": {
+                                                                "type": "variables_get",
+                                                                "id": "gp-pupil-v2-b-1",
+                                                                "fields": {
+                                                                  "VAR": {
+                                                                    "id": "gp-pupil-v2-7"
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "B": {
+                                                              "block": {
+                                                                "type": "math_arithmetic",
+                                                                "id": "gp-pupil-v2-b-4",
+                                                                "fields": {
+                                                                  "OP": "MINUS"
+                                                                },
+                                                                "inputs": {
+                                                                  "A": {
+                                                                    "block": {
+                                                                      "type": "variables_get",
+                                                                      "id": "gp-pupil-v2-b-2",
+                                                                      "fields": {
+                                                                        "VAR": {
+                                                                          "id": "gp-pupil-v2-8"
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "B": {
+                                                                    "block": {
+                                                                      "type": "math_number",
+                                                                      "id": "gp-pupil-v2-b-3",
+                                                                      "fields": {
+                                                                        "NUM": 0.06
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "DO0": {
+                                                        "block": {
+                                                          "type": "webeeblocks_v2_move",
+                                                          "id": "gp-pupil-v2-b-6",
+                                                          "fields": {
+                                                            "DIRECTION": "right",
+                                                            "DISTANCE": 0.1
+                                                          }
+                                                        }
+                                                      },
+                                                      "ELSE": {
+                                                        "block": {
+                                                          "type": "controls_if",
+                                                          "id": "gp-pupil-v2-b-13",
+                                                          "inputs": {
+                                                            "IF0": {
+                                                              "block": {
+                                                                "type": "logic_compare",
+                                                                "id": "gp-pupil-v2-b-11",
+                                                                "fields": {
+                                                                  "OP": "LT"
+                                                                },
+                                                                "inputs": {
+                                                                  "A": {
+                                                                    "block": {
+                                                                      "type": "variables_get",
+                                                                      "id": "gp-pupil-v2-b-7",
+                                                                      "fields": {
+                                                                        "VAR": {
+                                                                          "id": "gp-pupil-v2-8"
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  "B": {
+                                                                    "block": {
+                                                                      "type": "math_arithmetic",
+                                                                      "id": "gp-pupil-v2-b-10",
+                                                                      "fields": {
+                                                                        "OP": "MINUS"
+                                                                      },
+                                                                      "inputs": {
+                                                                        "A": {
+                                                                          "block": {
+                                                                            "type": "variables_get",
+                                                                            "id": "gp-pupil-v2-b-8",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-7"
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        },
+                                                                        "B": {
+                                                                          "block": {
+                                                                            "type": "math_number",
+                                                                            "id": "gp-pupil-v2-b-9",
+                                                                            "fields": {
+                                                                              "NUM": 0.06
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "DO0": {
+                                                              "block": {
+                                                                "type": "webeeblocks_v2_move",
+                                                                "id": "gp-pupil-v2-b-12",
+                                                                "fields": {
+                                                                  "DIRECTION": "left",
+                                                                  "DISTANCE": 0.1
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    },
+                                                    "next": {
+                                                      "block": {
+                                                        "type": "webeeblocks_v2_move",
+                                                        "id": "gp-pupil-v2-b-37",
+                                                        "fields": {
+                                                          "DIRECTION": "forward",
+                                                          "DISTANCE": 0.4
+                                                        },
+                                                        "next": {
+                                                          "block": {
+                                                            "type": "math_change",
+                                                            "id": "gp-pupil-v2-b-39",
+                                                            "fields": {
+                                                              "VAR": {
+                                                                "id": "gp-pupil-v2-2"
+                                                              }
+                                                            },
+                                                            "inputs": {
+                                                              "DELTA": {
+                                                                "block": {
+                                                                  "type": "math_number",
+                                                                  "id": "gp-pupil-v2-b-38",
+                                                                  "fields": {
+                                                                    "NUM": 4
+                                                                  }
+                                                                }
+                                                              }
+                                                            },
+                                                            "next": {
+                                                              "block": {
+                                                                "type": "webeeblocks_v2_move",
+                                                                "id": "gp-pupil-v2-b-40",
+                                                                "fields": {
+                                                                  "DIRECTION": "forward",
+                                                                  "DISTANCE": 0.2
+                                                                },
+                                                                "next": {
+                                                                  "block": {
+                                                                    "type": "math_change",
+                                                                    "id": "gp-pupil-v2-b-42",
+                                                                    "fields": {
+                                                                      "VAR": {
+                                                                        "id": "gp-pupil-v2-2"
+                                                                      }
+                                                                    },
+                                                                    "inputs": {
+                                                                      "DELTA": {
+                                                                        "block": {
+                                                                          "type": "math_number",
+                                                                          "id": "gp-pupil-v2-b-41",
+                                                                          "fields": {
+                                                                            "NUM": 2
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    },
+                                                                    "next": {
+                                                                      "block": {
+                                                                        "type": "webeeblocks_v2_vertical",
+                                                                        "id": "gp-pupil-v2-b-43",
+                                                                        "fields": {
+                                                                          "DIRECTION": "up",
+                                                                          "DISTANCE": 0.4
+                                                                        },
+                                                                        "next": {
+                                                                          "block": {
+                                                                            "type": "variables_set",
+                                                                            "id": "gp-pupil-v2-b-45",
+                                                                            "fields": {
+                                                                              "VAR": {
+                                                                                "id": "gp-pupil-v2-9"
+                                                                              }
+                                                                            },
+                                                                            "inputs": {
+                                                                              "VALUE": {
+                                                                                "block": {
+                                                                                  "type": "webeeblocks_v2_range",
+                                                                                  "id": "gp-pupil-v2-b-44",
+                                                                                  "fields": {
+                                                                                    "DIRECTION": "back"
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            },
+                                                                            "next": {
+                                                                              "block": {
+                                                                                "type": "controls_if",
+                                                                                "id": "gp-pupil-v2-b-59",
+                                                                                "extraState": {
+                                                                                  "hasElse": true
+                                                                                },
+                                                                                "inputs": {
+                                                                                  "IF0": {
+                                                                                    "block": {
+                                                                                      "type": "logic_operation",
+                                                                                      "id": "gp-pupil-v2-b-52",
+                                                                                      "fields": {
+                                                                                        "OP": "AND"
+                                                                                      },
+                                                                                      "inputs": {
+                                                                                        "A": {
+                                                                                          "block": {
+                                                                                            "type": "logic_compare",
+                                                                                            "id": "gp-pupil-v2-b-48",
+                                                                                            "fields": {
+                                                                                              "OP": "GTE"
+                                                                                            },
+                                                                                            "inputs": {
+                                                                                              "A": {
+                                                                                                "block": {
+                                                                                                  "type": "variables_get",
+                                                                                                  "id": "gp-pupil-v2-b-46",
+                                                                                                  "fields": {
+                                                                                                    "VAR": {
+                                                                                                      "id": "gp-pupil-v2-9"
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              },
+                                                                                              "B": {
+                                                                                                "block": {
+                                                                                                  "type": "math_number",
+                                                                                                  "id": "gp-pupil-v2-b-47",
+                                                                                                  "fields": {
+                                                                                                    "NUM": 0.3
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        },
+                                                                                        "B": {
+                                                                                          "block": {
+                                                                                            "type": "logic_compare",
+                                                                                            "id": "gp-pupil-v2-b-51",
+                                                                                            "fields": {
+                                                                                              "OP": "LTE"
+                                                                                            },
+                                                                                            "inputs": {
+                                                                                              "A": {
+                                                                                                "block": {
+                                                                                                  "type": "variables_get",
+                                                                                                  "id": "gp-pupil-v2-b-49",
+                                                                                                  "fields": {
+                                                                                                    "VAR": {
+                                                                                                      "id": "gp-pupil-v2-9"
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              },
+                                                                                              "B": {
+                                                                                                "block": {
+                                                                                                  "type": "math_number",
+                                                                                                  "id": "gp-pupil-v2-b-50",
+                                                                                                  "fields": {
+                                                                                                    "NUM": 0.65
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  },
+                                                                                  "DO0": {
+                                                                                    "block": {
+                                                                                      "type": "math_change",
+                                                                                      "id": "gp-pupil-v2-b-54",
+                                                                                      "fields": {
+                                                                                        "VAR": {
+                                                                                          "id": "gp-pupil-v2-1"
+                                                                                        }
+                                                                                      },
+                                                                                      "inputs": {
+                                                                                        "DELTA": {
+                                                                                          "block": {
+                                                                                            "type": "math_number",
+                                                                                            "id": "gp-pupil-v2-b-53",
+                                                                                            "fields": {
+                                                                                              "NUM": 1
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      },
+                                                                                      "next": {
+                                                                                        "block": {
+                                                                                          "type": "variables_set",
+                                                                                          "id": "gp-pupil-v2-b-56",
+                                                                                          "fields": {
+                                                                                            "VAR": {
+                                                                                              "id": "gp-pupil-v2-3"
+                                                                                            }
+                                                                                          },
+                                                                                          "inputs": {
+                                                                                            "VALUE": {
+                                                                                              "block": {
+                                                                                                "type": "math_number",
+                                                                                                "id": "gp-pupil-v2-b-55",
+                                                                                                "fields": {
+                                                                                                  "NUM": 1
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  },
+                                                                                  "ELSE": {
+                                                                                    "block": {
+                                                                                      "type": "variables_set",
+                                                                                      "id": "gp-pupil-v2-b-58",
+                                                                                      "fields": {
+                                                                                        "VAR": {
+                                                                                          "id": "gp-pupil-v2-4"
+                                                                                        }
+                                                                                      },
+                                                                                      "inputs": {
+                                                                                        "VALUE": {
+                                                                                          "block": {
+                                                                                            "type": "math_number",
+                                                                                            "id": "gp-pupil-v2-b-57",
+                                                                                            "fields": {
+                                                                                              "NUM": 2
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "ELSE": {
+                                                  "block": {
+                                                    "type": "variables_set",
+                                                    "id": "gp-pupil-v2-b-61",
+                                                    "fields": {
+                                                      "VAR": {
+                                                        "id": "gp-pupil-v2-4"
+                                                      }
+                                                    },
+                                                    "inputs": {
+                                                      "VALUE": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-60",
+                                                          "fields": {
+                                                            "NUM": 2
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "ELSE": {
+                            "block": {
+                              "type": "controls_if",
+                              "id": "gp-pupil-v2-b-130",
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "inputs": {
+                                "IF0": {
+                                  "block": {
+                                    "type": "logic_operation",
+                                    "id": "gp-pupil-v2-b-127",
+                                    "fields": {
+                                      "OP": "AND"
+                                    },
+                                    "inputs": {
+                                      "A": {
+                                        "block": {
+                                          "type": "logic_compare",
+                                          "id": "gp-pupil-v2-b-115",
+                                          "fields": {
+                                            "OP": "EQ"
+                                          },
+                                          "inputs": {
+                                            "A": {
+                                              "block": {
+                                                "type": "variables_get",
+                                                "id": "gp-pupil-v2-b-113",
+                                                "fields": {
+                                                  "VAR": {
+                                                    "id": "gp-pupil-v2-0"
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "B": {
+                                              "block": {
+                                                "type": "math_number",
+                                                "id": "gp-pupil-v2-b-114",
+                                                "fields": {
+                                                  "NUM": 3
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "B": {
+                                        "block": {
+                                          "type": "logic_operation",
+                                          "id": "gp-pupil-v2-b-126",
+                                          "fields": {
+                                            "OP": "AND"
+                                          },
+                                          "inputs": {
+                                            "A": {
+                                              "block": {
+                                                "type": "logic_compare",
+                                                "id": "gp-pupil-v2-b-123",
+                                                "fields": {
+                                                  "OP": "GTE"
+                                                },
+                                                "inputs": {
+                                                  "A": {
+                                                    "block": {
+                                                      "type": "variables_get",
+                                                      "id": "gp-pupil-v2-b-122",
+                                                      "fields": {
+                                                        "VAR": {
+                                                          "id": "gp-pupil-v2-6"
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "B": {
+                                                    "block": {
+                                                      "type": "math_arithmetic",
+                                                      "id": "gp-pupil-v2-b-118",
+                                                      "fields": {
+                                                        "OP": "MINUS"
+                                                      },
+                                                      "inputs": {
+                                                        "A": {
+                                                          "block": {
+                                                            "type": "variables_get",
+                                                            "id": "gp-pupil-v2-b-116",
+                                                            "fields": {
+                                                              "VAR": {
+                                                                "id": "gp-pupil-v2-5"
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "B": {
+                                                          "block": {
+                                                            "type": "math_number",
+                                                            "id": "gp-pupil-v2-b-117",
+                                                            "fields": {
+                                                              "NUM": 0.08
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "B": {
+                                              "block": {
+                                                "type": "logic_compare",
+                                                "id": "gp-pupil-v2-b-125",
+                                                "fields": {
+                                                  "OP": "LTE"
+                                                },
+                                                "inputs": {
+                                                  "A": {
+                                                    "block": {
+                                                      "type": "variables_get",
+                                                      "id": "gp-pupil-v2-b-124",
+                                                      "fields": {
+                                                        "VAR": {
+                                                          "id": "gp-pupil-v2-6"
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "B": {
+                                                    "block": {
+                                                      "type": "math_arithmetic",
+                                                      "id": "gp-pupil-v2-b-121",
+                                                      "fields": {
+                                                        "OP": "ADD"
+                                                      },
+                                                      "inputs": {
+                                                        "A": {
+                                                          "block": {
+                                                            "type": "variables_get",
+                                                            "id": "gp-pupil-v2-b-119",
+                                                            "fields": {
+                                                              "VAR": {
+                                                                "id": "gp-pupil-v2-5"
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "B": {
+                                                          "block": {
+                                                            "type": "math_number",
+                                                            "id": "gp-pupil-v2-b-120",
+                                                            "fields": {
+                                                              "NUM": 0.08
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "DO0": {
+                                  "block": {
+                                    "type": "variables_set",
+                                    "id": "gp-pupil-v2-b-78",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "gp-pupil-v2-5"
+                                      }
+                                    },
+                                    "inputs": {
+                                      "VALUE": {
+                                        "block": {
+                                          "type": "webeeblocks_v2_range",
+                                          "id": "gp-pupil-v2-b-77",
+                                          "fields": {
+                                            "DIRECTION": "front"
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "next": {
+                                      "block": {
+                                        "type": "controls_whileUntil",
+                                        "id": "gp-pupil-v2-b-94",
+                                        "fields": {
+                                          "MODE": "UNTIL",
+                                          "MAX_ITERATIONS": 6
+                                        },
+                                        "inputs": {
+                                          "BOOL": {
+                                            "block": {
+                                              "type": "logic_operation",
+                                              "id": "gp-pupil-v2-b-85",
+                                              "fields": {
+                                                "OP": "AND"
+                                              },
+                                              "inputs": {
+                                                "A": {
+                                                  "block": {
+                                                    "type": "logic_compare",
+                                                    "id": "gp-pupil-v2-b-81",
+                                                    "fields": {
+                                                      "OP": "GTE"
+                                                    },
+                                                    "inputs": {
+                                                      "A": {
+                                                        "block": {
+                                                          "type": "variables_get",
+                                                          "id": "gp-pupil-v2-b-79",
+                                                          "fields": {
+                                                            "VAR": {
+                                                              "id": "gp-pupil-v2-5"
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "B": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-80",
+                                                          "fields": {
+                                                            "NUM": 0.63
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "B": {
+                                                  "block": {
+                                                    "type": "logic_compare",
+                                                    "id": "gp-pupil-v2-b-84",
+                                                    "fields": {
+                                                      "OP": "LTE"
+                                                    },
+                                                    "inputs": {
+                                                      "A": {
+                                                        "block": {
+                                                          "type": "variables_get",
+                                                          "id": "gp-pupil-v2-b-82",
+                                                          "fields": {
+                                                            "VAR": {
+                                                              "id": "gp-pupil-v2-5"
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "B": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-83",
+                                                          "fields": {
+                                                            "NUM": 0.73
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "DO": {
+                                            "block": {
+                                              "type": "controls_if",
+                                              "id": "gp-pupil-v2-b-91",
+                                              "extraState": {
+                                                "hasElse": true
+                                              },
+                                              "inputs": {
+                                                "IF0": {
+                                                  "block": {
+                                                    "type": "logic_compare",
+                                                    "id": "gp-pupil-v2-b-88",
+                                                    "fields": {
+                                                      "OP": "GT"
+                                                    },
+                                                    "inputs": {
+                                                      "A": {
+                                                        "block": {
+                                                          "type": "variables_get",
+                                                          "id": "gp-pupil-v2-b-86",
+                                                          "fields": {
+                                                            "VAR": {
+                                                              "id": "gp-pupil-v2-5"
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "B": {
+                                                        "block": {
+                                                          "type": "math_number",
+                                                          "id": "gp-pupil-v2-b-87",
+                                                          "fields": {
+                                                            "NUM": 0.73
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "DO0": {
+                                                  "block": {
+                                                    "type": "webeeblocks_v2_move",
+                                                    "id": "gp-pupil-v2-b-89",
+                                                    "fields": {
+                                                      "DIRECTION": "forward",
+                                                      "DISTANCE": 0.1
+                                                    }
+                                                  }
+                                                },
+                                                "ELSE": {
+                                                  "block": {
+                                                    "type": "webeeblocks_v2_move",
+                                                    "id": "gp-pupil-v2-b-90",
+                                                    "fields": {
+                                                      "DIRECTION": "back",
+                                                      "DISTANCE": 0.1
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "next": {
+                                                "block": {
+                                                  "type": "variables_set",
+                                                  "id": "gp-pupil-v2-b-93",
+                                                  "fields": {
+                                                    "VAR": {
+                                                      "id": "gp-pupil-v2-5"
+                                                    }
+                                                  },
+                                                  "inputs": {
+                                                    "VALUE": {
+                                                      "block": {
+                                                        "type": "webeeblocks_v2_range",
+                                                        "id": "gp-pupil-v2-b-92",
+                                                        "fields": {
+                                                          "DIRECTION": "front"
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "next": {
+                                          "block": {
+                                            "type": "controls_if",
+                                            "id": "gp-pupil-v2-b-104",
+                                            "extraState": {
+                                              "hasElse": true
+                                            },
+                                            "inputs": {
+                                              "IF0": {
+                                                "block": {
+                                                  "type": "logic_operation",
+                                                  "id": "gp-pupil-v2-b-101",
+                                                  "fields": {
+                                                    "OP": "AND"
+                                                  },
+                                                  "inputs": {
+                                                    "A": {
+                                                      "block": {
+                                                        "type": "logic_compare",
+                                                        "id": "gp-pupil-v2-b-97",
+                                                        "fields": {
+                                                          "OP": "GTE"
+                                                        },
+                                                        "inputs": {
+                                                          "A": {
+                                                            "block": {
+                                                              "type": "variables_get",
+                                                              "id": "gp-pupil-v2-b-95",
+                                                              "fields": {
+                                                                "VAR": {
+                                                                  "id": "gp-pupil-v2-1"
+                                                                }
+                                                              }
+                                                            }
+                                                          },
+                                                          "B": {
+                                                            "block": {
+                                                              "type": "math_number",
+                                                              "id": "gp-pupil-v2-b-96",
+                                                              "fields": {
+                                                                "NUM": 1
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    },
+                                                    "B": {
+                                                      "block": {
+                                                        "type": "logic_compare",
+                                                        "id": "gp-pupil-v2-b-100",
+                                                        "fields": {
+                                                          "OP": "LTE"
+                                                        },
+                                                        "inputs": {
+                                                          "A": {
+                                                            "block": {
+                                                              "type": "variables_get",
+                                                              "id": "gp-pupil-v2-b-98",
+                                                              "fields": {
+                                                                "VAR": {
+                                                                  "id": "gp-pupil-v2-1"
+                                                                }
+                                                              }
+                                                            }
+                                                          },
+                                                          "B": {
+                                                            "block": {
+                                                              "type": "math_number",
+                                                              "id": "gp-pupil-v2-b-99",
+                                                              "fields": {
+                                                                "NUM": 3
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "DO0": {
+                                                "block": {
+                                                  "type": "controls_if",
+                                                  "id": "gp-pupil-v2-b-68",
+                                                  "inputs": {
+                                                    "IF0": {
+                                                      "block": {
+                                                        "type": "logic_compare",
+                                                        "id": "gp-pupil-v2-b-65",
+                                                        "fields": {
+                                                          "OP": "EQ"
+                                                        },
+                                                        "inputs": {
+                                                          "A": {
+                                                            "block": {
+                                                              "type": "variables_get",
+                                                              "id": "gp-pupil-v2-b-63",
+                                                              "fields": {
+                                                                "VAR": {
+                                                                  "id": "gp-pupil-v2-1"
+                                                                }
+                                                              }
+                                                            }
+                                                          },
+                                                          "B": {
+                                                            "block": {
+                                                              "type": "math_number",
+                                                              "id": "gp-pupil-v2-b-64",
+                                                              "fields": {
+                                                                "NUM": 2
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    },
+                                                    "DO0": {
+                                                      "block": {
+                                                        "type": "webeeblocks_v2_move",
+                                                        "id": "gp-pupil-v2-b-66",
+                                                        "fields": {
+                                                          "DIRECTION": "left",
+                                                          "DISTANCE": 0.4
+                                                        },
+                                                        "next": {
+                                                          "block": {
+                                                            "type": "webeeblocks_v2_move",
+                                                            "id": "gp-pupil-v2-b-67",
+                                                            "fields": {
+                                                              "DIRECTION": "left",
+                                                              "DISTANCE": 0.1
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  },
+                                                  "next": {
+                                                    "block": {
+                                                      "type": "controls_if",
+                                                      "id": "gp-pupil-v2-b-74",
+                                                      "inputs": {
+                                                        "IF0": {
+                                                          "block": {
+                                                            "type": "logic_compare",
+                                                            "id": "gp-pupil-v2-b-71",
+                                                            "fields": {
+                                                              "OP": "EQ"
+                                                            },
+                                                            "inputs": {
+                                                              "A": {
+                                                                "block": {
+                                                                  "type": "variables_get",
+                                                                  "id": "gp-pupil-v2-b-69",
+                                                                  "fields": {
+                                                                    "VAR": {
+                                                                      "id": "gp-pupil-v2-1"
+                                                                    }
+                                                                  }
+                                                                }
+                                                              },
+                                                              "B": {
+                                                                "block": {
+                                                                  "type": "math_number",
+                                                                  "id": "gp-pupil-v2-b-70",
+                                                                  "fields": {
+                                                                    "NUM": 3
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        },
+                                                        "DO0": {
+                                                          "block": {
+                                                            "type": "webeeblocks_v2_move",
+                                                            "id": "gp-pupil-v2-b-72",
+                                                            "fields": {
+                                                              "DIRECTION": "right",
+                                                              "DISTANCE": 0.4
+                                                            },
+                                                            "next": {
+                                                              "block": {
+                                                                "type": "webeeblocks_v2_move",
+                                                                "id": "gp-pupil-v2-b-73",
+                                                                "fields": {
+                                                                  "DIRECTION": "right",
+                                                                  "DISTANCE": 0.1
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      },
+                                                      "next": {
+                                                        "block": {
+                                                          "type": "variables_set",
+                                                          "id": "gp-pupil-v2-b-76",
+                                                          "fields": {
+                                                            "VAR": {
+                                                              "id": "gp-pupil-v2-4"
+                                                            }
+                                                          },
+                                                          "inputs": {
+                                                            "VALUE": {
+                                                              "block": {
+                                                                "type": "math_number",
+                                                                "id": "gp-pupil-v2-b-75",
+                                                                "fields": {
+                                                                  "NUM": 1
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              },
+                                              "ELSE": {
+                                                "block": {
+                                                  "type": "variables_set",
+                                                  "id": "gp-pupil-v2-b-103",
+                                                  "fields": {
+                                                    "VAR": {
+                                                      "id": "gp-pupil-v2-4"
+                                                    }
+                                                  },
+                                                  "inputs": {
+                                                    "VALUE": {
+                                                      "block": {
+                                                        "type": "math_number",
+                                                        "id": "gp-pupil-v2-b-102",
+                                                        "fields": {
+                                                          "NUM": 2
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "type": "variables_set",
+                                    "id": "gp-pupil-v2-b-129",
+                                    "fields": {
+                                      "VAR": {
+                                        "id": "gp-pupil-v2-4"
+                                      }
+                                    },
+                                    "inputs": {
+                                      "VALUE": {
+                                        "block": {
+                                          "type": "math_number",
+                                          "id": "gp-pupil-v2-b-128",
+                                          "fields": {
+                                            "NUM": 2
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "x": 550,
+          "y": 80
+        }
+      ]
+    },
+    "variables": [
+      {
+        "name": "côté",
+        "id": "gp-pupil-v2-0"
+      },
+      {
+        "name": "portes",
+        "id": "gp-pupil-v2-1"
+      },
+      {
+        "name": "distance",
+        "id": "gp-pupil-v2-2"
+      },
+      {
+        "name": "H passé",
+        "id": "gp-pupil-v2-3"
+      },
+      {
+        "name": "état",
+        "id": "gp-pupil-v2-4"
+      },
+      {
+        "name": "avant",
+        "id": "gp-pupil-v2-5"
+      },
+      {
+        "name": "bas",
+        "id": "gp-pupil-v2-6"
+      },
+      {
+        "name": "gauche",
+        "id": "gp-pupil-v2-7"
+      },
+      {
+        "name": "droite",
+        "id": "gp-pupil-v2-8"
+      },
+      {
+        "name": "arrière",
+        "id": "gp-pupil-v2-9"
+      }
+    ]
+  }
+}

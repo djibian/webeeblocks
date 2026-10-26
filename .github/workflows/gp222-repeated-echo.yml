@@ -1,0 +1,31 @@
+# Diagnostic-only synthetic differential, not the native oracle or CI Gate.
+name: GP222 repeated H echo differential (real Blockly AST)
+on:
+  push:
+    branches: [experiment/gp222-repeated-echo-adversarial-20261026]
+permissions:
+  contents: read
+jobs:
+  adversarial:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Pin source candidate, historic main witness, and diff isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=5db5128896bfcb1986b1ca830adae79418ae929f
+          test "$(git rev-parse HEAD^)" = "$base"
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 835dbfce603ebb509058d305802a309c84eabc75
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/GP232_reference_main17671.wbb)" = 02c0cdef8fc7189aa171b584a8160b52e392ba1c
+          actual="$(git diff --name-only "$base" HEAD)"
+          expected="$(printf '.github/workflows/gp222-repeated-echo.yml\nexperiments/grand-prix-pupil-algorithm/GP232_reference_main17671.wbb\nexperiments/grand-prix-pupil-algorithm/verify_repeated_echo.js')"
+          test "$actual" = "$expected"
+      - name: Real Blockly AST + native interpreter with adversarial injected sensor readings
+        run: |
+          npm ci --prefix plugins/robot_windows/blockly_v2
+          node experiments/grand-prix-pupil-algorithm/verify_repeated_echo.js
