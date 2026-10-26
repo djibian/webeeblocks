@@ -20,6 +20,7 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
+from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def has_native_land_completion(text):
@@ -259,6 +260,7 @@ def main():
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
+        subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_capture_seals.py')], check=True)
         if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
         from tools.ci.run_grand_prix_u_core_capture import core_mount
         core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
@@ -298,6 +300,8 @@ def main():
         return
     home=Path(os.environ['WEBOTS_HOME'])
     if (home/'resources/version.txt').read_text().strip()!='R2025a':raise RuntimeError('wrong Webots version')
+    # Snapshot existing archives: verify only new trial captures of this invocation.
+    seal_baseline={p.name for p in OUT.iterdir() if p.is_dir() and p.name.startswith('gp-u-v1-')}
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     # Native controlled contrast for #646: same seed/world/controller and pinned
@@ -317,6 +321,7 @@ def main():
             contrast.append(record)
             (OUT/'camera-comparison.json').write_text(json.dumps(contrast,indent=2)+'\n')
         if args.suite=='camera-contrast':
+            verify_new_capture_seals(OUT,seal_baseline)
             return
     cases=[(args.seed,args.side,args.suite)]
     if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
@@ -329,4 +334,7 @@ def main():
             digest=result['ast_sha256']
         summaries.append(result)
         (OUT/('sizes.json' if args.suite=='sizes' else 'campaign.json')).write_text(json.dumps(summaries,indent=2)+'\n')
+    # Fail closed on evidence modified after per-trial sha256.json was written.
+    # This detects late writes observed in #703; it is not full writer retirement.
+    verify_new_capture_seals(OUT,seal_baseline)
 if __name__=='__main__':main()
