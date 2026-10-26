@@ -1,0 +1,95 @@
+# Diagnostic push-only evidence branch, never a V5 canonical CI Gate.
+name: Qt665 actual Linux process identity (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-running-consumer-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-live-process:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40354624966
+          name: qt665-parent-safe-full-link-e5fa2d8c1409a1c97f63d9b14039683ffcfb0b05
+          path: qt665-candidate
+          github-token: ${{ github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retain original native ELF and prepare exact R2025a resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/qt665-running-process
+          echo 'e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  qt665-candidate/webots-bin' | sha256sum -c -
+          ./tools/prepare_runtime_v2.sh
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-qt665-webots-src
+          git -C .ci-qt665-webots-src sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-qt665-webots-src rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          printf 'evidence_sha=%s\ncandidate_elf=e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545\nupstream_webots=c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b\n' "$GITHUB_SHA" > ci-artifacts/qt665-running-process/source.txt
+      - name: Actually start native Webots and attest mapped Qt from the running process
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker pull "$image"
+          docker run --rm --init --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-qt665-webots-src/projects:/usr/local/webots/projects:ro" \
+            -w /workspace "$image" -c '
+              set -euo pipefail
+              python3 experiments/webots-qt-665/attest_and_install_candidate.py \
+                --runtime-home /usr/local/webots \
+                --candidate /workspace/qt665-candidate/webots-bin \
+                --expected-candidate-sha256 e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545 \
+                --manifest /workspace/ci-artifacts/qt665-running-process/disposable-install.json \
+                --replace-disposable-installation
+              make -C controllers/crazyflie_runtime_v2 clean
+              make -C controllers/crazyflie_runtime_v2
+              export LIBGL_ALWAYS_SOFTWARE=true WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true
+              timeout --signal=TERM -k 5s 70s xvfb-run -a /usr/local/webots/webots \
+                --stdout --stderr --batch --mode=fast --no-rendering --minimize \
+                /workspace/worlds/crazyflie_runtime_v2.wbt \
+                > ci-artifacts/qt665-running-process/webots.log 2>&1 &
+              launcher=$!
+              trap "kill $launcher 2>/dev/null || true; pkill -TERM -x webots-bin 2>/dev/null || true" EXIT
+              pid=""
+              for i in $(seq 1 90); do
+                if grep -Fq "WEBEEBLOCKS_RUNTIME_V2 READY" ci-artifacts/qt665-running-process/webots.log; then
+                  for comm in /proc/[0-9]*/comm; do
+                    if test -f "$comm" && grep -qx webots-bin "$comm"; then
+                      pid="${comm#/proc/}"; pid="${pid%/comm}"
+                      break
+                    fi
+                  done
+                  if test -n "$pid"; then break; fi
+                fi
+                if ! kill -0 "$launcher" 2>/dev/null; then
+                  echo "Webots exited before an attested running process" >&2
+                  exit 1
+                fi
+                sleep 0.5
+              done
+              test -n "$pid" || { echo "Running ready Webots PID not observed" >&2; exit 1; }
+              python3 experiments/webots-qt-665/attest_running_consumer.py \
+                --runtime-home /usr/local/webots --pid "$pid" \
+                --manifest /workspace/ci-artifacts/qt665-running-process/process.json
+              python3 -c "import json; from pathlib import Path; p=json.loads(Path(\"ci-artifacts/qt665-running-process/process.json\").read_text()); assert p[\"verdict\"]==\"PASS\" and p[\"scope\"]==\"running-linux-process-elf-and-mapped-qt-only\""
+              echo QT665_LIVE_PROCESS_IDENTITY=PASS
+            '
+      - name: Upload exact process and installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-live-consumer-${{ github.sha }}
+          path: ci-artifacts/qt665-running-process/
+          if-no-files-found: error
+          retention-days: 14
