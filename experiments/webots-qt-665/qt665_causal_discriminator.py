@@ -31,6 +31,10 @@ static bool qt665_positive() {
   QApplication::processEvents(); // ensure Qt's shownOnce is established
   old->setRange(0, 100);
   old->setValue(12);
+  // Qt's native forceShow() slot sets shownOnce; show() alone does not.
+  // Invoke the actual Qt metaobject slot, never write Qt private memory.
+  if (!QMetaObject::invokeMethod(old.data(), "forceShow", Qt::DirectConnection))
+    return false;
   QApplication::processEvents();
   QPointer<QProgressBar> bar = old->findChild<QProgressBar *>();
   if (!bar) return false;
@@ -68,6 +72,8 @@ static bool qt665_negative_outer_events() {
   QApplication::processEvents();
   old->setRange(0, 100);
   old->setValue(12);
+  if (!QMetaObject::invokeMethod(old.data(), "forceShow", Qt::DirectConnection))
+    return false;
   QPointer<QProgressBar> bar = old->findChild<QProgressBar *>();
   if (!bar) return false;
   void *dialogId = old.data();
