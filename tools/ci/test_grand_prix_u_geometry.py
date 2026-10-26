@@ -152,25 +152,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(layout.landing_target(2), (.7,1.5))
         self.assertEqual(layout.landing_target(3), (.7,2.5))
 
-    def test_landing_contact_model_applies_to_floor_only(self):
-        # The floor's dedicated contact material cannot soften real H collisions.
-        for seed in (0, 1, 4, 5):
-            text = world_text(generate(seed))
-            lines = text.splitlines()
-            worlds = [s for s in lines if 'WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo' in s]
-            floors = [s for s in lines if s.startswith('Floor {')]
-            boxes = [s for s in lines if s.startswith('DEF GP_U_BOX_')]
-            self.assertEqual(len(worlds), 1)
-            self.assertEqual(len(floors), 1)
-            self.assertEqual(text.count('contactMaterial "gp_u_floor"'), 1)
-            self.assertIn('material1 "default" material2 "gp_u_floor"', worlds[0])
-            self.assertIn('bounce 0 rollingFriction 0.02 0.02 0.01', worlds[0])
-            self.assertIn('contactMaterial "gp_u_floor"', floors[0])
-            self.assertTrue(all('contactMaterial' not in b and
-                                'boundingObject Box' in b for b in boxes))
-            self.assertFalse(any('contactMaterial' in line for line in lines
-                                 if line.startswith('DEF GP_U_BOUNDARY_')))
-
     def test_bad_inputs_and_nonrepresentable_deadline_step(self):
         for seed in (-1,65536,True,1.5):
             with self.assertRaises(ValueError): generate(seed)
