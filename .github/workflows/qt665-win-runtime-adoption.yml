@@ -72,15 +72,15 @@ jobs:
           }
           $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "Windows installer exited $($p.ExitCode)" }
-          $home=Join-Path $env:ProgramFiles 'Webots'
-          $bin=Join-Path $home 'msys64\mingw64\bin'
+          $installedWebotsRoot=Join-Path $env:ProgramFiles 'Webots'
+          $bin=Join-Path $installedWebotsRoot 'msys64\mingw64\bin'
           foreach ($name in @('webots-bin.exe','Qt6Core.dll','Qt6Widgets.dll','Qt6Gui.dll','webots.exe')) {
             $path=Join-Path $bin $name
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {throw "Missing installed Webots runtime file $name"}
             $original=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
             "$name $original" | Add-Content ci-artifacts/qt665-windows-running/original-runtime-sha256.txt
           }
-          "QT665_WEBOTS_HOME=$home" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "QT665_WEBOTS_HOME=$installedWebotsRoot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "QT665_WEBOTS_BIN=$bin" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host 'QT665_WINDOWS_OFFICIAL_INSTALL_BASE=PASS'
       - name: Overlay consistent Qt SDK runtime and actual patched Webots PE
