@@ -131,4 +131,51 @@ for(const [side,avant,bas,oldExpected,newExpected] of exactBoundaryCases) {
 console.log('PASS real reference/contrast WBB boundary regression '+exactBoundaryCases.length+' cases; 3 semantic differences');
 console.log('UNPROVEN: physical sensor quantization, ideal threshold policy and classroom benefit');
 
+
+// CENTIMETRE_BOUNDARY_MATRIX_V1. Synthetic values, not asserted Webots resolution.
+// Evaluate branches extracted from two exact, pupil-editable .wbb files.
+let grid=0, openDifference=0, closedDifference=0;
+for(const side of [1,3]) for(let hc=20;hc<=50;hc++) for(let lc=15;lc<=95;lc++){
+  const high=hc/100, low=lc/100, old=refDecide(side,high,low,0),
+        modern=decide(side,high,low,0);
+  grid++;
+  assert.notEqual(decide(side,high,low,1),'open',
+    'an already confirmed H must not enter another open-passage branch');
+  if(old===modern)continue;
+  assert([30,8,-8].includes(lc-hc),
+    'unexplained non-boundary decision difference '+JSON.stringify({side,hc,lc,old,modern}));
+  if(old==='anomaly'&&modern==='open') openDifference++;
+  else if(old==='closed'&&modern==='anomaly') closedDifference++;
+  else assert.fail('unanticipated direction of classification change '+JSON.stringify({side,hc,lc,old,modern}));
+}
+assert.equal(grid,5022);
+assert.equal(openDifference,20);
+assert.equal(closedDifference,34);
+const ulpNeighbor=(n,offset)=>{
+  assert(n>0&&Number.isFinite(n)&&[-1,0,1].includes(offset));
+  if(!offset)return n;
+  const bytes=Buffer.alloc(8);
+  bytes.writeDoubleBE(n);
+  bytes.writeBigUInt64BE(bytes.readBigUInt64BE()+BigInt(offset));
+  return bytes.readDoubleBE();
+};
+let ulp=0, ulpDisagreement=0;
+for(const [h,l] of [[0.25,0.55],[0.35,0.43],[0.27,0.19]])
+  for(const ah of [-1,0,1]) for(const al of [-1,0,1]){
+    const high=ulpNeighbor(h,ah),low=ulpNeighbor(l,al);
+    const before=refDecide(3,high,low),after=decide(3,high,low);
+    ulp++;
+    assert.notEqual(decide(3,high,low,1),'open');
+    if(before!==after){
+      ulpDisagreement++;
+      const delta=low-high;
+      assert(Math.abs(delta-0.30)<5e-15||Math.abs(Math.abs(delta)-0.08)<5e-15,
+        'floating-point disagreement unexpectedly far from threshold');
+    }
+  }
+assert.equal(ulp,27);
+assert(ulpDisagreement>0);
+console.log('PASS two authentic WBB graphs: 5022 centimetry synthetic cases; 20 anomaly-to-open + 34 closed-to-anomaly differences, threshold-only; 27 ULP probes');
+console.log('UNPROVEN: physical sensor quantization, full interpreter input replay or pupil usability');
+
 console.log('UNPROVEN: exact native campaign, real OS picker and independent pupil usability');
