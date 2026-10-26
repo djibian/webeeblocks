@@ -1,0 +1,48 @@
+# Draft-only, non-Gate evidence for #703. Never claims native/pedagogical acceptance.
+# Remove or redesign this branch-specific probe before integration.
+name: Grand Prix pupil Blockly experiment
+on:
+  push:
+    branches:
+      - experiment/grand-prix-pupil-algorithm-no-wall-20261026
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-blockly:
+    name: Blockly 13.2.1 + production AST and project verifier (non-Gate)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare production Blockly and Robot Window assets
+        run: bash ./tools/prepare_runtime_v2.sh
+      - name: Check exact verifier, serialized project and runtime syntax
+        run: |
+          node --check experiments/grand-prix-pupil-algorithm/verify.js
+          node --check experiments/grand-prix-pupil-algorithm/build.js
+          node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
+          test "$(cat plugins/robot_windows/blockly_v2/vendor/VERSION)" = '13.2.1'
+      - name: Exercise real verifier without skips
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts/grand-prix-pupil
+          set -o pipefail
+          {
+            echo "commit=$GITHUB_SHA"
+            node -v
+            node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
+            sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+            sha256sum experiments/grand-prix-pupil-algorithm/verify.js
+            node experiments/grand-prix-pupil-algorithm/verify.js
+          } 2>&1 | tee ci-artifacts/grand-prix-pupil/verify.log
+      - name: Upload bounded qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grand-prix-pupil-blockly-experimental
+          path: ci-artifacts/grand-prix-pupil/
+          if-no-files-found: warn
