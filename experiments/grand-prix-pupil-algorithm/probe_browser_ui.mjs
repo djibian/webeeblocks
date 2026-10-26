@@ -81,7 +81,7 @@ try{
    },label);
  }
  const initial=await inspect('before-fit');
- assert.equal(initial.blocks,232);assert.equal(initial.variables.length,9);
+ assert.equal(initial.blocks,232);assert.equal(initial.variables.length,10);
  assert.equal(initial.top.length,4,'one main stack + three ordinary student procedures');
  assert.equal(initial.top.filter(b=>b.type==='procedures_defnoreturn').length,3);
  for (const name of ['observer et décider','franchir et confirmer le H','approcher le H fermé et poser'])

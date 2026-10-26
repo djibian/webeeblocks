@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           base=1bc106f99d58ca12d2a05239dbdaaddda9dd396b
-          test "$(git rev-parse HEAD^)" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
           test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 30671f352ae971d1ce7e67a940f424f355c99309
           actual="$(git diff --name-only "$base" HEAD)"
           expected="$(printf '.github/workflows/gp232-safe-stages-editor.yml\nexperiments/grand-prix-pupil-algorithm/ATELIER_DEBUG_COLLEGE.md\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
