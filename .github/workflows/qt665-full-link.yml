@@ -32,7 +32,7 @@ jobs:
           mkdir -p qt665-full-link
           docker build --pull=false -t qt665-full-dev - <<'EOF'
           FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
-          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libopenal-dev git python3-pip curl xauth xvfb libxcb-cursor0 gdb && rm -rf /var/lib/apt/lists/*
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl-dev libglu1-mesa-dev libassimp-dev libfreetype6-dev libopenal-dev git python3-pip curl xauth xvfb libxcb-cursor0 gdb bzip2 && rm -rf /var/lib/apt/lists/*
           RUN pip3 install aqtinstall==3.1.18 && aqt install-qt --outputdir /opt/Qt linux desktop 6.5.3 gcc_64 -m qtwebsockets
           EOF
           docker image inspect qt665-full-dev > qt665-full-link/build-image.json
