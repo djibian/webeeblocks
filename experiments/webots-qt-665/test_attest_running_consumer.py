@@ -36,7 +36,7 @@ class RunningConsumerTests(unittest.TestCase):
             alias = lib.with_name('libQt6Core.so.6')
             alias.symlink_to(lib.name)
             alias_line = line.replace(str(lib), str(alias))
-            self.assertEqual(probe.mapped_qt_files(alias_line, lib.name, lib, expected), {lib})
+            self.assertEqual(probe.mapped_qt_files(alias_line, lib.name, lib, expected), {alias})
             with self.assertRaisesRegex(ValueError, 'inode differs'):
                 probe.mapped_qt_files(
                     alias_line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib, expected)
