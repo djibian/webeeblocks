@@ -6,6 +6,7 @@ source_tree=$(realpath "${1:?pinned expendable upstream checkout}")
 evidence=$(realpath "${2:?existing evidence directory}")
 experiment=$(cd "$(dirname "$0")" && pwd)
 runtime=/usr/local/webots
+git config --global --add safe.directory "$source_tree"
 test "$(git -C "$source_tree" rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
 python3 "$experiment/qualify_source_patch.py" --webots-tree "$source_tree" > "$evidence/source.json"
 g++ --version > "$evidence/compiler.txt"
