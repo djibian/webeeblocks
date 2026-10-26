@@ -1,0 +1,76 @@
+name: QT665 causal Qt/GDB discriminator (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-causal-discriminator-20261026]
+permissions:
+  contents: read
+jobs:
+  causal-discriminator:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Acquire exact pinned upstream sources and extracted patched methods
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qt665-results
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git upstream-webots
+          git -C upstream-webots sparse-checkout set src/webots/gui src/webots/app
+          test "$(git -C upstream-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          python3 experiments/webots-qt-665/qt665_causal_discriminator.py \
+            --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
+            --output qt665-guarded-methods.cpp
+          sha256sum qt665-guarded-methods.cpp experiments/webots-qt-665/*.py \
+            experiments/webots-qt-665/*.patch > qt665-results/source.sha256
+          git rev-parse HEAD > qt665-results/experiment-head.txt
+      - name: Run true pinned Qt Widgets with GDB stack and object identity tracking
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build -t qt665-causal-qt - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libxcb-cursor0 xvfb xauth gdb && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          set +e
+          docker run --rm --init --shm-size=1g \
+            -v "$PWD:/workspace" -w /workspace qt665-causal-qt bash -lc '
+              set -Eeuo pipefail
+              qt=/usr/local/webots
+              export QT_QPA_PLATFORM=xcb
+              export QT_QPA_PLATFORM_PLUGIN_PATH="$qt/lib/webots/qt/plugins/platforms"
+              export LD_LIBRARY_PATH="$qt/lib/webots:$LD_LIBRARY_PATH"
+              export QT665_TRACE_PATH=/workspace/qt665-results/trace.json
+              sha256sum "$qt/lib/webots/libQt6Widgets.so.6.5.3" \
+                        "$qt/lib/webots/libQt6Core.so.6.5.3" \
+                        > /workspace/qt665-results/qt-libraries.sha256
+              grep -q "^868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024 " \
+                /workspace/qt665-results/qt-libraries.sha256
+              grep -q "^ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8 " \
+                /workspace/qt665-results/qt-libraries.sha256
+              g++ -std=c++17 -g -O0 -fno-omit-frame-pointer -fPIC -DQT_NO_DEBUG -rdynamic \
+                -I"$qt/include/qt" -I"$qt/include/qt/QtCore" \
+                -I"$qt/include/qt/QtGui" -I"$qt/include/qt/QtWidgets" \
+                /workspace/qt665-guarded-methods.cpp -L"$qt/lib/webots" \
+                -Wl,-rpath,"$qt/lib/webots" \
+                -lQt6Widgets -lQt6Gui -lQt6Core \
+                -o /workspace/qt665-guarded-methods
+              sha256sum /workspace/qt665-guarded-methods > /workspace/qt665-results/executable.sha256
+              ldd /workspace/qt665-guarded-methods > /workspace/qt665-results/ldd.txt
+              ! grep -q "not found" /workspace/qt665-results/ldd.txt
+              timeout -k 5s 90s xvfb-run -a gdb -q -batch \
+                -x /workspace/experiments/webots-qt-665/qt665_causal_discriminator.gdb.py \
+                --args /workspace/qt665-guarded-methods
+            ' 2>&1 | tee qt665-results/gdb-console.log
+          rc=$(cat /dev/null; echo $? )
+          test -s qt665-results/gdb-console.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-causal-discriminator
+          path: qt665-results/
+          if-no-files-found: warn
+          retention-days: 30
