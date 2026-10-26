@@ -1,0 +1,88 @@
+# NON-GATE genuine Windows source build from exact R2025a, no oracle relaxation.
+name: Qt665 real Windows Webots build (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-windows-full-r2025a-20261026]
+permissions:
+  contents: read
+jobs:
+  build-actual-windows-webots:
+    runs-on: windows-2022
+    timeout-minutes: 48
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-webots-qt665-src
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact Webots R2025a composed lifetime repair
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tree='.ci-webots-qt665-src'
+          New-Item -ItemType Directory -Force ci-artifacts/qt665-windows-source | Out-Null
+          $upstream=(git -C $tree rev-parse HEAD).Trim()
+          if ($upstream -ne 'c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b') {
+            throw "Wrong upstream SHA: $upstream"
+          }
+          git -C $tree apply "$env:GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          if ($LASTEXITCODE -ne 0) { throw 'Composed patch phase 1 rejected' }
+          python experiments/webots-qt-665/repair_parent_shutdown.py --webots-tree $tree
+          if ($LASTEXITCODE -ne 0) { throw 'Composed patch phase 2 rejected' }
+          git -C $tree diff --binary | Out-File -Encoding utf8 ci-artifacts/qt665-windows-source/composed-windows.patch
+          printf 'upstream=%s\npr_source=%s\n' $upstream $env:GITHUB_SHA | Set-Content ci-artifacts/qt665-windows-source/source.txt
+      - name: Install native Windows MSYS2 Qt development prerequisites from pinned Webots recipe
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cd .ci-webots-qt665-src
+          export WEBOTS_HOME="$PWD"
+          export PATH="$PWD/msys64/mingw64/bin:$PWD/bin/node:/mingw64/bin:/usr/bin:$PATH"
+          ./scripts/install/msys64_installer.sh --all
+          pacman -Q > ../ci-artifacts/qt665-windows-source/msys2-package-versions.txt
+          sha256sum /mingw64/bin/Qt6Core.dll /mingw64/bin/Qt6Widgets.dll > ../ci-artifacts/qt665-windows-source/toolchain-qt.sha256
+          test -f include/qt/QtCore/QObject
+          test -f include/qt/QtWidgets/QProgressDialog
+          echo QT665_WINDOWS_NATIVE_QT_SDK=PASS
+      - name: Build real corrected Windows Webots PE, unchanged upstream make target
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cd .ci-webots-qt665-src
+          export WEBOTS_HOME="$PWD"
+          export PATH="$PWD/msys64/mingw64/bin:$PWD/bin/node:/mingw64/bin:/usr/bin:$PATH"
+          set -o pipefail
+          make webots_target -j4 2>&1 | tee ../ci-artifacts/qt665-windows-source/build.log
+          find "$WEBOTS_HOME" -type f -name 'webots-bin.exe' > ../ci-artifacts/qt665-windows-source/pe-paths.txt
+          test "$(wc -l < ../ci-artifacts/qt665-windows-source/pe-paths.txt)" -eq 1
+          pe="$(cat ../ci-artifacts/qt665-windows-source/pe-paths.txt)"
+          sha256sum "$pe" > ../ci-artifacts/qt665-windows-source/pe.sha256
+          file "$pe" > ../ci-artifacts/qt665-windows-source/pe-type.txt
+          objdump -p "$pe" > ../ci-artifacts/qt665-windows-source/pe-imports.txt
+          grep -q 'DLL Name: Qt6Widgets.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
+          grep -q 'DLL Name: Qt6Core.dll' ../ci-artifacts/qt665-windows-source/pe-imports.txt
+          test -f msys64/mingw64/bin/Qt6Widgets.dll
+          test -f msys64/mingw64/bin/Qt6Core.dll
+          sha256sum msys64/mingw64/bin/Qt6Widgets.dll msys64/mingw64/bin/Qt6Core.dll > ../ci-artifacts/qt665-windows-source/native-qt.sha256
+          cp "$pe" ../ci-artifacts/qt665-windows-source/webots-bin.exe
+          echo QT665_WINDOWS_REAL_PE_BUILD=PASS
+      - name: Preserve bounded Windows native build evidence, never invent an exe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-windows-real-build-${{ github.sha }}
+          path: ci-artifacts/qt665-windows-source/
+          if-no-files-found: error
+          retention-days: 14
