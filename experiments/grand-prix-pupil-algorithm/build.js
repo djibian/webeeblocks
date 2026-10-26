@@ -129,10 +129,28 @@ function buildModular() {
   return project;
 }
 
-module.exports = {build: buildModular, originalBuild: build};
+
+function buildClassroom() {
+  const project = buildModular(), roots=project.workspace.blocks.blocks;
+  let p=roots[0];
+  while(p && p.type!=='controls_repeat_ext')p=p.next?.block;
+  if(!p || !p.inputs?.DO?.block)throw Error('side repeat not found');
+  const side=p.inputs.DO.block;
+  p.inputs.DO.block={type:'procedures_callnoreturn',id:'gp-pupil-v2-b-233',
+    extraState:{name:'parcourir un côté'}};
+  roots.push({type:'procedures_defnoreturn',id:'gp-pupil-v2-b-234',
+    fields:{NAME:'parcourir un côté'},inputs:{STACK:{block:side}},x:520,y:50});
+  roots[0].x=20;roots[0].y=30;
+  roots[1].x=1800;roots[1].y=60;
+  roots[2].x=1800;roots[2].y=800;
+  roots[3].x=1800;roots[3].y=2150;
+  return project;
+}
+
+module.exports = {build: buildClassroom, originalBuild: build, guardedBuild: buildModular};
 if (require.main === module) {
   const fs = require('fs'), path = require('path');
   const file = path.join(__dirname, 'Grand-Prix-sans-murs-algorithme-candidat.wbb');
-  fs.writeFileSync(file, JSON.stringify(buildModular(), null, 2) + '\n');
+  fs.writeFileSync(file, JSON.stringify(buildClassroom(), null, 2) + '\n');
   console.log('WROTE ' + file);
 }

@@ -19,10 +19,10 @@ function walk(b) {
   if (b.next?.block) walk(b.next.block);
 }
 roots.forEach(walk);
-assert.equal(seen.size,232); assert.equal(counts.controls_if,17);
+assert.equal(seen.size,234); assert.equal(counts.controls_if,17);
 assert.equal(counts.logic_compare,34);
-assert.equal(counts.procedures_callnoreturn,3);
-assert.equal(counts.procedures_defnoreturn,3);
+assert.equal(counts.procedures_callnoreturn,4);
+assert.equal(counts.procedures_defnoreturn,4);
 const proc=roots.find(b=>b.type==='procedures_defnoreturn' && b.fields.NAME==='observer et décider');
 assert(proc);
 const down=proc.inputs.STACK.block, low=down.next.block, gate=low.next.block;
@@ -55,8 +55,8 @@ let ambiguous=0;
 for(const a of [.30,.35,.40]) for(const b of [.10,.20,.28,.35,.42,.44,.50,.65,.70])
   if(decide(3,a,b)==='anomaly')ambiguous++;
 assert(ambiguous>=8, 'the 206 simplification would erase these pupil fault decisions');
-console.log('PASS real WBB 232 guarded SHA256 '+hash);
+console.log('PASS real WBB 234 classroom SHA256 '+hash);
 assert.equal(decide(3,.35,.70,1),'anomaly', 'a repeated open echo on final side must not count a new H');
-console.log('PASS 232 guarded blocks / 10 variables / 17 IF / 34 comparisons');
+console.log('PASS 234 classroom blocks / 10 variables / 17 IF / 34 comparisons');
 console.log('PASS '+cases.length+' sensor cases, '+ambiguous+' anomalies among 27 side-3 observations');
 console.log('UNPROVEN: future #647 HEAD, native requalification, real editor, student usability');
