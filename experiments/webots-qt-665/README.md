@@ -123,3 +123,49 @@ pedagogical acceptance are proven.** #665 must remain open.
 
 **Never promote this experiment simply because ordinary CI uses `--minimize`
 or a standalone Qt model succeeds.**
+
+
+## New bounded build evidence — 26 October 2026 (native C++ *objects*, no executable)
+
+A distinct, isolated push-only **NON-GATE** experiment on
+[`evidence/665-qt-compile-probe-20261026`](https://github.com/djibian/webeeblocks/tree/evidence/665-qt-compile-probe-20261026)
+reached the first actual native C++ compilation of this candidate. The
+[final run 40318579548](https://github.com/djibian/webeeblocks/actions/runs/40318579548)
+at exact evidence HEAD `62525a859580a21d91433b33f766d71ae3af44f9`
+completed **success**, with preserved
+[archive 12648036935](https://github.com/djibian/webeeblocks/actions/runs/40318579548/artifacts/12648036935)
+(ZIP SHA-256 `7d5365bdd93b4c137f259de0a86eaf404ac4d65bb80959a562903bf29c7d9962`).
+
+Actual `g++ -std=c++17 -DQT_NO_DEBUG -fPIC -c` on **both** real
+R2025a translation units `src/webots/gui/WbMainWindow.cpp` and
+`src/webots/app/WbApplication.cpp` succeeded before and after applying
+the unchanged source patch. Upstream SHA `c6793d8f...` and original
+blob identities were prechecked. GCC was Ubuntu 11.4.0. The build
+container derived from pinned official image
+`cyberbotics/webots@sha256:f0023e30...` with **development-only**
+Ubuntu GL headers (`libgl-dev`, `libglu1-mesa-dev`,
+`libassimp-dev`, `libfreetype6-dev`). The exact Qt 6.5.3 runtime
+library hashes stayed `Widgets=868b516dde6d...`,
+`Core=ac391204135f...`; missing non-used Qt headers
+QtOpenGLWidgets, QtQml and QtXml were recorded. Earlier failed trials
+[40318043186](https://github.com/djibian/webeeblocks/actions/runs/40318043186),
+[40318242058](https://github.com/djibian/webeeblocks/actions/runs/40318242058)
+and [40318423220](https://github.com/djibian/webeeblocks/actions/runs/40318423220)
+establish precondition corrections (headers/OpenGL/include path), **not**
+C++ regressions.
+
+Resulting object SHA-256 (byte identities, **not** a linked or loaded Webots binary):
+
+| Unit | Original R2025a | Guarded candidate |
+| --- | --- | --- |
+| `WbMainWindow.o` | `a4c96ace2c6e0c9b7870d5250a4e7a136e9e6003f0467d8629dbb92a4a34c124` | `cd451c144d58a73afda5f43442fbd29c17f4d55afd58825b909cab462d3645d3` |
+| `WbApplication.o` | `32060bb5993fdd4b4eae8027978cc9d3e91248cca1c261de83cc725211aebe48` | `4bbbe340e4ed0fa5c43e902f7113733c3f2223df181f0471333fe9747f3aef20` |
+
+**Interpretation strictly bounded:** both modified units are syntactically
+and semantically accepted by a real C++ compiler against the pinned source
+and Qt headers/libraries in this environment. No full Webots link, Qt
+adversarial harness on the patched implementation, modal A/B in the actual
+simulator, product binary adoption, or canonical **Ready** CI has occurred.
+The production launchers still execute the original official image; this
+experiment must NEVER be used as a #665 repair PASS or as a reason to
+weaken LAND/#700 tests.
