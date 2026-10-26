@@ -47,7 +47,7 @@ function evaluatePupilCount(b, count) {
 }
 for (const count of [0, 1, 2, 3, 4])
   assert.strictEqual(evaluatePupilCount(guard, count), count >= 1 && count <= 3);
-console.log('PASS pure structural reproduction: 232 Blockly blocks, 10 variables, count 0..4 discriminated');
+console.log('PASS pure structural reproduction: 232 Blockly blocks, 11 variables, count 0..4 discriminated');
 if (process.argv.includes('--structural-only')) process.exit(0);
 const root = path.join(__dirname, '../..');
 const Blockly = require(path.join(root, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));

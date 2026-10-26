@@ -56,7 +56,7 @@ module.exports = {build};
 if (require.main === module) {
   const witness = build();
   console.log('GP_U_PUPIL_PREFLIGHT ' + JSON.stringify({
-    source_pr: 703, source_head: '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81',
+    source_pr: 705, source_head: process.env.GITHUB_SHA||'unresolved',
     derived_from: '7204975ad0d05b0fb2bcfe56e2690e225dfd9266', project_sha256: witness.project_sha256,
     ast_sha256: witness.ast_sha256, blocks: 232,
     claim: 'real-Blockly-13.2.1-preflight-AST-roundtrip-only'}));

@@ -63,6 +63,6 @@ for(const a of [.30,.35,.40]) for(const b of [.10,.20,.28,.35,.42,.44,.50,.65,.7
 assert(ambiguous>=8, 'the 206 simplification would erase these pupil fault decisions');
 console.log('PASS real WBB 232 classroom SHA256 '+hash);
 assert.equal(decide(3,.35,.70,1),'anomaly', 'a repeated open echo on final side must not count a new H');
-console.log('PASS 232 classroom blocks / 10 variables / 17 IF / 34 comparisons');
+console.log('PASS 232 classroom blocks / 11 variables / 17 IF / 34 comparisons');
 console.log('PASS '+cases.length+' sensor cases, '+ambiguous+' anomalies among 27 side-3 observations');
-console.log('UNPROVEN: future #647 HEAD, native requalification, real editor, student usability');
+console.log('UNPROVEN: exact native campaign, real OS picker and independent pupil usability');
