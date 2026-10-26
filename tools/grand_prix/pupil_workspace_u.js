@@ -27,7 +27,7 @@ function build() {
     WebeeBlocksRuntimeOutcome: {classify: () => ({})}, WebeeBlocksWwiBackend: function() {}};
   context.window = context;
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'plugins/robot_windows/grand_prix_u/setup.js'), 'utf8'), context);
-  const profile = Profiles.resolveById(Activities.DOCUMENT,
+  const profile = Profiles.resolveById(context.WebeeBlocksActivities.DOCUMENT,
     'progression-grand-prix-u-v1', Activities.BLOCK_CATALOG);
   const workspace = new Blockly.Workspace(), reopened = new Blockly.Workspace();
   try {
@@ -36,7 +36,7 @@ function build() {
     const ast = Semantic.compileWorkspace(workspace);
     Contract.preflightAst(profile, ast);
     const validated = ProjectFiles.validateProjectText(content, profile,
-      {Blockly, profiles: Profiles, activitiesDocument: Activities.DOCUMENT,
+      {Blockly, profiles: Profiles, activitiesDocument: context.WebeeBlocksActivities.DOCUMENT,
         blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Semantic, activityContract: Contract});
     assert.deepStrictEqual(validated.ast, ast, 'project .wbb must match compiled AST');
     Blockly.serialization.workspaces.load(project.workspace, reopened);
