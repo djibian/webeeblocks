@@ -46,8 +46,8 @@ make -j2 -C src/wren release
 # for BOTH ordinary C++ and the moc generator via the shared make variable.
 test -f "$source_tree/include/qt/QtWidgets/QDialog"
 test -f "$source_tree/include/qt/QtCore/QObject"
-make -j2 -C src/webots release \\
-  QT_CORE_INCLUDE="-isystem $source_tree/include/qt/QtCore -isystem $source_tree/include/qt -Ibuild/release" \\
+make -j2 -C src/webots release \
+  QT_CORE_INCLUDE="-isystem $source_tree/include/qt/QtCore -isystem $source_tree/include/qt -Ibuild/release" \
   CFLAGS='-fPIC -O2 -g -DNDEBUG -Wall' LD_FLAGS='-rdynamic'
 test -x bin/webots-bin
 sha256sum bin/webots-bin lib/webots/libQt6*.so.6.5.3 > "$evidence/candidate-runtime.sha256"
