@@ -84,6 +84,43 @@ jobs:
           "QT665_WEBOTS_HOME=$installedWebotsRoot" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           "QT665_WEBOTS_BIN=$bin" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host 'QT665_WINDOWS_OFFICIAL_INSTALL_BASE=PASS'
+      - name: Contrast patched PE Qt symbols against original authentic R2025a and SDK Qt
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          @'
+          from pathlib import Path
+          import json
+          import os
+          import pefile
+          
+          original = Path(os.environ["QT665_WEBOTS_BIN"])
+          sdk = Path(os.environ["QT665_MINGW_BIN"])
+          patched = Path(os.environ["GITHUB_WORKSPACE"]) / "qt665-patched-pe/webots-bin.exe"
+          out = Path(os.environ["GITHUB_WORKSPACE"]) / "ci-artifacts/qt665-windows-running/qt-import-export-contrast.json"
+          exe = pefile.PE(str(patched), fast_load=True)
+          exe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+          target = {}
+          for group in getattr(exe, "DIRECTORY_ENTRY_IMPORT", []):
+              name = group.dll.decode("ascii", "replace")
+              if name.lower() in ("qt6core.dll", "qt6gui.dll", "qt6widgets.dll"):
+                  target[name] = {i.name for i in group.imports if i.name is not None}
+          report = {}
+          for name, needed in target.items():
+              report[name] = {"symbols_imported": len(needed)}
+              for label, root in (("original_official_r2025a", original), ("msys2_qt6_sdk", sdk)):
+                  file = root / name
+                  pe = pefile.PE(str(file), fast_load=True)
+                  pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+                  table = getattr(pe, "DIRECTORY_ENTRY_EXPORT", None)
+                  exports = set() if table is None else {sym.name for sym in table.symbols if sym.name is not None}
+                  absent = sorted(sym.decode("ascii", "replace") for sym in needed if sym not in exports)
+                  report[name][label] = {"missing_count": len(absent), "sample": absent[:14]}
+                  print("QT665_WINDOWS_QT_EXPORT_CONTRAST %s %s missing=%d imported=%d" % (name, label, len(absent), len(needed)))
+          out.write_text(json.dumps({"claim": "static-patched-PE-vs-authentic-R2025a-and-MSYS2-symbol-differential-only", "result": report}, indent=2, sort_keys=True)+"\n")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Qt export contrast failed; no compatibility claim' }
       - name: Overlay consistent Qt SDK runtime and actual patched Webots PE
         shell: pwsh
         run: |
