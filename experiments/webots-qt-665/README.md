@@ -276,3 +276,52 @@ official and candidate binaries due to preceding `low-outside-zone`
 oracles, LAND, RESET, worlds, AST or deadlines. Maintain **Draft**
 and issue #665 **OPEN** pending actual consumer adoption, complete
 qualification, Ready exact-head CI Gate and independent V5 GO.
+
+## Reentrant PARENT shutdown: historical refutation and experimental repair — 26 Oct 2026
+
+**Do not describe original patch as globally safe.** The initial source patch
+guards ordinary retirement but not destruction of WbMainWindow during its
+own nested modal `QProgressDialog::setValue` call.
+
+- **Blocking counterexample on original patch:** NON-GATE
+  [run 40352255637](https://github.com/djibian/webeeblocks/actions/runs/40352255637),
+  parent GDB job 121675181950, `completed/success` as a DETECTOR:
+  the bar was destroyed during the real Qt `setValue` frame and
+  `QProgressBar::maximum` later read the exact **destroyed** address.
+  `QT665_PARENT_COUNTEREXAMPLE=CONFIRMED`. The process exited normally;
+  lack of SIGSEGV is not safety.
+- **Experimental repair:** `repair_parent_shutdown.py` is a
+  deterministic, fail-closed, SECOND source transformation applied after
+  the original guarded patch to the same pinned upstream commit. The
+  patch adds `WbWorldLoadingProgressLease`, shared by active calls,
+  detaches dialogs during parent destruction and queues deferred deletion
+  only after the last active protected method returns; all lambda accesses
+  to WbMainWindow after reentrant Qt calls are QPointer guarded.
+  This is a genuine new source variant, not the binary built earlier.
+- **Two simultaneous pass results:** [run 40353966663](https://github.com/djibian/webeeblocks/actions/runs/40353966663),
+  exact experimental HEAD `bc54874026b135d1cfaff9db7258dd7c21a074b2`,
+  two `completed/success` jobs under *actual* Qt6.5.3/GDB. The modal
+  retirement test still passes; the formerly failing parent counterprobe
+  establishes parent deletion within `setValue`, same living bar accessed
+  afterwards in `maximum`, survival through return, and deferred
+  child destruction thereafter:
+  `QT665_PARENT_LIVE_BAR_MAXIMUM_INSIDE_SET_VALUE=PASS`,
+  `QT665_PARENT_DEFERRED_DELETE_AFTER_RETURN=PASS`,
+  `QT665_PARENT_SHUTDOWN=PASS`.
+- **Reproduction:** apply the original patch to a CLEAN pinned R2025a
+  checkout, then run
+  `python3 experiments/webots-qt-665/repair_parent_shutdown.py
+  --webots-tree /path/to/patched-webots`.
+  `qualify_source_patch.py` checks both transformations fail-closed and
+  records their independent SHA-256 plus the resulting source blobs.
+  `build_full_application.sh` compiles this COMPOSED source in a pinned
+  native Webots toolchain and verifies the XCB launcher; the build is
+  separately qualified and must NEVER reuse the former ELF hash.
+
+**Status boundary:** this is a parent-shutdown METHOD-level PASS, not a
+fully qualified Webots executable, genuine asynchronous WbDownloadManager
+completion/cancellation, successive generations or packaged Windows Qt.
+The new `build_full_application.sh` recipe must generate an authentic
+new ELF and its native real-consumer matrix must pass before promotion.
+Existing oracles, negative cases, LAND 210 s, RESET and all other
+teams' Grand Prix changes remain untouched. Continue Draft/OPEN.
