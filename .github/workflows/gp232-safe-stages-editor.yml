@@ -1,0 +1,48 @@
+# Browser-only experiment; do not treat faked WWI or OS transport as native mission.
+name: GP232 guarded pupil editor Chrome on main 17671
+on:
+  push:
+    branches: [experiment/gp232-safe-stages-editor-20261026]
+permissions:
+  contents: read
+jobs:
+  editor:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Prove unchanged exact guarded WBB
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=1bc106f99d58ca12d2a05239dbdaaddda9dd396b
+          test "$(git rev-parse HEAD^)" = "$base"
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 30671f352ae971d1ce7e67a940f424f355c99309
+          actual="$(git diff --name-only "$base" HEAD)"
+          expected="$(printf '.github/workflows/gp232-safe-stages-editor.yml\nexperiments/grand-prix-pupil-algorithm/ATELIER_DEBUG_COLLEGE.md\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
+          test "$actual" = "$expected"
+      - name: Prepare real Chrome and Blockly
+        run: |
+          bash tools/prepare_runtime_v2.sh
+          node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
+          npm install --prefix .ci-gp-ui --no-save --no-package-lock --no-audit --no-fund playwright@1.55.0
+          command -v google-chrome || command -v chromium
+      - name: Real editor field mutation and debug step mapping
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp232-guarded-editor
+          WEBEEBLOCKS_PLAYWRIGHT_MODULE="$GITHUB_WORKSPACE/.ci-gp-ui/node_modules/playwright/index.mjs" \
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" \
+          WEBEEBLOCKS_UI_OUTPUT="$GITHUB_WORKSPACE/ci-artifacts/gp232-guarded-editor" \
+          node experiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs 2>&1 | tee ci-artifacts/gp232-guarded-editor/ui.log
+      - name: Keep screenshot, metrics and first error
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp232-guarded-editor-real-chrome
+          path: ci-artifacts/gp232-guarded-editor/
+          if-no-files-found: warn
