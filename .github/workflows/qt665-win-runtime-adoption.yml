@@ -1,9 +1,9 @@
 # NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
 # A disposable CI runner is modified; this is NOT a classroom release.
-name: Qt665 Windows exact PE and runtime Qt adoption (NON-GATE)
+name: Qt665 Windows SDK-link actual PE runtime (NON-GATE)
 on:
   push:
-    branches: [evidence/665-win-qt-runtime-adoption-20261026]
+    branches: [evidence/665-win-sdk-link-runtime-20261026]
 permissions:
   contents: read
   actions: read
@@ -26,8 +26,8 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          run-id: 40406638420
-          name: qt665-windows-real-build-61bec4028e55655fbe86be8e58848f95c72c11eb
+          run-id: 40415782024
+          name: qt665-windows-real-build-cee93a46b5c019c78d901a969ffe8122ea2a1fe2
           github-token: ${{ github.token }}
           path: qt665-patched-pe
       - name: Attest matching MSYS2 Qt ABI and supplied PE
@@ -208,7 +208,7 @@ jobs:
               if (Test-Path -LiteralPath $local -PathType Leaf) { $pending.Enqueue($local) }
             }
           }
-          @{source_commit='61bec4028e55655fbe86be8e58848f95c72c11eb';visited=$visited.Count;added=$needed;unresolved=$unresolved} |
+          @{source_commit='cee93a46b5c019c78d901a969ffe8122ea2a1fe2';visited=$visited.Count;added=$needed;unresolved=$unresolved} |
             ConvertTo-Json -Depth 9 | Set-Content ci-artifacts/qt665-windows-running/recursive-pe-closure.json
           if ($unresolved.Count) {throw ('Unresolved transitive PE imports: '+($unresolved | ConvertTo-Json -Compress))}
           Write-Host "QT665_WINDOWS_TRANSITIVE_IMPORT_CLOSURE=PASS inspected=$($visited.Count) copied=$($needed.Count)"
