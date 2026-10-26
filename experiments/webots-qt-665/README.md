@@ -507,21 +507,21 @@ or V5 GO is implied.
 
 ## Runtime-process adoption attestation (experimental, NOT a deployment)
 
-The new \`attest_running_consumer.py\` is an independently checkable **Linux
+The new `attest_running_consumer.py` is an independently checkable **Linux
 process identity probe**, not a runtime patch or a natural Qt callback witness.
-Run it **inside the same container** while its real \`webots-bin\` PID is alive:
+Run it **inside the same container** while its real `webots-bin` PID is alive:
 
-\`\`\`sh
+```sh
 python3 experiments/webots-qt-665/attest_running_consumer.py \
   --runtime-home /usr/local/webots --pid "$WEBOTS_PID" \
   --manifest ci-artifacts/qt665-running-consumer.json
-\`\`\`
+```
 
 It rejects an official or historically refuted ELF, wrong R2025a, stale PID,
 other executable, deleted or wrong Qt mappings, mismatched Qt binary digests
-and a changed process starttime. It checks the actual Linux \`/proc/PID/exe\`
-and \`/proc/PID/maps\` instead of inferring runtime adoption from a copied file,
-\`ldd\`, image tag or install manifest. The isolated negative tests are
+and a changed process starttime. It checks the actual Linux `/proc/PID/exe`
+and `/proc/PID/maps` instead of inferring runtime adoption from a copied file,
+`ldd`, image tag or install manifest. The isolated negative tests are
 exercised from repository-hygiene CI. A positive result has **not yet been
 obtained from any ordinary CI consumer**. It would prove exactly the inspected
 running Linux process's ELF/Qt identity, not image supply-chain immutability,
