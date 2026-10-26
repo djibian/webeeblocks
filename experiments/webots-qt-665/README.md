@@ -102,11 +102,24 @@ link test, Qt regression test, or proof that the binary is shipped.
 
 ### Evidence obtained in this branch
 
-A connector-side replay of the unified diff against exact pinned upstream
-sources verified all 8 hunks, 3 files and a matching source context (static
-patch-application PASS). This does **not** establish the executable script was
-run on a full checkout, binary compilation, patched runtime behavior, production
-adoption, CI Gate, or pedagogical acceptance. The issue #665 must remain open.
+The isolated GitHub Actions source-only experiment
+[run 40311761613](https://github.com/djibian/webeeblocks/actions/runs/40311761613)
+completed successfully at candidate `b600712b4555cd6828589254c83e86bc2d3f997a`.
+It checked out exactly the 3 pinned upstream source blobs, ran the executable
+offline checker on a sparse R2025a checkout and archived the manifest
+[artifact 12645231418](https://github.com/djibian/webeeblocks/actions/runs/40311761613/artifacts/12645231418),
+GitHub ZIP digest `sha256:653532502645b353e9748eed315102bb2c067534d0d7e084e4fc685aa4ef3725`.
+The patch content SHA-256 was `7a3603eaef1d6addc59175c6ed3363bc51497827fa39a699c8ee6af073280e94`.
+Manifest result **SOURCE_PATCH_APPLIES_ONLY**, post-patch blobs:
+`WbApplication.cpp=404ac1269f022ff4bde41801cdb79b2015c8ac65`,
+`WbMainWindow.cpp=c7aa1815851a9eb7453a534b0cf96c5b43ecd65f`,
+`WbMainWindow.hpp=af25aca90c2ad2ac0dfa456928f9f4162fca6ff2`.
+The transient push workflow that acquired this evidence was removed from the
+candidate after the canonical V5 workflow-contract test rejected adding
+unauthorized workflow filenames/push triggers. The *historical artifact* remains
+valid for the identical patch blob; it does not become candidate CI Gate.
+**Neither compilation, Qt lifetime A/B, production binary adoption nor
+pedagogical acceptance are proven.** #665 must remain open.
 
 **Never promote this experiment simply because ordinary CI uses `--minimize`
 or a standalone Qt model succeeds.**
