@@ -14,18 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 3
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Prove no candidate mutation and exact source SHA
         shell: bash
         run: |
-          test "$(git rev-parse HEAD~2)" = '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81'
-          actual="$(git diff --name-only HEAD~2 HEAD)"
+          git merge-base --is-ancestor '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81' HEAD
+          actual="$(git diff --name-only '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81' HEAD)"
           expected="$(printf '.github/workflows/gp703-pupil-editor-ui.yml\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
           test "$actual" = "$expected"
-          test "$(git rev-parse HEAD~2:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '02c0cdef8fc7189aa171b584a8160b52e392ba1c'
+          test "$(git rev-parse '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb')" = '02c0cdef8fc7189aa171b584a8160b52e392ba1c'
           sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
       - name: Prepare original pinned Blockly 13.2.1 and browser driver
         shell: bash
