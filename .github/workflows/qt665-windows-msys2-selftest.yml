@@ -1,0 +1,116 @@
+# Isolated NON-GATE Windows toolchain contradiction probe, no Webots edits.
+name: Qt665 Windows MSYS2 Qt self-consistency (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-windows-msys2-qt-selftest-20261026]
+permissions:
+  contents: read
+jobs:
+  sdk-abi-self-test:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-pkgconf
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile and run ordinary Qt6.12 Windows GUI using same MSYS2 SDK
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/qt665-windows-sdk
+          pacman -Q > ci-artifacts/qt665-windows-sdk/pacman-versions.txt
+          sha256sum /mingw64/bin/Qt6Core.dll /mingw64/bin/Qt6Gui.dll /mingw64/bin/Qt6Widgets.dll \
+            /mingw64/share/qt6/plugins/platforms/qwindows.dll > ci-artifacts/qt665-windows-sdk/native-qt-sha256.txt
+          echo "QT665_QT_SDK_BIN=$(cygpath -w /mingw64/bin)" >> "$GITHUB_ENV"
+          echo "QT665_QT_SDK_QWINDOWS=$(cygpath -w /mingw64/share/qt6/plugins/platforms/qwindows.dll)" >> "$GITHUB_ENV"
+          cat > ci-artifacts/qt665-windows-sdk/qt-smoke.cpp <<'CPP'
+          #include <QApplication>
+          #include <QProgressDialog>
+          #include <QTimer>
+          #include <QTextStream>
+          #include <QLibraryInfo>
+          int main(int argc, char **argv) {
+            QApplication app(argc, argv);
+            QProgressDialog dialog;
+            dialog.setRange(0, 10);
+            dialog.setValue(2);
+            QTextStream(stdout) << "QT665_SDK_NATIVE_QT_VERSION=" << QT_VERSION_STR << Qt::endl;
+            QTimer::singleShot(0, &app, &QCoreApplication::quit);
+            return app.exec();
+          }
+          CPP
+          g++ -std=c++17 -O0 -g $(pkg-config --cflags Qt6Widgets) \
+            ci-artifacts/qt665-windows-sdk/qt-smoke.cpp -o ci-artifacts/qt665-windows-sdk/qt-smoke.exe \
+            $(pkg-config --libs Qt6Widgets)
+          objdump -p ci-artifacts/qt665-windows-sdk/qt-smoke.exe > ci-artifacts/qt665-windows-sdk/probe-imports.txt
+          set +e
+          QT_QPA_PLATFORM=offscreen QT_PLUGIN_PATH=/mingw64/share/qt6/plugins \
+            ci-artifacts/qt665-windows-sdk/qt-smoke.exe > ci-artifacts/qt665-windows-sdk/probe.log 2>&1
+          rc=$?
+          set -e
+          cat ci-artifacts/qt665-windows-sdk/probe.log
+          echo "$rc" > ci-artifacts/qt665-windows-sdk/probe-exit.txt
+          echo "QT665_WINDOWS_SDK_SMOKE_EXIT=$rc"
+          if test "$rc" -ne 0; then exit "$rc"; fi
+          grep -q 'QT665_SDK_NATIVE_QT_VERSION=' ci-artifacts/qt665-windows-sdk/probe.log
+          echo "QT665_WINDOWS_SDK_STANDALONE_APP=PASS"
+      - name: Falsify Qt SDK qwindows plugin imports against SDK Qt DLL exports
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --disable-pip-version-check pefile==2024.8.26
+          @'
+          import json
+          import os
+          from pathlib import Path
+          import pefile
+          plugin=Path(os.environ["QT665_QT_SDK_QWINDOWS"])
+          folder=Path(os.environ["QT665_QT_SDK_BIN"])
+          pe=pefile.PE(str(plugin),fast_load=True)
+          pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"]])
+          results={}
+          for entry in getattr(pe,"DIRECTORY_ENTRY_IMPORT",[]):
+              name=entry.dll.decode("ascii","replace")
+              if not name.lower().startswith("qt6") or not name.lower().endswith(".dll"):
+                  continue
+              target=folder/name
+              if not target.is_file():
+                  raise SystemExit("SDK Qt module absent: "+str(target))
+              dep=pefile.PE(str(target),fast_load=True)
+              dep.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+              export=getattr(dep,"DIRECTORY_ENTRY_EXPORT",None)
+              symbols=[] if export is None else export.symbols
+              named={x.name for x in symbols if x.name}
+              ordinal={x.ordinal for x in symbols}
+              missing=[{"name":x.name.decode("ascii","replace") if x.name else None,"ordinal":x.ordinal}
+                  for x in entry.imports if (x.name not in named if x.name is not None else x.ordinal not in ordinal)]
+              results[name]={"imported":len(entry.imports),"missing":missing}
+              print("QT665_SDK_SELF_IMPORT_EXPORT %s imports=%d missing=%d"%(name,len(entry.imports),len(missing)))
+              dep.close()
+          out=Path("ci-artifacts/qt665-windows-sdk/self-imports-vs-exports.json")
+          out.write_text(json.dumps(results,indent=2)+"\n")
+          if any(x["missing"] for x in results.values()):
+              print("QT665_SDK_SELF_ABI=FAIL")
+              raise SystemExit(81)
+          print("QT665_SDK_SELF_ABI=PASS_STATIC_ONLY")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Qt SDK qwindows import/export discrepancy' }
+      - name: Archive bounded native ABI diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-windows-msys2-sdk-selftest-${{ github.sha }}
+          path: ci-artifacts/qt665-windows-sdk/
+          if-no-files-found: warn
