@@ -64,7 +64,7 @@ try{
    return await page.evaluate(label=>{
      const all=workspace.getAllBlocks(false),ids=all.map(b=>b.id).sort(),bounds=workspace.getBlocksBoundingBox();
      const m=workspace.getMetrics(),root=workspace.getTopBlocks(false),rect=document.querySelector('.blocklySvg')?.getBoundingClientRect();
-     const names=workspace.getAllVariables().map(v=>v.name).sort();
+     const names=workspace.getVariableMap().getAllVariables().map(v=>v.name).sort();
      const blockRoots=root.map(b=>({type:b.type,id:b.id}));
      const treeDepth=b=>{let p=b.getParent(),i=0;while(p){i++;p=p.getParent();}return i;};
      const maxParentDepth=Math.max(...all.map(treeDepth));
