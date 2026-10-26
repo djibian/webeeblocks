@@ -1,8 +1,45 @@
-# #665 — Webots R2025a Qt lifetime candidate (NOT QUALIFIED)
+# #665 — Webots R2025a Qt lifetime repair candidate (NOT DEPLOYED)
 
-**Status: SOURCE CANDIDATE ONLY — native repair UNPROVEN.** This directory
-contains a *source patch*, not a rebuilt Webots application, not a classroom
-release, not a modified CI image and not an integration authorization.
+**V5 status, 26 October 2026: #701 Draft, #665 OPEN; no Ready CI Gate, independent GO or merge.**
+The original source-only description and chronological experiments below are
+historical. A real complete **Linux** parent-shutdown-safe `webots-bin` was
+built and launched; its SHA-256 is
+`e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545`.
+It is preserved as [artifact 12666096845](https://github.com/djibian/webeeblocks/actions/runs/40354624966/artifacts/12666096845).
+
+**CRITICAL: the first `.patch` file alone is NOT the safe final candidate.**
+The earlier complete binary `d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9`
+was refuted by the native Qt parent-shutdown counterprobe
+[40352255637](https://github.com/djibian/webeeblocks/actions/runs/40352255637).
+The parent-safe binary requires the *additional* fail-closed
+`repair_parent_shutdown.py` transformation, as applied by
+`build_full_application.sh`. Do not deploy or propose the base patch alone.
+
+**Proven, bounded:** real compiled Webots Linux ELF / original Qt6.5.3;
+method-level Qt reentrance, parent deletion and late-cancel regression
+[40358835107](https://github.com/djibian/webeeblocks/actions/runs/40358835107);
+four real Linux runner scenarios with *temporary* identified ELF substitution
+[40357331972](https://github.com/djibian/webeeblocks/actions/runs/40357331972).
+The [full-native-GDB experiment 40376559561](https://github.com/djibian/webeeblocks/actions/runs/40376559561)
+proves the lifetime ordering during the real `QProgressBar::maximum()` frame,
+**only under an explicit debugger-injected retirement**. It is NOT a natural
+download-completion callback.
+
+**Still UNPROVEN / NOT DONE:** equivalent nested callback caused naturally by
+the download manager on the new full executable; permanent official Linux
+consumer/image adoption; authentic patched Windows `webots-bin.exe` build,
+Qt DLL attestations, packaging and reference-PC validation; complete native
+oracles; exact successful **Ready** `CI Gate`; independent V5 GO and conditional
+squash integration. The existing `timeout-gate` native `low-outside-zone` FAIL
+is unchanged, even though independent LAND at 210 s was observed. No oracle or
+safety threshold may be weakened to hide it.
+
+**Fail-closed boundary added in #701:** `attest_and_install_candidate.py`
+accepts only the exact parent-safe ELF digest above, not an arbitrary SHA-256
+supplied by the caller. `tools/ci/test_repository_hygiene.py` falsifies attempts
+to authorize the known-unsafe previous ELF and the unmodified official image.
+The attester operates on disposable Linux installations only and constitutes
+neither official Linux adoption nor Windows qualification.
 
 ## Anchors and bounded claim
 
