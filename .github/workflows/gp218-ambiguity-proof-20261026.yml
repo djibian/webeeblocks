@@ -19,7 +19,8 @@ jobs:
         run: |
           set -euo pipefail
           base=18751e6804832d1310cf51a585e9774b87a551ee
-          test "$(git rev-parse HEAD~2)" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
+          test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = 3bca44a6b758b93ca913f867c17458cf17d18f96
           git diff --name-only "$base" HEAD > changed.txt
           if grep -Ev '^(experiments/grand-prix-pupil-algorithm/verify_sensor_ambiguity.js|\.github/workflows/gp218-ambiguity-proof-20261026.yml)$' changed.txt; then
             echo "Unexpected shared-source mutation" >&2
