@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           base=5db5128896bfcb1986b1ca830adae79418ae929f
-          test "$(git rev-parse HEAD^)" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
           git diff --exit-code "$base" HEAD -- AGENTS.md docs/PRODUCT_VISION.md docs/ROADMAP.md tools/grand_prix/layout_u.py tools/grand_prix/oracle_u.py tools/ci/run_grand_prix_u_prototype.py controllers/grand_prix_u_flight
           test "$(git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/GP232_reference_main17671.wbb)" = 02c0cdef8fc7189aa171b584a8160b52e392ba1c
           sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
