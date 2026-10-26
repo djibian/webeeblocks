@@ -56,6 +56,15 @@ def stack():
     except gdb.error as exc:
         return 'unavailable:' + str(exc)
 
+def iter_native_frames():
+    frame = gdb.newest_frame()
+    while frame is not None:
+        yield frame
+        try:
+            frame = frame.older()
+        except gdb.error:
+            return
+
 class Returned(gdb.FinishBreakpoint):
     def __init__(self, frame, t, ident):
         self.t, self.ident = t, ident
@@ -87,6 +96,16 @@ class Entry(gdb.Breakpoint):
                      dead_bar=False)
             active.setdefault(t, []).append(f)
             out('enter', id=ident, thread=t, dialog=p, depth=len(active[t]))
+            # Distinguish truly nested Qt stacks from stale GDB FinishBreakpoint
+            # book-keeping. The first few boundaries and upper depths are
+            # enough to prove the failure mode without dumping all process
+            # memory or overwhelming the log.
+            if len(active[t]) in (2, 8, 32, 128, 256):
+                out('native_depth_snapshot', recorded_depth=len(active[t]),
+                    actual_setvalue_frames=sum(
+                        'QProgressDialog::setValue' in name for name in
+                        [frame.name() or '' for frame in
+                         iter_native_frames()]), backtrace=stack())
             try:
                 Returned(gdb.newest_frame(), t, ident)
             except Exception as exc:
@@ -121,7 +140,7 @@ class Destruction(gdb.Breakpoint):
                 if f[self.target] == p:
                     f['dead_' + self.target] = True
                     ids.append(f['id'])
-            if ids:
+            if ids and 'QProgressDialog::setValue' in stack():
                 out(self.target + '_destroyed_within_setvalue',
                     thread=t, object=p, ids=ids, backtrace=stack())
         except Exception as exc:
@@ -133,6 +152,10 @@ class Retire(gdb.Breakpoint):
     def stop(self):
         try:
             target = int(gdb.parse_and_eval("this->mWorldLoadingProgressDialog"))
+            true_stack = stack()
+            out('retire_seen', target=target,
+                genuine_in_setvalue=('QProgressDialog::setValue' in true_stack),
+                backtrace=true_stack)
             for frame in active.get(thread_id(), []):
                 if target and frame['dialog'] == target and frame['bar']:
                     frame['retired'] = True
@@ -147,7 +170,7 @@ class Maximum(gdb.Breakpoint):
         try:
             t, p = thread_id(), ptr()
             ids = [f['id'] for f in active.get(t, []) if f['bar'] == p]
-            if ids:
+            if ids and 'QProgressDialog::setValue' in stack():
                 out('bar_maximum_within_setvalue',
                     thread=t, object=p, ids=ids)
                 for frame in active.get(t, []):
