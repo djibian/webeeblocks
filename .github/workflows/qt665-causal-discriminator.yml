@@ -21,6 +21,7 @@ jobs:
           git -C upstream-webots sparse-checkout set src/webots/gui src/webots/app
           test "$(git -C upstream-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          python3 experiments/webots-qt-665/repair_parent_shutdown.py --webots-tree upstream-webots
           python3 experiments/webots-qt-665/qt665_causal_discriminator.py \
             --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
             --output qt665-guarded-methods.cpp
@@ -97,6 +98,7 @@ jobs:
           git -C upstream-webots sparse-checkout set src/webots/gui src/webots/app
           test "$(git -C upstream-webots rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
           git -C upstream-webots apply "$GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          python3 experiments/webots-qt-665/repair_parent_shutdown.py --webots-tree upstream-webots
           python3 experiments/webots-qt-665/qt665_parent_counterprobe.py \
             --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
             --output qt665-parent-methods.cpp
