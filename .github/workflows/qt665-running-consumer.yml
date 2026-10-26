@@ -79,6 +79,12 @@ jobs:
                 sleep 0.5
               done
               test -n "$pid" || { echo "Running ready Webots PID not observed" >&2; exit 1; }
+              # Diagnostic only: record the *actual* mapped Qt paths and
+              # linked inodes before evaluating process identity.
+              awk '/libQt6(Core|Widgets)/ { print }' "/proc/$pid/maps"                 > ci-artifacts/qt665-running-process/qt-mappings.txt
+              echo "QT665_KERNEL_MAPPINGS_BEGIN"
+              cat ci-artifacts/qt665-running-process/qt-mappings.txt
+              echo "QT665_KERNEL_MAPPINGS_END"
               python3 experiments/webots-qt-665/attest_running_consumer.py \
                 --runtime-home /usr/local/webots --pid "$pid" \
                 --manifest /workspace/ci-artifacts/qt665-running-process/process.json
