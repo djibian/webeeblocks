@@ -16,7 +16,7 @@ import re
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout import generate,world_text
 from tools.grand_prix.timing import analyze
-IMAGE='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+IMAGE='ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca'
 ARTIFACTS=ROOT/'ci-artifacts/grand-prix'
 
 def main():

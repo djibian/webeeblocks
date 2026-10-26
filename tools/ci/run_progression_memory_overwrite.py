@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = ROOT / "ci-artifacts" / "progression-memory-overwrite"
-WEBOTS_IMAGE = "cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099"
+WEBOTS_IMAGE = "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca"
 TEMP_WORLD = ROOT / "worlds" / "ci_progression_memory_overwrite.wbt"
 TEMP_PROJECT = ROOT / "worlds" / ".ci_progression_memory_overwrite.wbproj"
 
