@@ -18,7 +18,7 @@ UPSTREAM_COMMIT = "c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b"
 ORIGINAL_BLOBS = {
     "src/webots/gui/WbMainWindow.hpp": "53806f899578622f9da956d06e8a2a2ab96c6a98",
     "src/webots/gui/WbMainWindow.cpp": "55e5f8afad696d43ad9be425743861cec73fad21",
-    "src/webots/app/WbApplication.cpp": "65dfca226077bd0c0f97f8996d2376560511511598bb1237694fc",
+    "src/webots/app/WbApplication.cpp": "65dfca226077bd0c0f97f8996d5acd04fc572e57",
 }
 PATCH = Path(__file__).with_name("webots-r2025a-guarded-progress-retirement.patch")
 
