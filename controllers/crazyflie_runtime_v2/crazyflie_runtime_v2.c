@@ -35,6 +35,8 @@
 #define ACTION_TIMEOUT 25.0
 // Bound the LAND reference slope rather than stepping the height PID to ground.
 #define LAND_DESCENT_SPEED 0.15
+#define LAND_APPROACH_SPEED 0.40
+#define LAND_APPROACH_HEIGHT 0.30
 
 typedef enum {
   CMD_IDLE,
@@ -87,6 +89,17 @@ static void clip_vector(double *x, double *y, double limit) {
     *x *= scale;
     *y *= scale;
   }
+}
+
+// A faster far approach preserves mission timing, while the last 30 cm use
+// the independently exercised slow reference slope. This is a setpoint profile,
+// not an asserted bound on measured vertical velocity.
+static double land_altitude_reference(double start_z, double ground_z, double elapsed) {
+  const double approach_distance = fmax(0.0, start_z - ground_z - LAND_APPROACH_HEIGHT);
+  const double approach_time = approach_distance / LAND_APPROACH_SPEED;
+  if (elapsed <= approach_time)
+    return start_z - LAND_APPROACH_SPEED * elapsed;
+  return fmax(ground_z, start_z - approach_distance - LAND_DESCENT_SPEED * (elapsed - approach_time));
 }
 
 static double motor_power(double value) {
@@ -926,7 +939,7 @@ int main(void) {
       desired.vy = POSITION_KP * body_y;
       clip_vector(&desired.vx, &desired.vy, VX_MAX);
       desired.yaw_rate = clip(YAW_KP * wrap_angle(target_yaw - yaw), YAW_RATE_MAX);
-      desired.altitude = fmax(origin_z, land_start_z - LAND_DESCENT_SPEED * (now - action_start));
+      desired.altitude = land_altitude_reference(land_start_z, origin_z, now - action_start);
       if (z <= origin_z + ALT_TOL && fabs(vz) < VZ_TOL) {
         if (stable_since < 0.0)
           stable_since = now;

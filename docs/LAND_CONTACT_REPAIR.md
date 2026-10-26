@@ -1,135 +1,115 @@
 # Native LAND contact repair (#637)
 
-## Bounded behavior
+## Behavior and unchanged boundaries
 
-LAND captures current X/Y/yaw/height and reuses the existing position/yaw
-controller during descent. The altitude reference descends at 0.15 m/s, clamped
-at origin_z, instead of stepping immediately to origin_z. This is a reference
-slope, **not a guaranteed bound on actual vertical speed**. No PID gain, motor,
-collider, inertia, material, physics step, safety threshold, completion window,
-timeout, negative test or mission oracle changes.
+LAND captures current X/Y/yaw/height, then reuses the existing bounded
+position/yaw controller. Its height reference has two continuous linear
+segments: 0.40 m/s while more than 0.30 m above origin, then 0.15 m/s for the
+last 0.30 m, clamped at origin_z. A start below that transition uses only the
+slow segment. These are setpoint slopes, not guaranteed actual velocity bounds.
 
-The independent Grand Prix authority still enters LAND and applies control on
-the exact expiry tick at 210 s. It also captures the current landing height on
-that tick. There is no deferred action, deadline extension or regained success.
-The existing shared LAND completion predicate is unchanged; the independent
-Grand Prix grounded/finite/stable authority remains necessary.
+The faster far approach avoids unnecessarily spending the mission's existing
+low-flight/takeoff allowance on a slow high-altitude descent. It does not
+change the 15 s exception, low-altitude geography, 210 s deadline, terminal
+criteria, safety thresholds, windows, timeouts, PID gains, motors, colliders,
+inertia, materials or product physics step. The independent Grand Prix
+authority still starts LAND and applies control on the exact expiry tick;
+its height reference is initialized from that tick's measured pose.
+No delayed action, regained success or weakened negative oracle is introduced.
 
-The rate is an engineering candidate: traversing the supported nominal 1.50 m
-takes 10 s of reference progression inside the unchanged 25 s action timeout.
-That calculation alone does not qualify tracking, stopping or any real flight.
+## Independent evidence and retained counterexamples
 
-## Independent causal check and local observations
-
-The audits at eccfe5701c2459bc1ae737bcea70bf5004061f27,
+The original studies eccfe5701c2459bc1ae737bcea70bf5004061f27,
 4078589bdb096b058ad054c484c9811dfdee3698 and
-3326b9ba9eec27870aefe4b2230edf95fdedec8f were independently extracted and
-recalculated. Their 7+5 refusal tests passed. A new native R2025a command-force
-acquisition reproduced the historical first contact: maximum position residual
-6.03e-10 m, linear velocity 4.11e-10 m/s, pitch 6.76e-10 rad, angular Y
-1.12e-8 rad/s. These are agreements with rounded logs, not physical tolerances.
-The first mechanical tip therefore does not require active PID feedback.
-Later amplification and the origin of upstream height differences are distinct.
+3326b9ba9eec27870aefe4b2230edf95fdedec8f were independently recalculated.
+Their 7+5 refusal tests passed, and a fresh native command-force acquisition
+reproduced the historical first contact without active PID feedback:
+position residual <=6.03e-10 m, linear velocity <=4.11e-10 m/s,
+pitch 6.76e-10 rad and angular Y 1.12e-8 rad/s. These describe agreement with
+rounded logs, not physical accuracy or product tolerances. Later amplification
+and the source of upstream height differences remain distinct questions.
 
-The full shared C/PID with real native propellers was then driven through the
-historical effect timings: TAKEOFF 0.50 at 2.464 s, WAIT 0.50 at 6.848 s,
-MOVE forward 0.10 at 7.552 and 9.536 s, LAND at 11.392 s. The offline
-qualification shell retains the original R2025a actuation/cylinder/inertia;
-its simplified visuals, injected transport and scene-ready stub do not prove
-the full browser/scene/mission workflow.
+The full C/PID with real native propellers also reproduces the complete
+historical slide to X=-2.40115223257 m despite ACK LAND. A constant 0.15 m/s
+reference plus hold reduced that particular terminal displacement to about
+0.9 mm. Twelve additional height/step cases completed locally. The final
+published regression driver independently rejects the baseline after ACK
+and accepts that constant-slope candidate. These mechanical-shell results
+are retained, not substituted for the official mission campaigns.
 
-| Local intervention | Final X after 3 s | Maximum pitch during LAND |
-| --- | ---: | ---: |
-| Unchanged main, 32 ms physics/control | -2.401152233 m | 0.75996 rad |
-| Altitude reference ramp alone | +0.150311969 m | 0.03445 rad |
-| Same ramp plus hold at LAND request | +0.165643916 m | 0.03427 rad |
+**The constant-slope candidate was then refuted by a true Grand Prix test.**
+Canonical Draft run 40280309908, HEAD 669d3a075e45add5d8ad5058628a8cb6ad0bbc82,
+prepared and verified the generated binary/cache successfully, but its short
+negative returned low-outside-zone at 15.008 s instead of required wrong-landing.
+The takeoff exception elapsed while the slow descent/terminal sequence was
+still pending. The 2,470,350-byte original ZIP artifact 12632226197 has SHA256
+c77e61a1918ea5fc87a59e8952bd82733f206f989e963e38e88523b7aa9a96a3;
+CRC 45/45 and the short-case manifest were checked. No alternative failure
+reason is accepted and no oracle or deadline is changed. This refutation
+motivates the faster far approach, not a retry of the same candidate.
 
-The last position is about 0.9 mm from the LAND request point. The unchanged
-baseline still acknowledged LAND before sliding out of the target; an ACK is
-not a valid landing oracle. A separate 8 ms physics/32 ms control baseline
-had a different trajectory and acknowledgement timing, so it is not an
-identical-entry-state comparison and is not the selected correction.
+The new two-segment profile passes the local historical regression with
+real physics: final X=0.1551717472 m, within 3 cm of its LAND request point;
+first observed contact VZ=-0.11452814 m/s. This is a different trajectory
+from the constant-slope experiment and inherits none of its other trials.
+Composition pose/deadline and instrumentation tests are rerun on the changed C.
+The real Grand Prix negative and all official positive/negative missions
+still require canonical evidence of the final exact Ready HEAD.
 
-Twelve additional ramp+hold runs used nominal heights
-0.20/0.35/0.50/0.80/1.00/1.50 m with 32/8 ms physics, always 32 ms control.
-All twelve sequences completed and settled in the local observations, maximum
-LAND pitch 0.04086 rad. These are bounded engineering observations, not official
-mission acceptance, universal stability or real-flight qualification.
+## Recovered original captures
 
-**Evidence limitation:** the local execution environment became unavailable
-before these new raw archives could be published. Terminal calculations and
-summaries were observed, but no durable raw archive is claimed. The independently
-repeated command-force tar had local SHA256
-fd3ff25f3d40a219c8166c2cccbdd16b2ee6e269e2e187e214aedec2efd49b88;
-that digest is not a download link or proof that the bytes remain available.
-The original three published studies are unaffected.
-The owner-attributed report is preserved on
-[issue #637](https://github.com/djibian/webeeblocks/issues/637#issuecomment-6404765591).
-Do not substitute this reported local evidence for exact-candidate CI.
+The local environment temporarily became unavailable before publication.
+Its original files later became accessible again; all completed per-capture
+manifests verified without changed members. They are now preserved in
+[the recovered evidence branch](https://github.com/djibian/webeeblocks/tree/e770fe8adb7fbb5f2a76e561a885527fd9ed0228/experiments/land-descent-637).
+Its tar contains 337 original/support files plus a recovery manifest:
+1,832,032 bytes, SHA256
+a7ae2f4818fa8d07d5f55d19714f780005283311b63ee4a98efd21688c936cbb.
+The independent command-force tar retains its originally reported SHA256
+fd3ff25f3d40a219c8166c2cccbdd16b2ee6e269e2e187e214aedec2efd49b88.
+Read-only analysis and recalculated summaries are included. The temporary
+archive-unavailability report remains in history; late preservation is neither
+pre-registration nor independent timestamp attestation. Original preparation
+failures are retained without assigning them native observations or PASS.
 
-Before the loss, composition pose/deadline tests, LAND instrumentation (11),
-timeout (4), and controller contract (16) completed positively. The final
-regression driver/runner is reconstructed after that loss and is **not claimed
-locally executed**. Its first authoritative execution is canonical CI.
+## Mandatory regression, in addition to full missions
 
-## Durable native regression and acceptance
-
-tools/ci/run_land_contact_regression.py compiles the current shared flight
-source and current PID against real R2025a. It replaces only the request
-transport, scene-ready check and outer step wrapper. The latter always calls
-the real wb_robot_step; sensors, motors, physics and the command state machine
-remain real. The qualification PROTO, source, wrapper, binary provenance,
-world, complete logs and digests are archived beside the normal progression
-artifacts, after all direct producers stop.
+tools/ci/run_land_contact_regression.py compiles the current shared C/PID
+against real R2025a. It injects only request transport, scene readiness and
+an outer step wrapper that calls the real wb_robot_step. The existing offline
+qualification shell preserves original actuation/cylinder/inertia with
+simplified visuals. This is not a browser, scene-loading or full-mission proof.
 
 The driver sends each historical request once, stops submitting after any
-error, and observes for three seconds after the terminal response. A separate
-native pose oracle requires the existing 3 cm position, 5 cm altitude,
-2 degree attitude/yaw, 0.12 m/s horizontal, 0.15 m/s vertical and 0.10 rad/s
-angular thresholds continuously for at least 0.50 s after LAND. It rejects the
-large historical slide even when LAND acknowledges success. These checks add
-a regression obligation and do not relax product or mission predicates.
+error and observes for 3 s after terminal response. A separate native oracle
+requires position within 3 cm, altitude within 5 cm, attitude/yaw within
+2 degrees, horizontal speed below 0.12 m/s, vertical speed below 0.15 m/s
+and angular speed below 0.10 rad/s continuously for 0.50 s. It rejects the
+historical large slide even if LAND acknowledges. These are additional
+regression checks, not replacement product success predicates.
 
-The regression is mandatory in both existing sequence/neutral-start canonical
-campaigns, **in addition to** their entire browser-based positive/negative
-missions. No historical test is removed, reclassified or skipped. It uses
-headless rendering only for its own mechanical shell; full native mission
-launch arguments, rendering, budgets and oracles remain unchanged.
+Source, driver, world, original C, binary provenance, complete logs and digests
+are archived after direct producers stop. The regression is mandatory in
+both sequence/neutral-start canonical campaigns in addition to every existing
+browser-based positive/negative case. Their launch arguments, rendering,
+budgets and oracles remain unchanged. Headless rendering is used only for
+the new mechanical shell. --runtime-source is an explicit historical diagnostic;
+CI supplies no override and proves the current checkout. --step 8 is an optional
+separate diagnosis; the default regression remains 32 ms physics/control.
 
-Example, on a machine with Webots R2025a and Xvfb:
+## Exact generated inputs and integration
 
-python3 tools/ci/run_land_contact_regression.py --home /path/to/webots --xvfb /usr/bin/Xvfb --out /new/output
+The shared C change invalidates the source-keyed prepared qualification cache.
+Use the existing same-repository Draft maintenance build in the pinned image,
+observe the actual binary size/SHA256, update only its generated-lock entry
+and verify/prime that exact cache. Preserve vendor/runtime/image locks,
+verifiers, Ready-only cache consumption and the distinct CI Gate (Draft).
+A successful preparation or Draft prototype is not integration evidence.
 
-For an explicit historical diagnostic, --runtime-source accepts a separately
-extracted main@f5435a8... C file; its exact hash/path is retained. CI passes no
-such override and proves the current checkout. --step 8 is a separate optional
-diagnostic; default CI physics/control remains 32 ms.
-
-## Integration boundaries
-
-Require the newest exact Ready-HEAD pull_request run of .github/workflows/ci.yml,
-all applicable native missions and the real successful CI Gate. Another
-execution must provide independent V5 review of code, causal evidence,
-regression support, negative cases, the exact 210 s authority and remaining
-refutations before conditional integration on fresh main.
-
-This repair does not establish RESET restoration, fix the pre-READY #665
-family or #699's separate asset preparation, clear #638's Grand Prix evidence,
-accept #635's pedagogy, restore main globally, authorize TEST_REQUIRED or
-authorize hardware flight. The author execution supplies no independent GO.
-
-## Exact generated-input preparation
-
-Changing the shared C controller also invalidates the source-keyed prepared
-qualification-package cache and its pinned generated-controller digest.
-The first Ready run 40244258414 of b97d58e failed before suite selection:
-package-input cache miss, then missing vendor/VERSION. Neither native LAND nor
-RESET ran; this is no native verdict and is not repaired by retrying Ready CI.
-
-Use the existing same-repository Draft maintenance path to build the exact
-controller in the pinned container, observe its size/SHA256, update only the
-controller entry of qualification_generated_lock.json from that real build,
-and verify/prime the exact generated-input cache. Preserve the vendor closure,
-image digest, runtime lock, verifier and Ready-only cache consumption rules.
-Only then mark the exact completed candidate Ready for fresh canonical CI.
-A Draft run and its prototype observations never replace CI Gate.
+Require the newest exact Ready-HEAD pull_request .github/workflows/ci.yml run,
+every applicable native proof and the real successful CI Gate. Another
+execution must independently examine code/support/evidence, unchanged negative
+oracles, exact 210 s authority and remaining refutations before conditional
+integration on fresh main. The author execution supplies no independent GO.
+RESET restoration, pre-READY #665/#699, #638's other evidence, #635 pedagogy,
+global main health, TEST_REQUIRED and real flight are not established here.
