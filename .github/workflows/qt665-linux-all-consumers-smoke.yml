@@ -1,0 +1,59 @@
+# Only NON-GATE static and real native smoke for the immutable corrected Webots.
+name: Qt665 Linux consumer coverage (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-linux-all-consumers-20261026]
+permissions:
+  contents: read
+jobs:
+  consumer-contracts:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove original CI contract assertions still hold
+        run: |
+          set -euo pipefail
+          python3 tools/ci/test_workflow_contract.py
+          python3 tools/ci/test_repository_hygiene.py
+          python3 tools/ci/test_select_ci.py
+          echo QT665_LINUX_CONSUMER_CONTRACTS=PASS
+  outcome-real-process:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute unchanged real R2025a outcome freshness on pinned corrected OCI
+        run: |
+          set -euo pipefail
+          bash tools/prepare_runtime_v2.sh
+          python3 tools/ci/run_runtime_v2_outcome_freshness.py
+          echo QT665_LINUX_CORRECTED_OCI_OUTCOME_FRESHNESS=PASS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-outcome-${{ github.sha }}
+          path: ci-artifacts/runtime-v2-outcome-provider/
+          if-no-files-found: warn
+  grand-prix-reset:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute unchanged real Grand Prix RESET on corrected OCI
+        run: |
+          set -euo pipefail
+          python3 tools/ci/run_grand_prix_u_prototype.py --suite reset
+          echo QT665_LINUX_CORRECTED_OCI_GP_RESET=PASS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-gp-reset-${{ github.sha }}
+          path: ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
