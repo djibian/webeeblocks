@@ -15,22 +15,38 @@ function visit(b) {
   if (b.next?.block) visit(b.next.block);
 }
 project.workspace.blocks.blocks.forEach(visit);
-assert.strictEqual(ids.size, 246);
+assert.strictEqual(ids.size, 232);
 assert.strictEqual(project.workspace.variables.length, 10);
 assert.strictEqual(types.webeeblocks_v2_takeoff, 1);
 assert.strictEqual(types.webeeblocks_v2_land, 1);
 assert.strictEqual(types.controls_repeat_ext, 1);
 assert.strictEqual(types.webeeblocks_v2_guarded_move || 0, 0);
 assert.strictEqual(types.procedures_callnoreturn, 1);
-// Both bounded searches must fail closed without silently claiming progress.
+// The actual interpreter throws when a bounded UNTIL search is exhausted;
+// unreachable post-loop guards add cognitive load without changing that.
+assert.deepStrictEqual(loops.map(b => b.fields.MAX_ITERATIONS).sort((a, b) => a - b), [6, 25]);
 const fault = b => b?.type === 'variables_set' &&
   b.fields?.VAR?.id === 'gp-pupil-v2-4' &&
   b.inputs?.VALUE?.block?.fields?.NUM === 2;
-assert(loops.some(b => fault(b.next?.block?.inputs?.DO0?.block)),
-  'side-search exhaustion must be a pupil-visible anomaly');
-assert(loops.some(b => fault(b.next?.block?.inputs?.ELSE?.block)),
-  'terminal distance/count failure must be a pupil-visible anomaly');
-console.log('PASS pure structural reproduction: 246 Blockly blocks, 10 variables, guarded loop exits');
+const terminal = loops.find(b => fault(b.next?.block?.inputs?.ELSE?.block));
+assert(terminal, 'a completed terminal approach must validate the H count');
+const guard = terminal.next.block.inputs.IF0.block;
+function evaluatePupilCount(b, count) {
+  if (b.type === 'math_number') return Number(b.fields.NUM);
+  if (b.type === 'variables_get') {
+    assert.strictEqual(b.fields.VAR.id, 'gp-pupil-v2-1');
+    return count;
+  }
+  const a = evaluatePupilCount(b.inputs.A.block, count);
+  const c = evaluatePupilCount(b.inputs.B.block, count);
+  if (b.type === 'logic_operation' && b.fields.OP === 'AND') return Boolean(a && c);
+  if (b.type === 'logic_compare' && b.fields.OP === 'GTE') return a >= c;
+  if (b.type === 'logic_compare' && b.fields.OP === 'LTE') return a <= c;
+  assert.fail('unexpected count-guard operation: ' + b.type);
+}
+for (const count of [0, 1, 2, 3, 4])
+  assert.strictEqual(evaluatePupilCount(guard, count), count >= 1 && count <= 3);
+console.log('PASS pure structural reproduction: 232 Blockly blocks, 10 variables, count 0..4 discriminated');
 if (process.argv.includes('--structural-only')) process.exit(0);
 const root = path.join(__dirname, '../..');
 const Blockly = require(path.join(root, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
@@ -55,7 +71,7 @@ Blockly.serialization.workspaces.load(project.workspace, workspace);
 Contract.preflightWorkspace(profile, workspace);
 const ast = Semantic.compileWorkspace(workspace);
 Contract.preflightAst(profile, ast);
-assert.strictEqual(workspace.getAllBlocks(false).length, 222);
+assert.strictEqual(workspace.getAllBlocks(false).length, 232);
 const result = ProjectFiles.validateProjectText(JSON.stringify(project), profile,
   {Blockly, profiles: Profiles, activitiesDocument: context.WebeeBlocksActivities.DOCUMENT,
     blockCatalog: Activities.BLOCK_CATALOG, semanticAst: Semantic, activityContract: Contract});
