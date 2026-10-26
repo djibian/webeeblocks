@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-IMAGE = "cyberbotics/webots:R2025a-ubuntu22.04"
+IMAGE = "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca"
 CONTACT_RESULT = "ci-artifacts/crazyflie-obstacle-contact.txt"
 L_RESULT = "ci-artifacts/crazyflie-l-course-result.txt"
 

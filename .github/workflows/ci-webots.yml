@@ -119,7 +119,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build backend A and backend B controllers
         shell: bash
@@ -130,7 +130,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-ab-matrix/build-${controller}.log"
           done
@@ -166,7 +166,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build backend B controller
         shell: bash
@@ -176,7 +176,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_square_position \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-b-edge-matrix/build.log
 
@@ -220,7 +220,7 @@ jobs:
           cat ci-artifacts/crazyflie-blockly-l/mission.json
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build existing shared STOP L-course executor with Blockly mission
         shell: bash
@@ -229,7 +229,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_l_course \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-blockly-l/build.log
 
@@ -244,7 +244,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_l_course.wbt' \
             2>&1 | tee ci-artifacts/crazyflie-blockly-l/webots.log
           code=${PIPESTATUS[0]}
@@ -380,7 +380,7 @@ jobs:
           python3 tools/ci/instrument_runtime_done_ack.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build unchanged STOP runtime and physical evaluator
         shell: bash
@@ -391,7 +391,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-challenge-ux/build-${controller}.log"
           done
@@ -413,7 +413,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -e
               apt-get update >/dev/null
@@ -543,7 +543,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build flight controllers and collision observer
         shell: bash
@@ -554,7 +554,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-first-obstacle/build-${controller}.log"
           done
@@ -593,7 +593,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build L-course controller
         shell: bash
@@ -603,7 +603,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_l_course \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-l-course/build.log
 
@@ -618,7 +618,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_l_course.wbt' \
             2>&1 | tee ci-artifacts/crazyflie-l-course/webots.log
           code=${PIPESTATUS[0]}
@@ -699,7 +699,7 @@ jobs:
           python3 -m py_compile tools/ci/instrument_runtime_done_ack.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build shared STOP runtime and collision observer once
         shell: bash
@@ -711,7 +711,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-parametric-obstacle/build-${controller}.log"
           done
@@ -739,7 +739,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "$RUNNER_TEMP/webeeblocks-parametric-browser:/browser-cache" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -e
               apt-get update >/dev/null
@@ -800,7 +800,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "$RUNNER_TEMP/webeeblocks-parametric-browser:/browser-cache:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -e
               apt-get update >/dev/null
@@ -894,7 +894,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build backend A and backend B controllers
         shell: bash
@@ -905,7 +905,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-primitive-matrix/build-${controller}.log"
           done
@@ -954,7 +954,7 @@ jobs:
           python3 tools/ci/instrument_runtime_done_ack.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build shared STOP controller once before Submit
         shell: bash
@@ -964,7 +964,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_l_course \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-runtime-wwi/build.log
           sha256sum controllers/crazyflie_l_course/crazyflie_l_course \
@@ -983,7 +983,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -e
               apt-get update >/dev/null
@@ -1124,7 +1124,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build position-target square controller
         shell: bash
@@ -1135,7 +1135,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_square_position \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-square-position-build.log
 
@@ -1149,7 +1149,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_square_position.wbt' \
             2>&1 | tee ci-artifacts/crazyflie-square-position.log
           code=${PIPESTATUS[0]}
@@ -1196,7 +1196,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build measured square controller
         shell: bash
@@ -1208,7 +1208,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_square \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-square-build.log
 
@@ -1233,7 +1233,7 @@ jobs:
               -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
               -v "${{ github.workspace }}:/workspace" \
               -w /workspace \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_square.wbt' \
               2>&1 | tee "$LOG"
             code=${PIPESTATUS[0]}
@@ -1289,7 +1289,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build shared handoff controller
         shell: bash
@@ -1299,7 +1299,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/crazyflie_handoff_course \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/crazyflie-handoff/build.log
 
@@ -1316,7 +1316,7 @@ jobs:
               -e WEBEEBLOCKS_HANDOFF_POLICY="${policy}" \
               -v "${{ github.workspace }}:/workspace" \
               -w /workspace \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'timeout -k 5s 90s xvfb-run -a webots --stdout --stderr --batch --mode=fast /workspace/worlds/crazyflie_handoff_course.wbt' \
               2>&1 | tee "ci-artifacts/crazyflie-handoff/${policy}.log"
             code=${PIPESTATUS[0]}
@@ -1438,7 +1438,7 @@ jobs:
           PY
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Build unchanged runtime and collision observer
         shell: bash
@@ -1449,7 +1449,7 @@ jobs:
             docker run --rm \
               -v "${{ github.workspace }}:/workspace" \
               -w "/workspace/controllers/${controller}" \
-              cyberbotics/webots:R2025a-ubuntu22.04 \
+              ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
               bash -lc 'make clean && make' \
               2>&1 | tee "ci-artifacts/crazyflie-strategy-timing/build-${controller}.log"
           done
@@ -1465,7 +1465,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -euo pipefail
               apt-get update >/dev/null
@@ -1609,7 +1609,7 @@ jobs:
         uses: ./.github/actions/historical-boost-support
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Rebuild historical Blockly sidecar
         shell: bash
@@ -1658,7 +1658,7 @@ jobs:
             controllers/my_controller/my_controller.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -1680,7 +1680,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -1787,7 +1787,7 @@ jobs:
             controllers/my_controller/my_controller.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Prepare offline historical Gyro GPS world
         run: |
@@ -1817,7 +1817,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -1915,7 +1915,7 @@ jobs:
             controllers/my_controller/my_controller.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -2007,7 +2007,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -2113,7 +2113,7 @@ jobs:
             controllers/my_controller/my_controller.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Rebuild sidecar and supervisor for R2025a
         shell: bash
@@ -2135,7 +2135,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -2216,7 +2216,7 @@ jobs:
           ref: ${{ inputs.target_sha || github.sha }}
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Instrument actual Blockly Robot Window for CI only
         run: python3 tools/ci/prepare_robot_window_probe.py
@@ -2235,7 +2235,7 @@ jobs:
             -e WEBOTS_DISABLE_SAVE_SCREEN_PERSPECTIVE_ON_CLOSE=true \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc '
               set -e
               apt-get update >/dev/null
@@ -2358,7 +2358,7 @@ jobs:
         run: python3 -m py_compile controllers/ci_restart_supervisor/*.py
 
       - name: Pull official Webots R2025a image
-        run: docker pull cyberbotics/webots:R2025a-ubuntu22.04
+        run: docker pull ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca
 
       - name: Rebuild and exercise Blockly sidecar protocol
         shell: bash
@@ -2367,7 +2367,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor/blocklyServer \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libboost-dev python3-pip && python3 -m pip install --no-cache-dir websockets==10.4 && rm -f blocklyServer && make && python3 protocol_smoke.py && python3 execution_smoke.py prepare' \
             2>&1 | tee ci-artifacts/blockly-server-protocol.log
 
@@ -2378,7 +2378,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace/controllers/supervisor \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'make clean && make' \
             2>&1 | tee ci-artifacts/supervisor-build.log
 
@@ -2395,7 +2395,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -2478,7 +2478,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
@@ -2550,7 +2550,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -v "${{ github.workspace }}/.ci-webots-r2025a/projects:/usr/local/webots/projects:ro" \
             -w /workspace \
-            cyberbotics/webots:R2025a-ubuntu22.04 \
+            ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca \
             bash -lc 'timeout -k 5s 30s xvfb-run -a webots \
               --stdout \
               --stderr \
