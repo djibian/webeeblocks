@@ -172,3 +172,88 @@ for name, create in specs:
 out('setup', coverage=coverage, abi='linux-x86_64')
 gdb.events.stop.connect(stopped)
 gdb.events.exited.connect(exited)
+
+
+# Candidate extension: attach to original, already validated lifetime breakpoints.
+# A retirement belongs to a setValue frame only if the actual active dialog
+# member equals the pointer of that exact frame.
+_retired_objects = {}
+_returned_frames = set()
+_orig_maximum_stop = Maximum.stop
+_orig_destruction_stop = Destruction.stop
+_orig_return_stop = Returned.stop
+
+class CandidateRetirement(gdb.Breakpoint):
+    def __init__(self):
+        super().__init__('WbMainWindow::deleteWorldLoadingProgressDialog()', internal=False)
+        self.silent = True
+
+    def stop(self):
+        try:
+            t = thread_id()
+            current_dialog = int(gdb.parse_and_eval(
+                '((WbMainWindow *)$rdi)->mWorldLoadingProgressDialog'))
+            for f in active.get(t, []):
+                if int(f['dialog'], 16) == current_dialog:
+                    f['retired'] = True
+                    out('candidate_retire_inside_setvalue',
+                        id=f['id'], dialog=f['dialog'], bar=f['bar'],
+                        thread=t, depth=len(active[t]))
+                    break
+        except Exception as exc:
+            out('gap', where='candidate_retirement_probe', error=str(exc))
+        return False
+
+def candidate_maximum_stop(self):
+    try:
+        p = ptr()
+        for f in active.get(thread_id(), []):
+            if f.get('retired') and f.get('bar') == p:
+                f['maximum_after_retire'] = True
+                out('candidate_maximum_after_retire', id=f['id'], bar=p,
+                    bar_alive=not f['dead_bar'],
+                    dialog_alive=not f['dead_dialog'])
+    except Exception as exc:
+        out('gap', where='candidate_maximum_probe', error=str(exc))
+    return _orig_maximum_stop(self)
+
+def candidate_return_stop(self):
+    frames = active.get(self.t, [])
+    if frames and frames[-1]['id'] == self.ident:
+        f = frames[-1]
+        if f.get('retired'):
+            _retired_objects[f['dialog']] = {
+                'id': f['id'], 'bar': f['bar'],
+                'maximum_after_retire': bool(f.get('maximum_after_retire')),
+            }
+            out('candidate_retired_frame_return', id=f['id'], dialog=f['dialog'],
+                bar=f['bar'], maximum_after_retire=bool(f.get('maximum_after_retire')),
+                dialog_alive=not f['dead_dialog'], bar_alive=not f['dead_bar'])
+        _returned_frames.add(self.ident)
+    return _orig_return_stop(self)
+
+def candidate_destruction_stop(self):
+    try:
+        p = ptr()
+        for dialog, detail in _retired_objects.items():
+            tracked = dialog if self.target == 'dialog' else detail['bar']
+            if tracked == p:
+                out('candidate_retired_object_destructor',
+                    id=detail['id'], kind_of_object=self.target, object=p,
+                    after_setvalue_return=detail['id'] in _returned_frames)
+                break
+    except Exception as exc:
+        out('gap', where='candidate_deferred_destructor_probe', error=str(exc))
+    return _orig_destruction_stop(self)
+
+Maximum.stop = candidate_maximum_stop
+Returned.stop = candidate_return_stop
+Destruction.stop = candidate_destruction_stop
+try:
+    candidate_retire_bp = CandidateRetirement()
+    out('candidate_retirement_breakpoint', installed=True,
+        pending=bool(candidate_retire_bp.pending),
+        detail=gdb.execute('info breakpoints ' + str(candidate_retire_bp.number),
+                           to_string=True)[:800])
+except Exception as exc:
+    out('gap', where='candidate_retirement_install', error=str(exc))
