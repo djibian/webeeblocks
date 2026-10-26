@@ -55,7 +55,7 @@ jobs:
               ldd /usr/local/webots/bin/webots-bin > ci-artifacts/qt665-consumer/actual-ldd.txt
               ! grep -q "not found" ci-artifacts/qt665-consumer/actual-ldd.txt
               export LIBGL_ALWAYS_SOFTWARE=true
-              for suite in short reset; do
+              for suite in timeout-gate wrong-landing unavailable; do
                 echo "QT665_CONSUMER_START suite=$suite"
                 timeout -k 5s 1250s python3 -u tools/ci/run_grand_prix_u_prototype.py --native --suite "$suite" --seed 4 --side 2
                 echo "QT665_CONSUMER_PASS suite=$suite"
