@@ -53,10 +53,10 @@ def verify_new_capture_seals(root, baseline, expected):
             raise CaptureSealError(f'{folder.name}: unreadable sha256 manifest') from error
         if not isinstance(recorded, dict) or not recorded:
             raise CaptureSealError(f'{folder.name}: empty or invalid sha256 manifest')
-        expected = set(recorded)
+        signed_files = set(recorded)
         present = {p.name for p in folder.iterdir() if p.name != manifest.name}
-        if expected != present:
-            raise CaptureSealError(f'{folder.name}: missing or unsealed evidence files: {sorted(expected ^ present)}')
+        if signed_files != present:
+            raise CaptureSealError(f'{folder.name}: missing or unsealed evidence files: {sorted(signed_files ^ present)}')
         for filename, digest in recorded.items():
             if (not isinstance(filename, str) or filename in ('.', '..') or '/' in filename or
                 '\\' in filename or not isinstance(digest, str) or
