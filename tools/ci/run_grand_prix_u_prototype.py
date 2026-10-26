@@ -263,6 +263,9 @@ def main():
         from tools.ci.run_grand_prix_u_core_capture import core_mount
         core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
         subprocess.run(['bash',str(ROOT/'tools/prepare_runtime_v2.sh')],check=True)
+        # Fail before Docker if the actual pupil .wbb cannot load, preflight,
+        # compile and round-trip in the pinned production Blockly.
+        subprocess.run(['node',str(ROOT/'tools/grand_prix/pupil_workspace_u.js')],check=True)
         assets=ROOT/'.ci-grand-prix-u-webots'
         if not assets.exists():
             subprocess.run(['git','clone','--depth=1','--filter=blob:none','--sparse','--branch','R2025a','https://github.com/cyberbotics/webots.git',str(assets)],check=True)
@@ -316,13 +319,13 @@ def main():
         if args.suite=='camera-contrast':
             return
     cases=[(args.seed,args.side,args.suite)]
-    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (0,1,3,4,14,15,17)]
+    if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for sequence_index,(seed,side,mode) in enumerate(cases,1):
         result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index)
-        if mode=='witness':
-            if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations/sizes')
+        if mode in ('witness','reset'):
+            if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations or RESET')
             digest=result['ast_sha256']
         summaries.append(result)
         (OUT/('sizes.json' if args.suite=='sizes' else 'campaign.json')).write_text(json.dumps(summaries,indent=2)+'\n')
