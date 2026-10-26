@@ -105,10 +105,34 @@ function build() {
     workspace: {blocks: {languageVersion: 0, blocks: [flow, definition]},
                 variables: names.map((name, i) => ({name, id: vid(name)}))}};
 }
-module.exports = {build};
+
+// Pupil-visible staging only: preserve every nested statement and decision.
+// The two ordinary Blockly procedures make passage and final landing navigable.
+// Neither procedure inspects hidden state or introduces an interpreter primitive.
+function buildModular() {
+  const project = build(), roots = project.workspace.blocks.blocks;
+  const observer = roots[1].inputs.STACK.block.next.block.next.block;
+  const finalCase = observer.inputs.ELSE.block;
+  const opened = observer.inputs.DO0.block;
+  const closed = finalCase.inputs.DO0.block;
+  const call = (name, id) => ({
+    type: 'procedures_callnoreturn', id: 'gp-pupil-v2-b-' + id, extraState: {name}
+  });
+  const definition = (name, id, body, x, y) => ({
+    type: 'procedures_defnoreturn', id: 'gp-pupil-v2-b-' + id,
+    fields: {NAME: name}, inputs: {STACK: {block: body}}, x, y
+  });
+  observer.inputs.DO0.block = call('franchir et confirmer le H', 219);
+  finalCase.inputs.DO0.block = call('approcher le H fermé et poser', 220);
+  roots.push(definition('franchir et confirmer le H', 221, opened, 1110, 80));
+  roots.push(definition('approcher le H fermé et poser', 222, closed, 1110, 1110));
+  return project;
+}
+
+module.exports = {build: buildModular, originalBuild: build};
 if (require.main === module) {
   const fs = require('fs'), path = require('path');
   const file = path.join(__dirname, 'Grand-Prix-sans-murs-algorithme-candidat.wbb');
-  fs.writeFileSync(file, JSON.stringify(build(), null, 2) + '\n');
+  fs.writeFileSync(file, JSON.stringify(buildModular(), null, 2) + '\n');
   console.log('WROTE ' + file);
 }

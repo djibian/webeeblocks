@@ -1,5 +1,5 @@
 'use strict';
-// Isolated experimental 218-block pupil .wbb. Original #647 adapter unchanged.
+// Isolated experimental 222-block pupil .wbb. Original #647 adapter unchanged.
 // Never read seed, layout, oracle, or mission-state information from Blockly.
 const assert = require('assert');
 const crypto = require('crypto');
@@ -10,9 +10,9 @@ const ROOT = path.resolve(__dirname, '../..');
 const file = path.join(ROOT, 'experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb');
 function build() {
   const content = fs.readFileSync(file, 'utf8');
-  assert.strictEqual(crypto.createHash('sha256').update(content).digest('hex'),
-    'a9d0eeefa3c5d40411726bdbe67a54f0783da266146ae8f3d5e24352e70bc18c',
-    'exact 218-block WBB identity before admission');
+  assert.deepStrictEqual(JSON.parse(content),
+    require(path.join(ROOT, 'experiments/grand-prix-pupil-algorithm/build.js')).build(),
+    'exact generated 222-block WBB identity before admission');
   const project = JSON.parse(content);
   const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
   require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
@@ -47,7 +47,7 @@ function build() {
     const reopenedAst = Semantic.compileWorkspace(reopened);
     Contract.preflightAst(profile, reopenedAst);
     assert.deepStrictEqual(reopenedAst, ast, 'same AST on reopen');
-    assert.strictEqual(workspace.getAllBlocks(false).length, 218);
+    assert.strictEqual(workspace.getAllBlocks(false).length, 222);
     return {ast, project_sha256: crypto.createHash('sha256').update(content).digest('hex'),
       ast_sha256: crypto.createHash('sha256').update(JSON.stringify(ast)).digest('hex')};
   } finally {workspace.dispose(); reopened.dispose();}
@@ -57,7 +57,7 @@ if (require.main === module) {
   const witness = build();
   console.log('GP_U_PUPIL_PREFLIGHT ' + JSON.stringify({
     source_pr: 703, source_head: '0d82c03e16f1e62044e79ef55ac5e9c6c7b67c81',
-    source_blob: '3bca44a6b758b93ca913f867c17458cf17d18f96', project_sha256: witness.project_sha256,
-    ast_sha256: witness.ast_sha256, blocks: 218,
+    derived_from: '2e563fc38e05b7f4f9025a1766a9cc58ea892ef1', project_sha256: witness.project_sha256,
+    ast_sha256: witness.ast_sha256, blocks: 222,
     claim: 'real-Blockly-13.2.1-preflight-AST-roundtrip-only'}));
 }

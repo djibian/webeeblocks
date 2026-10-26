@@ -1,0 +1,68 @@
+# Isolated experimental evidence only; NOT the canonical V5 CI Gate.
+name: GP218 visible Blockly stages qualification
+on:
+  push:
+    branches: [experiment/gp218-visible-stages-20261026]
+permissions:
+  contents: read
+jobs:
+  blockly:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Keep original contracts and real world unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=2e563fc38e05b7f4f9025a1766a9cc58ea892ef1
+          git merge-base --is-ancestor "$base" HEAD
+          git diff --name-only "$base" HEAD > changed.txt
+          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|verify_sensor_ambiguity.js|verify_modular_stages.js|VISIBLE_STAGES_EXPERIMENT.md|Grand-Prix-sans-murs-algorithme-candidat.wbb)|tools/grand_prix/pupil_workspace_u.js|\.github/workflows/gp218-visible-stages-20261026.yml)$' changed.txt; then
+            echo 'Unexpected oracle, scene, runtime or CI mutation' >&2
+            exit 1
+          fi
+          git diff --exit-code "$base" HEAD -- tools/grand_prix/layout_u.py tools/grand_prix/oracle_u.py tools/ci/run_grand_prix_u_prototype.py
+          git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Native-algorithm structural equivalence and ambiguous reading
+        run: |
+          node experiments/grand-prix-pupil-algorithm/verify_modular_stages.js
+          node experiments/grand-prix-pupil-algorithm/verify_sensor_ambiguity.js
+      - name: Real Blockly 13.2.1 preflight AST step map and project reopen
+        run: |
+          npm ci --prefix plugins/robot_windows/blockly_v2
+          node experiments/grand-prix-pupil-algorithm/verify.js
+          node tools/grand_prix/pupil_workspace_u.js
+  native:
+    needs: blockly
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Qualify exact WBB and AST with real Blockly
+        run: |
+          npm ci --prefix plugins/robot_windows/blockly_v2
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Run unchanged seven positives, eight negatives, RESET, 210-second LAND in R2025a
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite all --seed 4 --side 2.0 2>&1 | tee gp218-visible-stages-native.log
+      - name: Preserve failures and full original evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp218-visible-stages-r2025a-campaign
+          path: |
+            gp218-visible-stages-native.log
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn

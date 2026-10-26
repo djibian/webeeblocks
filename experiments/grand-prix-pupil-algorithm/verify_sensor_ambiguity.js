@@ -5,8 +5,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const bytes = fs.readFileSync(path.join(__dirname, 'Grand-Prix-sans-murs-algorithme-candidat.wbb'));
 const hash = crypto.createHash('sha256').update(bytes).digest('hex');
-assert.equal(hash, 'a9d0eeefa3c5d40411726bdbe67a54f0783da266146ae8f3d5e24352e70bc18c');
-const p = JSON.parse(bytes), names = p.workspace.variables.map(v => v.name), roots=p.workspace.blocks.blocks;
+// Candidate identity binds to the committed deterministic pupil generator;
+// the native evidence additionally publishes the checked-out Git blob and SHA256.
+const p = JSON.parse(bytes);
+assert.deepStrictEqual(p, require('./build').build(), 'sensor test must use the exact real generated pupil project');
+const names = p.workspace.variables.map(v => v.name), roots=p.workspace.blocks.blocks;
 assert.equal(names.length, 9);
 const counts = {}, seen = new Set();
 function walk(b) {
@@ -16,8 +19,10 @@ function walk(b) {
   if (b.next?.block) walk(b.next.block);
 }
 roots.forEach(walk);
-assert.equal(seen.size,218); assert.equal(counts.controls_if,17);
+assert.equal(seen.size,222); assert.equal(counts.controls_if,17);
 assert.equal(counts.logic_compare,32);
+assert.equal(counts.procedures_callnoreturn,3);
+assert.equal(counts.procedures_defnoreturn,3);
 const proc=roots.find(b=>b.type==='procedures_defnoreturn' && b.fields.NAME==='observer et décider');
 assert(proc);
 const down=proc.inputs.STACK.block, low=down.next.block, gate=low.next.block;
@@ -50,7 +55,7 @@ let ambiguous=0;
 for(const a of [.30,.35,.40]) for(const b of [.10,.20,.28,.35,.42,.44,.50,.65,.70])
   if(decide(3,a,b)==='anomaly')ambiguous++;
 assert(ambiguous>=8, 'the 206 simplification would erase these pupil fault decisions');
-console.log('PASS real WBB 218 SHA256 '+hash);
-console.log('PASS 218 blocks / 9 variables / 17 IF / 32 comparisons');
+console.log('PASS real WBB 222 SHA256 '+hash);
+console.log('PASS 222 blocks / 9 variables / 17 IF / 32 comparisons');
 console.log('PASS '+cases.length+' sensor cases, '+ambiguous+' anomalies among 27 side-3 observations');
 console.log('UNPROVEN: future #647 HEAD, native requalification, real editor, student usability');
