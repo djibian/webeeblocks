@@ -85,6 +85,12 @@ jobs:
               echo "QT665_KERNEL_MAPPINGS_BEGIN"
               cat ci-artifacts/qt665-running-process/qt-mappings.txt
               echo "QT665_KERNEL_MAPPINGS_END"
+              for name in libQt6Widgets.so.6.5.3 libQt6Core.so.6.5.3 libQt6Widgets.so.6 libQt6Core.so.6; do
+                stat -Lc "QT665_LOCAL_STAT dev_hex=%D inode=%i path=%n" "/usr/local/webots/lib/webots/$name"
+                stat -Lc "QT665_PROC_ROOT_STAT dev_hex=%D inode=%i path=%n" "/proc/$pid/root/usr/local/webots/lib/webots/$name"
+              done
+              echo "QT665_MOUNTINFO"
+              grep -F " / " /proc/self/mountinfo | head -n 2
               python3 experiments/webots-qt-665/attest_running_consumer.py \
                 --runtime-home /usr/local/webots --pid "$pid" \
                 --manifest /workspace/ci-artifacts/qt665-running-process/process.json
