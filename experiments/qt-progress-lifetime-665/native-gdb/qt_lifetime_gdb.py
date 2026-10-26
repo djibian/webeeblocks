@@ -257,3 +257,91 @@ try:
                            to_string=True)[:800])
 except Exception as exc:
     out('gap', where='candidate_retirement_install', error=str(exc))
+
+
+# Independent real-stack discriminator. The historic FinishBreakpoint tracker
+# is NOT an oracle on this new ELF: it did not observe returns (GDB PLT frames).
+# These checks inspect the actual native C++ stack at EACH decisive event.
+_qt665_verified = {}
+
+def _qt665_actual_setvalue(bt):
+    return bool(re.search(r'QProgressDialog::setValue\(int\)', bt))
+
+class QActualRetirement(gdb.Breakpoint):
+    def __init__(self):
+        super().__init__('WbMainWindow::deleteWorldLoadingProgressDialog()', internal=False)
+        self.silent = True
+
+    def stop(self):
+        try:
+            t=thread_id()
+            dialog='0x%x' % int(gdb.parse_and_eval(
+                '((WbMainWindow *)$rdi)->mWorldLoadingProgressDialog'))
+            bt=stack()
+            matches=[f for f in active.get(t,[]) if f['dialog']==dialog and f.get('bar')]
+            bar=matches[-1]['bar'] if matches else None
+            inside=_qt665_actual_setvalue(bt)
+            if dialog!='0x0' and inside and bar:
+                _qt665_verified[dialog]=dict(dialog=dialog,bar=bar,
+                    thread=t, ret=True, maximum=False,dead_dialog=False,dead_bar=False)
+                out('native_actual_retire_inside_setvalue',dialog=dialog,
+                    bar=bar,thread=t,actual_stack_setvalue=inside,
+                    stack=bt[-3600:])
+            elif dialog!='0x0':
+                out('native_actual_retire_unqualified',dialog=dialog,bar=bar,
+                    actual_stack_setvalue=inside,stack=bt[-2000:])
+        except Exception as exc:
+            out('gap',where='native_actual_retirement_probe',error=str(exc))
+        return False
+
+_prev_maximum_stop=Maximum.stop
+def _native_actual_maximum_stop(self):
+    try:
+        p=ptr(); t=thread_id()
+        for state in _qt665_verified.values():
+            if state['bar']!=p or state['thread']!=t:
+                continue
+            bt=stack()
+            inside=_qt665_actual_setvalue(bt)
+            if inside and not state['dead_dialog'] and not state['dead_bar']:
+                state['maximum']=True
+                out('native_actual_maximum_after_retire',
+                    dialog=state['dialog'],bar=p,
+                    actual_stack_setvalue=True,still_alive=True,stack=bt[-2800:])
+            else:
+                out('native_actual_maximum_unqualified',
+                    dialog=state['dialog'],bar=p,
+                    actual_stack_setvalue=inside,
+                    dialog_dead=state['dead_dialog'],bar_dead=state['dead_bar'],
+                    stack=bt[-2800:])
+    except Exception as exc:
+        out('gap',where='native_actual_maximum_probe',error=str(exc))
+    return _prev_maximum_stop(self)
+Maximum.stop=_native_actual_maximum_stop
+
+_prev_destructor_stop=Destruction.stop
+def _native_actual_dtor_stop(self):
+    try:
+        p=ptr(); t=thread_id()
+        for state in _qt665_verified.values():
+            target=state['dialog'] if self.target=='dialog' else state['bar']
+            if target!=p or state['thread']!=t:
+                continue
+            bt=stack()
+            inside=_qt665_actual_setvalue(bt)
+            state['dead_'+self.target]=True
+            out('native_actual_'+self.target+'_dtor',
+                dialog=state['dialog'],bar=state['bar'],
+                actual_stack_setvalue=inside,
+                after_maximum=state['maximum'],
+                stack=bt[-3600:])
+    except Exception as exc:
+        out('gap',where='native_actual_dtor_probe',error=str(exc))
+    return _prev_destructor_stop(self)
+Destruction.stop=_native_actual_dtor_stop
+try:
+    probe=QActualRetirement()
+    out('native_actual_retirement_probe_ready',
+        pending=bool(probe.pending),breakpoint=probe.number)
+except Exception as exc:
+    out('gap',where='native_actual_retirement_install',error=str(exc))
