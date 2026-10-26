@@ -1,4 +1,4 @@
-name: GP contrast candidate: native R2025a and Blockly non-Gate experiment
+name: 'GP contrast candidate: native R2025a and Blockly non-Gate experiment'
 on:
   push:
     branches: [experiment/gp-contrast-pupil-main17671-20261026]
