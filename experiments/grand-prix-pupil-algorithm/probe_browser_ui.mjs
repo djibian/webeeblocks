@@ -87,8 +87,34 @@ try{
  for (const name of ['observer et décider','franchir et confirmer le H','approcher le H fermé et poser'])
    assert(initial.top.some(b=>b.name===name),'named pupil procedure not visible: '+name);
  assert(initial.top.some(b=>b.type==='webeeblocks_v2_takeoff'));
+ // Browser-only layout qualification: prevent pupil blocks from occluding one another.
+ const packing=await page.evaluate(()=>{
+   const roots=workspace.getTopBlocks(false);
+   const bounds=root=>{
+     const rs=root.getDescendants(false).map(b=>b.getBoundingRectangle());
+     return {left:Math.min(...rs.map(r=>r.left)),right:Math.max(...rs.map(r=>r.right)),
+       top:Math.min(...rs.map(r=>r.top)),bottom:Math.max(...rs.map(r=>r.bottom))};
+   };
+   const root=name=>{const b=roots.find(x=>x.getFieldValue('NAME')===name);if(!b)throw Error('Missing '+name);return b;};
+   const main=roots.find(x=>x.type==='webeeblocks_v2_takeoff');
+   const obs=root('observer et décider'),pass=root('franchir et confirmer le H'),land=root('approcher le H fermé et poser');
+   const place=(b,x,y)=>{const r=bounds(b);b.moveBy(x-r.left,y-r.top);};
+   place(main,0,0);
+   const right=bounds(main).right+100;
+   place(obs,right,0);
+   place(pass,right,bounds(obs).bottom+100);
+   place(land,right,bounds(pass).bottom+100);
+   const all=[main,obs,pass,land].map(b=>({name:b.getFieldValue('NAME')||'programme',bounds:bounds(b)}));
+   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
+     const a=all[i].bounds,b=all[j].bounds;
+     if(a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom)
+       throw Error('Pupil roots overlap: '+all[i].name+' and '+all[j].name);
+   }
+   return all;
+ });
+ console.log('NONOVERLAPPING_PUPIL_ROOTS '+JSON.stringify(packing));
  await page.evaluate(()=>{Blockly.svgResize(workspace);workspace.zoomToFit();});
- const fitted=await inspect('after-fit');
+ const fitted=await inspect('after-non-overlap-fit');
  await page.screenshot({path:path.join(output,'gp232-guarded-1600x1000-fit.png'),fullPage:true});
  // Real browser gesture, not a scripted field.setValue shortcut:
  // center the ordinary numeric Blockly field; click, type, commit the editor.
@@ -147,7 +173,7 @@ try{
  fs.writeFileSync(path.join(output,'metrics.json'),JSON.stringify({
    exactProjectActivity:parsed.activity.id,head:'1bc106f99d58ca12d2a05239dbdaaddda9dd396b',
    sourceBlockCount:232,chromium:browser.version(),viewport:[1600,1000],
-   initial,fitted,reopened:{...reopened,ids:'232 IDs unchanged'},editedThreshold:edited,debug:{
+   initial,fitted,packing,reopened:{...reopened,ids:'232 IDs unchanged'},editedThreshold:edited,debug:{
      steps:stepped.pausedBlocks.length,matchedRealBlocks:true,firstPausedBlockId:firstId,
      commands:stepped.commands.length},browserErrors:errors,consoleErrors:warnings,
    notes:['Browser is real headless Chromium and UI is production Robot Window.',
