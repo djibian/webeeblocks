@@ -113,6 +113,13 @@ class RepositoryHygieneTests(unittest.TestCase):
             cwd=ROOT, check=True, timeout=30,
         )
 
+    def test_qt665_linux_immutable_consumer_inventory(self) -> None:
+        """Keep every Linux consumer pinned to the qualified OCI digest."""
+        subprocess.run(
+            [sys.executable, "tools/ci/test_qt665_linux_adoption.py"],
+            cwd=ROOT, check=True, timeout=30,
+        )
+
     def test_x3_characterization_package_contract(self) -> None:
         """Keep the new machine-only firmware bundle on an always-run CI path."""
         subprocess.run(
