@@ -523,7 +523,46 @@ and a changed process starttime. It checks the actual Linux `/proc/PID/exe`
 and `/proc/PID/maps` instead of inferring runtime adoption from a copied file,
 `ldd`, image tag or install manifest. The isolated negative tests are
 exercised from repository-hygiene CI. A positive result has **not yet been
-obtained from any ordinary CI consumer**. It would prove exactly the inspected
+obtained from any ordinary CI consumer**; the one successful inspection below
+is deliberately **disposable** and does not establish production adoption. It would prove exactly the inspected
 running Linux process's ELF/Qt identity, not image supply-chain immutability,
 all workloads, prevention of any UAF, Windows parity, or product deployment.
 The existing official runtime paths still need deliberate correct adoption.
+
+### Running-ELF Qt SONAME qualification (NON-GATE, 26 October 2026)
+
+The [Linux experiment 40391326422](https://github.com/djibian/webeeblocks/actions/runs/40391326422)
+on evidence HEAD `c849025692f3cc8126dcff9cb3d4c83a42505670` completed
+**success** and preserved [artifact 12683815788](https://github.com/djibian/webeeblocks/actions/runs/40391326422/artifacts/12683815788).
+A *real running* `webots-bin` launched the WebeeBlocks Runtime v2 world
+and emitted `WEBEEBLOCKS_RUNTIME_V2 READY`. In the disposable container,
+installation produced `QT665_DISPOSABLE_LINUX_ADOPTION=PASS` followed by
+`QT665_RUNNING_CONSUMER=PASS identity only` and
+`QT665_LIVE_PROCESS_IDENTITY=PASS`. The running process had the qualified
+parent-safe Webots ELF `e45a90b5…`, mapped the exact pinned Qt6 Core/Widgets
+bytes, and had matching kernel `device:inode` identities.
+
+**Diagnostic correction (fail-closed, not a relaxed oracle):** earlier attempts
+[40389420717](https://github.com/djibian/webeeblocks/actions/runs/40389420717),
+[40389988835](https://github.com/djibian/webeeblocks/actions/runs/40389988835)
+and [40390717175](https://github.com/djibian/webeeblocks/actions/runs/40390717175)
+correctly refused overstrong/incorrect filename assumptions; an intermediate
+[40389767025](https://github.com/djibian/webeeblocks/actions/runs/40389767025)
+was invalidated by test-shell quoting. The actual R2025a `/proc/PID/maps`
+shows `libQt6Widgets.so.6` and `libQt6Core.so.6` rather than the
+`.so.6.5.3` pathnames. These names are **distinct inodes** in the pinned
+image, so requiring their kernel inodes to equal those of the separately
+versioned files is incorrect. The final probe accepts ONLY the two authorized
+name variants in the exact Webots library directory, checks each actually
+mapped inode against that same mapped file, and computes its *own* SHA256
+against the unchanged qualified Qt digest. A wrong, deleted, moved, ambiguous
+or replaced mapped module still fails closed. Offline negatives cover stale
+inodes, deleted libraries and altered SONAME contents.
+
+**Boundary:** isolated experimental Docker image modified after launch,
+not immutable corrected Webots distribution, not Windows PE/DLL, not
+permanent classroom or canonical Linux CI adoption, not natural
+`WbDownloadManager`-triggered reentrance, not full native oracle closure,
+not a Ready CI Gate and not independent V5 GO. The unchanged original
+pinned consumer Docker image and official Windows installer still execute
+unpatched Webots; all product acceptance remains pending.
