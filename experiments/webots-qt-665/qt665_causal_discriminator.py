@@ -107,7 +107,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     subprocess.run(
-        [sys.executable, str(Path(__file__).with_name("qt_guarded_method_harness.py")),
+        [sys.executable, str(Path(__file__).with_name("qt665_guarded_lease_harness.py")),
          "--patched-cpp", str(args.patched_cpp), "--output", str(args.output)],
         check=True,
     )
