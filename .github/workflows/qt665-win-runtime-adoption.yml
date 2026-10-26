@@ -121,7 +121,7 @@ jobs:
           # directly for --version. Record BOTH CLI paths and their exit codes.
           # A silent direct GUI executable is not evidence of a broken binary.
           $sources=Join-Path $env:GITHUB_WORKSPACE 'qt665-patched-pe/pe-imports.txt'
-          $direct=@(Select-String -LiteralPath $sources -Pattern 'DLL Name:\\s*(\\S+)' -AllMatches |
+          $direct=@(Select-String -LiteralPath $sources -Pattern 'DLL Name:\s*(\S+)' -AllMatches |
             ForEach-Object {$_.Matches} | ForEach-Object {$_.Groups[1].Value} | Sort-Object -Unique)
           $missing=@()
           foreach ($name in $direct) {
