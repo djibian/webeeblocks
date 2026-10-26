@@ -14,6 +14,10 @@ from typing import Iterable
 DOC_ONLY = ("*.md", "docs/**", "documentation/**", ".github/pull_request_template.md")
 FORCE_FULL = (
     ".github/workflows/**",
+    # Webots Qt lifetime patches affect the native Runtime/Grand Prix consumer,
+    # Windows deployment and Webots, not just the experimental source files.
+    # A Webots-only Ready Gate would miss those product oracles.
+    "experiments/webots-qt-665/**",
     "tools/ci/select_ci.py",
     "tools/ci/test_select_ci.py",
     "tools/ci/check_ci_gate.py",
