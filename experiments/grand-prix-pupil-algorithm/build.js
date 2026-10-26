@@ -79,7 +79,7 @@ function build() {
   const Step = [Set('avant', R('front')),
     If(And(G('LT', 'côté', 3), G('GTE', 'distance', 21)), [Set('état', 1)], [
       If(And(G('EQ', 'côté', 3), G('GTE', 'distance', 24)), Fault(), [
-        If(Or(NearOpen, NearFinal), Observe, Stride)
+        If(Or(NearOpen, NearFinal), [B('procedures_callnoreturn', {}, {}, {name: 'observer et décider'})], Stride)
       ])
     ])];
   const OneSide = [Set('distance', 0), Set('H passé', 0), Set('état', 0),
@@ -92,9 +92,12 @@ function build() {
     B('controls_repeat_ext', {}, {TIMES: N(3),
        DO: S([If(C('NEQ', V('état'), 2), OneSide)])}),
     B('webeeblocks_v2_land')];
+  const flow = S(main); flow.x = 10; flow.y = 10;
+  const definition = B('procedures_defnoreturn', {NAME: 'observer et décider'}, {STACK: S(Observe)});
+  definition.x = 550; definition.y = 80;
   return {format: 'webeeblocks-project', version: 1,
     activity: {id: 'progression-grand-prix-u-v1', semantics: 'webeeblocks-ast-v1'},
-    workspace: {blocks: {languageVersion: 0, blocks: [S(main)]},
+    workspace: {blocks: {languageVersion: 0, blocks: [flow, definition]},
                 variables: names.map((name, i) => ({name, id: vid(name)}))}};
 }
 module.exports = {build};
