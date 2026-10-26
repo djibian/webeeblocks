@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline negative contract for process-level Qt665 attestation (no fake PASS)."""
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -28,22 +29,38 @@ class RunningConsumerTests(unittest.TestCase):
             st = lib.stat()
             device = f'{__import__("os").major(st.st_dev):02x}:{__import__("os").minor(st.st_dev):02x}'
             line = f'7fb-8fb r-xp 00000000 {device} {st.st_ino} {lib}\n'
-            self.assertEqual(probe.mapped_qt_files(line, lib.name, lib), {lib})
+            expected = hashlib.sha256(lib.read_bytes()).hexdigest()
+            self.assertEqual(probe.mapped_qt_files(line, lib.name, lib, expected), {lib})
             # Native Webots /proc/maps exposes the SONAME alias rather than
             # the fully versioned filename checked by the SHA-256 policy.
             alias = lib.with_name('libQt6Core.so.6')
             alias.symlink_to(lib.name)
             alias_line = line.replace(str(lib), str(alias))
-            self.assertEqual(probe.mapped_qt_files(alias_line, lib.name, lib), {lib})
+            self.assertEqual(probe.mapped_qt_files(alias_line, lib.name, lib, expected), {lib})
             with self.assertRaisesRegex(ValueError, 'inode differs'):
                 probe.mapped_qt_files(
-                    alias_line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
+                    alias_line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib, expected)
             with self.assertRaisesRegex(ValueError, 'deleted'):
-                probe.mapped_qt_files(alias_line.strip()+' (deleted)\n', lib.name, lib)
+                probe.mapped_qt_files(alias_line.strip()+' (deleted)\n', lib.name, lib, expected)
+            # R2025a image uses a separate regular .so.6 file, not a symlink.
+            alias.unlink()
+            alias.write_bytes(lib.read_bytes())
+            alias_st = alias.stat()
+            separate_line = f'7fb-8fb r-xp 00000000 {device} {alias_st.st_ino} {alias}\n'
+            self.assertEqual(probe.mapped_qt_files(
+                separate_line, lib.name, lib, expected), {alias})
+            alias.write_bytes(b'wrong-library')
+            with self.assertRaisesRegex(ValueError, 'bytes differ'):
+                probe.mapped_qt_files(separate_line, lib.name, lib, expected)
+            alias.write_bytes(lib.read_bytes())
             with self.assertRaisesRegex(ValueError, 'inode differs'):
-                probe.mapped_qt_files(line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
+                probe.mapped_qt_files(
+                    separate_line.replace(str(alias_st.st_ino), str(alias_st.st_ino+1), 1),
+                    lib.name, lib, expected)
+            with self.assertRaisesRegex(ValueError, 'inode differs'):
+                probe.mapped_qt_files(line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib, expected)
             with self.assertRaisesRegex(ValueError, 'deleted'):
-                probe.mapped_qt_files(line.strip()+ ' (deleted)\n', lib.name, lib)
+                probe.mapped_qt_files(line.strip()+ ' (deleted)\n', lib.name, lib, expected)
 
     def test_self_process_cannot_be_mislabelled_webots(self):
         with tempfile.TemporaryDirectory() as directory:
