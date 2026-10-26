@@ -1,0 +1,53 @@
+# Native falsification ONLY. This workflow never belongs to a Ready PR/main.
+name: Experimental GP206 classification native falsification
+on:
+  push:
+    branches:
+      - experiment/gp206-classify-v5-20261026
+permissions:
+  contents: read
+jobs:
+  qualification:
+    name: Actual Blockly and complete 16-case native R2025a
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm inherited exact world/RESET/oracles and generated WBB
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=18751e6804832d1310cf51a585e9774b87a551ee
+          test "$(git rev-parse HEAD^)" = "$base"
+          test -z "$(git diff --name-only "$base" HEAD -- tools/grand_prix/layout_u.py tools/grand_prix/oracle_u.py tools/grand_prix/prepare_u_runtime.py tools/ci/run_grand_prix_u_prototype.py)"
+          git diff --name-only "$base" HEAD > changed.txt
+          if grep -Ev '^(experiments/grand-prix-pupil-algorithm/(build.js|verify.js|Grand-Prix-sans-murs-algorithme-candidat.wbb|DISTINCTION_206.md)|tools/grand_prix/pupil_workspace_u.js|\.github/workflows/gp206-classify-v5-20261026.yml)$' changed.txt; then
+            echo 'Unexpected product/CI/oracle mutation' >&2
+            exit 1
+          fi
+          git rev-parse HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Pinned production Blockly and genuine AST/Save/Open/negatives
+        run: |
+          npm ci --prefix plugins/robot_windows/blockly_v2
+          node experiments/grand-prix-pupil-algorithm/verify.js
+          node tools/grand_prix/pupil_workspace_u.js
+      - name: Unmodified mission R2025a native positives/negatives/RESET/deadline
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite all --seed 4 --side 2.0 2>&1 | tee gp206-native-run.log
+      - name: Retain original traces on PASS or FAIL
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp206-classify-r2025a-full-originals
+          path: |
+            gp206-native-run.log
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn

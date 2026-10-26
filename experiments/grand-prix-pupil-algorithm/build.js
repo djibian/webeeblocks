@@ -70,12 +70,13 @@ function build() {
           [If(G('GT', 'avant', 0.73), [M(0.1)], [M(0.1, 'back')]),
            Set('avant', R('front'))], 6),
     If(Between(() => V('portes'), 1, 3), ChosenPose, Fault())];
+  // Pupil reasoning: compare front before/after descent. An open H reveals
+  // free space below the high crossbar; only side 3 has a terminal closed H.
+  // Still explicitly fail unexpected closed shapes on sides 1/2. The native
+  // evaluator, not this hypothesis, determines if a landing is admissible.
   const Observe = [Z('down'), Set('bas', R('front')),
     If(C('GT', V('bas'), A('ADD', V('avant'), 0.3)), Passage,
-       [If(And(G('EQ', 'côté', 3),
-             Between(() => V('bas'), A('MINUS', V('avant'), 0.08),
-                                     A('ADD', V('avant'), 0.08))),
-          Closed, Fault())])];
+       [If(G('EQ', 'côté', 3), Closed, Fault())])];
   const NearOpen = G('GTE', 'avant', 0.30);
   const NearFinal = G('EQ', 'côté', 3);
   const Stride = [If(And(G('LT', 'côté', 3), G('GTE', 'distance', 17)),
