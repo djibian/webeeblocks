@@ -1,0 +1,52 @@
+# Disposable Chromium-only UI evidence: not merged to either PR or CI Gate.
+name: GP703_LEAN lean 218-block Chromium pupil editor
+on:
+  push:
+    branches:
+      - experiment/gp703-lean-ui-20261026
+permissions:
+  contents: read
+jobs:
+  editor:
+    name: Real Blockly UI, step mode and Save/Open with injected transport
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove no candidate mutation and exact source SHA
+        shell: bash
+        run: |
+          git merge-base --is-ancestor '0b1dd7cab7eea014aedb1633912c142398dba867' HEAD
+          actual="$(git diff --name-only '0b1dd7cab7eea014aedb1633912c142398dba867' HEAD)"
+          expected="$(printf '.github/workflows/gp703-lean-editor-ui.yml\nexperiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs')"
+          test "$actual" = "$expected"
+          test "$(git rev-parse 'HEAD:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb')" = '3bca44a6b758b93ca913f867c17458cf17d18f96'
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Prepare original pinned Blockly 13.2.1 and browser driver
+        shell: bash
+        run: |
+          bash tools/prepare_runtime_v2.sh
+          node -p "require('./plugins/robot_windows/blockly_v2/node_modules/blockly/package.json').version"
+          npm install --prefix .ci-gp-ui --no-save --no-package-lock --no-audit --no-fund playwright@1.55.0
+          command -v google-chrome || command -v chromium
+      - name: Execute and record actual Chromium UI measurements
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp703-lean-browser-ui
+          WEBEEBLOCKS_PLAYWRIGHT_MODULE="$GITHUB_WORKSPACE/.ci-gp-ui/node_modules/playwright/index.mjs" \
+          CHROME_BIN="$(command -v google-chrome || command -v chromium)" \
+          WEBEEBLOCKS_UI_OUTPUT="$GITHUB_WORKSPACE/ci-artifacts/gp703-lean-browser-ui" \
+          node experiments/grand-prix-pupil-algorithm/probe_browser_ui.mjs 2>&1 | tee ci-artifacts/gp703-lean-browser-ui/ui.log
+      - name: Archive screenshot, metrics and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-lean-browser-editor-evidence
+          path: ci-artifacts/gp703-lean-browser-ui/
+          if-no-files-found: warn
