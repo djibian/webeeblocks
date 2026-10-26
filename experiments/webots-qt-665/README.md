@@ -225,3 +225,54 @@ here implies that production/CI uses the corrected binary; the original
 official image is still selected. Do **not** promote Ready, merge, close
 #665, relax the canonical CI Gate or touch #637/#700 without all remaining
 native and adoption proofs.
+
+## Genuine Qt setValue call-stack discriminator — 26 October 2026 (METHOD-LEVEL PASS)
+
+The already patched R2025a method implementations were extracted *verbatim*
+to a C++ test executable linked against the **actual pinned Qt 6.5.3**
+libraries and exercised under Xvfb/XCB/GDB 12.1. C++ noinline markers,
+native stack frames, `QProgressBar::maximum()` address and Qt `destroyed`
+signals establish ordered events, not just absence of a crash.
+
+- [NON-GATE run 40351198213](https://github.com/djibian/webeeblocks/actions/runs/40351198213)
+  `completed/success` at evidence HEAD `0f2ec488e5a367bddf7cc90cda85e5b36f61c54e`;
+  [artifact 12663901155](https://github.com/djibian/webeeblocks/actions/runs/40351198213/artifacts/12663901155)
+  ZIP SHA-256 `b2203217fb029b12ea0e28f791618b82f6817925c0d201d4fc867285b20dba0b`.
+- **Positive stack:** old dialog/bar marker 10; callback marker 11 *inside*
+  true `QProgressDialog::setValue` (Qt's own event dispatcher in stack);
+  old detached but alive marker 12 in the same frame; subsequent
+  `QProgressBar::maximum` on the **same old bar address**; protected
+  return marker 13; old bar destructor marker 14 on deferred event
+  *outside* `setValue`; drained marker 15.
+- **Negative discriminator:** identical retirement under non-modal
+  Qt is dispatched by the *outer* `WbMainWindow::setWorldLoadingProgress`
+  `QApplication::processEvents`, *without* `QProgressDialog::setValue`
+  in the callback's true stack; never accepted as modal causal PASS.
+- **Discriminating precondition:** `show()` alone did not reliably
+  establish Qt's internal `shownOnce` flag. The harness calls the
+  *actual Qt metaobject* `forceShow` slot before arming the timer,
+  rather than injecting private memory. The [earlier run 40350256406](https://github.com/djibian/webeeblocks/actions/runs/40350256406)
+  correctly failed when the callback was served outside `setValue`.
+  A pair of intermediate runs appearing successful but not loading
+  the GDB Python script are INVALID; the final run executed the
+  debugger and enforced the generated JSON `verdict=PASS`.
+- **Reproducibility:** `qt665_causal_discriminator.py` and
+  `qt665_causal_discriminator.gdb.py` live beside the original test
+  generator. The exact pinning/compilation/GDB recipe is on the
+  [isolated evidence branch](https://github.com/djibian/webeeblocks/tree/evidence/665-qt-causal-discriminator-20261026).
+  Its diagnostic push-only workflow must NOT be copied to the PR.
+
+**Bounded interpretation:** deterministic causal PASS on *real Qt* and
+*verbatim Webots method definitions*, **not** on the complete linked
+`webots-bin` executing a real asynchronous download callback. The
+corrected full ELF (`d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9`)
+was previously built, launched, and consumed in bounded unchanged native
+runner tests (see PR comments 6419196331 and 6419384826). Its **internal
+modal frame path** and parent-shutdown/stale-callback safety remain
+unproven. Product CI Linux/Windows continues to use official unpatched
+Webots. The unchanged `timeout-gate` oracle continues to fail BOTH
+official and candidate binaries due to preceding `low-outside-zone`
+(independent LAND at 210000 ms remains correct). No alteration of
+oracles, LAND, RESET, worlds, AST or deadlines. Maintain **Draft**
+and issue #665 **OPEN** pending actual consumer adoption, complete
+qualification, Ready exact-head CI Gate and independent V5 GO.
