@@ -1,0 +1,174 @@
+# NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
+# A disposable CI runner is modified; this is NOT a classroom release.
+name: Qt665 Windows exact PE and runtime Qt adoption (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-win-qt-runtime-adoption-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-real-windows-webots:
+    runs-on: windows-2022
+    timeout-minutes: 28
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-declarative
+            mingw-w64-x86_64-qt6-websockets
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40406638420
+          name: qt665-windows-real-build-61bec4028e55655fbe86be8e58848f95c72c11eb
+          github-token: ${{ github.token }}
+          path: qt665-patched-pe
+      - name: Attest matching MSYS2 Qt ABI and supplied PE
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/qt665-windows-running
+          test -s qt665-patched-pe/webots-bin.exe
+          test -s qt665-patched-pe/Qt6Core.dll
+          test -s qt665-patched-pe/Qt6Widgets.dll
+          test -s qt665-patched-pe/pe.sha256
+          test -s qt665-patched-pe/msys2-package-versions.txt
+          for mod in mingw-w64-x86_64-qt6-base mingw-w64-x86_64-qt6-declarative mingw-w64-x86_64-qt6-websockets; do
+            compiled="$(grep "^$mod " qt665-patched-pe/msys2-package-versions.txt)"
+            installed="$(pacman -Q "$mod")"
+            test "$compiled" = "$installed" || { echo "QT665_WINDOWS_SDK_ABI_MISMATCH $compiled != $installed" >&2; exit 1; }
+          done
+          for mod in Qt6Core.dll Qt6Widgets.dll; do
+            cmp "qt665-patched-pe/$mod" "/mingw64/bin/$mod"
+          done
+          source_sha="$(awk 'NR==1{print $1}' qt665-patched-pe/pe.sha256)"
+          echo "$source_sha  qt665-patched-pe/webots-bin.exe" | sha256sum -c -
+          test -s /mingw64/share/qt6/plugins/platforms/qwindows.dll
+          pacman -Q > ci-artifacts/qt665-windows-running/msys2-package-versions.txt
+          sha256sum /mingw64/bin/Qt6*.dll > ci-artifacts/qt665-windows-running/msys2-qt-sha256.txt
+          echo "QT665_MINGW_BIN=$(cygpath -w /mingw64/bin)" >> "$GITHUB_ENV"
+          echo "QT665_QT_PLUGINS=$(cygpath -w /mingw64/share/qt6/plugins)" >> "$GITHUB_ENV"
+          echo QT665_WINDOWS_PINNED_SDK_ABI=PASS
+      - name: Install official Webots R2025a into disposable Windows host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $installer=Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          $hash=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne '9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7') {
+            throw "Official Windows installer digest mismatch: $hash"
+          }
+          $p=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Windows installer exited $($p.ExitCode)" }
+          $home=Join-Path $env:ProgramFiles 'Webots'
+          $bin=Join-Path $home 'msys64\mingw64\bin'
+          foreach ($name in @('webots-bin.exe','Qt6Core.dll','Qt6Widgets.dll','Qt6Gui.dll','webots.exe')) {
+            $path=Join-Path $bin $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {throw "Missing installed Webots runtime file $name"}
+            $original=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$name $original" | Add-Content ci-artifacts/qt665-windows-running/original-runtime-sha256.txt
+          }
+          "QT665_WEBOTS_HOME=$home" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "QT665_WEBOTS_BIN=$bin" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host 'QT665_WINDOWS_OFFICIAL_INSTALL_BASE=PASS'
+      - name: Overlay consistent Qt SDK runtime and actual patched Webots PE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bin=$env:QT665_WEBOTS_BIN
+          $artifact=Join-Path $env:GITHUB_WORKSPACE 'qt665-patched-pe'
+          Copy-Item -LiteralPath (Join-Path $artifact 'webots-bin.exe') -Destination (Join-Path $bin 'webots-bin.exe') -Force
+          $modules=Get-ChildItem -LiteralPath $env:QT665_MINGW_BIN -Filter 'Qt6*.dll' -File
+          if ($modules.Count -lt 10) { throw 'Full Qt6 runtime closure missing' }
+          foreach ($dll in $modules) {Copy-Item -LiteralPath $dll.FullName -Destination (Join-Path $bin $dll.Name) -Force}
+          $destPlugins=Join-Path $env:QT665_WEBOTS_HOME 'msys64\mingw64\share\qt6\plugins'
+          if (Test-Path -LiteralPath $destPlugins) { Remove-Item -LiteralPath $destPlugins -Recurse -Force }
+          New-Item -ItemType Directory -Force (Split-Path $destPlugins -Parent) | Out-Null
+          Copy-Item -LiteralPath $env:QT665_QT_PLUGINS -Destination $destPlugins -Recurse -Force
+          foreach ($name in @('webots-bin.exe','Qt6Core.dll','Qt6Widgets.dll')) {
+            $source=Join-Path $artifact $name
+            $candidate=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+            $installed=(Get-FileHash -LiteralPath (Join-Path $bin $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($candidate -ne $installed) {throw "Installed patched Webots/Qt mismatch: $name"}
+            "$name $installed" | Add-Content ci-artifacts/qt665-windows-running/adopted-runtime-sha256.txt
+          }
+          Get-ChildItem -LiteralPath $bin -Filter 'Qt6*.dll' -File |
+            ForEach-Object {"$($_.Name) $((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"} |
+            Set-Content ci-artifacts/qt665-windows-running/all-installed-qt-sha256.txt
+          Write-Host 'QT665_WINDOWS_DISPOSABLE_PATCHED_INSTALL=PASS'
+      - name: Require genuine patched Windows Webots CLI and live mapped Qt Core/Widgets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bin=$env:QT665_WEBOTS_BIN
+          $exe=Join-Path $bin 'webots-bin.exe'
+          $env:WEBOTS_HOME=$env:QT665_WEBOTS_HOME
+          $env:PATH="$bin;$($env:PATH)"
+          $env:QT_QPA_PLATFORM_PLUGIN_PATH=Join-Path $env:QT665_WEBOTS_HOME 'msys64\mingw64\share\qt6\plugins\platforms'
+          $output=(& $exe --version 2>&1 | Out-String)
+          $output | Set-Content ci-artifacts/qt665-windows-running/version.txt
+          if ($LASTEXITCODE -ne 0 -or $output -notmatch 'R2025a') {throw "Real patched PE failed --version: $output"}
+          Write-Host 'QT665_WINDOWS_PATCHED_PE_CLI=PASS'
+          $world=Join-Path $env:RUNNER_TEMP 'qt665-windows-minimal.wbt'
+          @'
+          #VRML_SIM R2025a utf8
+          WorldInfo {
+            basicTimeStep 32
+          }
+          Viewpoint {
+            position 0 0 2
+          }
+          '@ | Set-Content -LiteralPath $world -Encoding utf8
+          $proc=$null
+          try {
+            $proc=Start-Process -FilePath $exe -WorkingDirectory $env:QT665_WEBOTS_HOME -ArgumentList @('--stdout','--stderr','--batch','--mode=fast',$world) -RedirectStandardOutput 'ci-artifacts/qt665-windows-running/webots-stdout.log' -RedirectStandardError 'ci-artifacts/qt665-windows-running/webots-stderr.log' -PassThru
+            $deadline=[DateTime]::UtcNow.AddSeconds(35)
+            $proved=$false
+            do {
+              Start-Sleep -Milliseconds 400
+              $proc.Refresh()
+              if ($proc.HasExited) {break}
+              try {
+                $mods=@(Get-Process -Id $proc.Id -ErrorAction Stop | Select-Object -ExpandProperty Modules)
+                $live=@($mods | Where-Object {$_.ModuleName -in @('Qt6Core.dll','Qt6Widgets.dll')})
+                if ($live.Count -eq 2) {
+                  foreach ($dll in $live) {
+                    $expected=Join-Path $bin $dll.ModuleName
+                    if ($dll.FileName -ne $expected) { throw "Unexpected mapped Qt DLL path $($dll.FileName)" }
+                    $installed=(Get-FileHash -LiteralPath $expected -Algorithm SHA256).Hash.ToLowerInvariant()
+                    $actual=(Get-FileHash -LiteralPath $dll.FileName -Algorithm SHA256).Hash.ToLowerInvariant()
+                    if ($installed -ne $actual) {throw "Wrong Qt DLL bytes $($dll.ModuleName)"}
+                    "$($dll.ModuleName) $actual $($dll.FileName)" | Add-Content ci-artifacts/qt665-windows-running/live-qt-modules.txt
+                  }
+                  $livePE=(Get-FileHash -LiteralPath $proc.Path -Algorithm SHA256).Hash.ToLowerInvariant()
+                  $expectedPE=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($livePE -ne $expectedPE) {throw 'Running Webots PE is not patched candidate'}
+                  $proved=$true
+                  break
+                }
+              } catch [System.ComponentModel.Win32Exception] {
+                # A transient module-snapshot read is not a PASS; keep sampling.
+              }
+            } while ([DateTime]::UtcNow -lt $deadline)
+            if (-not $proved) {throw "Native patched Windows Qt process identity UNPROVEN; exited=$($proc.HasExited)"}
+            Write-Host 'QT665_WINDOWS_LIVE_WEBOTS_QT_IDENTITY=PASS'
+          } finally {
+            if ($proc) {
+              $proc.Refresh()
+              if (-not $proc.HasExited) {Stop-Process -Id $proc.Id -Force}
+            }
+          }
+      - name: Preserve windows native proof, even if incompatibility is observed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-windows-real-consumer-${{ github.sha }}
+          path: ci-artifacts/qt665-windows-running/
+          if-no-files-found: warn
