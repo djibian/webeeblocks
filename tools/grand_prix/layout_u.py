@@ -143,14 +143,19 @@ def world_text(layout, *, controller='<none>', window='<none>',
     externs = '\n'.join(line for line in source.splitlines() if line.startswith('EXTERNPROTO '))
     size = layout.side + 2.5
     lines = ['#VRML_SIM R2025a utf8', externs,
-             f'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" }}',
+             # Experimental floor-only ODE contact dissipation: without
+             # thrust the Crazyflie cylinder should settle on the landing
+             # surface. All H collisions retain their default material.
+             f'DEF WEBEEBLOCKS_DEDICATED_RUNTIME_WORLD WorldInfo {{ basicTimeStep {timestep} randomSeed 1 optimalThreadCount 1 title "Grand Prix — {layout.identifier}" '
+             'contactProperties [ ContactProperties { material1 "default" material2 "gp_u_floor" '
+             'bounce 0 rollingFriction 0.02 0.02 0.01 } ] }',
              # Native R2025a follow tracks translation smoothly without ever
              # entering the drone's control or the outcome evaluator.
              'Viewpoint { orientation -0.45 0.47 0.76 1.05 position -5 -5 7 '
              'follow "Crazyflie WebeeBlocks" followType "Tracking Shot" '
              'followSmoothness 0.20 }',
              'TexturedBackground { }', 'TexturedBackgroundLight { }',
-             f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} }}']
+             f'Floor {{ translation {layout.side/2} {layout.side/2} 0 size {size} {size} contactMaterial "gp_u_floor" }}']
     for i, b in enumerate(layout.boxes):
         dims = f'{b.sx:.6f} {b.sy:.6f} {b.sz:.6f}'
         # The terminal closure is translucent but deliberately visible and
