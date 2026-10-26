@@ -1,0 +1,80 @@
+name: QT665 reused binary XCB smoke (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-qt-xcb-smoke-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  xcb-smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Download PREEXISTING compiled Webots binary, no rebuilding
+        uses: actions/download-artifact@v4
+        with:
+          name: qt665-full-link-2b6c7a47518f1b3e1f5998447f68337284a88146
+          run-id: 40330799778
+          repository: djibian/webeeblocks
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: qt665-evidence
+      - name: Verify binary identity and run launcher on Xvfb/XCB
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p results
+          test -s qt665-evidence/webots-bin
+          echo "d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9  qt665-evidence/webots-bin" | sha256sum -c -
+          echo "1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb  qt665-evidence/official-webots-bin" | sha256sum -c -
+          cp qt665-evidence/source.json results/build-source.json
+          cp qt665-evidence/candidate-runtime.sha256 results/candidate-runtime.sha256
+          docker build -t qt665-xcb-dev - <<'DOCKER'
+          FROM cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb xauth libxcb-cursor0 gdb && rm -rf /var/lib/apt/lists/*
+          DOCKER
+          cat > results/smoke.sh <<'SMOKE'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          export WEBOTS_HOME=/usr/local/webots QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=true
+          install -m755 /input/webots-bin /usr/local/webots/bin/webots-bin
+          sha256sum /usr/local/webots/bin/webots-bin > /results/actual-webots-bin.sha256
+          grep -q '^d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9 ' /results/actual-webots-bin.sha256
+          (cd /usr/local/webots && sha256sum lib/webots/libQt6Widgets.so.6.5.3 lib/webots/libQt6Core.so.6.5.3) > /results/runtime-qt.sha256
+          grep -q '^868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024 ' /results/runtime-qt.sha256
+          grep -q '^ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8 ' /results/runtime-qt.sha256
+          ldd /usr/local/webots/bin/webots-bin > /results/actual-ldd.txt
+          ! grep -q 'not found' /results/actual-ldd.txt
+          ldd /usr/local/webots/lib/webots/qt/plugins/platforms/libqxcb.so > /results/xcb-plugin-ldd.txt
+          ! grep -q 'not found' /results/xcb-plugin-ldd.txt
+          Xvfb :99 -screen 0 1280x800x24 -nolisten tcp > /results/xvfb.log 2>&1 &
+          export DISPLAY=:99
+          sleep 3
+          if ! kill -0 $!; then echo "QT665_XVFB_LAUNCH=FAIL"; exit 43; fi
+          set +e
+          timeout --signal=TERM --kill-after=5s 40s /usr/local/webots/webots --version > /results/version.stdout 2> /results/version.stderr
+          rc=$?
+          set -e
+          echo "$rc" > /results/launcher-exit.txt
+          echo "QT665_LAUNCHER_EXIT=$rc"
+          echo '--- webots --version stdout ---'
+          cat /results/version.stdout
+          echo '--- webots --version stderr ---'
+          cat /results/version.stderr
+          if [ "$rc" -ne 0 ]; then echo 'QT665_XCB_SMOKE=FAIL'; exit "$rc"; fi
+          if grep -Eiq 'Fatal: This application failed|could not connect to display|Could not load the Qt platform plugin' /results/version.stderr; then echo 'QT665_XCB_SMOKE=FAIL'; exit 44; fi
+          echo 'QT665_XCB_SMOKE=PASS'
+          SMOKE
+          chmod +x results/smoke.sh
+          set +e
+          docker run --rm --shm-size=1g -v "$PWD/qt665-evidence:/input:ro" -v "$PWD/results:/results:rw" qt665-xcb-dev bash /results/smoke.sh
+          rc=$?
+          set -e
+          echo "$rc" | tee results/docker-exit.txt
+          exit "$rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qt665-xcb-smoke-\${{ github.sha }}
+          path: results/
+          retention-days: 14
+          if-no-files-found: warn
