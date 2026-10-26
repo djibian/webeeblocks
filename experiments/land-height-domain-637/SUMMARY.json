@@ -1,0 +1,242 @@
+[
+  {
+    "height": 0.2,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h0.2",
+    "landing_request_s": 15.04,
+    "request_position_m": [
+      0.166549548045,
+      7.36296983945e-16,
+      0.18975729485
+    ],
+    "final_position_m": [
+      0.154682927233,
+      3.63470277138e-16,
+      0.0149803800015
+    ],
+    "final_xy_error_m": 0.01186662081199999,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=111 touchdown=16.320000000"
+  },
+  {
+    "height": 0.35,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h0.35",
+    "landing_request_s": 12.32,
+    "request_position_m": [
+      0.16654968709,
+      -1.85499653805e-15,
+      0.332681318875
+    ],
+    "final_position_m": [
+      0.151098696007,
+      -2.6070195313e-15,
+      0.0149803800015
+    ],
+    "final_xy_error_m": 0.01545099108300002,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=111 touchdown=14.208000000"
+  },
+  {
+    "height": 0.5,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h0.5",
+    "landing_request_s": 11.392,
+    "request_position_m": [
+      0.1665549155,
+      5.81098956585e-16,
+      0.531275724199
+    ],
+    "final_position_m": [
+      0.149908237694,
+      1.04206647251e-15,
+      0.0149803800075
+    ],
+    "final_xy_error_m": 0.016646677806000015,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=104 touchdown=13.472000000"
+  },
+  {
+    "height": 0.8,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h0.8",
+    "landing_request_s": 13.792,
+    "request_position_m": [
+      0.166546730278,
+      -1.01885344776e-15,
+      0.824304750427
+    ],
+    "final_position_m": [
+      0.156529297366,
+      -1.05541971249e-15,
+      0.0149803800692
+    ],
+    "final_xy_error_m": 0.010017432911999996,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 1.0,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h1.0",
+    "landing_request_s": 15.648,
+    "request_position_m": [
+      0.166557823713,
+      2.20837735104e-15,
+      1.03061674275
+    ],
+    "final_position_m": [
+      0.160037834937,
+      2.10078154955e-15,
+      0.0149803800078
+    ],
+    "final_xy_error_m": 0.006519988776000019,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.592000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 1.5,
+    "physics_step_ms": 32,
+    "exit_code": 0,
+    "out": "s32-h1.5",
+    "landing_request_s": 18.144,
+    "request_position_m": [
+      0.166549459526,
+      -9.81320782427e-16,
+      1.49802340295
+    ],
+    "final_position_m": [
+      0.166014358424,
+      -9.3566103125e-16,
+      0.0149803800686
+    ],
+    "final_xy_error_m": 0.0005351011020000018,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 0.2,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h0.2",
+    "landing_request_s": 15.072,
+    "request_position_m": [
+      0.166516633534,
+      -6.36488538492e-16,
+      0.189940824562
+    ],
+    "final_position_m": [
+      0.162385250492,
+      1.48348150773e-16,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.004131383042000003,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.464000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 0.35,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h0.35",
+    "landing_request_s": 12.352,
+    "request_position_m": [
+      0.166519800101,
+      -3.935383499e-16,
+      0.332150317519
+    ],
+    "final_position_m": [
+      0.151225268663,
+      -1.3769293745e-16,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.015294531437999997,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=111 touchdown=14.208000000"
+  },
+  {
+    "height": 0.5,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h0.5",
+    "landing_request_s": 11.424,
+    "request_position_m": [
+      0.166523914814,
+      -1.41142136129e-15,
+      0.532951745869
+    ],
+    "final_position_m": [
+      0.15521582791,
+      -6.18122289377e-16,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.011308086904000009,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.688000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 0.8,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h0.8",
+    "landing_request_s": 13.824,
+    "request_position_m": [
+      0.166502724333,
+      9.56362005831e-16,
+      0.829348756374
+    ],
+    "final_position_m": [
+      0.156136846929,
+      9.7647263136e-16,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.010365877403999996,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.848000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 1.0,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h1.0",
+    "landing_request_s": 15.68,
+    "request_position_m": [
+      0.166519810403,
+      -6.60529830399e-16,
+      1.02734985221
+    ],
+    "final_position_m": [
+      0.159568616626,
+      -6.24846913386e-16,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.006951193777000014,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.496000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  },
+  {
+    "height": 1.5,
+    "physics_step_ms": 8,
+    "exit_code": 0,
+    "out": "s8-h1.5",
+    "landing_request_s": 18.336,
+    "request_position_m": [
+      0.166509988318,
+      2.7626806552e-15,
+      1.50610050517
+    ],
+    "final_position_m": [
+      0.165938137214,
+      3.05236587789e-15,
+      0.014995095
+    ],
+    "final_xy_error_m": 0.0005718511040000152,
+    "native_end": "LAND_REGRESSION_END completed=1 failed=0 stable=2.976000000",
+    "coast": "LAND_CONTACT_COAST samples=0 touchdown=-1.000000000"
+  }
+]
