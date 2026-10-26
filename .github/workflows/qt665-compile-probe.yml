@@ -84,6 +84,32 @@ jobs:
             sha256sum /source/WbMainWindow.o /source/WbApplication.o
           ' >> qt665-compiler.log 2>&1
           tail -n 80 qt665-compiler.log
+      - name: Execute pinned Qt 6.5.3 reentrant method-level tests (NOT full Webots)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 experiments/webots-qt-665/qt_guarded_method_harness.py \
+            --patched-cpp upstream-webots/src/webots/gui/WbMainWindow.cpp \
+            --output qt665-guarded-methods.cpp
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            -e QT_QPA_PLATFORM=offscreen qt665-devheaders bash -lc '
+            set -Eeuo pipefail
+            qt=/usr/local/webots
+            echo "QTDIR=$qt"
+            ls "$qt/lib/webots" | grep "Qt6Widgets" | head -n 3
+            find "$qt" -name libqoffscreen.so -print
+            export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqoffscreen.so -print -quit)")"
+            test -n "$QT_QPA_PLATFORM_PLUGIN_PATH"
+            g++ -std=c++17 -fPIC -DQT_NO_DEBUG \
+              -I"$qt/include/qt" -I"$qt/include/qt/QtCore" \
+              -I"$qt/include/qt/QtGui" -I"$qt/include/qt/QtWidgets" \
+              ./qt665-guarded-methods.cpp -L"$qt/lib/webots" \
+              -Wl,-rpath,"$qt/lib/webots" \
+              -lQt6Widgets -lQt6Gui -lQt6Core \
+              -o ./qt665-guarded-methods
+            ./qt665-guarded-methods
+          ' 2>&1 | tee qt665-method-harness.log
+
       - name: Publish bounded compile evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -93,5 +119,6 @@ jobs:
             qt665-source.json
             qt665-compiler.log
             qt665-original.log
+            qt665-method-harness.log
           if-no-files-found: warn
           retention-days: 14
