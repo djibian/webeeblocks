@@ -1,5 +1,5 @@
 'use strict';
-// Grand Prix U sans murs — ALGORITHME EXPÉRIMENTAL, NON QUALIFIÉ.
+// Grand Prix U sans murs — HYPOTHÈSE CONTRASTE, NON QUALIFIÉE.
 // Pure Blockly JSON built from ordinary student-editable blocks.
 // Restores pupil-visible per-side H memory after a differential repeated-echo refutation.
 // Count only after rear evidence; keep ambiguous sensor measurements in fault state.
@@ -7,7 +7,7 @@
 function build() {
   let next = 0;
   const names = ['côté', 'portes', 'distance', 'état',
-                 'avant', 'bas', 'gauche', 'droite', 'arrière', 'H passé'];
+                 'avant', 'bas', 'gauche', 'droite', 'arrière', 'H passé', 'écart'];
   const vid = name => 'gp-pupil-v2-' + names.indexOf(name);
   const B = (type, fields = {}, inputs = {}, extraState) => {
     const b = {type, id: 'gp-pupil-v2-b-' + (++next)};
@@ -71,10 +71,10 @@ function build() {
            Set('avant', R('front'))], 6),
     If(Between(() => V('portes'), 1, 3), ChosenPose, Fault())];
   const Observe = [Z('down'), Set('bas', R('front')),
-    If(And(G('EQ', 'H passé', 0), C('GT', V('bas'), A('ADD', V('avant'), 0.3))), Passage,
+    Set('écart', A('MINUS', V('bas'), V('avant'))),
+    If(And(G('EQ', 'H passé', 0), G('GT', 'écart', 0.3)), Passage,
        [If(And(G('EQ', 'côté', 3),
-             Between(() => V('bas'), A('MINUS', V('avant'), 0.08),
-                                     A('ADD', V('avant'), 0.08))),
+             Between(() => V('écart'), -0.08, 0.08)),
           Closed, Fault())])];
   const NearOpen = And(G('GTE', 'avant', 0.30), G('EQ', 'H passé', 0));
   const NearFinal = G('EQ', 'côté', 3);
@@ -111,7 +111,7 @@ function build() {
 // Neither procedure inspects hidden state or introduces an interpreter primitive.
 function buildModular() {
   const project = build(), roots = project.workspace.blocks.blocks;
-  const observer = roots[1].inputs.STACK.block.next.block.next.block;
+  const observer = roots[1].inputs.STACK.block.next.block.next.block.next.block;
   const finalCase = observer.inputs.ELSE.block;
   const opened = observer.inputs.DO0.block;
   const closed = finalCase.inputs.DO0.block;
