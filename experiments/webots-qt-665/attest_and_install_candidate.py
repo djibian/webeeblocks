@@ -19,6 +19,11 @@ import sys
 import tempfile
 
 BASELINE = "1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb"
+# Only the parent-shutdown-safe complete Linux ELF has native/Qt qualification.
+# Never accept the earlier d3140f65... build: its parent-destruction UAF was
+# independently reproduced (40352255637). A caller-supplied SHA alone cannot
+# authorize an otherwise unqualified artifact for even disposable replacement.
+QUALIFIED_PARENT_SAFE_ELF = "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545"
 QT = {
     "libQt6Widgets.so.6.5.3":
         "868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024",
@@ -41,6 +46,13 @@ def require(condition: bool, message: str):
         raise ValueError(message)
 
 
+def require_qualified_candidate_sha256(value: str) -> None:
+    require(re.fullmatch(r"[0-9a-f]{64}", value) is not None,
+            "candidate identity must be an explicit lowercase SHA-256")
+    require(value == QUALIFIED_PARENT_SAFE_ELF,
+            "candidate ELF SHA-256 is not the qualified parent-safe build")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--runtime-home", type=Path, required=True,
@@ -54,13 +66,15 @@ def main():
     a = p.parse_args()
     manifest = {"mode": "UNQUALIFIED", "expected_image": IMAGE}
     try:
+        # Qualify the *expected* identity before any filesystem side effect.
+        # Checking only digest(candidate) == user-supplied expected digest would
+        # also permit an old known-vulnerable experimental ELF.
+        require_qualified_candidate_sha256(a.expected_candidate_sha256)
         home = a.runtime_home.resolve(strict=True)
         candidate = a.candidate.resolve(strict=True)
         target = home / "bin/webots-bin"
         require(platform.system() == "Linux" and platform.machine() == "x86_64",
                 "Linux x86_64 is required; Windows qualification is separate")
-        require(re.fullmatch(r"[0-9a-f]{64}", a.expected_candidate_sha256) is not None,
-                "candidate identity must be an explicit lowercase SHA-256")
         require((home / "resources/version.txt").read_text().strip() == "R2025a",
                 "wrong Webots version; no fallback")
         require(target.is_file() and candidate.is_file(), "missing Webots ELF")
