@@ -1,0 +1,92 @@
+# NON-GATE Windows ABI/Qt build preconditions, no simulator PASS unless real PE is produced.
+name: Qt665 pinned Windows compiler preflight (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-windows-native-build-20261026]
+permissions:
+  contents: read
+jobs:
+  original-windows-runtime-and-composed-source:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberbotics/webots
+          ref: c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          path: .ci-qt665-webots-src
+          persist-credentials: false
+      - name: Install exact Windows Webots R2025a
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -Type Directory -Force ci-artifacts/qt665-windows-native | Out-Null
+          $installer=Join-Path $env:RUNNER_TEMP 'webots-R2025a_setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a_setup.exe' -OutFile $installer
+          $expected='9e326a54c104fc5fc88121e26014a409d1e35f0bbf30e23f3a712e7f842b08e7'
+          $actual=(Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Official Webots installer hash mismatch $actual" }
+          $process=Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Webots official installer failed: $($process.ExitCode)" }
+          $webots=Join-Path $env:ProgramFiles 'Webots'
+          if (-not (Test-Path $webots)) { throw 'Official Webots was not installed' }
+          "WEBOTS_HOME=$webots" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Set-Content ci-artifacts/qt665-windows-native/installer-sha256.txt $actual
+      - name: Reproduce both source transformations and inventory true native Windows toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tree='.ci-qt665-webots-src'
+          $expected='c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b'
+          $head=(git -C $tree rev-parse HEAD).Trim()
+          if ($head -ne $expected) { throw 'Wrong pinned Webots R2025a checkout' }
+          git -C $tree apply "$env:GITHUB_WORKSPACE/experiments/webots-qt-665/webots-r2025a-guarded-progress-retirement.patch"
+          if ($LASTEXITCODE -ne 0) { throw 'Native source patch rejected' }
+          python experiments/webots-qt-665/repair_parent_shutdown.py --webots-tree $tree
+          if ($LASTEXITCODE -ne 0) { throw 'Parent shutdown correction rejected' }
+          git -C $tree diff --binary | Out-File -FilePath ci-artifacts/qt665-windows-native/composed.patch -Encoding utf8
+          $webots=$env:WEBOTS_HOME
+          $dirs=@(
+            'msys64/mingw64/include/qt6/QtCore/QObject',
+            'msys64/mingw64/include/QtCore/QObject',
+            'include/qt/QtCore/QObject',
+            'msys64/mingw64/share/qt6/bin/moc.exe',
+            'msys64/mingw64/bin/Qt6Core.dll',
+            'msys64/mingw64/bin/Qt6Widgets.dll',
+            'msys64/mingw64/bin/g++.exe',
+            'msys64/usr/bin/bash.exe',
+            'msys64/usr/bin/make.exe',
+            'msys64/mingw64/bin/webots.exe',
+            'msys64/mingw64/bin/webots-bin.exe',
+            'msys64/mingw64/bin/webotsw.exe'
+          )
+          $rows=@()
+          foreach ($name in $dirs) {
+            $file=Join-Path $webots $name
+            $present=Test-Path $file -PathType Leaf
+            $sha=if ($present) {(Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()} else {$null}
+            $rows+=@{file=$name;present=$present;sha256=$sha}
+          }
+          [PSCustomObject]@{source_sha=$head;webots_home=$webots;files=$rows} |
+            ConvertTo-Json -Depth 8 | Set-Content ci-artifacts/qt665-windows-native/inventory.json
+          $exe=Join-Path $webots 'msys64/mingw64/bin/webots.exe'
+          if (Test-Path $exe) {
+            & $exe --version | Out-File ci-artifacts/qt665-windows-native/version.txt
+          }
+          $gpp=Join-Path $webots 'msys64/mingw64/bin/g++.exe'
+          if (Test-Path $gpp) { & $gpp --version | Out-File ci-artifacts/qt665-windows-native/compiler.txt }
+          $qtHeaders=@($dirs[0..2] | Where-Object {Test-Path (Join-Path $webots $_) -PathType Leaf})
+          if ($qtHeaders.Count -eq 0) {
+            Write-Error 'QT665_WINDOWS_FULL_BUILD_UNPROVEN: installed official Webots lacks Qt development headers (no compatible pinned SDK attested)'
+          }
+          Write-Host 'QT665_WINDOWS_PATCH_AND_NATIVE_SDK_PREFLIGHT=PASS_ONLY'
+      - name: Preserve full Windows build prerequisite evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-windows-preflight-${{ github.sha }}
+          path: ci-artifacts/qt665-windows-native/
+          if-no-files-found: error
