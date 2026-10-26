@@ -20,6 +20,10 @@ class Tests(unittest.TestCase):
         for seed in range(1024):
             layout = generate(seed)
             self.assertEqual(layout.walls, first.walls)
+            self.assertEqual(layout.walls, ())
+            self.assertAlmostEqual(layout.width, .60)
+            self.assertAlmostEqual(layout.polygon[0][1], -layout.width/2)
+            self.assertAlmostEqual(layout.polygon[-1][1], layout.width/2)
             self.assertEqual(layout.polygon, first.polygon)
             self.assertEqual(layout.final_gates, first.final_gates)
             self.assertTrue(1 <= len(layout.gates) <= 3)
@@ -35,6 +39,14 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(layout.gate_boxes[-2].z+layout.gate_boxes[-2].sz/2, .81)
             text = world_text(layout)
             self.assertEqual(text.count('DEF GP_U_BAND_'), 16*len(layout.gates))
+            red_dashes = [line for line in text.splitlines()
+                           if line.startswith('DEF GP_U_BOUNDARY_')]
+            self.assertGreater(len(red_dashes), 30)
+            self.assertTrue(all(' Pose {' in line and
+                                'boundingObject' not in line and
+                                'baseColor .95 .06 .06' in line
+                                for line in red_dashes))
+            self.assertEqual(text.count('DEF GP_U_BOX_'), len(layout.gate_boxes))
             self.assertNotIn('candidate_points', text)
         self.assertEqual(seen, {1,2,3})
 

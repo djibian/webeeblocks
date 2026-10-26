@@ -39,9 +39,21 @@ try:
         # Gate vs wall at high z; at low z an active oblique ray must reach
         # a finite farther wall. Saturation alone cannot certify an opening.
         active = observe(x, y, .4, gate.heading-math.radians(20))
+        # First preserve discrimination of the actual open-H upper beam and
+        # flanking posts, plus a clear low passage. This is native range data.
         assert .15 < high['front'] < .23, high
         assert .50 < high['left']+high['right'] < .62, high
-        assert high['front']+.3 < active['front'] < 1.99, (high, active)
+        assert math.isfinite(low['front']) and low['front'] > high['front']+.3, (high, low)
+        assert math.isfinite(active['front']) and active['front'] > high['front']+.3, (high, active)
+        # The old <1.99 upper bound required an echo from the REMOVED
+        # continuous lateral walls. Without those walls, the outward 20-degree
+        # low ray must saturate on sides 0/1; on side 2 the retained closed H
+        # must still produce a finite downstream echo. Requiring the opposite
+        # physical signatures is stronger than simply allowing any range.
+        if gate.side in (0, 1):
+            assert 1.99 <= active['front'] <= 2.001, (gate.side, high, active)
+        else:
+            assert active['front'] < 1.99, (gate.side, high, active)
         observations.append(dict(side=gate.side, high=high, low=low, active=active))
     terminal = []
     for count in (1, 2, 3):

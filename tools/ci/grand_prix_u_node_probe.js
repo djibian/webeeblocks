@@ -24,7 +24,10 @@ socket.onopen=async()=>{
  try{
   socket.send('robot:Crazyflie WebeeBlocks:init robot window');
   await backend.waitUntilReady();
-  let program=Witness.build();
+  // Exercise the identical real pupil .wbb/AST only in positive and RESET modes.
+   // Retain the original negative ASTs and their independent oracles.
+   let program=(mode==='witness'||mode==='reset')?
+    require('../grand_prix/pupil_workspace_u.js').build().ast:Witness.build();
   if(mode==='timeout'||mode==='timeout-gate')program={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.4},{kind:'vertical',direction:'up',distance_m:.4},
    ...(mode==='timeout-gate'?[{kind:'move',direction:'forward',distance_m:.4},{kind:'move',direction:'forward',distance_m:.2},{kind:'vertical',direction:'down',distance_m:.4},{kind:'move',direction:'forward',distance_m:.3}]:[]),
    {kind:'repeat',count:10,body:[{kind:'repeat',count:10,body:[{kind:'wait',seconds:3}]}]},{kind:'land'}]};

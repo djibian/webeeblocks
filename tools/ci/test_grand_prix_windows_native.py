@@ -10,9 +10,24 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.ci.run_grand_prix_windows_native import captured_engine, engine_environment, validate
 from tools.grand_prix.layout_u import generate
+from tools.grand_prix.package_windows_u import local_world
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_offline_world_uses_exact_webots_floor_plane_not_box(self):
+        # Upstream R2025a Floor.proto has a locked Solid/Plane collider.
+        # An offline 5-cm Box substitutes a different contact dynamics.
+        for seed in (0, 1, 4):
+            world = local_world(seed, 'grand_prix_u')
+            side = generate(seed).side + 2.5
+            self.assertIn('Solid { translation 1.0 1.0 0\n  name "floor"\n  locked TRUE', world)
+            self.assertEqual(world.count(f'boundingObject Plane {{ size {side} {side} }}'), 1)
+            self.assertIn('coordIndex [ 2 0 1 3 -1 ]', world)
+            self.assertNotIn(f'boundingObject Box {{ size {side} {side} 0.05 }}', world)
+            self.assertNotIn('Floor { translation', world)
+            self.assertNotIn('rollingFriction', world)
+            self.assertIn('basicTimeStep 8', world)
+
     def test_native_capture_uses_pipes_and_drains_both_channels(self):
         # Exercise R2025a's FILE_TYPE_PIPE discriminator on Windows too.
         code = '''
