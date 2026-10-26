@@ -100,6 +100,9 @@ jobs:
             find "$qt" -name libqxcb.so -print
             export QT_QPA_PLATFORM_PLUGIN_PATH="$(dirname "$(find "$qt" -name libqxcb.so -print -quit)")"
             test -n "$QT_QPA_PLATFORM_PLUGIN_PATH"
+            export LD_LIBRARY_PATH="$qt/lib/webots:${LD_LIBRARY_PATH:-}"
+            ldd "$QT_QPA_PLATFORM_PLUGIN_PATH/libqxcb.so"
+            dpkg -l libxcb-cursor0 || true
             g++ -std=c++17 -fPIC -DQT_NO_DEBUG \
               -I"$qt/include/qt" -I"$qt/include/qt/QtCore" \
               -I"$qt/include/qt/QtGui" -I"$qt/include/qt/QtWidgets" \
@@ -107,7 +110,7 @@ jobs:
               -Wl,-rpath,"$qt/lib/webots" \
               -lQt6Widgets -lQt6Gui -lQt6Core \
               -o ./qt665-guarded-methods
-            timeout -k 5s 45s env QT_QPA_PLATFORM=xcb xvfb-run -a ./qt665-guarded-methods
+            timeout -k 5s 45s env QT_QPA_PLATFORM=xcb QT_DEBUG_PLUGINS=1 xvfb-run -a ./qt665-guarded-methods
           ' 2>&1 | tee qt665-method-harness.log
 
       - name: Publish bounded compile evidence even on failure
