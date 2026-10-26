@@ -1,0 +1,47 @@
+# Disposable evidence branch only. No integration or changes to production CI.
+name: GP703 native R2025a independent matrix
+on:
+  push:
+    branches:
+      - experiment/gp703-native-matrix-20261026
+permissions:
+  contents: read
+jobs:
+  native:
+    name: GP703 real WBB and AST seed ${{ matrix.seed }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        seed: [3, 4, 15]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove unchanged origin HEAD and pupil WBB
+        run: |
+          test "$(git rev-parse HEAD^)" = '949bec6c9f5560d1eccad6a9532feef6d7673b44'
+          test "$(git diff --name-only HEAD^ HEAD)" = '.github/workflows/gp703-native-independent.yml'
+          test "$(git rev-parse HEAD^:experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb)" = '02c0cdef8fc7189aa171b584a8160b52e392ba1c'
+          echo "SOURCE_PR647=949bec6c9f5560d1eccad6a9532feef6d7673b44"
+          sha256sum experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb
+      - name: Execute unchanged native Webots R2025a witness without changing oracles
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-artifacts/gp703-native-matrix
+          python3 -u tools/ci/run_grand_prix_u_prototype.py --suite witness --seed "${{ matrix.seed }}" --side 2.0 2>&1 | tee ci-artifacts/gp703-native-matrix/runner.log
+      - name: Retain native positive or failure without suppressing verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp703-native-r2025a-s${{ matrix.seed }}
+          path: |
+            ci-artifacts/gp703-native-matrix/
+            ci-artifacts/grand-prix-u/
+          if-no-files-found: warn
