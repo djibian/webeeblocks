@@ -20,7 +20,7 @@ from tools.ci.run_grand_prix_u_geometry import IMAGE
 OUT = ROOT/'ci-artifacts/qt665-native-gdb'
 HOME = Path('/usr/local/webots')
 EXPECTED = {
-    'webots-bin': '1445efb2820d151dee40b79ef4128dca7e4a75e02630b49354e557c7e35e66eb',
+    'webots-bin': 'e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545',
     'QtWidgets': '868b516dde6d020badc7243facd48f880b0d606c76e46e50427c1c744a2c1024',
     'QtCore': 'ac391204135f1435ca1c97a7f92e6f94d9d369f6b12fb823923496360a272bd8',
 }
@@ -40,7 +40,7 @@ def run_checked(command, seconds):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    record = dict(schema=1, claim='one native R2025a world, diagnostic only',
+    record = dict(schema=1, claim='native parent-safe full ELF same-frame causal discriminator (NON-GATE)',
                   status='PREPARING', platform=platform.platform(),
                   image=os.environ.get('QT665_EXPECTED_IMAGE'),
                   raw_core_uploaded=False, product_oracles_modified=False)
@@ -166,11 +166,42 @@ def main():
         record['status']=('ACQUIRED' if counts.get('enter',0)>0 and
                           record['live_symbol_resolution_verified'] and
                           not record.get('invalid_gdb_event') else 'UNQUALIFIED_COVERAGE')
+        # Reject false positives: the real native completion callback must retire
+        # the exact old dialog inside Qt setValue, then maximum must access the
+        # exact old bar before return without an intervening destructor.
+        retire = [x for x in events if x.get('kind') == 'retire_within_setvalue']
+        maxima = [x for x in events if x.get('kind') == 'bar_maximum_after_retire']
+        returns = [x for x in events if x.get('kind') == 'return']
+        deaths = [x for x in events if x.get('kind') in (
+            'bar_destroyed_within_setvalue', 'dialog_destroyed_within_setvalue')]
+        gaps = [x for x in events if x.get('kind') == 'gap']
+        signals = [x for x in events if x.get('kind') == 'signal']
+        proof = []
+        for a in retire:
+            for b in maxima:
+                if not (a.get('id') == b.get('id') and a.get('bar') == b.get('bar')
+                        and a.get('dialog') == b.get('dialog') and a['n'] < b['n']):
+                    continue
+                for c in returns:
+                    if (c.get('id') == a.get('id') and b['n'] < c['n']
+                            and c.get('retired') is True
+                            and c.get('destroyed_bar') is False
+                            and c.get('destroyed_dialog') is False):
+                        proof.append({'id':a['id'], 'bar':a['bar'], 'dialog':a['dialog'],
+                                      'retire_n':a['n'], 'maximum_n':b['n'], 'return_n':c['n']})
+        passed = bool(proof and not deaths and not gaps and not signals
+                      and record['status'] == 'ACQUIRED' and record['ready_observed']
+                      and record['exit'] in (0,124))
+        record['causal'] = dict(verdict='PASS' if passed else 'UNPROVEN',
+            witnessed=proof[:3], retire_count=len(retire), max_after_retire=len(maxima),
+            destruction_during_setvalue_count=len(deaths), gap_count=len(gaps),
+            signal_count=len(signals))
+        record['status'] = ('FULL_ELF_CAUSAL_PASS' if passed else 'FULL_ELF_CAUSAL_UNPROVEN')
         (OUT/'gdb.sha256').write_text(sha(log)+'  gdb.log\n')
         print('QT665_NATIVE_GDB '+json.dumps({k:record[k] for k in
               ('status','event_counts','live_symbol_resolution_verified',
                'segv_observed','ready_observed')},sort_keys=True),flush=True)
-        if record['status']!='ACQUIRED':
+        if record['status']!='FULL_ELF_CAUSAL_PASS':
             sys.exit(2)
     except Exception as exc:
         record['status']='PREPARATION_OR_EXECUTION_FAILED'

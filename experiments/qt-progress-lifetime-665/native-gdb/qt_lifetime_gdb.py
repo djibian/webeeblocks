@@ -41,7 +41,7 @@ def report_live_coverage():
             out('gap', where='coverage_resolution', symbol=name,
                 error=str(exc))
     out('coverage_live', resolved=resolved,
-        all_resolved=len(resolved) == 5 and all(resolved.values()))
+        all_resolved=len(resolved) == 6 and all(resolved.values()))
 
 def thread_id():
     t = gdb.selected_thread()
@@ -68,7 +68,7 @@ class Returned(gdb.FinishBreakpoint):
             frame = frames.pop()
             out('return', thread=self.t, dialog=frame['dialog'], bar=frame['bar'],
                 id=self.ident, destroyed_dialog=frame['dead_dialog'],
-                destroyed_bar=frame['dead_bar'])
+                destroyed_bar=frame['dead_bar'], retired=frame.get('retired', False))
         else:
             out('gap', where='non_lifo_return', id=self.ident)
         return False
@@ -128,6 +128,20 @@ class Destruction(gdb.Breakpoint):
             out('gap', where='destruction_failed', error=str(exc))
         return False
 
+class Retire(gdb.Breakpoint):
+    """Only match a true retirement of the dialog in the active Qt frame."""
+    def stop(self):
+        try:
+            target = int(gdb.parse_and_eval("this->mWorldLoadingProgressDialog"))
+            for frame in active.get(thread_id(), []):
+                if target and frame['dialog'] == target and frame['bar']:
+                    frame['retired'] = True
+                    out('retire_within_setvalue', id=frame['id'],
+                        dialog=target, bar=frame['bar'], backtrace=stack())
+        except Exception as exc:
+            out('gap', where='retire_failed', error=str(exc))
+        return False
+
 class Maximum(gdb.Breakpoint):
     def stop(self):
         try:
@@ -136,6 +150,10 @@ class Maximum(gdb.Breakpoint):
             if ids:
                 out('bar_maximum_within_setvalue',
                     thread=t, object=p, ids=ids)
+                for frame in active.get(t, []):
+                    if frame['id'] in ids and frame.get('retired'):
+                        out('bar_maximum_after_retire', id=frame['id'],
+                            bar=p, dialog=frame['dialog'])
         except Exception as exc:
             out('gap', where='maximum_failed', error=str(exc))
         return False
@@ -158,6 +176,7 @@ specs = (
     ('dialog_dtor', lambda: Destruction('QProgressDialog::~QProgressDialog()', 'dialog')),
     ('bar_dtor', lambda: Destruction('QProgressBar::~QProgressBar()', 'bar')),
     ('bar_maximum', lambda: Maximum('QProgressBar::maximum() const', internal=False)),
+    ('window_retire', lambda: Retire('WbMainWindow::deleteWorldLoadingProgressDialog()', internal=False)),
 )
 coverage = {}
 for name, create in specs:

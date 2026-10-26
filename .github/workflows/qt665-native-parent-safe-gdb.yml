@@ -1,0 +1,75 @@
+# This isolated evidence-branch workflow is NOT a canonical CI Gate.
+name: Qt665 full ELF parent-safe causal GDB (NON-GATE)
+on:
+  push:
+    branches: [evidence/665-native-gdb-parent-safe-20261026]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  same-frame-native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: djibian/webeeblocks
+          ref: 670bb73757da815792c6ae6011bb6a9eeb9a69a8
+          path: qt701-candidate
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40354624966
+          name: qt665-parent-safe-full-link-e5fa2d8c1409a1c97f63d9b14039683ffcfb0b05
+          path: qt665-candidate
+          github-token: ${{ github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare original Grand Prix witness and attest ELF
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545  qt665-candidate/webots-bin' | sha256sum -c -
+          mkdir -p ci-artifacts/qt665-native-gdb
+          python3 -m py_compile experiments/qt-progress-lifetime-665/native-gdb/{qt_lifetime_gdb,run_qualification}.py
+          ./tools/prepare_runtime_v2.sh
+          git clone --depth=1 --filter=blob:none --sparse --branch R2025a https://github.com/cyberbotics/webots.git .ci-qt665-webots-src
+          git -C .ci-qt665-webots-src sparse-checkout set projects/robots/bitcraze/crazyflie projects/objects/backgrounds projects/objects/floors projects/appearances projects/default
+          test "$(git -C .ci-qt665-webots-src rev-parse HEAD)" = c6793d8f7230a311c4bc2a3101d9f1a8bc0aa01b
+          printf 'probe_head=%s\npr_source=670bb73757da815792c6ae6011bb6a9eeb9a69a8\nelf=e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545\n' "$GITHUB_SHA" > ci-artifacts/qt665-native-gdb/provenance.txt
+      - name: Run real Webots ELF under GDB/XCB without --minimize
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='cyberbotics/webots@sha256:f0023e30daf38b172e4e6ad24ed345909bcd9551df34d63d824e121a7cebf099'
+          docker pull "$image"
+          docker run --rm --init --entrypoint /bin/bash \
+            -e WEBOTS_HOME=/usr/local/webots \
+            -e QT665_EXPECTED_IMAGE="$image" \
+            -v "$PWD:/workspace" \
+            -v "$PWD/.ci-qt665-webots-src/projects:/usr/local/webots/projects:ro" \
+            -w /workspace "$image" -c '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              (timeout 90s apt-get update && timeout 90s apt-get install -y --no-install-recommends --no-remove gdb) > ci-artifacts/qt665-native-gdb/debugger-install.log 2>&1
+              python3 qt701-candidate/experiments/webots-qt-665/attest_and_install_candidate.py \
+                --runtime-home /usr/local/webots \
+                --candidate /workspace/qt665-candidate/webots-bin \
+                --expected-candidate-sha256 e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545 \
+                --manifest /workspace/ci-artifacts/qt665-native-gdb/attested-disposable-installation.json \
+                --replace-disposable-installation
+              test "$(sha256sum /usr/local/webots/bin/webots-bin | cut -d" " -f1)" = "e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545"
+              python3 -u experiments/qt-progress-lifetime-665/native-gdb/run_qualification.py
+            '
+      - name: Upload diagnostic logs and provenance, never core dumps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt665-parent-safe-full-elf-causal-${{ github.sha }}
+          path: ci-artifacts/qt665-native-gdb/
+          if-no-files-found: error
+          retention-days: 14
