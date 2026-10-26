@@ -29,6 +29,17 @@ class RunningConsumerTests(unittest.TestCase):
             device = f'{__import__("os").major(st.st_dev):02x}:{__import__("os").minor(st.st_dev):02x}'
             line = f'7fb-8fb r-xp 00000000 {device} {st.st_ino} {lib}\n'
             self.assertEqual(probe.mapped_qt_files(line, lib.name, lib), {lib})
+            # Native Webots /proc/maps exposes the SONAME alias rather than
+            # the fully versioned filename checked by the SHA-256 policy.
+            alias = lib.with_name('libQt6Core.so.6')
+            alias.symlink_to(lib.name)
+            alias_line = line.replace(str(lib), str(alias))
+            self.assertEqual(probe.mapped_qt_files(alias_line, lib.name, lib), {lib})
+            with self.assertRaisesRegex(ValueError, 'inode differs'):
+                probe.mapped_qt_files(
+                    alias_line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
+            with self.assertRaisesRegex(ValueError, 'deleted'):
+                probe.mapped_qt_files(alias_line.strip()+' (deleted)\\n', lib.name, lib)
             with self.assertRaisesRegex(ValueError, 'inode differs'):
                 probe.mapped_qt_files(line.replace(str(st.st_ino), str(st.st_ino+1), 1), lib.name, lib)
             with self.assertRaisesRegex(ValueError, 'deleted'):
