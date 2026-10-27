@@ -221,7 +221,11 @@
     if (stopped) return stopped;
     if (this.scenePreparationPending)
       return Promise.reject(new RuntimeV2BackendError('SCENE_BUSY'));
-    var scene = profile && profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+    // A profile declares its scene; an unknown activity must never silently
+    // fall back to the obstacle-filled legacy scene.
+    var scene = profile && profile.runtime && profile.runtime.scene;
+    if (scene !== 'sequence-v1' && scene !== 'legacy-v1')
+      return Promise.reject(new RuntimeV2BackendError('SCENE_UNAVAILABLE'));
     if (this.sceneIdentity === scene) return Promise.resolve();
     this.sceneIdentity = null; // An unknown import outcome must be reconstructed.
     this.scenePreparationPending = true;
