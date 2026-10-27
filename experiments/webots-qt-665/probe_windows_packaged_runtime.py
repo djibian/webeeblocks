@@ -108,6 +108,16 @@ def attest_modules(mapped_paths, required, sdk):
     return result
 
 
+def unique_native_snapshot(qualified_rows):
+    """Use only this poll's attested processes; reject duplicate native roles."""
+    snapshot = {}
+    for role, record in qualified_rows:
+        if role in snapshot:
+            raise ValueError('Duplicate native process role: ' + role)
+        snapshot[role] = record
+    return snapshot
+
+
 def process_role(name, command_line):
     if name == 'webots-bin.exe':
         return name
@@ -186,6 +196,8 @@ def run(args):
                 raise RuntimeError(f'Webots launcher exited: {process.returncode:#x}')
             if root.create_time() != root_time:
                 raise RuntimeError('Launcher process identity changed')
+            qualified_rows = []
+            incomplete_snapshot = False
             for child in root.children(recursive=True):
                 try:
                     identity = (child.pid, child.create_time())
@@ -202,16 +214,19 @@ def run(args):
                     modules = attest_modules([m.path for m in child.memory_maps()], expected, sdk)
                     graphics = {m.path: sha256(Path(m.path)) for m in child.memory_maps()
                                 if Path(m.path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
-                    report['processes'][role] = {'pid': child.pid, 'create_time': identity[1],
+                    qualified_rows.append((role, {'pid': child.pid, 'create_time': identity[1],
                         'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules,
-                        'graphics_modules': graphics, 'command_line': command_line}
+                        'graphics_modules': graphics, 'command_line': command_line}))
                 except (psutil.NoSuchProcess, psutil.AccessDenied, LookupError):
-                    # Incomplete startup snapshot is not evidence; never accept it.
+                    # An incomplete observation cannot qualify this poll.
+                    incomplete_snapshot = True
                     continue
+            report['processes'] = unique_native_snapshot(qualified_rows)
             logs = '\n'.join((output / f).read_text(errors='replace') if (output / f).is_file() else ''
                              for f in ('stdout.log', 'stderr.log'))
             report['ready_observed'] = bool(re.search(r'WEBEEBLOCKS_RUNTIME_V2 READY(?:\s|$)', logs))
-            ready = report['ready_observed'] and set(report['processes']) == {'webots-bin.exe', 'runtime', 'sequence-evaluator'}
+            ready = (not incomplete_snapshot and report['ready_observed'] and
+                     set(report['processes']) == {'webots-bin.exe', 'runtime', 'sequence-evaluator'})
             if ready:
                 engine = report['processes']['webots-bin.exe']
                 if (engine['ppid'] != process.pid or

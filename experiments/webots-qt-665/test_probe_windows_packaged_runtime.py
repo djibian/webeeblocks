@@ -98,6 +98,21 @@ class ProbeTests(unittest.TestCase):
             self.assertNotIn(key, env)
         self.assertEqual(env['WEBOTS_HOME'], str(root))
 
+    def test_native_snapshot_rejects_duplicate_and_stale_roles(self):
+        expected = {'webots-bin.exe', 'runtime', 'sequence-evaluator'}
+        full = probe.unique_native_snapshot([
+            ('webots-bin.exe', {'pid': 1}), ('runtime', {'pid': 2}),
+            ('sequence-evaluator', {'pid': 3})])
+        self.assertEqual(set(full), expected)
+        # A later poll cannot inherit a role that was present in an earlier one.
+        partial = probe.unique_native_snapshot([
+            ('webots-bin.exe', {'pid': 1}), ('runtime', {'pid': 2})])
+        self.assertNotIn('sequence-evaluator', partial)
+        self.assertEqual(set(full), expected)
+        with self.assertRaisesRegex(ValueError, 'Duplicate native process role: runtime'):
+            probe.unique_native_snapshot([
+                ('runtime', {'pid': 2}), ('runtime', {'pid': 4})])
+
     def test_package_tamper_extra_missing_and_escape_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'package'
