@@ -76,7 +76,10 @@
       requireString(profile.evaluation.oracle, 'evaluation.oracle');
     }
     if (!isObject(profile.runtime)) fail('runtime must be an object');
-    if (profile.runtime.scene !== 'sequence-v1' && profile.runtime.scene !== 'legacy-v1')
+    // Dedicated worlds (including archived experiment profiles) do not select
+    // a managed scene. If supplied, however, the native scene token is strict.
+    if (profile.runtime.scene !== undefined &&
+        profile.runtime.scene !== 'sequence-v1' && profile.runtime.scene !== 'legacy-v1')
       fail('runtime.scene must be sequence-v1 or legacy-v1');
     if (profile.runtime.maxSteps !== undefined && (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000)) fail('runtime.maxSteps outside [1, 20000]');
     requireStringArray(profile.runtime.allowedStatementKinds, 'runtime.allowedStatementKinds');
