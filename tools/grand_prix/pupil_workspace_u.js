@@ -1,5 +1,5 @@
 'use strict';
-// Exact real .wbb project from #703 (8c315326fbba556d01c88bc8d512910cf85e9665); experimental witness ONLY.
+// Isolated experimental 232-guarded-block pupil .wbb. Original #647 adapter unchanged.
 // Never read seed, layout, oracle, or mission-state information from Blockly.
 const assert = require('assert');
 const crypto = require('crypto');
@@ -10,6 +10,9 @@ const ROOT = path.resolve(__dirname, '../..');
 const file = path.join(ROOT, 'experiments/grand-prix-pupil-algorithm/Grand-Prix-sans-murs-algorithme-candidat.wbb');
 function build() {
   const content = fs.readFileSync(file, 'utf8');
+  assert.deepStrictEqual(JSON.parse(content),
+    require(path.join(ROOT, 'experiments/grand-prix-pupil-algorithm/build.js')).build(),
+    'exact generated 232-contrast-block WBB identity before admission');
   const project = JSON.parse(content);
   const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
   require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
@@ -53,8 +56,8 @@ module.exports = {build};
 if (require.main === module) {
   const witness = build();
   console.log('GP_U_PUPIL_PREFLIGHT ' + JSON.stringify({
-    source_pr: 703, source_head: '8c315326fbba556d01c88bc8d512910cf85e9665',
-    source_blob: '02c0cdef8fc7189aa171b584a8160b52e392ba1c', project_sha256: witness.project_sha256,
+    source_pr: 705, source_head: process.env.GITHUB_SHA||'unresolved',
+    derived_from: '7204975ad0d05b0fb2bcfe56e2690e225dfd9266', project_sha256: witness.project_sha256,
     ast_sha256: witness.ast_sha256, blocks: 232,
     claim: 'real-Blockly-13.2.1-preflight-AST-roundtrip-only'}));
 }
