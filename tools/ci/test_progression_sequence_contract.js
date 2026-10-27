@@ -12,8 +12,8 @@ const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webe
 
 // Native scene identity belongs to each profile; no ID-based fallback is safe.
 assert.strictEqual(Activities.DOCUMENT.activities.length, 10, 'scene contract must enumerate all activities');
-for (const [index, activity] of Activities.DOCUMENT.activities.entries()) {
-  const expected = index === 0 ? 'sequence-v1' : 'legacy-v1';
+for (const activity of Activities.DOCUMENT.activities) {
+  const expected = activity.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
