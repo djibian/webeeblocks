@@ -3,10 +3,18 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from probe_windows_packaged_runtime import attest_modules, engine_environment, sha256, verify_package
+from probe_windows_packaged_runtime import attest_modules, engine_environment, process_role, sha256, verify_package
 
 
 class ProbeTests(unittest.TestCase):
+    def test_evaluator_cannot_substitute_for_main_runtime(self):
+        exe = 'crazyflie_runtime_v2.exe'
+        self.assertEqual(process_role(exe, [exe]), 'runtime')
+        self.assertEqual(process_role(exe, [exe, 'sequence-evaluator-v1']), 'sequence-evaluator')
+        for args in ([], [exe, 'unknown'], [exe, 'sequence-evaluator-v1', 'extra']):
+            with self.assertRaises(ValueError):
+                process_role(exe, args)
+
     def test_real_mapped_path_and_bytes_required(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -82,6 +82,18 @@ def attest_modules(mapped_paths, required, sdk):
     return result
 
 
+def process_role(name, command_line):
+    if name == 'webots-bin.exe':
+        return name
+    if name == 'crazyflie_runtime_v2.exe':
+        if len(command_line) == 1:
+            return 'runtime'
+        if len(command_line) == 2 and command_line[1] == 'sequence-evaluator-v1':
+            return 'sequence-evaluator'
+        raise ValueError('Unexpected classroom controller arguments')
+    return None
+
+
 def run(args):
     import psutil  # Host observer only. Never added to the product environment.
     if sys.platform != 'win32':
@@ -114,7 +126,7 @@ def run(args):
             'qwindows.dll': (qwindows, sha256(plugin_source)),
             'libopenal-1.dll': (bin_dir / 'libopenal-1.dll', sha256(sdk / 'libopenal-1.dll'))})
         controller = package / 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.exe'
-        controller_required = {name: shared[name] for name in ('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll')}
+        controller_required = dict(shared)
         controller_required.update({'crazyflie_runtime_v2.exe': (controller, sha256(controller)),
                                    'Controller.dll': (home / 'lib/controller/Controller.dll',
                                                       sha256(home / 'lib/controller/Controller.dll'))})
@@ -157,6 +169,8 @@ def run(args):
                     name = child.name().casefold()
                     if name not in ('webots-bin.exe', 'crazyflie_runtime_v2.exe'):
                         continue
+                    command_line = child.cmdline()
+                    role = process_role(name, command_line)
                     expected = engine_required if name == 'webots-bin.exe' else controller_required
                     expected_exe = bin_dir / name if name == 'webots-bin.exe' else controller
                     if Path(child.exe()).resolve() != expected_exe.resolve():
@@ -164,17 +178,21 @@ def run(args):
                     modules = attest_modules([m.path for m in child.memory_maps()], expected, sdk)
                     graphics = {m.path: sha256(Path(m.path)) for m in child.memory_maps()
                                 if Path(m.path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
-                    report['processes'][name] = {'pid': child.pid, 'create_time': identity[1],
+                    report['processes'][role] = {'pid': child.pid, 'create_time': identity[1],
                         'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules,
-                        'graphics_modules': graphics}
+                        'graphics_modules': graphics, 'command_line': command_line}
                 except (psutil.NoSuchProcess, psutil.AccessDenied, LookupError):
                     # Incomplete startup snapshot is not evidence; never accept it.
                     continue
             logs = '\n'.join((output / f).read_text(errors='replace') if (output / f).is_file() else ''
                              for f in ('stdout.log', 'stderr.log'))
             report['ready_observed'] = bool(re.search(r'WEBEEBLOCKS_RUNTIME_V2 READY(?:\s|$)', logs))
-            ready = report['ready_observed'] and set(report['processes']) == {'webots-bin.exe', 'crazyflie_runtime_v2.exe'}
+            ready = report['ready_observed'] and set(report['processes']) == {'webots-bin.exe', 'runtime', 'sequence-evaluator'}
             if ready:
+                engine = report['processes']['webots-bin.exe']
+                if (engine['ppid'] != process.pid or
+                        any(report['processes'][role]['ppid'] != engine['pid'] for role in ('runtime', 'sequence-evaluator'))):
+                    raise RuntimeError('Unexpected launcher/engine/controller ancestry')
                 for row in report['processes'].values():
                     live = psutil.Process(row['pid'])
                     if live.create_time() != row['create_time'] or not live.is_running():
