@@ -205,7 +205,11 @@
       } catch (error) {
         try { await writable.abort(); }
         catch (abortError) {
-          if (error && typeof error === 'object') error.abortError = abortError;
+          if (error && typeof error === 'object') {
+            // Diagnostic annotation is best-effort: DOM/host errors may be frozen.
+            try { error.abortError = abortError; }
+            catch (_) { /* Never replace the original write error. */ }
+          }
         }
         throw error;
       }

@@ -475,6 +475,32 @@ async function exerciseBrowserWriteAtomicity() {
     }
   }
 
+  for (const operation of ['saveAs', 'save']) {
+    // A frozen host exception must retain its identity if abort also rejects.
+    const primary = Object.freeze(new Error('immutable file write failure'));
+    let abortCalled = 0, closeCalled = 0;
+    const handle = {
+      name: 'eleve.wbb',
+      async createWritable() {
+        return {
+          async write() { throw primary; },
+          async close() { closeCalled++; },
+          async abort() { abortCalled++; throw new Error('secondary abort failure'); }
+        };
+      }
+    };
+    const transport = ProjectFiles.createBrowserTransport({
+      async showSaveFilePicker() { return handle; },
+      async showOpenFilePicker() { return [handle]; }
+    }, {});
+    await assert.rejects(operation === 'saveAs'
+      ? transport.saveAs('eleve.wbb', '{}')
+      : transport.save(handle, 'eleve.wbb', '{}'), error => error === primary,
+    'secondary abort failure must not mask an immutable write failure');
+    assert.strictEqual(abortCalled, 1);
+    assert.strictEqual(closeCalled, 0, 'failed immutable write closed the target');
+  }
+
   for (const missingMethod of ['write', 'close', 'abort']) {
     let unexpectedWrites = 0;
     const incompleteHandle = {
