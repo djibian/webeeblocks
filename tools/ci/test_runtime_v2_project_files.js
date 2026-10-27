@@ -475,23 +475,29 @@ async function exerciseBrowserWriteAtomicity() {
     }
   }
 
-  let unexpectedWrites = 0;
-  const noAbortHandle = {
-    name: 'eleve.wbb',
-    async createWritable() {
-      return {
-        async write() { unexpectedWrites++; },
-        async close() { unexpectedWrites++; }
-      };
-    }
-  };
-  const noAbortTransport = ProjectFiles.createBrowserTransport({
-    async showSaveFilePicker() { return noAbortHandle; },
-    async showOpenFilePicker() { return [noAbortHandle]; }
-  }, {});
-  await assert.rejects(noAbortTransport.saveAs('eleve.wbb', '{}'),
-    /transactional file stream unavailable/, 'non-abortable stream must fail closed');
-  assert.strictEqual(unexpectedWrites, 0, 'non-transactional stream wrote data');
+  for (const missingMethod of ['write', 'close', 'abort']) {
+    let unexpectedWrites = 0;
+    const incompleteHandle = {
+      name: 'eleve.wbb',
+      async createWritable() {
+        const stream = {
+          async write() { unexpectedWrites++; },
+          async close() { unexpectedWrites++; },
+          async abort() { unexpectedWrites++; }
+        };
+        delete stream[missingMethod];
+        return stream;
+      }
+    };
+    const transport = ProjectFiles.createBrowserTransport({
+      async showSaveFilePicker() { return incompleteHandle; },
+      async showOpenFilePicker() { return [incompleteHandle]; }
+    }, {});
+    await assert.rejects(transport.saveAs('eleve.wbb', '{}'),
+      /transactional file stream unavailable/, 'incomplete stream must fail closed');
+    assert.strictEqual(unexpectedWrites, 0,
+      'stream missing ' + missingMethod + ' was allowed to write/close');
+  }
 
   console.log('PASS browser atomic Save/Save As: failed write/close aborts, original error and bytes preserved, no non-transactional fallback');
 }

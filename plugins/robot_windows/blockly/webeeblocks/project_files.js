@@ -196,7 +196,8 @@
       // File System Access commits the temporary file on close(). A failed
       // write must abort instead: closing here could replace a valid .wbb
       // with incomplete student work.
-      if (!writable || typeof writable.abort !== 'function')
+      if (!writable || typeof writable.write !== 'function' ||
+          typeof writable.close !== 'function' || typeof writable.abort !== 'function')
         fail('transactional file stream unavailable');
       try {
         await writable.write(text);
