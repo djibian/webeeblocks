@@ -182,6 +182,34 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)
                 self.assertFalse(selection.full)
 
+    def test_grand_prix_u_controller_and_evaluator_require_full_windows_gate(self) -> None:
+        # These sources are compiled/consumed by ci-runtime.yml's native
+        # grand-prix-prototype. The Windows release/composition job is
+        # additionally gated by inputs.full; Webots-only is insufficient.
+        for path in (
+            "controllers/grand_prix_u_flight/Makefile",
+            "controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp",
+            "controllers/grand_prix_u_flight/new_native_probe.c",
+            "controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py",
+            "controllers/grand_prix_u_evaluator/new_oracle.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertTrue(selection.full)
+
+        # Keep the existing scoped path for the native test scripts and do
+        # not expand unrelated historical controllers into full CI.
+        scoped = select(["tools/ci/test_grand_prix_u_timeout_probe.py"])
+        self.assertTrue(scoped.runtime)
+        self.assertTrue(scoped.webots)
+        self.assertFalse(scoped.full)
+        legacy = select(["controllers/crazyflie_square/pid_controller.c"])
+        self.assertFalse(legacy.runtime)
+        self.assertTrue(legacy.webots)
+        self.assertFalse(legacy.full)
+
     def test_native_windows_gp_u_fixtures_require_full_release_validation(self) -> None:
         # The Windows-only composed C/C++ test lives behind inputs.full.
         # Running just the partial Runtime suite silently skips that job.
