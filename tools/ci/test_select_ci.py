@@ -245,6 +245,14 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.webots)
         self.assertTrue(result.full)
 
+    def test_product_blockly_definition_test_keeps_its_runtime_owner(self) -> None:
+        # #721 introduced this test in Runtime student-ui. A generic tools/ci/**
+        # edit previously selected Webots alone and skipped the actual oracle.
+        result = select(["tools/ci/test_blockly_v2_product_definitions.js"])
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)  # preserve existing Webots coverage
+        self.assertFalse(result.full)
+
     def test_runtime_v2_student_ui_experiment_routes_to_runtime(self) -> None:
         result = select(["experiments/runtime-v2-student-ui/probe.py"])
         self.assertTrue(result.runtime)
