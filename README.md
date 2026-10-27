@@ -174,6 +174,9 @@ See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
 ## Repository map
 
+A short [map of the maintained architecture](docs/ARCHITECTURE.md) links
+code responsibilities, execution boundaries and their validation surfaces.
+
 | Path | Purpose |
 | --- | --- |
 | `plugins/robot_windows/blockly_v2/` | current Blockly Robot Window UI |
