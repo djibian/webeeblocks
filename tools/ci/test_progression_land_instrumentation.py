@@ -89,6 +89,29 @@ class LandInstrumentationTests(unittest.TestCase):
         self.assertEqual(self.original.count("#define ACTION_TIMEOUT 25.0"), 1)
         self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
 
+    def test_move_monotonic_observation_discriminates_clock_adjustment(self):
+        # Supplemental native source observation only: both clocks are sampled
+        # in the same existing MOVE logging branch; deadlines are unchanged.
+        p = self.instrumented
+        self.assertIn("#include <time.h>", p)
+        self.assertEqual(p.count("clock_gettime(CLOCK_MONOTONIC, &ts)"), 1)
+        self.assertIn("static long long sequence_ci_monotonic_ms(void)", p)
+        self.assertIn("return -1;  // Unavailable observation", p)
+        self.assertIn(
+            "WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f "
+            "wall_ms=%lld monotonic_ms=%lld x=%.9f", p,
+        )
+        self.assertEqual(p.count("WEBEEBLOCKS_SEQUENCE_CI_MOVE id="), 1)
+        self.assertIn(
+            "active_id, now, now - action_start, sequence_ci_wall_ms(), "
+            "sequence_ci_monotonic_ms(), x, y, z,", p,
+        )
+        self.assertEqual(p.count("sequence_ci_monotonic_ms()"), 1)
+        self.assertEqual(p.count("sequence_ci_move_samples++ % 128 == 0"), 1)
+        self.assertNotIn("sequence_ci_monotonic_ms", self.original)
+        self.assertEqual(p.count("#define ACTION_TIMEOUT 25.0"), 1)
+        self.assertEqual(self.original.count("#define ACTION_TIMEOUT 25.0"), 1)
+
     def test_move_probe_guard_fails_closed(self):
         changed = self.original.replace(
             "        command = CMD_MOVE;\n        stable_since = -1.0;",
