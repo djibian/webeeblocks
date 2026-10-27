@@ -30,6 +30,9 @@ def sha256(path):
 # The digest from pe.sha256 is self-declared by its artifact and is NOT an
 # authority: a matching archive/installation pair could both be unqualified.
 QUALIFIED_WINDOWS_PE_SHA256 = '52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+# Exact MANIFEST.sha256 in canonical 75-file classroom package run 40386450869.
+# Per-entry integrity checks alone cannot authenticate a self-signed archive.
+QUALIFIED_CLASSROOM_MANIFEST_SHA256 = '000ac88a8f56e0337d9243c13faa226fcc2c8bc434b445899013d7df8ba8efc4'
 
 
 def attest_qualified_pe(artifact, installed):
@@ -46,8 +49,12 @@ def attest_qualified_pe(artifact, installed):
 
 
 def verify_package(root):
+    manifest = root / 'MANIFEST.sha256'
+    manifest_hash = sha256(manifest)
+    if manifest_hash != QUALIFIED_CLASSROOM_MANIFEST_SHA256:
+        raise ValueError('Classroom manifest is not the exact canonical archive')
     entries = {}
-    for line in (root / 'MANIFEST.sha256').read_text(encoding='utf-8-sig').splitlines():
+    for line in manifest.read_text(encoding='utf-8-sig').splitlines():
         match = re.fullmatch(r'([a-f0-9]{64})  (.+)', line)
         if not match:
             raise ValueError('Malformed classroom manifest')
@@ -65,7 +72,7 @@ def verify_package(root):
     world = root / 'worlds/crazyflie_runtime_v2.wbt'
     if 'DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {' not in world.read_text(encoding='utf-8-sig'):
         raise ValueError('The untouched classroom neutral world is required')
-    return {'files': len(entries), 'manifest_sha256': sha256(root / 'MANIFEST.sha256')}
+    return {'files': len(entries), 'manifest_sha256': manifest_hash}
 
 
 def engine_environment(home, ambient):

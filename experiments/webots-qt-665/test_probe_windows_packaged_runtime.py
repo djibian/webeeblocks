@@ -106,23 +106,43 @@ class ProbeTests(unittest.TestCase):
             world.write_text('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {\n}\n')
             manifest = root / 'MANIFEST.sha256'
             manifest.write_text(f'{sha256(world)}  worlds/crazyflie_runtime_v2.wbt\n')
-            self.assertEqual(verify_package(root)['files'], 1)
+
+            self.assertEqual(probe.QUALIFIED_CLASSROOM_MANIFEST_SHA256,
+                             '000ac88a8f56e0337d9243c13faa226fcc2c8bc434b445899013d7df8ba8efc4')
+            # The content of a self-signed fixture must NOT be accepted by the
+            # production default; tests explicitly override only this anchor.
+            with self.assertRaisesRegex(ValueError, 'canonical'):
+                verify_package(root)
+
+            def fixture_verify():
+                with mock.patch.object(probe, 'QUALIFIED_CLASSROOM_MANIFEST_SHA256', sha256(manifest)):
+                    return verify_package(root)
+
+            # Rewriting a classroom world AND recomputing its own manifest is
+            # insufficient to attest the unchanged canonical package.
+            world.write_text('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {\n}\n# altered\n')
+            manifest.write_text(f'{sha256(world)}  worlds/crazyflie_runtime_v2.wbt\n')
+            with self.assertRaisesRegex(ValueError, 'canonical'):
+                verify_package(root)
+            world.write_text('DEF WEBEEBLOCKS_CLASSROOM_START_WORLD WorldInfo {\n}\n')
+            manifest.write_text(f'{sha256(world)}  worlds/crazyflie_runtime_v2.wbt\n')
+            self.assertEqual(fixture_verify()['files'], 1)
             extra = root / 'foreign.dll'
             extra.write_bytes(b'extra')
             with self.assertRaises(ValueError):
-                verify_package(root)
+                fixture_verify()
             extra.unlink()
             world.write_text('tampered')
             with self.assertRaises(ValueError):
-                verify_package(root)
+                fixture_verify()
             world.unlink()
             with self.assertRaises(FileNotFoundError):
-                verify_package(root)
+                fixture_verify()
             foreign = root.parent / 'outside'
             foreign.write_bytes(b'outside')
             manifest.write_text(f'{sha256(foreign)}  ../outside\n')
             with self.assertRaises(ValueError):
-                verify_package(root)
+                fixture_verify()
 
 
 if __name__ == '__main__':
