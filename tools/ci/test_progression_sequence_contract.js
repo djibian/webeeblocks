@@ -17,10 +17,14 @@ for (const activity of Activities.DOCUMENT.activities) {
   const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
   assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
   assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
-  for (const invalid of [undefined, null, '', '../secret', 'unknown-v2']) {
+  // Dedicated-world profiles may omit this field. The WWI scene backend
+  // independently refuses absence before any native import (project tests).
+  const dedicated = JSON.parse(JSON.stringify(activity));
+  delete dedicated.runtime.scene;
+  assert.strictEqual(Profiles.validateProfile(dedicated, Activities.BLOCK_CATALOG), true);
+  for (const invalid of [null, '', '../secret', 'unknown-v2']) {
     const changed = JSON.parse(JSON.stringify(activity));
-    if (invalid === undefined) delete changed.runtime.scene;
-    else changed.runtime.scene = invalid;
+    changed.runtime.scene = invalid;
     assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
       /runtime.scene must be sequence-v1 or legacy-v1/, 'ambiguous scene accepted for ' + activity.id);
   }
