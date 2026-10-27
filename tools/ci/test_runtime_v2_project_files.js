@@ -366,7 +366,8 @@ function fakeNativeBrowser() {
     async createWritable() {
       return {
         async write(text) { state.bytes = String(text); state.writes += 1; },
-        async close() {}
+        async close() {},
+        async abort() { throw new Error('successful write was unexpectedly aborted'); }
       };
     },
     async getFile() { return {name:state.nextOpenName, text:async () => state.bytes}; }
@@ -417,6 +418,114 @@ async function exerciseBrowserBoundary() {
   await assert.rejects(unavailable.saveAs('x', '{}'), /use Google Chrome/);
   assert(!ProjectFiles.createBrowserTransport.toString().includes('Blob'), 'Blob fallback must not exist');
   assert(!ProjectFiles.createBrowserTransport.toString().includes("createElement('input')"), 'input upload fallback must not exist');
+}
+
+async function exerciseBrowserWriteAtomicity() {
+  // Native File System Access uses a temporary file until close(). A write
+  // failure must never close/commit partial bytes over a student's old .wbb.
+  for (const operation of ['saveAs', 'save']) {
+    for (const failAt of ['write', 'close']) {
+      for (const abortFails of [false, true]) {
+        const oldBytes = 'previous valid student project';
+        let disk = oldBytes;
+        let staged = null;
+        const events = [];
+        const primary = new Error('simulated ' + failAt + ' failure');
+        const secondary = new Error('simulated abort failure');
+        const handle = {
+          name: 'eleve.wbb',
+          async createWritable() {
+            staged = disk;
+            return {
+              async write(text) {
+                events.push('write');
+                staged = String(text).slice(0, 7);
+                if (failAt === 'write') throw primary;
+              },
+              async close() {
+                events.push('close');
+                if (failAt === 'close') throw primary;
+                disk = staged; // Closing after a failed write would corrupt it.
+              },
+              async abort() {
+                events.push('abort');
+                if (abortFails) throw secondary;
+                staged = null;
+              }
+            };
+          }
+        };
+        const transport = ProjectFiles.createBrowserTransport({
+          async showSaveFilePicker() { return handle; },
+          async showOpenFilePicker() { return [handle]; }
+        }, {});
+        const saving = operation === 'saveAs'
+          ? transport.saveAs('eleve.wbb', 'replacement project')
+          : transport.save(handle, 'eleve.wbb', 'replacement project');
+        await assert.rejects(saving, error => {
+          assert.strictEqual(error, primary, 'abort masked the original write/close failure');
+          if (abortFails) assert.strictEqual(error.abortError, secondary);
+          return true;
+        });
+        assert.strictEqual(disk, oldBytes, 'failed write committed partial bytes');
+        assert.deepStrictEqual(events, failAt === 'write'
+          ? ['write', 'abort'] : ['write', 'close', 'abort'],
+          'failed write must abort, never close afterward');
+      }
+    }
+  }
+
+  for (const operation of ['saveAs', 'save']) {
+    // A frozen host exception must retain its identity if abort also rejects.
+    const primary = Object.freeze(new Error('immutable file write failure'));
+    let abortCalled = 0, closeCalled = 0;
+    const handle = {
+      name: 'eleve.wbb',
+      async createWritable() {
+        return {
+          async write() { throw primary; },
+          async close() { closeCalled++; },
+          async abort() { abortCalled++; throw new Error('secondary abort failure'); }
+        };
+      }
+    };
+    const transport = ProjectFiles.createBrowserTransport({
+      async showSaveFilePicker() { return handle; },
+      async showOpenFilePicker() { return [handle]; }
+    }, {});
+    await assert.rejects(operation === 'saveAs'
+      ? transport.saveAs('eleve.wbb', '{}')
+      : transport.save(handle, 'eleve.wbb', '{}'), error => error === primary,
+    'secondary abort failure must not mask an immutable write failure');
+    assert.strictEqual(abortCalled, 1);
+    assert.strictEqual(closeCalled, 0, 'failed immutable write closed the target');
+  }
+
+  for (const missingMethod of ['write', 'close', 'abort']) {
+    let unexpectedWrites = 0;
+    const incompleteHandle = {
+      name: 'eleve.wbb',
+      async createWritable() {
+        const stream = {
+          async write() { unexpectedWrites++; },
+          async close() { unexpectedWrites++; },
+          async abort() { unexpectedWrites++; }
+        };
+        delete stream[missingMethod];
+        return stream;
+      }
+    };
+    const transport = ProjectFiles.createBrowserTransport({
+      async showSaveFilePicker() { return incompleteHandle; },
+      async showOpenFilePicker() { return [incompleteHandle]; }
+    }, {});
+    await assert.rejects(transport.saveAs('eleve.wbb', '{}'),
+      /transactional file stream unavailable/, 'incomplete stream must fail closed');
+    assert.strictEqual(unexpectedWrites, 0,
+      'stream missing ' + missingMethod + ' was allowed to write/close');
+  }
+
+  console.log('PASS browser atomic Save/Save As: failed write/close aborts, original error and bytes preserved, no non-transactional fallback');
 }
 
 async function exerciseWwiBusyDiscovery() {
@@ -588,6 +697,7 @@ async function exerciseWwiBoundary() {
 
 (async function() {
   await exerciseBrowserBoundary();
+  await exerciseBrowserWriteAtomicity();
   await exerciseWwiBoundary();
   await exerciseWwiBusyDiscovery();
   await exerciseWwiDiscoveryRecovery();

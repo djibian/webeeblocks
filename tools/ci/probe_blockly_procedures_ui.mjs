@@ -14,7 +14,7 @@ const page=await browser.newPage({viewport:{width:1600,height:1000}});const erro
 const fixture=fs.readFileSync(root+'/tools/blockly/procedure_steps_demo.wbb','utf8');
 await page.addInitScript(({fixture})=>{
  window.testWrites=[];window.testProjectText=fixture;window.testMessages=[];window.testBlocks=[];
- const handle={name:'procedure_steps_demo.wbb',async getFile(){return {name:this.name,text:async()=>window.testProjectText};},async createWritable(){return {async write(text){window.testProjectText=text;window.testWrites.push(text);},async close(){}};}};
+ const handle={name:'procedure_steps_demo.wbb',async getFile(){return {name:this.name,text:async()=>window.testProjectText};},async createWritable(){let staged=window.testProjectText;return {async write(text){staged=text;},async close(){window.testProjectText=staged;window.testWrites.push(staged);},async abort(){staged=null;}};}};
  window.showOpenFilePicker=async()=>[handle];window.showSaveFilePicker=async()=>handle;
  window.addEventListener('webeeblocks-debug-paused',e=>window.testBlocks.push(e.detail.blockId));
 }, {fixture});

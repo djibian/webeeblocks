@@ -26,17 +26,39 @@ fake_api = r'''
     save: typeof window.showSaveFilePicker === 'function',
     secureContext: window.isSecureContext === true
   };
-  window.__webeeblocksCiFileStore = {bytes: '', writes: 0, names: [], handle: null};
+  window.__webeeblocksCiFileStore = {bytes: '', writes: 0, names: [], handle: null,
+                                      aborts: 0, failNextWrite: false};
   window.__webeeblocksCiFileStore.handle = {
     name: 'ci-roundtrip.wbb',
     async createWritable() {
+      // Model FileSystemWritableFileStream: write stages, close commits, abort
+      // discards. Writing directly to bytes would hide partial-save regressions.
+      const store = window.__webeeblocksCiFileStore;
+      let staged = store.bytes;
+      let finished = false;
       return {
         async write(text) {
-          window.__webeeblocksCiFileStore.bytes = String(text);
-          window.__webeeblocksCiFileStore.writes += 1;
-          window.__webeeblocksCiFileStore.names.push('ci-roundtrip.wbb');
+          if (finished) throw new Error('write on finished stream');
+          staged = String(text);
+          if (store.failNextWrite) {
+            store.failNextWrite = false;
+            staged = staged.slice(0, 7);
+            throw new Error('simulated failed transactional write');
+          }
         },
-        async close() {}
+        async close() {
+          if (finished) throw new Error('close on finished stream');
+          finished = true;
+          store.bytes = staged;
+          store.writes += 1;
+          store.names.push('ci-roundtrip.wbb');
+        },
+        async abort() {
+          if (finished) throw new Error('abort on finished stream');
+          finished = true;
+          staged = null;
+          store.aborts += 1;
+        }
       };
     },
     async getFile() {
@@ -173,6 +195,21 @@ harness = r'''
           if (savedBytes.toLowerCase().includes('"' + forbidden)) throw new Error('forbidden stored field ' + forbidden);
         }
         await report('SAVE_AS_OK', {bytes:savedBytes.length, writes:1});
+
+        // Fail one explicit Save after staging truncated data. Chrome must
+        // preserve the previously committed .wbb and retain the Save target.
+        window.__webeeblocksCiFileStore.failNextWrite = true;
+        firstMove().setFieldValue('0.9', 'DISTANCE');
+        click('projectSave');
+        await waitFor(() => document.getElementById('projectFileState').dataset.error === 'true',
+          'failed Save error', 3000);
+        if (window.__webeeblocksCiFileStore.bytes !== savedBytes ||
+            window.__webeeblocksCiFileStore.writes !== 1 ||
+            window.__webeeblocksCiFileStore.aborts !== 1 ||
+            document.getElementById('projectSave').disabled)
+          throw new Error('failed Save committed partial bytes, skipped abort or lost target');
+        document.getElementById('projectFileState').dataset.error = 'false';
+        await report('SAVE_WRITE_ABORT_OK', {writes:1, aborts:1, bytes:savedBytes.length});
 
         firstMove().setFieldValue('0.8', 'DISTANCE');
         await sleep(150);
