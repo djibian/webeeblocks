@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Regression examples for serialized pupil workspace metrics."""
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parents[1] / 'blockly'))
-from measure_wbb import InvalidWorkspace, analyze, main
+from measure_wbb import InvalidWorkspace, MAX_BYTES, analyze, main
+from compare_wbb import compare, main as comparison_main
 
 
 def b(typ, ident, **kwargs):
@@ -89,6 +92,70 @@ class Complexity(unittest.TestCase):
             }})]))
         with self.assertRaisesRegex(InvalidWorkspace, 'Blockly shadow'):
             analyze(project([b('x', 'a', inputs={'VALUE': {'shadow': None}})]))
+
+    def test_real_wbb_structure_comparison_and_signed_deltas(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first, second = (Path(folder) / name for name in ('first.wbb', 'second.wbb'))
+            comparison = b('logic_compare', 'comparison', inputs={
+                'A': {'block': b('webeeblocks_v2_range', 'range')},
+                'B': {'block': b('math_number', 'threshold')},
+            })
+            condition = b('controls_if', 'condition', inputs={
+                'IF0': {'block': comparison},
+                'DO0': {'block': b('webeeblocks_v2_move', 'move')},
+            })
+            first.write_text(json.dumps(project([
+                b('webeeblocks_v2_takeoff', 'start', next={'block': condition})
+            ])), encoding='utf-8')
+            second.write_text(json.dumps(project([
+                b('webeeblocks_v2_takeoff', 'start2',
+                  next={'block': b('webeeblocks_v2_move', 'move2')})
+            ])), encoding='utf-8')
+            result = compare([first, second])
+            metrics = result['candidates'][0]['metrics']
+            self.assertEqual(metrics['total_blocks'], 6)
+            self.assertEqual(metrics['conditions'], 1)
+            self.assertEqual(metrics['comparisons'], 1)
+            self.assertEqual(metrics['sensor_reads'], 1)
+            self.assertEqual(metrics['numeric_literals'], 1)
+            self.assertEqual(metrics['movement_commands'], 1)
+            self.assertEqual(metrics['main_chain_blocks'], 2)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['total_blocks'], -4)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['conditions'], -1)
+            self.assertEqual(len(result['candidates'][0]['sha256']), 64)
+            self.assertTrue(result['human_construction_debugging_evidence_required'])
+            self.assertIsNone(result['automatic_pedagogical_winner'])
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(comparison_main([str(first), str(second)]), 0)
+            self.assertEqual(json.loads(output.getvalue())['candidates'][1]['metrics']['total_blocks'], 2)
+
+    def test_compare_never_ranks_identical_valid_real_project(self):
+        source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
+        result = compare([source, source])
+        self.assertEqual(result['candidates'][0]['metrics']['total_blocks'], 5)
+        self.assertEqual(result['candidates'][0]['metrics']['referenced_variables'], 1)
+        self.assertTrue(all(value == 0 for value in result['comparisons'][0]['delta_vs_first'].values()))
+        self.assertIsNone(result['automatic_pedagogical_winner'])
+
+    def test_compare_rejects_malformed_missing_or_oversized_project(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first, second = (Path(folder) / name for name in ('first.wbb', 'second.wbb'))
+            first.write_text(json.dumps(project([b('webeeblocks_v2_takeoff', 'valid')])))
+            with self.assertRaisesRegex(ValueError, 'at least two'):
+                compare([first])
+            with self.assertRaises(FileNotFoundError):
+                compare([first, second])
+            second.write_text(json.dumps(project([b('x', 'dup'), b('y', 'dup')])))
+            with self.assertRaisesRegex(InvalidWorkspace, 'duplicate'):
+                compare([first, second])
+            second.write_text('{', encoding='utf-8')
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(comparison_main([str(first), str(second)]), 2)
+            second.write_bytes(b' ' * (MAX_BYTES + 1))
+            with self.assertRaisesRegex(InvalidWorkspace, 'maximum supported size'):
+                compare([first, second])
 
     def test_command_line_output_and_failure(self):
         with tempfile.TemporaryDirectory() as folder:
