@@ -29,6 +29,11 @@ FORCE_FULL = (
     "packaging/windows/**",
     "plugins/robot_windows/blockly_v2/webots/**",
     "tools/prepare_runtime_v2.*",
+    # These U controller/evaluator inputs feed Runtime's native Grand Prix
+    # probe and its full-only Windows release/composition job. Webots alone
+    # cannot exercise either owner: request the entire gate.
+    "controllers/grand_prix_u_flight/**",
+    "controllers/grand_prix_u_evaluator/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
 )
