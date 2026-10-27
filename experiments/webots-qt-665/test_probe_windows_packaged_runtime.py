@@ -2,11 +2,51 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
+import probe_windows_packaged_runtime as probe
 from probe_windows_packaged_runtime import attest_modules, engine_environment, process_role, sha256, verify_package
 
 
 class ProbeTests(unittest.TestCase):
+    def test_corrected_pe_requires_independent_sha256_anchor(self):
+        self.assertEqual(probe.QUALIFIED_WINDOWS_PE_SHA256,
+                         '52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / 'artifact'
+            artifact.mkdir()
+            installed = root / 'installed-webots-bin.exe'
+            candidate = artifact / 'webots-bin.exe'
+            candidate.write_bytes(b'wrong-but-internally-consistent PE')
+            installed.write_bytes(candidate.read_bytes())
+            digest = sha256(candidate)
+            record = artifact / 'pe.sha256'
+            record.write_text(digest + '  webots-bin.exe\\n')
+            # A self-consistent forged archive and installed binary cannot
+            # masquerade as the already-qualified genuine Windows engine.
+            with self.assertRaisesRegex(ValueError, 'independently qualified'):
+                probe.attest_qualified_pe(artifact, installed)
+            record.write_text(probe.QUALIFIED_WINDOWS_PE_SHA256 + '  webots-bin.exe\\n')
+            with self.assertRaisesRegex(ValueError, 'artifact bytes'):
+                probe.attest_qualified_pe(artifact, installed)
+            record.write_text(digest + '  webots-bin.exe\\n')
+            # Synthetic positive exercises both actual file hashes without
+            # pretending that synthetic bytes are a qualified production PE.
+            with mock.patch.object(probe, 'QUALIFIED_WINDOWS_PE_SHA256', digest):
+                self.assertEqual(probe.attest_qualified_pe(artifact, installed), digest)
+                installed.write_bytes(b'other bytes')
+                with self.assertRaisesRegex(ValueError, 'Installed Webots'):
+                    probe.attest_qualified_pe(artifact, installed)
+                installed.write_bytes(candidate.read_bytes())
+                candidate.write_bytes(b'other bytes')
+                with self.assertRaisesRegex(ValueError, 'artifact bytes'):
+                    probe.attest_qualified_pe(artifact, installed)
+                candidate.write_bytes(b'wrong-but-internally-consistent PE')
+                record.write_text(digest + '  webots-bin.exe\\n' + digest + '  duplicate\\n')
+                with self.assertRaisesRegex(ValueError, 'Malformed'):
+                    probe.attest_qualified_pe(artifact, installed)
+
     def test_evaluator_cannot_substitute_for_main_runtime(self):
         exe = 'crazyflie_runtime_v2.exe'
         self.assertEqual(process_role(exe, [exe]), 'runtime')

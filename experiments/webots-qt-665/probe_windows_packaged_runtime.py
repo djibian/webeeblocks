@@ -26,6 +26,25 @@ def sha256(path):
     return h.hexdigest()
 
 
+# SHA-256 of the real corrected Windows R2025a engine built in run 40415782024.
+# The digest from pe.sha256 is self-declared by its artifact and is NOT an
+# authority: a matching archive/installation pair could both be unqualified.
+QUALIFIED_WINDOWS_PE_SHA256 = '52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e'
+
+
+def attest_qualified_pe(artifact, installed):
+    record = (artifact / 'pe.sha256').read_text(encoding='ascii').strip().split()
+    if len(record) not in (1, 2) or not re.fullmatch(r'[0-9a-f]{64}', record[0]):
+        raise ValueError('Malformed corrected PE digest record')
+    if record[0] != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('PE digest is not the independently qualified corrected Windows build')
+    if sha256(artifact / 'webots-bin.exe') != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('Corrected PE artifact bytes differ from qualified Windows build')
+    if sha256(installed) != QUALIFIED_WINDOWS_PE_SHA256:
+        raise ValueError('Installed Webots PE bytes differ from qualified Windows build')
+    return QUALIFIED_WINDOWS_PE_SHA256
+
+
 def verify_package(root):
     entries = {}
     for line in (root / 'MANIFEST.sha256').read_text(encoding='utf-8-sig').splitlines():
@@ -113,9 +132,7 @@ def run(args):
     try:
         report['package'] = verify_package(package)
         bin_dir = home / 'msys64/mingw64/bin'
-        pe_hash = (artifact / 'pe.sha256').read_text().split()[0]
-        if sha256(artifact / 'webots-bin.exe') != pe_hash or sha256(bin_dir / 'webots-bin.exe') != pe_hash:
-            raise ValueError('Installed Webots is not the supplied corrected PE')
+        pe_hash = attest_qualified_pe(artifact, bin_dir / 'webots-bin.exe')
         shared = {}
         for name in ('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'libstdc++-6.dll',
                      'libgcc_s_seh-1.dll', 'libwinpthread-1.dll'):
