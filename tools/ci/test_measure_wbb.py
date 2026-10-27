@@ -227,12 +227,32 @@ class Complexity(unittest.TestCase):
             path = Path(folder) / 'bad-if.wbb'
             for malformed in ({'elseIfCount': -1}, {'elseIfCount': '100'},
                               {'elseIfCount': True}, {'elseIfCount': 1001},
-                              ['not a dict']):
+                              ['not a dict'], [], '', 0, None, False,
+                              {'hasElse': 'false'}, {'hasElse': 'true'},
+                              {'hasElse': 0}, {'hasElse': 1},
+                              {'hasElse': None}, {'hasElse': []}):
                 path.write_text(json.dumps(project([
                     b('controls_if', 'if', extraState=malformed)
                 ])))
-                with self.assertRaisesRegex(InvalidWorkspace, 'IF'):
-                    compare([path, path])
+                with self.subTest(malformed=malformed):
+                    with self.assertRaisesRegex(InvalidWorkspace, 'IF'):
+                        compare([path, path])
+
+            for valid, expected_else in (({}, 0), ({'hasElse': False}, 0),
+                                         ({'hasElse': True}, 1),
+                                         ({'elseIfCount': 2, 'hasElse': True}, 1)):
+                path.write_text(json.dumps(project([
+                    b('controls_if', 'if', extraState=valid)
+                ])))
+                with self.subTest(valid=valid):
+                    counters = compare([path, path])['candidates'][0]['metrics']
+                    self.assertEqual(counters['if_else_slots'], expected_else)
+                    self.assertEqual(counters['if_test_slots'], 1 + valid.get('elseIfCount', 0))
+
+            path.write_text(json.dumps(project([
+                b('controls_if', 'if-without-mutation-state')
+            ])))
+            self.assertEqual(compare([path, path])['candidates'][0]['metrics']['if_else_slots'], 0)
 
     def test_compare_never_ranks_identical_valid_real_project(self):
         source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
