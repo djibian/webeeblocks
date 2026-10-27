@@ -386,6 +386,58 @@ function fakeNativeBrowser() {
   return {state, handle, browserWindow};
 }
 
+async function exerciseBrowserFailedWriteAtomicity() {
+  // File System Access close() publishes staged bytes, even if write() failed.
+  // Exercise both Save and Save As, including a failing/missing abort().
+  for (const mode of ['save-as', 'save', 'abort-fails', 'abort-unavailable']) {
+    const original = '{"valid":"previous student project"}';
+    let disk = original, staged = original;
+    let writes = 0, closes = 0, aborts = 0;
+    const writeError = new Error('disk quota exceeded during write');
+    const abortError = new Error('abort failed');
+    const handle = {
+      name: 'eleve.wbb',
+      async createWritable() {
+        const writable = {
+          async write() {
+            writes++;
+            staged = '{"invalid":';
+            throw writeError;
+          },
+          async close() {
+            closes++;
+            disk = staged; // models native commit on close
+          },
+          async abort() {
+            aborts++;
+            if (mode === 'abort-fails') throw abortError;
+            staged = disk;
+          }
+        };
+        if (mode === 'abort-unavailable') delete writable.abort;
+        return writable;
+      }
+    };
+    const transport = ProjectFiles.createBrowserTransport({
+      showOpenFilePicker: async () => [handle],
+      showSaveFilePicker: async () => handle
+    }, {});
+    await assert.rejects(
+      () => mode === 'save' ?
+        transport.save(handle, handle.name, '{"valid":"new"}') :
+        transport.saveAs(handle.name, '{"valid":"new"}'),
+      error => error === writeError &&
+        (mode !== 'abort-fails' || error.abortError === abortError),
+      'original write error must survive abort uncertainty'
+    );
+    assert.strictEqual(writes, 1, mode + ': write must be attempted once');
+    assert.strictEqual(closes, 0, mode + ': failed write must never commit via close');
+    assert.strictEqual(disk, original, mode + ': failed write corrupted saved student work');
+    assert.strictEqual(aborts, mode === 'abort-unavailable' ? 0 : 1,
+      mode + ': abort must be attempted when available');
+  }
+}
+
 async function exerciseBrowserBoundary() {
   assert.throws(() => validatePickerOptions({
     types:[{accept:{'application/json':['.webeeblocks.json']}}]
@@ -523,6 +575,7 @@ async function exerciseWwiBoundary() {
 
 (async function() {
   await exerciseBrowserBoundary();
+  await exerciseBrowserFailedWriteAtomicity();
   await exerciseWwiBoundary();
   await exerciseWwiBusyDiscovery();
   assert.strictEqual(ProjectFiles.EXTENSION, '.wbb');

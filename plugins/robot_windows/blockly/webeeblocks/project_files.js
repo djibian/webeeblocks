@@ -194,7 +194,21 @@
       if (!handle || typeof handle.createWritable !== 'function') fail('current file handle unavailable');
       var writable = await handle.createWritable();
       try { await writable.write(text); }
-      finally { await writable.close(); }
+      catch (error) {
+        // close() commits the staged file on the native File System Access API.
+        // A failed write must never commit partial bytes over a valid project.
+        if (typeof writable.abort === 'function') {
+          try { await writable.abort(); }
+          catch (abortError) {
+            // Preserve the original write failure and expose unsuccessful
+            // cleanup without performing a second (potentially unsafe) write.
+            if (error && typeof error === 'object' && Object.isExtensible(error))
+              error.abortError = abortError;
+          }
+        }
+        throw error;
+      }
+      await writable.close();
     }
     return {
       nativeFileSystemAccess: nativeAccess,
