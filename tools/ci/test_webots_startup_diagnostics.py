@@ -22,7 +22,7 @@ class NativeWebotsLogCaptureTests(unittest.TestCase):
         parent_code = (
             "import subprocess,sys;"
             "subprocess.Popen([sys.executable, '-c', "
-            "'import time; time.sleep(0.45); print(\\\"Segmentation fault PID458\\\", flush=True)']);"
+            "'import time; time.sleep(0.45); print(\"Segmentation fault PID458\", flush=True)']);"
             "print('READY',flush=True)"
         )
         with tempfile.TemporaryDirectory() as directory:
