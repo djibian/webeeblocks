@@ -575,6 +575,71 @@ async function exerciseWwiBusyDiscovery() {
   }
 }
 
+async function exerciseWwiDiscoveryRecovery() {
+  const capabilities = 'CAPABILITIES {"protocol":1,"provider":"qt6-native-dialog","operationsReady":true,"sameFileSave":true,"canonicalExtension":".wbb"}';
+  const requests = [];
+  let available = false;
+  let transport;
+  transport = new WwiProjectFileTransport({send(message) {
+    requests.push(message);
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
+    assert(match, 'discovery must never replay file operations');
+    Promise.resolve().then(() => transport.handleMessage(
+      `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${match[1]} ${available ? capabilities : 'ERR UNAVAILABLE'}`));
+  }}, {timeoutMs:1000});
+
+  const first = transport.waitUntilReady();
+  assert.strictEqual(transport.waitUntilReady(), first, 'concurrent discovery shares one attempt');
+  await assert.rejects(first, error => error && error.code === 'UNAVAILABLE');
+  assert.strictEqual(requests.length, 1, 'failure must not trigger automatic retry');
+
+  // A later explicit Open/Save should be able to rediscover a recovered broker.
+  available = true;
+  const second = transport.waitUntilReady();
+  assert.notStrictEqual(second, first, 'a failed discovery must not poison all future operations');
+  await second;
+  assert.strictEqual(requests.length, 2, 'explicit retry must issue a fresh discovery');
+  assert.strictEqual(transport.waitUntilReady(), second, 'successful discovery remains cached');
+
+  // A malformed/insufficient capability advertisement must not be cached as
+  // a permanent failure either. The native response is rechecked on request.
+  let advertisementCount = 0;
+  let incomplete;
+  incomplete = new WwiProjectFileTransport({send(message) {
+    advertisementCount++;
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
+    assert(match);
+    const payload = advertisementCount === 1 ?
+      'CAPABILITIES {"protocol":1,"operationsReady":false}' : capabilities;
+    Promise.resolve().then(() => incomplete.handleMessage(
+      `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${match[1]} ${payload}`));
+  }}, {timeoutMs:1000});
+  await assert.rejects(incomplete.waitUntilReady(), error => error && error.code === 'CAPABILITY_UNAVAILABLE');
+  await incomplete.waitUntilReady();
+  assert.strictEqual(advertisementCount, 2, 'capability mismatch must be recoverable by explicit discovery');
+
+  // A lost reply may arrive after the timeout: its old ID must not qualify
+  // the next attempt or cause any file operation to be retried.
+  let afterTimeout;
+  const timedRequests = [];
+  afterTimeout = new WwiProjectFileTransport({send(message) {
+    timedRequests.push(message);
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
+    assert(match);
+    if (timedRequests.length === 2) Promise.resolve().then(() => {
+      const oldId = Number(match[1]) - 1;
+      afterTimeout.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${oldId} ERR UNAVAILABLE`);
+      assert(afterTimeout.pending[match[1]], 'stale reply consumed the current discovery');
+      afterTimeout.handleMessage(`WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${match[1]} ${capabilities}`);
+    });
+  }}, {timeoutMs:25});
+  await assert.rejects(afterTimeout.waitUntilReady(), error => error && error.code === 'TIMEOUT');
+  assert.strictEqual(timedRequests.length, 1, 'timeout must not trigger automatic retry');
+  await afterTimeout.waitUntilReady();
+  assert.strictEqual(timedRequests.length, 2, 'explicit retry after timeout must reach broker');
+  assert(timedRequests.every(message => message.endsWith(' CAPABILITIES')));
+}
+
 async function exerciseWwiBoundary() {
   const sent = [];
   const robotWindow = {send(message) { sent.push(String(message)); }};
@@ -635,6 +700,7 @@ async function exerciseWwiBoundary() {
   await exerciseBrowserWriteAtomicity();
   await exerciseWwiBoundary();
   await exerciseWwiBusyDiscovery();
+  await exerciseWwiDiscoveryRecovery();
   assert.strictEqual(ProjectFiles.EXTENSION, '.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve'), 'eleve.wbb');
   assert.strictEqual(ProjectFiles.normalizeName('eleve.webeeblocks.json'), 'eleve.wbb');

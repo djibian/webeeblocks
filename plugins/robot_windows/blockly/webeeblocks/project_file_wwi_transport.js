@@ -118,7 +118,12 @@
         return new Promise(function(resolve) { setTimeout(resolve, 250); }).then(discover);
       });
     }
-    this.readyPromise = discover();
+    // A transient native discovery failure must not permanently disable Open
+    // and Save. Retry only on a later explicit call; never replay file effects.
+    this.readyPromise = discover().catch(function(error) {
+      self.readyPromise = null;
+      throw error;
+    });
     return this.readyPromise;
   };
 
