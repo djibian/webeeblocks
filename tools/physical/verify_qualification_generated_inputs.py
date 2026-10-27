@@ -47,11 +47,22 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def reject_symlink_components(path: Path, label: str) -> None:
+    """Reject a linked root or any linked ancestor before Path.resolve().
+
+    absolute() deliberately retains '..' and symbolic components: abspath()
+    normalizes them away and could miss a redirection through a linked parent.
+    """
+    absolute = path.absolute()
+    for component in (absolute, *absolute.parents):
+        if component.is_symlink():
+            raise QualificationGeneratedInputError(
+                f"generated {label} symlink component is not allowed: {component}"
+            )
+
+
 def vendor_closure(vendor: Path) -> tuple[int, str]:
-    # Resolve only after checking the supplied cache root. Resolving first
-    # hides a symbolic link and can silently follow bytes outside this input.
-    if vendor.is_symlink():
-        raise QualificationGeneratedInputError("generated vendor root symlink is not allowed")
+    reject_symlink_components(vendor, "vendor")
     vendor = vendor.resolve()
     if not vendor.is_dir():
         raise QualificationGeneratedInputError(f"generated vendor directory missing: {vendor}")
@@ -140,9 +151,7 @@ def verify_generated_inputs(vendor: Path, controller: Path, lock_path: Path = DE
             f"generated vendor closure changed: count={count} sha256={digest}"
         )
 
-    # Path.resolve() removes the very link this guard is meant to reject.
-    if controller.is_symlink():
-        raise QualificationGeneratedInputError("generated controller symlink is not allowed")
+    reject_symlink_components(controller, "controller")
     controller = controller.resolve()
     if not controller.is_file():
         raise QualificationGeneratedInputError(f"generated controller missing or unsupported: {controller}")
@@ -219,8 +228,7 @@ def _support_paths(vendor: Path, lock: dict[str, object]) -> tuple[Path, Path]:
     if tar_member.parent.as_posix() != expected_parent or id_member.parent.as_posix() != expected_parent:
         raise QualificationGeneratedInputError("Webots image support cache location escaped vendor cache")
     # This runs before any cached image support is read, deleted or loaded.
-    if vendor.is_symlink():
-        raise QualificationGeneratedInputError("generated vendor root symlink is not allowed")
+    reject_symlink_components(vendor, "vendor")
     root = vendor.resolve()
     return root / tar_member.name, root / id_member.name
 

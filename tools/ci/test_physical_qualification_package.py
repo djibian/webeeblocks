@@ -264,9 +264,13 @@ def verify_generated_input_symlink_rejection() -> None:
         linked_vendor.symlink_to(vendor, target_is_directory=True)
         linked_controller = root / "linked-controller"
         linked_controller.symlink_to(controller)
+        linked_parent = root / "linked-parent"
+        linked_parent.symlink_to(root, target_is_directory=True)
         for label, candidate_vendor, candidate_controller in (
             ("vendor root link", linked_vendor, controller),
             ("controller root link", vendor, linked_controller),
+            ("vendor parent link", linked_parent / "vendor", controller),
+            ("controller parent link", vendor, linked_parent / "controller"),
         ):
             try:
                 generated_inputs.verify_generated_inputs(
@@ -284,6 +288,12 @@ def verify_generated_input_symlink_rejection() -> None:
             pass
         else:
             raise AssertionError("image-cache support accepted linked vendor root")
+        try:
+            generated_inputs._support_paths(linked_parent / "vendor", lock)
+        except generated_inputs.QualificationGeneratedInputError:
+            pass
+        else:
+            raise AssertionError("image-cache support accepted linked vendor parent")
 
         nested = vendor / "linked-member"
         nested.symlink_to(controller)
