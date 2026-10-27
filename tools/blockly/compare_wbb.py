@@ -44,9 +44,13 @@ def count_decision_sites(project):
         if kind == 'controls_if':
             totals['if_blocks'] += 1
             inputs = block.get('inputs', {})
-            state = block.get('extraState') or {}
+            # An absent mutation state is legitimate; any *present* state
+            # must be an object, including when it is falsey ([], null, "").
+            state = block['extraState'] if 'extraState' in block else {}
             if not isinstance(state, dict):
                 raise InvalidWorkspace('invalid Blockly IF extraState')
+            if 'hasElse' in state and type(state['hasElse']) is not bool:
+                raise InvalidWorkspace('invalid Blockly IF hasElse')
             configured = state.get('elseIfCount', 0)
             if type(configured) is not int or configured < 0 or configured > 1000:
                 raise InvalidWorkspace('invalid Blockly IF elseIfCount')
