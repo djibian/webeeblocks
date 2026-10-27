@@ -1,45 +1,50 @@
-# #665 — Webots R2025a Qt lifetime repair candidate (NOT DEPLOYED)
+# #665 — Webots R2025a Qt lifetime repair candidate
 
-**V5 status, 26 October 2026: #701 Draft, #665 OPEN; no Ready CI Gate, independent GO or merge.**
-The original source-only description and chronological experiments below are
-historical. A real complete **Linux** parent-shutdown-safe `webots-bin` was
-built and launched; its SHA-256 is
+**Latest qualification update: 27 October 2026. #701 remains Draft; #665 OPEN.**
+No Ready CI Gate, independent GO, merge or classroom distribution is claimed.
+
+The genuine parent-safe Linux ELF is
 `e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545`.
-It is preserved as [artifact 12666096845](https://github.com/djibian/webeeblocks/actions/runs/40354624966/artifacts/12666096845).
+The immutable Linux image is
+`ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca`.
+Linux CI selectors in this candidate use that digest. NON-GATE run
+[40416930352](https://github.com/djibian/webeeblocks/actions/runs/40416930352)
+used source `3eb73f8bd2fbf91e6235476a70c707b41d89a4ee`: 40 successful jobs,
+one explicitly skipped research job, no failures. This neither transfers to a
+later HEAD nor proves every process identity or canonical Ready acceptance.
+The separately certified physical-qualification image/lock is not rewritten.
 
-**CRITICAL: the first `.patch` file alone is NOT the safe final candidate.**
-The earlier complete binary `d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9`
-was refuted by the native Qt parent-shutdown counterprobe
+**Windows has progressed beyond compilation and standalone CLI.** The real
+corrected PE starts the unchanged canonical classroom Runtime and its separate
+evaluator through `webots.exe`, with actual Qt/qwindows/OpenAL/GCC/Controller
+paths and SHA256, no SDK lookup, and READY. The 27 October NON-GATE run
+[40470490820](https://github.com/djibian/webeeblocks/actions/runs/40470490820)
+is successful. The false Qt export refusals are causally explained by pefile's
+8,192-export cap; the real OpenAL/GCC incompatibility was repaired separately
+on this disposable host. See [exact evidence, reproduction and limits](WINDOWS_QUALIFICATION.md).
+This is not yet an immutable Windows distribution, clean-host installation,
+current-source full native campaign or owner acceptance.
+
+**CRITICAL: the first `.patch` alone is not parent-safe.** Always apply
+`repair_parent_shutdown.py` as well, as `build_full_application.sh` does.
+The old Linux ELF `d3140f65e361a109efd9ca3e7b5cac48594eb1fe87ccc35099a58ed117116fa9`
+is refuted by the native parent-shutdown counterprobe
 [40352255637](https://github.com/djibian/webeeblocks/actions/runs/40352255637).
-The parent-safe binary requires the *additional* fail-closed
-`repair_parent_shutdown.py` transformation, as applied by
-`build_full_application.sh`. Do not deploy or propose the base patch alone.
+The policy attester rejects it; a caller-supplied checksum cannot authorize it.
 
-**Proven, bounded:** real compiled Webots Linux ELF / original Qt6.5.3;
-method-level Qt reentrance, parent deletion and late-cancel regression
-[40358835107](https://github.com/djibian/webeeblocks/actions/runs/40358835107);
-four real Linux runner scenarios with *temporary* identified ELF substitution
-[40357331972](https://github.com/djibian/webeeblocks/actions/runs/40357331972).
-The [full-native-GDB experiment 40376559561](https://github.com/djibian/webeeblocks/actions/runs/40376559561)
-proves the lifetime ordering during the real `QProgressBar::maximum()` frame,
-**only under an explicit debugger-injected retirement**. It is NOT a natural
-download-completion callback.
+Natural downloader retirement inside full Webots `setValue` remains UNPROVEN.
+The existing Linux full-ELF GDB lifetime proof uses explicit debugger
+intervention. Windows Qt6.12 startup does not establish its reentrance behavior.
+Preserve every applicable negative, RESET, LAND and exactly 210000 ms. The
+historical timeout-gate `low-outside-zone` FAIL remains tied to its original
+subject and must be assessed independently against newer evidence, never hidden
+or silently reclassified. Independent V5 review and actual adoption remain open.
 
-**Still UNPROVEN / NOT DONE:** equivalent nested callback caused naturally by
-the download manager on the new full executable; permanent official Linux
-consumer/image adoption; authentic patched Windows `webots-bin.exe` build,
-Qt DLL attestations, packaging and reference-PC validation; complete native
-oracles; exact successful **Ready** `CI Gate`; independent V5 GO and conditional
-squash integration. The existing `timeout-gate` native `low-outside-zone` FAIL
-is unchanged, even though independent LAND at 210 s was observed. No oracle or
-safety threshold may be weakened to hide it.
+## Historical investigation (superseded statuses retain their original scope)
 
-**Fail-closed boundary added in #701:** `attest_and_install_candidate.py`
-accepts only the exact parent-safe ELF digest above, not an arbitrary SHA-256
-supplied by the caller. `tools/ci/test_repository_hygiene.py` falsifies attempts
-to authorize the known-unsafe previous ELF and the unmodified official image.
-The attester operates on disposable Linux installations only and constitutes
-neither official Linux adoption nor Windows qualification.
+The chronological sections below describe their then-current source, image and
+qualification state. Their older "no Windows executable" and "official Linux
+image still selected" statements do not override the latest evidence above.
 
 ## Anchors and bounded claim
 

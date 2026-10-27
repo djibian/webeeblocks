@@ -20,6 +20,7 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
+from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def has_native_land_completion(text):
@@ -90,9 +91,14 @@ def native_webots_launch(home, port, target):
     return [str(home/'webots'),'--stdout','--stderr','--batch','--mode=fast',
             '--no-rendering','--minimize','--port='+str(port),str(target)]
 
-def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1,*,camera_probe=None):
+def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequence_index=1,*,camera_probe=None,expected_trials=None):
+    if expected_trials is None:
+        raise RuntimeError('native trial capture inventory must be explicitly registered')
     layout=generate(seed,side);token=uuid.uuid4().hex[:10]
     out=OUT/f'{layout.identifier}-{mode}-{token}';out.mkdir(parents=True,exist_ok=False)
+    # Register immediately AFTER mkdir; never reconstruct expected trials from
+    # whatever files survive until the late seal audit.
+    expected_trials.add(out.name)
     with socket.socket() as probe:
         probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
     events=out/'events.jsonl'
@@ -259,6 +265,7 @@ def main():
     args=parser.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     print('GP_U_ENTRY native='+str(args.native)+' suite='+args.suite,flush=True)
     if not args.native:
+        subprocess.run([sys.executable, str(ROOT/'tools/ci/test_grand_prix_u_capture_seals.py')], check=True)
         if not shutil.which('docker'):raise RuntimeError('required R2025a Docker runtime unavailable')
         from tools.ci.run_grand_prix_u_core_capture import core_mount
         core_options=core_mount(os.environ.get('WEBEEBLOCKS_GP_CORE_DIR'))
@@ -298,6 +305,9 @@ def main():
         return
     home=Path(os.environ['WEBOTS_HOME'])
     if (home/'resources/version.txt').read_text().strip()!='R2025a':raise RuntimeError('wrong Webots version')
+    # Snapshot existing archives: verify only new trial captures of this invocation.
+    seal_baseline={p.name for p in OUT.iterdir() if p.name.startswith('gp-u-v1-')}
+    expected_trials=set()
     subprocess.run([sys.executable,str(ROOT/'tools/grand_prix/prepare_u_runtime.py')],check=True)
     subprocess.run(['make','-C',str(ROOT/'controllers/grand_prix_u_flight')],check=True)
     # Native controlled contrast for #646: same seed/world/controller and pinned
@@ -312,21 +322,25 @@ def main():
         for sequence,camera in enumerate(('static','tracking','tracking','static'),1):
             record=trial(home,1,args.side,
                          'camera-'+camera+'-crossover-'+str(sequence),
-                         args.tcp,sequence_index=sequence,camera_probe=camera)
+                         args.tcp,sequence_index=sequence,camera_probe=camera,expected_trials=expected_trials)
             record['sequence']=sequence
             contrast.append(record)
             (OUT/'camera-comparison.json').write_text(json.dumps(contrast,indent=2)+'\n')
         if args.suite=='camera-contrast':
+            verify_new_capture_seals(OUT,seal_baseline,expected_trials)
             return
     cases=[(args.seed,args.side,args.suite)]
     if args.suite=='all':cases=[(4,args.side,'short'),(4,args.side,'timeout'),(0,args.side,'timeout-gate'),(1,args.side,'wrong-landing'),(0,args.side,'low-outside'),(0,args.side,'collision'),(0,args.side,'reverse'),(0,args.side,'unavailable'),(0,args.side,'witness'),(0,args.side,'reset')]+[(s,args.side,'witness') for s in (1,3,4,14,15,17)]
     if args.suite=='sizes':cases=[(4,size,'witness') for size in (2.,3.,4.,5.,6.)]
     summaries=[];digest=None
     for sequence_index,(seed,side,mode) in enumerate(cases,1):
-        result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index)
+        result=trial(home,seed,side,mode,args.tcp,require_success=args.suite!='sizes',sequence_index=sequence_index,expected_trials=expected_trials)
         if mode in ('witness','reset'):
             if digest is not None and digest!=result['ast_sha256']:raise RuntimeError('AST changed between configurations or RESET')
             digest=result['ast_sha256']
         summaries.append(result)
         (OUT/('sizes.json' if args.suite=='sizes' else 'campaign.json')).write_text(json.dumps(summaries,indent=2)+'\n')
+    # Fail closed on evidence modified after per-trial sha256.json was written.
+    # This detects late writes observed in #703; it is not full writer retirement.
+    verify_new_capture_seals(OUT,seal_baseline,expected_trials)
 if __name__=='__main__':main()

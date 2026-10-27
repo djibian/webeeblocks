@@ -25,6 +25,7 @@ CANONICAL_CI_WORKFLOW = "CI Gate"
 
 sys.path.insert(0, str(ROOT / "tools" / "physical"))
 import package_physical_qualification as packager  # noqa: E402
+import verify_qualification_generated_inputs as generated_inputs  # noqa: E402
 import prepare_physical_flight as flight_preparation  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools" / "ci"))
@@ -218,6 +219,90 @@ grep -Fq 'WEBEEBLOCKS_RUNTIME_V2 READY' /evidence/webots.log
         require(forbidden not in log_text, f"packaged Runtime startup contains loader/runtime failure: {forbidden}")
     stamp.write_text(fingerprint, encoding="utf-8")
     print("PASS: exact packaged Runtime v2 entered the pinned R2025a controller runtime without hardware")
+
+
+
+def verify_generated_input_symlink_rejection() -> None:
+    """Root links must fail before digest verification or cached image access."""
+    import tempfile
+
+    if os.name == "nt":
+        return  # Canonical qualification runs on Linux; Windows links need privilege.
+
+    with tempfile.TemporaryDirectory(prefix="webeeblocks-generated-links-") as tmp:
+        root = Path(tmp)
+        vendor = root / "vendor"
+        vendor.mkdir()
+        (vendor / "VERSION").write_text("fixture\n", encoding="utf-8")
+        controller = root / "controller"
+        controller.write_bytes(b"fixture executable")
+        count, digest = generated_inputs.vendor_closure(vendor)
+        lock = {
+            "format": generated_inputs.FORMAT,
+            "vendor": {
+                "algorithm": generated_inputs.ALGORITHM,
+                "file_count": count,
+                "sha256": digest,
+            },
+            "controller": {
+                "path": "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
+                "size": controller.stat().st_size,
+                "sha256": generated_inputs.sha256_file(controller),
+            },
+            "webots_image_support": {
+                "cache_member": generated_inputs.EXPECTED_WEBOTS_CACHE_MEMBER,
+                "image": generated_inputs.EXPECTED_WEBOTS_IMAGE,
+                "image_id_member": generated_inputs.EXPECTED_WEBOTS_IMAGE_ID_MEMBER,
+                "local_image": generated_inputs.EXPECTED_WEBOTS_LOCAL_IMAGE,
+            },
+        }
+        lock_path = root / "lock.json"
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        generated_inputs.verify_generated_inputs(vendor, controller, lock_path)
+
+        linked_vendor = root / "linked-vendor"
+        linked_vendor.symlink_to(vendor, target_is_directory=True)
+        linked_controller = root / "linked-controller"
+        linked_controller.symlink_to(controller)
+        linked_parent = root / "linked-parent"
+        linked_parent.symlink_to(root, target_is_directory=True)
+        for label, candidate_vendor, candidate_controller in (
+            ("vendor root link", linked_vendor, controller),
+            ("controller root link", vendor, linked_controller),
+            ("vendor parent link", linked_parent / "vendor", controller),
+            ("controller parent link", vendor, linked_parent / "controller"),
+        ):
+            try:
+                generated_inputs.verify_generated_inputs(
+                    candidate_vendor, candidate_controller, lock_path
+                )
+            except generated_inputs.QualificationGeneratedInputError:
+                pass
+            else:
+                raise AssertionError(f"generated input verifier accepted {label}")
+
+        # Image cache access must also refuse a linked root before any mutation.
+        try:
+            generated_inputs._support_paths(linked_vendor, lock)
+        except generated_inputs.QualificationGeneratedInputError:
+            pass
+        else:
+            raise AssertionError("image-cache support accepted linked vendor root")
+        try:
+            generated_inputs._support_paths(linked_parent / "vendor", lock)
+        except generated_inputs.QualificationGeneratedInputError:
+            pass
+        else:
+            raise AssertionError("image-cache support accepted linked vendor parent")
+
+        nested = vendor / "linked-member"
+        nested.symlink_to(controller)
+        try:
+            generated_inputs.verify_generated_inputs(vendor, controller, lock_path)
+        except generated_inputs.QualificationGeneratedInputError:
+            pass
+        else:
+            raise AssertionError("vendor digest accepted a linked member")
 
 
 def verify_static_contract() -> None:
@@ -544,6 +629,7 @@ def main(argv: list[str] | None = None) -> int:
     bundle = args.bundle.resolve()
 
     verify_static_contract()
+    verify_generated_input_symlink_rejection()
     if bundle.is_dir():
         verify_built_bundle(bundle)
         run_packaged_runtime_smoke(bundle)

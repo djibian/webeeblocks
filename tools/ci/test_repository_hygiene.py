@@ -120,6 +120,14 @@ class RepositoryHygieneTests(unittest.TestCase):
             cwd=ROOT, check=True, timeout=30,
         )
 
+    def test_qt665_windows_native_identity_verifier(self) -> None:
+        """Reject evaluator substitution, wrong DLLs, SDK lookup and damaged packages."""
+        subprocess.run(
+            [sys.executable, '-m', 'unittest', 'discover',
+             '-s', 'experiments/webots-qt-665', '-p', 'test_probe_windows_packaged_runtime.py'],
+            cwd=ROOT, check=True, timeout=30,
+        )
+
     def test_x3_characterization_package_contract(self) -> None:
         """Keep the new machine-only firmware bundle on an always-run CI path."""
         subprocess.run(

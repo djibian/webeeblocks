@@ -1,0 +1,178 @@
+{
+  "claim": "unchanged-canonical-classroom-runtime-startup-on-disposable-patched-Windows",
+  "classroom_source_sha": "1899293f458f6497dd1c0c024231173bb84f44fe",
+  "classroom_run": 40386450869,
+  "classroom_artifact": 12681442366,
+  "status": "PASS_BOUNDED_STARTUP_ONLY",
+  "processes": {
+    "webots-bin.exe": {
+      "pid": 7024,
+      "create_time": 1793088097.0976908,
+      "ppid": 968,
+      "exe": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webots-bin.exe",
+      "modules": {
+        "Qt6Core.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Core.dll",
+          "sha256": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179"
+        },
+        "Qt6Gui.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Gui.dll",
+          "sha256": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660"
+        },
+        "Qt6Widgets.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Widgets.dll",
+          "sha256": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89"
+        },
+        "libstdc++-6.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libstdc++-6.dll",
+          "sha256": "494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff"
+        },
+        "libgcc_s_seh-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libgcc_s_seh-1.dll",
+          "sha256": "d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7"
+        },
+        "libwinpthread-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libwinpthread-1.dll",
+          "sha256": "72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0"
+        },
+        "webots-bin.exe": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webots-bin.exe",
+          "sha256": "52b8c047047094c30f0cd358456ca5a18c73209457c2129991068f5825c8a06e"
+        },
+        "qwindows.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\share\\qt6\\plugins\\platforms\\qwindows.dll",
+          "sha256": "9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1"
+        },
+        "libopenal-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libopenal-1.dll",
+          "sha256": "cb97d2f5a9797ff64db90d0691e4ff9eb2a088026351c9bad7aa26d229a354ce"
+        }
+      },
+      "graphics_modules": {
+        "C:\\Windows\\System32\\opengl32.dll": "f58378ebb07b2c7fd6694dd311ee7c4a25b556b62bc43173c8889e18261cc375",
+        "C:\\Windows\\System32\\libglapi.dll": "4cf56e703266cfcd810843ea351223dbc50f03cb67039ad88d8925094caa296c"
+      },
+      "command_line": [
+        "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webots-bin.exe",
+        "--stdout",
+        "--stderr",
+        "--batch",
+        "--mode=fast",
+        "--port=59229",
+        "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\worlds\\crazyflie_runtime_v2.wbt"
+      ]
+    },
+    "runtime": {
+      "pid": 7768,
+      "create_time": 1793088103.2215168,
+      "ppid": 7024,
+      "exe": "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe",
+      "modules": {
+        "Qt6Core.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Core.dll",
+          "sha256": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179"
+        },
+        "Qt6Gui.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Gui.dll",
+          "sha256": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660"
+        },
+        "Qt6Widgets.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Widgets.dll",
+          "sha256": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89"
+        },
+        "libstdc++-6.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libstdc++-6.dll",
+          "sha256": "494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff"
+        },
+        "libgcc_s_seh-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libgcc_s_seh-1.dll",
+          "sha256": "d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7"
+        },
+        "libwinpthread-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libwinpthread-1.dll",
+          "sha256": "72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0"
+        },
+        "crazyflie_runtime_v2.exe": {
+          "path": "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe",
+          "sha256": "809cbb7ada0a70e29178e66fb761987fcfe5df94cc6ec261936547fbd28e5888"
+        },
+        "Controller.dll": {
+          "path": "C:\\Program Files\\Webots\\lib\\controller\\Controller.dll",
+          "sha256": "756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039"
+        }
+      },
+      "graphics_modules": {},
+      "command_line": [
+        "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe"
+      ]
+    },
+    "sequence-evaluator": {
+      "pid": 2832,
+      "create_time": 1793088103.2255633,
+      "ppid": 7024,
+      "exe": "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe",
+      "modules": {
+        "Qt6Core.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Core.dll",
+          "sha256": "85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179"
+        },
+        "Qt6Gui.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Gui.dll",
+          "sha256": "b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660"
+        },
+        "Qt6Widgets.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\Qt6Widgets.dll",
+          "sha256": "ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89"
+        },
+        "libstdc++-6.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libstdc++-6.dll",
+          "sha256": "494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff"
+        },
+        "libgcc_s_seh-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libgcc_s_seh-1.dll",
+          "sha256": "d7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7"
+        },
+        "libwinpthread-1.dll": {
+          "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\libwinpthread-1.dll",
+          "sha256": "72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0"
+        },
+        "crazyflie_runtime_v2.exe": {
+          "path": "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe",
+          "sha256": "809cbb7ada0a70e29178e66fb761987fcfe5df94cc6ec261936547fbd28e5888"
+        },
+        "Controller.dll": {
+          "path": "C:\\Program Files\\Webots\\lib\\controller\\Controller.dll",
+          "sha256": "756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039"
+        }
+      },
+      "graphics_modules": {},
+      "command_line": [
+        "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\controllers\\crazyflie_runtime_v2\\crazyflie_runtime_v2.exe",
+        "sequence-evaluator-v1"
+      ]
+    }
+  },
+  "package": {
+    "files": 75,
+    "manifest_sha256": "000ac88a8f56e0337d9243c13faa226fcc2c8bc434b445899013d7df8ba8efc4"
+  },
+  "command": [
+    "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webots.exe",
+    "--stdout",
+    "--stderr",
+    "--batch",
+    "--mode=fast",
+    "--port=59229",
+    "D:\\a\\_temp\\Qt665 classroom consumer with spaces\\worlds\\crazyflie_runtime_v2.wbt"
+  ],
+  "path": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin;C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\cpp;C:\\Program Files\\Webots\\msys64\\usr\\bin;C:\\Windows\\System32;C:\\Windows",
+  "sdk_excluded": "D:\\a\\_temp\\msys64",
+  "launcher": {
+    "pid": 968,
+    "create_time": 1793088097.09429,
+    "exe": "C:\\Program Files\\Webots\\msys64\\mingw64\\bin\\webots.exe"
+  },
+  "ready_observed": true,
+  "capture_errors": [],
+  "cleanup_errors": []
+}
