@@ -21,6 +21,7 @@ from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
 from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
+from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def has_native_land_completion(text):
@@ -128,9 +129,9 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
-    children=[];streams=[];startup=None
+    children=[];streams=[];startup=None;log=None
     try:
-        with (out/'webots.log').open('w') as log:
+        with NativeLogCapture(out/'webots.log') as log:
             launch=native_webots_launch(home,port,target)
             if not tcp:
                 xvfb=shutil.which('xvfb-run')
@@ -237,6 +238,12 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         return result
     finally:
         stop_groups(children)
+        # A dead xvfb-run leader does not prove Webots-shell stdout retirement.
+        # Only our collector writes webots.log; require inherited-pipe EOF and
+        # check the final native stderr before publishing the trial seal.
+        if log is not None:
+            log.finish()
+            require_no_terminal_crash(out/'webots.log')
         if startup is not None and children:
             startup.after_cleanup(children[0].pid)
         for stream in streams:stream.close()
