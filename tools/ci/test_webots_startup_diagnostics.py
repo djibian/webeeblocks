@@ -78,7 +78,7 @@ class NativeTrialTeardownTests(unittest.TestCase):
         root = Path(directory)
         out = root/'capture'
         out.mkdir()
-        (out/'webots.log').write_text('READY\\n'.replace('\\n', '\n'))
+        (out/'webots.log').write_text('READY\n')
         target = root/'ci_gp_u_flight_sample.wbt'
         target.write_text('synthetic world')
         target.with_name('.' + target.stem + '.wbproj').write_text('synthetic project')
@@ -173,7 +173,7 @@ class NativeTrialTeardownTests(unittest.TestCase):
         from tools.ci.run_grand_prix_u_prototype import retire_trial
         with tempfile.TemporaryDirectory() as directory:
             out, target, children, log, startup, streams, runtime = self.fixture(directory)
-            (out/'webots.log').write_text('READY\\nSegmentation fault\\n'.replace('\\n', '\n'))
+            (out/'webots.log').write_text('READY\nSegmentation fault\n')
             with patch('tools.ci.run_grand_prix_u_prototype.stop_groups'):
                 with self.assertRaisesRegex(RuntimeError, 'native_terminal_crash'):
                     retire_trial(children, log, startup, streams, runtime, out, target)
