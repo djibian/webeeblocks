@@ -159,6 +159,32 @@ class ProbeTests(unittest.TestCase):
             probe.unique_native_snapshot([
                 ('runtime', {'pid': 2}), ('runtime', {'pid': 4})])
 
+    def test_two_second_startup_requires_same_process_generation(self):
+        initial = {
+            'webots-bin.exe': {'pid': 1, 'create_time': 10.0},
+            'runtime': {'pid': 2, 'create_time': 11.0},
+            'sequence-evaluator': {'pid': 3, 'create_time': 12.0},
+        }
+        advance = probe.advance_native_stability
+        identity, start = advance(True, initial, None, None, 100.0)
+        self.assertEqual(start, 100.0)
+        identity, start = advance(True, dict(reversed(list(initial.items()))),
+                                  identity, start, 101.9)
+        self.assertEqual(start, 100.0)
+        # All roles can remain present while a controller exits and respawns.
+        changed = {**initial, 'sequence-evaluator': {'pid': 4, 'create_time': 12.5}}
+        identity, start = advance(True, changed, identity, start, 102.1)
+        self.assertEqual(start, 102.1)
+        # PID reuse also resets continuity: creation time is part of identity.
+        reused = {**initial, 'sequence-evaluator': {'pid': 4, 'create_time': 13.0}}
+        identity, start = advance(True, reused, identity, start, 103.0)
+        self.assertEqual(start, 103.0)
+        identity, start = advance(False, {}, identity, start, 103.1)
+        self.assertIsNone(identity)
+        self.assertIsNone(start)
+        identity, start = advance(True, initial, identity, start, 104.0)
+        self.assertEqual(start, 104.0)
+
     def test_package_tamper_extra_missing_and_escape_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'package'

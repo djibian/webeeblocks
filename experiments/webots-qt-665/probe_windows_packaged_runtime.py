@@ -143,6 +143,21 @@ def unique_native_snapshot(qualified_rows):
     return snapshot
 
 
+def advance_native_stability(ready, snapshot, previous_identity, stable_since, now):
+    """Require the SAME attested native PIDs and creation times for the full window.
+
+    A replaced controller is not continuous startup, even if all three roles
+    were observed again and historical READY remains in the log.
+    """
+    if not ready:
+        return None, None
+    identity = tuple(sorted((role, row['pid'], row['create_time'])
+                            for role, row in snapshot.items()))
+    if identity != previous_identity or stable_since is None:
+        return identity, now
+    return identity, stable_since
+
+
 def process_role(name, command_line):
     if name == 'webots-bin.exe':
         return name
@@ -216,6 +231,7 @@ def run(args):
             threads.append(thread)
         deadline = time.monotonic() + 45
         stable_since = None
+        stable_identity = None
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise RuntimeError(f'Webots launcher exited: {process.returncode:#x}')
@@ -261,14 +277,16 @@ def run(args):
                     live = psutil.Process(row['pid'])
                     if live.create_time() != row['create_time'] or not live.is_running():
                         raise RuntimeError('A qualified process exited or was replaced')
-                stable_since = stable_since or time.monotonic()
+                stable_identity, stable_since = advance_native_stability(
+                    True, report['processes'], stable_identity, stable_since, time.monotonic())
                 if time.monotonic() - stable_since >= 2:
                     if re.search(r'^ERROR:|Traceback \(most recent call last\)', logs, re.MULTILINE):
                         raise RuntimeError('Native startup logged an error')
                     report['status'] = 'PASS_BOUNDED_STARTUP_ONLY'
                     return
             else:
-                stable_since = None
+                stable_identity, stable_since = advance_native_stability(
+                    False, report['processes'], stable_identity, stable_since, time.monotonic())
             time.sleep(.15)
         raise RuntimeError('Native classroom READY and complete loaded-module identity not established within 45 s')
     except Exception as exc:
