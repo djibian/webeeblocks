@@ -17,23 +17,31 @@ from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_termi
 
 class NativeWebotsLogCaptureTests(unittest.TestCase):
     def test_dead_leader_late_descendant_crash_is_captured_and_refused(self):
-        # Distinguish Popen.wait() on the wrapper from EOF of inherited stdout.
-        # This reproduces the post-seal 115-byte crash line from #708.
-        parent_code = (
-            "import subprocess,sys;"
-            "subprocess.Popen([sys.executable, '-c', "
-            "'import time; time.sleep(0.45); print(\"Segmentation fault PID458\", flush=True)']);"
-            "print('READY',flush=True)"
-        )
+        # Reproduce #708 deterministically: wrapper exits, descendant retains
+        # stdout until the test releases it. A leader wait never proves EOF.
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / 'webots.log'
+            gate = Path(directory) / 'release'
+            child_code = (
+                "from pathlib import Path\nimport time\n"
+                "while not Path(" + repr(str(gate)) + ").is_file():\n"
+                "    time.sleep(0.01)\n"
+                "print('Segmentation fault PID458', flush=True)\n"
+            )
+            parent_code = (
+                "import subprocess,sys;subprocess.Popen([sys.executable,'-c',"
+                + repr(child_code) + "]);print('READY', flush=True)"
+            )
             with NativeLogCapture(target) as capture:
                 leader = subprocess.Popen([sys.executable, '-c', parent_code],
                                           stdout=capture, stderr=subprocess.STDOUT,
                                           start_new_session=True)
                 self.assertEqual(leader.wait(timeout=2), 0)
-            with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
-                capture.finish(timeout=0.01)
+            try:
+                with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
+                    capture.finish(timeout=0.05)
+            finally:
+                gate.touch()  # Release the actual descendant even if assertion fails.
             capture.finish(timeout=3)
             self.assertEqual(target.read_text().splitlines(),
                              ['READY', 'Segmentation fault PID458'])
