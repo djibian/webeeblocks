@@ -58,7 +58,7 @@ class NativeWebotsLogCaptureTests(unittest.TestCase):
                 self.assertEqual(leader.wait(timeout=2), 0)
             capture.finish(timeout=2)
             require_no_terminal_crash(target)
-            self.assertEqual(target.read_text(), 'READY\\n')
+            self.assertEqual(target.read_text(), 'READY\n')
 
 
 class StartupEvidenceTests(unittest.TestCase):
