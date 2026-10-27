@@ -584,6 +584,23 @@ def verify_built_bundle(bundle: Path) -> None:
     finally:
         extra.unlink(missing_ok=True)
 
+    # A file-only inventory silently ignored unmanifested links to directories
+    # and dangling targets, even though the exact SHA-256 manifest matched.
+    # These must be rejected before the extracted package can be trusted.
+    if os.name != "nt":
+        for name, target, directory in (
+            ("unexpected-directory-link", bundle / "tools", True),
+            ("unexpected-dangling-link", bundle / "absent-target", False),
+        ):
+            link = bundle / name
+            try:
+                link.symlink_to(target, target_is_directory=directory)
+                run_verify(bundle, success=False)
+            finally:
+                link.unlink(missing_ok=True)
+        # Source membership must still pass after each negative is removed.
+        run_verify(bundle, success=True)
+
     # Bytecode produced by an older verifier must still be rejected as an
     # extra unmanifested file; the fix must not weaken exact-membership checks.
     cache = bundle / "tools" / "physical" / "__pycache__"
