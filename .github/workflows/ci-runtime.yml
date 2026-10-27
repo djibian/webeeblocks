@@ -1190,10 +1190,19 @@ jobs:
           test "$(grep -o "style:'control_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 1
           test "$(grep -o "style:'sensor_blocks'" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js | wc -l)" -eq 2
           grep -F "{type:'webeeblocks_v2_elapsed',message0:'temps simulé depuis le départ (s)',output:'Number',style:'sensor_blocks'}" plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
-          grep -F "webeeblocks_v2_wait:{category:'control'}" plugins/robot_windows/blockly/webeeblocks/activities.js
-          grep -F "logic_compare:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
-          grep -F "logic_operation:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
-          grep -F "math_number:{category:'operator'}" plugins/robot_windows/blockly/webeeblocks/activities.js
+          # Verify exported block categories, not the source file's whitespace.
+          node - <<'NODE'
+          const assert = require('node:assert/strict');
+          const catalog = require('./plugins/robot_windows/blockly/webeeblocks/activities.js').BLOCK_CATALOG;
+          for (const [id, expected] of Object.entries({
+            webeeblocks_v2_wait: 'control',
+            logic_compare: 'operator',
+            logic_operation: 'operator',
+            math_number: 'operator',
+          })) {
+            assert.equal(catalog[id]?.category, expected, `${id} category`);
+          }
+          NODE
           grep -F "flight_category: {colour: '#2563EB'}" plugins/robot_windows/blockly_v2/main.js
           grep -F "control_category: {colour: '#7C3AED'}" plugins/robot_windows/blockly_v2/main.js
           grep -F "sensor_category: {colour: '#0E7490'}" plugins/robot_windows/blockly_v2/main.js
