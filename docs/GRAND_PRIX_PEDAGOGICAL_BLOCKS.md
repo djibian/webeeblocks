@@ -17,14 +17,24 @@ opérations répétitives bas niveau déléguées et ce qui reste observable.
 
 ```sh
 python3 tools/blockly/compare_wbb.py chemin/candidat-A.wbb chemin/candidat-B.wbb
-python3 tools/ci/test_compare_wbb.py
+python3 tools/ci/test_measure_wbb.py
 ```
 
 Le résultat JSON identifie chaque **fichier réel par SHA-256**, ses blocs
-(total et familles), variables effectivement référencées, conditions,
-comparaisons, littéraux numériques, lectures de capteur, mouvements,
-mises à jour de variables, profondeur et longueur de flux principal,
-ainsi que les **différences par rapport au premier fichier**.
+(total et familles), variables effectivement référencées, nombre de **blocs
+SI**, nombre d'**emplacements de tests SI** (y compris chaque « sinon si »,
+même vide), présence d'un **sinon** et **gardes de boucles WHILE/UNTIL**
+séparément. `conditional_test_slots` additionne les emplacements de tests SI
+et les gardes de boucle, sans prétendre compter les décisions cognitives de
+l'élève, les chemins exécutés, les comparaisons réelles ou la difficulté.
+Une boucle à itérations fixes `repeat` est comptée séparément, **pas**
+comme garde conditionnelle. Le rapport indique aussi comparaisons, littéraux
+numériques, lectures de capteur, mouvements, mises à jour de variables,
+profondeur, longueur du flux principal et **différences avec le premier fichier**.
+Les blocs conditionnels complexes ne sont pas équivalents : comparaison,
+connecteurs logiques, branches et boucles gardées restent des indicateurs
+**distincts**. Les `extraState` Blockly valides décrivent les sockets non
+raccordés d'un « sinon si / sinon », et n'en démontrent pas l'utilisation.
 Un comparatif ne fait **aucun** classement pédagogique automatique :
 ces indicateurs sont des *indices structurels*, pas des capacités d'élève.
 Consigner à part les constantes réellement indépendantes à régler, la
