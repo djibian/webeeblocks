@@ -492,6 +492,23 @@ async function exerciseWwiDiscoveryRecovery() {
   assert.strictEqual(requests.length, 2, 'explicit retry must issue a fresh discovery');
   assert.strictEqual(transport.waitUntilReady(), second, 'successful discovery remains cached');
 
+  // A malformed/insufficient capability advertisement must not be cached as
+  // a permanent failure either. The native response is rechecked on request.
+  let advertisementCount = 0;
+  let incomplete;
+  incomplete = new WwiProjectFileTransport({send(message) {
+    advertisementCount++;
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
+    assert(match);
+    const payload = advertisementCount === 1 ?
+      'CAPABILITIES {"protocol":1,"operationsReady":false}' : capabilities;
+    Promise.resolve().then(() => incomplete.handleMessage(
+      `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${match[1]} ${payload}`));
+  }}, {timeoutMs:1000});
+  await assert.rejects(incomplete.waitUntilReady(), error => error && error.code === 'CAPABILITY_UNAVAILABLE');
+  await incomplete.waitUntilReady();
+  assert.strictEqual(advertisementCount, 2, 'capability mismatch must be recoverable by explicit discovery');
+
   // A lost reply may arrive after the timeout: its old ID must not qualify
   // the next attempt or cause any file operation to be retried.
   let afterTimeout;
