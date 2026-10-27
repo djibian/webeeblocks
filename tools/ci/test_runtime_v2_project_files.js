@@ -473,7 +473,7 @@ async function exerciseWwiDiscoveryRecovery() {
   let transport;
   transport = new WwiProjectFileTransport({send(message) {
     requests.push(message);
-    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\\d+) CAPABILITIES$/);
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
     assert(match, 'discovery must never replay file operations');
     Promise.resolve().then(() => transport.handleMessage(
       `WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE ${match[1]} ${available ? capabilities : 'ERR UNAVAILABLE'}`));
@@ -498,7 +498,7 @@ async function exerciseWwiDiscoveryRecovery() {
   const timedRequests = [];
   afterTimeout = new WwiProjectFileTransport({send(message) {
     timedRequests.push(message);
-    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\\d+) CAPABILITIES$/);
+    const match = String(message).match(/^WEBEEBLOCKS_FILE_BROKER_V1 REQUEST (\d+) CAPABILITIES$/);
     assert(match);
     if (timedRequests.length === 2) Promise.resolve().then(() => {
       const oldId = Number(match[1]) - 1;
