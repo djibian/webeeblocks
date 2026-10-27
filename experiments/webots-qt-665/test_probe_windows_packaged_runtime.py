@@ -47,6 +47,52 @@ class ProbeTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Malformed'):
                     probe.attest_qualified_pe(artifact, installed)
 
+    def test_windows_module_provenance_is_independent_of_external_sdk(self):
+        # These retained native identities must describe the same process
+        # closure. The source SDK cannot authorize a different Qt/GCC/OpenAL
+        # build merely by supplying matching bytes to Webots.
+        import json
+        historic = json.loads((Path(__file__).with_name('windows-startup-native.json')).read_text())
+        observed = {
+            **{name: row['sha256'] for name, row in
+               historic['processes']['webots-bin.exe']['modules'].items()
+               if name in probe.QUALIFIED_WINDOWS_MODULE_SHA256},
+            'Controller.dll': historic['processes']['runtime']['modules']['Controller.dll']['sha256'],
+        }
+        self.assertEqual(observed, probe.QUALIFIED_WINDOWS_MODULE_SHA256)
+        self.assertEqual(set(observed), {
+            'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'libstdc++-6.dll',
+            'libgcc_s_seh-1.dll', 'libwinpthread-1.dll', 'libopenal-1.dll',
+            'qwindows.dll', 'Controller.dll'})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sdk = root / 'sdk/mingw64/bin'
+            sdk.mkdir(parents=True)
+            installed = root / 'installed/Qt6Core.dll'
+            installed.parent.mkdir()
+            sdk_file = sdk / 'Qt6Core.dll'
+            sdk_file.write_bytes(b'foreign-but-SDK-and-installed-identical')
+            installed.write_bytes(sdk_file.read_bytes())
+            # The pre-fix self-consistency check would pass both files.
+            self.assertEqual(sha256(sdk_file), sha256(installed))
+            with self.assertRaisesRegex(ValueError, 'qualified native startup'):
+                probe.require_pinned_component('Qt6Core.dll', sdk_file)
+            with self.assertRaisesRegex(ValueError, 'Unqualified Windows module'):
+                probe.require_pinned_component('foreign.dll', sdk_file)
+            # Explicit synthetic positive tests the mechanism, not the
+            # authenticity of a real Windows native component.
+            synthetic_hash = sha256(sdk_file)
+            with mock.patch.dict(probe.QUALIFIED_WINDOWS_MODULE_SHA256,
+                                 {'Qt6Core.dll': synthetic_hash}):
+                self.assertEqual(probe.require_pinned_component('Qt6Core.dll', sdk_file),
+                                 synthetic_hash)
+                # The native module observer must still reject installed
+                # bytes that differ from their pinned source.
+                installed.write_bytes(b'tampered-installed-component')
+                with self.assertRaisesRegex(ValueError, 'Wrong mapped bytes'):
+                    probe.attest_modules([str(installed)],
+                                         {'Qt6Core.dll': (installed, synthetic_hash)}, sdk)
+
     def test_evaluator_cannot_substitute_for_main_runtime(self):
         exe = 'crazyflie_runtime_v2.exe'
         self.assertEqual(process_role(exe, [exe]), 'runtime')

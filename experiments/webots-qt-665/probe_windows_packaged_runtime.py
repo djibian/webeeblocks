@@ -35,6 +35,31 @@ QUALIFIED_WINDOWS_PE_SHA256 = '52b8c047047094c30f0cd358456ca5a18c73209457c212999
 QUALIFIED_CLASSROOM_MANIFEST_SHA256 = '000ac88a8f56e0337d9243c13faa226fcc2c8bc434b445899013d7df8ba8efc4'
 
 
+# Exact DLL bytes from the genuine three-process Windows startup report,
+# NON-GATE run 40470490820. A coincidentally matching SDK and installation are
+# not sufficient: both must also match these independently retained identities.
+QUALIFIED_WINDOWS_MODULE_SHA256 = {
+    'Qt6Core.dll': '85bd00fb398346adef666fa9275a6c06f0955927e09d7909cd558700f4d92179',
+    'Qt6Gui.dll': 'b268755f2cf1c3eb4f25b6b8435481ff91be0f8a16d578f7d88bc413676c1660',
+    'Qt6Widgets.dll': 'ac1bd54bd2e4eac84e047893e3b0b3b2c9951395bc538552406c6869bb40eb89',
+    'libstdc++-6.dll': '494bd9045948198ef4d3bc838c7362d4cfd49c890b439c096b1817aa7c7fa6ff',
+    'libgcc_s_seh-1.dll': 'd7e343dd266747177c3699bc3201ea36eceef158e98530e089263bc55bb2a6d7',
+    'libwinpthread-1.dll': '72bf8802de3a99d28f0bc2db9a11f281a9f9f3fa83dab2bc67e69fac3bd3d9c0',
+    'qwindows.dll': '9b3b3531ccac562a84698eff4761a6966f531bc01b1d56d5fda8c2da9c6424c1',
+    'libopenal-1.dll': 'cb97d2f5a9797ff64db90d0691e4ff9eb2a088026351c9bad7aa26d229a354ce',
+    'Controller.dll': '756ceba41c53f1a5f008859255254b28d6d3acb674e1ea773544cc6648c41039',
+}
+
+
+def require_pinned_component(name, source):
+    expected = QUALIFIED_WINDOWS_MODULE_SHA256.get(name)
+    if expected is None:
+        raise ValueError('Unqualified Windows module: ' + name)
+    if sha256(source) != expected:
+        raise ValueError('Windows module differs from qualified native startup: ' + name)
+    return expected
+
+
 def attest_qualified_pe(artifact, installed):
     record = (artifact / 'pe.sha256').read_text(encoding='ascii').strip().split()
     if len(record) not in (1, 2) or not re.fullmatch(r'[0-9a-f]{64}', record[0]):
@@ -153,17 +178,17 @@ def run(args):
         shared = {}
         for name in ('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'libstdc++-6.dll',
                      'libgcc_s_seh-1.dll', 'libwinpthread-1.dll'):
-            shared[name] = (bin_dir / name, sha256(sdk / name))
+            shared[name] = (bin_dir / name, require_pinned_component(name, sdk / name))
         qwindows = home / 'msys64/mingw64/share/qt6/plugins/platforms/qwindows.dll'
         plugin_source = sdk.parent / 'share/qt6/plugins/platforms/qwindows.dll'
         engine_required = dict(shared, **{'webots-bin.exe': (bin_dir / 'webots-bin.exe', pe_hash),
-            'qwindows.dll': (qwindows, sha256(plugin_source)),
-            'libopenal-1.dll': (bin_dir / 'libopenal-1.dll', sha256(sdk / 'libopenal-1.dll'))})
+            'qwindows.dll': (qwindows, require_pinned_component('qwindows.dll', plugin_source)),
+            'libopenal-1.dll': (bin_dir / 'libopenal-1.dll', require_pinned_component('libopenal-1.dll', sdk / 'libopenal-1.dll'))})
         controller = package / 'controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.exe'
         controller_required = dict(shared)
         controller_required.update({'crazyflie_runtime_v2.exe': (controller, sha256(controller)),
                                    'Controller.dll': (home / 'lib/controller/Controller.dll',
-                                                      sha256(home / 'lib/controller/Controller.dll'))})
+                                                      require_pinned_component('Controller.dll', home / 'lib/controller/Controller.dll'))})
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
