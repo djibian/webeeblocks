@@ -6,87 +6,33 @@
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
   var BLOCK_CATALOG = Object.freeze({
-    webeeblocks_takeoff: {
-      category: 'flight'
-    },
-    webeeblocks_forward: {
-      category: 'flight'
-    },
-    webeeblocks_turn: {
-      category: 'flight'
-    },
-    webeeblocks_land: {
-      category: 'flight'
-    },
-    webeeblocks_v2_takeoff: {
-      category: 'flight'
-    },
-    webeeblocks_v2_land: {
-      category: 'flight'
-    },
-    webeeblocks_v2_move: {
-      category: 'flight'
-    },
-    webeeblocks_v2_vertical: {
-      category: 'flight'
-    },
-    webeeblocks_v2_turn: {
-      category: 'flight'
-    },
-    webeeblocks_v2_wait: {
-      category: 'control'
-    },
-    webeeblocks_v2_speed: {
-      category: 'flight'
-    },
-    webeeblocks_v2_light: {
-      category: 'flight'
-    },
-    webeeblocks_v2_range: {
-      category: 'sensor'
-    },
-    webeeblocks_v2_elapsed: {
-      category: 'sensor'
-    },
-    procedures_defnoreturn: {
-      category: 'procedure'
-    },
-    procedures_callnoreturn: {
-      category: 'procedure'
-    },
-    controls_if: {
-      category: 'control'
-    },
-    controls_repeat_ext: {
-      category: 'control'
-    },
-    controls_whileUntil: {
-      category: 'control'
-    },
-    webeeblocks_v2_until: {
-      category: 'control'
-    },
-    logic_compare: {
-      category: 'operator'
-    },
-    logic_operation: {
-      category: 'operator'
-    },
-    math_number: {
-      category: 'operator'
-    },
-    math_arithmetic: {
-      category: 'operator'
-    },
-    variables_set: {
-      category: 'variable'
-    },
-    variables_get: {
-      category: 'variable'
-    },
-    math_change: {
-      category: 'variable'
-    }
+    webeeblocks_takeoff: { category: 'flight' },
+    webeeblocks_forward: { category: 'flight' },
+    webeeblocks_turn: { category: 'flight' },
+    webeeblocks_land: { category: 'flight' },
+    webeeblocks_v2_takeoff: { category: 'flight' },
+    webeeblocks_v2_land: { category: 'flight' },
+    webeeblocks_v2_move: { category: 'flight' },
+    webeeblocks_v2_vertical: { category: 'flight' },
+    webeeblocks_v2_turn: { category: 'flight' },
+    webeeblocks_v2_wait: { category: 'control' },
+    webeeblocks_v2_speed: { category: 'flight' },
+    webeeblocks_v2_light: { category: 'flight' },
+    webeeblocks_v2_range: { category: 'sensor' },
+    webeeblocks_v2_elapsed: { category: 'sensor' },
+    procedures_defnoreturn: { category: 'procedure' },
+    procedures_callnoreturn: { category: 'procedure' },
+    controls_if: { category: 'control' },
+    controls_repeat_ext: { category: 'control' },
+    controls_whileUntil: { category: 'control' },
+    webeeblocks_v2_until: { category: 'control' },
+    logic_compare: { category: 'operator' },
+    logic_operation: { category: 'operator' },
+    math_number: { category: 'operator' },
+    math_arithmetic: { category: 'operator' },
+    variables_set: { category: 'variable' },
+    variables_get: { category: 'variable' },
+    math_change: { category: 'variable' }
   });
   var DOCUMENT = Object.freeze({
     version: 1,
@@ -99,73 +45,25 @@
           title: '1 — Livrer le colis',
           mission: 'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.'
         },
-        pedagogy: {
-          objective: 'Construire et comprendre une séquence ordonnée d’actions.'
-        },
-        toolbox: [
-          'webeeblocks_v2_takeoff',
-          'webeeblocks_v2_move',
-          'webeeblocks_v2_land'
-        ],
+        pedagogy: { objective: 'Construire et comprendre une séquence ordonnée d’actions.' },
+        toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 0.5,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 0.1,
-              step: 0.1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.1, step: 0.1 } }
         },
-        fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward'
-            ]
-          }
-        },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-sequence-v1'
-        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'land'
-          ],
-          rangeDirections: [
-
-          ],
-          moveDirections: [
-            'forward'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 0.5
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 0.1
-            }
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.1 }
           }
         }
       },
@@ -180,72 +78,24 @@
         pedagogy: {
           objective: 'Choisir et ajuster les paramètres de déplacement pour obtenir un déplacement précis en réutilisant une séquence ordonnée.'
         },
-        toolbox: [
-          'webeeblocks_v2_takeoff',
-          'webeeblocks_v2_move',
-          'webeeblocks_v2_land'
-        ],
+        toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 0.5,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 0.6,
-              step: 0.1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } }
         },
-        fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left'
-            ]
-          }
-        },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-precise-movement-v1'
-        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-precise-movement-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'land'
-          ],
-          rangeDirections: [
-
-          ],
-          moveDirections: [
-            'forward',
-            'left'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 0.5
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 0.6
-            }
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.6 }
           }
         }
       },
@@ -268,78 +118,24 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 0.5,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 0.6,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: 1,
-              max: 10,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
-        fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left'
-            ]
-          }
-        },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-repeat-v1'
-        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-repeat-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'repeat',
-            'land'
-          ],
-          rangeDirections: [
-
-          ],
-          moveDirections: [
-            'forward',
-            'left'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 0.5
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 0.6
-            },
-            'repeat.count': {
-              min: 1,
-              max: 10
-            }
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.6 },
+            'repeat.count': { min: 1, max: 10 }
           }
         }
       },
@@ -364,80 +160,26 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 1.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 1.2,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: 1,
-              max: 2,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 2, step: 1 } }
         },
         fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left'
-            ]
-          },
-          webeeblocks_v2_range: {
-            DIRECTION: [
-              'front'
-            ]
-          }
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front' ] }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-simple-decision-v1'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-simple-decision-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'if',
-            'land'
-          ],
-          rangeDirections: [
-            'front'
-          ],
-          moveDirections: [
-            'forward',
-            'left'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'if', 'land' ],
+          rangeDirections: [ 'front' ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 1.2
-            }
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 }
           }
         }
       },
@@ -463,85 +205,27 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 1.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 1.2,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: 1,
-              max: 10,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
         fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left'
-            ]
-          },
-          webeeblocks_v2_range: {
-            DIRECTION: [
-              'front'
-            ]
-          }
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front' ] }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-reactive-v1'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-reactive-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'repeat',
-            'if',
-            'land'
-          ],
-          rangeDirections: [
-            'front'
-          ],
-          moveDirections: [
-            'forward',
-            'left'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
+          rangeDirections: [ 'front' ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 1.2
-            },
-            'repeat.count': {
-              min: 1,
-              max: 10
-            }
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
           }
         }
       },
@@ -568,91 +252,27 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 1.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 1.2,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: 1,
-              max: 10,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
         },
         fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left',
-              'right'
-            ]
-          },
-          webeeblocks_v2_range: {
-            DIRECTION: [
-              'front',
-              'left',
-              'right'
-            ]
-          }
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-combined-decisions-v1'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-combined-decisions-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'repeat',
-            'if',
-            'land'
-          ],
-          rangeDirections: [
-            'front',
-            'left',
-            'right'
-          ],
-          moveDirections: [
-            'forward',
-            'left',
-            'right'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 1.2
-            },
-            'repeat.count': {
-              min: 1,
-              max: 10
-            }
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
           }
         }
       },
@@ -684,100 +304,28 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 1.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 1.2,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: -10,
-              max: 10,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: -10, max: 10, step: 1 } }
         },
         fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left',
-              'right'
-            ]
-          },
-          webeeblocks_v2_range: {
-            DIRECTION: [
-              'front',
-              'left',
-              'right'
-            ]
-          },
-          math_arithmetic: {
-            OP: [
-              'ADD',
-              'MINUS',
-              'MULTIPLY',
-              'DIVIDE'
-            ]
-          }
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-memory-v1'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-memory-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'repeat',
-            'if',
-            'set_variable',
-            'land'
-          ],
-          rangeDirections: [
-            'front',
-            'left',
-            'right'
-          ],
-          moveDirections: [
-            'forward',
-            'left',
-            'right'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 1.2
-            },
-            'repeat.count': {
-              min: 1,
-              max: 10
-            }
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
           }
         }
       },
@@ -808,100 +356,28 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.5,
-              max: 1.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 1.2,
-              step: 0.1
-            }
-          },
-          math_number: {
-            NUM: {
-              min: -10,
-              max: 10,
-              step: 1
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: -10, max: 10, step: 1 } }
         },
         fieldOptions: {
-          webeeblocks_v2_move: {
-            DIRECTION: [
-              'forward',
-              'left',
-              'right'
-            ]
-          },
-          webeeblocks_v2_range: {
-            DIRECTION: [
-              'front',
-              'left',
-              'right'
-            ]
-          },
-          math_arithmetic: {
-            OP: [
-              'ADD',
-              'MINUS',
-              'MULTIPLY',
-              'DIVIDE'
-            ]
-          }
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'mission-state-v1',
-          oracle: 'progression-autonomous-strategy-v1'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-autonomous-strategy-v1' },
         runtime: {
           mode: 'ast-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'repeat',
-            'if',
-            'set_variable',
-            'land'
-          ],
-          rangeDirections: [
-            'front',
-            'left',
-            'right'
-          ],
-          moveDirections: [
-            'forward',
-            'left',
-            'right'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.5,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 1.2
-            },
-            'repeat.count': {
-              min: 1,
-              max: 10
-            }
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
           }
         }
       },
@@ -920,61 +396,22 @@
           'webeeblocks_land'
         ],
         parameterBounds: {
-          webeeblocks_forward: {
-            DISTANCE: {
-              min: 0.1,
-              max: 2.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_turn: {
-            ANGLE: {
-              min: -90,
-              max: 135,
-              step: 1
-            }
-          }
+          webeeblocks_forward: { DISTANCE: { min: 0.1, max: 2.0, step: 0.1 } },
+          webeeblocks_turn: { ANGLE: { min: -90, max: 135, step: 1 } }
         },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2'
-        ],
-        timer: {
-          enabled: true
-        },
-        evaluation: {
-          type: 'ordered-gates-no-collision'
-        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: true },
+        evaluation: { type: 'ordered-gates-no-collision' },
         runtime: {
           mode: 'mission-v1',
-          allowedStatementKinds: [
-            'takeoff',
-            'move',
-            'turn',
-            'land'
-          ],
-          rangeDirections: [
-
-          ],
-          moveDirections: [
-            'forward'
-          ],
-          verticalDirections: [
-
-          ],
+          allowedStatementKinds: [ 'takeoff', 'move', 'turn', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [  ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 1.0,
-              max: 1.0
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 2.0
-            },
-            'turn.angle_deg_abs': {
-              min: 1,
-              max: 135
-            }
+            'takeoff.height_m': { min: 1.0, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 2.0 },
+            'turn.angle_deg_abs': { min: 1, max: 135 }
           }
         }
       },
@@ -1007,71 +444,17 @@
           'webeeblocks_v2_land'
         ],
         parameterBounds: {
-          webeeblocks_v2_takeoff: {
-            HEIGHT: {
-              min: 0.2,
-              max: 1.5,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_move: {
-            DISTANCE: {
-              min: 0.1,
-              max: 2.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_vertical: {
-            DISTANCE: {
-              min: 0.1,
-              max: 0.8,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_turn: {
-            ANGLE: {
-              min: 1,
-              max: 179,
-              step: 1
-            }
-          },
-          webeeblocks_v2_wait: {
-            SECONDS: {
-              min: 0.1,
-              max: 5.0,
-              step: 0.1
-            }
-          },
-          webeeblocks_v2_speed: {
-            SPEED: {
-              min: 0.1,
-              max: 0.35,
-              step: 0.05
-            }
-          }
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.2, max: 1.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 2.0, step: 0.1 } },
+          webeeblocks_v2_vertical: { DISTANCE: { min: 0.1, max: 0.8, step: 0.1 } },
+          webeeblocks_v2_turn: { ANGLE: { min: 1, max: 179, step: 1 } },
+          webeeblocks_v2_wait: { SECONDS: { min: 0.1, max: 5.0, step: 0.1 } },
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.35, step: 0.05 } }
         },
-        fieldOptions: {
-          math_arithmetic: {
-            OP: [
-              'ADD',
-              'MINUS',
-              'MULTIPLY',
-              'DIVIDE'
-            ]
-          }
-        },
-        hardware: [
-          'crazyflie-2.1',
-          'flow-deck-v2',
-          'multi-ranger-deck',
-          'color-led-deck'
-        ],
-        timer: {
-          enabled: false
-        },
-        evaluation: {
-          type: 'reactive-runtime'
-        },
+        fieldOptions: { math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck', 'color-led-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'reactive-runtime' },
         runtime: {
           mode: 'ast-v1',
           allowedStatementKinds: [
@@ -1087,52 +470,17 @@
             'set_variable',
             'land'
           ],
-          rangeDirections: [
-            'front',
-            'back',
-            'left',
-            'right',
-            'up'
-          ],
-          moveDirections: [
-            'forward',
-            'back',
-            'left',
-            'right'
-          ],
-          verticalDirections: [
-            'up',
-            'down'
-          ],
+          rangeDirections: [ 'front', 'back', 'left', 'right', 'up' ],
+          moveDirections: [ 'forward', 'back', 'left', 'right' ],
+          verticalDirections: [ 'up', 'down' ],
           astBounds: {
-            'takeoff.height_m': {
-              min: 0.2,
-              max: 1.5
-            },
-            'move.distance_m': {
-              min: 0.1,
-              max: 2.0
-            },
-            'vertical.distance_m': {
-              min: 0.1,
-              max: 0.8
-            },
-            'turn.angle_deg_abs': {
-              min: 1,
-              max: 179
-            },
-            'wait.seconds': {
-              min: 0.1,
-              max: 5.0
-            },
-            'set_speed.speed_m_s': {
-              min: 0.1,
-              max: 0.35
-            },
-            'repeat.count': {
-              min: 1,
-              max: 20
-            }
+            'takeoff.height_m': { min: 0.2, max: 1.5 },
+            'move.distance_m': { min: 0.1, max: 2.0 },
+            'vertical.distance_m': { min: 0.1, max: 0.8 },
+            'turn.angle_deg_abs': { min: 1, max: 179 },
+            'wait.seconds': { min: 0.1, max: 5.0 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.35 },
+            'repeat.count': { min: 1, max: 20 }
           }
         }
       }
