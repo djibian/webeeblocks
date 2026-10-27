@@ -56,6 +56,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-v1' },
         runtime: {
+          scene: 'sequence-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
           rangeDirections: [  ],
@@ -88,6 +89,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-precise-movement-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
           rangeDirections: [  ],
@@ -127,6 +129,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-repeat-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'land' ],
           rangeDirections: [  ],
@@ -172,6 +175,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-simple-decision-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'if', 'land' ],
           rangeDirections: [ 'front' ],
@@ -217,6 +221,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-reactive-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
           rangeDirections: [ 'front' ],
@@ -264,6 +269,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-combined-decisions-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
           rangeDirections: [ 'front', 'left', 'right' ],
@@ -317,6 +323,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-memory-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
           rangeDirections: [ 'front', 'left', 'right' ],
@@ -369,6 +376,7 @@
         timer: { enabled: false },
         evaluation: { type: 'mission-state-v1', oracle: 'progression-autonomous-strategy-v1' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
           rangeDirections: [ 'front', 'left', 'right' ],
@@ -403,6 +411,7 @@
         timer: { enabled: true },
         evaluation: { type: 'ordered-gates-no-collision' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'mission-v1',
           allowedStatementKinds: [ 'takeoff', 'move', 'turn', 'land' ],
           rangeDirections: [  ],
@@ -456,6 +465,7 @@
         timer: { enabled: false },
         evaluation: { type: 'reactive-runtime' },
         runtime: {
+          scene: 'legacy-v1',
           mode: 'ast-v1',
           allowedStatementKinds: [
             'takeoff',

@@ -52,7 +52,7 @@ async function flyCanonicalSequence(backend) {
   const before = await backend.readRange('front');
   if (Math.abs(before - 2.0) > 0.01) throw new Error('off-activity obstacle remains visible: ' + before);
   try {
-    await backend.prepareActivity({id:'progression-precise-movement-v1'});
+    await backend.prepareActivity(LEGACY_PROFILE);
     throw new Error('scene changed in flight');
   } catch (error) {
     if (!error || error.code !== 'RESET_REQUIRED') throw error;
@@ -81,6 +81,8 @@ async function resetAndProveFresh(backend, evaluation, eventName) {
 // Keep the actual native fail-safe (25 simulated seconds) and every mission
 // oracle unchanged. Only these test windows have a bounded 60s response budget;
 // the product WWI backend retains its 35s default and silence still fails.
+const SEQUENCE_PROFILE = {id:'progression-sequence-v1', runtime:{scene:'sequence-v1'}};
+const LEGACY_PROFILE = {id:'progression-precise-movement-v1', runtime:{scene:'legacy-v1'}};
 const PROGRESSION_CI_TIMEOUT_MS = 60000;
 
 window.addEventListener('error', function(event) {
@@ -109,7 +111,7 @@ window.addEventListener('unhandledrejection', function(event) {
       if (backend.sceneIdentity !== null) throw new Error('reattached backend presumed scene');
       const start = sent.length;
       await backend.prepareActivity(profile);
-      const scene = profile.id === 'progression-sequence-v1' ? 'sequence-v1' : 'legacy-v1';
+      const scene = profile.runtime.scene;
       const requests = sent.slice(start);
       if (requests.length !== 1 || !new RegExp('^WEBEEBLOCKS_RUNTIME_V2 REQUEST \\d+ SCENE ' + scene + ' [0-9a-f]{64}$').test(requests[0]))
         throw new Error('reattachment did not acknowledge one native scene request: ' + JSON.stringify(requests));
@@ -126,7 +128,7 @@ window.addEventListener('unhandledrejection', function(event) {
         await report('NEUTRAL_TAKEOFF_REFUSED', {code:error.code});
       }
     }
-    await backend.prepareActivity({id:'progression-sequence-v1'});
+    await backend.prepareActivity(SEQUENCE_PROFILE);
     await report('SEQUENCE_SCENE_ISOLATED', {scene:'sequence-v1'});
 
     await flyCanonicalSequence(backend);
@@ -169,7 +171,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
     const precise = {type:'mission-state-v1', oracle:'progression-precise-movement-v1'};
     await resetAndProveFresh(backend, precise, 'PRECISE_INITIAL_RESET_FRESH');
-    await reattachScene({id:'progression-precise-movement-v1'}, 'LEGACY_SCENE_REATTACHED');
+    await reattachScene(LEGACY_PROFILE, 'LEGACY_SCENE_REATTACHED');
     await report('LEGACY_SCENE_RESTORED', {scene:'legacy-v1'});
 
     await backend.takeoff(0.5);
@@ -236,7 +238,7 @@ window.addEventListener('unhandledrejection', function(event) {
     const preciseAlternative = await waitForOutcome(backend, precise, 'achieved', 8000);
     await report('PRECISE_ALTERNATIVE_ACHIEVED', preciseAlternative);
     await backend.resetSimulation();
-    await reattachScene({id:'progression-sequence-v1'}, 'SEQUENCE_SCENE_REATTACHED');
+    await reattachScene(SEQUENCE_PROFILE, 'SEQUENCE_SCENE_REATTACHED');
     await backend.takeoff(0.5);
     const restoredRange = await backend.readRange('front');
     if (Math.abs(restoredRange - 2.0) > 0.01) throw new Error('reattached Activity 1 retained a legacy obstacle');

@@ -86,6 +86,10 @@ function sceneAck(backend, id) {
   return 'WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+id+' SCENE_OK '+pending.sceneNonce;
 }
 
+function activityProfile(id) {
+  return Profiles.resolveById(Activities.DOCUMENT, id, Activities.BLOCK_CATALOG);
+}
+
 async function proveScenePreparation() {
   const messages = [];
   const backend = new WwiBackend({send: m => messages.push(m)}, {simulationScenes:true,timeoutMs:1000});
@@ -94,6 +98,14 @@ async function proveScenePreparation() {
   assert.match(messages[0], / REQUEST 1 SCENE sequence-v1 [0-9a-f]{64}$/);
   backend.handleMessage(sceneAck(backend,1));
   await pending;
+  // Reject missing/unsupported scene metadata even if the numeric ID resembles
+  // a known activity; a forged profile cannot silently select legacy content.
+  for (const scene of [undefined, '', '../../', 'unknown-v2']) {
+    const profile = {id:'progression-sequence-v1', runtime:scene === undefined ? {} : {scene}};
+    await assert.rejects(() => backend.prepareActivity(profile),
+      error => error && error.code === 'SCENE_UNAVAILABLE');
+  }
+  assert.strictEqual(messages.length, 1, 'invalid profile triggered native scene import');
   const unavailable = new WwiBackend({send: () => {throw new Error('unexpected send');}});
   await assert.rejects(() => unavailable.prepareActivity(sequence), /scenes unavailable/);
   backend.simulationStopped = true;
@@ -103,7 +115,7 @@ async function proveScenePreparation() {
   const sent = [];
   const racing = new WwiBackend({send:m=>sent.push(m)}, {simulationScenes:true,simulationReset:true,timeoutMs:1000});
   const preparing = racing.prepareActivity(sequence);
-  await assert.rejects(()=>racing.prepareActivity({id:'reactive-obstacle-v2'}), e=>e.code==='SCENE_BUSY');
+  await assert.rejects(()=>racing.prepareActivity(activityProfile('reactive-obstacle-v2')), e=>e.code==='SCENE_BUSY');
   assert.strictEqual(sent.length,1,'overlapping selection sent a second scene command');
   racing.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 VALUE 1');
   await assert.rejects(preparing,/invalid scene acknowledgement/);
@@ -219,7 +231,7 @@ async function proveSceneReattachment() {
     const source=inverse?JSON.parse(fs.readFileSync(path.join(ROOT,'activities/progression',starter),'utf8')).activity.id:sequence;
     const native=nativeController('legacy-v1'), first=native.attach();
     await first.waitUntilReady();
-    const selecting=first.prepareActivity({id:source});
+    const selecting=first.prepareActivity(activityProfile(source));
     if(native.requests.length)native.ack(native.requests.at(-1));
     await selecting;
     assert.strictEqual(native.scene,inverse?'legacy-v1':'sequence-v1');
@@ -244,7 +256,7 @@ async function proveSceneReattachment() {
     assert.strictEqual(profileChanges,0); assert.strictEqual(applied,false);
     assert.deepStrictEqual(Blockly.serialization.workspaces.save(workspace),before);
     assert.strictEqual(manager.currentName(),'original.wbb'); assert(manager.hasCurrentTarget());
-    await assert.rejects(backend.prepareActivity({id:source}),e=>e.code==='SCENE_BUSY');
+    await assert.rejects(backend.prepareActivity(activityProfile(source)),e=>e.code==='SCENE_BUSY');
     backend.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE '+(request.id+999)+' OK');
     await flush(); assert.strictEqual(applied,false,'wrong request ID applied project');
     assert.strictEqual(native.requests.length,count+1,'concurrent preparation was sent');
@@ -260,7 +272,7 @@ async function proveSceneReattachment() {
   }
   for(const payload of ['VALUE 1','STATE achieved','ERR SCENE_UNAVAILABLE']) {
     const native=nativeController('sequence-v1'), backend=native.attach(); await backend.waitUntilReady();
-    const selecting=backend.prepareActivity({id:'progression-precise-movement-v1'});
+    const selecting=backend.prepareActivity(activityProfile('progression-precise-movement-v1'));
     const rejected=assert.rejects(selecting); native.ack(native.requests.at(-1),payload); await rejected;
     assert.strictEqual(backend.sceneIdentity,null,'wrong ACK established a scene');
   }
@@ -268,10 +280,10 @@ async function proveSceneReattachment() {
   // CURRENT receiver, as main.js does, before its own native acknowledgement.
   const lateNative=nativeController('legacy-v1'), oldBackend=lateNative.attach();
   await oldBackend.waitUntilReady();
-  const oldSelection=oldBackend.prepareActivity({id:sequence});
+  const oldSelection=oldBackend.prepareActivity(activityProfile(sequence));
   const oldRequest=lateNative.requests.at(-1);
   const current=lateNative.attach(); await current.waitUntilReady();
-  const currentSelection=current.prepareActivity({id:'progression-precise-movement-v1'});
+  const currentSelection=current.prepareActivity(activityProfile('progression-precise-movement-v1'));
   const currentRequest=lateNative.requests.at(-1);
   assert.strictEqual(oldRequest.id,currentRequest.id);
   assert.notStrictEqual(oldRequest.nonce,currentRequest.nonce);
@@ -284,13 +296,13 @@ async function proveSceneReattachment() {
   lateNative.ack(oldRequest);await oldSelection;
 
   const sent=[], delayed=new WwiBackend({send:m=>sent.push(m)},{simulationScenes:true,simulationStop:true,timeoutMs:30});
-  await assert.rejects(delayed.prepareActivity({id:sequence}),/request timeout/);
+  await assert.rejects(delayed.prepareActivity(activityProfile(sequence)),/request timeout/);
   assert.strictEqual(delayed.sceneIdentity,null);
-  const retry=delayed.prepareActivity({id:'progression-precise-movement-v1'});
+  const retry=delayed.prepareActivity(activityProfile('progression-precise-movement-v1'));
   delayed.handleMessage('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK');
   await flush(); assert.strictEqual(delayed.sceneIdentity,null,'timed-out ACK confirmed later selection');
   delayed.handleMessage(sceneAck(delayed,2)); await retry;
-  const preparing=delayed.prepareActivity({id:sequence});
+  const preparing=delayed.prepareActivity(activityProfile(sequence));
   const cancelled=assert.rejects(preparing,e=>e.code==='RESET_CANCELLED');
   const stopping=delayed.stopSimulation();
   delayed.handleMessage(sceneAck(delayed,3));
