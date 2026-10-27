@@ -10,6 +10,22 @@ const SemanticAst = require(path.join(ROOT, 'plugins/robot_windows/blockly/webee
 const ActivityContract = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/activity_contract.js'));
 const ProjectFiles = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/project_files.js'));
 
+// Native scene identity belongs to each profile; no ID-based fallback is safe.
+assert.strictEqual(Activities.DOCUMENT.activities.length, 10, 'scene contract must enumerate all activities');
+for (const [index, activity] of Activities.DOCUMENT.activities.entries()) {
+  const expected = index === 0 ? 'sequence-v1' : 'legacy-v1';
+  const resolved = Profiles.resolveById(Activities.DOCUMENT, activity.id, Activities.BLOCK_CATALOG);
+  assert.strictEqual(activity.runtime.scene, expected, 'wrong native scene for ' + activity.id);
+  assert.strictEqual(resolved.runtime.scene, expected, 'resolved profile lost scene for ' + activity.id);
+  for (const invalid of [undefined, null, '', '../secret', 'unknown-v2']) {
+    const changed = JSON.parse(JSON.stringify(activity));
+    if (invalid === undefined) delete changed.runtime.scene;
+    else changed.runtime.scene = invalid;
+    assert.throws(() => Profiles.validateProfile(changed, Activities.BLOCK_CATALOG),
+      /runtime.scene must be sequence-v1 or legacy-v1/, 'ambiguous scene accepted for ' + activity.id);
+  }
+}
+
 const p1 = Profiles.resolveById(Activities.DOCUMENT, 'progression-sequence-v1', Activities.BLOCK_CATALOG);
 const p2 = Profiles.resolveById(Activities.DOCUMENT, 'progression-precise-movement-v1', Activities.BLOCK_CATALOG);
 const initialProfile = Profiles.resolveById(Activities.DOCUMENT, 'reactive-obstacle-v2', Activities.BLOCK_CATALOG);
