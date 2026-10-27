@@ -124,7 +124,15 @@
     await hook(options,'onNode',current);
     switch(expression.kind){
       case 'number':await hook(options,'beforeStep',current);return Number(expression.value);
-      case 'variable_get':{var ref=variableRef(expression.variable);await hook(options,'beforeStep',current);if(!Object.prototype.hasOwnProperty.call(env.values,ref.id))fail('variable read before assignment: '+ref.name);if(env.names[ref.id]&&env.names[ref.id]!==ref.name)fail('variable id/name mismatch: '+ref.id);return env.values[ref.id];}
+      case 'variable_get':{
+        var ref=variableRef(expression.variable);
+        await hook(options,'beforeStep',current);
+        if(!Object.prototype.hasOwnProperty.call(env.values,ref.id))
+          fail('variable read before assignment: '+ref.name);
+        if(env.names[ref.id]&&env.names[ref.id]!==ref.name)
+          fail('variable id/name mismatch: '+ref.id);
+        return env.values[ref.id];
+      }
       case 'elapsed_time':{
         await hook(options,'beforeStep',current);
         var seconds=await requireMethod(backend,'readElapsedTime')();
@@ -158,8 +166,22 @@
       }
       case 'logic':{
         var first=Boolean(await evaluate(expression.left,backend,budget,depth+1,options,(path||[]).concat('left'),env));var second;
-        if(expression.op==='AND'){if(!first){await hook(options,'beforeStep',context(expression,path,'expression',env));return false;}second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'),env));await hook(options,'beforeStep',context(expression,path,'expression',env));return first&&second;}
-        if(first){await hook(options,'beforeStep',context(expression,path,'expression',env));return true;}second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'),env));await hook(options,'beforeStep',context(expression,path,'expression',env));return first||second;
+        if(expression.op==='AND'){
+          if(!first){
+            await hook(options,'beforeStep',context(expression,path,'expression',env));
+            return false;
+          }
+          second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'),env));
+          await hook(options,'beforeStep',context(expression,path,'expression',env));
+          return first&&second;
+        }
+        if(first){
+          await hook(options,'beforeStep',context(expression,path,'expression',env));
+          return true;
+        }
+        second=Boolean(await evaluate(expression.right,backend,budget,depth+1,options,(path||[]).concat('right'),env));
+        await hook(options,'beforeStep',context(expression,path,'expression',env));
+        return first||second;
       }
     }
   }
@@ -183,7 +205,12 @@
           await hook(options,'beforeStep',context(statement,path,'statement',env));env.values[ref.id]=stored;env.names[ref.id]=ref.name;
           await hook(options,'onVariables',{node:statement,path:path.slice(),role:'statement',variables:snapshot(env),variable:ref,values:snapshot(env)});break;
         }
-        case 'if':{var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));await hook(options,'beforeStep',context(statement,path,'statement',env));await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'),env);break;}
+        case 'if':{
+          var condition=Boolean(await evaluate(statement.condition,backend,budget,depth+1,options,path.concat('condition'),env));
+          await hook(options,'beforeStep',context(statement,path,'statement',env));
+          await executeSequence(condition?statement.then:(statement.else||[]),backend,budget,depth+1,options,path.concat(condition?'then':'else'),env);
+          break;
+        }
         case 'while':{
           var iteration=0;
           for(;;){
@@ -197,18 +224,57 @@
           }
           break;
         }
-        case 'repeat':for(var repeat=0;repeat<statement.count;repeat++){await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:repeat}));await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);}break;
+        case 'repeat':
+          for(var repeat=0;repeat<statement.count;repeat++){
+            await hook(options,'beforeStep',context(statement,path,'statement',env,{iteration:repeat}));
+            await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);
+          }
+          break;
         case 'call':await hook(options,'beforeStep',current);await executeSequence(statement.body,backend,budget,depth+1,options,path.concat('body'),env);break;
       }
     }
   }
 
-  function containsConditionalLoop(sequence){return sequence.some(function(node){return node.kind==='while'||((node.kind==='repeat'||node.kind==='call')&&containsConditionalLoop(node.body))||(node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));});}
-  function containsProcedureCall(sequence){return sequence.some(function(node){return node.kind==='call'||(node.body&&containsProcedureCall(node.body))||(node.then&&containsProcedureCall(node.then))||(node.else&&containsProcedureCall(node.else));});}
+  function containsConditionalLoop(sequence){
+    return sequence.some(function(node){
+      return node.kind==='while'
+        || ((node.kind==='repeat'||node.kind==='call')&&containsConditionalLoop(node.body))
+        || (node.kind==='if'&&(containsConditionalLoop(node.then)||containsConditionalLoop(node.else||[])));
+    });
+  }
+  function containsProcedureCall(sequence){
+    return sequence.some(function(node){
+      return node.kind==='call'
+        || (node.body&&containsProcedureCall(node.body))
+        || (node.then&&containsProcedureCall(node.then))
+        || (node.else&&containsProcedureCall(node.else));
+    });
+  }
   function containsElapsedTime(sequence){
     function expression(node){return node && (node.kind==='elapsed_time'||expression(node.left)||expression(node.right));}
     return sequence.some(function(node){return expression(node.value)||expression(node.condition)||(node.body&&containsElapsedTime(node.body))||(node.then&&containsElapsedTime(node.then))||(node.else&&containsElapsedTime(node.else));});
   }
-  async function run(ast,backend,options){validateProgram(ast);if(containsElapsedTime(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true&&typeof backend.readElapsedTime==='function'))fail('elapsed simulation time unavailable on this backend');if(containsConditionalLoop(ast.program)&&!(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))fail('conditional loops unavailable on this backend');var procedures=containsProcedureCall(ast.program);if(procedures&&!(backend&&backend.capabilities&&backend.capabilities.procedures===true))fail('procedures unavailable on this backend');var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;if(maxSteps<1||maxSteps>100000)fail('invalid execution budget');if(procedures||containsConditionalLoop(ast.program))validateExecutionBudget(ast,maxSteps);var budget={remaining:maxSteps},env=environment();await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);return{remainingBudget:budget.remaining,variables:snapshot(env)};}
+  async function run(ast,backend,options){
+    validateProgram(ast);
+    if(containsElapsedTime(ast.program)
+        && !(backend&&backend.capabilities&&backend.capabilities.elapsedSimulationTime===true
+             && typeof backend.readElapsedTime==='function'))
+      fail('elapsed simulation time unavailable on this backend');
+    if(containsConditionalLoop(ast.program)
+        && !(backend&&backend.capabilities&&backend.capabilities.conditionalLoops===true))
+      fail('conditional loops unavailable on this backend');
+    var procedures=containsProcedureCall(ast.program);
+    if(procedures
+        && !(backend&&backend.capabilities&&backend.capabilities.procedures===true))
+      fail('procedures unavailable on this backend');
+    var maxSteps=options&&Number.isInteger(options.maxSteps)?options.maxSteps:1000;
+    if(maxSteps<1||maxSteps>100000)
+      fail('invalid execution budget');
+    if(procedures||containsConditionalLoop(ast.program))
+      validateExecutionBudget(ast,maxSteps);
+    var budget={remaining:maxSteps},env=environment();
+    await executeSequence(ast.program,backend,budget,0,options||{},['program'],env);
+    return{remainingBudget:budget.remaining,variables:snapshot(env)};
+  }
   return{run:run,evaluate:evaluate,validateProgram:validateProgram,validateExecutionBudget:validateExecutionBudget};
 });
