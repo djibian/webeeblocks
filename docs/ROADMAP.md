@@ -13,6 +13,53 @@ here.
 
 ## Product priority
 
+### Temporaire : stabilisation préalable, décision du 27 octobre 2026
+
+La demande récente du propriétaire dans [#587](https://github.com/djibian/webeeblocks/issues/587)
+suspend les changements fonctionnels/pédagogiques du Grand Prix pendant la remise
+en santé technique transversale (Webots/Qt, RESET, CI, éditeur, projets).
+**Préserver** les oracles du Grand Prix dans les tests de non-régression, sans
+reprendre la recherche algorithmique ni proposer de nouveaux blocs pendant
+cette phase. Cette pause n'annule ni le produit cible ni les travaux historiques,
+et ne crée pas de verrou de contrôleur ou de veto automatique : V5 gouverne
+toujours l'éligibilité et les intégrations de travaux techniques indépendants.
+
+### À la reprise : sélection par accessibilité élève, pas par blocs gagnés
+
+Avant de retenir une nouvelle solution Grand Prix, produire **plusieurs
+architectures distinctes** et leur comparaison vérifiable, plutôt qu'un patch
+de seuil ou une petite économie de blocs d'un unique .wbb expert.
+L'ordre de recherche est : apprentissages → stratégie compréhensible →
+abstractions génériques réellement nécessaires → construction/explication/debug
+autonomes → validation native exhaustive et validation pédagogique personnelle.
+Les invariants de sécurité s'appliquent dès chaque exécution; la dernière
+étape n'autorise pas un report des préflights ou des refus.
+
+Exiger deux **dossiers de preuves séparés** :
+1. **Structure et apport réel des primitives** : véritables .wbb et identités
+   SHA, mesure comparative commune via `tools/blockly/compare_wbb.py`,
+   conditions et variables restant à la charge de l'élève, réglages,
+   imbrications, répétitions et contre-exemples. Chaque bloc inédit est
+   spécifié de façon générique, composable, débogable et éprouvé sur une
+   **autre activité/situation**, sans savoir caché de scène, porte ou oracle.
+2. **Faisabilité pédagogique observée** : tâche représentative commencée
+   sans programme fini, élèves de prérequis comparables et aides identiques,
+   conception, construction, explication, diagnostic/correction et sauvegarde
+   réelle. Consigner autonomie, aides, erreurs, temps et raisons d'échec.
+   Ouvrir un fichier complet ou réussir la CI native ne vaut pas construction.
+   Aucune note automatique de « simplicité », seuil arbitraire de blocs ou
+   PASS avant la décision explicite du propriétaire.
+
+Recontextualiser **#660 (67 blocs / 3 variables, piste ancienne avec murs,
+non qualifié sans murs)** face à **#703/#705 (232–234 blocs / 10–11 variables,
+témoin technique natif)** ; ne pas comparer leurs résultats Webots comme si
+les mondes ou les capacités étaient identiques. Une réfutation précise d'une
+approche plus simple ou d'un faux repère sensoriel est un résultat utile.
+Document de protocole : `docs/GRAND_PRIX_PEDAGOGICAL_BLOCKS.md`.
+Aucune refonte officielle des activités 2–7 avant les acceptations humaines
+exigées par la Phase 1.
+
+
 1. **#587 — pupil-usable simulation progression and Grand Prix (pedagogical delivery).**
    The immediate classroom product objective is a coherent, usable eight-activity
    path whose final Grand Prix can be **conceived, edited, understood and debugged

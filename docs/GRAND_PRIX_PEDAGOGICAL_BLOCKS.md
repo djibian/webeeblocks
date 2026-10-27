@@ -1,5 +1,107 @@
 # Grand Prix — architecture pédagogique Blockly
 
+## Protocole prioritaire de conception élève (préparé, NON ACTIVÉ)
+
+**Décision du propriétaire du 27 octobre 2026 : d'abord résoudre les défauts
+techniques transversaux ; ne pas relancer le Grand Prix pour l'instant.**
+Ce protocole ne remet pas en route les expériences ni les activités 2–7,
+et ne constitue pas un nouveau bloc, oracle ou test humain autorisé.
+
+À la reprise, ne plus optimiser uniquement la variante experte qui passe
+Webots. Explorer **au moins deux familles algorithmiques réellement distinctes**
+et accepter une remise à plat plutôt que des seuils modifiés ou des procédures
+renommées. Décrire explicitement les décisions que prend l'élève, les
+opérations répétitives bas niveau déléguées et ce qui reste observable.
+
+### Comparaison structurée sur les vrais fichiers .wbb
+
+```sh
+python3 tools/blockly/compare_wbb.py chemin/candidat-A.wbb chemin/candidat-B.wbb
+python3 tools/ci/test_measure_wbb.py
+```
+
+Le résultat JSON identifie chaque **fichier réel par SHA-256**, ses blocs
+(total et familles), variables effectivement référencées, nombre de **blocs
+SI**, nombre d'**emplacements de tests SI** (y compris chaque « sinon si »,
+même vide), présence d'un **sinon** et **gardes de boucles WHILE/UNTIL**
+séparément. `conditional_test_slots` additionne les emplacements de tests SI
+et les gardes de boucle, sans prétendre compter les décisions cognitives de
+l'élève, les chemins exécutés, les comparaisons réelles ou la difficulté.
+Une boucle à itérations fixes `repeat` est comptée séparément, **pas**
+comme garde conditionnelle. Le rapport indique aussi comparaisons, littéraux
+numériques, lectures de capteur, mouvements, mises à jour de variables,
+profondeur, longueur du flux principal et **différences avec le premier fichier**.
+Les blocs conditionnels complexes ne sont pas équivalents : comparaison,
+connecteurs logiques, branches et boucles gardées restent des indicateurs
+**distincts**. Les `extraState` Blockly valides décrivent les sockets non
+raccordés d'un « sinon si / sinon », et n'en démontrent pas l'utilisation.
+Un comparatif ne fait **aucun** classement pédagogique automatique :
+ces indicateurs sont des *indices structurels*, pas des capacités d'élève.
+Consigner à part les constantes réellement indépendantes à régler, la
+répartition des procédures dans l'éditeur et les décisions redondantes.
+
+Deux références historiques utiles **sans équivalence de qualification** :
+#660 (67 blocs, 3 variables ; ancienne géométrie, repères latéraux avec murs,
+stratégie non qualifiée sur la piste actuelle sans murs) et #703/#705
+(232–234 blocs, 10–11 variables ; 16 cas natifs avec les oracles inchangés).
+Une réduction de blocs n'efface ni une navigation impossible sans repère,
+ni une mesure ambiguë, ni la charge de construire le programme.
+
+### Critères avant d'affirmer « plus simple pour les élèves »
+
+Comparer les approches **avec les mêmes prérequis, temps, consignes et aides** ;
+contrebalancer l'ordre d'évaluation si les élèves voient les deux.
+La tâche de construction ne doit **pas** commencer avec le .wbb fini,
+ni offrir de solution automatique.
+
+- **Concevoir** : expliquer avec leurs mots comment les observations et la
+  mémoire suffisent à sélectionner une action ; donner un contre-exemple.
+- **Construire** : assembler sans modèle intégral une section non triviale
+  comprenant capteur, décision, mémoire et action ; enregistrer la fréquence
+  et la nature des aides, les erreurs et le temps de réalisation.
+- **Expliquer/déboguer** : reconnaître une lecture ambiguë, localiser la
+  condition ou le compteur fautif grâce aux vrais pas Blockly, modifier,
+  observer puis corriger et relancer sans indices donnant la solution.
+- **Persister** : vrai Save/Save As/Open sur le poste scolaire ; vérifier
+  l'identité du .wbb rouvert. Un sélecteur de fichiers simulé ne suffit pas.
+- **Transférer** : réutiliser l'idée dans une situation nouvelle et
+  pédagogiquement distincte, pas seulement reproduire le Grand Prix.
+
+Publier séparément : (A) fichier et métriques structurelles, (B) tests du
+langage/éditeur, (C) preuves natives et négatifs, (D) observation humaine
+de construction et d'explication. **Seul D, avec la décision personnelle du
+propriétaire et les autres obligations satisfaites, peut soutenir une
+acceptation pédagogique**. Zéro seuil arbitraire de blocs, variable ou
+profondeur ; pas de PASS, TEST_REQUIRED ou autorisation de vol implicites.
+
+### Filtre pour de nouvelles primitives génériques
+
+Chaque proposition de bloc doit répondre à six questions avant développement :
+
+1. **Difficulté récurrente** : quelle manipulation technique de bas niveau
+   encombre au moins deux problèmes d'apprentissage indépendants ?
+2. **Généricité** : quels paramètres et capteurs publics l'élève choisit-il,
+   sans identité de H, coin, destination, graine, monde ou verdict d'oracle ?
+3. **Décision élève** : quelles mesures, comparaisons, choix et hypothèses
+   restent visibles, explicables, modifiables et exécutables pas à pas ?
+4. **Limites** : quelles bornes, retours saturés/invalides, garanties
+   physiques *non acquises* et contre-exemples doivent échouer fermés ?
+5. **Réutilisation** : quel deuxième petit .wbb sur une **autre activité**
+   démontre la valeur du même bloc, sans adaptation secrète au Grand Prix ?
+6. **Gain réel** : quelle opération intellectuelle ou erreur de manipulation
+   disparaît, quelles dépendances apparaissent, et qu'en disent les
+   élèves ? Les seules économies de blocs ne suffisent pas.
+
+Pistes **à évaluer, pas à implémenter pendant la pause** : approche surveillée
+(#659, garde/arrêt bornés et écart commande-déplacement à résoudre),
+régulation latérale générique (l'absence de murs interdit d'inventer un
+repère au sol à partir de télémètres), sélection explicite selon plusieurs
+cas, et sortie sûre d'une recherche sans esquiver le LAND final.
+Le « franchir un H », « arriver à gauche » ou « compter un H » déterminé
+automatiquement sont des **blocs magiques refusés**. Le vocabulaire ne
+doit pas remplacer la réflexion algorithmique.
+
+
 **Décision du propriétaire, 21 octobre 2026 :** les élèves doivent concevoir
 le programme final eux-mêmes. Le témoin expérimental de la PR #655
 (389 blocs, onze variables métier) n'est pas la solution à distribuer.
