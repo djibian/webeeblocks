@@ -133,6 +133,10 @@ function arithmeticBlock(workspace,op,leftValue,rightValue){
   arithmeticWorkspace.dispose();
   await require('./test_runtime_v2_while.js')();
   await require('./test_runtime_v2_procedures.js')();
+  // Check the real editable .wbb experiment with the ordinary pinned
+  // Blockly compiler, Grand Prix preflight and Save/Open round-trip.
+  // This test does not exercise native flight or justify a pedagogical PASS.
+  require('child_process').execFileSync(process.execPath,[path.join(ROOT,'experiments/grand-prix-pupil-procedures/verify.js')],{stdio:'inherit'});
   await require('./test_runtime_v2_elapsed_time.js')();
   require('child_process').execFileSync('python3',[require('path').join(__dirname,'test_simulation_clock.py')],{stdio:'inherit'});
   console.log('PASS variables-memory: Blockly set/change -> stable AST -> fail-closed interpreter -> execution observer -> project round-trip -> finite basic arithmetic');
