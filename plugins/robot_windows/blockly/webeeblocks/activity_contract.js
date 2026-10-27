@@ -7,8 +7,18 @@
   'use strict';
   var BACKEND_ACTION_KINDS = ['takeoff', 'move', 'vertical', 'turn', 'wait', 'set_speed', 'set_light', 'land'];
   function fail(message) { throw new Error('activity contract: ' + message); }
-  function studentFail(message, detail) { var error = new Error('activity contract: ' + message); error.code = 'PROGRAM_INVALID'; error.studentDetail = detail; throw error; }
-  function workspaceTypes(workspace) { if (!workspace || typeof workspace.getAllBlocks !== 'function') fail('invalid Blockly workspace'); return workspace.getAllBlocks(false).map(function(block) { return block.type; }); }
+  function studentFail(message, detail) {
+    var error = new Error('activity contract: ' + message);
+    error.code = 'PROGRAM_INVALID';
+    error.studentDetail = detail;
+    throw error;
+  }
+  function workspaceTypes(workspace) {
+    if (!workspace || typeof workspace.getAllBlocks !== 'function') fail('invalid Blockly workspace');
+    return workspace.getAllBlocks(false).map(function(block) {
+      return block.type;
+    });
+  }
   function preflightFieldOptions(profile, workspace) {
     var definitions = profile.fieldOptions || {};
     workspace.getAllBlocks(false).forEach(function(block) {
@@ -23,18 +33,92 @@
     });
     return true;
   }
-  function preflightWorkspace(profile, workspace) { var allowed = new Set(profile.toolbox); var types = workspaceTypes(workspace); types.forEach(function(type) { if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.'); }); preflightFieldOptions(profile, workspace); return types; }
-  function applyFieldBounds(profile, workspace) { var definitions = profile.parameterBounds || {}; workspace.getAllBlocks(false).forEach(function(block) { var fields = definitions[block.type] || {}; Object.keys(fields).forEach(function(fieldName) { var field = block.getField(fieldName); if (!field || typeof field.setConstraints !== 'function') fail('field bound target unavailable: ' + block.type + '.' + fieldName); var bounds = fields[fieldName]; field.setConstraints(bounds.min, bounds.max, bounds.step); }); }); }
+  function preflightWorkspace(profile, workspace) {
+    var allowed = new Set(profile.toolbox);
+    var types = workspaceTypes(workspace);
+    types.forEach(function(type) {
+      if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
+    });
+    preflightFieldOptions(profile, workspace);
+    return types;
+  }
+  function applyFieldBounds(profile, workspace) {
+    var definitions = profile.parameterBounds || {};
+    workspace.getAllBlocks(false).forEach(function(block) {
+      var fields = definitions[block.type] || {};
+      Object.keys(fields).forEach(function(fieldName) {
+        var field = block.getField(fieldName);
+        if (!field || typeof field.setConstraints !== 'function') fail('field bound target unavailable: ' + block.type + '.' + fieldName);
+        var bounds = fields[fieldName];
+        field.setConstraints(bounds.min, bounds.max, bounds.step);
+      });
+    });
+  }
   function collectAst(ast) {
     var elapsedTime = false, statements = new Set(), ranges = new Set(), moves = new Set(), verticals = new Set();
-    function expression(node) { if (!node) return; if (node.kind === 'elapsed_time') elapsedTime = true; if (node.kind === 'range') ranges.add(node.direction); if (node.left) expression(node.left); if (node.right) expression(node.right); }
-    function sequence(items) { (items || []).forEach(function(statement) { statements.add(statement.kind); if (statement.kind === 'move') moves.add(statement.direction); if (statement.kind === 'vertical') verticals.add(statement.direction); if (statement.kind === 'set_variable') expression(statement.value); if (statement.kind === 'if') { expression(statement.condition); sequence(statement.then); sequence(statement.else); } else if (statement.kind === 'repeat' || statement.kind === 'while' || statement.kind === 'call') { if (statement.kind === 'while') expression(statement.condition); sequence(statement.body); }; }); }
+    function expression(node) {
+      if (!node) return;
+      if (node.kind === 'elapsed_time') elapsedTime = true;
+      if (node.kind === 'range') ranges.add(node.direction);
+      if (node.left) expression(node.left);
+      if (node.right) expression(node.right);
+    }
+    function sequence(items) {
+      (items || []).forEach(function(statement) {
+        statements.add(statement.kind);
+        if (statement.kind === 'move') moves.add(statement.direction);
+        if (statement.kind === 'vertical') verticals.add(statement.direction);
+        if (statement.kind === 'set_variable') expression(statement.value);
+        if (statement.kind === 'if') {
+          expression(statement.condition);
+          sequence(statement.then);
+          sequence(statement.else);
+        } else if (statement.kind === 'repeat' || statement.kind === 'while' || statement.kind === 'call') {
+          if (statement.kind === 'while') expression(statement.condition);
+          sequence(statement.body);
+        };
+      });
+    }
     sequence(ast && ast.program);
     return {elapsedTime: elapsedTime, statements: statements, ranges: ranges, moveDirections: moves, verticalDirections: verticals};
   }
-  function checkBound(bounds, name, value) { if (!Object.prototype.hasOwnProperty.call(bounds, name)) return; var constraint = bounds[name]; if (value < constraint.min || value > constraint.max) fail(name + ' outside profile bounds: ' + value); }
-  function checkAstBounds(profile, ast) { var bounds = profile.runtime.astBounds || {}; function sequence(items) { (items || []).forEach(function(statement) { if (statement.kind === 'takeoff') checkBound(bounds, 'takeoff.height_m', statement.height_m); else if (statement.kind === 'move') checkBound(bounds, 'move.distance_m', statement.distance_m); else if (statement.kind === 'vertical') checkBound(bounds, 'vertical.distance_m', statement.distance_m); else if (statement.kind === 'turn') checkBound(bounds, 'turn.angle_deg_abs', Math.abs(statement.angle_deg)); else if (statement.kind === 'wait') checkBound(bounds, 'wait.seconds', statement.seconds); else if (statement.kind === 'set_speed') checkBound(bounds, 'set_speed.speed_m_s', statement.speed_m_s); else if (statement.kind === 'repeat') { checkBound(bounds, 'repeat.count', statement.count); sequence(statement.body); } else if (statement.kind === 'while') { checkBound(bounds, 'while.max_iterations', statement.max_iterations); sequence(statement.body); } else if (statement.kind === 'call') { sequence(statement.body); } else if (statement.kind === 'if') { sequence(statement.then); sequence(statement.else); } }); } sequence(ast.program); }
-  function requireDirections(facts, key, allowedValues, messagePrefix) { var allowed = new Set(allowedValues || []); facts[key].forEach(function(direction) { if (!allowed.has(direction)) fail(messagePrefix + direction); }); }
+  function checkBound(bounds, name, value) {
+    if (!Object.prototype.hasOwnProperty.call(bounds, name)) return;
+    var constraint = bounds[name];
+    if (value < constraint.min || value > constraint.max) fail(name + ' outside profile bounds: ' + value);
+  }
+  function checkAstBounds(profile, ast) {
+    var bounds = profile.runtime.astBounds || {};
+    function sequence(items) {
+      (items || []).forEach(function(statement) {
+        if (statement.kind === 'takeoff') checkBound(bounds, 'takeoff.height_m', statement.height_m);
+        else if (statement.kind === 'move') checkBound(bounds, 'move.distance_m', statement.distance_m);
+        else if (statement.kind === 'vertical') checkBound(bounds, 'vertical.distance_m', statement.distance_m);
+        else if (statement.kind === 'turn') checkBound(bounds, 'turn.angle_deg_abs', Math.abs(statement.angle_deg));
+        else if (statement.kind === 'wait') checkBound(bounds, 'wait.seconds', statement.seconds);
+        else if (statement.kind === 'set_speed') checkBound(bounds, 'set_speed.speed_m_s', statement.speed_m_s);
+        else if (statement.kind === 'repeat') {
+          checkBound(bounds, 'repeat.count', statement.count);
+          sequence(statement.body);
+        } else if (statement.kind === 'while') {
+          checkBound(bounds, 'while.max_iterations', statement.max_iterations);
+          sequence(statement.body);
+        } else if (statement.kind === 'call') {
+          sequence(statement.body);
+        } else if (statement.kind === 'if') {
+          sequence(statement.then);
+          sequence(statement.else);
+        }
+      });
+    }
+    sequence(ast.program);
+  }
+  function requireDirections(facts, key, allowedValues, messagePrefix) {
+    var allowed = new Set(allowedValues || []);
+    facts[key].forEach(function(direction) {
+      if (!allowed.has(direction)) fail(messagePrefix + direction);
+    });
+  }
   function preflightAst(profile, ast) {
     var facts = collectAst(ast);
     if (facts.elapsedTime && profile.runtime.elapsedSimulationTime !== true) fail('elapsed simulation time unavailable in profile');
@@ -52,7 +136,9 @@
     if (facts.elapsedTime && capabilities.elapsedSimulationTime !== true) fail('elapsed simulation time unavailable on backend');
     if (facts.statements.has('call') && capabilities.procedures !== true) fail('procedures unavailable on backend');
     var actions = new Set(capabilities.actions || []);
-    facts.statements.forEach(function(kind) { if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind)) studentFail('backend action capability unavailable: ' + kind, 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.'); });
+    facts.statements.forEach(function(kind) {
+      if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind)) studentFail('backend action capability unavailable: ' + kind, 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.');
+    });
     requireDirections(facts, 'ranges', capabilities.rangeDirections, 'backend range capability unavailable: ');
     requireDirections(facts, 'moveDirections', capabilities.moveDirections, 'backend move direction unavailable: ');
     requireDirections(facts, 'verticalDirections', capabilities.verticalDirections, 'backend vertical direction unavailable: ');
@@ -75,5 +161,7 @@
     await interpreter.run(ast, backend, interpreterOptions);
     return ast;
   }
-  return {preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute};
+  return {
+    preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute
+  };
 });

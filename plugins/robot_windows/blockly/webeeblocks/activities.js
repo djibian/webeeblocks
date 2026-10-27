@@ -5,19 +5,497 @@
     root.WebeeBlocksActivities = factory();
 })(typeof self !== 'undefined' ? self : this, function() {
   'use strict';
-  var BLOCK_CATALOG = Object.freeze({webeeblocks_takeoff:{category:'flight'},webeeblocks_forward:{category:'flight'},webeeblocks_turn:{category:'flight'},webeeblocks_land:{category:'flight'},webeeblocks_v2_takeoff:{category:'flight'},webeeblocks_v2_land:{category:'flight'},webeeblocks_v2_move:{category:'flight'},webeeblocks_v2_vertical:{category:'flight'},webeeblocks_v2_turn:{category:'flight'},webeeblocks_v2_wait:{category:'control'},webeeblocks_v2_speed:{category:'flight'},webeeblocks_v2_light:{category:'flight'},webeeblocks_v2_range:{category:'sensor'},webeeblocks_v2_elapsed:{category:'sensor'},procedures_defnoreturn:{category:'procedure'},procedures_callnoreturn:{category:'procedure'},controls_if:{category:'control'},controls_repeat_ext:{category:'control'},controls_whileUntil:{category:'control'},webeeblocks_v2_until:{category:'control'},logic_compare:{category:'operator'},logic_operation:{category:'operator'},math_number:{category:'operator'},math_arithmetic:{category:'operator'},variables_set:{category:'variable'},variables_get:{category:'variable'},math_change:{category:'variable'}});
-  var DOCUMENT = Object.freeze({version:1,activities:[
-    {id:'progression-sequence-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'1 — Livrer le colis',mission:'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.'},pedagogy:{objective:'Construire et comprendre une séquence ordonnée d’actions.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:0.5,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:0.1,step:0.1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward']}},hardware:['crazyflie-2.1','flow-deck-v2'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-sequence-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','land'],rangeDirections:[],moveDirections:['forward'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:0.5},'move.distance_m':{min:0.1,max:0.1}}}},
-    {id:'progression-precise-movement-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'2 — Livrer le colis fragile',mission:'Un colis fragile doit être déposé sur la petite zone de livraison située à gauche du couloir. Fais terminer le drone posé et immobile entièrement dans cette zone, sans toucher l’obstacle rouge.'},pedagogy:{objective:'Choisir et ajuster les paramètres de déplacement pour obtenir un déplacement précis en réutilisant une séquence ordonnée.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:0.5,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:0.6,step:0.1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left']}},hardware:['crazyflie-2.1','flow-deck-v2'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-precise-movement-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','land'],rangeDirections:[],moveDirections:['forward','left'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:0.5},'move.distance_m':{min:0.1,max:0.6}}}},
-    {id:'progression-repeat-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'3 — Inspecter trois balises',mission:'Trois balises identiques doivent être inspectées avant le retour de l’équipe. Fais passer le drone dans les trois zones d’inspection, dans l’ordre, puis termine posé dans la zone d’arrivée, sans toucher l’obstacle rouge.'},pedagogy:{objective:'Identifier un motif identique de déplacements paramétrés et l’exprimer avec une répétition en réutilisant les acquis des activités 1 et 2.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:0.5,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:0.6,step:0.1}},math_number:{NUM:{min:1,max:10,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left']}},hardware:['crazyflie-2.1','flow-deck-v2'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-repeat-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','repeat','land'],rangeDirections:[],moveDirections:['forward','left'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:0.5},'move.distance_m':{min:0.1,max:0.6},'repeat.count':{min:1,max:10}}}},
-    {id:'progression-simple-decision-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'4 — Franchir une porte mobile',mission:'Une porte mobile protège l’accès à la zone de livraison. Après la zone bleue de contrôle, deux passages sont balisés et la porte en ferme un au départ. Fais franchir au drone le passage resté ouvert puis rejoindre la zone d’arrivée et terminer posé, sans toucher la porte ni les obstacles, quelle que soit la position de la porte.'},pedagogy:{objective:'Mesurer la distance devant le drone au point de décision, la comparer à un seuil et choisir un itinéraire avec une condition simple en réutilisant les paramètres de déplacement.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_range','controls_if','logic_compare','math_number','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:1.0,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:1.2,step:0.1}},math_number:{NUM:{min:1,max:2,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left']},webeeblocks_v2_range:{DIRECTION:['front']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-simple-decision-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','if','land'],rangeDirections:['front'],moveDirections:['forward','left'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:1.0},'move.distance_m':{min:0.1,max:1.2}}}},
-    {id:'progression-reactive-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'5 — Traverser les rangées',mission:'Le drone doit traverser plusieurs rangées de l’entrepôt pour rejoindre la zone de livraison. Des colis peuvent bloquer certaines rangées. Fais-le avancer jusqu’à la zone d’arrivée et terminer posé sans toucher de colis, même si les blocages ne sont pas les mêmes d’une rangée à l’autre.'},pedagogy:{objective:'Répéter un cycle de mesure, décision et déplacement afin de réobserver la situation avant chaque rangée, en réutilisant les acquis des activités précédentes.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number','webeeblocks_v2_range','controls_if','logic_compare','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:1.0,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:1.2,step:0.1}},math_number:{NUM:{min:1,max:10,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left']},webeeblocks_v2_range:{DIRECTION:['front']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-reactive-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','repeat','if','land'],rangeDirections:['front'],moveDirections:['forward','left'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:1.0},'move.distance_m':{min:0.1,max:1.2},'repeat.count':{min:1,max:10}}}},
-    {id:'progression-combined-decisions-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'6 — Choisir une sortie sûre au carrefour',mission:'À chaque carrefour de l’entrepôt, plusieurs passages peuvent être libres ou occupés. Fais rejoindre au drone la zone de sortie puis termine posé, sans entrer dans un passage bloqué ni toucher un obstacle.'},pedagogy:{objective:'Acquérir plusieurs distances directionnelles et combiner des comparaisons et conditions afin que le déplacement choisi dépende de plusieurs observations de l’environnement.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number','webeeblocks_v2_range','controls_if','logic_compare','logic_operation','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:1.0,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:1.2,step:0.1}},math_number:{NUM:{min:1,max:10,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left','right']},webeeblocks_v2_range:{DIRECTION:['front','left','right']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-combined-decisions-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','repeat','if','land'],rangeDirections:['front','left','right'],moveDirections:['forward','left','right'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:1.0},'move.distance_m':{min:0.1,max:1.2},'repeat.count':{min:1,max:10}}}},
-    {id:'progression-memory-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'7 — Acheminer le colis selon son gabarit',mission:'Au quai de départ, le drone peut mesurer le gabarit du colis grâce au panneau de référence placé devant lui. Une fois parti, ce panneau ne sera plus visible. Plus loin, deux zones de tri doivent être franchies en choisissant à chaque fois le passage adapté au colis, puis le drone doit terminer posé dans la bonne zone de livraison.',cue:'Une variable sera utile pour mémoriser la mesure faite au quai de départ.'},pedagogy:{objective:'Capturer une mesure à un instant identifiable, la mémoriser puis réutiliser la valeur mémorisée dans au moins deux décisions ultérieures lorsque l’information d’origine n’est plus directement observable.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number','math_arithmetic','webeeblocks_v2_range','controls_if','logic_compare','logic_operation','variables_set','variables_get','math_change','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:1.0,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:1.2,step:0.1}},math_number:{NUM:{min:-10,max:10,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left','right']},webeeblocks_v2_range:{DIRECTION:['front','left','right']},math_arithmetic:{OP:['ADD','MINUS','MULTIPLY','DIVIDE']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-memory-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','repeat','if','set_variable','land'],rangeDirections:['front','left','right'],moveDirections:['forward','left','right'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:1.0},'move.distance_m':{min:0.1,max:1.2},'repeat.count':{min:1,max:10}}}},
-    {id:'progression-autonomous-strategy-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'8 — Assurer une livraison autonome complète',mission:'Prends en charge le colis au quai de départ, puis fais rejoindre au drone la bonne zone de livraison en autonomie. Le trajet peut comporter des passages occupés et plusieurs choix de route. Les informations disponibles au départ et pendant le trajet doivent lui permettre de choisir une stratégie adaptée. Termine posé dans la zone correspondant au colis, sans toucher d’obstacle.'},pedagogy:{objective:'Concevoir, tester et affiner une stratégie autonome en sélectionnant et combinant les mécanismes acquis dans les activités précédentes selon leur utilité.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','controls_repeat_ext','math_number','math_arithmetic','webeeblocks_v2_range','controls_if','logic_compare','logic_operation','variables_set','variables_get','math_change','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.5,max:1.0,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:1.2,step:0.1}},math_number:{NUM:{min:-10,max:10,step:1}}},fieldOptions:{webeeblocks_v2_move:{DIRECTION:['forward','left','right']},webeeblocks_v2_range:{DIRECTION:['front','left','right']},math_arithmetic:{OP:['ADD','MINUS','MULTIPLY','DIVIDE']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck'],timer:{enabled:false},evaluation:{type:'mission-state-v1',oracle:'progression-autonomous-strategy-v1'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','repeat','if','set_variable','land'],rangeDirections:['front','left','right'],moveDirections:['forward','left','right'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:0.5,max:1.0},'move.distance_m':{min:0.1,max:1.2},'repeat.count':{min:1,max:10}}}},
-    {id:'obstacle-time-trial-v1',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'Défi Crazyflie — contre-la-montre',goal:'Franchis les deux portes dans l’ordre, évite l’obstacle puis atterris. Quand ton parcours réussit, améliore ton temps.'},toolbox:['webeeblocks_takeoff','webeeblocks_forward','webeeblocks_turn','webeeblocks_land'],parameterBounds:{webeeblocks_forward:{DISTANCE:{min:0.1,max:2.0,step:0.1}},webeeblocks_turn:{ANGLE:{min:-90,max:135,step:1}}},hardware:['crazyflie-2.1','flow-deck-v2'],timer:{enabled:true},evaluation:{type:'ordered-gates-no-collision'},runtime:{mode:'mission-v1',allowedStatementKinds:['takeoff','move','turn','land'],rangeDirections:[],moveDirections:['forward'],verticalDirections:[],astBounds:{'takeoff.height_m':{min:1.0,max:1.0},'move.distance_m':{min:0.1,max:2.0},'turn.angle_deg_abs':{min:1,max:135}}}},
-    {id:'reactive-obstacle-v2',world:'worlds/crazyflie_runtime_obstacle.wbt',brief:{visible:true,title:'Crazyflie — comportement réactif',goal:'Observe les distances pendant le vol et décide du déplacement à exécuter.'},toolbox:['webeeblocks_v2_takeoff','webeeblocks_v2_move','webeeblocks_v2_vertical','webeeblocks_v2_turn','webeeblocks_v2_wait','webeeblocks_v2_speed','webeeblocks_v2_light','webeeblocks_v2_range','controls_if','controls_repeat_ext','logic_compare','logic_operation','math_number','math_arithmetic','variables_set','variables_get','math_change','webeeblocks_v2_land'],parameterBounds:{webeeblocks_v2_takeoff:{HEIGHT:{min:0.2,max:1.5,step:0.1}},webeeblocks_v2_move:{DISTANCE:{min:0.1,max:2.0,step:0.1}},webeeblocks_v2_vertical:{DISTANCE:{min:0.1,max:0.8,step:0.1}},webeeblocks_v2_turn:{ANGLE:{min:1,max:179,step:1}},webeeblocks_v2_wait:{SECONDS:{min:0.1,max:5.0,step:0.1}},webeeblocks_v2_speed:{SPEED:{min:0.1,max:0.35,step:0.05}}},fieldOptions:{math_arithmetic:{OP:['ADD','MINUS','MULTIPLY','DIVIDE']}},hardware:['crazyflie-2.1','flow-deck-v2','multi-ranger-deck','color-led-deck'],timer:{enabled:false},evaluation:{type:'reactive-runtime'},runtime:{mode:'ast-v1',allowedStatementKinds:['takeoff','move','vertical','turn','wait','set_speed','set_light','if','repeat','set_variable','land'],rangeDirections:['front','back','left','right','up'],moveDirections:['forward','back','left','right'],verticalDirections:['up','down'],astBounds:{'takeoff.height_m':{min:0.2,max:1.5},'move.distance_m':{min:0.1,max:2.0},'vertical.distance_m':{min:0.1,max:0.8},'turn.angle_deg_abs':{min:1,max:179},'wait.seconds':{min:0.1,max:5.0},'set_speed.speed_m_s':{min:0.1,max:0.35},'repeat.count':{min:1,max:20}}}}
-  ]});
+  var BLOCK_CATALOG = Object.freeze({
+    webeeblocks_takeoff: { category: 'flight' },
+    webeeblocks_forward: { category: 'flight' },
+    webeeblocks_turn: { category: 'flight' },
+    webeeblocks_land: { category: 'flight' },
+    webeeblocks_v2_takeoff: { category: 'flight' },
+    webeeblocks_v2_land: { category: 'flight' },
+    webeeblocks_v2_move: { category: 'flight' },
+    webeeblocks_v2_vertical: { category: 'flight' },
+    webeeblocks_v2_turn: { category: 'flight' },
+    webeeblocks_v2_wait: { category: 'control' },
+    webeeblocks_v2_speed: { category: 'flight' },
+    webeeblocks_v2_light: { category: 'flight' },
+    webeeblocks_v2_range: { category: 'sensor' },
+    webeeblocks_v2_elapsed: { category: 'sensor' },
+    procedures_defnoreturn: { category: 'procedure' },
+    procedures_callnoreturn: { category: 'procedure' },
+    controls_if: { category: 'control' },
+    controls_repeat_ext: { category: 'control' },
+    controls_whileUntil: { category: 'control' },
+    webeeblocks_v2_until: { category: 'control' },
+    logic_compare: { category: 'operator' },
+    logic_operation: { category: 'operator' },
+    math_number: { category: 'operator' },
+    math_arithmetic: { category: 'operator' },
+    variables_set: { category: 'variable' },
+    variables_get: { category: 'variable' },
+    math_change: { category: 'variable' }
+  });
+  var DOCUMENT = Object.freeze({
+    version: 1,
+    activities: [
+      {
+        id: 'progression-sequence-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '1 — Livrer le colis',
+          mission: 'Un petit colis doit être transféré de la base de départ vers la zone d’arrivée. Fais terminer le drone posé et immobile dans la zone d’arrivée.'
+        },
+        pedagogy: { objective: 'Construire et comprendre une séquence ordonnée d’actions.' },
+        toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.1, step: 0.1 } }
+        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-sequence-v1' },
+        runtime: {
+          scene: 'sequence-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.1 }
+          }
+        }
+      },
+      {
+        id: 'progression-precise-movement-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '2 — Livrer le colis fragile',
+          mission: 'Un colis fragile doit être déposé sur la petite zone de livraison située à gauche du couloir. Fais terminer le drone posé et immobile entièrement dans cette zone, sans toucher l’obstacle rouge.'
+        },
+        pedagogy: {
+          objective: 'Choisir et ajuster les paramètres de déplacement pour obtenir un déplacement précis en réutilisant une séquence ordonnée.'
+        },
+        toolbox: [ 'webeeblocks_v2_takeoff', 'webeeblocks_v2_move', 'webeeblocks_v2_land' ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } }
+        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-precise-movement-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.6 }
+          }
+        }
+      },
+      {
+        id: 'progression-repeat-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '3 — Inspecter trois balises',
+          mission: 'Trois balises identiques doivent être inspectées avant le retour de l’équipe. Fais passer le drone dans les trois zones d’inspection, dans l’ordre, puis termine posé dans la zone d’arrivée, sans toucher l’obstacle rouge.'
+        },
+        pedagogy: {
+          objective: 'Identifier un motif identique de déplacements paramétrés et l’exprimer avec une répétition en réutilisant les acquis des activités 1 et 2.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'controls_repeat_ext',
+          'math_number',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 0.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 0.6, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
+        },
+        fieldOptions: { webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-repeat-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 0.5 },
+            'move.distance_m': { min: 0.1, max: 0.6 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        id: 'progression-simple-decision-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '4 — Franchir une porte mobile',
+          mission: 'Une porte mobile protège l’accès à la zone de livraison. Après la zone bleue de contrôle, deux passages sont balisés et la porte en ferme un au départ. Fais franchir au drone le passage resté ouvert puis rejoindre la zone d’arrivée et terminer posé, sans toucher la porte ni les obstacles, quelle que soit la position de la porte.'
+        },
+        pedagogy: {
+          objective: 'Mesurer la distance devant le drone au point de décision, la comparer à un seuil et choisir un itinéraire avec une condition simple en réutilisant les paramètres de déplacement.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'logic_compare',
+          'math_number',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 2, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-simple-decision-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'if', 'land' ],
+          rangeDirections: [ 'front' ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 }
+          }
+        }
+      },
+      {
+        id: 'progression-reactive-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '5 — Traverser les rangées',
+          mission: 'Le drone doit traverser plusieurs rangées de l’entrepôt pour rejoindre la zone de livraison. Des colis peuvent bloquer certaines rangées. Fais-le avancer jusqu’à la zone d’arrivée et terminer posé sans toucher de colis, même si les blocages ne sont pas les mêmes d’une rangée à l’autre.'
+        },
+        pedagogy: {
+          objective: 'Répéter un cycle de mesure, décision et déplacement afin de réobserver la situation avant chaque rangée, en réutilisant les acquis des activités précédentes.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'controls_repeat_ext',
+          'math_number',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'logic_compare',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-reactive-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
+          rangeDirections: [ 'front' ],
+          moveDirections: [ 'forward', 'left' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        id: 'progression-combined-decisions-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '6 — Choisir une sortie sûre au carrefour',
+          mission: 'À chaque carrefour de l’entrepôt, plusieurs passages peuvent être libres ou occupés. Fais rejoindre au drone la zone de sortie puis termine posé, sans entrer dans un passage bloqué ni toucher un obstacle.'
+        },
+        pedagogy: {
+          objective: 'Acquérir plusieurs distances directionnelles et combiner des comparaisons et conditions afin que le déplacement choisi dépende de plusieurs observations de l’environnement.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'controls_repeat_ext',
+          'math_number',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'logic_compare',
+          'logic_operation',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: 1, max: 10, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-combined-decisions-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        id: 'progression-memory-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '7 — Acheminer le colis selon son gabarit',
+          mission: 'Au quai de départ, le drone peut mesurer le gabarit du colis grâce au panneau de référence placé devant lui. Une fois parti, ce panneau ne sera plus visible. Plus loin, deux zones de tri doivent être franchies en choisissant à chaque fois le passage adapté au colis, puis le drone doit terminer posé dans la bonne zone de livraison.',
+          cue: 'Une variable sera utile pour mémoriser la mesure faite au quai de départ.'
+        },
+        pedagogy: {
+          objective: 'Capturer une mesure à un instant identifiable, la mémoriser puis réutiliser la valeur mémorisée dans au moins deux décisions ultérieures lorsque l’information d’origine n’est plus directement observable.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'controls_repeat_ext',
+          'math_number',
+          'math_arithmetic',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'logic_compare',
+          'logic_operation',
+          'variables_set',
+          'variables_get',
+          'math_change',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: -10, max: 10, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-memory-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        id: 'progression-autonomous-strategy-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: '8 — Assurer une livraison autonome complète',
+          mission: 'Prends en charge le colis au quai de départ, puis fais rejoindre au drone la bonne zone de livraison en autonomie. Le trajet peut comporter des passages occupés et plusieurs choix de route. Les informations disponibles au départ et pendant le trajet doivent lui permettre de choisir une stratégie adaptée. Termine posé dans la zone correspondant au colis, sans toucher d’obstacle.'
+        },
+        pedagogy: {
+          objective: 'Concevoir, tester et affiner une stratégie autonome en sélectionnant et combinant les mécanismes acquis dans les activités précédentes selon leur utilité.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'controls_repeat_ext',
+          'math_number',
+          'math_arithmetic',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'logic_compare',
+          'logic_operation',
+          'variables_set',
+          'variables_get',
+          'math_change',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.5, max: 1.0, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 1.2, step: 0.1 } },
+          math_number: { NUM: { min: -10, max: 10, step: 1 } }
+        },
+        fieldOptions: {
+          webeeblocks_v2_move: { DIRECTION: [ 'forward', 'left', 'right' ] },
+          webeeblocks_v2_range: { DIRECTION: [ 'front', 'left', 'right' ] },
+          math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'mission-state-v1', oracle: 'progression-autonomous-strategy-v1' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'repeat', 'if', 'set_variable', 'land' ],
+          rangeDirections: [ 'front', 'left', 'right' ],
+          moveDirections: [ 'forward', 'left', 'right' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.5, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 1.2 },
+            'repeat.count': { min: 1, max: 10 }
+          }
+        }
+      },
+      {
+        id: 'obstacle-time-trial-v1',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: 'Défi Crazyflie — contre-la-montre',
+          goal: 'Franchis les deux portes dans l’ordre, évite l’obstacle puis atterris. Quand ton parcours réussit, améliore ton temps.'
+        },
+        toolbox: [
+          'webeeblocks_takeoff',
+          'webeeblocks_forward',
+          'webeeblocks_turn',
+          'webeeblocks_land'
+        ],
+        parameterBounds: {
+          webeeblocks_forward: { DISTANCE: { min: 0.1, max: 2.0, step: 0.1 } },
+          webeeblocks_turn: { ANGLE: { min: -90, max: 135, step: 1 } }
+        },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2' ],
+        timer: { enabled: true },
+        evaluation: { type: 'ordered-gates-no-collision' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'mission-v1',
+          allowedStatementKinds: [ 'takeoff', 'move', 'turn', 'land' ],
+          rangeDirections: [  ],
+          moveDirections: [ 'forward' ],
+          verticalDirections: [  ],
+          astBounds: {
+            'takeoff.height_m': { min: 1.0, max: 1.0 },
+            'move.distance_m': { min: 0.1, max: 2.0 },
+            'turn.angle_deg_abs': { min: 1, max: 135 }
+          }
+        }
+      },
+      {
+        id: 'reactive-obstacle-v2',
+        world: 'worlds/crazyflie_runtime_obstacle.wbt',
+        brief: {
+          visible: true,
+          title: 'Crazyflie — comportement réactif',
+          goal: 'Observe les distances pendant le vol et décide du déplacement à exécuter.'
+        },
+        toolbox: [
+          'webeeblocks_v2_takeoff',
+          'webeeblocks_v2_move',
+          'webeeblocks_v2_vertical',
+          'webeeblocks_v2_turn',
+          'webeeblocks_v2_wait',
+          'webeeblocks_v2_speed',
+          'webeeblocks_v2_light',
+          'webeeblocks_v2_range',
+          'controls_if',
+          'controls_repeat_ext',
+          'logic_compare',
+          'logic_operation',
+          'math_number',
+          'math_arithmetic',
+          'variables_set',
+          'variables_get',
+          'math_change',
+          'webeeblocks_v2_land'
+        ],
+        parameterBounds: {
+          webeeblocks_v2_takeoff: { HEIGHT: { min: 0.2, max: 1.5, step: 0.1 } },
+          webeeblocks_v2_move: { DISTANCE: { min: 0.1, max: 2.0, step: 0.1 } },
+          webeeblocks_v2_vertical: { DISTANCE: { min: 0.1, max: 0.8, step: 0.1 } },
+          webeeblocks_v2_turn: { ANGLE: { min: 1, max: 179, step: 1 } },
+          webeeblocks_v2_wait: { SECONDS: { min: 0.1, max: 5.0, step: 0.1 } },
+          webeeblocks_v2_speed: { SPEED: { min: 0.1, max: 0.35, step: 0.05 } }
+        },
+        fieldOptions: { math_arithmetic: { OP: [ 'ADD', 'MINUS', 'MULTIPLY', 'DIVIDE' ] } },
+        hardware: [ 'crazyflie-2.1', 'flow-deck-v2', 'multi-ranger-deck', 'color-led-deck' ],
+        timer: { enabled: false },
+        evaluation: { type: 'reactive-runtime' },
+        runtime: {
+          scene: 'legacy-v1',
+          mode: 'ast-v1',
+          allowedStatementKinds: [
+            'takeoff',
+            'move',
+            'vertical',
+            'turn',
+            'wait',
+            'set_speed',
+            'set_light',
+            'if',
+            'repeat',
+            'set_variable',
+            'land'
+          ],
+          rangeDirections: [ 'front', 'back', 'left', 'right', 'up' ],
+          moveDirections: [ 'forward', 'back', 'left', 'right' ],
+          verticalDirections: [ 'up', 'down' ],
+          astBounds: {
+            'takeoff.height_m': { min: 0.2, max: 1.5 },
+            'move.distance_m': { min: 0.1, max: 2.0 },
+            'vertical.distance_m': { min: 0.1, max: 0.8 },
+            'turn.angle_deg_abs': { min: 1, max: 179 },
+            'wait.seconds': { min: 0.1, max: 5.0 },
+            'set_speed.speed_m_s': { min: 0.1, max: 0.35 },
+            'repeat.count': { min: 1, max: 20 }
+          }
+        }
+      }
+    ]
+  });
   function getProfile(id) { var matches = DOCUMENT.activities.filter(function(profile) { return profile.id === id; }); if (matches.length !== 1) throw new Error('unknown activity: ' + id); return JSON.parse(JSON.stringify(matches[0])); }
   return {BLOCK_CATALOG:BLOCK_CATALOG,DOCUMENT:DOCUMENT,getProfile:getProfile};
 });

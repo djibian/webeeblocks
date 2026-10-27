@@ -33,6 +33,11 @@ FORCE_FULL = (
     "packaging/windows/**",
     "plugins/robot_windows/blockly_v2/webots/**",
     "tools/prepare_runtime_v2.*",
+    # These U controller/evaluator inputs feed Runtime's native Grand Prix
+    # probe and its full-only Windows release/composition job. Webots alone
+    # cannot exercise either owner: request the entire gate.
+    "controllers/grand_prix_u_flight/**",
+    "controllers/grand_prix_u_evaluator/**",
     "controllers/crazyflie_runtime_v2/**",
     "worlds/crazyflie_runtime_v2*",
 )
@@ -73,6 +78,9 @@ SHARED_RUNTIME_WEBOTS = (
     "tools/ci/land_contact_summary.py",
     "tools/ci/test_land_contact_summary.py",
     "plugins/robot_windows/sequence_probe/sequence_probe.js",
+    # The product Blockly definition contract is executed by Runtime student-ui.
+    # Generic tools/ci/** must not select Webots alone and skip that owner.
+    "tools/ci/test_blockly_v2_product_definitions.js",
     "tools/ci/test_progression_sequence_contract.js",
     # Activity 6's positive/negative native proof is in Runtime progression shard 4.
     # A Webots-only selection incorrectly reports green while skipping that proof.

@@ -10,6 +10,47 @@ Students should progressively learn to decompose a problem, build algorithms, us
 
 ## Pupil-program feasibility and classroom delivery (owner decision, 2026-10-22)
 
+### Méthode de conception prioritaire — décision du propriétaire, 27 octobre 2026
+
+**Cette méthode sera appliquée à la prochaine reprise du Grand Prix ; les travaux
+Grand Prix restent actuellement suspendus au profit de la santé technique de
+WebeeBlocks** (voir #587, décision du 27 octobre). Elle ne crée aucune
+nouvelle fonctionnalité, autorisation de vol ou acceptation pédagogique.
+
+- **Concevoir d'abord pour l'élève.** Partir des apprentissages observables :
+  concevoir, construire **sans programme complet fourni**, expliquer, observer,
+  diagnostiquer et corriger la stratégie. Une solution dont on sait seulement
+  charger et exécuter un .wbb expert est une **preuve technique**, pas une
+  solution de classe.
+- **Explorer des stratégies structurellement différentes** et accepter de
+  repartir de zéro lorsque l'amélioration d'un témoin expert ne réduit pas
+  substantiellement les décisions, l'état mental et les manipulations.
+  Comparer plusieurs approches; documenter pourquoi les alternatives échouent.
+- **Chercher les bonnes primitives génériques avant d'ajouter des blocs au
+  programme final.** Elles peuvent encapsuler l'exécution bas niveau bornée,
+  pas reconnaître un H, un côté, une destination ou consulter l'oracle caché.
+  Démontrer leur intérêt sur **au moins une autre situation pédagogique
+  indépendante**, leurs limites et leur traçabilité en pas-à-pas.
+- **Faire primer une épreuve d'autonomie représentative** : partir d'un
+  projet initial et d'acquis enseignés, construire une partie non triviale,
+  expliquer les observations et corriger une erreur sans solution fournie.
+  Comparer aide nécessaire, erreurs, compréhension et autonomie; ne jamais
+  déduire un PASS d'un comptage de blocs, de CI ou de Save/Open simulé.
+- **Mesurer sans fabriquer de note pédagogique automatique.** Les nombres de
+  blocs, variables, conditions, imbrications et constantes décrivent la
+  structure réelle d'un .wbb et orientent une enquête, non un seuil, une
+  note cognitive ou un GO. Les 67 blocs de #660 et les 232–234 blocs de
+  #703/#705 représentent des stratégies historiquement différentes, mais
+  leurs réussites natives ne sont pas interchangeables sur le monde sans murs.
+
+L'ordre d'exploration pédagogique recommandé devient : **objectifs d'apprentissage
+→ stratégie élève → besoin éventuel de primitive réutilisable → vrai .wbb
+→ construction/debug par l'élève → qualification native obligatoire et
+acceptation personnelle**. Un contrôle de sécurité/préflight reste préalable à
+toute exécution, quelle que soit la phase de conception. Toutes les règles de
+mission, négatifs, RESET et LAND indépendant à 210 secondes restent intacts.
+
+
 **Deliverable first:** WebeeBlocks must be genuinely teachable and usable by
 collège pupils from the first activity through the simulation Grand Prix. A
 technically executable reference program and green automated CI establish only

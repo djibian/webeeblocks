@@ -21,6 +21,7 @@ from tools.grand_prix.layout_u import generate,world_text
 from tools.ci.run_grand_prix_u_geometry import IMAGE,SOURCE
 from tools.ci.webots_startup_diagnostics import StartupEvidence
 from tools.ci.grand_prix_u_capture_seals import verify_new_capture_seals
+from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
 OUT=ROOT/'ci-artifacts/grand-prix-u'
 
 def has_native_land_completion(text):
@@ -128,9 +129,9 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
     env['LP_NUM_THREADS']='1'
     if tcp:
         env['LD_LIBRARY_PATH']=str(home/'lib/webots')+os.pathsep+env.get('LD_LIBRARY_PATH','')
-    children=[];streams=[];startup=None
+    children=[];streams=[];startup=None;log=None
     try:
-        with (out/'webots.log').open('w') as log:
+        with NativeLogCapture(out/'webots.log') as log:
             launch=native_webots_launch(home,port,target)
             if not tcp:
                 xvfb=shutil.which('xvfb-run')
@@ -236,14 +237,62 @@ def trial(home,seed=4,side=2.,mode='witness',tcp=False,require_success=True,sequ
         print('GP_U_NATIVE '+json.dumps(result,sort_keys=True),flush=True)
         return result
     finally:
-        stop_groups(children)
-        if startup is not None and children:
-            startup.after_cleanup(children[0].pid)
-        for stream in streams:stream.close()
-        runtime_state.cleanup()
-        (out/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest()
-           for p in out.iterdir() if p.is_file() and p.name!='sha256.json'},indent=2)+'\n')
-        target.unlink(missing_ok=True);target.with_name('.'+target.stem+'.wbproj').unlink(missing_ok=True)
+        retire_trial(children, log, startup, streams, runtime_state, out, target)
+
+def retire_trial(children, log, startup, streams, runtime_state, out, target):
+    """Attempt every native teardown stage; a failed stage forbids the trial seal.
+
+    This function runs inside trial()'s finally block. An already propagating
+    trial error stays primary; secondary retirement errors are recorded before
+    it propagates. A success-path retirement failure raises, never seals.
+    """
+    original_error = sys.exc_info()[1]
+    failures = []
+
+    def attempt(stage, operation):
+        try:
+            operation()
+        except Exception as error:
+            failures.append((stage, error))
+
+    attempt('stop_groups', lambda: stop_groups(children))
+    # A wrapper exit does not prove inherited stdout retirement (#665/#715).
+    # Checking for late native crashes is meaningful only after collector EOF.
+    if log is not None:
+        attempt('native_stdout_eof', log.finish)
+        if not any(stage == 'native_stdout_eof' for stage, _ in failures):
+            attempt('native_terminal_crash', lambda: require_no_terminal_crash(out/'webots.log'))
+    if startup is not None and children:
+        attempt('startup_after_cleanup', lambda: startup.after_cleanup(children[0].pid))
+    for index, stream in enumerate(streams):
+        attempt('close_stream_' + str(index), stream.close)
+    attempt('runtime_state_cleanup', runtime_state.cleanup)
+    attempt('remove_trial_world', lambda: target.unlink(missing_ok=True))
+    attempt('remove_trial_project', lambda: target.with_name('.' + target.stem + '.wbproj').unlink(missing_ok=True))
+
+    if not failures:
+        def seal():
+            (out/'sha256.json').write_text(json.dumps({
+                p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in out.iterdir() if p.is_file() and p.name != 'sha256.json'
+            }, indent=2) + '\n')
+        attempt('write_trial_seal', seal)
+
+    if failures:
+        # A partially written manifest is not evidence of successful cleanup.
+        attempt('remove_untrusted_seal', lambda: (out/'sha256.json').unlink(missing_ok=True))
+        summary = [{'stage': stage, 'error': type(error).__name__, 'detail': str(error)[:500]}
+                   for stage, error in failures]
+        try:
+            (out/'teardown-failures.json').write_text(json.dumps(summary, indent=2) + '\n')
+        except Exception as error:
+            print('GP_U_TEARDOWN_DIAGNOSTIC_WRITE_FAILED ' + repr(error), file=sys.stderr)
+        message = 'native trial teardown failed; refuse seal: ' + ', '.join(stage for stage, _ in failures)
+        print('GP_U_TEARDOWN_FAILURE ' + json.dumps(summary, sort_keys=True), file=sys.stderr, flush=True)
+        if original_error is not None:
+            return  # Preserve the original trial failure and traceback.
+        raise RuntimeError(message) from failures[0][1]
+
 
 def native_container_command(cid, assets, node, command, core_options=()):
     """Enable Docker's PID 1 reaper for adopted Webots/Xvfb children.

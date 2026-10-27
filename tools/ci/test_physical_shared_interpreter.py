@@ -461,7 +461,66 @@ def test_runtime_budget_is_rejected_before_takeoff():
         raise AssertionError("guaranteed runtime-budget failure admitted before takeoff")
 
 
+def test_exact_hover_companion_ast_is_executed_by_shared_interpreter() -> None:
+    """An unchanged qualification AST must reach the real shared language engine.
+
+    The native Blockly .wbb -> AST equality is checked independently by
+    test_physical_hover_project.js. This is an offline fake-backend trace, not
+    a Webots flight or a real-device availability/landing qualification.
+    """
+    import hashlib
+    import json
+
+    companion = ROOT / "tools" / "physical" / "hover_range_comparison_ast.json"
+    ast = json.loads(companion.read_text(encoding="utf-8"))
+    exact = binding(ast)
+    require(
+        hashlib.sha256(exact.encode("utf-8")).hexdigest()
+        == "97bc1460a74f331804e3ea288ee452d52e7a5573920a1bbcc4e225bf941c4aa5",
+        "qualification companion AST changed from the selected #157 candidate",
+    )
+
+    backend = FakeBackend()
+    result = BoundSharedInterpreter(exact, backend).run()
+    require(
+        backend.trace == [
+            ("takeoff", 0.5),
+            ("wait", 1),
+            ("readRange", "front"),
+            ("land",),
+        ],
+        f"exact hover interpreter effects or sensor count changed: {backend.trace!r}",
+    )
+    require(
+        result.variables == {"distance": 0.8},
+        f"exact hover sensor assignment was not interpreted: {result.variables!r}",
+    )
+
+    class UnavailableFront(FakeBackend):
+        def readRange(self, direction):
+            self.trace.append(("readRange", direction))
+            return float("nan")
+
+    unavailable = UnavailableFront()
+    try:
+        BoundSharedInterpreter(exact, unavailable).run()
+    except SharedInterpreterHostError as exc:
+        require("range result" in str(exc),
+                "unavailable front sample failed for an unrelated reason")
+    else:
+        raise AssertionError("unavailable front sample was accepted")
+    require(
+        unavailable.trace == [
+            ("takeoff", 0.5),
+            ("wait", 1),
+            ("readRange", "front"),
+        ],
+        "shared interpreter continued to ordinary landing after invalid sensor data",
+    )
+
+
 def main() -> int:
+    test_exact_hover_companion_ast_is_executed_by_shared_interpreter()
     test_runtime_budget_is_rejected_before_takeoff()
     test_shared_budget_counts_expressions_branches_and_terminal_land()
     test_fatal_worker_stderr_and_validation_causes_survive()

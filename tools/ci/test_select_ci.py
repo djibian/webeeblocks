@@ -182,6 +182,34 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.webots)
                 self.assertFalse(selection.full)
 
+    def test_grand_prix_u_controller_and_evaluator_require_full_windows_gate(self) -> None:
+        # These sources are compiled/consumed by ci-runtime.yml's native
+        # grand-prix-prototype. The Windows release/composition job is
+        # additionally gated by inputs.full; Webots-only is insufficient.
+        for path in (
+            "controllers/grand_prix_u_flight/Makefile",
+            "controllers/grand_prix_u_flight/grand_prix_u_deadline.cpp",
+            "controllers/grand_prix_u_flight/new_native_probe.c",
+            "controllers/grand_prix_u_evaluator/grand_prix_u_evaluator.py",
+            "controllers/grand_prix_u_evaluator/new_oracle.py",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertTrue(selection.full)
+
+        # Keep the existing scoped path for the native test scripts and do
+        # not expand unrelated historical controllers into full CI.
+        scoped = select(["tools/ci/test_grand_prix_u_timeout_probe.py"])
+        self.assertTrue(scoped.runtime)
+        self.assertTrue(scoped.webots)
+        self.assertFalse(scoped.full)
+        legacy = select(["controllers/crazyflie_square/pid_controller.c"])
+        self.assertFalse(legacy.runtime)
+        self.assertTrue(legacy.webots)
+        self.assertFalse(legacy.full)
+
     def test_native_windows_gp_u_fixtures_require_full_release_validation(self) -> None:
         # The Windows-only composed C/C++ test lives behind inputs.full.
         # Running just the partial Runtime suite silently skips that job.
@@ -216,6 +244,14 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.runtime)
         self.assertTrue(result.webots)
         self.assertTrue(result.full)
+
+    def test_product_blockly_definition_test_keeps_its_runtime_owner(self) -> None:
+        # #721 introduced this test in Runtime student-ui. A generic tools/ci/**
+        # edit previously selected Webots alone and skipped the actual oracle.
+        result = select(["tools/ci/test_blockly_v2_product_definitions.js"])
+        self.assertTrue(result.runtime)
+        self.assertTrue(result.webots)  # preserve existing Webots coverage
+        self.assertFalse(result.full)
 
     def test_runtime_v2_student_ui_experiment_routes_to_runtime(self) -> None:
         result = select(["experiments/runtime-v2-student-ui/probe.py"])

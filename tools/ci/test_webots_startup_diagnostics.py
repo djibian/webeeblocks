@@ -12,6 +12,179 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processes
+from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
+
+
+class NativeWebotsLogCaptureTests(unittest.TestCase):
+    def test_dead_leader_late_descendant_crash_is_captured_and_refused(self):
+        # Reproduce #708 deterministically: wrapper exits, descendant retains
+        # stdout until the test releases it. A leader wait never proves EOF.
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'webots.log'
+            gate = Path(directory) / 'release'
+            child_code = (
+                "from pathlib import Path\nimport time\n"
+                "while not Path(" + repr(str(gate)) + ").is_file():\n"
+                "    time.sleep(0.01)\n"
+                "print('Segmentation fault PID458', flush=True)\n"
+            )
+            parent_code = (
+                "import subprocess,sys;subprocess.Popen([sys.executable,'-c',"
+                + repr(child_code) + "]);print('READY', flush=True)"
+            )
+            with NativeLogCapture(target) as capture:
+                leader = subprocess.Popen([sys.executable, '-c', parent_code],
+                                          stdout=capture, stderr=subprocess.STDOUT,
+                                          start_new_session=True)
+                self.assertEqual(leader.wait(timeout=2), 0)
+            try:
+                with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
+                    capture.finish(timeout=0.05)
+            finally:
+                gate.touch()  # Release the actual descendant even if assertion fails.
+            capture.finish(timeout=3)
+            self.assertEqual(target.read_text().splitlines(),
+                             ['READY', 'Segmentation fault PID458'])
+            with self.assertRaisesRegex(RuntimeError, 'native crash'):
+                require_no_terminal_crash(target)
+
+    def test_parent_pipe_open_cannot_be_sealed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with NativeLogCapture(Path(directory) / 'webots.log') as capture:
+                with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
+                    capture.finish(timeout=0.01)
+            capture.finish(timeout=2)
+
+    def test_clean_stdout_finishes_without_native_crash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'webots.log'
+            with NativeLogCapture(target) as capture:
+                leader = subprocess.Popen([sys.executable, '-c',
+                                           "print('READY', flush=True)"],
+                                          stdout=capture, stderr=subprocess.STDOUT,
+                                          start_new_session=True)
+                self.assertEqual(leader.wait(timeout=2), 0)
+            capture.finish(timeout=2)
+            require_no_terminal_crash(target)
+            self.assertEqual(target.read_text(), 'READY\n')
+
+
+class NativeTrialTeardownTests(unittest.TestCase):
+    """Host-only counterexamples: a failure cannot bypass later cleanup or seal."""
+
+    @staticmethod
+    def fixture(directory):
+        from unittest.mock import Mock
+        root = Path(directory)
+        out = root/'capture'
+        out.mkdir()
+        (out/'webots.log').write_text('READY\n')
+        target = root/'ci_gp_u_flight_sample.wbt'
+        target.write_text('synthetic world')
+        target.with_name('.' + target.stem + '.wbproj').write_text('synthetic project')
+        children = [Mock(pid=4242)]
+        log = Mock()
+        startup = Mock()
+        streams = [Mock(), Mock()]
+        runtime = Mock()
+        return out, target, children, log, startup, streams, runtime
+
+    def test_successful_retirement_seals_only_after_every_cleanup(self):
+        import hashlib
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups') as stop:
+                retire_trial(children, log, startup, streams, runtime, out, target)
+                stop.assert_called_once_with(children)
+            log.finish.assert_called_once_with()
+            startup.after_cleanup.assert_called_once_with(4242)
+            for stream in streams:
+                stream.close.assert_called_once_with()
+            runtime.cleanup.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse(target.with_name('.' + target.stem + '.wbproj').exists())
+            manifest = json.loads((out/'sha256.json').read_text())
+            self.assertEqual(manifest['webots.log'],
+                             hashlib.sha256((out/'webots.log').read_bytes()).hexdigest())
+            self.assertEqual(list(manifest), ['webots.log'])
+            self.assertFalse((out/'teardown-failures.json').exists())
+
+    def test_stdout_eof_timeout_does_not_skip_diagnostics_or_runtime_cleanup(self):
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            log.finish.side_effect = RuntimeError('pipe held by surviving descendant')
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups') as stop:
+                with self.assertRaisesRegex(RuntimeError, 'native_stdout_eof'):
+                    retire_trial(children, log, startup, streams, runtime, out, target)
+            stop.assert_called_once_with(children)
+            startup.after_cleanup.assert_called_once_with(4242)
+            for stream in streams:
+                stream.close.assert_called_once_with()
+            runtime.cleanup.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse((out/'sha256.json').exists())
+            failures = json.loads((out/'teardown-failures.json').read_text())
+            self.assertEqual([item['stage'] for item in failures], ['native_stdout_eof'])
+
+    def test_multiple_cleanup_faults_all_recorded_and_no_seal(self):
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            log.finish.side_effect = RuntimeError('no pipe EOF')
+            startup.after_cleanup.side_effect = OSError('diagnostic unavailable')
+            streams[0].close.side_effect = OSError('stream 0 failed')
+            runtime.cleanup.side_effect = OSError('runtime teardown failed')
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups',
+                       side_effect=PermissionError('signal denied')) as stop:
+                with self.assertRaisesRegex(RuntimeError, 'stop_groups'):
+                    retire_trial(children, log, startup, streams, runtime, out, target)
+            stop.assert_called_once_with(children)
+            streams[1].close.assert_called_once_with()
+            runtime.cleanup.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse((out/'sha256.json').exists())
+            failures = json.loads((out/'teardown-failures.json').read_text())
+            self.assertEqual([item['stage'] for item in failures],
+                             ['stop_groups', 'native_stdout_eof',
+                              'startup_after_cleanup', 'close_stream_0',
+                              'runtime_state_cleanup'])
+
+    def test_native_failure_remains_primary_even_if_log_retirement_fails(self):
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            log.finish.side_effect = RuntimeError('pipe held')
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups'):
+                with self.assertRaisesRegex(ValueError, 'native result refuted'):
+                    try:
+                        raise ValueError('native result refuted')
+                    finally:
+                        retire_trial(children, log, startup, streams, runtime, out, target)
+            startup.after_cleanup.assert_called_once_with(4242)
+            runtime.cleanup.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse((out/'sha256.json').exists())
+            self.assertEqual(json.loads((out/'teardown-failures.json').read_text())[0]['stage'],
+                             'native_stdout_eof')
+
+    def test_late_crash_is_refused_without_skipping_any_teardown(self):
+        from tools.ci.run_grand_prix_u_prototype import retire_trial
+        with tempfile.TemporaryDirectory() as directory:
+            out, target, children, log, startup, streams, runtime = self.fixture(directory)
+            (out/'webots.log').write_text('READY\nSegmentation fault\n')
+            with patch('tools.ci.run_grand_prix_u_prototype.stop_groups'):
+                with self.assertRaisesRegex(RuntimeError, 'native_terminal_crash'):
+                    retire_trial(children, log, startup, streams, runtime, out, target)
+            startup.after_cleanup.assert_called_once_with(4242)
+            for stream in streams:
+                stream.close.assert_called_once_with()
+            runtime.cleanup.assert_called_once_with()
+            self.assertFalse(target.exists())
+            self.assertFalse((out/'sha256.json').exists())
+            self.assertEqual(json.loads((out/'teardown-failures.json').read_text())[0]['stage'],
+                             'native_terminal_crash')
 
 
 class StartupEvidenceTests(unittest.TestCase):

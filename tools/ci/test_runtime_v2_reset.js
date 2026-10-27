@@ -40,7 +40,7 @@ async function testHelloReplyDoesNotForgeRestart() {
     backend.handleMessage(prefix + 'READY');
     await ready;
     const epoch = backend.timeObservationEpoch;
-    const scene = backend.prepareActivity({id:'progression-sequence-v1'});
+    const scene = backend.prepareActivity({id:'progression-sequence-v1', runtime:{scene:'sequence-v1'}});
     const request = sent[1].match(/REQUEST (\d+) SCENE sequence-v1 ([0-9a-f]{64})$/);
     assert(request);
     if (replyBeforeAck) backend.handleMessage(prefix + 'READY HELLO');

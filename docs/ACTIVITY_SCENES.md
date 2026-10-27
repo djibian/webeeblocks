@@ -3,8 +3,13 @@
 Le monde de lancement reste `worlds/crazyflie_runtime_v2.wbt`. Le bouton
 « Démarrer une activité » et l'ouverture d'un projet sélectionnent la scène avant
 de remplacer le workspace. L'activité 1 charge `worlds/scenes/sequence-v1.wbo` ;
-les autres profils conservent le monde hérité. Les profils, projets `.wbb`, AST
-et oracles de livraison ne changent pas.
+les autres profils conservent le monde hérité. La sélection ne déduit plus
+la scène de l'identifiant de l'activité : chaque profil déclare
+`runtime.scene`, avec `sequence-v1` pour l'activité 1 et `legacy-v1`
+pour les neuf autres. Une déclaration absente ou inconnue est refusée avant
+l'envoi de SCENE ; le contrôleur natif conserve sa propre liste fermée de
+ces deux scènes, ses validations et ses refus. Les programmes `.wbb`, les
+AST, les missions, les bornes et les oracles de livraison ne changent pas.
 
 La sélection native est limitée à `sequence-v1` / `legacy-v1`, à l'état posé,
 immobile, hors effet, sans fail-safe et près de l'origine réinitialisée. Elle

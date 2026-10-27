@@ -128,6 +128,17 @@ def verify_manifest(bundle: Path) -> dict[str, object]:
             raise QualificationPackageVerificationError("manifest contains invalid sha256")
         expected[relative] = (size, digest)
 
+    # File-only inventories omit dangling links and links to directories.
+    # Reject them before membership and hash checks, including an altered
+    # .runtime root; only children of the generated .runtime scratch tree are
+    # outside the immutable source manifest.
+    for path in bundle.rglob("*"):
+        relative = path.relative_to(bundle).as_posix()
+        if path.is_symlink() and not relative.startswith(".runtime/"):
+            raise QualificationPackageVerificationError(
+                f"symlink is not allowed in package: {relative}"
+            )
+
     actual = {
         path.relative_to(bundle).as_posix(): path
         for path in bundle.rglob("*")
