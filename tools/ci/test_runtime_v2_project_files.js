@@ -399,10 +399,13 @@ async function exerciseBrowserFailedWriteAtomicity() {
       name: 'eleve.wbb',
       async createWritable() {
         const writable = {
-          async write() {
+          async write(text) {
             writes++;
-            staged = '{"invalid":';
-            throw writeError;
+            if (writes === 1) {
+              staged = '{"invalid":';
+              throw writeError;
+            }
+            staged = String(text);
           },
           async close() {
             closes++;
@@ -435,6 +438,16 @@ async function exerciseBrowserFailedWriteAtomicity() {
     assert.strictEqual(disk, original, mode + ': failed write corrupted saved student work');
     assert.strictEqual(aborts, mode === 'abort-unavailable' ? 0 : 1,
       mode + ': abort must be attempted when available');
+
+    // A later explicit retry must remain usable and commit complete bytes once.
+    // An automatic retry of the rejected write is never permitted.
+    const retry = mode === 'save' ?
+      transport.save(handle, handle.name, '{"valid":"new"}') :
+      transport.saveAs(handle.name, '{"valid":"new"}');
+    await retry;
+    assert.strictEqual(writes, 2, mode + ': recovery must write once');
+    assert.strictEqual(closes, 1, mode + ': recovery must commit once');
+    assert.strictEqual(disk, '{"valid":"new"}', mode + ': recovery did not save valid bytes');
   }
 }
 
