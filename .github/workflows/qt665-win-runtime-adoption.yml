@@ -1,9 +1,9 @@
 # NON-GATE genuine Windows patched simulator / mapped Qt causal identity.
 # A disposable CI runner is modified; this is NOT a classroom release.
-name: Qt665 Windows OpenAL GCC ABI causal repair (NON-GATE)
+name: Qt665 Windows packaged Runtime startup (NON-GATE)
 on:
   push:
-    branches: [evidence/665-win-openal-abi-closure-20261026]
+    branches: [evidence/665-windows-product-startup-20261027]
 permissions:
   contents: read
   actions: read
@@ -509,6 +509,29 @@ jobs:
             throw 'Real Webots PE / mapped Qt identity proof missing'
           }
           Write-Host 'QT665_WINDOWS_NATIVE_CLOSURE_VALIDATOR=PASS_REAL_WIN32_NOT_STATIC_PEFILE'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Install process observation dependency in probe host only
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check psutil==7.0.0
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40386450869
+          name: WebeeBlocks-Windows-R2025a
+          github-token: ${{ github.token }}
+          path: qt665-classroom-archive
+      - name: Exercise genuine packaged Runtime on patched Windows installation without SDK PATH
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $package=Join-Path $env:RUNNER_TEMP 'Qt665 classroom consumer with spaces'
+          Expand-Archive -LiteralPath 'qt665-classroom-archive/WebeeBlocks-Windows-R2025a.zip' -DestinationPath $package
+          python experiments/webots-qt-665/probe_windows_packaged_runtime.py `
+            --home $env:QT665_WEBOTS_HOME --package $package `
+            --pe-artifact qt665-patched-pe --sdk $env:QT665_MINGW_BIN `
+            --output ci-artifacts/qt665-windows-running/packaged-startup
+          if ($LASTEXITCODE -ne 0) {throw 'Real packaged Runtime startup or native identities refuted'}
       - name: Preserve windows native proof, even if incompatibility is observed
         if: always()
         uses: actions/upload-artifact@v4
