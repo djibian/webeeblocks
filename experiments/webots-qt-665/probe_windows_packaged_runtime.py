@@ -162,8 +162,11 @@ def run(args):
                     if Path(child.exe()).resolve() != expected_exe.resolve():
                         raise ValueError('Wrong native executable path')
                     modules = attest_modules([m.path for m in child.memory_maps()], expected, sdk)
+                    graphics = {m.path: sha256(Path(m.path)) for m in child.memory_maps()
+                                if Path(m.path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
                     report['processes'][name] = {'pid': child.pid, 'create_time': identity[1],
-                        'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules}
+                        'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules,
+                        'graphics_modules': graphics}
                 except (psutil.NoSuchProcess, psutil.AccessDenied, LookupError):
                     # Incomplete startup snapshot is not evidence; never accept it.
                     continue
