@@ -193,8 +193,26 @@
     async function writeHandle(handle, text) {
       if (!handle || typeof handle.createWritable !== 'function') fail('current file handle unavailable');
       var writable = await handle.createWritable();
-      try { await writable.write(text); }
-      finally { await writable.close(); }
+      // File System Access commits the temporary file on close(). A failed
+      // write must abort instead: closing here could replace a valid .wbb
+      // with incomplete student work.
+      if (!writable || typeof writable.write !== 'function' ||
+          typeof writable.close !== 'function' || typeof writable.abort !== 'function')
+        fail('transactional file stream unavailable');
+      try {
+        await writable.write(text);
+        await writable.close();
+      } catch (error) {
+        try { await writable.abort(); }
+        catch (abortError) {
+          if (error && typeof error === 'object') {
+            // Diagnostic annotation is best-effort: DOM/host errors may be frozen.
+            try { error.abortError = abortError; }
+            catch (_) { /* Never replace the original write error. */ }
+          }
+        }
+        throw error;
+      }
     }
     return {
       nativeFileSystemAccess: nativeAccess,

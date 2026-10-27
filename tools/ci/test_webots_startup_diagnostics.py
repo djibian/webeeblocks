@@ -12,6 +12,61 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.ci.webots_startup_diagnostics import StartupEvidence, cgroup_processes
+from tools.ci.grand_prix_u_log_capture import NativeLogCapture, require_no_terminal_crash
+
+
+class NativeWebotsLogCaptureTests(unittest.TestCase):
+    def test_dead_leader_late_descendant_crash_is_captured_and_refused(self):
+        # Reproduce #708 deterministically: wrapper exits, descendant retains
+        # stdout until the test releases it. A leader wait never proves EOF.
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'webots.log'
+            gate = Path(directory) / 'release'
+            child_code = (
+                "from pathlib import Path\nimport time\n"
+                "while not Path(" + repr(str(gate)) + ").is_file():\n"
+                "    time.sleep(0.01)\n"
+                "print('Segmentation fault PID458', flush=True)\n"
+            )
+            parent_code = (
+                "import subprocess,sys;subprocess.Popen([sys.executable,'-c',"
+                + repr(child_code) + "]);print('READY', flush=True)"
+            )
+            with NativeLogCapture(target) as capture:
+                leader = subprocess.Popen([sys.executable, '-c', parent_code],
+                                          stdout=capture, stderr=subprocess.STDOUT,
+                                          start_new_session=True)
+                self.assertEqual(leader.wait(timeout=2), 0)
+            try:
+                with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
+                    capture.finish(timeout=0.05)
+            finally:
+                gate.touch()  # Release the actual descendant even if assertion fails.
+            capture.finish(timeout=3)
+            self.assertEqual(target.read_text().splitlines(),
+                             ['READY', 'Segmentation fault PID458'])
+            with self.assertRaisesRegex(RuntimeError, 'native crash'):
+                require_no_terminal_crash(target)
+
+    def test_parent_pipe_open_cannot_be_sealed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with NativeLogCapture(Path(directory) / 'webots.log') as capture:
+                with self.assertRaisesRegex(RuntimeError, 'refuse seal'):
+                    capture.finish(timeout=0.01)
+            capture.finish(timeout=2)
+
+    def test_clean_stdout_finishes_without_native_crash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'webots.log'
+            with NativeLogCapture(target) as capture:
+                leader = subprocess.Popen([sys.executable, '-c',
+                                           "print('READY', flush=True)"],
+                                          stdout=capture, stderr=subprocess.STDOUT,
+                                          start_new_session=True)
+                self.assertEqual(leader.wait(timeout=2), 0)
+            capture.finish(timeout=2)
+            require_no_terminal_crash(target)
+            self.assertEqual(target.read_text(), 'READY\n')
 
 
 class StartupEvidenceTests(unittest.TestCase):
