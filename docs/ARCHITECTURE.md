@@ -65,10 +65,14 @@ Le fichier `.wbb` est enregistré **explicitement**, sans autosave.
 `project_files.js` maintient le contrat du projet ; l'interface conserve
 la cible courante et affiche les erreurs. Chrome utilise File System Access,
 Firefox le broker fichiers/dialogues Qt via WWI. Les deux chemins ont des
-consommateurs et tests spécifiques. Ne pas confondre une sauvegarde réussie
-avec un résultat pédagogique. L'atomicité des écritures Chrome est suivie
-dans [#708](https://github.com/djibian/webeeblocks/pull/708) et doit être
-prouvée sur le HEAD intégré avant d'être déclarée acquise.
+consommateurs et tests spécifiques. Le correctif
+[#708](https://github.com/djibian/webeeblocks/pull/708), intégré et qualifié
+par CI, abandonne le flux Chrome après échec de `write()` ou `close()`,
+sans refermer un fichier partiellement écrit après l'échec de `write()`.
+Ses tests transactionnels vérifient la conservation du contenu précédent
+et de l'erreur primaire. Ils ne prouvent pas la durabilité universelle
+d'une fermeture déjà engagée en cas de panne du navigateur ou du système
+de fichiers. Ne pas confondre une sauvegarde réussie avec un résultat pédagogique.
 
 ### Runtime C / WWI / Qt / Webots
 
@@ -81,13 +85,27 @@ RESET [#637](https://github.com/djibian/webeeblocks/issues/637) et
 démarrage natif [#665](https://github.com/djibian/webeeblocks/issues/665),
 puis qualifier toute séparation.
 
+Pour la **preuve native**, le collecteur CI
+[`grand_prix_u_log_capture.py`](../tools/ci/grand_prix_u_log_capture.py)
+reçoit stdout/stderr dans un pipe et écrit seul `webots.log`.
+Le scellement attend la fin des détenteurs du pipe et refuse les crashes
+tardifs, après [#715](https://github.com/djibian/webeeblocks/pull/715).
+Cette garantie ne démontre ni la fin de tous les processus Webots ni
+l'intégrité des autres fichiers de capture ; elle ne corrige pas
+les défauts natifs #637/#665.
+
 ### Simulation / matériel
 
 Le chemin matériel réutilise le **même interpréteur JavaScript** via un
 travailleur Node contrôlé par l'hôte Python, mais l'autorité de commande,
 la fraîcheur de session, le watchdog, le préflight et le contrôle enseignant
-restent dans la frontière matérielle. Les preuves logicielles ne qualifient
-ni le premier vol réel [#157](https://github.com/djibian/webeeblocks/issues/157),
+restent dans la frontière matérielle. Le test
+[`test_physical_shared_interpreter.py`](../tools/ci/test_physical_shared_interpreter.py)
+exécute maintenant hors matériel l'AST compagnon exact du
+`hover_range_comparison.wbb` avec un backend factice ([#712](https://github.com/djibian/webeeblocks/pull/712)).
+Il ne prouve pas une exécution Webots de ce même programme. Les preuves
+logicielles ne qualifient ni le premier vol réel
+[#157](https://github.com/djibian/webeeblocks/issues/157),
 ni l'activité physique finale [#72](https://github.com/djibian/webeeblocks/issues/72).
 Aucun vol, flash ou TEST_REQUIRED automatique.
 

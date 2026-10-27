@@ -56,12 +56,22 @@ def instrument_position(source: str) -> str:
         raise ValueError('sequence position instrumentation already present')
     helper = r'''
 #include <sys/time.h>
+#include <time.h>
 
 static long long sequence_ci_wall_ms(void) {
   struct timeval tv;
   if (gettimeofday(&tv, NULL) != 0)
     return -1;
   return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+// Distinguish realtime clock adjustments from genuine Webots-step stalls.
+// This CI-only observation is not a mission clock or a deadline source.
+static long long sequence_ci_monotonic_ms(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+    return -1;  // Unavailable observation: never infer an interval from -1.
+  return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 static void sequence_ci_position(const char *phase, int request_id,
@@ -148,8 +158,8 @@ static void sequence_ci_native_land(int request_id, double now, WbNodeRef self) 
          '        stable_since = -1.0;'),
         ('    if (command != CMD_IDLE && command != CMD_RESET &&',
          '    if (command == CMD_MOVE && sequence_ci_move_samples++ % 128 == 0) {\n'
-         '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
-         '             active_id, now, now - action_start, sequence_ci_wall_ms(), x, y, z,\n'
+         '      printf("WEBEEBLOCKS_SEQUENCE_CI_MOVE id=%d sim=%.9f elapsed_sim=%.9f wall_ms=%lld monotonic_ms=%lld x=%.9f y=%.9f z=%.9f roll=%.9f pitch=%.9f\\n",\n'
+         '             active_id, now, now - action_start, sequence_ci_wall_ms(), sequence_ci_monotonic_ms(), x, y, z,\n'
          '             actual.roll, actual.pitch);\n'
          '      fflush(stdout);\n'
          '    }\n'
