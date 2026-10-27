@@ -48,6 +48,10 @@ def sha256_file(path: Path) -> str:
 
 
 def vendor_closure(vendor: Path) -> tuple[int, str]:
+    # Resolve only after checking the supplied cache root. Resolving first
+    # hides a symbolic link and can silently follow bytes outside this input.
+    if vendor.is_symlink():
+        raise QualificationGeneratedInputError("generated vendor root symlink is not allowed")
     vendor = vendor.resolve()
     if not vendor.is_dir():
         raise QualificationGeneratedInputError(f"generated vendor directory missing: {vendor}")
@@ -136,8 +140,11 @@ def verify_generated_inputs(vendor: Path, controller: Path, lock_path: Path = DE
             f"generated vendor closure changed: count={count} sha256={digest}"
         )
 
+    # Path.resolve() removes the very link this guard is meant to reject.
+    if controller.is_symlink():
+        raise QualificationGeneratedInputError("generated controller symlink is not allowed")
     controller = controller.resolve()
-    if not controller.is_file() or controller.is_symlink():
+    if not controller.is_file():
         raise QualificationGeneratedInputError(f"generated controller missing or unsupported: {controller}")
     size = controller.stat().st_size
     digest = sha256_file(controller)
@@ -211,6 +218,9 @@ def _support_paths(vendor: Path, lock: dict[str, object]) -> tuple[Path, Path]:
     expected_parent = "plugins/robot_windows/blockly_v2/vendor"
     if tar_member.parent.as_posix() != expected_parent or id_member.parent.as_posix() != expected_parent:
         raise QualificationGeneratedInputError("Webots image support cache location escaped vendor cache")
+    # This runs before any cached image support is read, deleted or loaded.
+    if vendor.is_symlink():
+        raise QualificationGeneratedInputError("generated vendor root symlink is not allowed")
     root = vendor.resolve()
     return root / tar_member.name, root / id_member.name
 
