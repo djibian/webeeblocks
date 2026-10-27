@@ -114,14 +114,21 @@ class Complexity(unittest.TestCase):
             result = compare([first, second])
             metrics = result['candidates'][0]['metrics']
             self.assertEqual(metrics['total_blocks'], 6)
-            self.assertEqual(metrics['conditions'], 1)
+            self.assertEqual(metrics['if_blocks'], 1)
+            self.assertEqual(metrics['if_test_slots'], 1)
+            self.assertEqual(metrics['if_elseif_test_slots'], 0)
+            self.assertEqual(metrics['if_else_slots'], 0)
+            self.assertEqual(metrics['loop_guard_slots'], 0)
+            self.assertEqual(metrics['conditional_test_slots'], 1)
+            self.assertNotIn('conditions', metrics)
             self.assertEqual(metrics['comparisons'], 1)
             self.assertEqual(metrics['sensor_reads'], 1)
             self.assertEqual(metrics['numeric_literals'], 1)
             self.assertEqual(metrics['movement_commands'], 1)
             self.assertEqual(metrics['main_chain_blocks'], 2)
             self.assertEqual(result['comparisons'][0]['delta_vs_first']['total_blocks'], -4)
-            self.assertEqual(result['comparisons'][0]['delta_vs_first']['conditions'], -1)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['if_blocks'], -1)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['conditional_test_slots'], -1)
             self.assertEqual(len(result['candidates'][0]['sha256']), 64)
             self.assertTrue(result['human_construction_debugging_evidence_required'])
             self.assertIsNone(result['automatic_pedagogical_winner'])
@@ -130,6 +137,102 @@ class Complexity(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 self.assertEqual(comparison_main([str(first), str(second)]), 0)
             self.assertEqual(json.loads(output.getvalue())['candidates'][1]['metrics']['total_blocks'], 2)
+
+    def test_conditional_loops_not_misreported_as_zero_conditions(self):
+        with tempfile.TemporaryDirectory() as folder:
+            reference, until, while_loop = (Path(folder) / name for name in
+                                            ('reference.wbb', 'until.wbb', 'while.wbb'))
+            reference.write_text(json.dumps(project([
+                b('controls_if', 'if', inputs={
+                    'IF0': {'block': b('logic_boolean', 'bool')}
+                })
+            ])), encoding='utf-8')
+            until.write_text(json.dumps(project([
+                b('webeeblocks_v2_until', 'until', inputs={
+                    'CONDITION': {'block': b('logic_boolean', 'until-bool')}
+                })
+            ])), encoding='utf-8')
+            while_loop.write_text(json.dumps(project([
+                b('controls_whileUntil', 'while', fields={'MODE': 'UNTIL'},
+                  inputs={'BOOL': {'block': b('logic_boolean', 'while-bool')}})
+            ])), encoding='utf-8')
+            result = compare([reference, until, while_loop])
+            for entry in result['candidates'][1:]:
+                self.assertEqual(entry['metrics']['if_blocks'], 0)
+                self.assertEqual(entry['metrics']['if_test_slots'], 0)
+                self.assertEqual(entry['metrics']['loop_guard_slots'], 1)
+                self.assertEqual(entry['metrics']['conditional_test_slots'], 1)
+                self.assertIsNone(result['automatic_pedagogical_winner'])
+            for delta in result['comparisons']:
+                self.assertEqual(delta['delta_vs_first']['conditional_test_slots'], 0)
+                self.assertEqual(delta['delta_vs_first']['if_blocks'], -1)
+                self.assertEqual(delta['delta_vs_first']['loop_guard_slots'], 1)
+
+    def test_elseif_else_branches_count_even_without_connected_value(self):
+        with tempfile.TemporaryDirectory() as folder:
+            reference, complex_path, fixed = (Path(folder) / name for name in
+                                              ('reference.wbb', 'elseif.wbb', 'repeat.wbb'))
+            reference.write_text(json.dumps(project([
+                b('controls_if', 'basic', inputs={
+                    'IF0': {'block': b('logic_boolean', 'bool0')}
+                })
+            ])))
+            complex_path.write_text(json.dumps(project([
+                b('controls_if', 'if-else', extraState={'elseIfCount': 2, 'hasElse': True},
+                  inputs={
+                      'IF0': {'block': b('logic_boolean', 'bool1')},
+                      'IF1': {'block': b('logic_boolean', 'bool2')},
+                      # IF2 and ELSE are intentionally empty Blockly sockets.
+                  })
+            ])))
+            fixed.write_text(json.dumps(project([
+                b('controls_repeat_ext', 'repeat', inputs={
+                    'TIMES': {'block': b('math_number', 'three')}
+                })
+            ])))
+            result = compare([reference, complex_path, fixed])
+            large = result['candidates'][1]['metrics']
+            self.assertEqual(large['if_blocks'], 1)
+            self.assertEqual(large['if_test_slots'], 3)
+            self.assertEqual(large['if_elseif_test_slots'], 2)
+            self.assertEqual(large['if_else_slots'], 1)
+            self.assertEqual(large['conditional_test_slots'], 3)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['if_test_slots'], 2)
+            self.assertEqual(result['comparisons'][0]['delta_vs_first']['if_else_slots'], 1)
+            small = result['candidates'][2]['metrics']
+            self.assertEqual(small['if_blocks'], 0)
+            self.assertEqual(small['conditional_test_slots'], 0)
+            self.assertEqual(small['fixed_iteration_loops'], 1)
+            self.assertIsNone(result['automatic_pedagogical_winner'])
+
+    def test_serialized_elseif_inputs_without_extra_state_not_ignored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'elseif.wbb'
+            path.write_text(json.dumps(project([
+                b('controls_if', 'with-elseif',
+                  inputs={'IF0': {'block': b('logic_boolean', 'one')},
+                          'IF1': {'block': b('logic_boolean', 'two')},
+                          'DO1': {'block': b('webeeblocks_v2_move', 'move')},
+                          'ELSE': {'block': b('webeeblocks_v2_land', 'land')}})
+            ])))
+            actual = compare([path, path])['candidates'][0]['metrics']
+            self.assertEqual(actual['if_blocks'], 1)
+            self.assertEqual(actual['if_test_slots'], 2)
+            self.assertEqual(actual['if_elseif_test_slots'], 1)
+            self.assertEqual(actual['if_else_slots'], 1)
+            self.assertEqual(actual['conditional_test_slots'], 2)
+
+    def test_malformed_if_extra_state_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'bad-if.wbb'
+            for malformed in ({'elseIfCount': -1}, {'elseIfCount': '100'},
+                              {'elseIfCount': True}, {'elseIfCount': 1001},
+                              ['not a dict']):
+                path.write_text(json.dumps(project([
+                    b('controls_if', 'if', extraState=malformed)
+                ])))
+                with self.assertRaisesRegex(InvalidWorkspace, 'IF'):
+                    compare([path, path])
 
     def test_compare_never_ranks_identical_valid_real_project(self):
         source = Path(__file__).resolve().parents[2] / 'tools/physical/hover_range_comparison.wbb'
