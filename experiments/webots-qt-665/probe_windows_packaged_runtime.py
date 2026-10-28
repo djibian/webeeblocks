@@ -172,6 +172,20 @@ def attest_native_engine_argv(observed, launcher_command, expected_engine):
         raise ValueError('Native Webots arguments differ from classroom launch')
 
 
+def require_unchanged_ready_generation(snapshot, first_ready_generation):
+    """Do not reuse a historical READY line after any native role is replaced.
+
+    The shared launcher logs retain READY even after a child terminates. A new
+    engine/controller cohort needs its own correlated READY evidence, which this
+    bounded probe cannot establish; reject rather than award another 2 s window.
+    """
+    generation = tuple(sorted((role, row['pid'], row['create_time'])
+                              for role, row in snapshot.items()))
+    if first_ready_generation is not None and generation != first_ready_generation:
+        raise RuntimeError('Native process generation changed after READY; stale READY cannot qualify replacement')
+    return generation
+
+
 def process_role(name, command_line):
     if name == 'webots-bin.exe':
         return name
@@ -246,6 +260,7 @@ def run(args):
         deadline = time.monotonic() + 45
         stable_since = None
         stable_identity = None
+        first_ready_generation = None
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise RuntimeError(f'Webots launcher exited: {process.returncode:#x}')
@@ -293,6 +308,8 @@ def run(args):
                     live = psutil.Process(row['pid'])
                     if live.create_time() != row['create_time'] or not live.is_running():
                         raise RuntimeError('A qualified process exited or was replaced')
+                first_ready_generation = require_unchanged_ready_generation(
+                    report['processes'], first_ready_generation)
                 stable_identity, stable_since = advance_native_stability(
                     True, report['processes'], stable_identity, stable_since, time.monotonic())
                 if time.monotonic() - stable_since >= 2:

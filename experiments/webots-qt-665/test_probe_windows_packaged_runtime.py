@@ -233,6 +233,32 @@ class ProbeTests(unittest.TestCase):
         identity, start = advance(True, initial, identity, start, 104.0)
         self.assertEqual(start, 104.0)
 
+    def test_historical_ready_cannot_qualify_replacement_after_gap(self):
+        initial = {
+            'webots-bin.exe': {'pid': 1, 'create_time': 10.0},
+            'runtime': {'pid': 2, 'create_time': 11.0},
+            'sequence-evaluator': {'pid': 3, 'create_time': 12.0},
+        }
+        frozen = probe.require_unchanged_ready_generation(initial, None)
+        # A temporary incomplete poll should invalidate the 2 s continuous
+        # window but cannot authorize a different process with old READY logs.
+        _ignored_identity, _ignored_start = probe.advance_native_stability(
+            False, {}, frozen, 100.0, 101.0)
+        self.assertIsNone(_ignored_identity)
+        self.assertEqual(
+            probe.require_unchanged_ready_generation(
+                dict(reversed(list(initial.items()))), frozen), frozen)
+        for replaced in (
+            {**initial, 'runtime': {'pid': 4, 'create_time': 11.5}},
+            {**initial, 'runtime': {'pid': 2, 'create_time': 11.5}},
+            {**initial, 'webots-bin.exe': {'pid': 5, 'create_time': 10.5}},
+            {**initial, 'sequence-evaluator': {'pid': 6, 'create_time': 12.5}},
+        ):
+            with self.subTest(replaced=replaced), self.assertRaisesRegex(
+                    RuntimeError, 'stale READY'):
+                probe.require_unchanged_ready_generation(replaced, frozen)
+
+
     def test_package_tamper_extra_missing_and_escape_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'package'
