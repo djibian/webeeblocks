@@ -8,8 +8,20 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = path.resolve(
-  __dirname, '../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'
+  __dirname, '../../plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js'
 );
+// Verify every HTML consumer resolves to the same product-owned definition.
+for (const page of [
+  '../../plugins/robot_windows/blockly_v2/blockly_v2.html',
+  '../../plugins/robot_windows/grand_prix/grand_prix.html',
+  '../../plugins/robot_windows/grand_prix_u/grand_prix_u.html',
+  'runtime_v2_core_harness.html'
+]) {
+  const file = path.resolve(__dirname, page);
+  const relative = path.relative(path.dirname(file), source).split(path.sep).join('/');
+  assert.ok(fs.readFileSync(file, 'utf8').includes('src="' + relative + '"'),
+    'missing exact product Blockly script reference: ' + page);
+}
 const registrations = [];
 const procedure = {
   init() {

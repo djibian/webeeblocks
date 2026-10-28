@@ -279,7 +279,7 @@ def verify_required_runtime_files(bundle: Path) -> None:
         "plugins/robot_windows/blockly_v2/vendor/msg/fr.js",
         "plugins/robot_windows/blockly/webeeblocks/semantic_ast.js",
         "plugins/robot_windows/blockly/webeeblocks/physical_submission_bridge.js",
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
         "worlds/crazyflie_runtime_v2.wbt",
         "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2",
         "controllers/crazyflie_runtime_v2/runtime.ini",

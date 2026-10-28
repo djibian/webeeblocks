@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'../..');
 const Blockly=require(root+'/plugins/robot_windows/blockly_v2/node_modules/blockly');
 require(root+'/plugins/robot_windows/blockly_v2/node_modules/blockly/blocks');
 global.Blockly=Blockly;
-require(root+'/plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2');
+require(root+'/plugins/robot_windows/blockly/webeeblocks/crazyflie_v2');
 delete global.Blockly;
 const base=root+'/plugins/robot_windows/blockly/webeeblocks/';
 const Compiler=require(base+'semantic_ast'),Interpreter=require(base+'interpreter');

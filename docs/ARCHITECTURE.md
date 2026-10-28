@@ -125,11 +125,12 @@ Aucun vol, flash ou TEST_REQUIRED automatique.
 - **Produit actif :** `blockly_v2/`, modules `blockly/webeeblocks/`,
   `crazyflie_runtime_v2/`, mondes et scènes actuellement sélectionnés,
   et backend physique soumis à son autorité distincte.
-- **Frontière fournisseur imparfaite :** Blockly 13.2.1 est servi sous
-  `blockly_v2/vendor/`, mais la définition de blocs **spécifique au produit**
-  `crazyflie_v2.js` reste sous le répertoire historique
-  `blockly/google-blockly-31ee4ea/blocks/` et est chargée directement par
-  `blockly_v2.html`. Déplacer ce code exige de vérifier tous les chargeurs.
+- **Frontière fournisseur clarifiée :** Blockly 13.2.1 est servi depuis
+  `blockly_v2/vendor/` ; la définition de blocs `crazyflie_v2.js`, propre
+  à WebeeBlocks, vit dans `blockly/webeeblocks/` et est chargée par les
+  fenêtres V2, les témoins et les distributions Windows / physique.
+  Les fichiers de l'ancien Blockly requis par les tests historiques restent
+  conservés ; leur existence ne justifie pas d'y ajouter du code produit.
 - **Témoins historiques :** anciens contrôleurs, mondes, oracles et ressources
   Blockly peuvent rester nécessaires à des tests. Leur âge ne démontre pas
   qu'ils sont inutilisés.

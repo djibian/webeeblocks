@@ -97,7 +97,7 @@ $required = @(
   "${robotWindowRelative}\webots\RobotWindow.js",
   'plugins\robot_windows\blockly\webeeblocks\semantic_ast.js',
   'plugins\robot_windows\blockly\webeeblocks\project_files.js',
-  'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js',
+  'plugins\robot_windows\blockly\webeeblocks\crazyflie_v2.js',
   'protos\Crazyflie.proto',
   'protos\meshes\cf2_assembly.dae',
   'protos\meshes\ccw_prop.dae',

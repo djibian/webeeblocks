@@ -62,6 +62,8 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # This product Blockly source feeds the Runtime UI and Webots native paths.
+    "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
     # The pre-controller observer is exercised by Runtime's outcome preflight.
     "tools/ci/observe_outcome_startup.py",
     "tools/ci/test_outcome_startup_observer.py",
