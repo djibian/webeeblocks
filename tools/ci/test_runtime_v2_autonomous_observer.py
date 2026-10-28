@@ -189,5 +189,39 @@ class ObserverTests(unittest.TestCase):
                     validate_observer_trace(path)
 
 
+    def test_optional_monotonic_step_probe_does_not_change_webots_call(self):
+        module_path = ROOT / "experiments/runtime-reset-phase/instrument.py"
+        spec = importlib.util.spec_from_file_location("reset_step_probe", module_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        original = (ROOT / "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.c").read_text()
+        source = module.instrument(original)
+        self.assertEqual(source.count("while (reset_ci_timed_robot_step(step) != -1)"), 1)
+        self.assertIn("while (wb_robot_step(step) != -1 &&", source)
+        self.assertIn("WEBEEBLOCKS_RESET_CI_SLOW_STEP", source)
+        self.assertIn("WEBEEBLOCKS_RESET_CI_STEP_BATCH", source)
+        with self.assertRaisesRegex(ValueError, 'unrecognized native step call'):
+            module.instrument(original.replace('while (wb_robot_step(step) != -1) {',
+                                               'while (wb_robot_step(8) != -1) {'))
+        start = source.index("/* WEBEEBLOCKS_RESET_CI_STEP_BEGIN:")
+        end = source.index("/* WEBEEBLOCKS_RESET_CI_STEP_END */", start) + len("/* WEBEEBLOCKS_RESET_CI_STEP_END */")
+        c_source = (
+            "#define _POSIX_C_SOURCE 200809L\n#include <stdio.h>\n#include <time.h>\n"
+            "static int calls;\n"
+            "static int wb_robot_step(int ms) { ++calls; return ms; }\n"
+            + source[start:end] + "\n"
+            + "int main(void) { int n = reset_ci_timed_robot_step(32); "
+              "return n == 32 && calls == 1 ? 0 : 1; }\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'step.c'
+            binary = Path(tmp) / 'step'
+            path.write_text(c_source)
+            subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            str(path), '-o', str(binary)], check=True, capture_output=True, text=True)
+            subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+
+
+
 if __name__ == "__main__":
     unittest.main()

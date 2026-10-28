@@ -9,9 +9,24 @@
   function fail(message) { throw new Error('activity profile: ' + message); }
   function isObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
-  function requireString(value, path) { if (typeof value !== 'string' || value.trim() === '') fail(path + ' must be a non-empty string'); }
-  function requireStringArray(value, path) { if (!Array.isArray(value)) fail(path + ' must be an array'); value.forEach(function(item, index) { requireString(item, path + '[' + index + ']'); }); }
-  function validateBounds(bounds, path) { if (!isObject(bounds)) fail(path + ' must be an object'); ['min', 'max', 'step'].forEach(function(key) { if (!Number.isFinite(bounds[key])) fail(path + '.' + key + ' must be finite'); }); if (bounds.min > bounds.max) fail(path + '.min must be <= max'); if (bounds.step <= 0) fail(path + '.step must be > 0'); }
+  function requireString(value, path) {
+    if (typeof value !== 'string' || value.trim() === '')
+      fail(path + ' must be a non-empty string');
+  }
+  function requireStringArray(value, path) {
+    if (!Array.isArray(value)) fail(path + ' must be an array');
+    value.forEach(function(item, index) {
+      requireString(item, path + '[' + index + ']');
+    });
+  }
+  function validateBounds(bounds, path) {
+    if (!isObject(bounds)) fail(path + ' must be an object');
+    ['min', 'max', 'step'].forEach(function(key) {
+      if (!Number.isFinite(bounds[key])) fail(path + '.' + key + ' must be finite');
+    });
+    if (bounds.min > bounds.max) fail(path + '.min must be <= max');
+    if (bounds.step <= 0) fail(path + '.step must be > 0');
+  }
 
   function validateProfile(profile, blockCatalog) {
     if (!isObject(profile)) fail('profile must be an object');
@@ -44,7 +59,9 @@
       if (!seen[blockType]) fail('parameter bounds declared for hidden block: ' + blockType);
       var fields = parameterBounds[blockType];
       if (!isObject(fields)) fail('parameterBounds.' + blockType + ' must be an object');
-      Object.keys(fields).forEach(function(fieldName) { validateBounds(fields[fieldName], 'parameterBounds.' + blockType + '.' + fieldName); });
+      Object.keys(fields).forEach(function(fieldName) {
+        validateBounds(fields[fieldName], 'parameterBounds.' + blockType + '.' + fieldName);
+      });
     });
 
     var fieldOptions = profile.fieldOptions || {};
@@ -81,7 +98,9 @@
     if (profile.runtime.scene !== undefined &&
         profile.runtime.scene !== 'sequence-v1' && profile.runtime.scene !== 'legacy-v1')
       fail('runtime.scene must be sequence-v1 or legacy-v1');
-    if (profile.runtime.maxSteps !== undefined && (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000)) fail('runtime.maxSteps outside [1, 20000]');
+    if (profile.runtime.maxSteps !== undefined &&
+        (!Number.isInteger(profile.runtime.maxSteps) || profile.runtime.maxSteps < 1 || profile.runtime.maxSteps > 20000))
+      fail('runtime.maxSteps outside [1, 20000]');
     requireStringArray(profile.runtime.allowedStatementKinds, 'runtime.allowedStatementKinds');
     requireStringArray(profile.runtime.rangeDirections, 'runtime.rangeDirections');
     requireStringArray(profile.runtime.moveDirections, 'runtime.moveDirections');
@@ -208,7 +227,8 @@
           if (!source) fail('unknown dropdown restriction target: ' + blockType + '.' + fieldName);
           var genericValues = source.map(function(option) { return option[1]; });
           profile.fieldOptions[blockType][fieldName].forEach(function(value) {
-            if (genericValues.indexOf(value) < 0) fail('unknown generic dropdown value: ' + blockType + '.' + fieldName + '=' + value);
+            if (genericValues.indexOf(value) < 0)
+              fail('unknown generic dropdown value: ' + blockType + '.' + fieldName + '=' + value);
           });
         });
       });

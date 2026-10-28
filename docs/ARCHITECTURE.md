@@ -125,14 +125,36 @@ Aucun vol, flash ou TEST_REQUIRED automatique.
 - **Produit actif :** `blockly_v2/`, modules `blockly/webeeblocks/`,
   `crazyflie_runtime_v2/`, mondes et scènes actuellement sélectionnés,
   et backend physique soumis à son autorité distincte.
-- **Frontière fournisseur imparfaite :** Blockly 13.2.1 est servi sous
-  `blockly_v2/vendor/`, mais la définition de blocs **spécifique au produit**
-  `crazyflie_v2.js` reste sous le répertoire historique
-  `blockly/google-blockly-31ee4ea/blocks/` et est chargée directement par
-  `blockly_v2.html`. Déplacer ce code exige de vérifier tous les chargeurs.
+- **Frontière fournisseur clarifiée :** Blockly 13.2.1 est servi depuis
+  `blockly_v2/vendor/` ; la définition de blocs `crazyflie_v2.js`, propre
+  à WebeeBlocks, vit dans `blockly/webeeblocks/` et est chargée par les
+  fenêtres V2, les témoins et les distributions Windows / physique.
+  Les fichiers de l'ancien Blockly requis par les tests historiques restent
+  conservés ; leur existence ne justifie pas d'y ajouter du code produit.
 - **Témoins historiques :** anciens contrôleurs, mondes, oracles et ressources
   Blockly peuvent rester nécessaires à des tests. Leur âge ne démontre pas
   qu'ils sont inutilisés.
+- **Sorties et amorces du sidecar Blockly historique :** deux fichiers
+  repérés par l'audit du 27 octobre **ne sont pas du code mort** :
+  - [`controllers/my_controller/my_controller.py`](../controllers/my_controller/my_controller.py)
+    est initialement vide dans Git : le serveur historique
+    [`blocklyServer.cpp`](../controllers/supervisor/blocklyServer/blocklyServer.cpp)
+    l'écrit lors de `SEND_CODE`, et le superviseur historique l'écrit
+    aussi. La CI [`run_blockly_ui_sidecar_test.py`](../tools/ci/run_blockly_ui_sidecar_test.py)
+    préserve puis restaure ses octets ; le job Webots
+    `encoders-historical` y exporte un programme et vérifie son exécution.
+    Supprimer le fichier sans refaire ces contrats casserait des consommateurs.
+  - [`controllers/Blockly_Programs/.tmp.txt`](../controllers/Blockly_Programs/.tmp.txt)
+    contient le nom de projet initial `myFile` (sans extension).
+    Le serveur le consulte pour `RESTORE_LAST_NAME` et `RESTORE_LAST`,
+    ce dernier ouvrant `myFile.xml`. Le test navigateur historique
+    préserve cette amorce, installe une valeur de test, puis restaure l'état
+    initial après avoir exercé Save/Submit/Restore. Ce nom est un état du
+    **sidecar XML historique**, pas une persistance automatique de projets
+    élèves `.wbb` de l'interface V2.
+  - **Statut : validation historique active**, et non artefacts à effacer.
+    Toute rationalisation future doit d'abord prouver le remplacement des
+    consommateurs et conserver leurs oracles de régression.
 - **Recherche/archives :** `experiments/` conserve données et hypothèses ;
   les variantes Grand Prix sont des témoins techniques et non une acceptation
   pédagogique. Les travaux fonctionnels du Grand Prix restent suspendus,

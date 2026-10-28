@@ -433,7 +433,7 @@ def verify_static_contract() -> None:
         "tools/prepare_runtime_v2.sh",
         "plugins/robot_windows/blockly_v2/main.js",
         "plugins/robot_windows/blockly/webeeblocks/interpreter.js",
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
         "worlds/crazyflie_runtime_v2.wbt",
         "controllers/crazyflie_runtime_v2/crazyflie_runtime_v2.cpp",

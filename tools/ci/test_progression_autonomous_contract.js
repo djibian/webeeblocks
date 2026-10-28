@@ -191,6 +191,20 @@ assert.match(probe, /AUTONOMOUS_ALT_SMALL_BB_RIGHT_ACHIEVED/);
 assert.match(probe, /AUTONOMOUS_ALT_LARGE_BB_RIGHT_ACHIEVED/);
 
 const runner = fs.readFileSync(path.join(ROOT, 'tools/ci/run_progression_autonomous_mission.py'), 'utf8');
+// Preserve the real image's successful #735 CUDA APT preparation before the
+// autonomous native RESET witness. A build-only or a host-only test is not enough.
+const setup = runner.match(/inner = r'''([\s\S]*?)'''\.strip\(\)/);
+assert.ok(setup, 'native progression shell must remain explicit');
+assert.deepStrictEqual(setup[1].trim().split('\n').slice(0, 4), [
+  'set -e',
+  'python3 /workspace/tools/test_prepare_webots_apt.py',
+  'python3 /workspace/tools/prepare_webots_apt.py',
+  'apt-get update >/dev/null'
+], 'APT tests and exact CUDA isolation must precede the actual index update, fail-closed');
+assert.match(runner, /"-e", "LIBGL_ALWAYS_SOFTWARE=true"/,
+  'CUDA source isolation may only run with software rendering');
+assert.doesNotMatch(setup[1], /apt-get update[^\n]*\|\|\s*true/,
+  'native apt-get verification may never be bypassed');
 assert.match(runner, /AUTONOMOUS_MISSION_TEST_COMPLETE/);
 assert.match(runner, /AUTONOMOUS_DEPARTURE_SMALL_RANGE/);
 assert.match(runner, /AUTONOMOUS_DEPARTURE_LARGE_RANGE/);

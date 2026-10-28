@@ -47,21 +47,11 @@ WEBOTS_BUILD_IMAGE_DIGEST = (
 )
 
 SHARED_WEBEEBLOCKS = REPO_ROOT / "plugins" / "robot_windows" / "blockly" / "webeeblocks"
-GOOGLE_BLOCK = (
-    REPO_ROOT
-    / "plugins"
-    / "robot_windows"
-    / "blockly"
-    / "google-blockly-31ee4ea"
-    / "blocks"
-    / "crazyflie_v2.js"
-)
 QUALIFICATION_PROTO = REPO_ROOT / "tools" / "physical" / "qualification_crazyflie_r2025a.proto"
 PACKAGED_SOURCE_PATHS = (
     "tools/physical",
     "plugins/robot_windows/blockly_v2",
     "plugins/robot_windows/blockly/webeeblocks",
-    "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
     "worlds/crazyflie_runtime_v2.wbt",
     "controllers/crazyflie_runtime_v2",
     "controllers/crazyflie_square/pid_controller.c",
@@ -120,8 +110,7 @@ def _would_copy_untracked(relative: str) -> bool:
             ".hpp",
         }
     return relative in {
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
-        "worlds/crazyflie_runtime_v2.wbt",
+            "worlds/crazyflie_runtime_v2.wbt",
         "controllers/crazyflie_square/pid_controller.c",
         "controllers/crazyflie_square/pid_controller.h",
     }
@@ -451,16 +440,6 @@ def build_bundle(
     _copy_tree(
         SHARED_WEBEEBLOCKS,
         bundle / "plugins" / "robot_windows" / "blockly" / "webeeblocks",
-    )
-    _copy_file(
-        GOOGLE_BLOCK,
-        bundle
-        / "plugins"
-        / "robot_windows"
-        / "blockly"
-        / "google-blockly-31ee4ea"
-        / "blocks"
-        / "crazyflie_v2.js",
     )
     _copy_controller(bundle)
 

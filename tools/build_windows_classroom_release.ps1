@@ -190,10 +190,6 @@ New-Item -ItemType Directory -Path $contractsTarget -Force | Out-Null
 Get-ChildItem -LiteralPath $contractsSource -File -Filter '*.js' | ForEach-Object {
   Copy-RequiredFile $_.FullName (Join-Path $contractsTarget $_.Name)
 }
-Copy-RequiredFile `
-  (Join-Path $repoRoot 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js') `
-  (Join-Path $packageDir 'plugins\robot_windows\blockly\google-blockly-31ee4ea\blocks\crazyflie_v2.js')
-
 # Fail closed on every local HTML dependency and fingerprint the URL from the
 # exact bytes packaged in this archive. Webots reuses localhost Robot Window
 # paths between launches; content-addressed query keys prevent a browser from
