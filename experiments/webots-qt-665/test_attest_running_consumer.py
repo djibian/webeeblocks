@@ -63,6 +63,49 @@ class RunningConsumerTests(unittest.TestCase):
                 probe.mapped_qt_files(line.strip()+ ' (deleted)\n', lib.name, lib, expected)
 
 
+
+    def test_qtgui_digest_from_pinned_native_full_link_and_soname_negatives(self):
+        """R2025a original/candidate hashes agree; map still needs real bytes."""
+        import os
+        qualified = 'f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9'
+        self.assertEqual(probe.QT_SHA256['libQt6Gui.so.6.5.3'], qualified)
+        self.assertEqual(set(probe.QT_SHA256),
+                         {'libQt6Core.so.6.5.3', 'libQt6Gui.so.6.5.3',
+                          'libQt6Widgets.so.6.5.3'})
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'webots/lib/webots'
+            home.mkdir(parents=True)
+            gui = home / 'libQt6Gui.so.6.5.3'
+            gui.write_bytes(b'QtGui fixture, not an authentic distribution')
+            alias = home / 'libQt6Gui.so.6'
+            # The actual R2025a process may map a separate .so.6 inode.
+            alias.write_bytes(gui.read_bytes())
+            digest = hashlib.sha256(gui.read_bytes()).hexdigest()
+            def mapped(path):
+                st = path.stat()
+                return (f'7fb-8fb r-xp 00000000 '
+                        f'{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x} '
+                        f'{st.st_ino} {path}\n')
+            self.assertEqual(probe.mapped_qt_files(
+                mapped(alias), gui.name, gui, digest), {alias})
+            # Installed versioned file and actual mapped alias must both agree.
+            alias.write_bytes(b'mapped GUI altered after install')
+            with self.assertRaisesRegex(ValueError, 'bytes differ'):
+                probe.mapped_qt_files(mapped(alias), gui.name, gui, digest)
+            alias.write_bytes(gui.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'deleted'):
+                probe.mapped_qt_files(mapped(alias).strip() + ' (deleted)\n',
+                                      gui.name, gui, digest)
+            old_inode = alias.stat().st_ino
+            with self.assertRaisesRegex(ValueError, 'inode differs'):
+                probe.mapped_qt_files(
+                    mapped(alias).replace(f' {old_inode} ', f' {old_inode + 1} ', 1),
+                    gui.name, gui, digest)
+            foreign = Path(directory) / 'libQt6Gui.so.6'
+            foreign.write_bytes(gui.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'outside pinned runtime'):
+                probe.mapped_qt_files(mapped(foreign), gui.name, gui, digest)
+
     def test_observed_all_qt6_dso_origins_without_inventing_hash_qualification(self):
         import os
         with tempfile.TemporaryDirectory() as directory:

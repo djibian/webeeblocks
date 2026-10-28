@@ -534,6 +534,42 @@ running Linux process's ELF/Qt identity, not image supply-chain immutability,
 all workloads, prevention of any UAF, Windows parity, or product deployment.
 The existing official runtime paths still need deliberate correct adoption.
 
+
+### QtGui native source digest from the original R2025a full-link build
+
+The [real full Webots R2025a Linux build run 40354624966](https://github.com/djibian/webeeblocks/actions/runs/40354624966)
+preserves [artifact 12666096845](https://github.com/djibian/webeeblocks/actions/runs/40354624966/artifacts/12666096845),
+98,390,605 bytes, archive SHA256
+**5b831acea004ecbcd3ed301846c745fed5b64edb9a5261738ac43ffb3d0d05d0**;
+all 26 archived ZIP members passed CRC integrity verification. Two distinct
+originally recorded manifests in that exact immutable artifact are:
+
+- **original-runtime.sha256** (SHA256
+  05274b6724a7a0ab94b3be5d0dbf3258f68601cf2dd3de76b79067a13387df4a):
+  original pinned official R2025a lib/webots/libQt6Gui.so.6.5.3
+  SHA256 **f8396f49e2bcfb3e667ba17bd861f1f0be806153141cc3966e79f726818e24e9**.
+- **candidate-runtime.sha256** (SHA256
+  0f17b53ff7232e0ce20d3436a9ee2f57eee29691df617e264c4074bf9f560700):
+  same QtGui versioned library, **identical** SHA256; rebuilt Webots ELF
+  e45a90b580a00f50dc08746e6f43d1a86a83fcf1b23f55538737309154150545.
+  Qt Core/Widgets retained their independently recorded digests as before.
+
+This is evidence that the **original and corrected install trees** have the
+same exact QtGui bytes under that versioned filename. It is *not* evidence
+that the versioned file is the one a given running process mapped, nor does
+ldd alone attest a process. The Linux process probe therefore **now
+requires** the actual libQt6Gui.so.6 or .so.6.5.3 mapped file's bytes
+to match that recorded digest and its mapped device:inode; a different
+QtGui alias is a refusal, not a silent observed-only pass. The existing
+Qt6-family and QPA-plugin inventory still records additional unpinned modules
+as **observed only**. The additional offline negatives characterize different
+SONAME inodes, altered mapped bytes, missing/deleted QtGui, and outside
+runtime paths; the archive and tests do **not** prove a real consumer's Gui
+mapping passes this stronger rule. A fresh native Linux witness on this exact
+candidate is required. Windows PE/DLL acceptance and natural reentrant
+Qt callbacks remain separate obligations.
+
+
 ### Running-ELF Qt SONAME qualification (NON-GATE, 26 October 2026)
 
 The [Linux experiment 40391326422](https://github.com/djibian/webeeblocks/actions/runs/40391326422)
