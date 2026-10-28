@@ -51,11 +51,15 @@ et indirects, y compris les tests qui vivent dans un autre répertoire.
 
 ### Activité → scène → évaluateur
 
-Le profil configure les blocs, bornes, capacités et évaluateurs. La fenêtre
-prépare la scène via WWI **avant** de muter le projet ; le Runtime natif
-sélectionne les sous-scènes et exécute les évaluateurs. L'implémentation
-distingue aujourd'hui `sequence-v1` et `legacy-v1` : elle ne constitue
-pas encore un mécanisme complètement déclaratif d'activités arbitraires.
+Le profil configure les blocs, bornes, capacités, évaluateurs et, depuis
+[#723](https://github.com/djibian/webeeblocks/pull/723), la scène native
+`runtime.scene` : `sequence-v1` pour l'activité 1, `legacy-v1` pour les
+neuf autres. La fenêtre prépare la scène via WWI **avant** de muter le projet.
+`wwi_backend.js` refuse les scènes absentes ou inconnues **avant tout envoi
+natif**, sans déduire un défaut de l'identifiant pédagogique ; les profils
+des mondes dédiés peuvent omettre ce champ lorsqu'ils n'utilisent pas SCENE.
+Le Runtime natif conserve sa liste fermée de deux scènes et ses validations.
+Il ne s'agit **pas** d'un mécanisme déclaratif d'activités arbitraires.
 Voir [ACTIVITY_SCENES.md](ACTIVITY_SCENES.md). Les activités historiques 2–7
 restent un acquis technique, pas une acceptation pédagogique.
 
@@ -90,9 +94,13 @@ Pour la **preuve native**, le collecteur CI
 reçoit stdout/stderr dans un pipe et écrit seul `webots.log`.
 Le scellement attend la fin des détenteurs du pipe et refuse les crashes
 tardifs, après [#715](https://github.com/djibian/webeeblocks/pull/715).
-Cette garantie ne démontre ni la fin de tous les processus Webots ni
-l'intégrité des autres fichiers de capture ; elle ne corrige pas
-les défauts natifs #637/#665.
+Le retrait des ressources du harnais [#719](https://github.com/djibian/webeeblocks/pull/719)
+essaie aussi les autres fermetures après un premier échec, conserve l'erreur
+primaire et **refuse de sceller** les traces lorsque le teardown échoue.
+Un manifeste de traces intègres ne prouve jamais qu'une mission a réussi.
+Cette garantie ne démontre ni la fin de tous les processus Webots, ni
+l'intégrité universelle des autres captures, ni la résolution des
+défauts natifs #637/#665.
 
 ### Simulation / matériel
 
@@ -103,8 +111,11 @@ restent dans la frontière matérielle. Le test
 [`test_physical_shared_interpreter.py`](../tools/ci/test_physical_shared_interpreter.py)
 exécute maintenant hors matériel l'AST compagnon exact du
 `hover_range_comparison.wbb` avec un backend factice ([#712](https://github.com/djibian/webeeblocks/pull/712)).
-Il ne prouve pas une exécution Webots de ce même programme. Les preuves
-logicielles ne qualifient ni le premier vol réel
+Il ne prouve pas une exécution Webots de ce même programme. Le vérificateur
+de paquet hors ligne [#722](https://github.com/djibian/webeeblocks/pull/722)
+refuse les liens symboliques hors manifeste (y compris les liens vers
+répertoires ou cibles absentes), sans prouver l'absence de mutation concurrente
+lors du contrôle. Les preuves logicielles ne qualifient ni le premier vol réel
 [#157](https://github.com/djibian/webeeblocks/issues/157),
 ni l'activité physique finale [#72](https://github.com/djibian/webeeblocks/issues/72).
 Aucun vol, flash ou TEST_REQUIRED automatique.
