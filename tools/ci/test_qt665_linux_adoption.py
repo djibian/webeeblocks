@@ -131,15 +131,22 @@ class LinuxConsumerImageTests(unittest.TestCase):
         contract = (ROOT / "tools/ci/test_workflow_contract.py").read_text(encoding="utf-8")
         enforce_selector(actual_webots_consumers_without_historical_witnesses(suite))
         enforce_selector(actual_support_selectors_without_historical_contract_literals(contract))
+        def mutate_encoder(source, from_text, to_text):
+            start, end = "\n  encoders-historical:\n", "\n  gyro-gps-historical:\n"
+            section = source.split(start, 1)[1].split(end, 1)[0]
+            self.assertEqual(section.count(from_text), 1)
+            return source.replace(start + section,
+                                  start + section.replace(from_text, to_text, 1), 1)
+
         for label, damaged in (
-            ("unverified pull", suite.replace(
-                "bash tools/ci/pull_pinned_historical_webots.sh", "true", 1)),
-            ("corrected image replacing an official witness", suite.replace(
-                OFFICIAL[0], IMAGE, 1)),
-            ("historical native deadline dropped", suite.replace(
-                "timeout -k 5s 30s xvfb-run", "xvfb-run", 1)),
-            ("historical network reopened", suite.replace(
-                "--network none", "--network host", 1)),
+            ("unverified pull", mutate_encoder(
+                suite, "bash tools/ci/pull_pinned_historical_webots.sh", "true")),
+            ("corrected image replacing an official witness", mutate_encoder(
+                suite, OFFICIAL[0], IMAGE)),
+            ("historical native deadline dropped", mutate_encoder(
+                suite, "timeout -k 5s 30s xvfb-run", "xvfb-run")),
+            ("historical network reopened", mutate_encoder(
+                suite, "--network none", "--network host")),
             ("unqualified runtime added to other job", suite.replace(
                 IMAGE, IMAGE + "\n" + OFFICIAL[0], 1)),
         ):
