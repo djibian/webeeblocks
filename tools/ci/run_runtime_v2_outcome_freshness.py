@@ -87,6 +87,8 @@ set -e
 # and a pre-Webots exit can be mistaken for an outcome freshness failure.
 phase=apt_index
 trap 'rc=$?; printf "WEBEEBLOCKS_OUTCOME_PROBE_STEP_FAILED phase=%s exit=%d\n" "$phase" "$rc" >&2; exit "$rc"' ERR
+python3 /workspace/tools/test_prepare_webots_apt.py
+python3 /workspace/tools/prepare_webots_apt.py
 apt-get update >/dev/null
 phase=apt_packages
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
