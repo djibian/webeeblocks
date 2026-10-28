@@ -626,7 +626,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotIn("continue-on-error:", section)
         for name, following in sections:
             with self.subTest(job=name):
-                start, end = "\\n  " + name + ":\\n", "\\n  " + following + ":\\n"
+                start, end = "\n  " + name + ":\n", "\n  " + following + ":\n"
                 self.assertEqual(suite.count(start), 1)
                 section = suite.split(start, 1)[1].split(end, 1)[0]
                 check(section)
