@@ -14,6 +14,10 @@ struct FakeState {
   std::vector<std::string> releasedReferences;
   bool cancelOpen = false;
   bool missingTarget = false;
+  int openCalls = 0;
+  int saveAsCalls = 0;
+  int saveCalls = 0;
+  int releaseCalls = 0;
 };
 
 class FakeProvider final : public webeeblocks::FileDialogProvider {
@@ -21,16 +25,19 @@ public:
   explicit FakeProvider(FakeState *state) : state_(state) {}
   std::string name() const override { return "fake-native"; }
   webeeblocks::OpenFileResult open() override {
+    ++state_->openCalls;
     if (state_->cancelOpen)
       return {webeeblocks::FileOperationStatus::Cancelled, "", "", "", ""};
     return {webeeblocks::FileOperationStatus::Ok, "opaque_open_1", "élève.wbb", "{\"format\":\"webeeblocks-project\"}\n", ""};
   }
   webeeblocks::SaveFileResult saveAs(const std::string &name, const std::string &bytes) override {
+    ++state_->saveAsCalls;
     state_->lastName = name;
     state_->lastBytes = bytes;
     return {webeeblocks::FileOperationStatus::Ok, "opaque_saveas_2", name, ""};
   }
   webeeblocks::SaveFileResult save(const std::string &reference, const std::string &bytes) override {
+    ++state_->saveCalls;
     state_->lastReference = reference;
     state_->lastBytes = bytes;
     if (state_->missingTarget)
@@ -38,6 +45,7 @@ public:
     return {webeeblocks::FileOperationStatus::Ok, reference, "élève.wbb", ""};
   }
   void release(const std::string &reference) override {
+    ++state_->releaseCalls;
     state_->releasedReferences.push_back(reference);
   }
 private:
@@ -123,6 +131,45 @@ int main() {
   assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 13 SAVE_AS") ==
          "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 13 ERR INVALID_REQUEST");
 
-  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path\n";
+  // B4-I0: invalid messages and excessive project contents must never reach
+  // the dialog/file provider, even when they have a valid, reusable request ID.
+  const int openBefore = state.openCalls;
+  const int saveAsBefore = state.saveAsCalls;
+  const int saveBefore = state.saveCalls;
+  const int releaseBefore = state.releaseCalls;
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 14 OPEN unexpected") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 14 ERR INVALID_REQUEST");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 15 SAVE_AS ZW5jb3Vycy53YmI= %%%=") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 15 ERR INVALID_REQUEST");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 16 SAVE opaque_saveas_2 %%%=") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 16 ERR INVALID_REQUEST");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 17 RELEASE ../escape") ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 17 ERR INVALID_REQUEST");
+  std::string invalidIdResponse;
+  assert(broker.handleMessage("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 2147483648 OPEN", &invalidIdResponse));
+  assert(invalidIdResponse.empty());
+
+  // Materialize 4 MiB + 1 byte of valid base64 without an external fixture.
+  // The parser must reject it before invoking either SAVE or SAVE_AS.
+  const std::size_t oversizeBytes = webeeblocks::FileBroker::kMaxProjectBytes + 1;
+  std::string oversizeBase64;
+  oversizeBase64.reserve(((oversizeBytes + 2) / 3) * 4);
+  for (std::size_t i = 0; i < oversizeBytes / 3; ++i)
+    oversizeBase64 += "eHh4";  // 3 ASCII 'x' bytes
+  if (oversizeBytes % 3 == 1)
+    oversizeBase64 += "eA==";
+  else if (oversizeBytes % 3 == 2)
+    oversizeBase64 += "eHg=";
+  assert(oversizeBase64.size() == ((oversizeBytes + 2) / 3) * 4);
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 18 SAVE_AS ZW5jb3Vycy53YmI= " + oversizeBase64) ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 18 ERR PROJECT_TOO_LARGE");
+  assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 19 SAVE opaque_saveas_2 " + oversizeBase64) ==
+         "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 19 ERR PROJECT_TOO_LARGE");
+  assert(state.openCalls == openBefore);
+  assert(state.saveAsCalls == saveAsBefore);
+  assert(state.saveCalls == saveBefore);
+  assert(state.releaseCalls == releaseBefore);
+
+  std::cout << "PASS firefox-file-broker: capabilities/open/save-as/same-reference-save/release/cancel/errors/no-browser-path/invalid-and-oversize-no-side-effects\n";
   return 0;
 }
