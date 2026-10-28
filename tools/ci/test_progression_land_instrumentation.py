@@ -132,6 +132,39 @@ class LandInstrumentationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ambiguous sequence position instrumentation"):
             instrument_position(changed)
 
+    def test_optional_real_sequence_step_timing_preserves_existing_mission(self):
+        from tools.ci.run_progression_sequence_mission import instrument_sequence_step
+        import importlib.util
+
+        existing = self.instrumented
+        self.assertEqual(instrument_sequence_step(existing, selected="0"), existing)
+        timed = instrument_sequence_step(existing, selected="1")
+        self.assertEqual(timed.count("while (reset_ci_timed_robot_step(step) != -1)"), 1)
+        self.assertEqual(timed.count("while (wb_robot_step(step) != -1 &&"), 1)
+        self.assertEqual(timed.count("wb_robot_step(step_ms);"), 1)
+        self.assertIn("CLOCK_MONOTONIC", timed)
+        self.assertIn("WEBEEBLOCKS_RESET_CI_SLOW_STEP", timed)
+        self.assertIn("WEBEEBLOCKS_RESET_CI_STEP_BATCH", timed)
+        self.assertNotIn("RESET_PHASE_SAMPLE", timed)
+        self.assertNotIn("RESET_PHASE_BEGIN", timed)
+        for deadline in ("#define ACTION_TIMEOUT 25.0", "#define RESET_TIMEOUT 5.0",
+                         "#define RESET_WINDOW 0.25"):
+            self.assertEqual(timed.count(deadline), existing.count(deadline))
+        self.assertEqual(self.original, SOURCE.read_text(encoding="utf-8"))
+        with self.assertRaisesRegex(ValueError, "invalid native sequence step timing"):
+            instrument_sequence_step(existing, selected="true")
+        with self.assertRaisesRegex(ValueError, "unrecognized native step call"):
+            instrument_sequence_step(timed, selected="1")
+
+        # The existing full autonomous instrument must retain its RESET logs.
+        path = ROOT / "experiments/runtime-reset-phase/instrument.py"
+        spec = importlib.util.spec_from_file_location("step_and_reset_probe", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        both = module.instrument(self.original)
+        self.assertIn("RESET_PHASE_SAMPLE", both)
+        self.assertIn("WEBEEBLOCKS_RESET_CI_STEP_BATCH", both)
+
     def test_diagnostic_is_not_a_source_mutation(self):
         self.assertEqual(self.original, SOURCE.read_text(encoding="utf-8"))
         self.assertEqual(self.original.count("WEBEEBLOCKS_SEQUENCE_CI_LAND"), 0)
