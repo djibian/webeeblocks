@@ -233,7 +233,7 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(scoped.runtime)
         self.assertTrue(scoped.webots)
         self.assertFalse(scoped.full)
-        legacy = select(["controllers/crazyflie_square/pid_controller.c"])
+        legacy = select(["controllers/crazyflie_square/crazyflie_square.c"])
         self.assertFalse(legacy.runtime)
         self.assertTrue(legacy.webots)
         self.assertFalse(legacy.full)
