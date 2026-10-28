@@ -5,6 +5,8 @@ OUT="$ROOT/ci-artifacts/runtime-v2-student-ui"
 FIXTURE="$ROOT/controllers/Blockly_Programs/CrazyflieReactiveV2.xml"
 EXPECTED_AST="$ROOT/experiments/runtime-v2-student-ui/expected_ast.json"
 mkdir -p "$OUT" /root/.config/Cyberbotics
+python3 /workspace/tools/test_prepare_webots_apt.py
+python3 /workspace/tools/prepare_webots_apt.py
 apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates python3-websocket >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
