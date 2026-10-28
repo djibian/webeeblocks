@@ -305,7 +305,21 @@ extern "C" void gp_test_cleanup(){
    " ERR "+(at_deadline?"TIME_LIMIT":"UNSAFE_OR_TIMEOUT")));
   assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 43 ERR ")+
    (at_deadline?"TIME_LIMIT":"LANDING_UNCONFIRMED")));
-  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE "+std::string(mode=="flight-yaw-deadline-recover"?"2147483646":"1")+" ERR UNSAFE_OR_TIMEOUT"));
+  // TAKEOFF id 1 was ACKed at t=2624. A subsequent invalid-angle
+  // failure must preserve its negative verdict without issuing a second,
+  // contradictory ERR for that already completed one-shot request.
+  assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK"));
+  int takeoff_ack_count=0;
+  for(const auto& reply:replies) {
+   if(reply=="WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK")++takeoff_ack_count;
+   assert(reply.rfind("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR ",0)!=0);
+  }
+  assert(takeoff_ack_count==1);
+  // The deadline-controlled LAND has its own active id; ordinary flight
+  // attitude loss has no in-flight request to cancel, but still emits its
+  // existing non-request diagnostic and rejects the injected bad commands.
+  assert(saw(std::string("WEBEEBLOCKS_RUNTIME_V2 RESPONSE ")+
+   (at_deadline?"2147483646":"-1")+" ERR UNSAFE_OR_TIMEOUT"));
   if(!reset_success())assert(saw("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2147483646 ERR UNSAFE_OR_TIMEOUT"));
  }
  file_verify();
