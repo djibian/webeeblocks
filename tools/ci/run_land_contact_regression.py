@@ -178,6 +178,7 @@ QualificationCrazyflieR2025a {{
                 text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 OK") != 1 or
                 text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 2 ERR RESET_REQUIRED") != 1 or
                 text.splitlines().count("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 3 OK") != 1 or
+                sum(line.startswith("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 4 VALUE ") for line in text.splitlines()) != 1 or
                 "WEBEEBLOCKS_RUNTIME_V2 RESPONSE -1" in text):
             raise RuntimeError("native airborne idle attitude guard/refreshed RESET failed; inspect " + str(out))
         print("PASS native R2025a airborne idle unsafe attitude stops motors, rejects action, and RESET restores fresh access; " + str(out))
