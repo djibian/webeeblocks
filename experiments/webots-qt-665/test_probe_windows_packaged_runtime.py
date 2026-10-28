@@ -93,6 +93,54 @@ class ProbeTests(unittest.TestCase):
                     probe.attest_modules([str(installed)],
                                          {'Qt6Core.dll': (installed, synthetic_hash)}, sdk)
 
+    def test_engine_process_argv_must_match_real_classroom_launcher(self):
+        # The retained genuine Windows process did forward the exact launch
+        # flags, port and classroom world to webots-bin.exe.
+        import json
+        historic = json.loads((Path(__file__).with_name('windows-startup-native.json')).read_text())
+        historic_argv = historic['processes']['webots-bin.exe']['command_line']
+        self.assertEqual(historic_argv[1:], historic['command'][1:])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bin_dir = root / 'Webots installation/bin'
+            bin_dir.mkdir(parents=True)
+            launcher = bin_dir / 'webots.exe'
+            engine = bin_dir / 'webots-bin.exe'
+            launcher.write_bytes(b'launcher')
+            engine.write_bytes(b'qualified-engine-fixture')
+            world = root / 'classroom with spaces/worlds/crazyflie_runtime_v2.wbt'
+            world.parent.mkdir(parents=True)
+            world.write_text('untouched-world-fixture')
+            flags = ['--stdout', '--stderr', '--batch', '--mode=fast',
+                     '--port=59229', str(world)]
+            expected = [str(launcher), *flags]
+            self.assertIsNone(probe.attest_native_engine_argv(
+                [str(engine), *flags], expected, engine))
+            mutations = [
+                [str(engine), *flags[:-1], str(root / 'other-world.wbt')],
+                [str(engine), '--stdout', '--stderr', '--batch',
+                 '--mode=fast', '--port=59230', str(world)],
+                [str(engine), '--stdout', '--stderr', '--batch',
+                 '--mode=fast', '--port=59229', str(world), str(world)],
+                [str(engine), '--stdout', '--stderr', '--batch',
+                 '--mode=fast', '--port=59229'],
+                [str(engine), '--stdout', '--stderr', '--batch',
+                 '--mode=fast', '--no-rendering', '--port=59229', str(world)],
+            ]
+            for candidate in mutations:
+                with self.subTest(argv=candidate), self.assertRaisesRegex(
+                        ValueError, 'differ from classroom launch'):
+                    probe.attest_native_engine_argv(candidate, expected, engine)
+            another = bin_dir / 'other-engine.exe'
+            another.write_bytes(engine.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'argv executable'):
+                probe.attest_native_engine_argv(
+                    [str(another), *flags], expected, engine)
+            with self.assertRaisesRegex(ValueError, 'argv executable'):
+                probe.attest_native_engine_argv([], expected, engine)
+
+
     def test_evaluator_cannot_substitute_for_main_runtime(self):
         exe = 'crazyflie_runtime_v2.exe'
         self.assertEqual(process_role(exe, [exe]), 'runtime')

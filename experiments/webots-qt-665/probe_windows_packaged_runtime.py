@@ -158,6 +158,20 @@ def advance_native_stability(ready, snapshot, previous_identity, stable_since, n
     return identity, stable_since
 
 
+def attest_native_engine_argv(observed, launcher_command, expected_engine):
+    """Bind the loaded Webots PE to the exact classroom world, port and flags.
+
+    An attested executable and its DLLs are not proof that the engine opened
+    the world passed to webots.exe. The historical Windows native process
+    (windows-startup-native.json) forwards the launcher arguments unchanged.
+    Refuse any difference, including missing/duplicate world or port options.
+    """
+    if not observed or Path(observed[0]).resolve() != expected_engine.resolve():
+        raise ValueError('Unexpected native Webots argv executable')
+    if observed[1:] != launcher_command[1:]:
+        raise ValueError('Native Webots arguments differ from classroom launch')
+
+
 def process_role(name, command_line):
     if name == 'webots-bin.exe':
         return name
@@ -248,6 +262,8 @@ def run(args):
                         continue
                     command_line = child.cmdline()
                     role = process_role(name, command_line)
+                    if name == 'webots-bin.exe':
+                        attest_native_engine_argv(command_line, command, bin_dir / name)
                     expected = engine_required if name == 'webots-bin.exe' else controller_required
                     expected_exe = bin_dir / name if name == 'webots-bin.exe' else controller
                     if Path(child.exe()).resolve() != expected_exe.resolve():
