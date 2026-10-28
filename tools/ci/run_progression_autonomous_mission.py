@@ -206,6 +206,8 @@ def main() -> int:
 
         inner = r'''
 set -e
+python3 /workspace/tools/test_prepare_webots_apt.py
+python3 /workspace/tools/prepare_webots_apt.py
 apt-get update >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget ca-certificates >/dev/null
 wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
