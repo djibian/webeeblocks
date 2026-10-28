@@ -15,7 +15,7 @@ function build() {
   require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
   global.Blockly = Blockly;
   try {
-    require(path.join(ROOT, 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'));
+    require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js'));
   } finally { delete global.Blockly; }
   const Semantic = require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/semantic_ast'));
   Semantic.installConditionalLoopBounds(Blockly);

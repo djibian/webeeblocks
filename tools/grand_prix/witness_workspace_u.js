@@ -4,7 +4,7 @@ const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const Blockly=require('../../plugins/robot_windows/blockly_v2/node_modules/blockly');
 require('../../plugins/robot_windows/blockly_v2/node_modules/blockly/blocks');
 global.Blockly=Blockly;
-require('../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js');
+require('../../plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js');
 const Semantic=require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast');
 Semantic.installConditionalLoopBounds(Blockly);
 delete global.Blockly;
