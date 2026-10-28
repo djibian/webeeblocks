@@ -19,6 +19,12 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(result.webots)
         self.assertFalse(result.full)
 
+    def test_moved_product_definitions_keep_both_owning_suites(self) -> None:
+        selection = select(["plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js"])
+        self.assertTrue(selection.runtime)  # actual Blockly registration and UI
+        self.assertTrue(selection.webots)  # preserve historical Webots coverage
+        self.assertFalse(selection.full)
+
     def test_physical_host_activation_regression_routes_to_runtime(self) -> None:
         result = select(["tools/ci/test_physical_host_activation.py"])
         self.assertTrue(result.runtime)
@@ -50,6 +56,28 @@ class SelectCiTests(unittest.TestCase):
                 self.assertTrue(selection.runtime)
                 self.assertTrue(selection.webots)  # preserve prior coverage
                 self.assertFalse(selection.full)
+
+    def test_land_contact_native_inputs_keep_the_runtime_oracle(self) -> None:
+        # The regression is run inside the Runtime progression/neutral-start
+        # jobs, not the historical Webots-only jobs. Each dependency can be
+        # edited by itself, without an accompanying runtime_v2* source change.
+        for path in (
+            "tools/ci/run_land_contact_regression.py",
+            "tools/ci/fixtures/land_contact_driver.c",
+            "controllers/crazyflie_square/pid_controller.c",
+            "controllers/crazyflie_square/pid_controller.h",
+            "worlds/protos/QualificationCrazyflieR2025a.proto",
+        ):
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime, "native LAND owner skipped")
+                self.assertTrue(selection.webots, "existing Webots coverage lost")
+                self.assertFalse(selection.full, "unnecessary full gate")
+        # Preserve scoped CI for the unrelated original legacy controller.
+        legacy = select(["controllers/crazyflie_square/crazyflie_square.c"])
+        self.assertFalse(legacy.runtime)
+        self.assertTrue(legacy.webots)
+        self.assertFalse(legacy.full)
 
     def test_land_contact_forensics_selects_own_runtime_preflight(self) -> None:
         paths = (
@@ -129,7 +157,7 @@ class SelectCiTests(unittest.TestCase):
         # Increasing native coverage must not turn documentation-only or
         # unrelated legacy Webots-only changes into mandatory Runtime.
         self.assertFalse(select(["docs/DEVELOPMENT.md"]).runtime)
-        self.assertFalse(select(["controllers/crazyflie_square/pid_controller.c"]).runtime)
+        self.assertFalse(select(["controllers/crazyflie_square/crazyflie_square.c"]).runtime)
 
     def test_shared_wwi_event_server_edits_run_own_runtime_jobs(self) -> None:
         # Directly invoked by ci-runtime.yml's native browser/observability
@@ -205,7 +233,7 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(scoped.runtime)
         self.assertTrue(scoped.webots)
         self.assertFalse(scoped.full)
-        legacy = select(["controllers/crazyflie_square/pid_controller.c"])
+        legacy = select(["controllers/crazyflie_square/crazyflie_square.c"])
         self.assertFalse(legacy.runtime)
         self.assertTrue(legacy.webots)
         self.assertFalse(legacy.full)
@@ -253,6 +281,31 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.webots)  # preserve existing Webots coverage
         self.assertFalse(result.full)
 
+    def test_runtime_core_transitive_oracles_keep_their_owner(self) -> None:
+        # These tests are consumed through nested subprocess/require calls of
+        # run_runtime_v2_core_harness.py. An edit must still run Runtime core,
+        # in addition to the Webots selection they had before this fix.
+        paths = (
+            "tools/ci/test_runtime_mission_failure.js",
+            "tools/ci/test_runtime_outcome_settling.js",
+            "tools/ci/test_runtime_mission_broker.py",
+            "tools/ci/test_simulation_clock.py",
+            "tools/ci/test_teacher_decision_channel.py",
+            "tools/ci/test_post_reset_teacher_decision.py",
+            "tools/ci/test_post_reset_capability_bridge.py",
+            "tools/ci/test_front_range_diagnostic.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+        unrelated = select(["tools/ci/an_unrelated_probe.py"])
+        self.assertFalse(unrelated.runtime)
+        self.assertTrue(unrelated.webots)
+        self.assertFalse(unrelated.full)
+
     def test_runtime_v2_student_ui_experiment_routes_to_runtime(self) -> None:
         result = select(["experiments/runtime-v2-student-ui/probe.py"])
         self.assertTrue(result.runtime)
@@ -266,7 +319,7 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.full)
 
     def test_legacy_webots_only(self) -> None:
-        result = select(["controllers/crazyflie_square/pid_controller.c"])
+        result = select(["controllers/crazyflie_square/crazyflie_square.c"])
         self.assertFalse(result.runtime)
         self.assertTrue(result.webots)
 

@@ -14,9 +14,7 @@ from typing import Iterable
 DOC_ONLY = ("*.md", "docs/**", "documentation/**", ".github/pull_request_template.md")
 FORCE_FULL = (
     ".github/workflows/**",
-    # Webots Qt lifetime patches affect the native Runtime/Grand Prix consumer,
-    # Windows deployment and Webots, not just the experimental source files.
-    # A Webots-only Ready Gate would miss those product oracles.
+    # Qt upstream native lifetime patches require full Runtime, Webots and Windows qualification.
     "experiments/webots-qt-665/**",
     "tools/ci/select_ci.py",
     "tools/ci/test_select_ci.py",
@@ -66,9 +64,19 @@ PHYSICAL_RUNTIME_EVIDENCE = (
     "tools/ci/fixtures/physical_*",
 )
 SHARED_RUNTIME_WEBOTS = (
+    # This product Blockly source feeds the Runtime UI and Webots native paths.
+    "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
     # The pre-controller observer is exercised by Runtime's outcome preflight.
     "tools/ci/observe_outcome_startup.py",
     "tools/ci/test_outcome_startup_observer.py",
+    # The native LAND contact/settling regression is invoked by Runtime's
+    # sequence and neutral-start campaigns. Its real C/PID/PROTO inputs must
+    # not route to the legacy Webots-only suite when edited in isolation.
+    "tools/ci/run_land_contact_regression.py",
+    "tools/ci/fixtures/land_contact_driver.c",
+    "controllers/crazyflie_square/pid_controller.c",
+    "controllers/crazyflie_square/pid_controller.h",
+    "worlds/protos/QualificationCrazyflieR2025a.proto",
     # The sequence LAND diagnostic is compiled and exercised by Runtime's
     # progression shards; generic tools/ci selection would skip its own oracle.
     "tools/ci/run_progression_sequence_mission.py",
@@ -81,6 +89,17 @@ SHARED_RUNTIME_WEBOTS = (
     # The product Blockly definition contract is executed by Runtime student-ui.
     # Generic tools/ci/** must not select Webots alone and skip that owner.
     "tools/ci/test_blockly_v2_product_definitions.js",
+    # Transitive subprocess/require oracles of run_runtime_v2_core_harness.py.
+    # Generic tools/ci/** would run Webots alone and skip the actual Runtime
+    # owner, including physical authorization and reset-freshness negatives.
+    "tools/ci/test_runtime_mission_failure.js",
+    "tools/ci/test_runtime_outcome_settling.js",
+    "tools/ci/test_runtime_mission_broker.py",
+    "tools/ci/test_simulation_clock.py",
+    "tools/ci/test_teacher_decision_channel.py",
+    "tools/ci/test_post_reset_teacher_decision.py",
+    "tools/ci/test_post_reset_capability_bridge.py",
+    "tools/ci/test_front_range_diagnostic.py",
     "tools/ci/test_progression_sequence_contract.js",
     # Activity 6's positive/negative native proof is in Runtime progression shard 4.
     # A Webots-only selection incorrectly reports green while skipping that proof.
