@@ -170,6 +170,36 @@ class ProbeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 attest_modules([str(expected)], required, sdk)
 
+    def test_native_abi_family_location_rejects_unlisted_foreign_qt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / 'Webots'
+            native = home / 'msys64/mingw64/bin'
+            native.mkdir(parents=True)
+            qt = native / 'Qt6Core.dll'
+            qt.write_bytes(b'pinned-fixture')
+            extra = native / 'Qt6Network.dll'
+            extra.write_bytes(b'additional-runtime-module')
+            windows = root / 'Windows/System32'
+            windows.mkdir(parents=True)
+            opengl = windows / 'opengl32.dll'
+            opengl.write_bytes(b'Windows OpenGL system module')
+            family = probe.attest_native_abi_family_locations(
+                [str(qt), str(extra), str(opengl)], home)
+            self.assertEqual(set(family), {'qt6core.dll', 'qt6network.dll'})
+            self.assertTrue(family['qt6core.dll']['independently_pinned'])
+            self.assertFalse(family['qt6network.dll']['independently_pinned'])
+            foreign = root / 'Another Qt/bin/Qt6Network.dll'
+            foreign.parent.mkdir(parents=True)
+            foreign.write_bytes(extra.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'outside pinned Webots runtime'):
+                probe.attest_native_abi_family_locations([str(qt), str(foreign)], home)
+            alternate = home / 'other/Qt6Network.dll'
+            alternate.parent.mkdir()
+            alternate.write_bytes(extra.read_bytes())
+            with self.assertRaisesRegex(ValueError, 'Multiple native ABI-family'):
+                probe.attest_native_abi_family_locations([str(extra), str(alternate)], home)
+
     def test_external_sdk_rejected_even_for_other_dependency(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

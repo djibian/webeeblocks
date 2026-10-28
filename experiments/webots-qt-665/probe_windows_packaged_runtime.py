@@ -133,6 +133,35 @@ def attest_modules(mapped_paths, required, sdk):
     return result
 
 
+def attest_native_abi_family_locations(mapped_paths, runtime_home):
+    """Reject foreign Qt/MinGW/Controller modules, even when not in required.
+
+    Required DLLs have independently pinned hashes in attest_modules().
+    Additional same-runtime family modules are reported, not claimed to have
+    independently qualified hashes or complete C++ ABI compatibility.
+    """
+    root = runtime_home.resolve(strict=True)
+    observed = {}
+    pinned_names = {name.casefold() for name in QUALIFIED_WINDOWS_MODULE_SHA256}
+    for raw in mapped_paths:
+        path = Path(raw)
+        name = path.name.casefold()
+        if not name.endswith('.dll'):
+            continue
+        is_native_family = (name.startswith(('qt6', 'libstdc++', 'libgcc_s_',
+                                              'libwinpthread-', 'libopenal-'))
+                            or name in ('qwindows.dll', 'controller.dll'))
+        if not is_native_family:
+            continue
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(root):
+            raise ValueError('Native ABI-family DLL loaded outside pinned Webots runtime: ' + name)
+        if name in observed and observed[name]['path'] != str(resolved):
+            raise ValueError('Multiple native ABI-family DLL paths: ' + name)
+        observed[name] = {'path': str(resolved), 'independently_pinned': name in pinned_names}
+    return dict(sorted(observed.items()))
+
+
 def unique_native_snapshot(qualified_rows):
     """Use only this poll's attested processes; reject duplicate native roles."""
     snapshot = {}
@@ -283,12 +312,15 @@ def run(args):
                     expected_exe = bin_dir / name if name == 'webots-bin.exe' else controller
                     if Path(child.exe()).resolve() != expected_exe.resolve():
                         raise ValueError('Wrong native executable path')
-                    modules = attest_modules([m.path for m in child.memory_maps()], expected, sdk)
-                    graphics = {m.path: sha256(Path(m.path)) for m in child.memory_maps()
-                                if Path(m.path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
+                    mapped_paths = [m.path for m in child.memory_maps()]
+                    abi_families = attest_native_abi_family_locations(mapped_paths, home)
+                    modules = attest_modules(mapped_paths, expected, sdk)
+                    graphics = {path: sha256(Path(path)) for path in mapped_paths
+                                if Path(path).name.casefold() in ('opengl32.dll', 'opengl32sw.dll', 'libglapi.dll')}
                     qualified_rows.append((role, {'pid': child.pid, 'create_time': identity[1],
                         'ppid': child.ppid(), 'exe': child.exe(), 'modules': modules,
-                        'graphics_modules': graphics, 'command_line': command_line}))
+                        'graphics_modules': graphics, 'native_abi_family_locations': abi_families,
+                        'command_line': command_line}))
                 except (psutil.NoSuchProcess, psutil.AccessDenied, LookupError):
                     # An incomplete observation cannot qualify this poll.
                     incomplete_snapshot = True
