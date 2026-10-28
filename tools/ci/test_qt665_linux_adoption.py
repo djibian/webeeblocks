@@ -63,6 +63,7 @@ def actual_webots_consumers_without_historical_witnesses(source):
         if (section.count("bash tools/ci/pull_pinned_historical_webots.sh") != 1
                 or section.count(OFFICIAL[0]) != 1
                 or IMAGE in section
+                or section.count("bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor --pinned-reference") != 1
                 or "timeout-minutes: 12" not in section
                 or "timeout -k 5s 30s xvfb-run" not in section
                 or "--network none" not in section
@@ -95,6 +96,29 @@ def actual_support_selectors_without_historical_contract_literals(source):
     return source[:a] + source[b:]
 
 
+def actual_sidecar_consumer_with_verified_reference_mode(source):
+    """The default sidecar is corrected Qt; only a digest-checked flag may use official."""
+    expected = 'IMAGE="' + IMAGE + '"'
+    official = 'IMAGE="' + OFFICIAL[0] + '"'
+    digest = 'source_id="$(docker image inspect --format \'{{.Id}}\' "' + OFFICIAL[1] + '")"'
+    required = (
+        'PINNED_REFERENCE=0',
+        '--pinned-reference)',
+        'if [ "$PINNED_REFERENCE" = 1 ]; then',
+        'tag_id="$(docker image inspect --format \'{{.Id}}\' "$IMAGE")"',
+        '[[ ! "$source_id" =~ ^sha256:[[:xdigit:]]{64}$ || "$tag_id" != "$source_id" ]]',
+        'docker run --rm --network none',
+    )
+    if source.count(expected) != 1 or source.count(official) != 1 or source.count(digest) != 1:
+        raise ValueError("unqualified native sidecar image selector")
+    if any(token not in source for token in required):
+        raise ValueError("native sidecar official reference guard missing")
+    if "docker pull " in source:
+        raise ValueError("native sidecar must not fetch any unpinned image")
+    return source.replace(official, "", 1).replace(digest, "", 1)
+
+
+
 def enforce_selector(source):
     if IMAGE not in source:
         raise ValueError("qualified immutable OCI digest missing")
@@ -112,6 +136,8 @@ class LinuxConsumerImageTests(unittest.TestCase):
                     source = actual_webots_consumers_without_historical_witnesses(source)
                 elif relative == "tools/ci/test_workflow_contract.py":
                     source = actual_support_selectors_without_historical_contract_literals(source)
+                elif relative == "tools/ci/build_historical_blockly_sidecar.sh":
+                    source = actual_sidecar_consumer_with_verified_reference_mode(source)
                 enforce_selector(source)
 
     def test_reject_old_image_missing_digest_and_mixed_sources(self):
@@ -147,6 +173,8 @@ class LinuxConsumerImageTests(unittest.TestCase):
                 suite, "timeout -k 5s 30s xvfb-run", "xvfb-run")),
             ("historical network reopened", mutate_encoder(
                 suite, "--network none", "--network host")),
+            ("historical builder fallback to candidate", mutate_encoder(
+                suite, "--with-supervisor --pinned-reference", "--with-supervisor")),
             ("unqualified runtime added to other job", suite.replace(
                 IMAGE, IMAGE + "\n" + OFFICIAL[0], 1)),
         ):
@@ -159,6 +187,22 @@ class LinuxConsumerImageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             enforce_selector(actual_support_selectors_without_historical_contract_literals(
                 contract + "\n# Unqualified nonhistorical " + OFFICIAL[0] + "\n"))
+
+
+    def test_sidecar_reference_image_cannot_be_unpinned_or_impersonated(self):
+        sidecar = (ROOT / "tools/ci/build_historical_blockly_sidecar.sh").read_text(encoding="utf-8")
+        enforce_selector(actual_sidecar_consumer_with_verified_reference_mode(sidecar))
+        for label, damaged in (
+            ("source digest changed", sidecar.replace(OFFICIAL[1], OFFICIAL[1][:-1] + "0", 1)),
+            ("reference changed", sidecar.replace('IMAGE="' + OFFICIAL[0] + '"',
+                                                  'IMAGE="cyberbotics/webots:latest"', 1)),
+            ("tag/source check removed", sidecar.replace(
+                '"$tag_id" != "$source_id"', '"$tag_id" = "$source_id"', 1)),
+            ("network reopened", sidecar.replace("--network none", "--network host", 1)),
+            ("implicit unpinned pull", sidecar + "\ndocker pull cyberbotics/webots:latest\n"),
+        ):
+            with self.subTest(mutant=label), self.assertRaises(ValueError):
+                enforce_selector(actual_sidecar_consumer_with_verified_reference_mode(damaged))
 
     def test_separate_physical_qualification_lock_is_not_rewritten(self):
         # These certified generated inputs are distinct from CI's execution

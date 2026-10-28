@@ -1666,7 +1666,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor --pinned-reference \
             2>&1 | tee ci-artifacts/encoders-build.log
 
       - name: Execute historical encoder program in box challenge
@@ -1925,7 +1925,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor --pinned-reference \
             2>&1 | tee ci-artifacts/light-sensor-build.log
 
       - name: Prepare offline historical world
@@ -2125,7 +2125,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor \
+          bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor --pinned-reference \
             2>&1 | tee ci-artifacts/sensor-probing-build.log
 
       - name: Execute historical sensor probing program in empty world

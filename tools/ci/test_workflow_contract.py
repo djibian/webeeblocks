@@ -617,6 +617,7 @@ class WorkflowTests(unittest.TestCase):
         def check(section: str, expected_network_uses: int) -> None:
             self.assertIn("timeout-minutes: 12", section)
             self.assertEqual(section.count("bash tools/ci/pull_pinned_historical_webots.sh"), 1)
+            self.assertEqual(section.count("bash tools/ci/build_historical_blockly_sidecar.sh --with-supervisor --pinned-reference"), 1)
             self.assertNotIn("run: docker pull cyberbotics/webots:R2025a-ubuntu22.04", section)
             self.assertIn("cyberbotics/webots:R2025a-ubuntu22.04", section)
             self.assertNotIn("ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca", section)
@@ -637,6 +638,7 @@ class WorkflowTests(unittest.TestCase):
                     section.replace("timeout -k 5s 30s xvfb-run", "xvfb-run", 1),
                     section.replace("--network none", "--network host", 1),
                     section.replace("bash tools/ci/pull_pinned_historical_webots.sh", "true", 1),
+                    section.replace("--with-supervisor --pinned-reference", "--with-supervisor", 1),
                     section.replace("cyberbotics/webots:R2025a-ubuntu22.04", "ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:7a9272dfef96e7668f8f31eaac9099b0417a9028e3181df6f8376eea59fe1aca", 1),
                 ):
                     with self.assertRaises(AssertionError):
