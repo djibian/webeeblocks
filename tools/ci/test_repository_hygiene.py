@@ -27,7 +27,6 @@ REQUIRED_RUNTIME_ASSETS = (
     "core/blockly.js",
     "blocks/logic.js",
     "blocks/crazyflie.js",
-    "blocks/crazyflie_v2.js",
     "generators/python.js",
     "generators/python/logic.js",
     "media/sprites.png",
@@ -45,6 +44,11 @@ class RepositoryHygieneTests(unittest.TestCase):
         for relative in REQUIRED_RUNTIME_ASSETS:
             with self.subTest(path=relative):
                 self.assertTrue((LEGACY_BLOCKLY / relative).is_file())
+
+    def test_product_blocks_live_outside_archived_upstream(self) -> None:
+        product = ROOT / "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js"
+        self.assertTrue(product.is_file())
+        self.assertFalse((LEGACY_BLOCKLY / "blocks/crazyflie_v2.js").exists())
 
     def test_python_cache_is_not_tracked(self) -> None:
         result = subprocess.run(

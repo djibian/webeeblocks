@@ -19,6 +19,12 @@ class SelectCiTests(unittest.TestCase):
         self.assertFalse(result.webots)
         self.assertFalse(result.full)
 
+    def test_moved_product_definitions_keep_both_owning_suites(self) -> None:
+        selection = select(["plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js"])
+        self.assertTrue(selection.runtime)  # actual Blockly registration and UI
+        self.assertTrue(selection.webots)  # preserve historical Webots coverage
+        self.assertFalse(selection.full)
+
     def test_physical_host_activation_regression_routes_to_runtime(self) -> None:
         result = select(["tools/ci/test_physical_host_activation.py"])
         self.assertTrue(result.runtime)
