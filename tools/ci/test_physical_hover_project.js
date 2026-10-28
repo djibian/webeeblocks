@@ -8,7 +8,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const Blockly = require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly'));
 global.Blockly = Blockly;
 require(path.join(ROOT, 'plugins/robot_windows/blockly_v2/node_modules/blockly/blocks'));
-require(path.join(ROOT, 'plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js'));
+require(path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js'));
 const base = path.join(ROOT, 'plugins/robot_windows/blockly/webeeblocks');
 const Profiles = require(path.join(base, 'activity_profiles.js'));
 const Activities = require(path.join(base, 'activities.js'));

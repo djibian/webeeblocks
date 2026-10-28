@@ -45,7 +45,7 @@ def relevant_path(path: str) -> bool:
         "tools/ci/test_x3_interval_diagnostic.py",
         "experiments/crazyflie-ukf-surface-range/X3_INTERVAL_DIAGNOSTIC.md",
         "tools/prepare_runtime_v2.sh",
-        "plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js",
+        "plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js",
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.svg",
         "plugins/robot_windows/blockly/google-blockly-31ee4ea/media/sprites.png",
         "worlds/crazyflie_runtime_v2.wbt",

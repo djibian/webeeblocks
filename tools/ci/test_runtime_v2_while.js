@@ -3,7 +3,7 @@ const assert = require('assert');
 const Blockly = require('../../plugins/robot_windows/blockly_v2/node_modules/blockly');
 require('../../plugins/robot_windows/blockly_v2/node_modules/blockly/blocks');
 global.Blockly=Blockly;
-require('../../plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js');
+require('../../plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js');
 delete global.Blockly;
 const Compiler = require('../../plugins/robot_windows/blockly/webeeblocks/semantic_ast');
 const Interpreter = require('../../plugins/robot_windows/blockly/webeeblocks/interpreter');

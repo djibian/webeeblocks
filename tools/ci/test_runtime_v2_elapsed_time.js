@@ -12,7 +12,7 @@ const Profiles=require(root+'/plugins/robot_windows/blockly/webeeblocks/activiti
 const expression={kind:'elapsed_time',unit:'s'},variable={id:'time',name:'durée'};
 const ast={version:1,semantics:'webeeblocks-ast-v1',program:[{kind:'takeoff',height_m:.5},{kind:'set_variable',variable,value:expression},{kind:'land'}]};
 async function prove(){
-  vm.runInNewContext(fs.readFileSync(root+'/plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js','utf8'),{Blockly:{defineBlocksWithJsonArray:definitions=>Blockly.defineBlocksWithJsonArray(definitions.filter(x=>x.type==='webeeblocks_v2_elapsed'))}});
+  vm.runInNewContext(fs.readFileSync(root+'/plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js','utf8'),{Blockly:{defineBlocksWithJsonArray:definitions=>Blockly.defineBlocksWithJsonArray(definitions.filter(x=>x.type==='webeeblocks_v2_elapsed'))}});
   const ws=new Blockly.Workspace(),time=ws.newBlock('webeeblocks_v2_elapsed');
   assert.deepStrictEqual(Compiler.compileExpression(time),expression);
   const copy=new Blockly.Workspace();Blockly.serialization.workspaces.load(Blockly.serialization.workspaces.save(ws),copy);
