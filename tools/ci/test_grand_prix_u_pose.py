@@ -110,6 +110,19 @@ int main(void) {
             subprocess.run(['gcc','-std=c11',str(base/'angles.c'),'-lm','-o',str(base/'angles')],check=True)
             subprocess.run([str(base/'angles')],check=True,timeout=2)
 
+    def test_completed_takeoff_id_not_reused_by_flight_yaw_negative_oracle(self):
+        """The native negative still fires, but a completed id cannot fail twice."""
+        fixture = (FIXTURES / 'gp_u_pose_driver.cpp').read_text()
+        self.assertIn('assert(takeoff_ack_count==1);', fixture)
+        self.assertIn('reply.rfind("WEBEEBLOCKS_RUNTIME_V2 RESPONSE 1 ERR ",0)!=0', fixture)
+        self.assertIn('(at_deadline?"2147483646":"-1")+" ERR UNSAFE_OR_TIMEOUT"', fixture)
+        self.assertNotIn(
+            'mode=="flight-yaw-deadline-recover"?"2147483646":"1"',
+            fixture, 'stale post-ACK error oracle must not return',
+        )
+        self.assertIn('for(int id=41;id<=42;++id)', fixture)
+        self.assertIn('WEBEEBLOCKS_RUNTIME_V2 RESPONSE 43 ERR ', fixture)
+
     def test_real_composition_pose_provenance(self):
         self.assertIsNotNone(shutil.which('gcc'))
         self.assertIsNotNone(shutil.which('c++'))
