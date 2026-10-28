@@ -17,6 +17,11 @@ def instrument(source):
       if (!pose_ready)
         ++reset_pose_bad_samples;''')
 
+    return instrument_step(source)
+
+
+def instrument_step(source):
+    """Add only read-only step latency measurements; no RESET phase mutation."""
     # Optional #637 native timing: actual time inside Webots step, not the
     # interval between two sparse browser observations. Never edit product C.
     include = '#include <webots/supervisor.h>\n'
