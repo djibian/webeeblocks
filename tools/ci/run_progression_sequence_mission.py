@@ -314,6 +314,11 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/google-chrome.deb >/dev/n
 python3 /workspace/tools/ci/run_land_contact_regression.py \
   --home /usr/local/webots --xvfb /usr/bin/Xvfb \
   --out /workspace/ci-artifacts/progression-sequence-mission/land-contact-regression
+# Separate adversarial native attitude fail-safe; original LAND oracle above unchanged.
+python3 /workspace/tools/ci/run_land_contact_regression.py \
+  --case airborne-idle \
+  --home /usr/local/webots --xvfb /usr/bin/Xvfb \
+  --out /workspace/ci-artifacts/progression-sequence-mission/airborne-idle-failsafe
 chmod +x /workspace/tools/ci/webots_runtime_v2_browser.sh
 mkdir -p /workspace/ci-artifacts/progression-sequence-mission /root/.config/Cyberbotics
 printf "%s\n" \
