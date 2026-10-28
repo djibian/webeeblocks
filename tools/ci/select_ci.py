@@ -77,6 +77,17 @@ SHARED_RUNTIME_WEBOTS = (
     # The product Blockly definition contract is executed by Runtime student-ui.
     # Generic tools/ci/** must not select Webots alone and skip that owner.
     "tools/ci/test_blockly_v2_product_definitions.js",
+    # Transitive subprocess/require oracles of run_runtime_v2_core_harness.py.
+    # Generic tools/ci/** would run Webots alone and skip the actual Runtime
+    # owner, including physical authorization and reset-freshness negatives.
+    "tools/ci/test_runtime_mission_failure.js",
+    "tools/ci/test_runtime_outcome_settling.js",
+    "tools/ci/test_runtime_mission_broker.py",
+    "tools/ci/test_simulation_clock.py",
+    "tools/ci/test_teacher_decision_channel.py",
+    "tools/ci/test_post_reset_teacher_decision.py",
+    "tools/ci/test_post_reset_capability_bridge.py",
+    "tools/ci/test_front_range_diagnostic.py",
     "tools/ci/test_progression_sequence_contract.js",
     # Activity 6's positive/negative native proof is in Runtime progression shard 4.
     # A Webots-only selection incorrectly reports green while skipping that proof.

@@ -253,6 +253,31 @@ class SelectCiTests(unittest.TestCase):
         self.assertTrue(result.webots)  # preserve existing Webots coverage
         self.assertFalse(result.full)
 
+    def test_runtime_core_transitive_oracles_keep_their_owner(self) -> None:
+        # These tests are consumed through nested subprocess/require calls of
+        # run_runtime_v2_core_harness.py. An edit must still run Runtime core,
+        # in addition to the Webots selection they had before this fix.
+        paths = (
+            "tools/ci/test_runtime_mission_failure.js",
+            "tools/ci/test_runtime_outcome_settling.js",
+            "tools/ci/test_runtime_mission_broker.py",
+            "tools/ci/test_simulation_clock.py",
+            "tools/ci/test_teacher_decision_channel.py",
+            "tools/ci/test_post_reset_teacher_decision.py",
+            "tools/ci/test_post_reset_capability_bridge.py",
+            "tools/ci/test_front_range_diagnostic.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                selection = select([path])
+                self.assertTrue(selection.runtime)
+                self.assertTrue(selection.webots)
+                self.assertFalse(selection.full)
+        unrelated = select(["tools/ci/an_unrelated_probe.py"])
+        self.assertFalse(unrelated.runtime)
+        self.assertTrue(unrelated.webots)
+        self.assertFalse(unrelated.full)
+
     def test_runtime_v2_student_ui_experiment_routes_to_runtime(self) -> None:
         result = select(["experiments/runtime-v2-student-ui/probe.py"])
         self.assertTrue(result.runtime)
