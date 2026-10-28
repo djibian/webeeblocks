@@ -25,10 +25,12 @@
       var fields = definitions[block.type] || {};
       Object.keys(fields).forEach(function(fieldName) {
         var field = block.getField(fieldName);
-        if (!field || typeof field.getValue !== 'function') fail('field-option target unavailable: ' + block.type + '.' + fieldName);
+        if (!field || typeof field.getValue !== 'function')
+          fail('field-option target unavailable: ' + block.type + '.' + fieldName);
         var value = field.getValue();
         if (fields[fieldName].indexOf(value) < 0)
-          studentFail('field option forbidden by profile: ' + block.type + '.' + fieldName + '=' + value, 'Une option de ce programme n’est pas disponible dans cette activité. Modifiez-la avant de lancer.');
+          studentFail('field option forbidden by profile: ' + block.type + '.' + fieldName + '=' + value,
+            'Une option de ce programme n’est pas disponible dans cette activité. Modifiez-la avant de lancer.');
       });
     });
     return true;
@@ -37,7 +39,9 @@
     var allowed = new Set(profile.toolbox);
     var types = workspaceTypes(workspace);
     types.forEach(function(type) {
-      if (!allowed.has(type)) studentFail('block forbidden by profile: ' + type, 'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
+      if (!allowed.has(type))
+        studentFail('block forbidden by profile: ' + type,
+          'Un bloc de ce programme n’est pas disponible dans cette activité. Supprimez-le avant de lancer.');
     });
     preflightFieldOptions(profile, workspace);
     return types;
@@ -48,7 +52,8 @@
       var fields = definitions[block.type] || {};
       Object.keys(fields).forEach(function(fieldName) {
         var field = block.getField(fieldName);
-        if (!field || typeof field.setConstraints !== 'function') fail('field bound target unavailable: ' + block.type + '.' + fieldName);
+        if (!field || typeof field.setConstraints !== 'function')
+          fail('field bound target unavailable: ' + block.type + '.' + fieldName);
         var bounds = fields[fieldName];
         field.setConstraints(bounds.min, bounds.max, bounds.step);
       });
@@ -80,7 +85,10 @@
       });
     }
     sequence(ast && ast.program);
-    return {elapsedTime: elapsedTime, statements: statements, ranges: ranges, moveDirections: moves, verticalDirections: verticals};
+    return {
+      elapsedTime: elapsedTime, statements: statements, ranges: ranges,
+      moveDirections: moves, verticalDirections: verticals
+    };
   }
   function checkBound(bounds, name, value) {
     if (!Object.prototype.hasOwnProperty.call(bounds, name)) return;
@@ -121,12 +129,14 @@
   }
   function preflightAst(profile, ast) {
     var facts = collectAst(ast);
-    if (facts.elapsedTime && profile.runtime.elapsedSimulationTime !== true) fail('elapsed simulation time unavailable in profile');
+    if (facts.elapsedTime && profile.runtime.elapsedSimulationTime !== true)
+      fail('elapsed simulation time unavailable in profile');
     var kinds = new Set(profile.runtime.allowedStatementKinds || []);
     facts.statements.forEach(function(kind) { if (!kinds.has(kind)) fail('AST statement forbidden by profile: ' + kind); });
     requireDirections(facts, 'ranges', profile.runtime.rangeDirections, 'range capability unavailable in profile: ');
     requireDirections(facts, 'moveDirections', profile.runtime.moveDirections, 'move direction unavailable in profile: ');
-    requireDirections(facts, 'verticalDirections', profile.runtime.verticalDirections, 'vertical direction unavailable in profile: ');
+    requireDirections(facts, 'verticalDirections', profile.runtime.verticalDirections,
+      'vertical direction unavailable in profile: ');
     checkAstBounds(profile, ast);
     return facts;
   }
@@ -137,7 +147,9 @@
     if (facts.statements.has('call') && capabilities.procedures !== true) fail('procedures unavailable on backend');
     var actions = new Set(capabilities.actions || []);
     facts.statements.forEach(function(kind) {
-      if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind)) studentFail('backend action capability unavailable: ' + kind, 'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.');
+      if (BACKEND_ACTION_KINDS.indexOf(kind) >= 0 && !actions.has(kind))
+        studentFail('backend action capability unavailable: ' + kind,
+          'Ce bloc n’est pas pris en charge dans cette simulation. Modifiez le programme avant de relancer.');
     });
     requireDirections(facts, 'ranges', capabilities.rangeDirections, 'backend range capability unavailable: ');
     requireDirections(facts, 'moveDirections', capabilities.moveDirections, 'backend move direction unavailable: ');
@@ -162,6 +174,8 @@
     return ast;
   }
   return {
-    preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions, applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst, preflightBackend: preflightBackend, execute: execute
+    preflightWorkspace: preflightWorkspace, preflightFieldOptions: preflightFieldOptions,
+    applyFieldBounds: applyFieldBounds, collectAst: collectAst, preflightAst: preflightAst,
+    preflightBackend: preflightBackend, execute: execute
   };
 });
