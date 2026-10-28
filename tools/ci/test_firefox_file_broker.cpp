@@ -114,6 +114,11 @@ int main() {
   std::string noIdResponse;
   assert(broker.handleMessage("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST unknown OPEN", &noIdResponse));
   assert(noIdResponse.empty());
+  // A numeric ID outside the accepted domain is likewise unrecoverable;
+  // it must not generate a guessed response or call a provider operation.
+  std::string nonpositiveIdResponse;
+  assert(broker.handleMessage("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 0", &nonpositiveIdResponse));
+  assert(nonpositiveIdResponse.empty());
   // Known operation, wrong arity: same fail-closed, ID-preserving response.
   assert(send(broker, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 13 SAVE_AS") ==
          "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 13 ERR INVALID_REQUEST");
