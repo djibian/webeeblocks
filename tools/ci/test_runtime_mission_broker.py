@@ -53,6 +53,7 @@ const char *wb_supervisor_field_get_sf_string(WbFieldRef field);
 PROBE = r'''#include "file_broker_c.h"
 
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <iostream>
@@ -73,9 +74,26 @@ static std::string custom_data;
 static int node_token = 0;
 static int field_token = 0;
 
-extern "C" WbFileBroker *wb_file_broker_create_qt(void) { return nullptr; }
-extern "C" void wb_file_broker_destroy(WbFileBroker *) {}
-extern "C" const char *wb_file_broker_handle_message(WbFileBroker *, const char *) { return nullptr; }
+// No Qt is loaded: exercise the production adapter with a spy provider.
+static bool provider_available = true;
+static int provider_creations = 0, provider_destructions = 0, provider_messages = 0;
+static std::string provider_reply;
+extern "C" WbFileBroker *wb_file_broker_create_qt(void) {
+  ++provider_creations;
+  return provider_available ? new WbFileBroker{} : nullptr;
+}
+extern "C" void wb_file_broker_destroy(WbFileBroker *broker) {
+  ++provider_destructions;
+  delete broker;
+}
+extern "C" const char *wb_file_broker_handle_message(WbFileBroker *, const char *message) {
+  ++provider_messages;
+  int id = -1;
+  if (message)
+    std::sscanf(message, "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST %d", &id);
+  provider_reply = "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE " + std::to_string(id) + " ERR FAKE_PROVIDER";
+  return provider_reply.c_str();
+}
 
 extern "C" const char *wb_robot_wwi_receive_text(void) {
   if (incoming.empty())
@@ -122,6 +140,9 @@ static void reset_harness() {
   sent_text.clear();
   sent_binary.clear();
   custom_data.clear();
+  provider_available = true;
+  provider_creations = provider_destructions = provider_messages = 0;
+  provider_reply.clear();
   assert(webeeblocks_file_broker_receive_text() == nullptr);
   assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
 }
@@ -223,6 +244,83 @@ int main() {
   process({"WEBEEBLOCKS_RUNTIME_V2 REQUEST 31 OUTCOME progression-precise-movement-v1"});
   assert(sent_text.size() == 1);
   assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 31 ERR OUTCOME_UNAVAILABLE");
+
+  // B4-I0: late file messages stay inside the broker; HELLO remains a
+  // no-effect liveness reply. A single lazy provider serves multiple requests.
+  reset_harness();
+  process({
+    "WEBEEBLOCKS_RUNTIME_V2 HELLO",
+    "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 71 OPEN",
+    "WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 72 CAPABILITIES",
+    "WEBEEBLOCKS_RUNTIME_V2 HELLO"
+  });
+  assert(provider_creations == 1 && provider_messages == 2);
+  assert(provider_destructions == 0);
+  assert(sent_text.size() == 4);
+  assert(sent_text[0] == "WEBEEBLOCKS_RUNTIME_V2 READY HELLO");
+  assert(sent_text[1] == "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 71 ERR FAKE_PROVIDER");
+  assert(sent_text[2] == "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 72 ERR FAKE_PROVIDER");
+  assert(sent_text[3] == "WEBEEBLOCKS_RUNTIME_V2 READY HELLO");
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  webeeblocks_file_broker_robot_cleanup();
+  assert(provider_destructions == 1);
+
+  // Unavailable Qt provider reports a bounded error without swallowing the
+  // following flight RESET request or forging successful attempt freshness.
+  reset_harness();
+  provider_available = false;
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 73 OPEN");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 74 RESET");
+  const char *after_unavailable = webeeblocks_file_broker_receive_text();
+  assert(after_unavailable && std::strcmp(after_unavailable, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 74 RESET") == 0);
+  assert(provider_creations == 1 && provider_messages == 0);
+  assert(sent_text.size() == 1 && sent_text[0] ==
+    "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 73 ERR UNAVAILABLE");
+  const std::string failed_reset = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 74 ERR RESET_TIMEOUT";
+  webeeblocks_file_broker_send(failed_reset.c_str(), static_cast<int>(failed_reset.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+
+  // A second overlapping RESET B cannot steal pending RESET A, even if B
+  // replies first. The first successful matching ID rotates exactly once.
+  reset_harness();
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 80 RESET");
+  incoming.push_back("WEBEEBLOCKS_FILE_BROKER_V1 REQUEST 81 OPEN");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 82 RESET");
+  const char *reset_a = webeeblocks_file_broker_receive_text();
+  assert(reset_a && std::strcmp(reset_a, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 80 RESET") == 0);
+  const char *reset_b = webeeblocks_file_broker_receive_text();
+  assert(reset_b && std::strcmp(reset_b, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 82 RESET") == 0);
+  assert(provider_creations == 1 && provider_messages == 1);
+  assert(sent_text.size() == 1 && sent_text[0] ==
+    "WEBEEBLOCKS_FILE_BROKER_V1 RESPONSE 81 ERR FAKE_PROVIDER");
+  const std::string busy_b = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 82 ERR BUSY";
+  webeeblocks_file_broker_send(busy_b.c_str(), static_cast<int>(busy_b.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  const std::string ok_a = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 80 OK";
+  webeeblocks_file_broker_send(ok_a.c_str(), static_cast<int>(ok_a.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2");
+  const std::string stale_ok_b = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 82 OK";
+  webeeblocks_file_broker_send(stale_ok_b.c_str(), static_cast<int>(stale_ok_b.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2");
+
+  // Extra RESET tokens and frames containing embedded NUL are not exact
+  // protocol messages and may not rotate an attempt on coincident IDs.
+  reset_harness();
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 RESET extra");
+  const char *bad_reset = webeeblocks_file_broker_receive_text();
+  assert(bad_reset && std::strcmp(bad_reset, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 90 RESET extra") == 0);
+  const std::string fake_ok = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 90 OK";
+  webeeblocks_file_broker_send(fake_ok.c_str(), static_cast<int>(fake_ok.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  incoming.push_back("WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 RESET");
+  const char *valid_reset = webeeblocks_file_broker_receive_text();
+  assert(valid_reset && std::strcmp(valid_reset, "WEBEEBLOCKS_RUNTIME_V2 REQUEST 91 RESET") == 0);
+  const std::string valid_ok = "WEBEEBLOCKS_RUNTIME_V2 RESPONSE 91 OK";
+  const std::string embedded_nul = valid_ok + std::string(1, char(0)) + "trailing";
+  webeeblocks_file_broker_send(embedded_nul.data(), static_cast<int>(embedded_nul.size()));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 1");
+  webeeblocks_file_broker_send(valid_ok.c_str(), static_cast<int>(valid_ok.size() + 1));
+  assert(custom_data == "WEBEEBLOCKS_ACTIVITY_ATTEMPT_V1 2");
 
   webeeblocks_file_broker_robot_cleanup();
   std::cout << "PASS native mission broker: COMPLETE preserves exact terminal outcomes; FAILURE scopes non-completion world probes; stale/cross/malformed evidence is not promoted; Reset rotates freshness\n";
