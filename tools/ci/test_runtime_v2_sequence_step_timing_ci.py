@@ -15,10 +15,13 @@ from tools.ci import run_runtime_v2_outcome_probe as probe
 class NativeSequenceStepTimingExperiment(unittest.TestCase):
     def test_only_sequence_collision_receives_real_step_probe(self):
         observed = []
+        invoked = []
         proofs = (probe.FRESHNESS, probe.PROGRESSION[0], probe.PROGRESSION[1])
 
         def fake_run(argv, **kwargs):
-            observed.append((argv[1], dict(kwargs["env"])))
+            invoked.append(argv[1])
+            if "env" in kwargs:
+                observed.append((argv[1], dict(kwargs["env"])))
             return SimpleNamespace(returncode=0)
 
         # Even if a parent exports the probe switch, the wrapper must confine
@@ -30,6 +33,9 @@ class NativeSequenceStepTimingExperiment(unittest.TestCase):
             self.assertEqual(probe.main(), 0)
 
         self.assertEqual([row[0] for row in observed], list(proofs))
+        self.assertEqual(invoked.count("tools/ci/test_runtime_v2_sequence_step_timing_ci.py"), 1)
+        self.assertLess(invoked.index("tools/ci/test_runtime_v2_sequence_step_timing_ci.py"),
+                        invoked.index(probe.PROGRESSION[0]))
         for path, env in observed:
             if path == probe.PROGRESSION[0]:
                 self.assertEqual(env["WEBEEBLOCKS_SEQUENCE_CI_STEP_TIMING"], "1")

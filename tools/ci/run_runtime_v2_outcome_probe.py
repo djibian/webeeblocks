@@ -76,6 +76,14 @@ def main() -> int:
         print(f"BEGIN native R2025a proof {proof}", flush=True)
         # One-run #637 native experiment: enable the #744 Webots step probe
         # solely on the original sequence/collision proof, not other missions.
+        if proof == PROGRESSION[0]:
+            # The experiment contract must execute before the native witness;
+            # a failure cannot be silently treated as successful evidence.
+            contract = subprocess.run(
+                [sys.executable, "tools/ci/test_runtime_v2_sequence_step_timing_ci.py"],
+                cwd=ROOT, check=False)
+            if contract.returncode:
+                return contract.returncode
         proof_env = os.environ.copy()
         proof_env.pop("WEBEEBLOCKS_SEQUENCE_CI_STEP_TIMING", None)
         if proof == PROGRESSION[0]:
