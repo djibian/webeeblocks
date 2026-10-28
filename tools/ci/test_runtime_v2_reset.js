@@ -337,23 +337,23 @@ function testNativeAirborneIdleSafetyContract() {
   assert(guardStart >= 0 && activeStart > guardStart,
     'airborne idle unsafe attitude must latch fail-safe before motor PID dispatch');
   const guard = source.slice(guardStart, activeStart);
-  assert.match(guard, /fabs\\(actual\\.roll\\) > 1\\.2 \\|\\| fabs\\(actual\\.pitch\\) > 1\\.2/);
+  assert.match(guard, /fabs\(actual\.roll\) > 1\.2 \|\| fabs\(actual\.pitch\) > 1\.2/);
   for (const effect of ['stop_motors(m1, m2, m3, m4);',
     'airborne = 0;', 'simulation_clock_revoke(&program_clock);',
     'failsafe_latched = 1;', 'active_id = -1;', 'continue;']) {
     assert(guard.includes(effect), 'airborne idle guard missing effect: ' + effect);
   }
-  assert.doesNotMatch(guard, /response_(?:ok|error|value)\\(/,
+  assert.doesNotMatch(guard, /response_(?:ok|error|value)\(/,
     'no pending request exists while airborne idle: never forge a WWI reply');
   const fixture = fs.readFileSync(
     path.join(__dirname, 'fixtures/airborne_idle_failsafe_driver.c'), 'utf8');
-  assert.match(fixture, /wb_supervisor_field_set_sf_rotation\\(rotation, tilt\\)/);
-  assert.match(fixture, /strcmp\\(detail, "RESET_REQUIRED"\\)/);
-  assert.match(fixture, /motors_stopped\\(\\)/);
+  assert.match(fixture, /wb_supervisor_field_set_sf_rotation\(rotation, tilt\)/);
+  assert.match(fixture, /strcmp\(detail, "RESET_REQUIRED"\)/);
+  assert.match(fixture, /motors_stopped\(\)/);
   const runner = fs.readFileSync(
     path.join(__dirname, 'run_progression_sequence_mission.py'), 'utf8');
   assert.match(runner, /--case airborne-idle/);
-  assert.match(runner, /--out \\/workspace\\/ci-artifacts\\/progression-sequence-mission\\/airborne-idle-failsafe/);
+  assert.match(runner, /--out \/workspace\/ci-artifacts\/progression-sequence-mission\/airborne-idle-failsafe/);
 }
 
 function testNativeResetTimeoutSourceContract() {
