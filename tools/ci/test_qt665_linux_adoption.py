@@ -42,6 +42,59 @@ SUPPORT = (
 )
 
 
+HISTORICAL_REFERENCE_JOBS = (
+    ("encoders-historical", "gyro-gps-historical"),
+    ("light-sensor-historical", "sensor-probing-historical"),
+    ("sensor-probing-historical", "robot-window-roundtrip"),
+)
+
+
+def actual_webots_consumers_without_historical_witnesses(source):
+    """Exclude only #749's *verified official* reference jobs from Qt adoption.
+
+    An unverified legacy image, an extra job, changed native timing,
+    online execution or removed pinned provisioning must still be rejected.
+    """
+    for name, following in HISTORICAL_REFERENCE_JOBS:
+        start, end = "\n  " + name + ":\n", "\n  " + following + ":\n"
+        if source.count(start) != 1 or source.count(end) != 1:
+            raise ValueError("historical Webots witness boundary absent: " + name)
+        section = source.split(start, 1)[1].split(end, 1)[0]
+        if (section.count("bash tools/ci/pull_pinned_historical_webots.sh") != 1
+                or section.count(OFFICIAL[0]) != 1
+                or IMAGE in section
+                or "timeout-minutes: 12" not in section
+                or "timeout -k 5s 30s xvfb-run" not in section
+                or "--network none" not in section
+                or "Validate " not in section
+                or 'if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]' not in section
+                or 'exit "$code"' not in section
+                or "continue-on-error:" in section
+                or "run: docker pull cyberbotics/webots:R2025a-ubuntu22.04" in section):
+            raise ValueError("unqualified historical Webots witness: " + name)
+        # Do not exempt any neighboring job or unverified reference.
+        source = source.replace(start + section, "", 1)
+    return source
+
+
+def actual_support_selectors_without_historical_contract_literals(source):
+    """Tests about official witnesses are not image execution selectors."""
+    start = "    def test_historical_cold_provisioning_preserves_native_trial(self) -> None:"
+    end = "    def test_gyro_gps_historical_runtime_is_offline(self) -> None:"
+    if source.count(start) != 1 or source.count(end) != 1:
+        raise ValueError("missing independent historical image contract")
+    a = source.index(start)
+    b = source.index(end, a)
+    historical_contract = source[a:b]
+    for anchor in ("def test_historical_image_digest_provisioning_is_fail_closed",
+                   "bash tools/ci/pull_pinned_historical_webots.sh",
+                   "timeout -k 5s 30s xvfb-run",
+                   'self.assertNotIn("ghcr.io/djibian/webeeblocks-qt665-r2025a@sha256:'):
+        if anchor not in historical_contract:
+            raise ValueError("historical image contract incomplete: " + anchor)
+    return source[:a] + source[b:]
+
+
 def enforce_selector(source):
     if IMAGE not in source:
         raise ValueError("qualified immutable OCI digest missing")
@@ -54,7 +107,12 @@ class LinuxConsumerImageTests(unittest.TestCase):
     def test_every_actual_linux_consumer_is_qualified(self):
         for relative in CONSUMERS + SUPPORT:
             with self.subTest(path=relative):
-                enforce_selector((ROOT / relative).read_text(encoding="utf-8"))
+                source = (ROOT / relative).read_text(encoding="utf-8")
+                if relative == ".github/workflows/ci-webots.yml":
+                    source = actual_webots_consumers_without_historical_witnesses(source)
+                elif relative == "tools/ci/test_workflow_contract.py":
+                    source = actual_support_selectors_without_historical_contract_literals(source)
+                enforce_selector(source)
 
     def test_reject_old_image_missing_digest_and_mixed_sources(self):
         for text in ("", "cyberbotics/webots:R2025a-ubuntu22.04",
@@ -65,6 +123,35 @@ class LinuxConsumerImageTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     enforce_selector(text)
         enforce_selector("IMAGE = '" + IMAGE + "'")
+
+
+    def test_historical_witness_exemption_fails_closed_on_adversarial_mutations(self):
+        """A legacy image is never legal merely because its job sounds historical."""
+        suite = (ROOT / ".github/workflows/ci-webots.yml").read_text(encoding="utf-8")
+        contract = (ROOT / "tools/ci/test_workflow_contract.py").read_text(encoding="utf-8")
+        enforce_selector(actual_webots_consumers_without_historical_witnesses(suite))
+        enforce_selector(actual_support_selectors_without_historical_contract_literals(contract))
+        for label, damaged in (
+            ("unverified pull", suite.replace(
+                "bash tools/ci/pull_pinned_historical_webots.sh", "true", 1)),
+            ("corrected image replacing an official witness", suite.replace(
+                OFFICIAL[0], IMAGE, 1)),
+            ("historical native deadline dropped", suite.replace(
+                "timeout -k 5s 30s xvfb-run", "xvfb-run", 1)),
+            ("historical network reopened", suite.replace(
+                "--network none", "--network host", 1)),
+            ("unqualified runtime added to other job", suite.replace(
+                IMAGE, IMAGE + "\n" + OFFICIAL[0], 1)),
+        ):
+            with self.subTest(mutant=label), self.assertRaises(ValueError):
+                enforce_selector(actual_webots_consumers_without_historical_witnesses(damaged))
+        with self.assertRaises(ValueError):
+            actual_support_selectors_without_historical_contract_literals(
+                contract.replace("def test_historical_image_digest_provisioning_is_fail_closed",
+                                 "def renamed_historical_digest_test", 1))
+        with self.assertRaises(ValueError):
+            enforce_selector(actual_support_selectors_without_historical_contract_literals(
+                contract + "\n# Unqualified nonhistorical " + OFFICIAL[0] + "\n"))
 
     def test_separate_physical_qualification_lock_is_not_rewritten(self):
         # These certified generated inputs are distinct from CI's execution
