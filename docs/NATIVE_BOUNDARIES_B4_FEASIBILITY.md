@@ -1,7 +1,7 @@
 # B4 — Étude de faisabilité : frontières C / Qt / WWI
 
 **Référence d'analyse :** audit architectural du 27 octobre 2026 (état historique
-`main@9ed7b1088b54e641bde421477d72c95d609bbd7b`, ``2.4` et ``8.1–8.2, chantier C`).
+`main@9ed7b1088b54e641bde421477d72c95d609bbd7b`, sections 2.4 et 8.1–8.2, chantier C).
 **Code vérifié :** `main@2a0ef1a99fc6ee1583bdc02aedcafdbbaa9f94b1`,
 28 octobre 2026 ; `AGENTS.md` V5, `PRODUCT_VISION.md` et `ROADMAP.md`
 de cette référence. Les PR et défauts GitHub évoluent indépendamment.
