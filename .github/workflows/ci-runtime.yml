@@ -56,7 +56,7 @@ jobs:
           node --check plugins/robot_windows/blockly/webeeblocks/semantic_ast.js
           node --check plugins/robot_windows/blockly/webeeblocks/interpreter.js
           node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
-          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js
           node --check tools/ci/test_runtime_v2_preflight.js
       - name: Reject malformed AST before backend actions
         run: node tools/ci/test_runtime_v2_preflight.js
@@ -138,7 +138,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check plugins/robot_windows/blockly/webeeblocks/activity_contract.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/ci/test_runtime_v2_preflight.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -1176,7 +1176,7 @@ jobs:
       - name: Validate UI experiment sources and canonical fixture
         run: |
           node --check plugins/robot_windows/blockly_v2/main.js
-          node --check plugins/robot_windows/blockly/google-blockly-31ee4ea/blocks/crazyflie_v2.js
+          node --check plugins/robot_windows/blockly/webeeblocks/crazyflie_v2.js
           node --check plugins/robot_windows/blockly/webeeblocks/activities.js
           python3 -m py_compile experiments/runtime-v2-student-ui/probe.py
           bash -n experiments/runtime-v2-student-ui/browser.sh experiments/runtime-v2-student-ui/run.sh
